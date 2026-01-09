@@ -5,6 +5,8 @@
  * Single API (v1) - simpler than Beds24
  * 
  * Each listing IS the bookable unit (no separate room types)
+ * 
+ * Updated: Added amenities sync support
  */
 
 const axios = require('axios');
@@ -14,6 +16,104 @@ const axios = require('axios');
 // =====================================================
 
 const HOSTAWAY_BASE = 'https://api.hostaway.com/v1';
+
+// Hostaway amenity ID to name mapping (common amenities)
+// This maps Hostaway's amenity IDs to human-readable names
+const HOSTAWAY_AMENITY_MAP = {
+  // General
+  1: { name: 'Air Conditioning', category: 'climate' },
+  2: { name: 'Heating', category: 'climate' },
+  3: { name: 'WiFi', category: 'technology' },
+  4: { name: 'TV', category: 'entertainment' },
+  5: { name: 'Cable TV', category: 'entertainment' },
+  6: { name: 'Fireplace', category: 'climate' },
+  7: { name: 'Intercom', category: 'safety' },
+  8: { name: 'Buzzer/Wireless Intercom', category: 'safety' },
+  9: { name: 'Doorman', category: 'safety' },
+  10: { name: 'Private Entrance', category: 'property' },
+  11: { name: 'Elevator', category: 'property' },
+  12: { name: 'Wheelchair Accessible', category: 'accessibility' },
+  
+  // Kitchen
+  13: { name: 'Kitchen', category: 'kitchen' },
+  14: { name: 'Coffee Maker', category: 'kitchen' },
+  15: { name: 'Refrigerator', category: 'kitchen' },
+  16: { name: 'Microwave', category: 'kitchen' },
+  17: { name: 'Dishwasher', category: 'kitchen' },
+  18: { name: 'Oven', category: 'kitchen' },
+  19: { name: 'Stove', category: 'kitchen' },
+  20: { name: 'Toaster', category: 'kitchen' },
+  21: { name: 'Dishes & Utensils', category: 'kitchen' },
+  22: { name: 'Cooking Basics', category: 'kitchen' },
+  
+  // Bathroom
+  23: { name: 'Shampoo', category: 'bathroom' },
+  24: { name: 'Hair Dryer', category: 'bathroom' },
+  25: { name: 'Iron', category: 'bathroom' },
+  26: { name: 'Washer', category: 'laundry' },
+  27: { name: 'Dryer', category: 'laundry' },
+  28: { name: 'Hot Tub', category: 'outdoor' },
+  
+  // Outdoor
+  29: { name: 'Pool', category: 'outdoor' },
+  30: { name: 'Free Parking', category: 'parking' },
+  31: { name: 'Street Parking', category: 'parking' },
+  32: { name: 'Paid Parking', category: 'parking' },
+  33: { name: 'Garage', category: 'parking' },
+  34: { name: 'EV Charger', category: 'parking' },
+  35: { name: 'Gym', category: 'outdoor' },
+  36: { name: 'BBQ Grill', category: 'outdoor' },
+  37: { name: 'Patio/Balcony', category: 'outdoor' },
+  38: { name: 'Garden', category: 'outdoor' },
+  
+  // Safety
+  39: { name: 'Smoke Detector', category: 'safety' },
+  40: { name: 'Carbon Monoxide Detector', category: 'safety' },
+  41: { name: 'First Aid Kit', category: 'safety' },
+  42: { name: 'Fire Extinguisher', category: 'safety' },
+  43: { name: 'Lock on Bedroom Door', category: 'safety' },
+  
+  // Family
+  44: { name: 'Suitable for Children', category: 'family' },
+  45: { name: 'Suitable for Infants', category: 'family' },
+  46: { name: 'Pets Allowed', category: 'policy' },
+  47: { name: 'Smoking Allowed', category: 'policy' },
+  48: { name: 'Events Allowed', category: 'policy' },
+  
+  // Bedroom
+  49: { name: 'Hangers', category: 'bedroom' },
+  50: { name: 'Bed Linens', category: 'bedroom' },
+  51: { name: 'Extra Pillows & Blankets', category: 'bedroom' },
+  52: { name: 'Laptop Workspace', category: 'workspace' },
+  
+  // Location/Views
+  53: { name: 'Waterfront', category: 'views' },
+  54: { name: 'Beachfront', category: 'views' },
+  55: { name: 'Ski-in/Ski-out', category: 'views' },
+  56: { name: 'Mountain View', category: 'views' },
+  57: { name: 'Lake View', category: 'views' },
+  58: { name: 'Ocean View', category: 'views' },
+  59: { name: 'City View', category: 'views' },
+  60: { name: 'Garden View', category: 'views' },
+  
+  // Entertainment
+  61: { name: 'Game Console', category: 'entertainment' },
+  62: { name: 'Books and Reading Material', category: 'entertainment' },
+  63: { name: 'Sound System', category: 'entertainment' },
+  64: { name: 'Board Games', category: 'entertainment' },
+  65: { name: 'Streaming Services', category: 'entertainment' },
+  
+  // Common for vacation rentals
+  100: { name: 'Katy Trail Access', category: 'outdoor' },
+  101: { name: 'Game Room', category: 'entertainment' },
+  102: { name: 'Basketball Court', category: 'outdoor' },
+  103: { name: 'Fire Pit', category: 'outdoor' },
+  104: { name: 'Outdoor Dining Area', category: 'outdoor' },
+  105: { name: 'Private Deck', category: 'outdoor' },
+  106: { name: 'Kayaks', category: 'outdoor' },
+  107: { name: 'Fishing Gear', category: 'outdoor' },
+  108: { name: 'Bikes', category: 'outdoor' }
+};
 
 // =====================================================
 // RATE LIMITER (shared pattern with Beds24)
@@ -46,13 +146,14 @@ class RateLimiter {
 class HostawayAdapter {
   constructor(config) {
     this.name = 'hostaway';
-    this.version = '1.0.0';
+    this.version = '1.1.0';  // Updated version for amenities support
     this.capabilities = [
       'properties',
       'availability',
       'rates',
       'reservations',
-      'images'
+      'images',
+      'amenities'  // Added amenities capability
     ];
     
     // Credentials - Hostaway uses accountId + apiKey to get access token
@@ -221,7 +322,8 @@ class HostawayAdapter {
   async getProperties(options = {}) {
     const params = {
       limit: options.limit || 100,
-      offset: options.offset || 0
+      offset: options.offset || 0,
+      includeResources: 1  // Request all resources including amenities
     };
     
     const response = await this.request('/listings', 'GET', null, { params });
@@ -250,7 +352,9 @@ class HostawayAdapter {
   }
   
   async getProperty(listingId) {
-    const response = await this.request(`/listings/${listingId}`);
+    const response = await this.request(`/listings/${listingId}`, 'GET', null, {
+      params: { includeResources: 1 }
+    });
     
     if (!response.success) {
       return response;
@@ -260,6 +364,156 @@ class HostawayAdapter {
       success: true,
       data: this.mapProperty(response.data)
     };
+  }
+  
+  // =====================================================
+  // AMENITIES EXTRACTION
+  // =====================================================
+  
+  /**
+   * Extract amenities from Hostaway listing data
+   * Hostaway stores amenities in multiple possible locations:
+   * - listingAmenities: array of amenity IDs
+   * - amenities: sometimes used
+   * - amenityIds: sometimes used
+   * Also check the description for amenity keywords if structured data is missing
+   */
+  extractAmenities(raw) {
+    const amenities = [];
+    const seenNames = new Set();
+    
+    // Method 1: Check listingAmenities array (most common)
+    if (raw.listingAmenities && Array.isArray(raw.listingAmenities)) {
+      console.log(`Hostaway: Found ${raw.listingAmenities.length} listingAmenities`);
+      for (const amenityData of raw.listingAmenities) {
+        const amenityId = typeof amenityData === 'object' ? amenityData.amenityId || amenityData.id : amenityData;
+        const mapped = HOSTAWAY_AMENITY_MAP[amenityId];
+        if (mapped && !seenNames.has(mapped.name)) {
+          amenities.push({
+            id: amenityId,
+            name: mapped.name,
+            category: mapped.category,
+            source: 'hostaway_id'
+          });
+          seenNames.add(mapped.name);
+        } else if (typeof amenityData === 'object' && amenityData.name && !seenNames.has(amenityData.name)) {
+          // If Hostaway provides name directly
+          amenities.push({
+            id: amenityId,
+            name: amenityData.name,
+            category: amenityData.category || 'general',
+            source: 'hostaway_direct'
+          });
+          seenNames.add(amenityData.name);
+        }
+      }
+    }
+    
+    // Method 2: Check amenities array
+    if (raw.amenities && Array.isArray(raw.amenities)) {
+      console.log(`Hostaway: Found ${raw.amenities.length} in amenities array`);
+      for (const amenity of raw.amenities) {
+        const name = typeof amenity === 'string' ? amenity : amenity.name;
+        if (name && !seenNames.has(name)) {
+          amenities.push({
+            id: null,
+            name: name,
+            category: amenity.category || 'general',
+            source: 'hostaway_amenities'
+          });
+          seenNames.add(name);
+        }
+      }
+    }
+    
+    // Method 3: Check amenityIds if present
+    if (raw.amenityIds && Array.isArray(raw.amenityIds)) {
+      console.log(`Hostaway: Found ${raw.amenityIds.length} amenityIds`);
+      for (const amenityId of raw.amenityIds) {
+        const mapped = HOSTAWAY_AMENITY_MAP[amenityId];
+        if (mapped && !seenNames.has(mapped.name)) {
+          amenities.push({
+            id: amenityId,
+            name: mapped.name,
+            category: mapped.category,
+            source: 'hostaway_id'
+          });
+          seenNames.add(mapped.name);
+        }
+      }
+    }
+    
+    // Method 4: Parse amenities from description if no structured data found
+    if (amenities.length === 0 && raw.description) {
+      console.log('Hostaway: No structured amenities, parsing from description');
+      const parsedAmenities = this.parseAmenitiesFromDescription(raw.description);
+      for (const amenity of parsedAmenities) {
+        if (!seenNames.has(amenity.name)) {
+          amenities.push(amenity);
+          seenNames.add(amenity.name);
+        }
+      }
+    }
+    
+    console.log(`Hostaway: Total amenities extracted: ${amenities.length}`);
+    return amenities;
+  }
+  
+  /**
+   * Parse amenities from description text
+   * This is a fallback when structured amenity data is not available
+   */
+  parseAmenitiesFromDescription(description) {
+    const amenities = [];
+    if (!description) return amenities;
+    
+    // Common amenity keywords to look for
+    const amenityPatterns = [
+      { pattern: /katy trail/i, name: 'Katy Trail Access', category: 'outdoor' },
+      { pattern: /game room/i, name: 'Game Room', category: 'entertainment' },
+      { pattern: /basketball court/i, name: 'Basketball Court', category: 'outdoor' },
+      { pattern: /fire pit/i, name: 'Fire Pit', category: 'outdoor' },
+      { pattern: /hot tub|jacuzzi/i, name: 'Hot Tub', category: 'outdoor' },
+      { pattern: /pool(?!\s+table)/i, name: 'Pool', category: 'outdoor' },
+      { pattern: /pool table|billiards/i, name: 'Pool Table', category: 'entertainment' },
+      { pattern: /wifi|wi-fi|internet/i, name: 'WiFi', category: 'technology' },
+      { pattern: /air conditioning|a\/c|ac\b/i, name: 'Air Conditioning', category: 'climate' },
+      { pattern: /heating|heater/i, name: 'Heating', category: 'climate' },
+      { pattern: /washer|laundry/i, name: 'Washer', category: 'laundry' },
+      { pattern: /dryer/i, name: 'Dryer', category: 'laundry' },
+      { pattern: /dishwasher/i, name: 'Dishwasher', category: 'kitchen' },
+      { pattern: /full kitchen|fully equipped kitchen/i, name: 'Full Kitchen', category: 'kitchen' },
+      { pattern: /grill|bbq|barbecue/i, name: 'BBQ Grill', category: 'outdoor' },
+      { pattern: /patio|deck|balcony/i, name: 'Patio/Deck', category: 'outdoor' },
+      { pattern: /parking|garage/i, name: 'Parking', category: 'parking' },
+      { pattern: /pet friendly|pets allowed/i, name: 'Pet Friendly', category: 'policy' },
+      { pattern: /fireplace/i, name: 'Fireplace', category: 'climate' },
+      { pattern: /smart tv|streaming/i, name: 'Smart TV', category: 'entertainment' },
+      { pattern: /kayak/i, name: 'Kayaks', category: 'outdoor' },
+      { pattern: /bikes|bicycles/i, name: 'Bikes', category: 'outdoor' },
+      { pattern: /fishing/i, name: 'Fishing Gear', category: 'outdoor' },
+      { pattern: /outdoor dining/i, name: 'Outdoor Dining Area', category: 'outdoor' },
+      { pattern: /coffee maker|keurig/i, name: 'Coffee Maker', category: 'kitchen' },
+      { pattern: /river view|riverfront/i, name: 'River View', category: 'views' },
+      { pattern: /lake view|lakefront/i, name: 'Lake View', category: 'views' },
+      { pattern: /mountain view/i, name: 'Mountain View', category: 'views' },
+      { pattern: /ev charger|electric vehicle/i, name: 'EV Charger', category: 'parking' },
+      { pattern: /gym|fitness/i, name: 'Gym', category: 'outdoor' },
+      { pattern: /private entrance/i, name: 'Private Entrance', category: 'property' }
+    ];
+    
+    for (const { pattern, name, category } of amenityPatterns) {
+      if (pattern.test(description)) {
+        amenities.push({
+          id: null,
+          name,
+          category,
+          source: 'parsed_description'
+        });
+      }
+    }
+    
+    return amenities;
   }
   
   mapProperty(raw) {
@@ -283,6 +537,9 @@ class HostawayAdapter {
         isPrimary: true
       });
     }
+    
+    // Extract amenities using our enhanced method
+    const amenities = this.extractAmenities(raw);
     
     return {
       externalId: String(raw.id),
@@ -326,8 +583,8 @@ class HostawayAdapter {
       // Images
       images: images,
       
-      // Amenities (if available)
-      amenities: raw.amenities || [],
+      // Amenities - now properly extracted
+      amenities: amenities,
       
       // Raw data for reference
       metadata: {
@@ -544,7 +801,8 @@ class HostawayAdapter {
     const stats = {
       properties: { synced: 0, errors: 0 },
       roomTypes: { synced: 0, errors: 0 },
-      images: { synced: 0, errors: 0 }
+      images: { synced: 0, errors: 0 },
+      amenities: { synced: 0, errors: 0 }
     };
     
     try {
@@ -569,6 +827,9 @@ class HostawayAdapter {
           
           // Count images
           stats.images.synced += (property.images?.length || 0);
+          
+          // Count amenities
+          stats.amenities.synced += (property.amenities?.length || 0);
         } catch (error) {
           console.error(`Error syncing property ${property.externalId}:`, error.message);
           stats.properties.errors++;
@@ -672,6 +933,92 @@ class HostawayAdapter {
         ]);
       }
     }
+    
+    // Sync amenities to room_amenity_selections
+    if (property.amenities && property.amenities.length > 0) {
+      await this.syncAmenitiesToDatabase(property.externalId, property.amenities);
+    }
+  }
+  
+  /**
+   * Sync amenities to the room_amenity_selections table
+   * This links rooms to master_amenities for display in WordPress
+   */
+  async syncAmenitiesToDatabase(externalId, amenities) {
+    if (!this.pool || !amenities || amenities.length === 0) return;
+    
+    try {
+      // First, get the bookable_unit_id for this external listing
+      const unitResult = await this.pool.query(`
+        SELECT id FROM bookable_units WHERE hostaway_listing_id = $1
+      `, [externalId]);
+      
+      if (unitResult.rows.length === 0) {
+        console.log(`Hostaway: No bookable_unit found for listing ${externalId}, skipping amenities sync`);
+        return;
+      }
+      
+      const roomId = unitResult.rows[0].id;
+      
+      // Clear existing amenity selections for this room
+      await this.pool.query(`
+        DELETE FROM room_amenity_selections WHERE room_id = $1
+      `, [roomId]);
+      
+      // Also try bookable_unit_amenities table if it exists
+      try {
+        await this.pool.query(`
+          DELETE FROM bookable_unit_amenities WHERE bookable_unit_id = $1
+        `, [roomId]);
+      } catch (e) {
+        // Table might not exist, that's fine
+      }
+      
+      let order = 1;
+      for (const amenity of amenities) {
+        // Try to find matching master amenity
+        const masterResult = await this.pool.query(`
+          SELECT id, amenity_code FROM master_amenities 
+          WHERE LOWER(amenity_name::text) LIKE $1
+             OR LOWER(amenity_code) = $2
+          LIMIT 1
+        `, [`%"${amenity.name.toLowerCase()}"%`, amenity.name.toLowerCase().replace(/\s+/g, '_')]);
+        
+        if (masterResult.rows.length > 0) {
+          // Found matching master amenity, create selection
+          const masterId = masterResult.rows[0].id;
+          await this.pool.query(`
+            INSERT INTO room_amenity_selections (room_id, amenity_id, display_order)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (room_id, amenity_id) DO UPDATE SET display_order = EXCLUDED.display_order
+          `, [roomId, masterId, order]);
+          order++;
+        } else {
+          // No matching master amenity, insert into bookable_unit_amenities directly
+          try {
+            await this.pool.query(`
+              INSERT INTO bookable_unit_amenities (
+                bookable_unit_id, amenity_name, amenity_code, category, display_order
+              ) VALUES ($1, $2, $3, $4, $5)
+              ON CONFLICT DO NOTHING
+            `, [
+              roomId,
+              JSON.stringify({ en: amenity.name }),
+              amenity.name.toLowerCase().replace(/\s+/g, '_'),
+              amenity.category || 'general',
+              order
+            ]);
+            order++;
+          } catch (e) {
+            console.log(`Hostaway: Could not insert amenity ${amenity.name}:`, e.message);
+          }
+        }
+      }
+      
+      console.log(`Hostaway: Synced ${order - 1} amenities for room ${roomId}`);
+    } catch (error) {
+      console.error(`Hostaway: Error syncing amenities for ${externalId}:`, error.message);
+    }
   }
   
   // =====================================================
@@ -697,5 +1044,6 @@ class HostawayAdapter {
 
 module.exports = {
   HostawayAdapter,
-  RateLimiter
+  RateLimiter,
+  HOSTAWAY_AMENITY_MAP
 };
