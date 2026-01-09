@@ -146,7 +146,7 @@ class RateLimiter {
 class HostawayAdapter {
   constructor(config) {
     this.name = 'hostaway';
-    this.version = '1.1.2';  // Fixed database schema
+    this.version = '1.1.3';  // Flexible amenity matching
     this.capabilities = [
       'properties',
       'availability',
@@ -950,14 +950,40 @@ class HostawayAdapter {
       }
       
       let order = 1;
+      let matched = 0;
+      let unmatched = [];
+      
       for (const amenity of amenities) {
-        // Try to find matching master amenity
+        // Generate multiple search variations for flexible matching
+        const name = amenity.name;
+        const nameLower = name.toLowerCase();
+        const codeWithUnderscore = nameLower.replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+        const codeNoSpace = nameLower.replace(/\s+/g, '').replace(/[^a-z0-9]/g, '');
+        const codeWithHyphen = nameLower.replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+        
+        // Try flexible matching:
+        // 1. Exact code match (case insensitive)
+        // 2. Code with underscores
+        // 3. Code without spaces
+        // 4. Code with hyphens
+        // 5. JSON amenity_name contains the name
         const masterResult = await this.pool.query(`
           SELECT id, amenity_code FROM master_amenities 
-          WHERE LOWER(amenity_name::text) LIKE $1
+          WHERE LOWER(amenity_code) = $1
              OR LOWER(amenity_code) = $2
+             OR LOWER(amenity_code) = $3
+             OR LOWER(amenity_code) = $4
+             OR LOWER(amenity_name::text) LIKE $5
+             OR LOWER(amenity_name::text) LIKE $6
           LIMIT 1
-        `, [`%"${amenity.name.toLowerCase()}"%`, amenity.name.toLowerCase().replace(/\s+/g, '_')]);
+        `, [
+          nameLower,
+          codeWithUnderscore,
+          codeNoSpace,
+          codeWithHyphen,
+          `%"${nameLower}"%`,
+          `%"${nameLower.replace(/\s+/g, '')}"%`
+        ]);
         
         if (masterResult.rows.length > 0) {
           // Found matching master amenity, create selection
@@ -968,7 +994,9 @@ class HostawayAdapter {
             ON CONFLICT (room_id, amenity_id) DO UPDATE SET display_order = EXCLUDED.display_order
           `, [roomId, masterId, order]);
           order++;
+          matched++;
         } else {
+          unmatched.push(amenity.name);
           // No matching master amenity, insert into bookable_unit_amenities directly
           try {
             await this.pool.query(`
@@ -979,18 +1007,22 @@ class HostawayAdapter {
             `, [
               roomId,
               JSON.stringify({ en: amenity.name }),
-              amenity.name.toLowerCase().replace(/\s+/g, '_'),
+              codeWithUnderscore,
               amenity.category || 'general',
               order
             ]);
             order++;
           } catch (e) {
-            console.log(`Hostaway: Could not insert amenity ${amenity.name}:`, e.message);
+            // Table might not exist or other error, skip
           }
         }
       }
       
-      console.log(`Hostaway: Synced ${order - 1} amenities for room ${roomId}`);
+      console.log(`Hostaway: Synced ${matched} amenities to master_amenities for room ${roomId}`);
+      if (unmatched.length > 0) {
+        console.log(`Hostaway: ${unmatched.length} unmatched amenities: ${unmatched.slice(0, 5).join(', ')}${unmatched.length > 5 ? '...' : ''}`);
+      }
+      
     } catch (error) {
       console.error(`Hostaway: Error syncing amenities for ${externalId}:`, error.message);
     }
