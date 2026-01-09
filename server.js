@@ -39824,7 +39824,7 @@ app.get('/api/plugin/reviews', async (req, res) => {
     const xApiKey = req.headers['x-api-key'];
     const licenseKey = xLicenseKey || xApiKey || authHeader?.replace('Bearer ', '') || req.query.license_key;
     
-    const { property_id, room_id, min_rating, limit } = req.query;
+    const { property_id, room_id, room_ids, min_rating, limit } = req.query;
     
     // Get account from license
     const accountResult = await pool.query(`
@@ -39856,7 +39856,15 @@ app.get('/api/plugin/reviews', async (req, res) => {
       paramIndex++;
     }
     
-    if (room_id) {
+    // Support both room_id (single) and room_ids (comma-separated)
+    if (room_ids) {
+      const roomIdArray = room_ids.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+      if (roomIdArray.length > 0) {
+        query += ` AND r.room_id = ANY($${paramIndex}::int[])`;
+        params.push(roomIdArray);
+        paramIndex++;
+      }
+    } else if (room_id) {
       query += ` AND r.room_id = $${paramIndex}`;
       params.push(room_id);
       paramIndex++;
