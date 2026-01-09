@@ -146,7 +146,7 @@ class RateLimiter {
 class HostawayAdapter {
   constructor(config) {
     this.name = 'hostaway';
-    this.version = '1.1.5';  // AI description formatting
+    this.version = '1.1.6';  // Fixed JSON format for descriptions
     this.capabilities = [
       'properties',
       'availability',
@@ -1026,8 +1026,9 @@ Please provide your response in this exact JSON format:
       // Update bookable_units with formatted descriptions
       // Only update if we got valid formatted content
       if (formatted.fullDescription) {
-        const shortDesc = formatted.shortDescription || '';
-        const fullDesc = formatted.fullDescription;
+        // Wrap in JSON format for multilingual support
+        const shortDescJson = JSON.stringify({ en: formatted.shortDescription || '' });
+        const fullDescJson = JSON.stringify({ en: formatted.fullDescription });
         
         await this.pool.query(`
           UPDATE bookable_units SET
@@ -1035,7 +1036,7 @@ Please provide your response in this exact JSON format:
             description = $3,
             updated_at = NOW()
           WHERE id = $1
-        `, [roomId, shortDesc, fullDesc]);
+        `, [roomId, shortDescJson, fullDescJson]);
         
         console.log(`Hostaway: Updated descriptions for room ${roomId}`);
       }
