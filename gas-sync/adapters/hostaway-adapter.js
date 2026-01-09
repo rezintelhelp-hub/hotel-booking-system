@@ -146,7 +146,7 @@ class RateLimiter {
 class HostawayAdapter {
   constructor(config) {
     this.name = 'hostaway';
-    this.version = '1.1.4';  // Added connection_id to room_types
+    this.version = '1.1.5';  // AI description formatting
     this.capabilities = [
       'properties',
       'availability',
@@ -514,6 +514,86 @@ class HostawayAdapter {
     }
     
     return amenities;
+  }
+  
+  // =====================================================
+  // AI DESCRIPTION FORMATTING
+  // =====================================================
+  
+  /**
+   * Format property descriptions using AI
+   * Cleans up formatting without changing any factual information
+   */
+  async formatDescriptionWithAI(rawDescription, propertyName) {
+    if (!rawDescription || rawDescription.length < 50) {
+      return { shortDescription: '', fullDescription: rawDescription || '' };
+    }
+    
+    try {
+      const response = await axios.post(
+        'https://api.anthropic.com/v1/messages',
+        {
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1500,
+          messages: [{
+            role: 'user',
+            content: `You are reformatting a vacation rental property description. Your task is to clean up the formatting while preserving ALL factual information exactly as stated.
+
+RULES - YOU MUST FOLLOW THESE:
+1. DO NOT change any numbers (distances, capacities, counts, prices)
+2. DO NOT remove or alter any factual claims about the property
+3. DO NOT add information that isn't in the original
+4. DO NOT change location names, attraction names, or addresses
+5. REMOVE emojis and excessive punctuation
+6. REMOVE markdown formatting (**, ##, etc)
+7. Convert to clean, professional prose with proper paragraphs
+8. Keep the same tone but make it read smoothly
+
+Property Name: ${propertyName}
+
+Original Description:
+${rawDescription}
+
+Please provide your response in this exact JSON format:
+{
+  "shortDescription": "A 2-3 sentence summary highlighting the key selling points",
+  "fullDescription": "The cleaned up full description with proper paragraphs"
+}`
+          }]
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': process.env.ANTHROPIC_API_KEY,
+            'anthropic-version': '2023-06-01'
+          },
+          timeout: 30000
+        }
+      );
+      
+      const content = response.data?.content?.[0]?.text;
+      if (content) {
+        // Try to parse JSON from response
+        const jsonMatch = content.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          console.log(`Hostaway: AI formatted description for ${propertyName}`);
+          return {
+            shortDescription: parsed.shortDescription || '',
+            fullDescription: parsed.fullDescription || rawDescription
+          };
+        }
+      }
+      
+      // If parsing fails, return original
+      console.log(`Hostaway: AI response parsing failed for ${propertyName}, using original`);
+      return { shortDescription: '', fullDescription: rawDescription };
+      
+    } catch (error) {
+      console.log(`Hostaway: AI formatting failed for ${propertyName}: ${error.message}`);
+      // Return original on error
+      return { shortDescription: '', fullDescription: rawDescription };
+    }
   }
   
   mapProperty(raw) {
@@ -910,9 +990,57 @@ class HostawayAdapter {
       property.maxGuests || 2
     ]);
     
+    // Format descriptions with AI and update bookable_units
+    if (property.description) {
+      await this.syncDescriptionsToDatabase(property.externalId, property.name, property.description);
+    }
+    
     // Sync amenities to room_amenity_selections (if bookable_unit exists)
     if (property.amenities && property.amenities.length > 0) {
       await this.syncAmenitiesToDatabase(property.externalId, property.amenities);
+    }
+  }
+  
+  /**
+   * Sync formatted descriptions to bookable_units table
+   */
+  async syncDescriptionsToDatabase(externalId, propertyName, rawDescription) {
+    if (!this.pool || !rawDescription) return;
+    
+    try {
+      // Get the bookable_unit_id for this external listing
+      const unitResult = await this.pool.query(`
+        SELECT id, short_description, description FROM bookable_units WHERE hostaway_listing_id = $1
+      `, [externalId]);
+      
+      if (unitResult.rows.length === 0) {
+        console.log(`Hostaway: No bookable_unit found for listing ${externalId}, skipping description sync`);
+        return;
+      }
+      
+      const roomId = unitResult.rows[0].id;
+      
+      // Format with AI
+      const formatted = await this.formatDescriptionWithAI(rawDescription, propertyName);
+      
+      // Update bookable_units with formatted descriptions
+      // Only update if we got valid formatted content
+      if (formatted.fullDescription) {
+        const shortDesc = formatted.shortDescription || '';
+        const fullDesc = formatted.fullDescription;
+        
+        await this.pool.query(`
+          UPDATE bookable_units SET
+            short_description = $2,
+            description = $3,
+            updated_at = NOW()
+          WHERE id = $1
+        `, [roomId, shortDesc, fullDesc]);
+        
+        console.log(`Hostaway: Updated descriptions for room ${roomId}`);
+      }
+    } catch (error) {
+      console.error(`Hostaway: Error syncing descriptions for ${externalId}:`, error.message);
     }
   }
   
