@@ -16425,6 +16425,7 @@ app.get('/api/fix/create-reviews-table', async (req, res) => {
         external_id VARCHAR(100),
         source VARCHAR(50) NOT NULL DEFAULT 'manual',
         channel_name VARCHAR(100),
+        review_type VARCHAR(50) DEFAULT 'guest-to-host',
         reservation_id VARCHAR(100),
         guest_name VARCHAR(255),
         guest_avatar VARCHAR(500),
@@ -16456,6 +16457,26 @@ app.get('/api/fix/create-reviews-table', async (req, res) => {
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_reviews_review_date ON reviews(review_date)`);
     
     res.json({ success: true, message: 'Reviews table created successfully' });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Add review_type column if missing and clear bad data for resync
+app.get('/api/fix/update-reviews-table', async (req, res) => {
+  try {
+    // Add review_type column if it doesn't exist
+    await pool.query(`
+      ALTER TABLE reviews ADD COLUMN IF NOT EXISTS review_type VARCHAR(50) DEFAULT 'guest-to-host'
+    `);
+    
+    // Delete all hostaway reviews so they can be resynced with correct data
+    const deleteResult = await pool.query(`DELETE FROM reviews WHERE source = 'hostaway'`);
+    
+    res.json({ 
+      success: true, 
+      message: `Reviews table updated. Deleted ${deleteResult.rowCount} hostaway reviews for resync.`
+    });
   } catch (error) {
     res.json({ success: false, error: error.message });
   }
@@ -38007,6 +38028,18 @@ app.post('/api/hostaway/sync-reviews', async (req, res) => {
     
     for (const review of allReviews) {
       try {
+        // Skip host-to-guest reviews (we only want guest reviews of property)
+        if (review.type === 'host-to-guest') {
+          skipped++;
+          continue;
+        }
+        
+        // Skip reviews that are awaiting or have no content
+        if (review.status === 'awaiting' || (!review.publicReview && !review.rating)) {
+          skipped++;
+          continue;
+        }
+        
         const listingId = String(review.listingMapId || review.listingId);
         const room = roomsByListingId[listingId];
         
@@ -38019,6 +38052,22 @@ app.post('/api/hostaway/sync-reviews', async (req, res) => {
           `SELECT id FROM reviews WHERE source = 'hostaway' AND external_id = $1`,
           [String(review.id)]
         );
+        
+        // Map Hostaway channelId to channel name
+        const channelIdMap = {
+          2000: 'Airbnb',
+          2001: 'HomeAway',
+          2002: 'VRBO',
+          2003: 'Booking.com',
+          2004: 'Expedia',
+          2005: 'TripAdvisor',
+          2006: 'Google',
+          2007: 'Agoda',
+          2008: 'Hotels.com',
+          2009: 'Direct',
+          2010: 'Other'
+        };
+        const channelName = channelIdMap[review.channelId] || review.channelName || review.source || 'Unknown';
         
         const subRatings = {};
         if (review.accuracyRating) subRatings.accuracy = review.accuracyRating;
@@ -38034,7 +38083,8 @@ app.post('/api/hostaway/sync-reviews', async (req, res) => {
           room_id: room.room_id,
           external_id: String(review.id),
           source: 'hostaway',
-          channel_name: review.channelName || review.source || 'Unknown',
+          channel_name: channelName,
+          review_type: review.type || 'guest-to-host',
           reservation_id: review.reservationId ? String(review.reservationId) : null,
           guest_name: review.guestName || review.reviewerName || 'Guest',
           guest_avatar: review.guestPicture || review.reviewerPhoto || null,
@@ -38043,12 +38093,12 @@ app.post('/api/hostaway/sync-reviews', async (req, res) => {
           title: review.headline || review.title || null,
           comment: review.publicReview || review.comment || review.reviewText || null,
           private_feedback: review.privateReview || review.privateFeedback || null,
-          host_reply: review.hostReply || review.response || null,
+          host_reply: review.revieweeResponse || review.hostReply || review.response || null,
           host_reply_at: review.hostReplyDate ? new Date(review.hostReplyDate) : null,
-          review_date: review.reviewDate || review.submittedAt || review.createdAt || null,
+          review_date: review.submittedAt || review.reviewDate || review.insertedOn || null,
           stay_date_start: review.arrivalDate || review.checkIn || null,
           stay_date_end: review.departureDate || review.checkOut || null,
-          is_public: review.isPublic !== false,
+          is_public: review.isHidden !== 1,
           language: review.language || null,
           sub_ratings: Object.keys(subRatings).length > 0 ? JSON.stringify(subRatings) : null,
           raw_data: JSON.stringify(review)
