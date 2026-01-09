@@ -6,8 +6,7 @@
  * 
  * Each listing IS the bookable unit (no separate room types)
  * 
- * Updated: Added amenities sync support
- * v1.1.1: Fixed database column names to match existing schema
+ * v1.1.2: Fixed database schema - uses sync_property_id FK, delete-then-insert for room_types
  */
 
 const axios = require('axios');
@@ -147,7 +146,7 @@ class RateLimiter {
 class HostawayAdapter {
   constructor(config) {
     this.name = 'hostaway';
-    this.version = '1.1.1';  // Fixed database schema
+    this.version = '1.1.2';  // Fixed database schema
     this.capabilities = [
       'properties',
       'availability',
@@ -893,16 +892,16 @@ class HostawayAdapter {
     
     const syncPropertyId = propResult.rows[0].id;
     
-    // Upsert room type (same as property for Hostaway)
-    // Using correct column names: sync_property_id (FK), external_id, name, max_guests
+    // Delete existing room type for this property, then insert fresh
+    // (avoids ON CONFLICT issues since there's no unique constraint)
+    await this.pool.query(`
+      DELETE FROM gas_sync_room_types WHERE sync_property_id = $1
+    `, [syncPropertyId]);
+    
     await this.pool.query(`
       INSERT INTO gas_sync_room_types (
         sync_property_id, external_id, name, max_guests, synced_at
       ) VALUES ($1, $2, $3, $4, NOW())
-      ON CONFLICT (sync_property_id, external_id) DO UPDATE SET
-        name = EXCLUDED.name,
-        max_guests = EXCLUDED.max_guests,
-        synced_at = NOW()
     `, [
       syncPropertyId,
       property.externalId,
