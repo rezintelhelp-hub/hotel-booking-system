@@ -38991,14 +38991,6 @@ app.get('/api/plugin-licenses/:id', async (req, res) => {
   }
 });
 
-app.get('*', (req, res) => {
-  // Don't serve index.html for API routes - return 404 instead
-  if (req.path.startsWith('/api')) {
-    return res.status(404).json({ error: 'API endpoint not found', path: req.path });
-  }
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
 // ============================================
 // BEDS24 WIZARD ENDPOINTS
 // ============================================
@@ -39886,6 +39878,20 @@ app.get('/api/plugin/reviews', async (req, res) => {
 // END PLUGIN API ENDPOINTS
 // ============================================
 
+// ============================================
+// CATCH-ALL HANDLER (must be last route)
+// ============================================
+app.get('*', (req, res) => {
+  // Don't serve index.html for API routes - return 404 instead
+  if (req.path.startsWith('/api')) {
+    return res.status(404).json({ error: 'API endpoint not found', path: req.path });
+  }
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// ============================================
+// SYNC SCHEDULER
+// ============================================
 function startTieredSyncScheduler() {
   // Run every 15 minutes (900000ms)
   const SYNC_INTERVAL = 15 * 60 * 1000;
