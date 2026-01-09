@@ -146,7 +146,7 @@ class RateLimiter {
 class HostawayAdapter {
   constructor(config) {
     this.name = 'hostaway';
-    this.version = '1.1.3';  // Flexible amenity matching
+    this.version = '1.1.4';  // Added connection_id to room_types
     this.capabilities = [
       'properties',
       'availability',
@@ -900,9 +900,10 @@ class HostawayAdapter {
     
     await this.pool.query(`
       INSERT INTO gas_sync_room_types (
-        sync_property_id, external_id, name, max_guests, synced_at
-      ) VALUES ($1, $2, $3, $4, NOW())
+        connection_id, sync_property_id, external_id, name, max_guests, synced_at
+      ) VALUES ($1, $2, $3, $4, $5, NOW())
     `, [
+      this.connectionId,
       syncPropertyId,
       property.externalId,
       property.name,
