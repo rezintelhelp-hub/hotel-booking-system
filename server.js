@@ -39316,7 +39316,7 @@ app.get('/api/plugin/check-update', async (req, res) => {
   try {
     const latestVersion = {
       version: '1.0.151',
-      download_url: 'https://github.com/rezintelhelp-hub/gas-booking-plugin/releases/download/v1.0.151/gas-booking-v1.0.151.zip',
+      download_url: 'https://github.com/rezintelhelp-hub/gas-booking-plugin/releases/download/v1.0.151/gas-booking-v1_0_151.zip',
       requires: '5.8',
       tested: '6.4',
       requires_php: '7.4',
