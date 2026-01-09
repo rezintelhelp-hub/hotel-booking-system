@@ -7,6 +7,7 @@
  * Each listing IS the bookable unit (no separate room types)
  * 
  * Updated: Added amenities sync support
+ * v1.1.1: Fixed database column names to match existing schema
  */
 
 const axios = require('axios');
@@ -146,14 +147,14 @@ class RateLimiter {
 class HostawayAdapter {
   constructor(config) {
     this.name = 'hostaway';
-    this.version = '1.1.0';  // Updated version for amenities support
+    this.version = '1.1.1';  // Fixed database schema
     this.capabilities = [
       'properties',
       'availability',
       'rates',
       'reservations',
       'images',
-      'amenities'  // Added amenities capability
+      'amenities'
     ];
     
     // Credentials - Hostaway uses accountId + apiKey to get access token
@@ -864,8 +865,8 @@ class HostawayAdapter {
       return;
     }
     
-    // Upsert to gas_sync_properties
-    await this.pool.query(`
+    // Upsert to gas_sync_properties and get the ID back
+    const propResult = await this.pool.query(`
       INSERT INTO gas_sync_properties (
         connection_id, external_id, name, city, country, currency,
         is_active, synced_at, raw_data
@@ -878,6 +879,7 @@ class HostawayAdapter {
         is_active = EXCLUDED.is_active,
         synced_at = NOW(),
         raw_data = EXCLUDED.raw_data
+      RETURNING id
     `, [
       this.connectionId,
       property.externalId,
@@ -889,52 +891,26 @@ class HostawayAdapter {
       JSON.stringify(property.raw)
     ]);
     
+    const syncPropertyId = propResult.rows[0].id;
+    
     // Upsert room type (same as property for Hostaway)
+    // Using correct column names: sync_property_id (FK), external_id, name, max_guests
     await this.pool.query(`
       INSERT INTO gas_sync_room_types (
-        connection_id, property_external_id, external_id, name,
-        max_guests, base_price, synced_at, raw_data
-      ) VALUES ($1, $2, $3, $4, $5, $6, NOW(), $7)
-      ON CONFLICT (connection_id, external_id) DO UPDATE SET
+        sync_property_id, external_id, name, max_guests, synced_at
+      ) VALUES ($1, $2, $3, $4, NOW())
+      ON CONFLICT (sync_property_id, external_id) DO UPDATE SET
         name = EXCLUDED.name,
         max_guests = EXCLUDED.max_guests,
-        base_price = EXCLUDED.base_price,
-        synced_at = NOW(),
-        raw_data = EXCLUDED.raw_data
+        synced_at = NOW()
     `, [
-      this.connectionId,
+      syncPropertyId,
       property.externalId,
-      property.externalId, // Same ID for Hostaway
       property.name,
-      property.maxGuests || 2,
-      property.basePrice || 100,
-      JSON.stringify(property.raw)
+      property.maxGuests || 2
     ]);
     
-    // Sync images
-    if (property.images && property.images.length > 0) {
-      for (const image of property.images) {
-        await this.pool.query(`
-          INSERT INTO gas_sync_images (
-            connection_id, property_external_id, room_type_external_id,
-            url, caption, sort_order, synced_at
-          ) VALUES ($1, $2, $3, $4, $5, $6, NOW())
-          ON CONFLICT (connection_id, url) DO UPDATE SET
-            caption = EXCLUDED.caption,
-            sort_order = EXCLUDED.sort_order,
-            synced_at = NOW()
-        `, [
-          this.connectionId,
-          property.externalId,
-          property.externalId,
-          image.url,
-          image.caption || '',
-          image.sortOrder || 0
-        ]);
-      }
-    }
-    
-    // Sync amenities to room_amenity_selections
+    // Sync amenities to room_amenity_selections (if bookable_unit exists)
     if (property.amenities && property.amenities.length > 0) {
       await this.syncAmenitiesToDatabase(property.externalId, property.amenities);
     }
