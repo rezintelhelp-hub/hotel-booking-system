@@ -39818,9 +39818,13 @@ app.post('/api/plugin/booking', async (req, res) => {
 // Get reviews for plugin
 app.get('/api/plugin/reviews', async (req, res) => {
   try {
+    // Accept license key from multiple sources
     const authHeader = req.headers.authorization;
-    const licenseKey = authHeader?.replace('Bearer ', '');
-    const { property_id } = req.query;
+    const xLicenseKey = req.headers['x-license-key'];
+    const xApiKey = req.headers['x-api-key'];
+    const licenseKey = xLicenseKey || xApiKey || authHeader?.replace('Bearer ', '') || req.query.license_key;
+    
+    const { property_id, room_id, min_rating, limit } = req.query;
     
     // Get account from license
     const accountResult = await pool.query(`
@@ -39837,19 +39841,35 @@ app.get('/api/plugin/reviews', async (req, res) => {
     const accountId = accountResult.rows[0].id;
     
     let query = `
-      SELECT r.*, p.name as property_name
+      SELECT r.*, p.name as property_name, rm.name as room_name
       FROM reviews r
       JOIN properties p ON r.property_id = p.id
-      WHERE p.account_id = $1
+      LEFT JOIN rooms rm ON r.room_id = rm.id
+      WHERE p.account_id = $1 AND r.is_public = true
     `;
     const params = [accountId];
+    let paramIndex = 2;
     
     if (property_id) {
-      query += ` AND r.property_id = $2`;
+      query += ` AND r.property_id = $${paramIndex}`;
       params.push(property_id);
+      paramIndex++;
     }
     
-    query += ` ORDER BY r.created_at DESC LIMIT 50`;
+    if (room_id) {
+      query += ` AND r.room_id = $${paramIndex}`;
+      params.push(room_id);
+      paramIndex++;
+    }
+    
+    if (min_rating) {
+      query += ` AND r.rating >= $${paramIndex}`;
+      params.push(parseFloat(min_rating));
+      paramIndex++;
+    }
+    
+    const reviewLimit = Math.min(parseInt(limit) || 50, 100);
+    query += ` ORDER BY r.review_date DESC NULLS LAST, r.created_at DESC LIMIT ${reviewLimit}`;
     
     const reviewsResult = await pool.query(query, params);
     
@@ -39859,13 +39879,18 @@ app.get('/api/plugin/reviews', async (req, res) => {
         id: r.id,
         property_id: r.property_id,
         property_name: r.property_name,
+        room_id: r.room_id,
+        room_name: r.room_name,
         guest_name: r.guest_name,
         guest_avatar: r.guest_avatar,
+        guest_country: r.guest_country,
         rating: r.rating,
         comment: r.comment,
-        date: r.created_at,
+        channel_name: r.channel_name,
+        review_date: r.review_date,
         source: r.source
-      }))
+      })),
+      total: reviewsResult.rows.length
     });
     
   } catch (error) {
