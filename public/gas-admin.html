@@ -133,9 +133,10 @@
         }
         
         .nav-label::after {
-            content: '';
+            content: '▼';
             font-size: 0.5rem;
             transition: transform 0.2s;
+            opacity: 0.5;
         }
         
         .nav-section.collapsed .nav-label::after {
@@ -1482,7 +1483,7 @@
             </div>
 
             <nav class="nav">
-                <div class="nav-section">
+                <div class="nav-section collapsed">
                     <div class="nav-label" onclick="toggleNavSection(this)">Overview</div>
                     <div class="nav-section-items">
                     <a class="nav-item active" data-view="dashboard" href="#" onclick="navClick(this, 'dashboard'); return false;">
@@ -1492,7 +1493,7 @@
                     </div>
                 </div>
 
-                <div class="nav-section">
+                <div class="nav-section collapsed">
                     <div class="nav-label" onclick="toggleNavSection(this)">Accounts</div>
                     <div class="nav-section-items">
                     <a class="nav-item" data-view="accounts" href="#" onclick="navClick(this, 'accounts'); return false;">
@@ -1506,7 +1507,7 @@
                     </div>
                 </div>
 
-                <div class="nav-section">
+                <div class="nav-section collapsed">
                     <div class="nav-label" onclick="toggleNavSection(this)">Channel Manager</div>
                     <div class="nav-section-items">
                     <a class="nav-item" data-view="gas-sync-connections" href="#" onclick="navClick(this, 'gas-sync-connections'); return false;">
@@ -1525,7 +1526,7 @@
                     </div>
                 </div>
 
-                <div class="nav-section">
+                <div class="nav-section collapsed">
                     <div class="nav-label" onclick="toggleNavSection(this)">Property Management</div>
                     <div class="nav-section-items">
                     <a class="nav-item" data-view="properties" href="#" onclick="navClick(this, 'properties'); return false;">
@@ -1551,7 +1552,7 @@
                     </div>
                 </div>
 
-                <div class="nav-section">
+                <div class="nav-section collapsed">
                     <div class="nav-label" onclick="toggleNavSection(this)">Bookings & Revenue</div>
                     <div class="nav-section-items">
                     <a class="nav-item" data-view="bookings" href="#" onclick="navClick(this, 'bookings'); return false;">
@@ -1593,7 +1594,7 @@
                     </div>
                 </div>
 
-                <div class="nav-section">
+                <div class="nav-section collapsed">
                     <div class="nav-label" onclick="toggleNavSection(this)">Marketing</div>
                     <div class="nav-section-items">
                     <a class="nav-item" data-view="marketing" href="#" onclick="navClick(this, 'marketing'); return false;">
@@ -15940,6 +15941,8 @@ Local honey and preserves"></textarea>
         function restoreNavState() {
             try {
                 const states = JSON.parse(localStorage.getItem('gas_nav_states') || '{}');
+                const hasStates = Object.keys(states).length > 0;
+                
                 document.querySelectorAll('.nav-section').forEach(section => {
                     const label = section.querySelector('.nav-label');
                     if (label && states[label.textContent.trim()] !== undefined) {
@@ -15950,6 +15953,15 @@ Local honey and preserves"></textarea>
                         }
                     }
                 });
+                
+                // If no saved states, expand the section with the active item
+                if (!hasStates) {
+                    const activeItem = document.querySelector('.nav-item.active');
+                    if (activeItem) {
+                        const section = activeItem.closest('.nav-section');
+                        if (section) section.classList.remove('collapsed');
+                    }
+                }
             } catch (e) {
                 console.error('Error restoring nav state:', e);
             }
