@@ -36233,6 +36233,23 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link', async (req, res) => {
   }
 });
 
+// Unlink synced property from GAS
+app.post('/api/gas-sync/properties/:syncPropertyId/unlink', async (req, res) => {
+  try {
+    const { syncPropertyId } = req.params;
+    
+    await pool.query(`
+      UPDATE gas_sync_properties 
+      SET gas_property_id = NULL, prop_key_tested = FALSE, webhook_tested = FALSE, updated_at = NOW()
+      WHERE id = $1
+    `, [syncPropertyId]);
+    
+    res.json({ success: true, message: 'Property unlinked' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Auto-import synced property into GAS
 app.post('/api/gas-sync/properties/:syncPropertyId/import', async (req, res) => {
   try {
