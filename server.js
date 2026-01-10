@@ -2905,20 +2905,20 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         return '';
       }
       
-      // Beds24 Display Name → GAS display_name
-      const displayName = getText(texts.displayName) || '';
+      // Beds24 headlineText → GAS display_name (short marketing name)
+      const displayName = getText(texts.headlineText) || getText(texts.displayName) || '';
       
-      // Beds24 roomDescription1 (Room Description) → GAS short_description (for listings)
-      const roomShortDesc = getText(texts.roomDescription1) || getText(roomRawData.description) || '';
+      // Beds24 locationDescription → GAS short_description (for listings)
+      const roomShortDesc = getText(texts.locationDescription) || getText(texts.roomDescription1) || getText(roomRawData.description) || '';
       
-      // Beds24 auxiliaryText (Auxiliary Text) → GAS full_description (long description)
-      const roomFullDesc = getText(texts.auxiliaryText) || getText(roomRawData.fullDescription) || '';
+      // Beds24 propertyDescription1 or propertyDescriptionText → GAS full_description (long description)
+      const roomFullDesc = getText(texts.propertyDescription1) || getText(texts.propertyDescriptionText) || getText(texts.auxiliaryText) || getText(roomRawData.fullDescription) || '';
       
       // Log what we found
       console.log('link-to-gas: Room', room.name);
-      console.log('  - displayName:', displayName || '(empty)');
-      console.log('  - shortDesc (roomDescription1):', roomShortDesc || '(empty)');
-      console.log('  - fullDesc (auxiliaryText):', roomFullDesc || '(empty)');
+      console.log('  - displayName (headlineText):', displayName?.substring(0, 50) || '(empty)');
+      console.log('  - shortDesc (locationDescription):', roomShortDesc?.substring(0, 50) || '(empty)');
+      console.log('  - fullDesc (propertyDescription1):', roomFullDesc?.substring(0, 50) || '(empty)');
       
       const roomType = getText(texts.accommodationType) || getText(roomRawData.accommodationType) || '';
       
