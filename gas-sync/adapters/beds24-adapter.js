@@ -136,7 +136,15 @@ class Beds24Adapter {
         keys: response.data ? Object.keys(response.data) : []
       });
       
-      return { success: true, data: response.data };
+      // Check if V1 API returned an error in the response body
+      if (response.data && response.data.error) {
+        console.log(`Beds24 V1 API Error [${endpoint}]:`, response.data.error, 'Code:', response.data.errorCode);
+        return { 
+          success: false, 
+          error: response.data.error,
+          errorCode: response.data.errorCode 
+        };
+      }
       
       return { success: true, data: response.data };
     } catch (error) {
