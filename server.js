@@ -3038,6 +3038,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
       // Map feature codes to amenities
       if (featureCodes && gasRoomId) {
         const codes = featureCodes.split(',').map(c => c.trim()).filter(c => c);
+        console.log('link-to-gas: Mapping', codes.length, 'feature codes to amenities');
         
         if (codes.length > 0) {
           // Ensure beds24_code column exists on master_amenities
@@ -3057,6 +3058,9 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
             )
           `).catch(() => {});
           
+          let matched = 0;
+          let unmatched = [];
+          
           for (const code of codes) {
             // Try to find matching master amenity by beds24_code or amenity_code
             const masterMatch = await pool.query(`
@@ -3068,6 +3072,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
             
             if (masterMatch.rows.length > 0) {
               const ma = masterMatch.rows[0];
+              matched++;
               // Check if already linked
               const existing = await pool.query(
                 'SELECT id FROM bookable_unit_amenities WHERE bookable_unit_id = $1 AND amenity_id = $2',
@@ -3080,8 +3085,15 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
                   VALUES ($1, $2, $3, $4, $5)
                 `, [gasRoomId, ma.id, ma.amenity_code, ma.amenity_name, ma.category]);
               }
+            } else {
+              unmatched.push(code);
             }
             // If no match, the feature code is stored in feature_codes column for manual mapping later
+          }
+          
+          console.log('link-to-gas: Amenities matched:', matched, 'unmatched:', unmatched.length);
+          if (unmatched.length > 0 && unmatched.length <= 20) {
+            console.log('link-to-gas: Unmatched codes:', unmatched.join(', '));
           }
         }
       }
