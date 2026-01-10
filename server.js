@@ -36240,11 +36240,11 @@ app.post('/api/gas-sync/properties/:syncPropertyId/unlink', async (req, res) => 
     
     await pool.query(`
       UPDATE gas_sync_properties 
-      SET gas_property_id = NULL, prop_key_tested = FALSE, webhook_tested = FALSE, updated_at = NOW()
+      SET gas_property_id = NULL, prop_key = NULL, prop_key_tested = FALSE, webhook_tested = FALSE, updated_at = NOW()
       WHERE id = $1
     `, [syncPropertyId]);
     
-    res.json({ success: true, message: 'Property unlinked' });
+    res.json({ success: true, message: 'Property unlinked and prop key cleared' });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
