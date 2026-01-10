@@ -36250,6 +36250,54 @@ app.post('/api/gas-sync/properties/:syncPropertyId/unlink', async (req, res) => 
   }
 });
 
+// Fix properties wrongly assigned to wrong account - moves them to the connection's account
+app.post('/api/gas-sync/connections/:connectionId/fix-account-assignment', async (req, res) => {
+  try {
+    const { connectionId } = req.params;
+    
+    // Get the connection's correct account_id
+    const connResult = await pool.query('SELECT account_id FROM gas_sync_connections WHERE id = $1', [connectionId]);
+    if (connResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Connection not found' });
+    }
+    const correctAccountId = connResult.rows[0].account_id;
+    
+    // Find all synced properties for this connection that are linked to GAS properties
+    const syncedProps = await pool.query(`
+      SELECT sp.id, sp.gas_property_id, sp.external_id, p.account_id as current_account_id, p.name
+      FROM gas_sync_properties sp
+      JOIN properties p ON sp.gas_property_id = p.id
+      WHERE sp.connection_id = $1 AND sp.gas_property_id IS NOT NULL
+    `, [connectionId]);
+    
+    let fixed = 0;
+    let alreadyCorrect = 0;
+    const fixedProperties = [];
+    
+    for (const prop of syncedProps.rows) {
+      if (prop.current_account_id !== correctAccountId) {
+        // Update the property to the correct account
+        await pool.query('UPDATE properties SET account_id = $1 WHERE id = $2', [correctAccountId, prop.gas_property_id]);
+        // Also update any rooms for this property
+        await pool.query('UPDATE rooms SET account_id = $1 WHERE property_id = $2', [correctAccountId, prop.gas_property_id]);
+        fixed++;
+        fixedProperties.push(prop.name);
+      } else {
+        alreadyCorrect++;
+      }
+    }
+    
+    res.json({ 
+      success: true, 
+      message: `Fixed ${fixed} properties, ${alreadyCorrect} already correct`,
+      correctAccountId,
+      fixedProperties
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Auto-import synced property into GAS
 app.post('/api/gas-sync/properties/:syncPropertyId/import', async (req, res) => {
   try {
