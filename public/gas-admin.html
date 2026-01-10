@@ -38529,8 +38529,8 @@ Local honey and preserves"></textarea>
                             let statusTitle = 'Fully configured';
                             // If already imported, consider tests passed
                             const isImported = !!p.gas_property_id;
-                            const webhookTested = isImported || p.webhook_tested || false;
-                            const propKeyTested = isImported || p.prop_key_tested || false;
+                            const webhookTested = p.webhook_tested || false;
+                            const propKeyTested = p.prop_key_tested || false;
                             if (isBeds24) {
                                 if (!p.prop_key) {
                                     statusLight = '🔴';
@@ -38561,8 +38561,8 @@ Local honey and preserves"></textarea>
                                         <button onclick="copyWebhookUrlForProperty('${p.external_id}')" class="btn btn-sm" style="padding: 6px 8px;" title="Copy URL">📋</button>
                                         <span id="webhook-test-${p.id}">
                                             ${webhookTested ? 
-                                                '<span style="color: #22c55e; font-weight: bold;">✅</span>' : 
-                                                `<button onclick="testWebhookForProperty(${p.id}, '${p.external_id}')" class="btn btn-sm" style="background: #22c55e; color: white; padding: 6px 10px;">🧪 Test</button>`
+                                                `<button onclick="testWebhookForProperty(${p.id}, '${p.external_id}')" class="btn btn-sm" style="background: #22c55e; color: white; padding: 6px 10px;" title="Re-test">✅</button>` : 
+                                                `<button onclick="testWebhookForProperty(${p.id}, '${p.external_id}')" class="btn btn-sm" style="background: #f59e0b; color: white; padding: 6px 10px;">🧪</button>`
                                             }
                                         </span>
                                     </div>
@@ -38574,12 +38574,12 @@ Local honey and preserves"></textarea>
                                             ${p.gas_property_id ? 'disabled' : ''}>
                                         <button onclick="savePropKey(${p.id})" class="btn btn-sm" style="padding: 6px 8px;" ${p.gas_property_id ? 'disabled' : ''} title="Save">💾</button>
                                         <span id="propkey-test-${p.id}">
-                                            ${propKeyTested ? 
-                                                '<span style="color: #22c55e; font-weight: bold;">✅</span>' : 
-                                                (p.prop_key ? 
-                                                    `<button onclick="testPropKeyForProperty(${p.id}, '${p.external_id}')" class="btn btn-sm" style="background: #3b82f6; color: white; padding: 6px 10px;">🧪 Test</button>` :
-                                                    '<span style="color: #9ca3af;">-</span>'
-                                                )
+                                            ${p.prop_key ? 
+                                                (propKeyTested ? 
+                                                    `<button onclick="testPropKeyForProperty(${p.id}, '${p.external_id}')" class="btn btn-sm" style="background: #22c55e; color: white; padding: 6px 10px;" title="Re-test">✅</button>` :
+                                                    `<button onclick="testPropKeyForProperty(${p.id}, '${p.external_id}')" class="btn btn-sm" style="background: #f59e0b; color: white; padding: 6px 10px;">🧪</button>`
+                                                ) :
+                                                '<span style="color: #9ca3af;">-</span>'
                                             }
                                         </span>
                                     </div>
@@ -38597,6 +38597,7 @@ Local honey and preserves"></textarea>
                                 <td>
                                     <div style="display: flex; gap: 4px;">
                                         ${p.gas_property_id ? `<button onclick="viewPropertyInGAS(${p.gas_property_id})" class="btn btn-sm btn-secondary" title="View in GAS">👁</button>` : ''}
+                                        ${p.gas_property_id ? `<button onclick="unlinkSyncedProperty(${p.id}, '${p.name.replace(/'/g, "\\'")}')" class="btn btn-sm" style="background: #ef4444; color: white;" title="Unlink from GAS">🔗</button>` : ''}
                                     </div>
                                 </td>
                             </tr>`;
@@ -39006,6 +39007,27 @@ Local honey and preserves"></textarea>
                 }
             } catch (error) {
                 showNotification('Failed to save settings', 'error');
+            }
+        }
+
+        async function unlinkSyncedProperty(syncPropertyId, propertyName) {
+            if (!confirm(`Unlink "${propertyName}" from GAS?\n\nThis will remove the link between the synced property and GAS, but won't delete the GAS property itself.`)) {
+                return;
+            }
+            try {
+                const response = await fetch(`/api/gas-sync/properties/${syncPropertyId}/unlink`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() }
+                });
+                const data = await response.json();
+                if (data.success) {
+                    showNotification('Property unlinked', 'success');
+                    showConnectionTab('properties');
+                } else {
+                    showNotification(data.error || 'Failed to unlink', 'error');
+                }
+            } catch (error) {
+                showNotification('Failed to unlink property', 'error');
             }
         }
 
