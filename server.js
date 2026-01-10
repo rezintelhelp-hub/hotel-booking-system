@@ -36278,8 +36278,6 @@ app.post('/api/gas-sync/connections/:connectionId/fix-account-assignment', async
       if (prop.current_account_id !== correctAccountId) {
         // Update the property to the correct account
         await pool.query('UPDATE properties SET account_id = $1 WHERE id = $2', [correctAccountId, prop.gas_property_id]);
-        // Also update any rooms for this property
-        await pool.query('UPDATE rooms SET account_id = $1 WHERE property_id = $2', [correctAccountId, prop.gas_property_id]);
         fixed++;
         fixedProperties.push(prop.name);
       } else {
