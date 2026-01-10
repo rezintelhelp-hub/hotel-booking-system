@@ -2956,11 +2956,13 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         
         // Update text fields separately (handle JSONB/TEXT type differences)
         if (displayName) {
-          await pool.query('UPDATE bookable_units SET display_name = $1 WHERE id = $2', [displayName, gasRoomId])
+          const displayNameJson = JSON.stringify({ en: displayName });
+          await pool.query('UPDATE bookable_units SET display_name = $1 WHERE id = $2', [displayNameJson, gasRoomId])
             .catch(e => console.log('link-to-gas: display_name update failed:', e.message));
         }
         if (roomShortDesc) {
-          await pool.query('UPDATE bookable_units SET short_description = $1 WHERE id = $2', [roomShortDesc, gasRoomId])
+          const shortDescJson = JSON.stringify({ en: roomShortDesc });
+          await pool.query('UPDATE bookable_units SET short_description = $1 WHERE id = $2', [shortDescJson, gasRoomId])
             .catch(e => console.log('link-to-gas: short_description update failed:', e.message));
         }
         if (roomFullDesc) {
@@ -3005,11 +3007,13 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         
         // Update text fields separately (handle JSONB/TEXT type differences)
         if (displayName) {
-          await pool.query('UPDATE bookable_units SET display_name = $1 WHERE id = $2', [displayName, gasRoomId])
+          const displayNameJson = JSON.stringify({ en: displayName });
+          await pool.query('UPDATE bookable_units SET display_name = $1 WHERE id = $2', [displayNameJson, gasRoomId])
             .catch(e => console.log('link-to-gas: display_name update failed:', e.message));
         }
         if (roomShortDesc) {
-          await pool.query('UPDATE bookable_units SET short_description = $1 WHERE id = $2', [roomShortDesc, gasRoomId])
+          const shortDescJson = JSON.stringify({ en: roomShortDesc });
+          await pool.query('UPDATE bookable_units SET short_description = $1 WHERE id = $2', [shortDescJson, gasRoomId])
             .catch(e => console.log('link-to-gas: short_description update failed:', e.message));
         }
         if (roomFullDesc) {
