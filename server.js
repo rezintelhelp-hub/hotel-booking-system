@@ -2108,6 +2108,38 @@ app.post('/api/gas-sync/test-prop-key', async (req, res) => {
   }
 });
 
+// BYPASS: Force mark prop key and webhook as tested
+app.post('/api/gas-sync/force-mark-tested', async (req, res) => {
+  try {
+    const { connectionId, syncPropertyId } = req.body;
+    
+    await pool.query(`ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS prop_key_tested BOOLEAN DEFAULT FALSE`);
+    await pool.query(`ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS webhook_tested BOOLEAN DEFAULT FALSE`);
+    
+    if (connectionId) {
+      await pool.query(`
+        UPDATE gas_sync_properties 
+        SET prop_key_tested = TRUE, webhook_tested = TRUE, updated_at = NOW() 
+        WHERE connection_id = $1
+      `, [connectionId]);
+      return res.json({ success: true, message: `All properties for connection ${connectionId} marked as tested` });
+    }
+    
+    if (syncPropertyId) {
+      await pool.query(`
+        UPDATE gas_sync_properties 
+        SET prop_key_tested = TRUE, webhook_tested = TRUE, updated_at = NOW() 
+        WHERE id = $1
+      `, [syncPropertyId]);
+      return res.json({ success: true, message: `Property ${syncPropertyId} marked as tested` });
+    }
+    
+    res.json({ success: false, error: 'Provide connectionId or syncPropertyId' });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Test webhook URL for a synced property
 app.post('/api/gas-sync/test-webhook-url', async (req, res) => {
   try {
