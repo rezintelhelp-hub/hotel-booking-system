@@ -36296,6 +36296,33 @@ app.post('/api/gas-sync/connections/:connectionId/fix-account-assignment', async
   }
 });
 
+// Move a specific property to a different account
+app.post('/api/gas-sync/fix-property-account', async (req, res) => {
+  try {
+    const { propertyId, newAccountId } = req.body;
+    
+    if (!propertyId || !newAccountId) {
+      return res.status(400).json({ success: false, error: 'propertyId and newAccountId required' });
+    }
+    
+    const result = await pool.query(
+      'UPDATE properties SET account_id = $1 WHERE id = $2 RETURNING id, name',
+      [newAccountId, propertyId]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Property not found' });
+    }
+    
+    res.json({ 
+      success: true, 
+      message: `Moved property "${result.rows[0].name}" (ID: ${propertyId}) to account ${newAccountId}`
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Auto-import synced property into GAS
 app.post('/api/gas-sync/properties/:syncPropertyId/import', async (req, res) => {
   try {
