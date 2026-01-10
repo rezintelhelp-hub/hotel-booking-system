@@ -1166,10 +1166,33 @@ class Beds24Adapter {
             
             // 2. Sync room types - use V2 data from property first, fall back to V1
             let roomTypesData = [];
+            let v1Texts = null; // Will hold texts from V1 API
+            
+            // If we have V1 credentials, fetch texts for descriptions
+            if (this.apiKey && propertyPropKey) {
+              try {
+                const textsResponse = await this.v1Request('/getPropertyContent', { texts: true });
+                if (textsResponse.success && textsResponse.data?.getPropertyContent?.[0]?.texts) {
+                  v1Texts = textsResponse.data.getPropertyContent[0].texts;
+                  console.log(`Beds24 fullSync: Got V1 texts for ${property.name}:`, Object.keys(v1Texts).join(', '));
+                }
+              } catch (e) {
+                console.log(`Beds24 fullSync: Could not fetch V1 texts for ${property.name}:`, e.message);
+              }
+            }
+            
             if (property.roomTypes && property.roomTypes.length > 0) {
               // Use V2 data already in property (from includeAllRooms: true)
               console.log(`Beds24 fullSync: Using V2 roomTypes for ${property.name}: ${property.roomTypes.length} rooms`);
-              roomTypesData = property.roomTypes.map(rt => this.mapRoomType(rt, property.externalId));
+              roomTypesData = property.roomTypes.map(rt => {
+                const mapped = this.mapRoomType(rt, property.externalId);
+                // Enrich with V1 texts if available
+                if (v1Texts) {
+                  mapped.raw = mapped.raw || {};
+                  mapped.raw.texts = v1Texts;
+                }
+                return mapped;
+              });
             } else if (this.apiKey && propertyPropKey) {
               // Fall back to V1 API if V2 didn't include rooms
               console.log(`Beds24 fullSync: No V2 roomTypes, trying V1 for ${property.name}`);
