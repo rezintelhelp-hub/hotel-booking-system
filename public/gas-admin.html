@@ -38587,7 +38587,7 @@ Local honey and preserves"></textarea>
                                 <td style="text-align: center;">${p.room_type_count}</td>
                                 <td>
                                     <div style="display: flex; gap: 6px; align-items: center;">
-                                        ${isBeds24 && p.prop_key && !p.gas_property_id ? `<button onclick="downloadPropertyImages(${p.id})" class="btn btn-sm btn-secondary" title="Download Images First">📷</button>` : ''}
+                                        ${isBeds24 && p.prop_key ? `<button onclick="downloadPropertyImages(${p.id})" class="btn btn-sm btn-secondary" title="${p.gas_property_id ? 'Re-download Images' : 'Download Images First'}">📷</button>` : ''}
                                         ${p.gas_property_id ? 
                                             '<span style="color: #22c55e;">✅ Imported</span>' : 
                                             `<button id="import-btn-${p.id}" class="btn btn-sm btn-primary" onclick="importSyncedProperty(${p.id})" ${canImport ? '' : 'disabled'} style="${canImport ? '' : 'opacity: 0.5; cursor: not-allowed;'}">${canImport ? 'Import' : (!p.prop_key ? 'Enter Key' : (!webhookTested && !propKeyTested ? 'Run Tests' : (!webhookTested ? 'Test Webhook' : 'Test Key')))}</button>`
