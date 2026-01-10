@@ -10405,7 +10405,7 @@ Local honey and preserves"></textarea>
 
     <!-- GasSync Connection Details Modal -->
     <div id="connectionDetailsModal" class="modal" onclick="if(event.target === this) closeModal('connectionDetailsModal')">
-        <div class="modal-content" style="max-width: 1200px; width: 95%; border-radius: 16px;">
+        <div class="modal-content" style="max-width: 1400px; width: 98%; border-radius: 16px;">
             <div class="modal-header" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem; display: flex; justify-content: space-between; align-items: center;">
                 <h3 id="connectionDetailsTitle" style="margin: 0;">Connection Details</h3>
                 <button onclick="closeModal('connectionDetailsModal')" style="background: rgba(255,255,255,0.2); border: none; color: white; font-size: 1.5rem; cursor: pointer; width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; line-height: 1;">&times;</button>
@@ -38514,15 +38514,15 @@ Local honey and preserves"></textarea>
                             </div>
                         </div>
                         ` : ''}
-                        <table class="data-table"><thead><tr>
-                            <th>Status</th>
-                            <th>Property</th>
-                            <th>Location</th>
-                            ${isBeds24 ? '<th style="min-width: 420px;">Webhook URL</th>' : ''}
-                            ${isBeds24 ? '<th>Prop Key</th>' : ''}
-                            <th>Rooms</th>
-                            <th>Import</th>
-                            <th>Actions</th>
+                        <table class="data-table" style="table-layout: auto; width: 100%;"><thead><tr>
+                            <th style="width: 50px;">Status</th>
+                            <th style="width: 140px;">Property</th>
+                            <th style="width: 100px;">Location</th>
+                            ${isBeds24 ? '<th style="width: 280px;">Webhook URL</th>' : ''}
+                            ${isBeds24 ? '<th style="width: 160px;">Prop Key</th>' : ''}
+                            <th style="width: 60px;">Rooms</th>
+                            <th style="width: 100px;">Import</th>
+                            <th style="width: 80px;">Actions</th>
                         </tr></thead><tbody>
                         ${data.properties.map(p => {
                             let statusLight = '🟢';
@@ -38555,24 +38555,24 @@ Local honey and preserves"></textarea>
                                 <td><strong>${p.name}</strong><br><small style="color: #6b7280;">ID: ${p.external_id}</small></td>
                                 <td>${p.city || ''}, ${p.country || ''}</td>
                                 ${isBeds24 ? `<td>
-                                    <div style="display: flex; align-items: center; gap: 6px;">
+                                    <div style="display: flex; align-items: center; gap: 4px;">
                                         <input type="text" readonly value="https://admin.gas.travel/api/webhooks/beds24?propertyId=${p.external_id}" 
-                                            style="flex: 1; padding: 6px 8px; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 0.8rem; background: #f8fafc;">
-                                        <button onclick="copyWebhookUrlForProperty('${p.external_id}')" class="btn btn-sm" style="padding: 6px 8px;" title="Copy URL">📋</button>
+                                            style="width: 180px; padding: 4px 6px; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 0.7rem; background: #f8fafc; text-overflow: ellipsis;">
+                                        <button onclick="copyWebhookUrlForProperty('${p.external_id}')" class="btn btn-sm" style="padding: 4px 6px;" title="Copy URL">📋</button>
                                         <span id="webhook-test-${p.id}">
                                             ${webhookTested ? 
-                                                `<button onclick="testWebhookForProperty(${p.id}, '${p.external_id}')" class="btn btn-sm" style="background: #22c55e; color: white; padding: 6px 10px;" title="Re-test">✅</button>` : 
-                                                `<button onclick="testWebhookForProperty(${p.id}, '${p.external_id}')" class="btn btn-sm" style="background: #f59e0b; color: white; padding: 6px 10px;">🧪</button>`
+                                                `<button onclick="testWebhookForProperty(${p.id}, '${p.external_id}')" class="btn btn-sm" style="background: #22c55e; color: white; padding: 4px 8px;" title="Re-test">✅</button>` : 
+                                                `<button onclick="testWebhookForProperty(${p.id}, '${p.external_id}')" class="btn btn-sm" style="background: #f59e0b; color: white; padding: 4px 8px;">🧪</button>`
                                             }
                                         </span>
                                     </div>
                                 </td>` : ''}
                                 ${isBeds24 ? `<td>
-                                    <div style="display: flex; align-items: center; gap: 6px;">
+                                    <div style="display: flex; align-items: center; gap: 4px;">
                                         <input type="text" id="propKey-${p.id}" value="${p.prop_key || ''}" placeholder="Enter key" 
-                                            style="width: 90px; padding: 6px 8px; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 0.85rem;"
+                                            style="width: 80px; padding: 4px 6px; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 0.8rem;"
                                             ${p.gas_property_id ? 'disabled' : ''}>
-                                        <button onclick="savePropKey(${p.id})" class="btn btn-sm" style="padding: 6px 8px;" ${p.gas_property_id ? 'disabled' : ''} title="Save">💾</button>
+                                        <button onclick="savePropKey(${p.id})" class="btn btn-sm" style="padding: 4px 6px;" ${p.gas_property_id ? 'disabled' : ''} title="Save">💾</button>
                                         <span id="propkey-test-${p.id}">
                                             ${p.prop_key ? 
                                                 (propKeyTested ? 
