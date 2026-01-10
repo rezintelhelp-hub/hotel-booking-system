@@ -13197,8 +13197,8 @@ app.get('/api/admin/deployed-sites/:id/rooms', async (req, res) => {
   try {
     const { id } = req.params;
     
-    // Get the site to find property_id AND current room_ids
-    const siteResult = await pool.query('SELECT property_id, room_ids, account_id FROM deployed_sites WHERE id = $1', [id]);
+    // Get the site to find property_id, property_ids AND current room_ids
+    const siteResult = await pool.query('SELECT property_id, property_ids, room_ids, account_id FROM deployed_sites WHERE id = $1', [id]);
     console.log('Site result for id', id, ':', siteResult.rows);
     
     if (siteResult.rows.length === 0) {
@@ -13206,6 +13206,7 @@ app.get('/api/admin/deployed-sites/:id/rooms', async (req, res) => {
     }
     
     const propertyId = siteResult.rows[0].property_id;
+    const propertyIdsJson = siteResult.rows[0].property_ids;
     const accountId = siteResult.rows[0].account_id;
     const roomIdsJson = siteResult.rows[0].room_ids;
     
@@ -13215,44 +13216,33 @@ app.get('/api/admin/deployed-sites/:id/rooms', async (req, res) => {
       linkedRoomIds = typeof roomIdsJson === 'string' ? JSON.parse(roomIdsJson) : roomIdsJson;
     }
     
-    console.log('Property ID:', propertyId, 'Account ID:', accountId, 'Linked room_ids:', linkedRoomIds);
+    // Parse property_ids for multi-property sites
+    let propertyIds = [];
+    if (propertyIdsJson) {
+      propertyIds = typeof propertyIdsJson === 'string' ? JSON.parse(propertyIdsJson) : propertyIdsJson;
+    }
+    // Include the single property_id if not already in the list
+    if (propertyId && !propertyIds.includes(propertyId)) {
+      propertyIds.push(propertyId);
+    }
     
-    if (!propertyId) {
+    console.log('Property IDs:', propertyIds, 'Account ID:', accountId, 'Linked room_ids:', linkedRoomIds);
+    
+    if (propertyIds.length === 0) {
       return res.json({ success: true, rooms: [], linkedRoomIds: [], message: 'No property linked to site' });
     }
     
-    // Get ALL rooms for this property from bookable_units
-    let roomsResult = await pool.query(`
+    // Get ALL rooms for ALL properties in this site
+    const roomsResult = await pool.query(`
       SELECT * FROM bookable_units
-      WHERE property_id = $1
+      WHERE property_id = ANY($1)
       ORDER BY name
-    `, [propertyId]);
+    `, [propertyIds]);
     
     console.log('Found rooms in bookable_units:', roomsResult.rows.length);
     
-    // If no rooms found in bookable_units, try the rooms table
-    if (roomsResult.rows.length === 0) {
-      roomsResult = await pool.query(`
-        SELECT * FROM rooms
-        WHERE property_id = $1
-        ORDER BY name
-      `, [propertyId]);
-      console.log('Found rooms in rooms table:', roomsResult.rows.length);
-    }
-    
-    // If still no rooms, try getting all rooms for the account's properties
-    if (roomsResult.rows.length === 0 && accountId) {
-      roomsResult = await pool.query(`
-        SELECT bu.* FROM bookable_units bu
-        JOIN properties p ON bu.property_id = p.id
-        WHERE p.account_id = $1
-        ORDER BY bu.name
-      `, [accountId]);
-      console.log('Found rooms for account:', roomsResult.rows.length);
-    }
-    
     // Return both all rooms AND which ones are currently linked
-    res.json({ success: true, rooms: roomsResult.rows, linkedRoomIds: linkedRoomIds, propertyId: propertyId });
+    res.json({ success: true, rooms: roomsResult.rows, linkedRoomIds: linkedRoomIds, propertyIds: propertyIds });
   } catch (error) {
     console.error('Get deployed site rooms error:', error);
     res.json({ success: false, error: error.message });
