@@ -136,15 +136,7 @@ class Beds24Adapter {
         keys: response.data ? Object.keys(response.data) : []
       });
       
-      // Check if V1 API returned an error in the response body
-      if (response.data && response.data.error) {
-        console.log(`Beds24 V1 API Error [${endpoint}]:`, response.data.error, 'Code:', response.data.errorCode);
-        return { 
-          success: false, 
-          error: response.data.error,
-          errorCode: response.data.errorCode 
-        };
-      }
+      return { success: true, data: response.data };
       
       return { success: true, data: response.data };
     } catch (error) {
@@ -462,14 +454,16 @@ class Beds24Adapter {
     
     const roomTypes = [];
     for (const [roomId, roomData] of Object.entries(content.roomIds)) {
-      // Merge any room-specific texts
+      // Merge any room-specific texts AND property-level texts
       const roomTexts = texts[`room_${roomId}`] || {};
       
+      // Include the full texts object so displayName, roomDescription1, etc. are available
       roomTypes.push(this.mapRoomType({
         id: roomId,
         name: roomData.name || `Room ${roomId}`,
         description: roomTexts.description || roomData.description || '',
         fullDescription: roomTexts.fullDescription || roomData.fullDescription || '',
+        texts: texts, // Include full texts object for displayName, roomDescription1, auxiliaryText
         ...roomData
       }, propertyExternalId));
     }
