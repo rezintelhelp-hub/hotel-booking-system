@@ -38975,7 +38975,10 @@ Local honey and preserves"></textarea>
                 if (data.success) {
                     showNotification('V1 API key saved!', 'success');
                     document.getElementById('settingV1ApiKey').value = '';
-                    document.getElementById('settingV1ApiKey').placeholder = ' (saved)';
+                    // Reload connections to get updated masked key
+                    await loadGasSyncConnections();
+                    // Refresh the settings tab to show new masked key
+                    showConnectionTab('settings');
                 } else {
                     showNotification(data.error || 'Failed to save', 'error');
                 }
