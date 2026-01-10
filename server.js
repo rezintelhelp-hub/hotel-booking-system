@@ -2419,6 +2419,7 @@ app.get('/api/gas-sync/debug/room-raw-data', async (req, res) => {
         name: r.name,
         raw_data_keys: Object.keys(rawData || {}),
         texts: rawData?.texts,
+        featureCodes: rawData?.featureCodes,
         displayName: rawData?.displayName,
         description: rawData?.description,
         auxiliaryText: rawData?.auxiliaryText
