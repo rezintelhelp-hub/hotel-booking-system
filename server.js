@@ -3044,15 +3044,12 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
           // Ensure beds24_code column exists on master_amenities
           await pool.query('ALTER TABLE master_amenities ADD COLUMN IF NOT EXISTS beds24_code VARCHAR(100)').catch(() => {});
           
-          // Ensure bookable_unit_amenities table exists
+          // Ensure room_amenity_selections table exists (this is what the admin UI uses)
           await pool.query(`
-            CREATE TABLE IF NOT EXISTS bookable_unit_amenities (
+            CREATE TABLE IF NOT EXISTS room_amenity_selections (
               id SERIAL PRIMARY KEY,
-              bookable_unit_id INTEGER,
+              room_id INTEGER,
               amenity_id INTEGER,
-              amenity_code VARCHAR(100),
-              amenity_name VARCHAR(255),
-              category VARCHAR(100),
               display_order INTEGER DEFAULT 0,
               created_at TIMESTAMP DEFAULT NOW()
             )
@@ -3073,17 +3070,17 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
             if (masterMatch.rows.length > 0) {
               const ma = masterMatch.rows[0];
               matched++;
-              // Check if already linked
+              // Check if already linked (use room_amenity_selections table)
               const existing = await pool.query(
-                'SELECT id FROM bookable_unit_amenities WHERE bookable_unit_id = $1 AND amenity_id = $2',
+                'SELECT id FROM room_amenity_selections WHERE room_id = $1 AND amenity_id = $2',
                 [gasRoomId, ma.id]
               );
               
               if (existing.rows.length === 0) {
                 await pool.query(`
-                  INSERT INTO bookable_unit_amenities (bookable_unit_id, amenity_id, amenity_code, amenity_name, category)
-                  VALUES ($1, $2, $3, $4, $5)
-                `, [gasRoomId, ma.id, ma.amenity_code, ma.amenity_name, ma.category]);
+                  INSERT INTO room_amenity_selections (room_id, amenity_id, display_order)
+                  VALUES ($1, $2, $3)
+                `, [gasRoomId, ma.id, matched]);
               }
             } else {
               unmatched.push(code);
