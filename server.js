@@ -13255,46 +13255,24 @@ app.put('/api/admin/deployed-sites/:id/rooms', async (req, res) => {
     const { id } = req.params;
     const { roomIds } = req.body;
     
-    // Ensure website_id column exists
-    await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS website_id INTEGER');
-    
-    // Get the site to find property_id and site_url
-    const siteResult = await pool.query('SELECT property_id, site_url FROM deployed_sites WHERE id = $1', [id]);
-    if (siteResult.rows.length === 0) {
-      return res.json({ success: false, error: 'Site not found' });
-    }
-    
-    const propertyId = siteResult.rows[0].property_id;
-    const siteUrl = siteResult.rows[0].site_url;
-    
-    if (!propertyId) {
-      return res.json({ success: false, error: 'No property linked to this site' });
-    }
-    
-    // Update the room_ids in deployed_sites
+    // Update the room_ids in deployed_sites - this is the main storage
     await pool.query(`
       UPDATE deployed_sites SET room_ids = $1, updated_at = NOW() WHERE id = $2
     `, [JSON.stringify(roomIds || []), id]);
     
-    // Also update bookable_units.website_id for tracking
-    // First, unlink all rooms from this website
-    await pool.query(`
-      UPDATE bookable_units SET website_id = NULL WHERE property_id = $1
-    `, [propertyId]);
+    // Get site URL for WordPress push
+    const siteResult = await pool.query('SELECT site_url FROM deployed_sites WHERE id = $1', [id]);
+    const siteUrl = siteResult.rows[0]?.site_url;
     
-    // Then link the selected rooms
-    if (roomIds && roomIds.length > 0) {
-      await pool.query(`
-        UPDATE bookable_units SET website_id = $1 WHERE id = ANY($2::int[]) AND property_id = $3
-      `, [id, roomIds, propertyId]);
-    }
-    
-    console.log(`Updated website ${id} rooms: ${roomIds?.length || 0} rooms linked. room_ids updated in deployed_sites.`);
+    console.log(`Updated website ${id} rooms: ${roomIds?.length || 0} rooms linked.`);
     
     // Push room_ids to WordPress via gas-api.php
     let wpUpdated = false;
     if (siteUrl) {
       try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+        
         const wpResponse = await fetch('https://sites.gas.travel/gas-api.php', {
           method: 'POST',
           headers: {
@@ -13306,8 +13284,10 @@ app.put('/api/admin/deployed-sites/:id/rooms', async (req, res) => {
             site_url: siteUrl,
             option_name: 'gas_room_ids',
             option_value: JSON.stringify(roomIds || [])
-          })
+          }),
+          signal: controller.signal
         });
+        clearTimeout(timeout);
         const wpData = await wpResponse.json();
         console.log('WordPress gas_room_ids update:', wpData);
         wpUpdated = wpData.success;
