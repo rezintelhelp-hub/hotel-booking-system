@@ -2902,14 +2902,19 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
       const sizeSqm = roomRawData.size || roomRawData.sqm || null;
       
       // Extract feature codes for amenities
+      // Beds24 V2 returns featureCodes as array of arrays: [['WIFI'], ['BEDROOM', 'BED_DOUBLE'], ...]
       let featureCodes = null;
       if (roomRawData.featureCodes) {
         if (typeof roomRawData.featureCodes === 'string') {
           featureCodes = roomRawData.featureCodes;
         } else if (Array.isArray(roomRawData.featureCodes)) {
-          featureCodes = roomRawData.featureCodes.join(',');
+          // Flatten array of arrays and join
+          const flattened = roomRawData.featureCodes.flat().filter(c => c);
+          featureCodes = flattened.join(',');
         }
       }
+      
+      console.log('link-to-gas: featureCodes extracted:', featureCodes?.substring(0, 100));
       
       // Check if room exists (use cm_room_id which should always exist)
       const existingRoom = await pool.query(`
