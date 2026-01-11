@@ -2018,6 +2018,23 @@ app.delete('/api/gas-sync/properties/:id/prop-key', async (req, res) => {
   }
 });
 
+// Unlink property from GAS (removes gas_property_id link but keeps data)
+app.post('/api/gas-sync/properties/:id/unlink', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    await pool.query(`
+      UPDATE gas_sync_properties 
+      SET gas_property_id = NULL, updated_at = NOW() 
+      WHERE id = $1
+    `, [id]);
+    
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Test prop key for a synced property (Beds24 V1 API)
 // Test prop key - verifies GAS can fetch data from Beds24 V1 API
 app.post('/api/gas-sync/test-prop-key', async (req, res) => {
