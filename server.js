@@ -36278,13 +36278,108 @@ app.get('/api/gas-sync/properties/:propertyId/room-types', async (req, res) => {
     
     const result = await pool.query(`
       SELECT rt.id, rt.external_id, rt.name, rt.max_guests, rt.bedrooms, rt.beds,
-             rt.base_price, rt.currency, rt.unit_count, rt.synced_at, rt.gas_room_id
+             rt.base_price, rt.currency, rt.unit_count, rt.synced_at, rt.gas_room_id,
+             rt.price_linking
       FROM gas_sync_room_types rt
       WHERE rt.sync_property_id = $1
       ORDER BY rt.name
     `, [propertyId]);
     
     res.json({ success: true, room_types: result.rows });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Refresh price linking for all rooms in a connection (fetches from Beds24 API)
+app.post('/api/gas-sync/connections/:connectionId/refresh-price-linking', async (req, res) => {
+  try {
+    const { connectionId } = req.params;
+    
+    // Get connection
+    const connResult = await pool.query('SELECT * FROM gas_sync_connections WHERE id = $1', [connectionId]);
+    if (connResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Connection not found' });
+    }
+    
+    const conn = connResult.rows[0];
+    let accessToken = conn.access_token;
+    
+    // Refresh token if needed
+    if (conn.refresh_token) {
+      try {
+        const tokenResponse = await axios.get('https://beds24.com/api/v2/authentication/token', {
+          headers: { 'refreshToken': conn.refresh_token }
+        });
+        accessToken = tokenResponse.data.token;
+        await pool.query('UPDATE gas_sync_connections SET access_token = $1 WHERE id = $2', [accessToken, connectionId]);
+      } catch (e) {
+        return res.json({ success: false, error: 'Token refresh failed' });
+      }
+    }
+    
+    if (!accessToken) {
+      return res.json({ success: false, error: 'No access token' });
+    }
+    
+    // Get all properties for this connection
+    const propsResult = await pool.query(`
+      SELECT id, external_id, name FROM gas_sync_properties WHERE connection_id = $1
+    `, [connectionId]);
+    
+    let updated = 0;
+    let errors = [];
+    
+    for (const prop of propsResult.rows) {
+      try {
+        // Fetch property with priceRules
+        const propResp = await axios.get('https://beds24.com/api/v2/properties', {
+          headers: { 'token': accessToken },
+          params: { 
+            id: prop.external_id,
+            includeAllRooms: true,
+            includePriceRules: true
+          }
+        });
+        
+        const propData = propResp.data?.data?.[0];
+        if (propData?.roomTypes) {
+          for (const rt of propData.roomTypes) {
+            const priceRule = rt.priceRules?.find(pr => pr.priceLinking?.roomId);
+            if (priceRule?.priceLinking) {
+              const priceLinking = {
+                sourceRoomId: priceRule.priceLinking.roomId,
+                priceId: priceRule.priceLinking.priceId || 1,
+                offsetAmount: priceRule.priceLinking.offsetAmount || 0,
+                offsetMultiplier: priceRule.priceLinking.offsetMultiplier || 1
+              };
+              
+              await pool.query(`
+                UPDATE gas_sync_room_types SET price_linking = $1 WHERE external_id = $2
+              `, [JSON.stringify(priceLinking), String(rt.id)]);
+              
+              updated++;
+              console.log(`  Updated price_linking for room ${rt.id} (${rt.name}): links to ${priceLinking.sourceRoomId} +${priceLinking.offsetAmount}`);
+            }
+          }
+        }
+        
+        // Rate limit delay
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        
+      } catch (e) {
+        if (e.response?.status === 429) {
+          errors.push({ property: prop.name, error: 'Rate limited' });
+          console.log(`Rate limited at ${prop.name}, waiting 60s...`);
+          await new Promise(resolve => setTimeout(resolve, 60000));
+        } else {
+          errors.push({ property: prop.name, error: e.message });
+        }
+      }
+    }
+    
+    res.json({ success: true, updated, errors: errors.length > 0 ? errors : undefined });
+    
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
