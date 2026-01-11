@@ -10167,7 +10167,7 @@ Local honey and preserves"></textarea>
 
     <!-- GasSync Connection Details Modal -->
     <div id="connectionDetailsModal" class="modal" onclick="if(event.target === this) closeModal('connectionDetailsModal')">
-        <div class="modal-content" style="max-width: 1200px; width: 95%; border-radius: 16px;">
+        <div class="modal-content" style="max-width: 1600px; width: 98%; border-radius: 16px;">
             <div class="modal-header" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem; display: flex; justify-content: space-between; align-items: center;">
                 <h3 id="connectionDetailsTitle" style="margin: 0;">Connection Details</h3>
                 <button onclick="closeModal('connectionDetailsModal')" style="background: rgba(255,255,255,0.2); border: none; color: white; font-size: 1.5rem; cursor: pointer; width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; line-height: 1;">&times;</button>
@@ -36830,6 +36830,7 @@ Local honey and preserves"></textarea>
                                             style="width: 90px; padding: 6px 8px; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 0.85rem;"
                                             ${p.gas_property_id ? 'disabled' : ''}>
                                         <button onclick="savePropKey(${p.id})" class="btn btn-sm" style="padding: 6px 8px;" ${p.gas_property_id ? 'disabled' : ''} title="Save">💾</button>
+                                        ${p.prop_key && !p.gas_property_id ? `<button onclick="clearPropKey(${p.id})" class="btn btn-sm" style="padding: 6px 8px; background: #fee2e2; color: #dc2626;" title="Clear">🗑️</button>` : ''}
                                         <span id="propkey-test-${p.id}">
                                             ${propKeyTested ? 
                                                 '<span style="color: #22c55e; font-weight: bold;">✅</span>' : 
@@ -36984,6 +36985,25 @@ Local honey and preserves"></textarea>
             showNotification('Please use the per-property Test buttons in the table', 'info');
         }
         
+        async function clearPropKey(syncPropertyId) {
+            if (!confirm('Clear this prop key?')) return;
+            try {
+                const response = await fetch(`/api/gas-sync/properties/${syncPropertyId}/prop-key`, {
+                    method: 'DELETE',
+                    headers: authHeaders()
+                });
+                const data = await response.json();
+                if (data.success) {
+                    showNotification('Prop key cleared', 'success');
+                    loadConnectionPropertiesTab();
+                } else {
+                    showNotification(data.error || 'Failed to clear', 'error');
+                }
+            } catch (error) {
+                showNotification('Failed to clear prop key', 'error');
+            }
+        }
+
         async function savePropKey(syncPropertyId) {
             const propKeyInput = document.getElementById(`propKey-${syncPropertyId}`);
             const propKey = propKeyInput.value.trim();
