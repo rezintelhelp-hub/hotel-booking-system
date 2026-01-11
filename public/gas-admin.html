@@ -27397,7 +27397,9 @@ Local honey and preserves"></textarea>
                 allowed_checkout_days: getCheckedDays('checkout') || '0,1,2,3,4,5,6',
                 priority: parseInt(document.getElementById('offer-priority').value) || 0,
                 pricing_tier: document.getElementById('offer-pricing-tier').value || 'standard',
-                active: document.getElementById('offer-active').checked
+                active: document.getElementById('offer-active').checked,
+                available_website: true,  // Default to available on website
+                available_agents: false   // Default to not available for agents
             };
             
             try {
