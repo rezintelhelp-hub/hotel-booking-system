@@ -3516,42 +3516,58 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
     let roomsSynced = 0;
     const errors = [];
     
-    // Build price linking map for all rooms across all properties
+    // Build price linking map for all rooms - fetch in batches to avoid rate limits
     const priceLinkingMap = {};
+    console.log(`Building price linking map for ${propsResult.rows.length} properties...`);
+    
+    // Fetch properties in batches of 10 with delay between batches
+    const batchSize = 10;
+    for (let i = 0; i < propsResult.rows.length; i += batchSize) {
+      const batch = propsResult.rows.slice(i, i + batchSize);
+      
+      // Fetch each property in parallel within the batch
+      const batchPromises = batch.map(async (prop) => {
+        try {
+          const propResp = await axios.get('https://beds24.com/api/v2/properties', {
+            headers: { 'token': accessToken },
+            params: { 
+              id: prop.external_id,
+              includeAllRooms: true,
+              includePriceRules: true
+            }
+          });
+          
+          const propData = propResp.data?.data?.[0];
+          if (propData?.roomTypes) {
+            for (const rt of propData.roomTypes) {
+              const priceRule = rt.priceRules?.find(pr => pr.priceLinking?.roomId);
+              if (priceRule?.priceLinking) {
+                priceLinkingMap[rt.id] = {
+                  sourceRoomId: priceRule.priceLinking.roomId,
+                  priceId: priceRule.priceLinking.priceId || 1,
+                  offsetAmount: priceRule.priceLinking.offsetAmount || 0,
+                  offsetMultiplier: priceRule.priceLinking.offsetMultiplier || 1
+                };
+              }
+            }
+          }
+        } catch (e) {
+          // Silently skip - will try to sync without price linking info
+        }
+      });
+      
+      await Promise.all(batchPromises);
+      
+      // Delay between batches to avoid rate limits
+      if (i + batchSize < propsResult.rows.length) {
+        await new Promise(resolve => setTimeout(resolve, 2000)); // 2 second delay
+      }
+    }
+    
+    console.log(`Price linking map built: ${Object.keys(priceLinkingMap).length} rooms with linked pricing`);
     
     for (const prop of propsResult.rows) {
       console.log(`Syncing availability for ${prop.name} (Beds24 ID: ${prop.external_id})`);
-      
-      // Fetch property with priceRules to get priceLinking info
-      try {
-        const propResp = await axios.get('https://beds24.com/api/v2/properties', {
-          headers: { 'token': accessToken },
-          params: { 
-            id: prop.external_id,
-            includeAllRooms: true,
-            includePriceRules: true
-          }
-        });
-        
-        const propData = propResp.data?.data?.[0];
-        if (propData?.roomTypes) {
-          for (const rt of propData.roomTypes) {
-            // Check first price rule for priceLinking (Standard Rate)
-            const priceRule = rt.priceRules?.find(pr => pr.priceLinking?.roomId);
-            if (priceRule?.priceLinking) {
-              priceLinkingMap[rt.id] = {
-                sourceRoomId: priceRule.priceLinking.roomId,
-                priceId: priceRule.priceLinking.priceId || 1,
-                offsetAmount: priceRule.priceLinking.offsetAmount || 0,
-                offsetMultiplier: priceRule.priceLinking.offsetMultiplier || 1
-              };
-              console.log(`  Room ${rt.id} (${rt.name}) uses price linking from room ${priceRule.priceLinking.roomId} +${priceRule.priceLinking.offsetAmount}`);
-            }
-          }
-        }
-      } catch (e) {
-        console.log(`  Could not fetch priceRules for ${prop.name}: ${e.message}`);
-      }
       
       // Get rooms for this property
       const roomsResult = await pool.query(`
