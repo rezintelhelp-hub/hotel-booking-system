@@ -38387,10 +38387,16 @@ app.post('/api/beds24/sync-reviews', async (req, res) => {
         const airbnbReviews = airbnbResponse.data.data.map(r => ({ ...r, _channel: 'Airbnb' }));
         allReviews = allReviews.concat(airbnbReviews);
         console.log(`Beds24 reviews: Found ${airbnbReviews.length} Airbnb reviews`);
+      } else if (airbnbResponse.data?.success === false) {
+        console.log('Beds24 reviews: Airbnb API returned error:', airbnbResponse.data?.error || airbnbResponse.data);
+        errors.push({ channel: 'Airbnb', error: airbnbResponse.data?.error || 'API returned success=false' });
+      } else {
+        console.log('Beds24 reviews: Airbnb response:', JSON.stringify(airbnbResponse.data).substring(0, 200));
       }
     } catch (airbnbErr) {
-      console.log('Beds24 reviews: Airbnb fetch error:', airbnbErr.message);
-      errors.push({ channel: 'Airbnb', error: airbnbErr.message });
+      const errDetail = airbnbErr.response?.data || airbnbErr.message;
+      console.log('Beds24 reviews: Airbnb fetch error:', errDetail);
+      errors.push({ channel: 'Airbnb', error: typeof errDetail === 'object' ? JSON.stringify(errDetail) : errDetail });
     }
     
     // Fetch Booking.com reviews
@@ -38404,10 +38410,16 @@ app.post('/api/beds24/sync-reviews', async (req, res) => {
         const bookingReviews = bookingResponse.data.data.map(r => ({ ...r, _channel: 'Booking.com' }));
         allReviews = allReviews.concat(bookingReviews);
         console.log(`Beds24 reviews: Found ${bookingReviews.length} Booking.com reviews`);
+      } else if (bookingResponse.data?.success === false) {
+        console.log('Beds24 reviews: Booking.com API returned error:', bookingResponse.data?.error || bookingResponse.data);
+        errors.push({ channel: 'Booking.com', error: bookingResponse.data?.error || 'API returned success=false' });
+      } else {
+        console.log('Beds24 reviews: Booking.com response:', JSON.stringify(bookingResponse.data).substring(0, 200));
       }
     } catch (bookingErr) {
-      console.log('Beds24 reviews: Booking.com fetch error:', bookingErr.message);
-      errors.push({ channel: 'Booking.com', error: bookingErr.message });
+      const errDetail = bookingErr.response?.data || bookingErr.message;
+      console.log('Beds24 reviews: Booking.com fetch error:', errDetail);
+      errors.push({ channel: 'Booking.com', error: typeof errDetail === 'object' ? JSON.stringify(errDetail) : errDetail });
     }
     
     console.log(`Beds24 reviews: Total ${allReviews.length} reviews to process`);
