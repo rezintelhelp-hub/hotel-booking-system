@@ -38899,7 +38899,10 @@ Local honey and preserves"></textarea>
         async function syncConnectionReviews() {
             const btn = document.getElementById('sync-reviews-btn');
             const statusDiv = document.getElementById('reviews-sync-status');
-            const adapterCode = document.getElementById('selectedAdapterCode').value;
+            
+            // Get adapter code from the connection data
+            const conn = gasSyncConnections.find(c => c.id === selectedConnectionId);
+            const adapterCode = conn?.adapter_code;
             
             btn.disabled = true;
             btn.textContent = '⏳ Syncing...';
