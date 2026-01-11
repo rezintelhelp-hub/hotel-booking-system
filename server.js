@@ -2931,7 +2931,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
       // Debug: log texts keys
       console.log('link-to-gas: texts keys:', Object.keys(texts).filter(k => k !== 'offers').join(', '));
       console.log('link-to-gas: texts.headlineText:', JSON.stringify(texts.headlineText));
-      console.log('link-to-gas: texts.propertyDescriptionBookingPage2:', JSON.stringify(texts.propertyDescriptionBookingPage2)?.substring(0, 100));
+      console.log('link-to-gas: texts.propertyDescription1:', JSON.stringify(texts.propertyDescription1)?.substring(0, 100));
       console.log('link-to-gas: texts.propertyDescriptionText:', JSON.stringify(texts.propertyDescriptionText)?.substring(0, 100));
       
       // Helper to extract text from Beds24 format: {EN: "...", DE: "...", NL: "..."}
@@ -2944,19 +2944,19 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         return '';
       }
       
-      // Beds24 headlineText → GAS display_name
+      // Beds24 headlineText (Headline Text) → GAS display_name
       const displayName = getText(texts.headlineText) || '';
       
-      // Beds24 propertyDescriptionBookingPage2 → GAS short_description (for listings)
-      const roomShortDesc = getText(texts.propertyDescriptionBookingPage2) || getText(texts.locationDescription) || '';
+      // Beds24 propertyDescription1 (Room Description 1) → GAS short_description
+      const roomShortDesc = getText(texts.propertyDescription1) || '';
       
-      // Beds24 propertyDescriptionText → GAS full_description (long description)
-      const roomFullDesc = getText(texts.propertyDescriptionText) || getText(texts.propertyDescription1) || '';
+      // Beds24 propertyDescriptionText (Auxiliary Text) → GAS full_description
+      const roomFullDesc = getText(texts.propertyDescriptionText) || '';
       
       // Log what we found
       console.log('link-to-gas: Room', room.name);
       console.log('  - displayName (headlineText):', displayName?.substring(0, 50) || '(empty)');
-      console.log('  - shortDesc (propertyDescriptionBookingPage2):', roomShortDesc?.substring(0, 50) || '(empty)');
+      console.log('  - shortDesc (propertyDescription1):', roomShortDesc?.substring(0, 50) || '(empty)');
       console.log('  - fullDesc (propertyDescriptionText):', roomFullDesc?.substring(0, 50) || '(empty)');
       
       const roomType = getText(texts.accommodationType) || getText(roomRawData.accommodationType) || '';
