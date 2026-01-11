@@ -23861,7 +23861,7 @@ app.get('/api/admin/properties/:id/terms', async (req, res) => {
       [propertyId]
     );
     
-    // Get cancellation_policy from properties table
+    // Get cancellation_policy from properties table as fallback
     const propertyResult = await pool.query(
       'SELECT cancellation_policy FROM properties WHERE id = $1',
       [propertyId]
@@ -23879,9 +23879,9 @@ app.get('/api/admin/properties/:id/terms', async (req, res) => {
       [propertyId]
     );
     
-    // Merge terms with cancellation_policy
+    // Merge terms - prefer property_terms.cancellation_policy, fallback to properties table
     const terms = termsResult.rows[0] || {};
-    if (propertyResult.rows[0]?.cancellation_policy) {
+    if (!terms.cancellation_policy && propertyResult.rows[0]?.cancellation_policy) {
       terms.cancellation_policy = propertyResult.rows[0].cancellation_policy;
     }
     
