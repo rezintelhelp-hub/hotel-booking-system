@@ -3041,6 +3041,9 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         console.log('link-to-gas: Mapping', codes.length, 'feature codes to amenities');
         
         if (codes.length > 0) {
+          // Clear existing amenity selections for this room before re-importing
+          await pool.query('DELETE FROM room_amenity_selections WHERE room_id = $1', [gasRoomId]);
+          
           // Ensure beds24_code column exists on master_amenities
           await pool.query('ALTER TABLE master_amenities ADD COLUMN IF NOT EXISTS beds24_code VARCHAR(100)').catch(() => {});
           
@@ -3060,10 +3063,15 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
           
           for (const code of codes) {
             // Try to find matching master amenity by beds24_code or amenity_code
+            // Order by exact match first (beds24_code, then exact amenity_code, then case-insensitive)
             const masterMatch = await pool.query(`
               SELECT id, amenity_code, amenity_name, category 
               FROM master_amenities 
               WHERE beds24_code = $1 OR amenity_code = $1 OR UPPER(amenity_code) = UPPER($1)
+              ORDER BY 
+                CASE WHEN beds24_code = $1 THEN 0
+                     WHEN amenity_code = $1 THEN 1
+                     ELSE 2 END
               LIMIT 1
             `, [code]);
             
