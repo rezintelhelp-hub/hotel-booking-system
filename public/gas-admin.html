@@ -27024,8 +27024,8 @@ Local honey and preserves"></textarea>
                         </td>
                         <td style="text-align: right; padding: 0.75rem;">
                             ${!isStandard ? `
-                                <button onclick="editOffer(${offer.id})" style="background: none; border: none; cursor: pointer;"></button>
-                                <button onclick="deleteOffer(${offer.id})" style="background: none; border: none; cursor: pointer;"></button>
+                                <button onclick="editOffer(${offer.id})" style="background: none; border: none; cursor: pointer;" title="Edit">&#9998;</button>
+                                <button onclick="deleteOffer(${offer.id})" style="background: none; border: none; cursor: pointer; color: #ef4444;" title="Delete">&#10006;</button>
                             ` : '<span style="color: #9ca3af; font-size: 0.8rem;">Default</span>'}
                         </td>
                     </tr>
