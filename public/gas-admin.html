@@ -36853,6 +36853,7 @@ Local honey and preserves"></textarea>
                                     <div style="display: flex; gap: 4px;">
                                         ${p.gas_property_id ? `<button onclick="syncPropertyContent(${p.id})" class="btn btn-sm btn-primary" title="Re-sync descriptions, amenities & images">🔄 Sync</button>` : ''}
                                         ${isBeds24 && p.prop_key ? `<button onclick="downloadPropertyImages(${p.id})" class="btn btn-sm btn-secondary" title="Download Images">📷</button>` : ''}
+                                        ${p.gas_property_id ? `<button onclick="unlinkProperty(${p.id}, '${p.name.replace(/'/g, "\\'")}')" class="btn btn-sm" style="background: #fee2e2; color: #dc2626;" title="Unlink from GAS">🔗</button>` : ''}
                                     </div>
                                 </td>
                             </tr>`;
@@ -37252,6 +37253,25 @@ Local honey and preserves"></textarea>
                 }
             } catch (error) {
                 showNotification('Failed to import property', 'error');
+            }
+        }
+
+        async function unlinkProperty(syncPropertyId, propertyName) {
+            if (!confirm(`Unlink "${propertyName}" from GAS?\n\nThis will remove the connection but keep the property data in GAS.`)) return;
+            try {
+                const response = await fetch(`/api/gas-sync/properties/${syncPropertyId}/unlink`, {
+                    method: 'POST',
+                    headers: authHeaders()
+                });
+                const data = await response.json();
+                if (data.success) {
+                    showNotification('Property unlinked from GAS', 'success');
+                    loadConnectionPropertiesTab();
+                } else {
+                    showNotification(data.error || 'Unlink failed', 'error');
+                }
+            } catch (error) {
+                showNotification('Failed to unlink property', 'error');
             }
         }
 
