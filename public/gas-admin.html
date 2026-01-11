@@ -2279,15 +2279,11 @@
                                 <h3> Property Overview</h3>
                             </div>
                             <div class="card-body">
-                                <p style="color: var(--text-secondary); margin-bottom: 1rem;">Set the number of bedrooms and bathrooms (displayed on property cards)</p>
-                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; max-width: 400px;">
+                                <p style="color: var(--text-secondary); margin-bottom: 1rem;">Set the number of bedrooms (displayed on property cards)</p>
+                                <div style="display: grid; grid-template-columns: 1fr; gap: 1rem; max-width: 200px;">
                                     <div class="form-group">
                                         <label class="form-label"> Bedrooms</label>
                                         <input type="number" class="form-input" id="unit-num-bedrooms" min="0" max="20" value="1" style="width: 100%;">
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label"> Bathrooms</label>
-                                        <input type="number" class="form-input" id="unit-num-bathrooms" min="0" max="20" value="1" style="width: 100%;">
                                     </div>
                                 </div>
                             </div>
@@ -27436,6 +27432,7 @@ Local honey and preserves"></textarea>
                 
                 if (data.success) {
                     loadOffers();
+                    loadOffersPricingGrid();  // Also refresh the Offer Distribution section
                 } else {
                     alert('Error: ' + data.error);
                 }
