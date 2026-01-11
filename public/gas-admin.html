@@ -2239,10 +2239,9 @@
 
                 <!-- Amenities Tabs -->
                 <div class="filter-tabs" style="margin-bottom: 1rem; flex-wrap: wrap;" id="amenities-tabs">
-                    <button class="filter-tab active" data-amenity-tab="rooms" onclick="switchAmenityTab('rooms')"> Rooms</button>
-                    <button class="filter-tab" data-amenity-tab="bathrooms" onclick="switchAmenityTab('bathrooms')"> Bathrooms</button>
-                    <button class="filter-tab" data-amenity-tab="features" onclick="switchAmenityTab('features')"> In-Room Features</button>
-                    <button class="filter-tab" data-amenity-tab="terms" onclick="switchAmenityTab('terms')"> Terms & Policies</button>
+                    <button class="filter-tab active" data-amenity-tab="rooms" onclick="switchAmenityTab('rooms')">🛏️ Rooms</button>
+                    <button class="filter-tab" data-amenity-tab="features" onclick="switchAmenityTab('features')">🏠 In-Room Features</button>
+                    <button class="filter-tab" data-amenity-tab="terms" onclick="switchAmenityTab('terms')">📋 Terms & Policies</button>
                 </div>
 
                 <!-- Tab Content Container -->
@@ -20156,25 +20155,25 @@ Local honey and preserves"></textarea>
                             });
                             
                             const categoryNames = {
-                                'beds': ' Beds & Linens',
-                                'bathrooms': ' Facilities',
-                                'essentials': ' Essentials',
-                                'kitchen': ' Kitchen & Refreshments',
-                                'entertainment': ' Entertainment',
-                                'wellness': ' Wellness',
-                                'parking': ' Parking',
-                                'outdoor': ' Outdoor',
-                                'family': ' Family',
-                                'work': ' Work',
-                                'safety': ' Safety',
-                                'laundry': ' Laundry',
+                                'beds': '🛏️ Beds & Linens',
+                                'bathrooms': '🚿 Facilities',
+                                'essentials': '✨ Essentials',
+                                'kitchen': '🍳 Kitchen & Refreshments',
+                                'entertainment': '📺 Entertainment',
+                                'wellness': '💆 Wellness',
+                                'parking': '🅿️ Parking',
+                                'outdoor': '🌳 Outdoor',
+                                'family': '👨‍👩‍👧 Family',
+                                'work': '💼 Work',
+                                'safety': '🔒 Safety',
+                                'laundry': '🧺 Laundry',
                                 'room_features': '🏠 Room Features',
                                 'activities': '🎯 Activities',
                                 'location': '📍 Location',
                                 'policies': '📋 Policies',
                                 'transport': '🚗 Transport',
                                 'accessibility': '♿ Accessibility',
-                                'other': ' Other'
+                                'other': '📦 Other'
                             };
                             
                             html += `
@@ -37201,6 +37200,27 @@ Local honey and preserves"></textarea>
             }
         }
 
+        async function syncPropertyContent(syncPropertyId) {
+            try {
+                showNotification('Syncing content (descriptions, amenities, images)...', 'info');
+                const response = await fetch(`/api/gas-sync/properties/${syncPropertyId}/link-to-gas`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({})
+                });
+                const data = await response.json();
+                if (data.success) {
+                    const stats = data.stats || {};
+                    showNotification(`Synced: ${stats.roomsUpdated || 0} rooms updated, ${stats.imagesCreated || 0} new images`, 'success');
+                    loadSyncedProperties();
+                } else {
+                    showNotification(data.error || 'Sync failed', 'error');
+                }
+            } catch (error) {
+                showNotification('Failed to sync content', 'error');
+            }
+        }
+
         async function downloadPropertyImages(syncPropertyId) {
             try {
                 showNotification('Downloading images...', 'info');
@@ -37246,8 +37266,9 @@ Local honey and preserves"></textarea>
                         <td>${p.gas_property_id ? '<span class="badge" style="background:#d1fae5;color:#047857;">Linked</span>' : '<span class="badge" style="background:#fef3c7;color:#92400e;">Not Linked</span>'}</td>
                         <td>${formatTimeAgo(p.synced_at)}</td>
                         <td>${!p.gas_property_id ? `<button class="btn btn-sm btn-primary" onclick="importSyncedProperty(${p.id})">Import</button>` : ''}
-                            ${p.gas_property_id ? `<button class="btn btn-sm btn-secondary" onclick="checkRoomChanges(${p.id}, '${p.name.replace(/'/g, "\\'")}')"> Rooms</button>` : ''}
-                            <button class="btn btn-sm btn-secondary" onclick="downloadPropertyImages(${p.id})"></button></td>
+                            ${p.gas_property_id ? `<button class="btn btn-sm btn-primary" onclick="syncPropertyContent(${p.id})" title="Re-sync descriptions, amenities & images">🔄 Sync</button>` : ''}
+                            ${p.gas_property_id ? `<button class="btn btn-sm btn-secondary" onclick="checkRoomChanges(${p.id}, '${p.name.replace(/'/g, "\\'")}')">📋 Rooms</button>` : ''}
+                            <button class="btn btn-sm btn-secondary" onclick="downloadPropertyImages(${p.id})" title="Download images">📷</button></td>
                     </tr>`).join('');
                 } else {
                     tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color: var(--text-secondary);">No synced properties</td></tr>';
