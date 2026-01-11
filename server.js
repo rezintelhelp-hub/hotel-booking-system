@@ -27706,7 +27706,7 @@ app.post('/api/public/calculate-price', async (req, res) => {
       ORDER BY date
     `, [unit_id, check_in, check_out]);
     
-    // Get unit with occupancy settings
+    // Get unit with occupancy settings AND account_id
     const unit = await pool.query(`
       SELECT bu.base_price, bu.max_guests, bu.name, 
              bu.pricing_mode, bu.base_occupancy, 
@@ -27714,7 +27714,7 @@ app.post('/api/public/calculate-price', async (req, res) => {
              bu.single_discount_type, bu.single_discount_value,
              bu.child_charge_type, bu.child_charge,
              bu.children_allowed,
-             p.currency, p.child_max_age
+             p.currency, p.child_max_age, p.account_id, p.id as property_id
       FROM bookable_units bu
       LEFT JOIN properties p ON bu.property_id = p.id
       WHERE bu.id = $1
@@ -27850,7 +27850,7 @@ app.post('/api/public/calculate-price', async (req, res) => {
       }
     }
     
-    // Check for applicable offers - filter by property_id and pricing_tier
+    // Check for applicable offers - filter by property_id AND account_id
     let discount = 0;
     let offerApplied = null;
     let useFixedPricePerNight = null;
@@ -27860,10 +27860,17 @@ app.post('/api/public/calculate-price', async (req, res) => {
     const requestedPricingTier = req.body.pricing_tier || 'standard';
     isNonStandardTier = requestedPricingTier !== 'standard';
     
+    // Get property's account_id for offer filtering
+    const propertyAccountId = roomData.account_id;
+    const propertyId = roomData.property_id;
+    
     const offers = await pool.query(`
       SELECT * FROM offers
       WHERE active = true
-        AND (property_id IS NULL OR property_id = (SELECT property_id FROM bookable_units WHERE id = $1))
+        AND (
+          property_id = $6
+          OR (property_id IS NULL AND account_id = $7)
+        )
         AND (room_id IS NULL OR room_id = $1)
         AND (min_nights IS NULL OR min_nights <= $2)
         AND (valid_from IS NULL OR valid_from <= $3)
@@ -27871,7 +27878,7 @@ app.post('/api/public/calculate-price', async (req, res) => {
         AND (pricing_tier IS NULL OR pricing_tier = $5)
       ORDER BY priority DESC, discount_value DESC
       LIMIT 1
-    `, [unit_id, nights, check_in, check_out, requestedPricingTier]);
+    `, [unit_id, nights, check_in, check_out, requestedPricingTier, propertyId, propertyAccountId]);
     
     if (offers.rows[0]) {
       const offer = offers.rows[0];
