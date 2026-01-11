@@ -3566,6 +3566,9 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
     
     console.log(`Price linking map built: ${Object.keys(priceLinkingMap).length} rooms with linked pricing`);
     
+    // Cache for source room prices (avoid fetching same source multiple times)
+    const sourceRoomPriceCache = {};
+    
     for (const prop of propsResult.rows) {
       console.log(`Syncing availability for ${prop.name} (Beds24 ID: ${prop.external_id})`);
       
@@ -3610,58 +3613,94 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
           
           let calendarData = calResponse.data.data?.[0]?.calendar || [];
           
-          // If no prices and has price linking, fetch from source room
+          // If no prices and has price linking, fetch from source room (with caching)
           const hasNoPrices = calendarData.length === 0 || !calendarData.some(e => e.price1);
           if (hasNoPrices && linking) {
             console.log(`  ${room.name}: No prices, fetching from linked room ${linking.sourceRoomId} (offset +${linking.offsetAmount})`);
             
-            try {
-              const sourceCalResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/calendar', {
-                headers: { 'token': accessToken },
-                params: { 
-                  roomId: linking.sourceRoomId, 
-                  startDate, 
-                  endDate,
-                  includeNumAvail: true,
-                  includePrices: true,
-                  includeMinStay: true
-                }
-              });
-              
-              const sourceCalendar = sourceCalResponse.data.data?.[0]?.calendar || [];
-              
-              // Create a price map from source
-              const sourcePriceMap = {};
-              for (const entry of sourceCalendar) {
-                if (entry.price1) {
-                  const fromDate = new Date(entry.from);
-                  const toDate = new Date(entry.to);
-                  for (let d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
-                    const dateStr = d.toISOString().split('T')[0];
-                    // Apply offset: price * multiplier + offset
-                    sourcePriceMap[dateStr] = (entry.price1 * (linking.offsetMultiplier || 1)) + (linking.offsetAmount || 0);
+            // Check cache first
+            const cacheKey = `${linking.sourceRoomId}_${startDate}_${endDate}`;
+            let sourcePriceMap = sourceRoomPriceCache[cacheKey];
+            
+            if (!sourcePriceMap) {
+              try {
+                const sourceCalResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/calendar', {
+                  headers: { 'token': accessToken },
+                  params: { 
+                    roomId: linking.sourceRoomId, 
+                    startDate, 
+                    endDate,
+                    includeNumAvail: true,
+                    includePrices: true,
+                    includeMinStay: true
+                  }
+                });
+                
+                const sourceCalendar = sourceCalResponse.data.data?.[0]?.calendar || [];
+                
+                // Create a price map from source (raw prices, offset applied later)
+                sourcePriceMap = {};
+                for (const entry of sourceCalendar) {
+                  if (entry.price1) {
+                    const fromDate = new Date(entry.from);
+                    const toDate = new Date(entry.to);
+                    for (let d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
+                      const dateStr = d.toISOString().split('T')[0];
+                      sourcePriceMap[dateStr] = entry.price1; // Store raw price, apply offset per-room
+                    }
                   }
                 }
+                
+                // Cache it
+                sourceRoomPriceCache[cacheKey] = sourcePriceMap;
+                console.log(`    Fetched and cached ${Object.keys(sourcePriceMap).length} prices from source room`);
+              } catch (sourceErr) {
+                console.log(`    Failed to fetch source room prices: ${sourceErr.message}`);
+                sourcePriceMap = {};
               }
-              
-              // Merge source prices into calendarData
-              // Keep availability from original room, add prices from source
-              if (calendarData.length > 0) {
-                calendarData = calendarData.map(entry => ({
-                  ...entry,
-                  price1: entry.price1 || sourcePriceMap[entry.from] || null
-                }));
-              } else {
-                // No calendar data at all - create from source
-                calendarData = sourceCalendar.map(entry => ({
-                  ...entry,
-                  price1: entry.price1 ? (entry.price1 * (linking.offsetMultiplier || 1)) + (linking.offsetAmount || 0) : null
-                }));
+            } else {
+              console.log(`    Using cached prices from source room (${Object.keys(sourcePriceMap).length} days)`);
+            }
+            
+            // Apply offset to get final prices for this room
+            const applyOffset = (price) => price ? (price * (linking.offsetMultiplier || 1)) + (linking.offsetAmount || 0) : null;
+            
+            // Merge source prices into calendarData
+            if (calendarData.length > 0) {
+              // Expand each calendar entry to individual days with prices
+              const expandedData = [];
+              for (const entry of calendarData) {
+                const fromDate = new Date(entry.from);
+                const toDate = new Date(entry.to);
+                for (let d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
+                  const dateStr = d.toISOString().split('T')[0];
+                  expandedData.push({
+                    from: dateStr,
+                    to: dateStr,
+                    numAvail: entry.numAvail,
+                    minStay: entry.minStay,
+                    price1: entry.price1 || applyOffset(sourcePriceMap[dateStr])
+                  });
+                }
               }
-              
-              console.log(`    Merged ${Object.keys(sourcePriceMap).length} prices from source room`);
-            } catch (sourceErr) {
-              console.log(`    Failed to fetch source room prices: ${sourceErr.message}`);
+              calendarData = expandedData;
+            } else {
+              // No calendar data at all - create from source prices for requested date range
+              calendarData = [];
+              for (let i = 0; i < days; i++) {
+                const d = new Date(today);
+                d.setDate(d.getDate() + i);
+                const dateStr = d.toISOString().split('T')[0];
+                if (sourcePriceMap[dateStr]) {
+                  calendarData.push({
+                    from: dateStr,
+                    to: dateStr,
+                    numAvail: 1, // Assume available if we have no data
+                    minStay: 1,
+                    price1: applyOffset(sourcePriceMap[dateStr])
+                  });
+                }
+              }
             }
           }
           
@@ -3773,14 +3812,15 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
           roomsSynced++;
           console.log(`  ✓ ${room.name}: ${daysWithPrice} prices, ${daysBlocked} blocked`);
           
-          // Small delay between rooms
-          await new Promise(resolve => setTimeout(resolve, 200));
+          // Small delay between rooms to avoid rate limits
+          await new Promise(resolve => setTimeout(resolve, 500));
           
         } catch (roomError) {
           console.error(`  Error syncing ${room.name}:`, roomError.response?.data || roomError.message);
           errors.push({ room: room.name, error: roomError.message });
           if (roomError.response?.status === 429) {
-            await new Promise(resolve => setTimeout(resolve, 5000));
+            console.log('  Rate limited - waiting 10 seconds...');
+            await new Promise(resolve => setTimeout(resolve, 10000));
           }
         }
       }
