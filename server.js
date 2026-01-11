@@ -38586,29 +38586,80 @@ app.post('/api/beds24/test-reviews-api', async (req, res) => {
     }
     
     const token = connection.access_token;
-    const results = { airbnb: null, booking: null };
+    const results = { 
+      airbnb_propertyId: null, 
+      airbnb_roomId: null,
+      airbnb_id: null,
+      airbnb_noParam: null,
+      booking_propertyId: null,
+      booking_roomId: null,
+      booking_id: null,
+      booking_noParam: null
+    };
     
-    // Test Airbnb
+    // Test Airbnb with different param names
     try {
-      const airbnbResp = await axios.get('https://beds24.com/api/v2/channels/airbnb/reviews', {
+      const resp = await axios.get('https://beds24.com/api/v2/channels/airbnb/reviews', {
         headers: { 'token': token },
-        params: propertyId ? { propertyId } : {}
+        params: { propertyId }
       });
-      results.airbnb = airbnbResp.data;
-    } catch (e) {
-      results.airbnb = { error: e.response?.data || e.message };
-    }
+      results.airbnb_propertyId = resp.data;
+    } catch (e) { results.airbnb_propertyId = { error: e.response?.data || e.message }; }
     
-    // Test Booking.com
     try {
-      const bookingResp = await axios.get('https://beds24.com/api/v2/channels/booking/reviews', {
+      const resp = await axios.get('https://beds24.com/api/v2/channels/airbnb/reviews', {
         headers: { 'token': token },
-        params: propertyId ? { propertyId } : {}
+        params: { roomId: propertyId }
       });
-      results.booking = bookingResp.data;
-    } catch (e) {
-      results.booking = { error: e.response?.data || e.message };
-    }
+      results.airbnb_roomId = resp.data;
+    } catch (e) { results.airbnb_roomId = { error: e.response?.data || e.message }; }
+    
+    try {
+      const resp = await axios.get('https://beds24.com/api/v2/channels/airbnb/reviews', {
+        headers: { 'token': token },
+        params: { id: propertyId }
+      });
+      results.airbnb_id = resp.data;
+    } catch (e) { results.airbnb_id = { error: e.response?.data || e.message }; }
+    
+    try {
+      const resp = await axios.get('https://beds24.com/api/v2/channels/airbnb/reviews', {
+        headers: { 'token': token }
+      });
+      results.airbnb_noParam = resp.data;
+    } catch (e) { results.airbnb_noParam = { error: e.response?.data || e.message }; }
+    
+    // Test Booking.com with different param names
+    try {
+      const resp = await axios.get('https://beds24.com/api/v2/channels/booking/reviews', {
+        headers: { 'token': token },
+        params: { propertyId }
+      });
+      results.booking_propertyId = resp.data;
+    } catch (e) { results.booking_propertyId = { error: e.response?.data || e.message }; }
+    
+    try {
+      const resp = await axios.get('https://beds24.com/api/v2/channels/booking/reviews', {
+        headers: { 'token': token },
+        params: { roomId: propertyId }
+      });
+      results.booking_roomId = resp.data;
+    } catch (e) { results.booking_roomId = { error: e.response?.data || e.message }; }
+    
+    try {
+      const resp = await axios.get('https://beds24.com/api/v2/channels/booking/reviews', {
+        headers: { 'token': token },
+        params: { id: propertyId }
+      });
+      results.booking_id = resp.data;
+    } catch (e) { results.booking_id = { error: e.response?.data || e.message }; }
+    
+    try {
+      const resp = await axios.get('https://beds24.com/api/v2/channels/booking/reviews', {
+        headers: { 'token': token }
+      });
+      results.booking_noParam = resp.data;
+    } catch (e) { results.booking_noParam = { error: e.response?.data || e.message }; }
     
     res.json({ success: true, results });
   } catch (error) {
