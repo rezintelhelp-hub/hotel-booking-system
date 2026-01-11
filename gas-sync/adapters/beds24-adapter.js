@@ -425,10 +425,11 @@ class Beds24Adapter {
       return { success: true, data: [] };
     }
     
-    // Request with texts and roomIds for full room data
+    // Request with texts, roomIds, AND featureCodes for full room data
     const response = await this.v1Request('/getPropertyContent', {
       roomIds: true,
-      texts: true
+      texts: true,
+      featureCodes: true  // Get amenity codes
     });
     
     if (!response.success) {
@@ -452,18 +453,23 @@ class Beds24Adapter {
     // Get texts for room descriptions
     const texts = content.texts || {};
     
+    // Get featureCodes for amenities
+    const featureCodes = content.featureCodes || [];
+    console.log(`Beds24 getRoomTypes: featureCodes from V1:`, Array.isArray(featureCodes) ? featureCodes.length + ' codes' : typeof featureCodes);
+    
     const roomTypes = [];
     for (const [roomId, roomData] of Object.entries(content.roomIds)) {
       // Merge any room-specific texts AND property-level texts
       const roomTexts = texts[`room_${roomId}`] || {};
       
-      // Include the full texts object so displayName, roomDescription1, etc. are available
+      // Include the full texts object AND featureCodes so displayName, roomDescription1, amenities etc. are available
       roomTypes.push(this.mapRoomType({
         id: roomId,
         name: roomData.name || `Room ${roomId}`,
         description: roomTexts.description || roomData.description || '',
         fullDescription: roomTexts.fullDescription || roomData.fullDescription || '',
         texts: texts, // Include full texts object for displayName, roomDescription1, auxiliaryText
+        featureCodes: featureCodes, // Include feature codes for amenity mapping
         ...roomData
       }, propertyExternalId));
     }
@@ -1168,16 +1174,29 @@ class Beds24Adapter {
             let roomTypesData = [];
             let v1Texts = null; // Will hold texts from V1 API
             
-            // If we have V1 credentials, fetch texts for descriptions
+            // If we have V1 credentials, fetch texts AND featureCodes for descriptions and amenities
+            let v1FeatureCodes = null;
             if (this.apiKey && propertyPropKey) {
               try {
-                const textsResponse = await this.v1Request('/getPropertyContent', { texts: true });
-                if (textsResponse.success && textsResponse.data?.getPropertyContent?.[0]?.texts) {
-                  v1Texts = textsResponse.data.getPropertyContent[0].texts;
-                  console.log(`Beds24 fullSync: Got V1 texts for ${property.name}:`, Object.keys(v1Texts).join(', '));
+                // Request texts AND featureCodes from V1 API
+                const contentResponse = await this.v1Request('/getPropertyContent', { 
+                  texts: true,
+                  featureCodes: true  // This gets the amenity codes like WIFI, KITCHEN, etc.
+                });
+                const content = contentResponse.data?.getPropertyContent?.[0];
+                if (contentResponse.success && content) {
+                  if (content.texts) {
+                    v1Texts = content.texts;
+                    console.log(`Beds24 fullSync: Got V1 texts for ${property.name}:`, Object.keys(v1Texts).filter(k => k !== 'offers').join(', '));
+                  }
+                  if (content.featureCodes) {
+                    v1FeatureCodes = content.featureCodes;
+                    console.log(`Beds24 fullSync: Got V1 featureCodes for ${property.name}:`, 
+                      Array.isArray(v1FeatureCodes) ? v1FeatureCodes.length + ' codes' : typeof v1FeatureCodes);
+                  }
                 }
               } catch (e) {
-                console.log(`Beds24 fullSync: Could not fetch V1 texts for ${property.name}:`, e.message);
+                console.log(`Beds24 fullSync: Could not fetch V1 content for ${property.name}:`, e.message);
               }
             }
             
@@ -1186,10 +1205,21 @@ class Beds24Adapter {
               console.log(`Beds24 fullSync: Using V2 roomTypes for ${property.name}: ${property.roomTypes.length} rooms`);
               roomTypesData = property.roomTypes.map(rt => {
                 const mapped = this.mapRoomType(rt, property.externalId);
-                // Enrich with V1 texts if available
+                // Enrich with V1 texts and featureCodes if available
+                mapped.raw = mapped.raw || {};
                 if (v1Texts) {
-                  mapped.raw = mapped.raw || {};
                   mapped.raw.texts = v1Texts;
+                }
+                if (v1FeatureCodes) {
+                  // featureCodes could be an array or nested object - handle both
+                  if (Array.isArray(v1FeatureCodes)) {
+                    mapped.raw.featureCodes = v1FeatureCodes;
+                  } else if (typeof v1FeatureCodes === 'object') {
+                    // Might be {roomId: [...]} or flat array
+                    const roomFeatures = v1FeatureCodes[rt.id] || v1FeatureCodes[String(rt.id)] || v1FeatureCodes;
+                    mapped.raw.featureCodes = Array.isArray(roomFeatures) ? roomFeatures : Object.values(roomFeatures).flat();
+                  }
+                  console.log(`Beds24 fullSync: Room ${rt.id} featureCodes:`, mapped.raw.featureCodes?.length || 0, 'codes');
                 }
                 return mapped;
               });
