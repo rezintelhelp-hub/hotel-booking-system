@@ -36959,12 +36959,12 @@ Local honey and preserves"></textarea>
                         importBtn.style.cursor = 'pointer';
                         importBtn.textContent = 'Import';
                     }
-                    // Update status light
+                    // Update status light to yellow (ready to import)
                     const row = document.getElementById(`prop-row-${syncPropertyId}`);
                     if (row) {
                         const statusCell = row.querySelector('td:first-child');
                         if (statusCell) {
-                            statusCell.innerHTML = '';
+                            statusCell.innerHTML = '🟡';
                             statusCell.title = 'Ready to import';
                         }
                     }
