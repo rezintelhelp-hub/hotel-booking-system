@@ -38573,6 +38573,49 @@ app.post('/api/beds24/sync-reviews', async (req, res) => {
   }
 });
 
+// Debug endpoint to test Beds24 reviews API for a single property
+app.post('/api/beds24/test-reviews-api', async (req, res) => {
+  try {
+    const { connectionId, propertyId } = req.body;
+    
+    const connResult = await pool.query('SELECT * FROM gas_sync_connections WHERE id = $1', [connectionId]);
+    const connection = connResult.rows[0];
+    
+    if (!connection || !connection.access_token) {
+      return res.json({ success: false, error: 'No token' });
+    }
+    
+    const token = connection.access_token;
+    const results = { airbnb: null, booking: null };
+    
+    // Test Airbnb
+    try {
+      const airbnbResp = await axios.get('https://beds24.com/api/v2/channels/airbnb/reviews', {
+        headers: { 'token': token },
+        params: propertyId ? { propertyId } : {}
+      });
+      results.airbnb = airbnbResp.data;
+    } catch (e) {
+      results.airbnb = { error: e.response?.data || e.message };
+    }
+    
+    // Test Booking.com
+    try {
+      const bookingResp = await axios.get('https://beds24.com/api/v2/channels/booking/reviews', {
+        headers: { 'token': token },
+        params: propertyId ? { propertyId } : {}
+      });
+      results.booking = bookingResp.data;
+    } catch (e) {
+      results.booking = { error: e.response?.data || e.message };
+    }
+    
+    res.json({ success: true, results });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Global sync reviews for ALL Hostaway-connected accounts
 app.post('/api/hostaway/sync-all-reviews', async (req, res) => {
   try {
