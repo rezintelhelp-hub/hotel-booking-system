@@ -38318,6 +38318,254 @@ app.post('/api/hostaway/sync-reviews', async (req, res) => {
   }
 });
 
+// =====================================================
+// BEDS24 REVIEWS SYNC
+// =====================================================
+
+// Sync reviews from Beds24 (Airbnb + Booking.com channels)
+app.post('/api/beds24/sync-reviews', async (req, res) => {
+  try {
+    const { connectionId } = req.body;
+    
+    if (!connectionId) {
+      return res.json({ success: false, error: 'connectionId required' });
+    }
+    
+    // Get connection
+    const connResult = await pool.query(
+      'SELECT * FROM gas_sync_connections WHERE id = $1',
+      [connectionId]
+    );
+    const connection = connResult.rows[0];
+    
+    if (!connection) {
+      return res.json({ success: false, error: 'Connection not found' });
+    }
+    
+    if (connection.adapter_code !== 'beds24') {
+      return res.json({ success: false, error: 'Not a Beds24 connection' });
+    }
+    
+    const token = connection.access_token;
+    if (!token) {
+      return res.json({ success: false, error: 'No Beds24 V2 token available' });
+    }
+    
+    // Get all Beds24 rooms for this connection (for property mapping)
+    const roomsResult = await pool.query(`
+      SELECT gsp.id as sync_property_id, gsp.external_id as beds24_property_id, gsp.gas_property_id,
+             bu.id as room_id, p.account_id
+      FROM gas_sync_properties gsp
+      LEFT JOIN properties p ON gsp.gas_property_id = p.id
+      LEFT JOIN bookable_units bu ON bu.property_id = p.id
+      WHERE gsp.connection_id = $1 AND gsp.gas_property_id IS NOT NULL
+    `, [connectionId]);
+    
+    // Create lookup by Beds24 property ID
+    const roomsByBeds24Id = {};
+    roomsResult.rows.forEach(r => {
+      roomsByBeds24Id[String(r.beds24_property_id)] = r;
+    });
+    
+    if (Object.keys(roomsByBeds24Id).length === 0) {
+      return res.json({ success: false, error: 'No imported properties found for this connection' });
+    }
+    
+    console.log(`Beds24 reviews sync: Found ${Object.keys(roomsByBeds24Id).length} imported properties`);
+    
+    let allReviews = [];
+    const errors = [];
+    
+    // Fetch Airbnb reviews
+    try {
+      console.log('Beds24 reviews: Fetching Airbnb reviews...');
+      const airbnbResponse = await axios.get('https://beds24.com/api/v2/channels/airbnb/reviews', {
+        headers: { 'token': token }
+      });
+      
+      if (airbnbResponse.data?.success && airbnbResponse.data?.data) {
+        const airbnbReviews = airbnbResponse.data.data.map(r => ({ ...r, _channel: 'Airbnb' }));
+        allReviews = allReviews.concat(airbnbReviews);
+        console.log(`Beds24 reviews: Found ${airbnbReviews.length} Airbnb reviews`);
+      }
+    } catch (airbnbErr) {
+      console.log('Beds24 reviews: Airbnb fetch error:', airbnbErr.message);
+      errors.push({ channel: 'Airbnb', error: airbnbErr.message });
+    }
+    
+    // Fetch Booking.com reviews
+    try {
+      console.log('Beds24 reviews: Fetching Booking.com reviews...');
+      const bookingResponse = await axios.get('https://beds24.com/api/v2/channels/booking/reviews', {
+        headers: { 'token': token }
+      });
+      
+      if (bookingResponse.data?.success && bookingResponse.data?.data) {
+        const bookingReviews = bookingResponse.data.data.map(r => ({ ...r, _channel: 'Booking.com' }));
+        allReviews = allReviews.concat(bookingReviews);
+        console.log(`Beds24 reviews: Found ${bookingReviews.length} Booking.com reviews`);
+      }
+    } catch (bookingErr) {
+      console.log('Beds24 reviews: Booking.com fetch error:', bookingErr.message);
+      errors.push({ channel: 'Booking.com', error: bookingErr.message });
+    }
+    
+    console.log(`Beds24 reviews: Total ${allReviews.length} reviews to process`);
+    
+    let created = 0;
+    let updated = 0;
+    let skipped = 0;
+    
+    for (const review of allReviews) {
+      try {
+        // Determine property ID - Beds24 reviews may have propertyId or roomId
+        const propertyId = String(review.propertyId || review.roomId || review.listingId || '');
+        const room = roomsByBeds24Id[propertyId];
+        
+        if (!room) {
+          skipped++;
+          continue;
+        }
+        
+        // Generate external ID based on channel
+        const externalId = review._channel === 'Airbnb' 
+          ? `airbnb-${review.id || review.reviewer_id}-${review.submitted_at || ''}`
+          : `booking-${review.review_id || review.reservation_id || ''}`;
+        
+        const existingReview = await pool.query(
+          `SELECT id FROM reviews WHERE source = 'beds24' AND external_id = $1`,
+          [externalId]
+        );
+        
+        // Extract review data based on channel
+        let rating, comment, guestName, guestCountry, reviewDate, title, subRatings = {};
+        
+        if (review._channel === 'Airbnb') {
+          // Airbnb structure
+          rating = review.overall_rating;
+          comment = review.public_review;
+          guestName = review.reviewer_name || 'Guest';
+          reviewDate = review.submitted_at || review.first_completed_at;
+          
+          // Category ratings
+          if (review.category_ratings && Array.isArray(review.category_ratings)) {
+            review.category_ratings.forEach(cr => {
+              if (cr.category && cr.rating) {
+                subRatings[cr.category.toLowerCase()] = cr.rating;
+              }
+            });
+          }
+        } else {
+          // Booking.com structure
+          rating = review.scoring?.review_score;
+          comment = [review.content?.positive, review.content?.negative].filter(Boolean).join('\n\n');
+          title = review.content?.headline;
+          guestName = review.reviewer?.name || 'Guest';
+          guestCountry = review.reviewer?.country_code;
+          reviewDate = review.created_timestamp;
+          
+          // Sub-ratings from scoring
+          if (review.scoring) {
+            if (review.scoring.clean) subRatings.cleanliness = review.scoring.clean;
+            if (review.scoring.facilities) subRatings.facilities = review.scoring.facilities;
+            if (review.scoring.location) subRatings.location = review.scoring.location;
+            if (review.scoring.services) subRatings.services = review.scoring.services;
+            if (review.scoring.staff) subRatings.staff = review.scoring.staff;
+            if (review.scoring.value) subRatings.value = review.scoring.value;
+          }
+        }
+        
+        // Normalize rating to 5-point scale if needed (Booking.com uses 10-point)
+        if (review._channel === 'Booking.com' && rating && rating > 5) {
+          rating = rating / 2;
+        }
+        
+        const reviewData = {
+          account_id: room.account_id,
+          property_id: room.gas_property_id,
+          room_id: room.room_id,
+          external_id: externalId,
+          source: 'beds24',
+          channel_name: review._channel,
+          reservation_id: review.reservation_id ? String(review.reservation_id) : null,
+          guest_name: guestName,
+          guest_country: guestCountry || null,
+          rating: rating || null,
+          title: title || null,
+          comment: comment || null,
+          private_feedback: review.private_feedback || review.privateReview || null,
+          host_reply: review.reviewee_response || review.reply?.text || null,
+          host_reply_at: review.responded_at || review.reply?.last_change_timestamp || null,
+          review_date: reviewDate || null,
+          is_public: review.hidden !== true,
+          language: review.content?.language_code || null,
+          sub_ratings: Object.keys(subRatings).length > 0 ? JSON.stringify(subRatings) : null,
+          raw_data: JSON.stringify(review)
+        };
+        
+        if (existingReview.rows.length > 0) {
+          await pool.query(`
+            UPDATE reviews SET
+              property_id = $1, room_id = $2, channel_name = $3, reservation_id = $4,
+              guest_name = $5, guest_country = $6, rating = $7,
+              title = $8, comment = $9, private_feedback = $10, host_reply = $11,
+              host_reply_at = $12, review_date = $13, is_public = $14, language = $15,
+              sub_ratings = $16, raw_data = $17, synced_at = NOW(), updated_at = NOW()
+            WHERE id = $18
+          `, [
+            reviewData.property_id, reviewData.room_id, reviewData.channel_name, reviewData.reservation_id,
+            reviewData.guest_name, reviewData.guest_country, reviewData.rating,
+            reviewData.title, reviewData.comment, reviewData.private_feedback, reviewData.host_reply,
+            reviewData.host_reply_at, reviewData.review_date, reviewData.is_public, reviewData.language,
+            reviewData.sub_ratings, reviewData.raw_data,
+            existingReview.rows[0].id
+          ]);
+          updated++;
+        } else {
+          await pool.query(`
+            INSERT INTO reviews (
+              account_id, property_id, room_id, external_id, source, channel_name, reservation_id,
+              guest_name, guest_country, rating, title, comment, private_feedback,
+              host_reply, host_reply_at, review_date, is_public, language, sub_ratings, raw_data,
+              synced_at, created_at, updated_at
+            ) VALUES ($1, $2, $3, $4, 'beds24', $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, NOW(), NOW(), NOW())
+          `, [
+            reviewData.account_id, reviewData.property_id, reviewData.room_id, reviewData.external_id,
+            reviewData.channel_name, reviewData.reservation_id, reviewData.guest_name, reviewData.guest_country,
+            reviewData.rating, reviewData.title, reviewData.comment, reviewData.private_feedback,
+            reviewData.host_reply, reviewData.host_reply_at, reviewData.review_date, reviewData.is_public,
+            reviewData.language, reviewData.sub_ratings, reviewData.raw_data
+          ]);
+          created++;
+        }
+        
+      } catch (reviewErr) {
+        console.error(`Beds24 reviews: Error processing review:`, reviewErr.message);
+        errors.push({ review: review.id, error: reviewErr.message });
+        skipped++;
+      }
+    }
+    
+    await pool.query(
+      'UPDATE gas_sync_connections SET last_sync_at = NOW() WHERE id = $1',
+      [connectionId]
+    );
+    
+    console.log(`Beds24 reviews sync complete: ${created} created, ${updated} updated, ${skipped} skipped`);
+    
+    res.json({
+      success: true,
+      message: `Synced reviews: ${created} created, ${updated} updated, ${skipped} skipped`,
+      stats: { created, updated, skipped, total: allReviews.length, errors: errors.length },
+      errors: errors.length > 0 ? errors : undefined
+    });
+    
+  } catch (error) {
+    console.error('Beds24 reviews sync error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Global sync reviews for ALL Hostaway-connected accounts
 app.post('/api/hostaway/sync-all-reviews', async (req, res) => {
   try {
