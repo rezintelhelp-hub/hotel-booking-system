@@ -19992,7 +19992,7 @@ app.put('/api/admin/offers/:id', async (req, res) => {
   try {
     const {
       name, description, property_id, room_id,
-      property_ids, room_ids,
+      property_ids, room_ids, account_id,
       discount_type, discount_value, price_per_night, applies_to,
       min_nights, max_nights, min_guests, max_guests,
       min_advance_days, max_advance_days,
@@ -20034,8 +20034,9 @@ app.put('/api/admin/offers/:id', async (req, res) => {
           available_website = COALESCE($25, available_website),
           available_agents = COALESCE($26, available_agents),
           pricing_tier = COALESCE($27, pricing_tier),
+          account_id = COALESCE($28, account_id),
           updated_at = NOW()
-        WHERE id = $28
+        WHERE id = $29
         RETURNING *
       `, [
         name, description, property_id || null, room_id || null,
@@ -20047,6 +20048,7 @@ app.put('/api/admin/offers/:id', async (req, res) => {
         allowed_checkin_days, allowed_checkout_days,
         stackable, priority, active,
         available_website, available_agents, pricing_tier || 'standard',
+        account_id || null,
         req.params.id
       ]);
     } catch (colErr) {
@@ -20077,8 +20079,9 @@ app.put('/api/admin/offers/:id', async (req, res) => {
           available_website = COALESCE($22, available_website),
           available_agents = COALESCE($23, available_agents),
           pricing_tier = COALESCE($24, pricing_tier),
+          account_id = COALESCE($25, account_id),
           updated_at = NOW()
-        WHERE id = $25
+        WHERE id = $26
         RETURNING *
       `, [
         name, description, property_id || null, room_id || null,
@@ -20089,6 +20092,7 @@ app.put('/api/admin/offers/:id', async (req, res) => {
         allowed_checkin_days, allowed_checkout_days,
         stackable, priority, active,
         available_website, available_agents, pricing_tier || 'standard',
+        account_id || null,
         req.params.id
       ]);
     }
