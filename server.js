@@ -3118,25 +3118,25 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
           // Ensure beds24_code column exists on master_amenities
           await pool.query('ALTER TABLE master_amenities ADD COLUMN IF NOT EXISTS beds24_code VARCHAR(100)').catch(() => {});
           
-          // Ensure bookable_unit_amenities table exists
+          // Ensure room_amenity_selections table exists (this is what the UI reads from)
           await pool.query(`
-            CREATE TABLE IF NOT EXISTS bookable_unit_amenities (
+            CREATE TABLE IF NOT EXISTS room_amenity_selections (
               id SERIAL PRIMARY KEY,
-              bookable_unit_id INTEGER,
-              amenity_id INTEGER,
-              amenity_code VARCHAR(100),
-              amenity_name VARCHAR(255),
-              category VARCHAR(100),
+              room_id INTEGER NOT NULL,
+              amenity_id INTEGER NOT NULL,
+              quantity INTEGER DEFAULT 1,
               display_order INTEGER DEFAULT 0,
-              created_at TIMESTAMP DEFAULT NOW()
+              created_at TIMESTAMP DEFAULT NOW(),
+              UNIQUE(room_id, amenity_id)
             )
           `).catch(() => {});
           
           // Clear existing amenities for this room before re-importing
-          await pool.query('DELETE FROM bookable_unit_amenities WHERE bookable_unit_id = $1', [gasRoomId]);
+          await pool.query('DELETE FROM room_amenity_selections WHERE room_id = $1', [gasRoomId]);
           
           let matched = 0;
           let unmatched = [];
+          let displayOrder = 0;
           
           for (const code of codes) {
             // Try to find matching master amenity by beds24_code or amenity_code
@@ -3150,9 +3150,10 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
             if (masterMatch.rows.length > 0) {
               const ma = masterMatch.rows[0];
               await pool.query(`
-                INSERT INTO bookable_unit_amenities (bookable_unit_id, amenity_id, amenity_code, amenity_name, category)
-                VALUES ($1, $2, $3, $4, $5)
-              `, [gasRoomId, ma.id, ma.amenity_code, ma.amenity_name, ma.category]);
+                INSERT INTO room_amenity_selections (room_id, amenity_id, display_order)
+                VALUES ($1, $2, $3)
+                ON CONFLICT (room_id, amenity_id) DO NOTHING
+              `, [gasRoomId, ma.id, displayOrder++]);
               matched++;
             } else {
               unmatched.push(code);
