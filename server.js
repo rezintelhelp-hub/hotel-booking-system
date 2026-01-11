@@ -36009,7 +36009,7 @@ app.get('/api/gas-sync/connections/:id/properties', async (req, res) => {
     const result = await pool.query(`
       SELECT p.id, p.external_id, p.name, p.city, p.country, p.currency,
              p.is_active, p.synced_at, p.gas_property_id, p.prop_key,
-             p.prop_key_tested, p.webhook_tested,
+             p.prop_key_tested, p.webhook_tested, p.raw_data,
              (SELECT COUNT(*) FROM gas_sync_room_types WHERE sync_property_id = p.id) as room_type_count,
              (SELECT COUNT(*) FROM gas_sync_images WHERE sync_property_id = p.id) as image_count
       FROM gas_sync_properties p
@@ -38576,7 +38576,7 @@ app.post('/api/beds24/sync-reviews', async (req, res) => {
 // Debug endpoint to test Beds24 reviews API for a single property
 app.post('/api/beds24/test-reviews-api', async (req, res) => {
   try {
-    const { connectionId, propertyId, showToken } = req.body;
+    const { connectionId, propertyId, showToken, testProperty } = req.body;
     
     const connResult = await pool.query('SELECT * FROM gas_sync_connections WHERE id = $1', [connectionId]);
     const connection = connResult.rows[0];
@@ -38592,6 +38592,27 @@ app.post('/api/beds24/test-reviews-api', async (req, res) => {
       return res.json({ success: true, token: token });
     }
     
+    // If testing property details
+    if (testProperty) {
+      try {
+        // Get full property with all rooms and details
+        const propResp = await axios.get('https://beds24.com/api/v2/properties', {
+          headers: { 'token': token },
+          params: { 
+            id: propertyId,
+            includeAllRooms: true
+          }
+        });
+        return res.json({ 
+          success: true, 
+          property: propResp.data?.data?.[0] || propResp.data,
+          allKeys: Object.keys(propResp.data?.data?.[0] || {})
+        });
+      } catch (e) {
+        return res.json({ success: false, error: e.response?.data || e.message });
+      }
+    }
+    
     const results = {};
     
     // First verify token works with a known endpoint
@@ -38605,36 +38626,18 @@ app.post('/api/beds24/test-reviews-api', async (req, res) => {
       results.token_test_properties = { error: e.response?.data || e.message };
     }
     
-    // Try GET /channels/booking/reviews with no params - maybe returns all
-    try {
-      const resp = await axios.get('https://beds24.com/api/v2/channels/booking/reviews', {
-        headers: { 'token': token }
-      });
-      results.booking_no_params = resp.data;
-    } catch (e) { 
-      results.booking_no_params = e.response?.data || e.message;
-    }
-    
-    // Try with roomId (Beds24 calls properties "rooms")
+    // Try GET /channels/booking/reviews with propertyId AND from date (required!)
     try {
       const resp = await axios.get('https://beds24.com/api/v2/channels/booking/reviews', {
         headers: { 'token': token },
-        params: { roomId: parseInt(propertyId) }
+        params: { 
+          propertyId: parseInt(propertyId),
+          from: '2024-01-01'  // Get reviews from last year+
+        }
       });
-      results.booking_roomId = resp.data;
+      results.booking_with_from = resp.data;
     } catch (e) { 
-      results.booking_roomId = e.response?.data || e.message;
-    }
-    
-    // Try with roomIds array
-    try {
-      const resp = await axios.get('https://beds24.com/api/v2/channels/booking/reviews', {
-        headers: { 'token': token },
-        params: { roomIds: [parseInt(propertyId)] }
-      });
-      results.booking_roomIds_array = resp.data;
-    } catch (e) { 
-      results.booking_roomIds_array = e.response?.data || e.message;
+      results.booking_with_from = e.response?.data || e.message;
     }
     
     res.json({ success: true, results, tokenLength: token?.length });
