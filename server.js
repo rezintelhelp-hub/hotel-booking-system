@@ -2983,7 +2983,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
       const sizeSqm = roomRawData.size || roomRawData.sqm || null;
       
       // Extract feature codes for amenities
-      // featureCodes can be: string, array, or nested object
+      // featureCodes can be: string, flat array, array of arrays, or object
       let featureCodes = null;
       if (roomRawData.featureCodes) {
         console.log('link-to-gas: featureCodes type:', typeof roomRawData.featureCodes, 
@@ -2991,10 +2991,12 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         if (typeof roomRawData.featureCodes === 'string') {
           featureCodes = roomRawData.featureCodes;
         } else if (Array.isArray(roomRawData.featureCodes)) {
-          featureCodes = roomRawData.featureCodes.join(',');
+          // Could be flat array ['WIFI', 'KITCHEN'] or nested [['WIFI'], ['KITCHEN', 'OVEN']]
+          // Use .flat() to handle both cases
+          featureCodes = roomRawData.featureCodes.flat().join(',');
         } else if (typeof roomRawData.featureCodes === 'object') {
           // Could be nested {roomId: [...]} - flatten it
-          const allCodes = Object.values(roomRawData.featureCodes).flat();
+          const allCodes = Object.values(roomRawData.featureCodes).flat().flat();
           featureCodes = allCodes.join(',');
         }
         console.log('link-to-gas: featureCodes extracted:', featureCodes?.substring(0, 100));
