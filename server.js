@@ -38588,27 +38588,47 @@ app.post('/api/beds24/test-reviews-api', async (req, res) => {
     const token = connection.access_token;
     const results = {};
     
-    // The docs say GET /channels/booking/reviews - try various param combinations
-    const paramSets = [
-      {},
-      { roomId: propertyId },
-      { roomId: parseInt(propertyId) },
-      { propertyId: propertyId },
-      { propertyId: parseInt(propertyId) },
-      { id: propertyId },
-      { id: parseInt(propertyId) }
-    ];
+    // First verify token works with a known endpoint
+    try {
+      const propResp = await axios.get('https://beds24.com/api/v2/properties', {
+        headers: { 'token': token },
+        params: { id: propertyId }
+      });
+      results.token_test_properties = { success: true, count: propResp.data?.data?.length || 0 };
+    } catch (e) {
+      results.token_test_properties = { error: e.response?.data || e.message };
+    }
     
-    for (let i = 0; i < paramSets.length; i++) {
-      try {
-        const resp = await axios.get('https://beds24.com/api/v2/channels/booking/reviews', {
-          headers: { 'token': token },
-          params: paramSets[i]
-        });
-        results[`test_${i}_params_${JSON.stringify(paramSets[i])}`] = resp.data;
-      } catch (e) { 
-        results[`test_${i}_params_${JSON.stringify(paramSets[i])}`] = e.response?.data || e.message;
-      }
+    // Try GET /channels/booking/reviews with no params - maybe returns all
+    try {
+      const resp = await axios.get('https://beds24.com/api/v2/channels/booking/reviews', {
+        headers: { 'token': token }
+      });
+      results.booking_no_params = resp.data;
+    } catch (e) { 
+      results.booking_no_params = e.response?.data || e.message;
+    }
+    
+    // Try with roomId (Beds24 calls properties "rooms")
+    try {
+      const resp = await axios.get('https://beds24.com/api/v2/channels/booking/reviews', {
+        headers: { 'token': token },
+        params: { roomId: parseInt(propertyId) }
+      });
+      results.booking_roomId = resp.data;
+    } catch (e) { 
+      results.booking_roomId = e.response?.data || e.message;
+    }
+    
+    // Try with roomIds array
+    try {
+      const resp = await axios.get('https://beds24.com/api/v2/channels/booking/reviews', {
+        headers: { 'token': token },
+        params: { roomIds: [parseInt(propertyId)] }
+      });
+      results.booking_roomIds_array = resp.data;
+    } catch (e) { 
+      results.booking_roomIds_array = e.response?.data || e.message;
     }
     
     res.json({ success: true, results, tokenLength: token?.length });
