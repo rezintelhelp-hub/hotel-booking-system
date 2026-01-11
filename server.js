@@ -1041,6 +1041,14 @@ async function runMigrations() {
       console.log('ℹ️  property_terms.cancellation_policy:', e.message);
     }
     
+    // Add price_linking JSONB column to gas_sync_room_types for linked pricing
+    try {
+      await pool.query(`ALTER TABLE gas_sync_room_types ADD COLUMN IF NOT EXISTS price_linking JSONB`);
+      console.log('✅ gas_sync_room_types.price_linking column ensured');
+    } catch (e) {
+      console.log('ℹ️  gas_sync_room_types.price_linking:', e.message);
+    }
+    
   } catch (error) {
     console.error('Migration runner error:', error.message);
   }
@@ -38595,7 +38603,7 @@ app.post('/api/beds24/test-reviews-api', async (req, res) => {
     // If testing property details
     if (testProperty) {
       try {
-        // Get full property with all rooms and details
+        // Get full property with all rooms and details from V2
         const propResp = await axios.get('https://beds24.com/api/v2/properties', {
           headers: { 'token': token },
           params: { 
@@ -38604,10 +38612,58 @@ app.post('/api/beds24/test-reviews-api', async (req, res) => {
             includePriceRules: true
           }
         });
+        
+        // Also try V1 getDailyPriceSetup if we have V1 credentials
+        let v1DailyPriceSetup = null;
+        if (connection.api_key) {
+          try {
+            const v1Resp = await axios.post('https://api.beds24.com/json/getDailyPriceSetup', {
+              authentication: {
+                apiKey: connection.api_key,
+                propKey: propertyId  // Try with propertyId as propKey
+              }
+            });
+            v1DailyPriceSetup = v1Resp.data;
+          } catch (v1Err) {
+            v1DailyPriceSetup = { error: v1Err.message };
+          }
+        }
+        
         return res.json({ 
           success: true, 
           property: propResp.data?.data?.[0] || propResp.data,
-          allKeys: Object.keys(propResp.data?.data?.[0] || {})
+          allKeys: Object.keys(propResp.data?.data?.[0] || {}),
+          v1DailyPriceSetup,
+          hasV1Key: !!connection.api_key
+        });
+      } catch (e) {
+        return res.json({ success: false, error: e.response?.data || e.message });
+      }
+    }
+    
+    // Test calendar to see if prices are already calculated with linking
+    if (req.body.testCalendar) {
+      try {
+        const roomId = req.body.roomId || 418862; // Barnsley's room ID
+        const today = new Date().toISOString().split('T')[0];
+        const endDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        
+        const calResp = await axios.get('https://beds24.com/api/v2/inventory/rooms/calendar', {
+          headers: { 'token': token },
+          params: { 
+            roomId: roomId,
+            startDate: today,
+            endDate: endDate,
+            includeNumAvail: true,
+            includePrices: true,
+            includeMinStay: true
+          }
+        });
+        
+        return res.json({
+          success: true,
+          roomId,
+          calendar: calResp.data?.data?.[0]?.calendar || calResp.data
         });
       } catch (e) {
         return res.json({ success: false, error: e.response?.data || e.message });
