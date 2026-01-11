@@ -28781,6 +28781,7 @@ app.get('/api/public/client/:clientId/offers', async (req, res) => {
     let offers;
     try {
       // Try with new columns
+      // Note: account_id can be on offer directly OR derived from property
       offers = await pool.query(`
         SELECT 
           o.id,
@@ -28801,8 +28802,8 @@ app.get('/api/public/client/:clientId/offers', async (req, res) => {
         FROM offers o
         LEFT JOIN properties p ON o.property_id = p.id
         WHERE o.active = true
-          AND o.available_website = true
-          AND (p.account_id = $1 OR o.user_id = $1)
+          AND (o.available_website = true OR o.available_website IS NULL)
+          AND (o.account_id = $1 OR p.account_id = $1 OR o.user_id = $1)
           AND (o.valid_from IS NULL OR o.valid_from <= CURRENT_DATE)
           AND (o.valid_until IS NULL OR o.valid_until >= CURRENT_DATE)
           AND ($2::integer IS NULL OR o.room_id IS NULL OR o.room_id = $2)
@@ -28835,8 +28836,8 @@ app.get('/api/public/client/:clientId/offers', async (req, res) => {
         FROM offers o
         LEFT JOIN properties p ON o.property_id = p.id
         WHERE o.active = true
-          AND o.available_website = true
-          AND (p.account_id = $1 OR o.user_id = $1)
+          AND (o.available_website = true OR o.available_website IS NULL)
+          AND (o.account_id = $1 OR p.account_id = $1 OR o.user_id = $1)
           AND (o.valid_from IS NULL OR o.valid_from <= CURRENT_DATE)
           AND (o.valid_until IS NULL OR o.valid_until >= CURRENT_DATE)
           AND ($2::integer IS NULL OR o.room_id IS NULL OR o.room_id = $2)
