@@ -28637,10 +28637,41 @@ app.get('/api/public/upsells/:unitId', async (req, res) => {
 app.get('/api/public/client/:clientId/rooms', async (req, res) => {
   try {
     const { clientId } = req.params;
-    const { property_id, room_ids, limit, random } = req.query;
+    const { property_id, room_ids, limit, offset, random } = req.query;
+    
+    // Pagination defaults
+    const pageLimit = limit ? parseInt(limit) : null;  // null = no limit (all rooms)
+    const pageOffset = offset ? parseInt(offset) : 0;
     
     // Get today's date for rate calendar lookup
     const today = new Date().toISOString().split('T')[0];
+    
+    // First get total count
+    let countQuery = `
+      SELECT COUNT(*) as total
+      FROM bookable_units bu
+      JOIN properties p ON bu.property_id = p.id
+      WHERE p.account_id = $1
+    `;
+    const countParams = [clientId];
+    let countParamIndex = 2;
+    
+    if (property_id) {
+      countQuery += ` AND p.id = $${countParamIndex}`;
+      countParams.push(property_id);
+      countParamIndex++;
+    }
+    
+    if (room_ids) {
+      const ids = room_ids.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+      if (ids.length > 0) {
+        countQuery += ` AND bu.id = ANY($${countParamIndex}::int[])`;
+        countParams.push(ids);
+      }
+    }
+    
+    const countResult = await pool.query(countQuery, countParams);
+    const totalCount = parseInt(countResult.rows[0]?.total || 0);
     
     let query = `
       SELECT 
@@ -28694,10 +28725,17 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
       query += ' ORDER BY bu.name';
     }
     
-    // Limit
-    if (limit) {
+    // Pagination
+    if (pageLimit) {
       query += ` LIMIT $${paramIndex}`;
-      params.push(parseInt(limit));
+      params.push(pageLimit);
+      paramIndex++;
+      
+      if (pageOffset > 0) {
+        query += ` OFFSET $${paramIndex}`;
+        params.push(pageOffset);
+        paramIndex++;
+      }
     }
     
     const result = await pool.query(query, params);
@@ -28754,7 +28792,11 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
       success: true,
       rooms: rooms,
       meta: {
-        total: rooms.length,
+        total: totalCount,
+        returned: rooms.length,
+        offset: pageOffset,
+        limit: pageLimit,
+        has_more: pageLimit ? (pageOffset + rooms.length < totalCount) : false,
         max_guests_available: maxGuestsResult.rows[0]?.max_guests || 10
       }
     });
@@ -28785,7 +28827,8 @@ app.get('/api/public/client/:clientId/offers', async (req, res) => {
     let offers;
     try {
       // Try with new columns
-      // Note: account_id can be on offer directly OR derived from property
+      // Filter by account_id directly on offer OR via property's account_id
+      // Do NOT use user_id as that's the admin who created it, not the account it belongs to
       offers = await pool.query(`
         SELECT 
           o.id,
@@ -28807,7 +28850,7 @@ app.get('/api/public/client/:clientId/offers', async (req, res) => {
         LEFT JOIN properties p ON o.property_id = p.id
         WHERE o.active = true
           AND (o.available_website = true OR o.available_website IS NULL)
-          AND (o.account_id = $1 OR p.account_id = $1 OR o.user_id = $1)
+          AND (o.account_id = $1 OR p.account_id = $1)
           AND (o.valid_from IS NULL OR o.valid_from <= CURRENT_DATE)
           AND (o.valid_until IS NULL OR o.valid_until >= CURRENT_DATE)
           AND ($2::integer IS NULL OR o.room_id IS NULL OR o.room_id = $2)
@@ -28841,7 +28884,7 @@ app.get('/api/public/client/:clientId/offers', async (req, res) => {
         LEFT JOIN properties p ON o.property_id = p.id
         WHERE o.active = true
           AND (o.available_website = true OR o.available_website IS NULL)
-          AND (o.account_id = $1 OR p.account_id = $1 OR o.user_id = $1)
+          AND (o.account_id = $1 OR p.account_id = $1)
           AND (o.valid_from IS NULL OR o.valid_from <= CURRENT_DATE)
           AND (o.valid_until IS NULL OR o.valid_until >= CURRENT_DATE)
           AND ($2::integer IS NULL OR o.room_id IS NULL OR o.room_id = $2)
