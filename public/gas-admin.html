@@ -36838,12 +36838,13 @@ Local honey and preserves"></textarea>
                                 <td style="text-align: center;">${p.room_type_count}</td>
                                 <td>
                                     ${p.gas_property_id ? 
-                                        '<span style="color: #22c55e;"> Imported</span>' : 
+                                        '<span style="color: #22c55e;">✅ Imported</span>' : 
                                         `<button id="import-btn-${p.id}" class="btn btn-sm btn-primary" onclick="importSyncedProperty(${p.id})" ${canImport ? '' : 'disabled'} style="${canImport ? '' : 'opacity: 0.5; cursor: not-allowed;'}">${canImport ? 'Import' : (!p.prop_key ? 'Enter Key' : (!webhookTested && !propKeyTested ? 'Run Tests' : (!webhookTested ? 'Test Webhook' : 'Test Key')))}</button>`
                                     }
                                 </td>
                                 <td>
                                     <div style="display: flex; gap: 4px;">
+                                        ${p.gas_property_id ? `<button onclick="syncPropertyContent(${p.id})" class="btn btn-sm btn-primary" title="Re-sync descriptions, amenities & images">🔄 Sync</button>` : ''}
                                         ${isBeds24 && p.prop_key ? `<button onclick="downloadPropertyImages(${p.id})" class="btn btn-sm btn-secondary" title="Download Images">📷</button>` : ''}
                                     </div>
                                 </td>
@@ -37294,9 +37295,8 @@ Local honey and preserves"></textarea>
                         <td>${p.gas_property_id ? '<span class="badge" style="background:#d1fae5;color:#047857;">Linked</span>' : '<span class="badge" style="background:#fef3c7;color:#92400e;">Not Linked</span>'}</td>
                         <td>${formatTimeAgo(p.synced_at)}</td>
                         <td>${!p.gas_property_id ? `<button class="btn btn-sm btn-primary" onclick="importSyncedProperty(${p.id})">Import</button>` : ''}
-                            ${p.gas_property_id ? `<button class="btn btn-sm btn-primary" onclick="syncPropertyContent(${p.id})" title="Re-sync descriptions, amenities & images">🔄 Sync</button>` : ''}
-                            ${p.gas_property_id ? `<button class="btn btn-sm btn-secondary" onclick="checkRoomChanges(${p.id}, '${p.name.replace(/'/g, "\\'")}')"> Rooms</button>` : ''}
-                            <button class="btn btn-sm btn-secondary" onclick="downloadPropertyImages(${p.id})"></button></td>
+                            ${p.gas_property_id ? `<button class="btn btn-sm btn-secondary" onclick="checkRoomChanges(${p.id}, '${p.name.replace(/'/g, "\\'")}')">📋 Rooms</button>` : ''}
+                            <button class="btn btn-sm btn-secondary" onclick="downloadPropertyImages(${p.id})">📷</button></td>
                     </tr>`).join('');
                 } else {
                     tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color: var(--text-secondary);">No synced properties</td></tr>';
