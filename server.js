@@ -2926,12 +2926,10 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
       const roomRawData = typeof room.raw_data === 'string' ? JSON.parse(room.raw_data) : (room.raw_data || {});
       
       // Beds24 texts is an OBJECT with nested language keys: texts.headlineText.EN
-      // The texts are at PROPERTY level in Beds24, not room level (for single-unit properties)
       const texts = roomRawData.texts || {};
       
-      // Debug: log texts keys (skip 'offers' which is large)
-      const textKeys = Object.keys(texts).filter(k => k !== 'offers');
-      console.log('link-to-gas: texts keys:', textKeys.join(', '));
+      // Debug: log texts keys
+      console.log('link-to-gas: texts keys:', Object.keys(texts).filter(k => k !== 'offers').join(', '));
       console.log('link-to-gas: texts.headlineText:', JSON.stringify(texts.headlineText));
       console.log('link-to-gas: texts.propertyDescriptionBookingPage2:', JSON.stringify(texts.propertyDescriptionBookingPage2)?.substring(0, 100));
       console.log('link-to-gas: texts.propertyDescriptionText:', JSON.stringify(texts.propertyDescriptionText)?.substring(0, 100));
@@ -2946,29 +2944,20 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         return '';
       }
       
-      // Beds24 headlineText → GAS display_name (marketing name for website)
-      // Falls back to displayName if headlineText not available
-      const displayName = getText(texts.headlineText) || getText(texts.displayName) || '';
+      // Beds24 headlineText → GAS display_name
+      const displayName = getText(texts.headlineText) || '';
       
-      // Beds24 propertyDescriptionBookingPage2 → GAS short_description (shown on listings/search)
-      // Falls back to locationDescription, then roomDescription1
-      const roomShortDesc = getText(texts.propertyDescriptionBookingPage2) || 
-                            getText(texts.locationDescription) || 
-                            getText(texts.roomDescription1) || 
-                            getText(roomRawData.description) || '';
+      // Beds24 propertyDescriptionBookingPage2 → GAS short_description (for listings)
+      const roomShortDesc = getText(texts.propertyDescriptionBookingPage2) || getText(texts.locationDescription) || '';
       
-      // Beds24 propertyDescriptionText → GAS full_description (detailed description)
-      // Falls back to propertyDescription1, then auxiliaryText
-      const roomFullDesc = getText(texts.propertyDescriptionText) || 
-                           getText(texts.propertyDescription1) || 
-                           getText(texts.auxiliaryText) || 
-                           getText(roomRawData.fullDescription) || '';
+      // Beds24 propertyDescriptionText → GAS full_description (long description)
+      const roomFullDesc = getText(texts.propertyDescriptionText) || getText(texts.propertyDescription1) || '';
       
       // Log what we found
       console.log('link-to-gas: Room', room.name);
-      console.log('  - displayName (headlineText):', displayName?.substring(0, 60) || '(empty)');
-      console.log('  - shortDesc (propertyDescriptionBookingPage2):', roomShortDesc?.substring(0, 60) || '(empty)');
-      console.log('  - fullDesc (propertyDescriptionText):', roomFullDesc?.substring(0, 60) || '(empty)');
+      console.log('  - displayName (headlineText):', displayName?.substring(0, 50) || '(empty)');
+      console.log('  - shortDesc (propertyDescriptionBookingPage2):', roomShortDesc?.substring(0, 50) || '(empty)');
+      console.log('  - fullDesc (propertyDescriptionText):', roomFullDesc?.substring(0, 50) || '(empty)');
       
       const roomType = getText(texts.accommodationType) || getText(roomRawData.accommodationType) || '';
       
@@ -2983,7 +2972,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
       const sizeSqm = roomRawData.size || roomRawData.sqm || null;
       
       // Extract feature codes for amenities
-      // featureCodes can be: string, flat array, array of arrays, or object
+      // featureCodes can be: string, flat array, or nested array of arrays
       let featureCodes = null;
       if (roomRawData.featureCodes) {
         console.log('link-to-gas: featureCodes type:', typeof roomRawData.featureCodes, 
@@ -2991,13 +2980,8 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         if (typeof roomRawData.featureCodes === 'string') {
           featureCodes = roomRawData.featureCodes;
         } else if (Array.isArray(roomRawData.featureCodes)) {
-          // Could be flat array ['WIFI', 'KITCHEN'] or nested [['WIFI'], ['KITCHEN', 'OVEN']]
-          // Use .flat() to handle both cases
+          // Use .flat() to handle nested arrays like [['WIFI'], ['KITCHEN', 'OVEN']]
           featureCodes = roomRawData.featureCodes.flat().join(',');
-        } else if (typeof roomRawData.featureCodes === 'object') {
-          // Could be nested {roomId: [...]} - flatten it
-          const allCodes = Object.values(roomRawData.featureCodes).flat().flat();
-          featureCodes = allCodes.join(',');
         }
         console.log('link-to-gas: featureCodes extracted:', featureCodes?.substring(0, 100));
       } else {
@@ -3142,9 +3126,8 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
             )
           `).catch(() => {});
           
-          // Clear existing amenity mappings for this room before re-importing
+          // Clear existing amenities for this room before re-importing
           await pool.query('DELETE FROM bookable_unit_amenities WHERE bookable_unit_id = $1', [gasRoomId]);
-          console.log('link-to-gas: Cleared existing amenities for room', gasRoomId);
           
           let matched = 0;
           let unmatched = [];
@@ -3160,7 +3143,6 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
             
             if (masterMatch.rows.length > 0) {
               const ma = masterMatch.rows[0];
-              // Insert the amenity link (we already cleared old ones above)
               await pool.query(`
                 INSERT INTO bookable_unit_amenities (bookable_unit_id, amenity_id, amenity_code, amenity_name, category)
                 VALUES ($1, $2, $3, $4, $5)
@@ -3171,16 +3153,11 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
             }
           }
           
-          // Log summary for this room
-          console.log('link-to-gas: Amenities for room', gasRoomId, '- matched:', matched, 'unmatched:', unmatched.length);
-          if (unmatched.length > 0 && unmatched.length <= 20) {
+          console.log('link-to-gas: Amenities matched:', matched, 'unmatched:', unmatched.length);
+          if (unmatched.length > 0 && unmatched.length <= 10) {
             console.log('link-to-gas: Unmatched codes:', unmatched.join(', '));
-          } else if (unmatched.length > 20) {
-            console.log('link-to-gas: Unmatched codes (first 20):', unmatched.slice(0, 20).join(', '), '...');
           }
         }
-      } else {
-        console.log('link-to-gas: No featureCodes to map for room', room.name);
       }
     }
     
