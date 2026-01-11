@@ -3516,52 +3516,54 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
     let roomsSynced = 0;
     const errors = [];
     
-    // Build price linking map for all rooms - fetch in batches to avoid rate limits
+    // Build price linking map for all rooms - fetch in batches with long delays
     const priceLinkingMap = {};
     console.log(`Building price linking map for ${propsResult.rows.length} properties...`);
     
-    // Fetch properties in batches of 10 with delay between batches
-    const batchSize = 10;
-    for (let i = 0; i < propsResult.rows.length; i += batchSize) {
-      const batch = propsResult.rows.slice(i, i + batchSize);
-      
-      // Fetch each property in parallel within the batch
-      const batchPromises = batch.map(async (prop) => {
-        try {
-          const propResp = await axios.get('https://beds24.com/api/v2/properties', {
-            headers: { 'token': accessToken },
-            params: { 
-              id: prop.external_id,
-              includeAllRooms: true,
-              includePriceRules: true
-            }
-          });
-          
-          const propData = propResp.data?.data?.[0];
-          if (propData?.roomTypes) {
-            for (const rt of propData.roomTypes) {
-              const priceRule = rt.priceRules?.find(pr => pr.priceLinking?.roomId);
-              if (priceRule?.priceLinking) {
-                priceLinkingMap[rt.id] = {
-                  sourceRoomId: priceRule.priceLinking.roomId,
-                  priceId: priceRule.priceLinking.priceId || 1,
-                  offsetAmount: priceRule.priceLinking.offsetAmount || 0,
-                  offsetMultiplier: priceRule.priceLinking.offsetMultiplier || 1
-                };
-              }
+    // Fetch properties one at a time with 3 second delays to avoid rate limits
+    for (let i = 0; i < propsResult.rows.length; i++) {
+      const prop = propsResult.rows[i];
+      try {
+        const propResp = await axios.get('https://beds24.com/api/v2/properties', {
+          headers: { 'token': accessToken },
+          params: { 
+            id: prop.external_id,
+            includeAllRooms: true,
+            includePriceRules: true
+          }
+        });
+        
+        const propData = propResp.data?.data?.[0];
+        if (propData?.roomTypes) {
+          for (const rt of propData.roomTypes) {
+            const priceRule = rt.priceRules?.find(pr => pr.priceLinking?.roomId);
+            if (priceRule?.priceLinking) {
+              priceLinkingMap[rt.id] = {
+                sourceRoomId: priceRule.priceLinking.roomId,
+                priceId: priceRule.priceLinking.priceId || 1,
+                offsetAmount: priceRule.priceLinking.offsetAmount || 0,
+                offsetMultiplier: priceRule.priceLinking.offsetMultiplier || 1
+              };
+              
+              // Also store in database for future use
+              await pool.query(`
+                UPDATE gas_sync_room_types SET price_linking = $1 WHERE external_id = $2
+              `, [JSON.stringify(priceLinkingMap[rt.id]), String(rt.id)]);
             }
           }
-        } catch (e) {
-          // Silently skip - will try to sync without price linking info
         }
-      });
-      
-      await Promise.all(batchPromises);
-      
-      // Delay between batches to avoid rate limits
-      if (i + batchSize < propsResult.rows.length) {
-        await new Promise(resolve => setTimeout(resolve, 2000)); // 2 second delay
+      } catch (e) {
+        if (e.response?.status === 429) {
+          console.log(`  Rate limited at property ${i+1}/${propsResult.rows.length} - waiting 60 seconds...`);
+          await new Promise(resolve => setTimeout(resolve, 60000));
+          i--; // Retry this property
+          continue;
+        }
+        // Silently skip other errors
       }
+      
+      // 3 second delay between properties
+      await new Promise(resolve => setTimeout(resolve, 3000));
     }
     
     console.log(`Price linking map built: ${Object.keys(priceLinkingMap).length} rooms with linked pricing`);
@@ -3812,15 +3814,15 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
           roomsSynced++;
           console.log(`  ✓ ${room.name}: ${daysWithPrice} prices, ${daysBlocked} blocked`);
           
-          // Small delay between rooms to avoid rate limits
-          await new Promise(resolve => setTimeout(resolve, 500));
+          // Delay between rooms to avoid rate limits (5 seconds)
+          await new Promise(resolve => setTimeout(resolve, 5000));
           
         } catch (roomError) {
           console.error(`  Error syncing ${room.name}:`, roomError.response?.data || roomError.message);
           errors.push({ room: room.name, error: roomError.message });
           if (roomError.response?.status === 429) {
-            console.log('  Rate limited - waiting 10 seconds...');
-            await new Promise(resolve => setTimeout(resolve, 10000));
+            console.log('  Rate limited - waiting 60 seconds...');
+            await new Promise(resolve => setTimeout(resolve, 60000));
           }
         }
       }
