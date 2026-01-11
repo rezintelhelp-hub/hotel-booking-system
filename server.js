@@ -1033,6 +1033,14 @@ async function runMigrations() {
       console.log('ℹ️  property_terms.bathroom_features:', bathroomFeaturesError.message);
     }
     
+    // Add cancellation_policy column to property_terms for Beds24 sync
+    try {
+      await pool.query(`ALTER TABLE property_terms ADD COLUMN IF NOT EXISTS cancellation_policy TEXT`);
+      console.log('✅ property_terms.cancellation_policy column ensured');
+    } catch (e) {
+      console.log('ℹ️  property_terms.cancellation_policy:', e.message);
+    }
+    
   } catch (error) {
     console.error('Migration runner error:', error.message);
   }
@@ -2676,6 +2684,27 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
       if (propDamagePolicy) {
         await pool.query('UPDATE properties SET damage_policy = $1 WHERE id = $2', [propDamagePolicy, gasPropertyId]).catch(() => {});
       }
+      
+      // Sync property_terms with Beds24 data (check-in/out, house rules, cancellation)
+      const checkInTime = rawData.checkInStart || rawData.checkInTime || '15:00';
+      const checkOutTime = rawData.checkOutEnd || rawData.checkOutTime || '11:00';
+      
+      await pool.query(`
+        INSERT INTO property_terms (property_id, checkin_from, checkout_by, additional_rules, cancellation_policy)
+        VALUES ($1, $2, $3, $4, $5)
+        ON CONFLICT (property_id) DO UPDATE SET
+          checkin_from = COALESCE(NULLIF($2, ''), property_terms.checkin_from),
+          checkout_by = COALESCE(NULLIF($3, ''), property_terms.checkout_by),
+          additional_rules = COALESCE(NULLIF($4, ''), property_terms.additional_rules),
+          cancellation_policy = COALESCE(NULLIF($5, ''), property_terms.cancellation_policy),
+          updated_at = NOW()
+      `, [
+        gasPropertyId,
+        checkInTime,
+        checkOutTime,
+        propHouseRules || '',
+        propCancellation || ''
+      ]).catch(e => console.log('link-to-gas: property_terms sync:', e.message));
       
       console.log('link-to-gas: Updated property', gasPropertyId);
     } else {
