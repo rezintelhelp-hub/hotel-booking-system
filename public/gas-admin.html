@@ -38894,13 +38894,30 @@ Local honey and preserves"></textarea>
         async function syncConnectionReviews() {
             const btn = document.getElementById('sync-reviews-btn');
             const statusDiv = document.getElementById('reviews-sync-status');
+            const adapterCode = document.getElementById('selectedAdapterCode').value;
             
             btn.disabled = true;
             btn.textContent = '⏳ Syncing...';
-            statusDiv.innerHTML = '<p style="color: #6b7280;">Fetching reviews from Hostaway...</p>';
+            
+            // Determine endpoint based on adapter type
+            let endpoint, channelName;
+            if (adapterCode === 'beds24') {
+                endpoint = '/api/beds24/sync-reviews';
+                channelName = 'Beds24 (Airbnb & Booking.com)';
+            } else if (adapterCode === 'hostaway') {
+                endpoint = '/api/hostaway/sync-reviews';
+                channelName = 'Hostaway';
+            } else {
+                statusDiv.innerHTML = '<p style="color: #ef4444;">Reviews sync not supported for this channel manager</p>';
+                btn.disabled = false;
+                btn.textContent = '⭐ Sync Reviews Now';
+                return;
+            }
+            
+            statusDiv.innerHTML = `<p style="color: #6b7280;">Fetching reviews from ${channelName}...</p>`;
             
             try {
-                const response = await fetch('/api/hostaway/sync-reviews', {
+                const response = await fetch(endpoint, {
                     method: 'POST',
                     headers: { ...authHeaders(), 'Content-Type': 'application/json' },
                     body: JSON.stringify({ connectionId: selectedConnectionId })
