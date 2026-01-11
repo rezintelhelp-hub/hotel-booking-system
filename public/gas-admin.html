@@ -37247,7 +37247,7 @@ Local honey and preserves"></textarea>
                 if (data.success) {
                     const stats = data.stats || {};
                     showNotification(`Synced: ${stats.roomsUpdated || 0} rooms updated, ${stats.imagesCreated || 0} new images`, 'success');
-                    loadSyncedProperties();
+                    loadConnectionPropertiesTab();
                 } else {
                     showNotification(data.error || 'Sync failed', 'error');
                 }
