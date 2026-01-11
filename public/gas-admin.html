@@ -2254,15 +2254,11 @@
                                 <h3> Property Overview</h3>
                             </div>
                             <div class="card-body">
-                                <p style="color: var(--text-secondary); margin-bottom: 1rem;">Set the number of bedrooms and bathrooms (displayed on property cards)</p>
-                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; max-width: 400px;">
+                                <p style="color: var(--text-secondary); margin-bottom: 1rem;">Set the number of bedrooms (displayed on property cards)</p>
+                                <div style="display: grid; grid-template-columns: 1fr; gap: 1rem; max-width: 200px;">
                                     <div class="form-group">
                                         <label class="form-label"> Bedrooms</label>
                                         <input type="number" class="form-input" id="unit-num-bedrooms" min="0" max="20" value="1" style="width: 100%;">
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label"> Bathrooms</label>
-                                        <input type="number" class="form-input" id="unit-num-bathrooms" min="0" max="20" value="1" style="width: 100%;">
                                     </div>
                                 </div>
                             </div>
@@ -2281,7 +2277,8 @@
                                             <option value="king">King Bed</option>
                                             <option value="queen">Queen Bed</option>
                                             <option value="double">Double Bed</option>
-                                            <option value="twin">Twin/Single Bed</option>
+                                            <option value="twin">Twin Bed</option>
+                                            <option value="single">Single Bed</option>
                                             <option value="sofa">Sofa Bed</option>
                                             <option value="bunk">Bunk Bed</option>
                                             <option value="cot">Cot/Crib</option>
@@ -20268,7 +20265,8 @@ Local honey and preserves"></textarea>
                     <option value="king">King Bed</option>
                     <option value="queen">Queen Bed</option>
                     <option value="double">Double Bed</option>
-                    <option value="twin">Twin/Single Bed</option>
+                    <option value="twin">Twin Bed</option>
+                    <option value="single">Single Bed</option>
                     <option value="sofa">Sofa Bed</option>
                     <option value="bunk">Bunk Bed</option>
                     <option value="cot">Cot/Crib</option>
@@ -20555,7 +20553,8 @@ Local honey and preserves"></textarea>
                                     <option value="king" ${bedType === 'king' ? 'selected' : ''}>King Bed</option>
                                     <option value="queen" ${bedType === 'queen' ? 'selected' : ''}>Queen Bed</option>
                                     <option value="double" ${bedType === 'double' ? 'selected' : ''}>Double Bed</option>
-                                    <option value="twin" ${bedType === 'twin' ? 'selected' : ''}>Twin/Single Bed</option>
+                                    <option value="twin" ${bedType === 'twin' ? 'selected' : ''}>Twin Bed</option>
+                                    <option value="single" ${bedType === 'single' ? 'selected' : ''}>Single Bed</option>
                                     <option value="sofa" ${bedType === 'sofa' ? 'selected' : ''}>Sofa Bed</option>
                                     <option value="bunk" ${bedType === 'bunk' ? 'selected' : ''}>Bunk Bed</option>
                                     <option value="cot" ${bedType === 'cot' ? 'selected' : ''}>Cot/Crib</option>
