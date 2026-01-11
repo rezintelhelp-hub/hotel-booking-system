@@ -38600,7 +38600,8 @@ app.post('/api/beds24/test-reviews-api', async (req, res) => {
           headers: { 'token': token },
           params: { 
             id: propertyId,
-            includeAllRooms: true
+            includeAllRooms: true,
+            includePriceRules: true
           }
         });
         return res.json({ 
