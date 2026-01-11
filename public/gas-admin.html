@@ -37090,6 +37090,15 @@ Local honey and preserves"></textarea>
                                  `Every ${conn.sync_interval_minutes} minutes`;
             
             container.innerHTML = `
+                <div class="form-group" style="margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 5px; color: #64748b;">Connection Name</label>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <input type="text" id="settingConnectionName" class="form-control" placeholder="Enter a name for this connection" value="${conn.external_account_name || ''}" style="flex: 1;">
+                        <button class="btn btn-primary btn-sm" onclick="saveConnectionName()">💾 Save</button>
+                    </div>
+                    <small style="color: #6b7280; display: block; margin-top: 5px;">This name appears on the connection card</small>
+                </div>
+                <hr style="margin: 20px 0;">
                 <div class="form-group" style="margin-bottom: 15px;">
                     <label style="display: flex; align-items: center; gap: 8px;">
                         <input type="checkbox" id="settingSyncEnabled" ${conn.sync_enabled ? 'checked' : ''}>
@@ -37132,6 +37141,30 @@ Local honey and preserves"></textarea>
             `;
         }
         
+        async function saveConnectionName() {
+            const name = document.getElementById('settingConnectionName').value.trim();
+            if (!name) {
+                showNotification('Please enter a connection name', 'error');
+                return;
+            }
+            try {
+                const response = await fetch(`/api/gas-sync/connections/${selectedConnectionId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ external_account_name: name })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    showNotification('Connection name saved', 'success');
+                    await loadGasSyncConnections();
+                } else {
+                    showNotification(data.error || 'Failed to save', 'error');
+                }
+            } catch (error) {
+                showNotification('Failed to save connection name', 'error');
+            }
+        }
+
         async function saveV1ApiKey() {
             const v1Key = document.getElementById('settingV1ApiKey').value.trim();
             if (!v1Key) {
