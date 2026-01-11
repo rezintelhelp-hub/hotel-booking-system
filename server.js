@@ -3976,6 +3976,24 @@ app.post('/api/gas-sync/tiered-availability-sync', async (req, res) => {
       
       if (!accessToken) continue;
       
+      // Load price linking map from database for this connection
+      const priceLinkingMap = {};
+      const linkingResult = await pool.query(`
+        SELECT rt.external_id, rt.price_linking
+        FROM gas_sync_room_types rt
+        JOIN gas_sync_properties sp ON sp.id = rt.sync_property_id
+        WHERE sp.connection_id = $1 AND rt.price_linking IS NOT NULL
+      `, [conn.id]);
+      
+      for (const row of linkingResult.rows) {
+        if (row.price_linking) {
+          priceLinkingMap[parseInt(row.external_id)] = row.price_linking;
+        }
+      }
+      
+      // Cache for source room prices within this connection
+      const sourceRoomPriceCache = {};
+      
       // Get rooms that need syncing for each tier
       for (const tier of SYNC_TIERS) {
         const tierColumn = `tier${tier.tier}_synced_at`;
@@ -4000,25 +4018,97 @@ app.post('/api/gas-sync/tiered-availability-sync', async (req, res) => {
         
         for (const room of roomsResult.rows) {
           try {
+            const beds24RoomId = parseInt(room.beds24_room_id);
+            
             // Calculate date range for this tier
             const startDate = new Date(now.getTime() + tier.startDay * 24 * 60 * 60 * 1000);
             const endDate = new Date(now.getTime() + tier.endDay * 24 * 60 * 60 * 1000);
+            const startDateStr = startDate.toISOString().split('T')[0];
+            const endDateStr = endDate.toISOString().split('T')[0];
+            
+            // Check if this room has price linking
+            const linking = priceLinkingMap[beds24RoomId];
             
             // Fetch calendar from Beds24
             const calResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/calendar', {
               headers: { 'token': accessToken },
               params: {
-                roomId: parseInt(room.beds24_room_id),
-                startDate: startDate.toISOString().split('T')[0],
-                endDate: endDate.toISOString().split('T')[0],
+                roomId: beds24RoomId,
+                startDate: startDateStr,
+                endDate: endDateStr,
                 includeNumAvail: true,
                 includePrices: true,
                 includeMinStay: true
               }
             });
             
-            const calendarData = calResponse.data.data?.[0]?.calendar || [];
+            let calendarData = calResponse.data.data?.[0]?.calendar || [];
             let daysUpdated = 0;
+            
+            // If no prices and has price linking, fetch from source room
+            const hasNoPrices = calendarData.length === 0 || !calendarData.some(e => e.price1);
+            if (hasNoPrices && linking) {
+              const cacheKey = `${linking.sourceRoomId}_${startDateStr}_${endDateStr}`;
+              let sourcePriceMap = sourceRoomPriceCache[cacheKey];
+              
+              if (!sourcePriceMap) {
+                try {
+                  const sourceCalResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/calendar', {
+                    headers: { 'token': accessToken },
+                    params: { 
+                      roomId: linking.sourceRoomId, 
+                      startDate: startDateStr, 
+                      endDate: endDateStr,
+                      includeNumAvail: true,
+                      includePrices: true,
+                      includeMinStay: true
+                    }
+                  });
+                  
+                  const sourceCalendar = sourceCalResponse.data.data?.[0]?.calendar || [];
+                  sourcePriceMap = {};
+                  for (const entry of sourceCalendar) {
+                    if (entry.price1) {
+                      const fromDate = new Date(entry.from);
+                      const toDate = new Date(entry.to);
+                      for (let d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
+                        const dateStr = d.toISOString().split('T')[0];
+                        sourcePriceMap[dateStr] = entry.price1;
+                      }
+                    }
+                  }
+                  sourceRoomPriceCache[cacheKey] = sourcePriceMap;
+                } catch (e) {
+                  sourcePriceMap = {};
+                }
+                
+                // Rate limit protection after fetching source
+                await new Promise(resolve => setTimeout(resolve, 2000));
+              }
+              
+              // Apply offset
+              const applyOffset = (price) => price ? (price * (linking.offsetMultiplier || 1)) + (linking.offsetAmount || 0) : null;
+              
+              // Expand calendar data with prices from source
+              if (calendarData.length > 0) {
+                const expandedData = [];
+                for (const entry of calendarData) {
+                  const fromDate = new Date(entry.from);
+                  const toDate = new Date(entry.to);
+                  for (let d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
+                    const dateStr = d.toISOString().split('T')[0];
+                    expandedData.push({
+                      from: dateStr,
+                      to: dateStr,
+                      numAvail: entry.numAvail,
+                      minStay: entry.minStay,
+                      price1: entry.price1 || applyOffset(sourcePriceMap[dateStr])
+                    });
+                  }
+                }
+                calendarData = expandedData;
+              }
+            }
             
             // Process calendar data
             for (const entry of calendarData) {
