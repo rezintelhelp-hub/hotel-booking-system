@@ -38576,7 +38576,7 @@ app.post('/api/beds24/sync-reviews', async (req, res) => {
 // Debug endpoint to test Beds24 reviews API for a single property
 app.post('/api/beds24/test-reviews-api', async (req, res) => {
   try {
-    const { connectionId, propertyId } = req.body;
+    const { connectionId, propertyId, showToken } = req.body;
     
     const connResult = await pool.query('SELECT * FROM gas_sync_connections WHERE id = $1', [connectionId]);
     const connection = connResult.rows[0];
@@ -38586,6 +38586,12 @@ app.post('/api/beds24/test-reviews-api', async (req, res) => {
     }
     
     const token = connection.access_token;
+    
+    // If just requesting token for Swagger testing
+    if (showToken) {
+      return res.json({ success: true, token: token });
+    }
+    
     const results = {};
     
     // First verify token works with a known endpoint
