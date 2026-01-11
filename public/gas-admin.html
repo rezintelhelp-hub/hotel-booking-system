@@ -38865,23 +38865,28 @@ Local honey and preserves"></textarea>
             if (!conn) return;
             const container = document.getElementById('connectionTabReviews');
             
-            // Only show for Hostaway connections
-            if (conn.adapter_code !== 'hostaway') {
+            // Only show for Hostaway and Beds24 connections
+            if (conn.adapter_code !== 'hostaway' && conn.adapter_code !== 'beds24') {
                 container.innerHTML = `
                     <div style="text-align: center; padding: 40px;">
                         <div style="font-size: 3rem; margin-bottom: 15px;">⭐</div>
                         <h4 style="margin: 0 0 10px 0;">Reviews Sync</h4>
-                        <p style="color: #6b7280;">Reviews sync is currently only available for Hostaway connections.</p>
+                        <p style="color: #6b7280;">Reviews sync is currently only available for Hostaway and Beds24 connections.</p>
                     </div>
                 `;
                 return;
             }
             
+            const channelName = conn.adapter_code === 'beds24' ? 'Beds24' : 'Hostaway';
+            const channelDesc = conn.adapter_code === 'beds24' 
+                ? 'Pull guest reviews from Airbnb and Booking.com channels connected via Beds24.'
+                : 'Pull guest reviews from Airbnb, Booking.com, VRBO and other channels connected via Hostaway.';
+            
             container.innerHTML = `
                 <div style="text-align: center; padding: 40px;">
                     <div style="font-size: 3rem; margin-bottom: 15px;">⭐</div>
-                    <h4 style="margin: 0 0 10px 0;">Sync Reviews from Hostaway</h4>
-                    <p style="color: #6b7280; margin-bottom: 20px;">Pull guest reviews from Airbnb, Booking.com, VRBO and other channels connected via Hostaway.</p>
+                    <h4 style="margin: 0 0 10px 0;">Sync Reviews from ${channelName}</h4>
+                    <p style="color: #6b7280; margin-bottom: 20px;">${channelDesc}</p>
                     <button class="btn btn-primary btn-lg" onclick="syncConnectionReviews()" id="sync-reviews-btn">⭐ Sync Reviews Now</button>
                     <div id="reviews-sync-status" style="margin-top: 20px;"></div>
                     <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--border);">
