@@ -38375,54 +38375,49 @@ app.post('/api/beds24/sync-reviews', async (req, res) => {
     
     let allReviews = [];
     const errors = [];
+    const propertyIds = Object.keys(roomsByBeds24Id);
     
-    // Fetch Airbnb reviews
-    try {
-      console.log('Beds24 reviews: Fetching Airbnb reviews...');
-      const airbnbResponse = await axios.get('https://beds24.com/api/v2/channels/airbnb/reviews', {
-        headers: { 'token': token }
-      });
-      
-      if (airbnbResponse.data?.success && airbnbResponse.data?.data) {
-        const airbnbReviews = airbnbResponse.data.data.map(r => ({ ...r, _channel: 'Airbnb' }));
-        allReviews = allReviews.concat(airbnbReviews);
-        console.log(`Beds24 reviews: Found ${airbnbReviews.length} Airbnb reviews`);
-      } else if (airbnbResponse.data?.success === false) {
-        console.log('Beds24 reviews: Airbnb API returned error:', airbnbResponse.data?.error || airbnbResponse.data);
-        errors.push({ channel: 'Airbnb', error: airbnbResponse.data?.error || 'API returned success=false' });
-      } else {
-        console.log('Beds24 reviews: Airbnb response:', JSON.stringify(airbnbResponse.data).substring(0, 200));
+    // Fetch reviews for each property
+    for (const propertyId of propertyIds) {
+      // Fetch Airbnb reviews for this property
+      try {
+        const airbnbResponse = await axios.get('https://beds24.com/api/v2/channels/airbnb/reviews', {
+          headers: { 'token': token },
+          params: { propertyId: propertyId }
+        });
+        
+        if (airbnbResponse.data?.success && airbnbResponse.data?.data) {
+          const airbnbReviews = airbnbResponse.data.data.map(r => ({ ...r, _channel: 'Airbnb', _propertyId: propertyId }));
+          allReviews = allReviews.concat(airbnbReviews);
+        }
+      } catch (airbnbErr) {
+        // Only log if it's not a "no reviews" type error
+        const errDetail = airbnbErr.response?.data || airbnbErr.message;
+        if (errDetail?.code !== 3000) {
+          console.log(`Beds24 reviews: Airbnb error for property ${propertyId}:`, errDetail);
+        }
       }
-    } catch (airbnbErr) {
-      const errDetail = airbnbErr.response?.data || airbnbErr.message;
-      console.log('Beds24 reviews: Airbnb fetch error:', errDetail);
-      errors.push({ channel: 'Airbnb', error: typeof errDetail === 'object' ? JSON.stringify(errDetail) : errDetail });
+      
+      // Fetch Booking.com reviews for this property
+      try {
+        const bookingResponse = await axios.get('https://beds24.com/api/v2/channels/booking/reviews', {
+          headers: { 'token': token },
+          params: { propertyId: propertyId }
+        });
+        
+        if (bookingResponse.data?.success && bookingResponse.data?.data) {
+          const bookingReviews = bookingResponse.data.data.map(r => ({ ...r, _channel: 'Booking.com', _propertyId: propertyId }));
+          allReviews = allReviews.concat(bookingReviews);
+        }
+      } catch (bookingErr) {
+        const errDetail = bookingErr.response?.data || bookingErr.message;
+        if (errDetail?.code !== 3000) {
+          console.log(`Beds24 reviews: Booking.com error for property ${propertyId}:`, errDetail);
+        }
+      }
     }
     
-    // Fetch Booking.com reviews
-    try {
-      console.log('Beds24 reviews: Fetching Booking.com reviews...');
-      const bookingResponse = await axios.get('https://beds24.com/api/v2/channels/booking/reviews', {
-        headers: { 'token': token }
-      });
-      
-      if (bookingResponse.data?.success && bookingResponse.data?.data) {
-        const bookingReviews = bookingResponse.data.data.map(r => ({ ...r, _channel: 'Booking.com' }));
-        allReviews = allReviews.concat(bookingReviews);
-        console.log(`Beds24 reviews: Found ${bookingReviews.length} Booking.com reviews`);
-      } else if (bookingResponse.data?.success === false) {
-        console.log('Beds24 reviews: Booking.com API returned error:', bookingResponse.data?.error || bookingResponse.data);
-        errors.push({ channel: 'Booking.com', error: bookingResponse.data?.error || 'API returned success=false' });
-      } else {
-        console.log('Beds24 reviews: Booking.com response:', JSON.stringify(bookingResponse.data).substring(0, 200));
-      }
-    } catch (bookingErr) {
-      const errDetail = bookingErr.response?.data || bookingErr.message;
-      console.log('Beds24 reviews: Booking.com fetch error:', errDetail);
-      errors.push({ channel: 'Booking.com', error: typeof errDetail === 'object' ? JSON.stringify(errDetail) : errDetail });
-    }
-    
-    console.log(`Beds24 reviews: Total ${allReviews.length} reviews to process`);
+    console.log(`Beds24 reviews: Found ${allReviews.length} total reviews across ${propertyIds.length} properties`);
     
     let created = 0;
     let updated = 0;
@@ -38430,8 +38425,8 @@ app.post('/api/beds24/sync-reviews', async (req, res) => {
     
     for (const review of allReviews) {
       try {
-        // Determine property ID - Beds24 reviews may have propertyId or roomId
-        const propertyId = String(review.propertyId || review.roomId || review.listingId || '');
+        // Use the propertyId we attached when fetching, or fall back to review data
+        const propertyId = String(review._propertyId || review.propertyId || review.roomId || review.listingId || '');
         const room = roomsByBeds24Id[propertyId];
         
         if (!room) {
