@@ -40916,6 +40916,13 @@ app.get('/api/public/client/:clientId/app-settings/:app', async (req, res) => {
             return res.status(400).json({ success: false, error: 'Invalid app name' });
         }
         
+        // Default colors to return
+        const defaults = {
+            blog: { accent: '#667eea', bg: '#ffffff', card_bg: '#ffffff', text: '#1a1a1a', text_secondary: '#666666', category_bg: '#e0e7ff', category_text: '#4338ca' },
+            attractions: { accent: '#f59e0b', bg: '#ffffff', card_bg: '#ffffff', text: '#1a1a1a', text_secondary: '#666666', category_bg: '#fef3c7', category_text: '#92400e' },
+            reviews: { accent: '#667eea', bg: '#ffffff', card_bg: '#ffffff', text: '#1e293b', text_secondary: '#64748b', star: '#fbbf24' }
+        };
+        
         // Get account from client_id
         const accountResult = await pool.query(
             'SELECT id FROM accounts WHERE client_id = $1',
@@ -40923,25 +40930,27 @@ app.get('/api/public/client/:clientId/app-settings/:app', async (req, res) => {
         );
         
         if (accountResult.rows.length === 0) {
-            return res.status(404).json({ success: false, error: 'Client not found' });
+            // Return defaults if client not found
+            return res.json({ success: true, colors: defaults[app] });
         }
         
         const accountId = accountResult.rows[0].id;
         
-        const result = await pool.query(
-            `SELECT settings FROM app_settings WHERE account_id = $1 AND app_name = $2`,
-            [accountId, app]
-        );
-        
-        if (result.rows.length > 0) {
-            res.json({ success: true, colors: result.rows[0].settings?.colors || {} });
-        } else {
-            // Return defaults
-            const defaults = {
-                blog: { accent: '#667eea', bg: '#ffffff', card_bg: '#ffffff', text: '#1a1a1a', text_secondary: '#666666', category_bg: '#e0e7ff', category_text: '#4338ca' },
-                attractions: { accent: '#f59e0b', bg: '#ffffff', card_bg: '#ffffff', text: '#1a1a1a', text_secondary: '#666666', category_bg: '#fef3c7', category_text: '#92400e' },
-                reviews: { accent: '#667eea', bg: '#ffffff', card_bg: '#ffffff', text: '#1e293b', text_secondary: '#64748b', star: '#fbbf24' }
-            };
+        // Check if table exists and query it
+        try {
+            const result = await pool.query(
+                `SELECT settings FROM app_settings WHERE account_id = $1 AND app_name = $2`,
+                [accountId, app]
+            );
+            
+            if (result.rows.length > 0 && result.rows[0].settings?.colors) {
+                res.json({ success: true, colors: result.rows[0].settings.colors });
+            } else {
+                res.json({ success: true, colors: defaults[app] });
+            }
+        } catch (tableError) {
+            // Table doesn't exist yet, return defaults
+            console.log('app_settings table not found, returning defaults');
             res.json({ success: true, colors: defaults[app] });
         }
     } catch (error) {
