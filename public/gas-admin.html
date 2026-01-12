@@ -22803,7 +22803,13 @@ Local honey and preserves"></textarea>
             container.innerHTML = '<div style="text-align: center; padding: 2rem;"><p>Loading licenses...</p></div>';
             
             try {
-                const response = await fetch('/api/plugin-licenses', {
+                // Build URL with account filter if selected
+                let url = '/api/plugin-licenses';
+                if (selectedAccountId) {
+                    url += '?account_id=' + selectedAccountId;
+                }
+                
+                const response = await fetch(url, {
                     headers: authHeaders()
                 });
                 const data = await response.json();
