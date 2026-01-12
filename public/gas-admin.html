@@ -23223,52 +23223,84 @@ Local honey and preserves"></textarea>
         }
         
         async function manageWebsiteRooms(siteId, propertyId, siteName) {
-            if (!propertyId) {
-                showNotification('No property linked to this site', 'error');
-                return;
-            }
-            
             try {
-                // Get all rooms AND linked room IDs from the deployed-sites endpoint
+                // Get all properties and rooms for the account from the deployed-sites endpoint
                 const linkedResp = await fetch(`/api/admin/deployed-sites/${siteId}/rooms`, { headers: authHeaders() });
                 const linkedData = await linkedResp.json();
                 
-                const allRooms = linkedData.rooms || [];
-                // Use linkedRoomIds from response (the actual room_ids stored in deployed_sites)
+                const propertyGroups = linkedData.propertyGroups || [];
                 const linkedRoomIds = new Set(linkedData.linkedRoomIds || []);
                 
-                console.log('All rooms:', allRooms.length, 'Linked IDs:', linkedData.linkedRoomIds);
+                console.log('Property groups:', propertyGroups.length, 'Linked IDs:', linkedData.linkedRoomIds);
                 
-                if (allRooms.length === 0) {
-                    showNotification('No rooms found for this property', 'error');
+                if (propertyGroups.length === 0) {
+                    showNotification('No properties found for this account', 'error');
                     return;
                 }
                 
-                // Build checkbox list
-                const roomCheckboxes = allRooms.map(room => `
-                    <label style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: var(--bg-secondary); border-radius: 8px; cursor: pointer;">
-                        <input type="checkbox" name="website-room" value="${room.id}" ${linkedRoomIds.has(room.id) ? 'checked' : ''} style="width: 20px; height: 20px;">
-                        <div>
-                            <strong>${room.name}</strong>
-                            <div style="font-size: 0.8rem; color: var(--text-secondary);">
-                                ${room.max_guests || '?'} guests · ${room.bedrooms || '?'} bed · £${room.base_price || '?'}/night
+                // Build hierarchical checkbox list
+                let checkboxHtml = '';
+                propertyGroups.forEach((group, groupIdx) => {
+                    const propRooms = group.rooms || [];
+                    const allRoomsLinked = propRooms.length > 0 && propRooms.every(r => linkedRoomIds.has(r.id));
+                    const someRoomsLinked = propRooms.some(r => linkedRoomIds.has(r.id));
+                    
+                    checkboxHtml += `
+                        <div class="manage-property-group" style="border: 1px solid var(--border); border-radius: 8px; margin-bottom: 0.5rem; overflow: hidden;">
+                            <div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: var(--bg-secondary); cursor: pointer;" onclick="toggleManagePropertyGroup(${groupIdx})">
+                                <input type="checkbox" class="manage-property-checkbox" data-group="${groupIdx}" 
+                                    onchange="toggleManagePropertyRooms(${groupIdx}, this.checked); event.stopPropagation();" 
+                                    ${allRoomsLinked ? 'checked' : ''} ${someRoomsLinked && !allRoomsLinked ? 'indeterminate' : ''}
+                                    style="width: 18px; height: 18px;">
+                                <div style="flex: 1;">
+                                    <strong>${group.property.name}</strong>
+                                    <div style="font-size: 0.75rem; color: var(--text-secondary);">${propRooms.length} room${propRooms.length !== 1 ? 's' : ''}</div>
+                                </div>
+                                <span class="manage-group-arrow" id="manage-arrow-${groupIdx}" style="transition: transform 0.2s;">▼</span>
+                            </div>
+                            <div class="manage-rooms-list" id="manage-rooms-${groupIdx}" style="padding: 0.5rem 1rem 0.5rem 2.5rem; display: none;">
+                    `;
+                    
+                    propRooms.forEach(room => {
+                        checkboxHtml += `
+                            <label style="display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 0; cursor: pointer;">
+                                <input type="checkbox" class="manage-room-checkbox" data-group="${groupIdx}" 
+                                    name="website-room" value="${room.id}" 
+                                    ${linkedRoomIds.has(room.id) ? 'checked' : ''} 
+                                    onchange="updateManagePropertyCheckbox(${groupIdx})"
+                                    style="width: 16px; height: 16px;">
+                                <div>
+                                    <span>${room.name}</span>
+                                    <div style="font-size: 0.75rem; color: var(--text-secondary);">
+                                        ${room.max_guests || '?'} guests · ${room.num_bedrooms || '?'} bed · £${room.base_price || '?'}/night
+                                    </div>
+                                </div>
+                            </label>
+                        `;
+                    });
+                    
+                    checkboxHtml += `
                             </div>
                         </div>
-                    </label>
-                `).join('');
+                    `;
+                });
                 
                 // Show modal
                 const modalHtml = `
                     <div id="manageRoomsModal" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;">
-                        <div style="background: var(--bg-primary); border-radius: 12px; padding: 1.5rem; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto;">
-                            <h3 style="margin: 0 0 1rem;">🛏️ Manage Rooms for ${siteName}</h3>
-                            <p style="color: var(--text-secondary); margin-bottom: 1rem;">Select which rooms to display on this website:</p>
-                            <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1.5rem;">
-                                ${roomCheckboxes}
+                        <div style="background: var(--bg-primary); border-radius: 12px; padding: 1.5rem; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto;">
+                            <h3 style="margin: 0 0 1rem;">🏠 Manage Properties & Rooms for ${siteName}</h3>
+                            <p style="color: var(--text-secondary); margin-bottom: 1rem;">Select which properties and rooms to display on this website:</p>
+                            <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+                                <button onclick="selectAllManageRooms(true)" class="btn btn-secondary btn-small">Select All</button>
+                                <button onclick="selectAllManageRooms(false)" class="btn btn-secondary btn-small">Deselect All</button>
+                            </div>
+                            <div style="margin-bottom: 1.5rem;">
+                                ${checkboxHtml}
                             </div>
                             <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
                                 <button onclick="document.getElementById('manageRoomsModal').remove()" class="btn btn-secondary">Cancel</button>
-                                <button onclick="saveWebsiteRooms(${siteId}, ${propertyId})" class="btn btn-primary">💾 Save Changes</button>
+                                <button onclick="saveWebsiteRooms(${siteId})" class="btn btn-primary">💾 Save Changes</button>
                             </div>
                         </div>
                     </div>
@@ -23276,12 +23308,53 @@ Local honey and preserves"></textarea>
                 
                 document.body.insertAdjacentHTML('beforeend', modalHtml);
                 
+                // Set indeterminate state for partially selected properties
+                propertyGroups.forEach((group, groupIdx) => {
+                    updateManagePropertyCheckbox(groupIdx);
+                });
+                
             } catch (error) {
                 showNotification('Failed to load rooms: ' + error.message, 'error');
             }
         }
         
-        async function saveWebsiteRooms(siteId, propertyId) {
+        function toggleManagePropertyGroup(groupIdx) {
+            const roomsList = document.getElementById(`manage-rooms-${groupIdx}`);
+            const arrow = document.getElementById(`manage-arrow-${groupIdx}`);
+            if (roomsList.style.display === 'none') {
+                roomsList.style.display = 'block';
+                arrow.style.transform = 'rotate(180deg)';
+            } else {
+                roomsList.style.display = 'none';
+                arrow.style.transform = 'rotate(0deg)';
+            }
+        }
+        
+        function toggleManagePropertyRooms(groupIdx, checked) {
+            document.querySelectorAll(`.manage-room-checkbox[data-group="${groupIdx}"]`).forEach(cb => {
+                cb.checked = checked;
+            });
+        }
+        
+        function updateManagePropertyCheckbox(groupIdx) {
+            const roomCheckboxes = document.querySelectorAll(`.manage-room-checkbox[data-group="${groupIdx}"]`);
+            const propCheckbox = document.querySelector(`.manage-property-checkbox[data-group="${groupIdx}"]`);
+            if (!propCheckbox || roomCheckboxes.length === 0) return;
+            
+            const checkedCount = Array.from(roomCheckboxes).filter(cb => cb.checked).length;
+            propCheckbox.checked = checkedCount === roomCheckboxes.length;
+            propCheckbox.indeterminate = checkedCount > 0 && checkedCount < roomCheckboxes.length;
+        }
+        
+        function selectAllManageRooms(select) {
+            document.querySelectorAll('.manage-room-checkbox').forEach(cb => cb.checked = select);
+            document.querySelectorAll('.manage-property-checkbox').forEach(cb => {
+                cb.checked = select;
+                cb.indeterminate = false;
+            });
+        }
+        
+        async function saveWebsiteRooms(siteId) {
             const checkboxes = document.querySelectorAll('input[name="website-room"]:checked');
             const selectedRoomIds = Array.from(checkboxes).map(cb => parseInt(cb.value));
             
