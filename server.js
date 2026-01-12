@@ -40923,18 +40923,36 @@ app.get('/api/public/client/:clientId/app-settings/:app', async (req, res) => {
             reviews: { accent: '#667eea', bg: '#ffffff', card_bg: '#ffffff', text: '#1e293b', text_secondary: '#64748b', star: '#fbbf24' }
         };
         
-        // Get account from client_id
-        const accountResult = await pool.query(
-            'SELECT id FROM accounts WHERE client_id = $1',
-            [clientId]
-        );
+        // Get account - try by id first (numeric), then by account_code
+        let accountId;
+        const numericId = parseInt(clientId);
         
-        if (accountResult.rows.length === 0) {
-            // Return defaults if client not found
-            return res.json({ success: true, colors: defaults[app] });
+        if (!isNaN(numericId)) {
+            // Client ID is numeric, query by id
+            const accountResult = await pool.query(
+                'SELECT id FROM accounts WHERE id = $1',
+                [numericId]
+            );
+            if (accountResult.rows.length > 0) {
+                accountId = accountResult.rows[0].id;
+            }
         }
         
-        const accountId = accountResult.rows[0].id;
+        if (!accountId) {
+            // Try by account_code
+            const accountResult = await pool.query(
+                'SELECT id FROM accounts WHERE account_code = $1',
+                [clientId]
+            );
+            if (accountResult.rows.length > 0) {
+                accountId = accountResult.rows[0].id;
+            }
+        }
+        
+        if (!accountId) {
+            // Return defaults if account not found
+            return res.json({ success: true, colors: defaults[app] });
+        }
         
         // Check if table exists and query it
         try {
