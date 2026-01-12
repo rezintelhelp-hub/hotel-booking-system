@@ -33241,7 +33241,8 @@ Local honey and preserves"></textarea>
         
         async function loadAppSettings(app) {
             try {
-                const response = await fetch(`/api/app-settings/${app}`, { headers: authHeaders() });
+                const accountId = selectedAccountId || currentAccount?.id;
+                const response = await fetch(`/api/app-settings/${app}?account_id=${accountId}`, { headers: authHeaders() });
                 if (!response.ok) return;
                 
                 const data = await response.json();
@@ -33290,10 +33291,11 @@ Local honey and preserves"></textarea>
             }
             
             try {
-                const response = await fetch(`/api/app-settings/${app}`, {
+                const accountId = selectedAccountId || currentAccount?.id;
+                const response = await fetch(`/api/app-settings/${app}?account_id=${accountId}`, {
                     method: 'PUT',
                     headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ colors: settings })
+                    body: JSON.stringify({ colors: settings, account_id: accountId })
                 });
                 
                 if (response.ok) {
