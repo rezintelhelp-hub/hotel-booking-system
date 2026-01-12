@@ -23453,29 +23453,26 @@ Local honey and preserves"></textarea>
                     const propRoomCount = group.rooms.length;
                     
                     html += `
-                        <div class="deploy-property-group" style="border-bottom: 1px solid var(--border);">
-                            <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.75rem 1rem; background: #f8fafc; cursor: pointer;" onclick="toggleDeployPropertyGroup(${groupIdx})">
-                                <div style="display: flex; align-items: center; gap: 0.75rem;">
-                                    <input type="checkbox" class="deploy-property-checkbox" data-group="${groupIdx}" onchange="togglePropertyRooms(${groupIdx}, this.checked); event.stopPropagation();" checked style="width: 18px; height: 18px;">
-                                    <div>
-                                        <div style="font-weight: 600;">${group.property.name}</div>
-                                        <div style="font-size: 0.8rem; color: var(--text-secondary);">${propRoomCount} room${propRoomCount !== 1 ? 's' : ''}</div>
-                                    </div>
+                        <div class="deploy-property-group" style="border: 1px solid var(--border); border-radius: 8px; margin-bottom: 0.5rem; overflow: hidden;">
+                            <div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: var(--bg-secondary); cursor: pointer;" onclick="toggleDeployPropertyGroup(${groupIdx})">
+                                <input type="checkbox" class="deploy-property-checkbox" data-group="${groupIdx}" onchange="togglePropertyRooms(${groupIdx}, this.checked); event.stopPropagation();" checked style="width: 18px; height: 18px;">
+                                <div style="flex: 1;">
+                                    <strong>${group.property.name}</strong>
+                                    <div style="font-size: 0.75rem; color: var(--text-secondary);">${propRoomCount} room${propRoomCount !== 1 ? 's' : ''}</div>
                                 </div>
-                                <span class="deploy-group-arrow" id="deploy-arrow-${groupIdx}" style="transition: transform 0.2s;"></span>
+                                <span class="deploy-group-arrow" id="deploy-arrow-${groupIdx}" style="transition: transform 0.2s;">▼</span>
                             </div>
-                            <div class="deploy-rooms-list" id="deploy-rooms-${groupIdx}" style="padding: 0.5rem 1rem 0.5rem 2.5rem;">
+                            <div class="deploy-rooms-list" id="deploy-rooms-${groupIdx}" style="padding: 0.5rem 1rem 0.5rem 2.5rem; display: none;">
                     `;
                     
                     group.rooms.forEach(room => {
                         html += `
                             <label style="display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 0; cursor: pointer;">
-                                <input type="checkbox" class="deploy-room-checkbox" data-group="${groupIdx}" data-room-id="${room.id}" data-room-name="${room.name}" data-property-id="${group.property.id}" data-property-name="${group.property.name}" checked style="width: 16px; height: 16px;" onchange="updateDeployRoomCount()">
+                                <input type="checkbox" class="deploy-room-checkbox" data-group="${groupIdx}" data-room-id="${room.id}" data-room-name="${room.name}" data-property-id="${group.property.id}" data-property-name="${group.property.name}" checked style="width: 16px; height: 16px;" onchange="updateDeployRoomCount(); updateDeployPropertyCheckbox(${groupIdx})">
                                 <div style="flex: 1;">
                                     <div style="font-weight: 500;">${room.name}</div>
                                     <div style="font-size: 0.75rem; color: var(--text-secondary);">
-                                        ${room.max_guests ? ` ${room.max_guests} guests` : ''}
-                                        ${room.beds ? `   ${room.beds}` : ''}
+                                        ${room.max_guests ? `${room.max_guests} guests` : ''}
                                     </div>
                                 </div>
                             </label>
@@ -23671,10 +23668,10 @@ Local honey and preserves"></textarea>
             
             if (roomsList.style.display === 'none') {
                 roomsList.style.display = 'block';
-                arrow.style.transform = 'rotate(0deg)';
+                arrow.style.transform = 'rotate(180deg)';
             } else {
                 roomsList.style.display = 'none';
-                arrow.style.transform = 'rotate(-90deg)';
+                arrow.style.transform = 'rotate(0deg)';
             }
         }
         
@@ -23684,15 +23681,31 @@ Local honey and preserves"></textarea>
             updateDeployRoomCount();
         }
         
+        function updateDeployPropertyCheckbox(groupIdx) {
+            const roomCheckboxes = document.querySelectorAll(`.deploy-room-checkbox[data-group="${groupIdx}"]`);
+            const propCheckbox = document.querySelector(`.deploy-property-checkbox[data-group="${groupIdx}"]`);
+            if (!propCheckbox || roomCheckboxes.length === 0) return;
+            
+            const checkedCount = Array.from(roomCheckboxes).filter(cb => cb.checked).length;
+            propCheckbox.checked = checkedCount === roomCheckboxes.length;
+            propCheckbox.indeterminate = checkedCount > 0 && checkedCount < roomCheckboxes.length;
+        }
+        
         function selectAllDeployRooms() {
             document.querySelectorAll('.deploy-room-checkbox').forEach(cb => cb.checked = true);
-            document.querySelectorAll('.deploy-property-checkbox').forEach(cb => cb.checked = true);
+            document.querySelectorAll('.deploy-property-checkbox').forEach(cb => {
+                cb.checked = true;
+                cb.indeterminate = false;
+            });
             updateDeployRoomCount();
         }
         
         function deselectAllDeployRooms() {
             document.querySelectorAll('.deploy-room-checkbox').forEach(cb => cb.checked = false);
-            document.querySelectorAll('.deploy-property-checkbox').forEach(cb => cb.checked = false);
+            document.querySelectorAll('.deploy-property-checkbox').forEach(cb => {
+                cb.checked = false;
+                cb.indeterminate = false;
+            });
             updateDeployRoomCount();
         }
         
