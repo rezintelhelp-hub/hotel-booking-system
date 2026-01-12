@@ -11282,16 +11282,19 @@ Local honey and preserves"></textarea>
                 <div class="form-group" style="margin-bottom: 1.5rem;">
                     <label style="font-weight: 600; margin-bottom: 0.75rem; display: block;">Select Product Type *</label>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; min-height: 220px;">
-                        <!-- Instant Website - Big Button Left -->
-                        <label class="template-option" style="cursor: pointer; border: 2px solid var(--border); border-radius: 12px; overflow: hidden; transition: all 0.2s; display: flex; flex-direction: column;">
-                            <input type="radio" name="deploy-template" value="developer-light" checked style="display: none;">
+                        <!-- Instant Website - Opens Template Modal -->
+                        <div class="template-option" onclick="openTemplateSelectionModal()" style="cursor: pointer; border: 2px solid var(--border); border-radius: 12px; overflow: hidden; transition: all 0.2s; display: flex; flex-direction: column;" id="instant-website-btn">
+                            <input type="radio" name="deploy-template" value="developer-light" id="deploy-template-instant" style="display: none;">
                             <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 2rem; text-align: center; flex: 1; display: flex; flex-direction: column; justify-content: center;">
                                 <div style="font-size: 3rem; margin-bottom: 0.5rem;">🌐</div>
                                 <div style="font-size: 1.25rem; font-weight: 700; color: white; margin-bottom: 0.25rem;">Instant Website</div>
                                 <div style="font-size: 0.9rem; color: rgba(255,255,255,0.9); margin-bottom: 0.75rem;">Get a complete booking website in minutes</div>
                                 <div style="font-size: 1.1rem; font-weight: 600; color: #fef3c7;">From $29/mo</div>
+                                <div id="selected-template-badge" style="margin-top: 0.5rem; font-size: 0.8rem; color: white; display: none;">
+                                    Selected: <span id="selected-template-name">Light</span>
+                                </div>
                             </div>
-                        </label>
+                        </div>
                         
                         <!-- Right Column - Two Stacked -->
                         <div style="display: flex; flex-direction: column; gap: 1rem;">
@@ -23556,6 +23559,110 @@ Local honey and preserves"></textarea>
                     submitBtn.style.background = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
                     break;
             }
+        }
+        
+        function openTemplateSelectionModal() {
+            // Mark Instant Website as selected product type
+            document.getElementById('deploy-template-instant').checked = true;
+            
+            const modalHtml = `
+                <div id="templateSelectionModal" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10001;">
+                    <div style="background: var(--bg-primary); border-radius: 16px; padding: 2rem; max-width: 700px; width: 90%; max-height: 90vh; overflow-y: auto;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                            <h2 style="margin: 0; font-size: 1.5rem;">🎨 Choose Your Template</h2>
+                            <button onclick="document.getElementById('templateSelectionModal').remove()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-secondary);">✕</button>
+                        </div>
+                        
+                        <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">Select a template style for your instant website</p>
+                        
+                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem; margin-bottom: 2rem;">
+                            <!-- Light Template -->
+                            <div class="template-card" onclick="selectInstantTemplate('developer-light', 'Light')" style="cursor: pointer; border: 2px solid var(--border); border-radius: 12px; overflow: hidden; transition: all 0.2s;" id="template-card-light">
+                                <div style="aspect-ratio: 16/10; background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); display: flex; align-items: center; justify-content: center; border-bottom: 1px solid var(--border);">
+                                    <div style="text-align: center; color: #64748b;">
+                                        <div style="font-size: 3rem; margin-bottom: 0.5rem;">☀️</div>
+                                        <div style="font-size: 0.9rem;">Preview Coming Soon</div>
+                                    </div>
+                                </div>
+                                <div style="padding: 1rem; background: white;">
+                                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                        <input type="radio" name="instant-template" value="developer-light" id="template-light" style="width: 18px; height: 18px;">
+                                        <label for="template-light" style="font-weight: 600; cursor: pointer;">Light Theme</label>
+                                    </div>
+                                    <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0.5rem 0 0 1.6rem;">Clean, bright design with white backgrounds</p>
+                                </div>
+                            </div>
+                            
+                            <!-- Dark Template -->
+                            <div class="template-card" onclick="selectInstantTemplate('developer-dark', 'Dark')" style="cursor: pointer; border: 2px solid var(--border); border-radius: 12px; overflow: hidden; transition: all 0.2s;" id="template-card-dark">
+                                <div style="aspect-ratio: 16/10; background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); display: flex; align-items: center; justify-content: center; border-bottom: 1px solid var(--border);">
+                                    <div style="text-align: center; color: #94a3b8;">
+                                        <div style="font-size: 3rem; margin-bottom: 0.5rem;">🌙</div>
+                                        <div style="font-size: 0.9rem;">Preview Coming Soon</div>
+                                    </div>
+                                </div>
+                                <div style="padding: 1rem; background: white;">
+                                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                        <input type="radio" name="instant-template" value="developer-dark" id="template-dark" style="width: 18px; height: 18px;">
+                                        <label for="template-dark" style="font-weight: 600; cursor: pointer;">Dark Theme</label>
+                                    </div>
+                                    <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0.5rem 0 0 1.6rem;">Elegant, modern design with dark backgrounds</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+                            <button onclick="document.getElementById('templateSelectionModal').remove()" class="btn btn-secondary">Cancel</button>
+                            <button onclick="confirmTemplateSelection()" class="btn" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">Select & Continue</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            
+            // Pre-select light by default
+            selectInstantTemplate('developer-light', 'Light');
+        }
+        
+        function selectInstantTemplate(value, name) {
+            // Update radio buttons
+            document.querySelectorAll('input[name="instant-template"]').forEach(r => r.checked = r.value === value);
+            
+            // Update card styling
+            document.querySelectorAll('.template-card').forEach(card => {
+                card.style.borderColor = 'var(--border)';
+                card.style.boxShadow = 'none';
+            });
+            
+            const selectedCard = document.getElementById(`template-card-${name.toLowerCase()}`);
+            if (selectedCard) {
+                selectedCard.style.borderColor = '#10b981';
+                selectedCard.style.boxShadow = '0 0 0 3px rgba(16, 185, 129, 0.2)';
+            }
+            
+            // Store selection
+            window.selectedInstantTemplate = value;
+            window.selectedInstantTemplateName = name;
+        }
+        
+        function confirmTemplateSelection() {
+            const selectedValue = window.selectedInstantTemplate || 'developer-light';
+            const selectedName = window.selectedInstantTemplateName || 'Light';
+            
+            // Set the hidden radio value
+            document.getElementById('deploy-template-instant').value = selectedValue;
+            document.getElementById('deploy-template-instant').checked = true;
+            
+            // Show selected template badge
+            document.getElementById('selected-template-badge').style.display = 'block';
+            document.getElementById('selected-template-name').textContent = selectedName;
+            
+            // Highlight the Instant Website card
+            handleTemplateChange(selectedValue);
+            
+            // Close modal
+            document.getElementById('templateSelectionModal').remove();
         }
         
         function toggleDeployPropertyGroup(groupIdx) {
