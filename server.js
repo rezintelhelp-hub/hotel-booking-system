@@ -2925,14 +2925,14 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     for (const room of syncRooms.rows) {
       const roomRawData = typeof room.raw_data === 'string' ? JSON.parse(room.raw_data) : (room.raw_data || {});
       
-      // Beds24 texts is an OBJECT with nested language keys: texts.headlineText.EN
+      // Beds24 texts is an OBJECT with nested language keys: texts.displayName.EN
       const texts = roomRawData.texts || {};
       
       // Debug: log texts keys
       console.log('link-to-gas: texts keys:', Object.keys(texts).filter(k => k !== 'offers').join(', '));
-      console.log('link-to-gas: texts.headlineText:', JSON.stringify(texts.headlineText));
-      console.log('link-to-gas: texts.propertyDescription1:', JSON.stringify(texts.propertyDescription1)?.substring(0, 100));
-      console.log('link-to-gas: texts.propertyDescriptionText:', JSON.stringify(texts.propertyDescriptionText)?.substring(0, 100));
+      console.log('link-to-gas: texts.displayName:', JSON.stringify(texts.displayName));
+      console.log('link-to-gas: texts.roomDescription1:', JSON.stringify(texts.roomDescription1));
+      console.log('link-to-gas: texts.auxiliaryText:', JSON.stringify(texts.auxiliaryText));
       
       // Helper to extract text from Beds24 format: {EN: "...", DE: "...", NL: "..."}
       function getText(val) {
@@ -2944,20 +2944,20 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         return '';
       }
       
-      // Beds24 headlineText (Headline Text) → GAS display_name
-      const displayName = getText(texts.headlineText) || '';
+      // Beds24 Display Name → GAS display_name
+      const displayName = getText(texts.displayName) || '';
       
-      // Beds24 propertyDescription1 (Room Description 1) → GAS short_description
-      const roomShortDesc = getText(texts.propertyDescription1) || '';
+      // Beds24 roomDescription1 (Room Description) → GAS short_description (for listings)
+      const roomShortDesc = getText(texts.roomDescription1) || getText(roomRawData.description) || '';
       
-      // Beds24 propertyDescriptionText (Auxiliary Text) → GAS full_description
-      const roomFullDesc = getText(texts.propertyDescriptionText) || '';
+      // Beds24 auxiliaryText (Auxiliary Text) → GAS full_description (long description)
+      const roomFullDesc = getText(texts.auxiliaryText) || getText(roomRawData.fullDescription) || '';
       
       // Log what we found
       console.log('link-to-gas: Room', room.name);
-      console.log('  - displayName (headlineText):', displayName?.substring(0, 50) || '(empty)');
-      console.log('  - shortDesc (propertyDescription1):', roomShortDesc?.substring(0, 50) || '(empty)');
-      console.log('  - fullDesc (propertyDescriptionText):', roomFullDesc?.substring(0, 50) || '(empty)');
+      console.log('  - displayName:', displayName || '(empty)');
+      console.log('  - shortDesc (roomDescription1):', roomShortDesc || '(empty)');
+      console.log('  - fullDesc (auxiliaryText):', roomFullDesc || '(empty)');
       
       const roomType = getText(texts.accommodationType) || getText(roomRawData.accommodationType) || '';
       
@@ -2972,20 +2972,13 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
       const sizeSqm = roomRawData.size || roomRawData.sqm || null;
       
       // Extract feature codes for amenities
-      // featureCodes can be: string, flat array, or nested array of arrays
       let featureCodes = null;
       if (roomRawData.featureCodes) {
-        console.log('link-to-gas: featureCodes type:', typeof roomRawData.featureCodes, 
-                    Array.isArray(roomRawData.featureCodes) ? '(array)' : '');
         if (typeof roomRawData.featureCodes === 'string') {
           featureCodes = roomRawData.featureCodes;
         } else if (Array.isArray(roomRawData.featureCodes)) {
-          // Use .flat() to handle nested arrays like [['WIFI'], ['KITCHEN', 'OVEN']]
-          featureCodes = roomRawData.featureCodes.flat().join(',');
+          featureCodes = roomRawData.featureCodes.join(',');
         }
-        console.log('link-to-gas: featureCodes extracted:', featureCodes?.substring(0, 100));
-      } else {
-        console.log('link-to-gas: No featureCodes in raw_data');
       }
       
       // Check if room exists (use cm_room_id which should always exist)
@@ -3033,15 +3026,12 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         ]);
         
         // Update text fields separately (handle JSONB/TEXT type differences)
-        // display_name and short_description are JSONB, full_description is TEXT
         if (displayName) {
-          const jsonValue = JSON.stringify({en: displayName});
-          await pool.query('UPDATE bookable_units SET display_name = $1::jsonb WHERE id = $2', [jsonValue, gasRoomId])
+          await pool.query('UPDATE bookable_units SET display_name = $1 WHERE id = $2', [displayName, gasRoomId])
             .catch(e => console.log('link-to-gas: display_name update failed:', e.message));
         }
         if (roomShortDesc) {
-          const jsonValue = JSON.stringify({en: roomShortDesc});
-          await pool.query('UPDATE bookable_units SET short_description = $1::jsonb WHERE id = $2', [jsonValue, gasRoomId])
+          await pool.query('UPDATE bookable_units SET short_description = $1 WHERE id = $2', [roomShortDesc, gasRoomId])
             .catch(e => console.log('link-to-gas: short_description update failed:', e.message));
         }
         if (roomFullDesc) {
@@ -3085,15 +3075,12 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         gasRoomId = roomResult.rows[0].id;
         
         // Update text fields separately (handle JSONB/TEXT type differences)
-        // display_name and short_description are JSONB, full_description is TEXT
         if (displayName) {
-          const jsonValue = JSON.stringify({en: displayName});
-          await pool.query('UPDATE bookable_units SET display_name = $1::jsonb WHERE id = $2', [jsonValue, gasRoomId])
+          await pool.query('UPDATE bookable_units SET display_name = $1 WHERE id = $2', [displayName, gasRoomId])
             .catch(e => console.log('link-to-gas: display_name update failed:', e.message));
         }
         if (roomShortDesc) {
-          const jsonValue = JSON.stringify({en: roomShortDesc});
-          await pool.query('UPDATE bookable_units SET short_description = $1::jsonb WHERE id = $2', [jsonValue, gasRoomId])
+          await pool.query('UPDATE bookable_units SET short_description = $1 WHERE id = $2', [roomShortDesc, gasRoomId])
             .catch(e => console.log('link-to-gas: short_description update failed:', e.message));
         }
         if (roomFullDesc) {
@@ -3112,31 +3099,24 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
       // Map feature codes to amenities
       if (featureCodes && gasRoomId) {
         const codes = featureCodes.split(',').map(c => c.trim()).filter(c => c);
-        console.log('link-to-gas: Mapping', codes.length, 'feature codes to amenities for room', gasRoomId);
         
         if (codes.length > 0) {
           // Ensure beds24_code column exists on master_amenities
           await pool.query('ALTER TABLE master_amenities ADD COLUMN IF NOT EXISTS beds24_code VARCHAR(100)').catch(() => {});
           
-          // Ensure room_amenity_selections table exists (this is what the UI reads from)
+          // Ensure bookable_unit_amenities table exists
           await pool.query(`
-            CREATE TABLE IF NOT EXISTS room_amenity_selections (
+            CREATE TABLE IF NOT EXISTS bookable_unit_amenities (
               id SERIAL PRIMARY KEY,
-              room_id INTEGER NOT NULL,
-              amenity_id INTEGER NOT NULL,
-              quantity INTEGER DEFAULT 1,
+              bookable_unit_id INTEGER,
+              amenity_id INTEGER,
+              amenity_code VARCHAR(100),
+              amenity_name VARCHAR(255),
+              category VARCHAR(100),
               display_order INTEGER DEFAULT 0,
-              created_at TIMESTAMP DEFAULT NOW(),
-              UNIQUE(room_id, amenity_id)
+              created_at TIMESTAMP DEFAULT NOW()
             )
           `).catch(() => {});
-          
-          // Clear existing amenities for this room before re-importing
-          await pool.query('DELETE FROM room_amenity_selections WHERE room_id = $1', [gasRoomId]);
-          
-          let matched = 0;
-          let unmatched = [];
-          let displayOrder = 0;
           
           for (const code of codes) {
             // Try to find matching master amenity by beds24_code or amenity_code
@@ -3149,20 +3129,20 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
             
             if (masterMatch.rows.length > 0) {
               const ma = masterMatch.rows[0];
-              await pool.query(`
-                INSERT INTO room_amenity_selections (room_id, amenity_id, display_order)
-                VALUES ($1, $2, $3)
-                ON CONFLICT (room_id, amenity_id) DO NOTHING
-              `, [gasRoomId, ma.id, displayOrder++]);
-              matched++;
-            } else {
-              unmatched.push(code);
+              // Check if already linked
+              const existing = await pool.query(
+                'SELECT id FROM bookable_unit_amenities WHERE bookable_unit_id = $1 AND amenity_id = $2',
+                [gasRoomId, ma.id]
+              );
+              
+              if (existing.rows.length === 0) {
+                await pool.query(`
+                  INSERT INTO bookable_unit_amenities (bookable_unit_id, amenity_id, amenity_code, amenity_name, category)
+                  VALUES ($1, $2, $3, $4, $5)
+                `, [gasRoomId, ma.id, ma.amenity_code, ma.amenity_name, ma.category]);
+              }
             }
-          }
-          
-          console.log('link-to-gas: Amenities matched:', matched, 'unmatched:', unmatched.length);
-          if (unmatched.length > 0 && unmatched.length <= 10) {
-            console.log('link-to-gas: Unmatched codes:', unmatched.join(', '));
+            // If no match, the feature code is stored in feature_codes column for manual mapping later
           }
         }
       }
@@ -13496,15 +13476,15 @@ app.get('/api/admin/deployed-sites/:id/rooms', async (req, res) => {
   try {
     const { id } = req.params;
     
-    // Get the site to find property_id AND current room_ids
-    const siteResult = await pool.query('SELECT property_id, room_ids FROM deployed_sites WHERE id = $1', [id]);
+    // Get the site to find account_id AND current room_ids
+    const siteResult = await pool.query('SELECT account_id, property_id, room_ids FROM deployed_sites WHERE id = $1', [id]);
     console.log('Site result for id', id, ':', siteResult.rows);
     
     if (siteResult.rows.length === 0) {
       return res.json({ success: false, error: 'Site not found' });
     }
     
-    const propertyId = siteResult.rows[0].property_id;
+    const accountId = siteResult.rows[0].account_id;
     const roomIdsJson = siteResult.rows[0].room_ids;
     
     // Parse room_ids - this is what WordPress actually uses
@@ -13513,23 +13493,38 @@ app.get('/api/admin/deployed-sites/:id/rooms', async (req, res) => {
       linkedRoomIds = typeof roomIdsJson === 'string' ? JSON.parse(roomIdsJson) : roomIdsJson;
     }
     
-    console.log('Property ID:', propertyId, 'Linked room_ids:', linkedRoomIds);
+    console.log('Account ID:', accountId, 'Linked room_ids:', linkedRoomIds);
     
-    if (!propertyId) {
-      return res.json({ success: true, rooms: [], linkedRoomIds: [], message: 'No property linked to site' });
+    if (!accountId) {
+      return res.json({ success: true, propertyGroups: [], linkedRoomIds: [], message: 'No account linked to site' });
     }
     
-    // Get ALL rooms for this property
-    const roomsResult = await pool.query(`
-      SELECT * FROM bookable_units
-      WHERE property_id = $1
+    // Get ALL properties for this account
+    const propertiesResult = await pool.query(`
+      SELECT id, name FROM properties
+      WHERE account_id = $1
       ORDER BY name
-    `, [propertyId]);
+    `, [accountId]);
     
-    console.log('Found rooms:', roomsResult.rows.length);
+    // Get ALL rooms for all properties in this account
+    const roomsResult = await pool.query(`
+      SELECT bu.*, p.name as property_name 
+      FROM bookable_units bu
+      JOIN properties p ON bu.property_id = p.id
+      WHERE p.account_id = $1
+      ORDER BY p.name, bu.name
+    `, [accountId]);
     
-    // Return both all rooms AND which ones are currently linked
-    res.json({ success: true, rooms: roomsResult.rows, linkedRoomIds: linkedRoomIds });
+    // Group rooms by property
+    const propertyGroups = propertiesResult.rows.map(prop => ({
+      property: prop,
+      rooms: roomsResult.rows.filter(r => r.property_id === prop.id)
+    }));
+    
+    console.log('Found properties:', propertiesResult.rows.length, 'rooms:', roomsResult.rows.length);
+    
+    // Return hierarchical structure AND which rooms are currently linked
+    res.json({ success: true, propertyGroups: propertyGroups, linkedRoomIds: linkedRoomIds });
   } catch (error) {
     console.error('Get deployed site rooms error:', error);
     res.json({ success: false, error: error.message });
@@ -19944,7 +19939,7 @@ app.post('/api/admin/offers', async (req, res) => {
   try {
     const {
       name, description, property_id, room_id,
-      property_ids, room_ids, account_id,
+      property_ids, room_ids,
       discount_type, discount_value, applies_to,
       min_nights, max_nights, min_guests, max_guests,
       min_advance_days, max_advance_days,
@@ -19953,26 +19948,23 @@ app.post('/api/admin/offers', async (req, res) => {
       stackable, priority, active, pricing_tier
     } = req.body;
     
-    // Ensure account_id column exists
-    await pool.query('ALTER TABLE offers ADD COLUMN IF NOT EXISTS account_id INTEGER').catch(() => {});
-    
     let result;
     try {
       // Try with array columns and pricing_tier
       result = await pool.query(`
         INSERT INTO offers (
-          name, description, property_id, room_id, property_ids, room_ids, account_id,
+          name, description, property_id, room_id, property_ids, room_ids,
           discount_type, discount_value, price_per_night, applies_to,
           min_nights, max_nights, min_guests, max_guests,
           min_advance_days, max_advance_days,
           valid_from, valid_until, valid_days_of_week,
           allowed_checkin_days, allowed_checkout_days,
           stackable, priority, active, pricing_tier
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
         RETURNING *
       `, [
         name, description, property_id || null, room_id || null,
-        property_ids || null, room_ids || null, account_id || null,
+        property_ids || null, room_ids || null,
         discount_type || 'percentage', discount_value || 0, price_per_night || null, applies_to || 'standard_price',
         min_nights || 1, max_nights || null, min_guests || null, max_guests || null,
         min_advance_days || null, max_advance_days || null,
@@ -19984,17 +19976,17 @@ app.post('/api/admin/offers', async (req, res) => {
       // Fallback without array columns
       result = await pool.query(`
         INSERT INTO offers (
-          name, description, property_id, room_id, account_id,
+          name, description, property_id, room_id,
           discount_type, discount_value, applies_to,
           min_nights, max_nights, min_guests, max_guests,
           min_advance_days, max_advance_days,
           valid_from, valid_until, valid_days_of_week,
           allowed_checkin_days, allowed_checkout_days,
           stackable, priority, active, pricing_tier
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
         RETURNING *
       `, [
-        name, description, property_id || null, room_id || null, account_id || null,
+        name, description, property_id || null, room_id || null,
         discount_type || 'percentage', discount_value || 0, applies_to || 'standard_price',
         min_nights || 1, max_nights || null, min_guests || null, max_guests || null,
         min_advance_days || null, max_advance_days || null,
@@ -21924,24 +21916,11 @@ app.post('/api/pricing/calculate', async (req, res) => {
     const roomPropertyResult = await pool.query(`SELECT property_id FROM bookable_units WHERE id = $1`, [room_id]);
     const roomPropertyId = roomPropertyResult.rows[0]?.property_id;
     
-    // Get account_id from property for offer filtering
-    let propertyAccountId = null;
-    if (roomPropertyId) {
-      const propResult = await pool.query(`SELECT account_id FROM properties WHERE id = $1`, [roomPropertyId]);
-      propertyAccountId = propResult.rows[0]?.account_id;
-    }
-    
-    // Get applicable offers - filtered by property_id AND account_id
-    // Offer must either:
-    // 1. Match the specific property OR have no property restriction BUT match the account
-    // 2. This prevents global offers (property_id=NULL, account_id=NULL) from showing everywhere
+    // Get applicable offers - filtered by property_id
     const offersResult = await pool.query(`
       SELECT * FROM offers
       WHERE active = true
-      AND (
-        property_id = $6 
-        OR (property_id IS NULL AND account_id = $7)
-      )
+      AND (property_id IS NULL OR property_id = $6)
       AND (room_id IS NULL OR room_id = $1)
       AND (min_nights IS NULL OR min_nights <= $2)
       AND (max_nights IS NULL OR max_nights >= $2)
@@ -21950,7 +21929,7 @@ app.post('/api/pricing/calculate', async (req, res) => {
       AND (valid_from IS NULL OR valid_from <= $4)
       AND (valid_until IS NULL OR valid_until >= $5)
       ORDER BY priority DESC
-    `, [room_id, nights, guests, check_in, check_out, roomPropertyId, propertyAccountId]);
+    `, [room_id, nights, guests, check_in, check_out, roomPropertyId]);
     
     // Calculate pricing
     let baseTotal = 0;
@@ -27706,7 +27685,7 @@ app.post('/api/public/calculate-price', async (req, res) => {
       ORDER BY date
     `, [unit_id, check_in, check_out]);
     
-    // Get unit with occupancy settings AND account_id
+    // Get unit with occupancy settings
     const unit = await pool.query(`
       SELECT bu.base_price, bu.max_guests, bu.name, 
              bu.pricing_mode, bu.base_occupancy, 
@@ -27714,7 +27693,7 @@ app.post('/api/public/calculate-price', async (req, res) => {
              bu.single_discount_type, bu.single_discount_value,
              bu.child_charge_type, bu.child_charge,
              bu.children_allowed,
-             p.currency, p.child_max_age, p.account_id, p.id as property_id
+             p.currency, p.child_max_age
       FROM bookable_units bu
       LEFT JOIN properties p ON bu.property_id = p.id
       WHERE bu.id = $1
@@ -27850,7 +27829,7 @@ app.post('/api/public/calculate-price', async (req, res) => {
       }
     }
     
-    // Check for applicable offers - filter by property_id AND account_id
+    // Check for applicable offers - filter by property_id and pricing_tier
     let discount = 0;
     let offerApplied = null;
     let useFixedPricePerNight = null;
@@ -27860,17 +27839,10 @@ app.post('/api/public/calculate-price', async (req, res) => {
     const requestedPricingTier = req.body.pricing_tier || 'standard';
     isNonStandardTier = requestedPricingTier !== 'standard';
     
-    // Get property's account_id for offer filtering
-    const propertyAccountId = roomData.account_id;
-    const propertyId = roomData.property_id;
-    
     const offers = await pool.query(`
       SELECT * FROM offers
       WHERE active = true
-        AND (
-          property_id = $6
-          OR (property_id IS NULL AND account_id = $7)
-        )
+        AND (property_id IS NULL OR property_id = (SELECT property_id FROM bookable_units WHERE id = $1))
         AND (room_id IS NULL OR room_id = $1)
         AND (min_nights IS NULL OR min_nights <= $2)
         AND (valid_from IS NULL OR valid_from <= $3)
@@ -27878,7 +27850,7 @@ app.post('/api/public/calculate-price', async (req, res) => {
         AND (pricing_tier IS NULL OR pricing_tier = $5)
       ORDER BY priority DESC, discount_value DESC
       LIMIT 1
-    `, [unit_id, nights, check_in, check_out, requestedPricingTier, propertyId, propertyAccountId]);
+    `, [unit_id, nights, check_in, check_out, requestedPricingTier]);
     
     if (offers.rows[0]) {
       const offer = offers.rows[0];
