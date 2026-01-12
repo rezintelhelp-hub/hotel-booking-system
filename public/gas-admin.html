@@ -7283,9 +7283,6 @@
                     <button class="blog-tab" data-tab="published" onclick="switchBlogTab('published')" style="padding: 0.75rem 1.25rem; border: none; background: none; font-weight: 500; color: #6b7280; cursor: pointer; white-space: nowrap;">
                          Published <span id="blog-count-published" style="background: #f3f4f6; padding: 0.125rem 0.5rem; border-radius: 10px; font-size: 0.75rem; margin-left: 0.25rem;">0</span>
                     </button>
-                    <button class="blog-tab" data-tab="settings" onclick="switchBlogTab('settings')" style="padding: 0.75rem 1.25rem; border: none; background: none; font-weight: 500; color: #6b7280; cursor: pointer; white-space: nowrap; margin-left: auto;">
-                        ⚙️ Settings
-                    </button>
                 </div>
 
                 <!-- Tab Content -->
@@ -7315,103 +7312,6 @@
                     <!-- Published Tab -->
                     <div id="blog-tab-published" class="blog-tab-panel" style="display: none;">
                         <div id="blog-published-list"></div>
-                    </div>
-                    
-                    <!-- Settings Tab -->
-                    <div id="blog-tab-settings" class="blog-tab-panel" style="display: none;">
-                        <div class="card">
-                            <h3 style="margin-bottom: 1.5rem;">🎨 Display Settings</h3>
-                            <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">Customize how your blog appears on your website. These colors are used by the GAS Blog WordPress plugin.</p>
-                            
-                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;">
-                                <!-- Colors Section -->
-                                <div style="background: var(--bg-secondary); border-radius: 12px; padding: 1.25rem;">
-                                    <h4 style="margin: 0 0 1rem 0; font-size: 0.9rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">Colors</h4>
-                                    
-                                    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
-                                        <div style="display: flex; align-items: center; justify-content: space-between;">
-                                            <label style="font-size: 0.9rem;">Accent Color</label>
-                                            <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                                <input type="color" id="blog-color-accent" value="#667eea" style="width: 40px; height: 32px; border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; padding: 2px;">
-                                                <input type="text" id="blog-color-accent-hex" value="#667eea" style="width: 80px; padding: 0.25rem 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.8rem; font-family: monospace;">
-                                            </div>
-                                        </div>
-                                        <div style="display: flex; align-items: center; justify-content: space-between;">
-                                            <label style="font-size: 0.9rem;">Background</label>
-                                            <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                                <input type="color" id="blog-color-bg" value="#ffffff" style="width: 40px; height: 32px; border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; padding: 2px;">
-                                                <input type="text" id="blog-color-bg-hex" value="#ffffff" style="width: 80px; padding: 0.25rem 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.8rem; font-family: monospace;">
-                                            </div>
-                                        </div>
-                                        <div style="display: flex; align-items: center; justify-content: space-between;">
-                                            <label style="font-size: 0.9rem;">Card Background</label>
-                                            <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                                <input type="color" id="blog-color-card" value="#ffffff" style="width: 40px; height: 32px; border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; padding: 2px;">
-                                                <input type="text" id="blog-color-card-hex" value="#ffffff" style="width: 80px; padding: 0.25rem 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.8rem; font-family: monospace;">
-                                            </div>
-                                        </div>
-                                        <div style="display: flex; align-items: center; justify-content: space-between;">
-                                            <label style="font-size: 0.9rem;">Text Color</label>
-                                            <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                                <input type="color" id="blog-color-text" value="#1a1a1a" style="width: 40px; height: 32px; border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; padding: 2px;">
-                                                <input type="text" id="blog-color-text-hex" value="#1a1a1a" style="width: 80px; padding: 0.25rem 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.8rem; font-family: monospace;">
-                                            </div>
-                                        </div>
-                                        <div style="display: flex; align-items: center; justify-content: space-between;">
-                                            <label style="font-size: 0.9rem;">Secondary Text</label>
-                                            <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                                <input type="color" id="blog-color-secondary" value="#666666" style="width: 40px; height: 32px; border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; padding: 2px;">
-                                                <input type="text" id="blog-color-secondary-hex" value="#666666" style="width: 80px; padding: 0.25rem 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.8rem; font-family: monospace;">
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                <!-- Category Badge Section -->
-                                <div style="background: var(--bg-secondary); border-radius: 12px; padding: 1.25rem;">
-                                    <h4 style="margin: 0 0 1rem 0; font-size: 0.9rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">Category Badges</h4>
-                                    
-                                    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
-                                        <div style="display: flex; align-items: center; justify-content: space-between;">
-                                            <label style="font-size: 0.9rem;">Badge Background</label>
-                                            <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                                <input type="color" id="blog-color-cat-bg" value="#e0e7ff" style="width: 40px; height: 32px; border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; padding: 2px;">
-                                                <input type="text" id="blog-color-cat-bg-hex" value="#e0e7ff" style="width: 80px; padding: 0.25rem 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.8rem; font-family: monospace;">
-                                            </div>
-                                        </div>
-                                        <div style="display: flex; align-items: center; justify-content: space-between;">
-                                            <label style="font-size: 0.9rem;">Badge Text</label>
-                                            <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                                <input type="color" id="blog-color-cat-text" value="#4338ca" style="width: 40px; height: 32px; border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; padding: 2px;">
-                                                <input type="text" id="blog-color-cat-text-hex" value="#4338ca" style="width: 80px; padding: 0.25rem 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.8rem; font-family: monospace;">
-                                            </div>
-                                        </div>
-                                    </div>
-                                    
-                                    <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
-                                        <label style="font-size: 0.8rem; color: var(--text-secondary); display: block; margin-bottom: 0.5rem;">Preview:</label>
-                                        <span id="blog-category-preview" style="background: #e0e7ff; color: #4338ca; padding: 4px 12px; border-radius: 12px; font-size: 0.85rem;">Travel Tips</span>
-                                    </div>
-                                </div>
-                                
-                                <!-- Presets Section -->
-                                <div style="background: var(--bg-secondary); border-radius: 12px; padding: 1.25rem;">
-                                    <h4 style="margin: 0 0 1rem 0; font-size: 0.9rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">Quick Presets</h4>
-                                    
-                                    <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
-                                        <button onclick="applyAppColorPreset('blog', 'light')" class="btn btn-secondary" style="font-size: 0.85rem;">☀️ Light</button>
-                                        <button onclick="applyAppColorPreset('blog', 'dark')" class="btn btn-secondary" style="font-size: 0.85rem; background: #1e293b; color: white;">🌙 Dark</button>
-                                        <button onclick="applyAppColorPreset('blog', 'ocean')" class="btn btn-secondary" style="font-size: 0.85rem; background: #0ea5e9; color: white;">🌊 Ocean</button>
-                                        <button onclick="applyAppColorPreset('blog', 'forest')" class="btn btn-secondary" style="font-size: 0.85rem; background: #22c55e; color: white;">🌲 Forest</button>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div style="margin-top: 1.5rem; display: flex; gap: 0.75rem;">
-                                <button class="btn" onclick="saveAppSettings('blog')" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">💾 Save Settings</button>
-                                <button class="btn btn-secondary" onclick="loadAppSettings('blog')">↩️ Reset</button>
-                            </div>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -7459,9 +7359,6 @@
                     <button class="attraction-tab" data-tab="published" onclick="switchAttractionTab('published')" style="padding: 0.75rem 1.25rem; border: none; background: none; font-weight: 500; color: #6b7280; cursor: pointer; white-space: nowrap;">
                          Published <span id="attraction-count-published" style="background: #f3f4f6; padding: 0.125rem 0.5rem; border-radius: 10px; font-size: 0.75rem; margin-left: 0.25rem;">0</span>
                     </button>
-                    <button class="attraction-tab" data-tab="settings" onclick="switchAttractionTab('settings')" style="padding: 0.75rem 1.25rem; border: none; background: none; font-weight: 500; color: #6b7280; cursor: pointer; white-space: nowrap; margin-left: auto;">
-                        ⚙️ Settings
-                    </button>
                 </div>
 
                 <!-- Tab Content -->
@@ -7492,103 +7389,6 @@
                     <div id="attraction-tab-published" class="attraction-tab-panel" style="display: none;">
                         <div id="attraction-published-list"></div>
                     </div>
-                    
-                    <!-- Settings Tab -->
-                    <div id="attraction-tab-settings" class="attraction-tab-panel" style="display: none;">
-                        <div class="card">
-                            <h3 style="margin-bottom: 1.5rem;">🎨 Display Settings</h3>
-                            <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">Customize how attractions appear on your website. These colors are used by the GAS Attractions WordPress plugin.</p>
-                            
-                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;">
-                                <!-- Colors Section -->
-                                <div style="background: var(--bg-secondary); border-radius: 12px; padding: 1.25rem;">
-                                    <h4 style="margin: 0 0 1rem 0; font-size: 0.9rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">Colors</h4>
-                                    
-                                    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
-                                        <div style="display: flex; align-items: center; justify-content: space-between;">
-                                            <label style="font-size: 0.9rem;">Accent Color</label>
-                                            <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                                <input type="color" id="attractions-color-accent" value="#f59e0b" style="width: 40px; height: 32px; border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; padding: 2px;">
-                                                <input type="text" id="attractions-color-accent-hex" value="#f59e0b" style="width: 80px; padding: 0.25rem 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.8rem; font-family: monospace;">
-                                            </div>
-                                        </div>
-                                        <div style="display: flex; align-items: center; justify-content: space-between;">
-                                            <label style="font-size: 0.9rem;">Background</label>
-                                            <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                                <input type="color" id="attractions-color-bg" value="#ffffff" style="width: 40px; height: 32px; border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; padding: 2px;">
-                                                <input type="text" id="attractions-color-bg-hex" value="#ffffff" style="width: 80px; padding: 0.25rem 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.8rem; font-family: monospace;">
-                                            </div>
-                                        </div>
-                                        <div style="display: flex; align-items: center; justify-content: space-between;">
-                                            <label style="font-size: 0.9rem;">Card Background</label>
-                                            <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                                <input type="color" id="attractions-color-card" value="#ffffff" style="width: 40px; height: 32px; border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; padding: 2px;">
-                                                <input type="text" id="attractions-color-card-hex" value="#ffffff" style="width: 80px; padding: 0.25rem 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.8rem; font-family: monospace;">
-                                            </div>
-                                        </div>
-                                        <div style="display: flex; align-items: center; justify-content: space-between;">
-                                            <label style="font-size: 0.9rem;">Text Color</label>
-                                            <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                                <input type="color" id="attractions-color-text" value="#1a1a1a" style="width: 40px; height: 32px; border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; padding: 2px;">
-                                                <input type="text" id="attractions-color-text-hex" value="#1a1a1a" style="width: 80px; padding: 0.25rem 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.8rem; font-family: monospace;">
-                                            </div>
-                                        </div>
-                                        <div style="display: flex; align-items: center; justify-content: space-between;">
-                                            <label style="font-size: 0.9rem;">Secondary Text</label>
-                                            <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                                <input type="color" id="attractions-color-secondary" value="#666666" style="width: 40px; height: 32px; border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; padding: 2px;">
-                                                <input type="text" id="attractions-color-secondary-hex" value="#666666" style="width: 80px; padding: 0.25rem 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.8rem; font-family: monospace;">
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                <!-- Category Badge Section -->
-                                <div style="background: var(--bg-secondary); border-radius: 12px; padding: 1.25rem;">
-                                    <h4 style="margin: 0 0 1rem 0; font-size: 0.9rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">Category Badges</h4>
-                                    
-                                    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
-                                        <div style="display: flex; align-items: center; justify-content: space-between;">
-                                            <label style="font-size: 0.9rem;">Badge Background</label>
-                                            <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                                <input type="color" id="attractions-color-cat-bg" value="#fef3c7" style="width: 40px; height: 32px; border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; padding: 2px;">
-                                                <input type="text" id="attractions-color-cat-bg-hex" value="#fef3c7" style="width: 80px; padding: 0.25rem 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.8rem; font-family: monospace;">
-                                            </div>
-                                        </div>
-                                        <div style="display: flex; align-items: center; justify-content: space-between;">
-                                            <label style="font-size: 0.9rem;">Badge Text</label>
-                                            <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                                <input type="color" id="attractions-color-cat-text" value="#92400e" style="width: 40px; height: 32px; border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; padding: 2px;">
-                                                <input type="text" id="attractions-color-cat-text-hex" value="#92400e" style="width: 80px; padding: 0.25rem 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.8rem; font-family: monospace;">
-                                            </div>
-                                        </div>
-                                    </div>
-                                    
-                                    <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
-                                        <label style="font-size: 0.8rem; color: var(--text-secondary); display: block; margin-bottom: 0.5rem;">Preview:</label>
-                                        <span id="attractions-category-preview" style="background: #fef3c7; color: #92400e; padding: 4px 12px; border-radius: 12px; font-size: 0.85rem;">Restaurants</span>
-                                    </div>
-                                </div>
-                                
-                                <!-- Presets Section -->
-                                <div style="background: var(--bg-secondary); border-radius: 12px; padding: 1.25rem;">
-                                    <h4 style="margin: 0 0 1rem 0; font-size: 0.9rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">Quick Presets</h4>
-                                    
-                                    <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
-                                        <button onclick="applyAppColorPreset('attractions', 'light')" class="btn btn-secondary" style="font-size: 0.85rem;">☀️ Light</button>
-                                        <button onclick="applyAppColorPreset('attractions', 'dark')" class="btn btn-secondary" style="font-size: 0.85rem; background: #1e293b; color: white;">🌙 Dark</button>
-                                        <button onclick="applyAppColorPreset('attractions', 'ocean')" class="btn btn-secondary" style="font-size: 0.85rem; background: #0ea5e9; color: white;">🌊 Ocean</button>
-                                        <button onclick="applyAppColorPreset('attractions', 'forest')" class="btn btn-secondary" style="font-size: 0.85rem; background: #22c55e; color: white;">🌲 Forest</button>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div style="margin-top: 1.5rem; display: flex; gap: 0.75rem;">
-                                <button class="btn" onclick="saveAppSettings('attractions')" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">💾 Save Settings</button>
-                                <button class="btn btn-secondary" onclick="loadAppSettings('attractions')">↩️ Reset</button>
-                            </div>
-                        </div>
-                    </div>
                 </div>
             </div>
 
@@ -7604,153 +7404,47 @@
                     </div>
                 </div>
 
-                <!-- Tabs -->
-                <div style="display: flex; gap: 0; margin-bottom: 1rem; border-bottom: 2px solid #e5e7eb;">
-                    <button class="reviews-tab active" data-tab="list" onclick="switchReviewsTab('list')" style="padding: 0.75rem 1.25rem; border: none; background: none; font-weight: 600; color: #eab308; border-bottom: 2px solid #eab308; margin-bottom: -2px; cursor: pointer;">
-                        ⭐ Reviews
-                    </button>
-                    <button class="reviews-tab" data-tab="settings" onclick="switchReviewsTab('settings')" style="padding: 0.75rem 1.25rem; border: none; background: none; font-weight: 500; color: #6b7280; cursor: pointer; margin-left: auto;">
-                        ⚙️ Settings
-                    </button>
-                </div>
-
-                <!-- Reviews List Tab -->
-                <div id="reviews-tab-list" class="reviews-tab-panel">
-                    <!-- Filters -->
-                    <div class="card" style="margin-bottom: 1rem; padding: 1rem;">
-                        <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
-                            <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                <label style="font-weight: 600; white-space: nowrap;">Property:</label>
-                                <select id="reviews-property-filter" class="form-input" style="min-width: 200px;" onchange="loadAppReviews()">
-                                    <option value="">All Properties</option>
-                                </select>
-                            </div>
-                            <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                <label style="font-weight: 600; white-space: nowrap;">Min Rating:</label>
-                                <select id="reviews-rating-filter" class="form-input" style="min-width: 120px;" onchange="loadAppReviews()">
-                                    <option value="">All Ratings</option>
-                                    <option value="9">9+ (Excellent)</option>
-                                    <option value="8">8+ (Very Good)</option>
-                                    <option value="7">7+ (Good)</option>
-                                    <option value="5">5+ (Average)</option>
-                                    <option value="1">1+ (All)</option>
-                                </select>
-                            </div>
-                            <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                <label style="font-weight: 600; white-space: nowrap;">Channel:</label>
-                                <select id="reviews-channel-filter" class="form-input" style="min-width: 150px;" onchange="loadAppReviews()">
-                                    <option value="">All Channels</option>
-                                    <option value="Airbnb">Airbnb</option>
-                                    <option value="Booking.com">Booking.com</option>
-                                    <option value="VRBO">VRBO</option>
-                                    <option value="Expedia">Expedia</option>
-                                </select>
-                            </div>
-                            <button class="btn btn-secondary" onclick="loadAppReviews()" style="margin-left: auto;">🔄 Refresh</button>
+                <!-- Filters -->
+                <div class="card" style="margin-bottom: 1rem; padding: 1rem;">
+                    <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <label style="font-weight: 600; white-space: nowrap;">Property:</label>
+                            <select id="reviews-property-filter" class="form-input" style="min-width: 200px;" onchange="loadAppReviews()">
+                                <option value="">All Properties</option>
+                            </select>
                         </div>
-                    </div>
-
-                    <div class="card">
-                        <div id="app-reviews-list">
-                            <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
-                                <div style="font-size: 4rem; margin-bottom: 1rem;">⭐</div>
-                                <h3 style="margin-bottom: 0.5rem;">No reviews yet</h3>
-                                <p>Add guest reviews to build trust with potential guests</p>
-                                <button class="btn" style="margin-top: 1rem;" onclick="openReviewModal()">Add Your First Review</button>
-                            </div>
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <label style="font-weight: 600; white-space: nowrap;">Min Rating:</label>
+                            <select id="reviews-rating-filter" class="form-input" style="min-width: 120px;" onchange="loadAppReviews()">
+                                <option value="">All Ratings</option>
+                                <option value="9">9+ (Excellent)</option>
+                                <option value="8">8+ (Very Good)</option>
+                                <option value="7">7+ (Good)</option>
+                                <option value="5">5+ (Average)</option>
+                                <option value="1">1+ (All)</option>
+                            </select>
                         </div>
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <label style="font-weight: 600; white-space: nowrap;">Channel:</label>
+                            <select id="reviews-channel-filter" class="form-input" style="min-width: 150px;" onchange="loadAppReviews()">
+                                <option value="">All Channels</option>
+                                <option value="Airbnb">Airbnb</option>
+                                <option value="Booking.com">Booking.com</option>
+                                <option value="VRBO">VRBO</option>
+                                <option value="Expedia">Expedia</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-secondary" onclick="loadAppReviews()" style="margin-left: auto;">🔄 Refresh</button>
                     </div>
                 </div>
 
-                <!-- Settings Tab -->
-                <div id="reviews-tab-settings" class="reviews-tab-panel" style="display: none;">
-                    <div class="card">
-                        <h3 style="margin-bottom: 1.5rem;">🎨 Display Settings</h3>
-                        <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">Customize how reviews appear on your website. These colors are used by the GAS Reviews WordPress plugin.</p>
-                        
-                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;">
-                            <!-- Colors Section -->
-                            <div style="background: var(--bg-secondary); border-radius: 12px; padding: 1.25rem;">
-                                <h4 style="margin: 0 0 1rem 0; font-size: 0.9rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">Colors</h4>
-                                
-                                <div style="display: flex; flex-direction: column; gap: 0.75rem;">
-                                    <div style="display: flex; align-items: center; justify-content: space-between;">
-                                        <label style="font-size: 0.9rem;">Accent Color</label>
-                                        <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                            <input type="color" id="reviews-color-accent" value="#667eea" style="width: 40px; height: 32px; border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; padding: 2px;">
-                                            <input type="text" id="reviews-color-accent-hex" value="#667eea" style="width: 80px; padding: 0.25rem 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.8rem; font-family: monospace;">
-                                        </div>
-                                    </div>
-                                    <div style="display: flex; align-items: center; justify-content: space-between;">
-                                        <label style="font-size: 0.9rem;">Background</label>
-                                        <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                            <input type="color" id="reviews-color-bg" value="#ffffff" style="width: 40px; height: 32px; border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; padding: 2px;">
-                                            <input type="text" id="reviews-color-bg-hex" value="#ffffff" style="width: 80px; padding: 0.25rem 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.8rem; font-family: monospace;">
-                                        </div>
-                                    </div>
-                                    <div style="display: flex; align-items: center; justify-content: space-between;">
-                                        <label style="font-size: 0.9rem;">Card Background</label>
-                                        <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                            <input type="color" id="reviews-color-card" value="#ffffff" style="width: 40px; height: 32px; border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; padding: 2px;">
-                                            <input type="text" id="reviews-color-card-hex" value="#ffffff" style="width: 80px; padding: 0.25rem 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.8rem; font-family: monospace;">
-                                        </div>
-                                    </div>
-                                    <div style="display: flex; align-items: center; justify-content: space-between;">
-                                        <label style="font-size: 0.9rem;">Text Color</label>
-                                        <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                            <input type="color" id="reviews-color-text" value="#1e293b" style="width: 40px; height: 32px; border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; padding: 2px;">
-                                            <input type="text" id="reviews-color-text-hex" value="#1e293b" style="width: 80px; padding: 0.25rem 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.8rem; font-family: monospace;">
-                                        </div>
-                                    </div>
-                                    <div style="display: flex; align-items: center; justify-content: space-between;">
-                                        <label style="font-size: 0.9rem;">Secondary Text</label>
-                                        <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                            <input type="color" id="reviews-color-secondary" value="#64748b" style="width: 40px; height: 32px; border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; padding: 2px;">
-                                            <input type="text" id="reviews-color-secondary-hex" value="#64748b" style="width: 80px; padding: 0.25rem 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.8rem; font-family: monospace;">
-                                        </div>
-                                    </div>
-                                    <div style="display: flex; align-items: center; justify-content: space-between;">
-                                        <label style="font-size: 0.9rem;">Star Color</label>
-                                        <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                            <input type="color" id="reviews-color-star" value="#fbbf24" style="width: 40px; height: 32px; border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; padding: 2px;">
-                                            <input type="text" id="reviews-color-star-hex" value="#fbbf24" style="width: 80px; padding: 0.25rem 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.8rem; font-family: monospace;">
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <!-- Preview Section -->
-                            <div style="background: var(--bg-secondary); border-radius: 12px; padding: 1.25rem;">
-                                <h4 style="margin: 0 0 1rem 0; font-size: 0.9rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">Preview</h4>
-                                <div id="reviews-preview-card" style="background: white; border-radius: 12px; padding: 1rem; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
-                                    <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">
-                                        <div id="reviews-preview-avatar" style="width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, #667eea, #8b5cf6); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600;">J</div>
-                                        <div style="flex: 1;">
-                                            <div id="reviews-preview-name" style="font-weight: 600; color: #1e293b;">John D.</div>
-                                            <div id="reviews-preview-meta" style="font-size: 0.8rem; color: #64748b;">Dec 2025 • Airbnb</div>
-                                        </div>
-                                        <div id="reviews-preview-stars" style="color: #fbbf24;">★★★★★</div>
-                                    </div>
-                                    <p id="reviews-preview-text" style="color: #64748b; font-size: 0.9rem; margin: 0;">"Amazing stay! The location was perfect."</p>
-                                </div>
-                            </div>
-                            
-                            <!-- Presets Section -->
-                            <div style="background: var(--bg-secondary); border-radius: 12px; padding: 1.25rem;">
-                                <h4 style="margin: 0 0 1rem 0; font-size: 0.9rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">Quick Presets</h4>
-                                
-                                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
-                                    <button onclick="applyAppColorPreset('reviews', 'light')" class="btn btn-secondary" style="font-size: 0.85rem;">☀️ Light</button>
-                                    <button onclick="applyAppColorPreset('reviews', 'dark')" class="btn btn-secondary" style="font-size: 0.85rem; background: #1e293b; color: white;">🌙 Dark</button>
-                                    <button onclick="applyAppColorPreset('reviews', 'ocean')" class="btn btn-secondary" style="font-size: 0.85rem; background: #0ea5e9; color: white;">🌊 Ocean</button>
-                                    <button onclick="applyAppColorPreset('reviews', 'forest')" class="btn btn-secondary" style="font-size: 0.85rem; background: #22c55e; color: white;">🌲 Forest</button>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div style="margin-top: 1.5rem; display: flex; gap: 0.75rem;">
-                            <button class="btn" onclick="saveAppSettings('reviews')" style="background: linear-gradient(135deg, #eab308 0%, #ca8a04 100%);">💾 Save Settings</button>
-                            <button class="btn btn-secondary" onclick="loadAppSettings('reviews')">↩️ Reset</button>
+                <div class="card">
+                    <div id="app-reviews-list">
+                        <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
+                            <div style="font-size: 4rem; margin-bottom: 1rem;">⭐</div>
+                            <h3 style="margin-bottom: 0.5rem;">No reviews yet</h3>
+                            <p>Add guest reviews to build trust with potential guests</p>
+                            <button class="btn" style="margin-top: 1rem;" onclick="openReviewModal()">Add Your First Review</button>
                         </div>
                     </div>
                 </div>
@@ -33141,195 +32835,7 @@ Local honey and preserves"></textarea>
             const panel = document.getElementById(`blog-tab-${tab}`);
             if (panel) panel.style.display = 'block';
             
-            // Load settings when switching to settings tab
-            if (tab === 'settings') {
-                loadAppSettings('blog');
-                setupColorSync('blog');
-            } else {
-                loadBlogByTab();
-            }
-        }
-        
-        // =========================================================
-        // APP SETTINGS FUNCTIONS (Blog, Attractions, Reviews)
-        // =========================================================
-        
-        const appColorPresets = {
-            light: {
-                accent: '#667eea', bg: '#ffffff', card: '#ffffff', text: '#1a1a1a',
-                secondary: '#666666', catBg: '#e0e7ff', catText: '#4338ca', star: '#fbbf24'
-            },
-            dark: {
-                accent: '#c9a227', bg: '#0f172a', card: '#1e293b', text: '#ffffff',
-                secondary: '#94a3b8', catBg: '#334155', catText: '#fbbf24', star: '#fbbf24'
-            },
-            ocean: {
-                accent: '#0ea5e9', bg: '#f0f9ff', card: '#ffffff', text: '#0c4a6e',
-                secondary: '#0369a1', catBg: '#e0f2fe', catText: '#0284c7', star: '#fbbf24'
-            },
-            forest: {
-                accent: '#22c55e', bg: '#f0fdf4', card: '#ffffff', text: '#14532d',
-                secondary: '#166534', catBg: '#dcfce7', catText: '#15803d', star: '#fbbf24'
-            }
-        };
-        
-        function setupColorSync(app) {
-            const fields = ['accent', 'bg', 'card', 'text', 'secondary', 'cat-bg', 'cat-text', 'star'];
-            fields.forEach(field => {
-                const picker = document.getElementById(`${app}-color-${field}`);
-                const hex = document.getElementById(`${app}-color-${field}-hex`);
-                if (picker && hex) {
-                    picker.oninput = () => { hex.value = picker.value; updateAppPreview(app); };
-                    hex.onchange = () => { if (/^#[0-9A-Fa-f]{6}$/.test(hex.value)) { picker.value = hex.value; updateAppPreview(app); } };
-                }
-            });
-        }
-        
-        function updateAppPreview(app) {
-            if (app === 'blog') {
-                const preview = document.getElementById('blog-category-preview');
-                if (preview) {
-                    preview.style.background = document.getElementById('blog-color-cat-bg')?.value || '#e0e7ff';
-                    preview.style.color = document.getElementById('blog-color-cat-text')?.value || '#4338ca';
-                }
-            } else if (app === 'attractions') {
-                const preview = document.getElementById('attractions-category-preview');
-                if (preview) {
-                    preview.style.background = document.getElementById('attractions-color-cat-bg')?.value || '#fef3c7';
-                    preview.style.color = document.getElementById('attractions-color-cat-text')?.value || '#92400e';
-                }
-            } else if (app === 'reviews') {
-                const card = document.getElementById('reviews-preview-card');
-                const stars = document.getElementById('reviews-preview-stars');
-                const name = document.getElementById('reviews-preview-name');
-                const meta = document.getElementById('reviews-preview-meta');
-                const text = document.getElementById('reviews-preview-text');
-                const avatar = document.getElementById('reviews-preview-avatar');
-                
-                if (card) card.style.background = document.getElementById('reviews-color-card')?.value || '#ffffff';
-                if (stars) stars.style.color = document.getElementById('reviews-color-star')?.value || '#fbbf24';
-                if (name) name.style.color = document.getElementById('reviews-color-text')?.value || '#1e293b';
-                if (meta) meta.style.color = document.getElementById('reviews-color-secondary')?.value || '#64748b';
-                if (text) text.style.color = document.getElementById('reviews-color-secondary')?.value || '#64748b';
-                if (avatar) avatar.style.background = `linear-gradient(135deg, ${document.getElementById('reviews-color-accent')?.value || '#667eea'}, #8b5cf6)`;
-            }
-        }
-        
-        function applyAppColorPreset(app, preset) {
-            const colors = appColorPresets[preset];
-            if (!colors) return;
-            
-            const setColor = (field, value) => {
-                const picker = document.getElementById(`${app}-color-${field}`);
-                const hex = document.getElementById(`${app}-color-${field}-hex`);
-                if (picker) picker.value = value;
-                if (hex) hex.value = value;
-            };
-            
-            setColor('accent', colors.accent);
-            setColor('bg', colors.bg);
-            setColor('card', colors.card);
-            setColor('text', colors.text);
-            setColor('secondary', colors.secondary);
-            setColor('cat-bg', colors.catBg);
-            setColor('cat-text', colors.catText);
-            if (app === 'reviews') setColor('star', colors.star);
-            
-            updateAppPreview(app);
-            showNotification(`${preset.charAt(0).toUpperCase() + preset.slice(1)} theme applied`, 'success');
-        }
-        
-        async function loadAppSettings(app) {
-            try {
-                const response = await fetch(`/api/app-settings/${app}`, { headers: authHeaders() });
-                if (!response.ok) return;
-                
-                const data = await response.json();
-                const colors = data.colors || {};
-                
-                const defaults = app === 'attractions' 
-                    ? { accent: '#f59e0b', catBg: '#fef3c7', catText: '#92400e' }
-                    : { accent: '#667eea', catBg: '#e0e7ff', catText: '#4338ca' };
-                
-                const setColor = (field, value, def) => {
-                    const picker = document.getElementById(`${app}-color-${field}`);
-                    const hex = document.getElementById(`${app}-color-${field}-hex`);
-                    const val = value || def;
-                    if (picker) picker.value = val;
-                    if (hex) hex.value = val;
-                };
-                
-                setColor('accent', colors.accent, defaults.accent);
-                setColor('bg', colors.bg, '#ffffff');
-                setColor('card', colors.card_bg, '#ffffff');
-                setColor('text', colors.text, '#1a1a1a');
-                setColor('secondary', colors.text_secondary, '#666666');
-                setColor('cat-bg', colors.category_bg, defaults.catBg);
-                setColor('cat-text', colors.category_text, defaults.catText);
-                if (app === 'reviews') setColor('star', colors.star, '#fbbf24');
-                
-                updateAppPreview(app);
-            } catch (error) {
-                console.error('Error loading app settings:', error);
-            }
-        }
-        
-        async function saveAppSettings(app) {
-            const settings = {
-                accent: document.getElementById(`${app}-color-accent`)?.value,
-                bg: document.getElementById(`${app}-color-bg`)?.value,
-                card_bg: document.getElementById(`${app}-color-card`)?.value,
-                text: document.getElementById(`${app}-color-text`)?.value,
-                text_secondary: document.getElementById(`${app}-color-secondary`)?.value,
-                category_bg: document.getElementById(`${app}-color-cat-bg`)?.value,
-                category_text: document.getElementById(`${app}-color-cat-text`)?.value
-            };
-            
-            if (app === 'reviews') {
-                settings.star = document.getElementById('reviews-color-star')?.value;
-            }
-            
-            try {
-                const response = await fetch(`/api/app-settings/${app}`, {
-                    method: 'PUT',
-                    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ colors: settings })
-                });
-                
-                if (response.ok) {
-                    showNotification(`${app.charAt(0).toUpperCase() + app.slice(1)} settings saved!`, 'success');
-                } else {
-                    throw new Error('Failed to save');
-                }
-            } catch (error) {
-                console.error('Error saving app settings:', error);
-                showNotification('Failed to save settings', 'error');
-            }
-        }
-        
-        function switchReviewsTab(tab) {
-            document.querySelectorAll('.reviews-tab').forEach(t => {
-                if (t.dataset.tab === tab) {
-                    t.style.color = '#eab308';
-                    t.style.borderBottom = '2px solid #eab308';
-                    t.style.fontWeight = '600';
-                } else {
-                    t.style.color = '#6b7280';
-                    t.style.borderBottom = 'none';
-                    t.style.fontWeight = '500';
-                }
-            });
-            
-            document.querySelectorAll('.reviews-tab-panel').forEach(p => p.style.display = 'none');
-            const panel = document.getElementById(`reviews-tab-${tab}`);
-            if (panel) panel.style.display = 'block';
-            
-            if (tab === 'settings') {
-                loadAppSettings('reviews');
-                setupColorSync('reviews');
-            } else {
-                loadAppReviews();
-            }
+            loadBlogByTab();
         }
         
         // =========================================================
@@ -34102,13 +33608,7 @@ Local honey and preserves"></textarea>
             const panel = document.getElementById(`attraction-tab-${tab}`);
             if (panel) panel.style.display = 'block';
             
-            // Load settings when switching to settings tab
-            if (tab === 'settings') {
-                loadAppSettings('attractions');
-                setupColorSync('attractions');
-            } else {
-                loadAttractionsByTab();
-            }
+            loadAttractionsByTab();
         }
         
         async function loadAttractionsByTab() {
