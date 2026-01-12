@@ -40818,7 +40818,7 @@ app.get('/api/plugin/reviews', async (req, res) => {
 // ============================================
 
 // GET /api/app-settings/:app - Get app display settings (blog, attractions, reviews)
-app.get('/api/app-settings/:app', authenticateToken, async (req, res) => {
+app.get('/api/app-settings/:app', async (req, res) => {
     try {
         const { app } = req.params;
         const validApps = ['blog', 'attractions', 'reviews'];
@@ -40840,9 +40840,7 @@ app.get('/api/app-settings/:app', authenticateToken, async (req, res) => {
             )
         `);
         
-        const accountId = req.user.role === 'master_admin' && req.query.account_id 
-            ? req.query.account_id 
-            : req.user.account_id;
+        const accountId = req.query.account_id || req.user?.account_id || 1;
         
         const result = await pool.query(
             `SELECT settings FROM app_settings WHERE account_id = $1 AND app_name = $2`,
@@ -40867,7 +40865,7 @@ app.get('/api/app-settings/:app', authenticateToken, async (req, res) => {
 });
 
 // PUT /api/app-settings/:app - Save app display settings
-app.put('/api/app-settings/:app', authenticateToken, async (req, res) => {
+app.put('/api/app-settings/:app', async (req, res) => {
     try {
         const { app } = req.params;
         const { colors } = req.body;
@@ -40890,9 +40888,7 @@ app.put('/api/app-settings/:app', authenticateToken, async (req, res) => {
             )
         `);
         
-        const accountId = req.user.role === 'master_admin' && req.body.account_id 
-            ? req.body.account_id 
-            : req.user.account_id;
+        const accountId = req.body.account_id || req.query.account_id || req.user?.account_id || 1;
         
         const result = await pool.query(
             `INSERT INTO app_settings (account_id, app_name, settings, updated_at)
