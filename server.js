@@ -40817,6 +40817,82 @@ app.get('/api/plugin/reviews', async (req, res) => {
 // APP SETTINGS API ENDPOINTS
 // ============================================
 
+// PUBLIC endpoint for WordPress plugins to fetch reviews
+app.get('/api/public/client/:clientId/reviews', async (req, res) => {
+    try {
+        const { clientId } = req.params;
+        const { property_id, min_rating, limit } = req.query;
+        
+        // Get account - try by id first (numeric), then by account_code
+        let accountId;
+        const numericId = parseInt(clientId);
+        
+        if (!isNaN(numericId)) {
+            const accountResult = await pool.query('SELECT id FROM accounts WHERE id = $1', [numericId]);
+            if (accountResult.rows.length > 0) {
+                accountId = accountResult.rows[0].id;
+            }
+        }
+        
+        if (!accountId) {
+            const accountResult = await pool.query('SELECT id FROM accounts WHERE account_code = $1', [clientId]);
+            if (accountResult.rows.length > 0) {
+                accountId = accountResult.rows[0].id;
+            }
+        }
+        
+        if (!accountId) {
+            return res.json({ success: true, reviews: [] });
+        }
+        
+        let query = `
+            SELECT r.*, p.name as property_name
+            FROM reviews r
+            JOIN properties p ON r.property_id = p.id
+            WHERE p.account_id = $1 AND r.is_public = true
+        `;
+        const params = [accountId];
+        let paramIndex = 2;
+        
+        if (property_id) {
+            query += ` AND r.property_id = $${paramIndex}`;
+            params.push(property_id);
+            paramIndex++;
+        }
+        
+        if (min_rating) {
+            query += ` AND r.rating >= $${paramIndex}`;
+            params.push(parseFloat(min_rating));
+            paramIndex++;
+        }
+        
+        const reviewLimit = Math.min(parseInt(limit) || 50, 100);
+        query += ` ORDER BY r.review_date DESC NULLS LAST, r.created_at DESC LIMIT ${reviewLimit}`;
+        
+        const reviewsResult = await pool.query(query, params);
+        
+        res.json({
+            success: true,
+            reviews: reviewsResult.rows.map(r => ({
+                id: r.id,
+                property_id: r.property_id,
+                property_name: r.property_name,
+                guest_name: r.guest_name,
+                guest_country: r.guest_country,
+                rating: r.rating,
+                comment: r.comment,
+                review_date: r.review_date,
+                source: r.source || r.channel_name
+            })),
+            total: reviewsResult.rows.length
+        });
+        
+    } catch (error) {
+        console.error('Public reviews error:', error);
+        res.json({ success: true, reviews: [] });
+    }
+});
+
 // GET /api/app-settings/:app - Get app display settings (blog, attractions, reviews)
 app.get('/api/app-settings/:app', async (req, res) => {
     try {
