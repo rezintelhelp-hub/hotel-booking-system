@@ -38732,7 +38732,7 @@ Local honey and preserves"></textarea>
                             
                             <div class="connection-meta">
                                 ${conn.last_sync_at ? 'Last sync: ' + formatTimeAgo(conn.last_sync_at) : 'Never synced'}
-                                ${conn.last_error ? '<br><span style="color: #ef4444;">Error: ' + conn.last_error.substring(0, 50) + '...</span>' : ''}
+                                ${conn.last_error ? `<br><span style="color: #ef4444;">Error: ${conn.last_error.substring(0, 50)}...</span> <button onclick="clearConnectionError(${conn.id})" style="font-size: 10px; padding: 2px 6px; background: #fee2e2; border: none; border-radius: 3px; color: #dc2626; cursor: pointer;">✕ Clear</button>` : ''}
                             </div>
                             
                             <div class="connection-actions">
@@ -38814,6 +38814,24 @@ Local honey and preserves"></textarea>
                 }
             } catch (error) {
                 showNotification('Failed to delete connection', 'error');
+            }
+        }
+
+        async function clearConnectionError(connectionId) {
+            try {
+                const response = await fetch(`/api/gas-sync/connections/${connectionId}/clear-error`, { 
+                    method: 'POST', 
+                    headers: authHeaders() 
+                });
+                const data = await response.json();
+                if (data.success) {
+                    showNotification('Error cleared', 'success');
+                    loadGasSyncConnections();
+                } else {
+                    showNotification(data.error || 'Failed to clear error', 'error');
+                }
+            } catch (error) {
+                showNotification('Failed to clear error', 'error');
             }
         }
 
