@@ -774,6 +774,7 @@ async function runMigrations() {
       await pool.query(`ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS source_keyword VARCHAR(255)`);
       await pool.query(`ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS language VARCHAR(10) DEFAULT 'en'`);
       await pool.query(`ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS featured_image TEXT`);
+      await pool.query(`ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS event_date TIMESTAMP`);
       console.log('✅ blog_posts enhanced columns ensured');
     } catch (blogEnhanceError) {
       console.log('ℹ️  blog_posts enhanced columns:', blogEnhanceError.message);
@@ -30521,7 +30522,7 @@ app.post('/api/admin/branding', async (req, res) => {
 // AI Generate Blog Post from Keyword
 app.post('/api/admin/blog/generate', async (req, res) => {
     try {
-        const { keyword, property_id, language = 'en' } = req.body;
+        const { keyword, property_id, language = 'en', event_date, event_location, event_description } = req.body;
         
         if (!keyword) {
             return res.json({ success: false, error: 'keyword is required' });
@@ -30548,6 +30549,27 @@ Type: ${prop.property_type || 'Holiday accommodation'}
 Description: ${prop.description || ''}
 `;
             }
+        }
+        
+        // Build event context if this is about an event
+        let eventContext = '';
+        if (event_date) {
+            const eventDateObj = new Date(event_date);
+            const formattedDate = eventDateObj.toLocaleDateString('en-US', { 
+                weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' 
+            });
+            eventContext = `
+EVENT INFORMATION:
+- Event Date: ${formattedDate}
+- Event Location: ${event_location || 'See event details'}
+- Event Details: ${event_description || 'Local event'}
+
+IMPORTANT: This is a blog post about an upcoming event. Make sure to:
+- Prominently mention the event date (${formattedDate}) early in the article
+- Include practical information for visitors attending this event
+- Suggest booking accommodation at the property for this event
+- Create urgency around booking before the event date
+`;
         }
         
         // Get nearby attractions for context
@@ -30579,13 +30601,14 @@ Description: ${prop.description || ''}
         
         const languageName = languageNames[language] || 'English';
         
-        console.log(`Generating blog post for keyword: "${keyword}" in ${languageName}`);
+        console.log(`Generating blog post for keyword: "${keyword}" in ${languageName}${event_date ? ' (EVENT: ' + event_date + ')' : ''}`);
         
         const prompt = `You are a professional travel and hospitality content writer. Write an engaging, SEO-optimized blog post about the following topic.
 
 Keyword to target: "${keyword}"
 Language: ${languageName}
 ${propertyContext}
+${eventContext}
 ${attractionsContext}
 
 Requirements:
@@ -30597,6 +30620,7 @@ Requirements:
 6. End with a subtle call-to-action encouraging booking
 7. Write in ${languageName}
 8. Include 3-5 FAQ questions and answers based on the content
+${event_date ? '9. IMPORTANT: Mention the specific event date prominently in the content' : ''}
 
 Return your response in this exact JSON format:
 {
