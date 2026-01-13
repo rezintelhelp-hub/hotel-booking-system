@@ -25427,7 +25427,6 @@ app.put('/api/admin/properties/:id/terms', async (req, res) => {
         );
       }
     }
-    }
     
     // Update cancellation_policy on properties table
     if (terms.cancellation_policy !== undefined) {
