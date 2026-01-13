@@ -2617,6 +2617,9 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS postal_code VARCHAR(20)');
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS state VARCHAR(100)');
     
+    // Fix: Ensure country column is wide enough for full country names
+    await pool.query('ALTER TABLE properties ALTER COLUMN country TYPE VARCHAR(100)').catch(() => {});
+    
     if (prop.gas_property_id) {
       gasPropertyId = prop.gas_property_id;
       // Update existing property - only update text fields, skip JSONB columns to avoid type mismatch
