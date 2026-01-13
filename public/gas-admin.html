@@ -7248,7 +7248,9 @@
                             <h2> Blog</h2>
                             <p>Create and manage blog posts for your properties</p>
                         </div>
-                        <div style="display: flex; gap: 0.5rem;">
+                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            <button class="btn btn-secondary" onclick="openIcalFeedsModal()" style="background: #f3f4f6; color: #374151; border: 1px solid #d1d5db;">iCal</button>
+                            <button class="btn btn-secondary" onclick="openRssFeedsModal()" style="background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; font-weight: 600;">RSS</button>
                             <button class="btn" onclick="openBlogIdeasWizard()" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);"> Get Ideas</button>
                             <button class="btn" onclick="openBlogEditor()">+ New Post</button>
                         </div>
@@ -11427,6 +11429,64 @@ Local honey and preserves"></textarea>
                 <button class="btn" id="blog-wizard-generate-btn" onclick="generateBlogIdeas()" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);" disabled>
                      Generate Ideas
                 </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- iCal Feeds Modal -->
+    <div id="ical-feeds-modal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 600px; border-radius: 16px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
+                <h3 style="margin: 0; color: white;">📅 iCal Event Feeds</h3>
+                <button class="modal-close" onclick="closeModal('ical-feeds-modal')" style="background: rgba(255,255,255,0.2); border: none; color: white; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 1.2rem;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem;">
+                <p style="color: #6b7280; margin-bottom: 1rem;">Add iCal feeds from local event calendars to generate blog ideas about upcoming events in your area.</p>
+                
+                <!-- Add new feed -->
+                <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+                    <input type="text" id="new-ical-url" class="form-input" placeholder="Paste iCal URL (.ics)" style="flex: 1;">
+                    <input type="text" id="new-ical-name" class="form-input" placeholder="Feed name" style="width: 150px;">
+                    <button class="btn btn-primary" onclick="addIcalFeed()">Add</button>
+                </div>
+                
+                <!-- Existing feeds list -->
+                <div id="ical-feeds-list" style="max-height: 300px; overflow-y: auto;">
+                    <p style="color: #9ca3af; text-align: center; padding: 2rem;">Loading feeds...</p>
+                </div>
+            </div>
+            <div class="modal-footer" style="display: flex; justify-content: space-between; padding: 1rem 1.5rem; border-top: 1px solid #e5e7eb;">
+                <button class="btn btn-secondary" onclick="closeModal('ical-feeds-modal')">Close</button>
+                <button class="btn" onclick="fetchIcalEvents()" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);">🔄 Fetch Events</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- RSS Feeds Modal -->
+    <div id="rss-feeds-modal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 600px; border-radius: 16px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
+                <h3 style="margin: 0; color: white;">📰 RSS News Feeds</h3>
+                <button class="modal-close" onclick="closeModal('rss-feeds-modal')" style="background: rgba(255,255,255,0.2); border: none; color: white; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 1.2rem;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem;">
+                <p style="color: #6b7280; margin-bottom: 1rem;">Add RSS feeds from local news sources, tourism boards, or event sites to inspire blog content.</p>
+                
+                <!-- Add new feed -->
+                <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+                    <input type="text" id="new-rss-url" class="form-input" placeholder="Paste RSS feed URL" style="flex: 1;">
+                    <input type="text" id="new-rss-name" class="form-input" placeholder="Feed name" style="width: 150px;">
+                    <button class="btn btn-primary" onclick="addRssFeed()">Add</button>
+                </div>
+                
+                <!-- Existing feeds list -->
+                <div id="rss-feeds-list" style="max-height: 300px; overflow-y: auto;">
+                    <p style="color: #9ca3af; text-align: center; padding: 2rem;">Loading feeds...</p>
+                </div>
+            </div>
+            <div class="modal-footer" style="display: flex; justify-content: space-between; padding: 1rem 1.5rem; border-top: 1px solid #e5e7eb;">
+                <button class="btn btn-secondary" onclick="closeModal('rss-feeds-modal')">Close</button>
+                <button class="btn" onclick="fetchRssArticles()" style="background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);">🔄 Fetch Articles</button>
             </div>
         </div>
     </div>
@@ -33759,6 +33819,215 @@ Local honey and preserves"></textarea>
                 document.getElementById('blog-count-published').textContent = blogPosts.published?.length || 0;
             } catch (e) {
                 console.error('Error updating blog counts:', e);
+            }
+        }
+        
+        // ===== iCal & RSS Feed Functions =====
+        
+        function openIcalFeedsModal() {
+            loadIcalFeeds();
+            openModal('ical-feeds-modal');
+        }
+        
+        function openRssFeedsModal() {
+            loadRssFeeds();
+            openModal('rss-feeds-modal');
+        }
+        
+        async function loadIcalFeeds() {
+            const container = document.getElementById('ical-feeds-list');
+            try {
+                const queryString = buildQueryString();
+                const response = await fetch(`/api/blog/feeds?type=ical${queryString.replace('?', '&')}`, { headers: authHeaders() });
+                const data = await response.json();
+                
+                if (data.success && data.feeds && data.feeds.length > 0) {
+                    container.innerHTML = data.feeds.map(feed => `
+                        <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.75rem; border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 0.5rem;">
+                            <div style="flex: 1;">
+                                <div style="font-weight: 600;">${escapeHtml(feed.name)}</div>
+                                <div style="font-size: 0.8rem; color: #6b7280; word-break: break-all;">${escapeHtml(feed.url.substring(0, 50))}...</div>
+                                <div style="font-size: 0.75rem; color: #9ca3af;">${feed.last_fetched ? 'Last fetched: ' + formatTimeAgo(feed.last_fetched) : 'Never fetched'}</div>
+                            </div>
+                            <button onclick="deleteIcalFeed(${feed.id})" class="btn btn-sm" style="background: #fee2e2; color: #dc2626;">✕</button>
+                        </div>
+                    `).join('');
+                } else {
+                    container.innerHTML = '<p style="color: #9ca3af; text-align: center; padding: 2rem;">No iCal feeds configured. Add one above!</p>';
+                }
+            } catch (e) {
+                container.innerHTML = '<p style="color: #ef4444; text-align: center; padding: 2rem;">Error loading feeds</p>';
+            }
+        }
+        
+        async function loadRssFeeds() {
+            const container = document.getElementById('rss-feeds-list');
+            try {
+                const queryString = buildQueryString();
+                const response = await fetch(`/api/blog/feeds?type=rss${queryString.replace('?', '&')}`, { headers: authHeaders() });
+                const data = await response.json();
+                
+                if (data.success && data.feeds && data.feeds.length > 0) {
+                    container.innerHTML = data.feeds.map(feed => `
+                        <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.75rem; border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 0.5rem;">
+                            <div style="flex: 1;">
+                                <div style="font-weight: 600;">${escapeHtml(feed.name)}</div>
+                                <div style="font-size: 0.8rem; color: #6b7280; word-break: break-all;">${escapeHtml(feed.url.substring(0, 50))}...</div>
+                                <div style="font-size: 0.75rem; color: #9ca3af;">${feed.last_fetched ? 'Last fetched: ' + formatTimeAgo(feed.last_fetched) : 'Never fetched'}</div>
+                            </div>
+                            <button onclick="deleteRssFeed(${feed.id})" class="btn btn-sm" style="background: #fee2e2; color: #dc2626;">✕</button>
+                        </div>
+                    `).join('');
+                } else {
+                    container.innerHTML = '<p style="color: #9ca3af; text-align: center; padding: 2rem;">No RSS feeds configured. Add one above!</p>';
+                }
+            } catch (e) {
+                container.innerHTML = '<p style="color: #ef4444; text-align: center; padding: 2rem;">Error loading feeds</p>';
+            }
+        }
+        
+        async function addIcalFeed() {
+            const url = document.getElementById('new-ical-url').value.trim();
+            const name = document.getElementById('new-ical-name').value.trim() || 'iCal Feed';
+            
+            if (!url) {
+                showNotification('Please enter an iCal URL', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/blog/feeds', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ type: 'ical', url, name, account_id: selectedAccountId })
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('iCal feed added', 'success');
+                    document.getElementById('new-ical-url').value = '';
+                    document.getElementById('new-ical-name').value = '';
+                    loadIcalFeeds();
+                } else {
+                    showNotification(data.error || 'Failed to add feed', 'error');
+                }
+            } catch (e) {
+                showNotification('Error adding feed', 'error');
+            }
+        }
+        
+        async function addRssFeed() {
+            const url = document.getElementById('new-rss-url').value.trim();
+            const name = document.getElementById('new-rss-name').value.trim() || 'RSS Feed';
+            
+            if (!url) {
+                showNotification('Please enter an RSS URL', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/blog/feeds', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ type: 'rss', url, name, account_id: selectedAccountId })
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('RSS feed added', 'success');
+                    document.getElementById('new-rss-url').value = '';
+                    document.getElementById('new-rss-name').value = '';
+                    loadRssFeeds();
+                } else {
+                    showNotification(data.error || 'Failed to add feed', 'error');
+                }
+            } catch (e) {
+                showNotification('Error adding feed', 'error');
+            }
+        }
+        
+        async function deleteIcalFeed(feedId) {
+            if (!confirm('Delete this feed?')) return;
+            try {
+                const response = await fetch(`/api/blog/feeds/${feedId}`, {
+                    method: 'DELETE',
+                    headers: authHeaders()
+                });
+                const data = await response.json();
+                if (data.success) {
+                    showNotification('Feed deleted', 'success');
+                    loadIcalFeeds();
+                }
+            } catch (e) {
+                showNotification('Error deleting feed', 'error');
+            }
+        }
+        
+        async function deleteRssFeed(feedId) {
+            if (!confirm('Delete this feed?')) return;
+            try {
+                const response = await fetch(`/api/blog/feeds/${feedId}`, {
+                    method: 'DELETE',
+                    headers: authHeaders()
+                });
+                const data = await response.json();
+                if (data.success) {
+                    showNotification('Feed deleted', 'success');
+                    loadRssFeeds();
+                }
+            } catch (e) {
+                showNotification('Error deleting feed', 'error');
+            }
+        }
+        
+        async function fetchIcalEvents() {
+            showNotification('Fetching events from iCal feeds...', 'info');
+            try {
+                const queryString = buildQueryString();
+                const response = await fetch(`/api/blog/feeds/fetch-ical${queryString}`, {
+                    method: 'POST',
+                    headers: authHeaders()
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification(`Found ${data.events_count || 0} events from ${data.feeds_processed || 0} feeds`, 'success');
+                    loadIcalFeeds();
+                    // Optionally open ideas wizard with events
+                    if (data.events_count > 0) {
+                        closeModal('ical-feeds-modal');
+                        // Could trigger blog ideas generation here
+                    }
+                } else {
+                    showNotification(data.error || 'Failed to fetch events', 'error');
+                }
+            } catch (e) {
+                showNotification('Error fetching events', 'error');
+            }
+        }
+        
+        async function fetchRssArticles() {
+            showNotification('Fetching articles from RSS feeds...', 'info');
+            try {
+                const queryString = buildQueryString();
+                const response = await fetch(`/api/blog/feeds/fetch-rss${queryString}`, {
+                    method: 'POST',
+                    headers: authHeaders()
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification(`Found ${data.articles_count || 0} articles from ${data.feeds_processed || 0} feeds`, 'success');
+                    loadRssFeeds();
+                    // Optionally trigger blog ideas
+                    if (data.articles_count > 0) {
+                        closeModal('rss-feeds-modal');
+                    }
+                } else {
+                    showNotification(data.error || 'Failed to fetch articles', 'error');
+                }
+            } catch (e) {
+                showNotification('Error fetching articles', 'error');
             }
         }
         
