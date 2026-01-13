@@ -18759,10 +18759,27 @@ app.post('/api/hostaway/import-property', async (req, res) => {
 // Resync a single Hostaway property - fetch fresh from API and update GAS
 app.post('/api/hostaway/resync-single-property', async (req, res) => {
   try {
-    const { token, listingId, accountId } = req.body;
+    const { connectionId, listingId } = req.body;
     
-    if (!token || !listingId) {
-      return res.json({ success: false, error: 'Token and listing ID required' });
+    if (!connectionId || !listingId) {
+      return res.json({ success: false, error: 'Connection ID and listing ID required' });
+    }
+    
+    // Get the token from the connection
+    const connResult = await pool.query(
+      'SELECT access_token, account_id FROM gas_sync_connections WHERE id = $1',
+      [connectionId]
+    );
+    
+    if (connResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Connection not found' });
+    }
+    
+    const token = connResult.rows[0].access_token;
+    const accountId = connResult.rows[0].account_id;
+    
+    if (!token) {
+      return res.json({ success: false, error: 'No access token for this connection' });
     }
     
     console.log(`🔄 Resyncing Hostaway property ${listingId} - fetching fresh data...`);
