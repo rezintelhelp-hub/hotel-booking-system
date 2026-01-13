@@ -40237,22 +40237,36 @@ app.post('/api/blog/feeds/fetch-ical', async (req, res) => {
   try {
     const { account_id } = req.query;
     
+    // Get feeds - if account_id provided filter by it, otherwise get all
     let query = 'SELECT * FROM blog_feeds WHERE type = $1 AND is_active = true';
     const params = ['ical'];
     
     if (account_id) {
       params.push(account_id);
-      query += ` AND account_id = $${params.length}`;
+      query += ` AND (account_id = $${params.length} OR account_id IS NULL)`;
     }
     
     const feeds = await pool.query(query, params);
+    console.log(`Fetching ${feeds.rows.length} iCal feeds...`);
     
     let totalEvents = 0;
     let feedsProcessed = 0;
     
     for (const feed of feeds.rows) {
       try {
-        const response = await axios.get(feed.url, { timeout: 30000 });
+        // Convert webcal:// to https://
+        let fetchUrl = feed.url;
+        if (fetchUrl.startsWith('webcal://')) {
+          fetchUrl = fetchUrl.replace('webcal://', 'https://');
+        }
+        
+        console.log(`Fetching iCal: ${fetchUrl}`);
+        const response = await axios.get(fetchUrl, { 
+          timeout: 30000,
+          headers: {
+            'User-Agent': 'GAS-Calendar-Sync/1.0'
+          }
+        });
         const icsData = response.data;
         
         // Simple iCal parsing - count VEVENT occurrences
@@ -40291,22 +40305,30 @@ app.post('/api/blog/feeds/fetch-rss', async (req, res) => {
   try {
     const { account_id } = req.query;
     
+    // Get feeds - if account_id provided filter by it, otherwise get all
     let query = 'SELECT * FROM blog_feeds WHERE type = $1 AND is_active = true';
     const params = ['rss'];
     
     if (account_id) {
       params.push(account_id);
-      query += ` AND account_id = $${params.length}`;
+      query += ` AND (account_id = $${params.length} OR account_id IS NULL)`;
     }
     
     const feeds = await pool.query(query, params);
+    console.log(`Fetching ${feeds.rows.length} RSS feeds...`);
     
     let totalArticles = 0;
     let feedsProcessed = 0;
     
     for (const feed of feeds.rows) {
       try {
-        const response = await axios.get(feed.url, { timeout: 30000 });
+        console.log(`Fetching RSS: ${feed.url}`);
+        const response = await axios.get(feed.url, { 
+          timeout: 30000,
+          headers: {
+            'User-Agent': 'GAS-RSS-Reader/1.0'
+          }
+        });
         const rssData = response.data;
         
         // Simple RSS parsing - count item occurrences
