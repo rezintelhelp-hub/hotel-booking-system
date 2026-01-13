@@ -624,8 +624,9 @@ Please provide your response in this exact JSON format:
     return {
       externalId: String(raw.id),
       name: raw.name || raw.internalListingName || `Listing ${raw.id}`,
+      displayName: raw.externalListingName || raw.name || raw.internalListingName || `Listing ${raw.id}`,
       description: raw.description || '',
-      shortDescription: raw.externalListingName || '',
+      shortDescription: '',
       houseRules: raw.houseRules || '',
       propertyType: raw.propertyTypeId ? this.mapPropertyType(raw.propertyTypeId) : 'vacation_rental',
       address: {
