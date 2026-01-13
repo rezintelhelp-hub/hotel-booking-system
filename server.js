@@ -25334,14 +25334,25 @@ app.put('/api/admin/properties/:id/terms', async (req, res) => {
     if (bathrooms && Array.isArray(bathrooms)) {
       await client.query('DELETE FROM property_bathrooms WHERE property_id = $1 AND room_id IS NULL', [propertyId]);
       
+      let totalBathrooms = 0;
       for (let i = 0; i < bathrooms.length; i++) {
         const bathroom = bathrooms[i];
         if (bathroom.type) {
+          const qty = parseInt(bathroom.quantity) || 1;
+          totalBathrooms += qty;
           await client.query(
             'INSERT INTO property_bathrooms (property_id, bathroom_type, quantity, display_order) VALUES ($1, $2, $3, $4)',
-            [propertyId, bathroom.type, bathroom.quantity || 1, i]
+            [propertyId, bathroom.type, qty, i]
           );
         }
+      }
+      
+      // Update num_bathrooms on all bookable_units for this property
+      if (totalBathrooms > 0) {
+        await client.query(
+          'UPDATE bookable_units SET num_bathrooms = $1 WHERE property_id = $2',
+          [totalBathrooms, propertyId]
+        );
       }
     }
     
