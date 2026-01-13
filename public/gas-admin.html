@@ -36042,6 +36042,9 @@ Local honey and preserves"></textarea>
                 clientId = 1;
             }
             
+            // Get event_date if this came from an event idea
+            const eventDate = propertyIdEl.dataset.eventDate || null;
+            
             // Handle scheduling
             let scheduledAt = null;
             const scheduleCheckbox = document.getElementById('ai-blog-schedule');
@@ -36060,11 +36063,24 @@ Local honey and preserves"></textarea>
                 // Check if we have a stored category from the idea
                 const storedCategory = propertyIdEl.dataset.ideaCategory;
                 if (storedCategory) {
-                    // Convert "events_holidays" to "Events & Holidays"
-                    blogCategory = storedCategory.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' & ');
+                    // Convert "events_holidays" to "Events & Holidays" or use directly if already formatted
+                    if (storedCategory.includes('_')) {
+                        blogCategory = storedCategory.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' & ');
+                    } else {
+                        blogCategory = storedCategory;
+                    }
                 } else {
                     blogCategory = 'General';
                 }
+            }
+            
+            // If publishing and we have an event date, use it as the published_at date
+            // This makes event blogs appear in chronological order by event date
+            let publishedAt = null;
+            if (publish && eventDate) {
+                publishedAt = new Date(eventDate).toISOString();
+            } else if (publish) {
+                publishedAt = new Date().toISOString();
             }
             
             const blogData = {
@@ -36081,6 +36097,8 @@ Local honey and preserves"></textarea>
                 client_id: clientId,
                 property_id: propertyId || null,
                 scheduled_at: scheduledAt,
+                published_at: publishedAt,
+                event_date: eventDate,
                 ai_generated: true,
                 source_keyword: document.getElementById('ai-blog-keyword')?.value || null,
                 language: document.getElementById('ai-blog-language')?.value || 'en',
