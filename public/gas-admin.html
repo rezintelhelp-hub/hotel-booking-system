@@ -34073,7 +34073,11 @@ Local honey and preserves"></textarea>
                 const data = await response.json();
                 
                 if (data.success) {
-                    showNotification(`Found ${data.events_count || 0} events, created ${data.ideas_created || 0} new ideas`, 'success');
+                    let msg = `Found ${data.events_count || 0} events, created ${data.ideas_created || 0} new ideas`;
+                    if (data.ideas_skipped > 0) {
+                        msg += ` (${data.ideas_skipped} skipped - already exist)`;
+                    }
+                    showNotification(msg, 'success');
                     loadIcalFeeds();
                     // Refresh the blog ideas list if visible
                     if (typeof loadBlogByTab === 'function') loadBlogByTab();
@@ -34096,7 +34100,11 @@ Local honey and preserves"></textarea>
                 const data = await response.json();
                 
                 if (data.success) {
-                    showNotification(`Found ${data.articles_count || 0} articles, created ${data.ideas_created || 0} new ideas`, 'success');
+                    let msg = `Found ${data.articles_count || 0} articles, created ${data.ideas_created || 0} new ideas`;
+                    if (data.ideas_skipped > 0) {
+                        msg += ` (${data.ideas_skipped} skipped - already exist)`;
+                    }
+                    showNotification(msg, 'success');
                     loadRssFeeds();
                     // Refresh the blog ideas list if visible
                     if (typeof loadBlogByTab === 'function') loadBlogByTab();
