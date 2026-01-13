@@ -33655,6 +33655,16 @@ Local honey and preserves"></textarea>
                 );
             }
             
+            // Sort by event_date (upcoming first), then by created_at
+            filtered.sort((a, b) => {
+                if (a.event_date && b.event_date) {
+                    return new Date(a.event_date) - new Date(b.event_date);
+                }
+                if (a.event_date) return -1; // Events with dates first
+                if (b.event_date) return 1;
+                return new Date(b.created_at) - new Date(a.created_at);
+            });
+            
             if (!filtered.length) {
                 container.innerHTML = `
                     <div class="card" style="text-align: center; padding: 3rem; color: var(--text-secondary);">
@@ -33677,21 +33687,39 @@ Local honey and preserves"></textarea>
                 'events_festivals': ' Festivals',
                 'events_seasonal': ' Seasonal',
                 'events_sports': ' Sports Events',
-                'events_holidays': ' Events & Holidays'
+                'events_holidays': ' Events & Holidays',
+                'Events & Concerts': '🎵 Events & Concerts',
+                'News & Updates': '📰 News & Updates'
             };
+            
+            // Format event date nicely
+            function formatEventDate(dateStr) {
+                if (!dateStr) return '';
+                const date = new Date(dateStr);
+                const options = { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' };
+                return date.toLocaleDateString('en-US', options);
+            }
             
             container.innerHTML = `
                 <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem;">
                     ${filtered.map(idea => {
                         const catLabel = catLabels[idea.category] || (idea.category ? idea.category.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' & ') : ' Blog');
+                        const eventDateStr = formatEventDate(idea.event_date);
+                        const isPastEvent = idea.event_date && new Date(idea.event_date) < new Date();
                         return `
-                        <div class="card" style="padding: 1.25rem; border-left: 4px solid #8b5cf6;">
-                            <span style="background: #ede9fe; color: #7c3aed; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 500;">
-                                ${catLabel}
-                            </span>
-                            <h4 style="margin: 0.75rem 0 0.5rem; font-size: 1rem; line-height: 1.4;">${escapeHtml(idea.title)}</h4>
+                        <div class="card" style="padding: 1.25rem; border-left: 4px solid ${idea.event_date ? '#3b82f6' : '#8b5cf6'}; ${isPastEvent ? 'opacity: 0.6;' : ''}">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
+                                <span style="background: #ede9fe; color: #7c3aed; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 500;">
+                                    ${catLabel}
+                                </span>
+                                ${eventDateStr ? `<span style="background: ${isPastEvent ? '#fef2f2' : '#dbeafe'}; color: ${isPastEvent ? '#dc2626' : '#1d4ed8'}; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.7rem; font-weight: 600;">
+                                    📅 ${eventDateStr}
+                                </span>` : ''}
+                            </div>
+                            <h4 style="margin: 0.5rem 0; font-size: 1rem; line-height: 1.4;">${escapeHtml(idea.title)}</h4>
+                            ${idea.event_location ? `<p style="color: #6b7280; font-size: 0.8rem; margin: 0 0 0.5rem;">📍 ${escapeHtml(idea.event_location)}</p>` : ''}
                             ${idea.description ? `<p style="color: var(--text-secondary); font-size: 0.875rem; margin: 0 0 0.75rem; line-height: 1.4;">${escapeHtml(idea.description.substring(0, 100))}${idea.description.length > 100 ? '...' : ''}</p>` : ''}
-                            ${idea.property_name ? `<p style="color: var(--text-muted); font-size: 0.75rem; margin-bottom: 0.75rem;"> ${escapeHtml(idea.property_name)}</p>` : ''}
+                            ${idea.property_name ? `<p style="color: var(--text-muted); font-size: 0.75rem; margin-bottom: 0.75rem;">🏠 ${escapeHtml(idea.property_name)}</p>` : ''}
                             <div style="display: flex; gap: 0.5rem;">
                                 <button class="btn btn-small" onclick="createBlogFromIdea(${idea.id})" style="flex: 1; background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">
                                      Create Post
@@ -34344,32 +34372,46 @@ Local honey and preserves"></textarea>
             const idea = blogIdeas.find(i => i.id === ideaId);
             if (!idea) return;
             
-            // Generate blog with the category from the idea
-            await generateBlogFromIdea(ideaId, idea.title, idea.property_id, idea.category);
+            // Generate blog with the category and event info from the idea
+            await generateBlogFromIdea(ideaId, idea.title, idea.property_id, idea.category, idea.event_date, idea.event_location, idea.description);
         }
         
-        async function generateBlogFromIdea(ideaId, title, propertyId, category) {
+        async function generateBlogFromIdea(ideaId, title, propertyId, category, eventDate, eventLocation, description) {
             // Open AI blog modal but skip to loading/generation immediately
             await openAiBlogModal(title, propertyId);
             
-            // Store idea ID for marking as used later
+            // Store idea ID and event info for marking as used later
             const propertyIdEl = document.getElementById('ai-blog-property-id');
             if (propertyIdEl) {
                 propertyIdEl.dataset.contentIdeaId = ideaId;
                 // Store category from idea
                 propertyIdEl.dataset.ideaCategory = category || '';
+                // Store event info
+                propertyIdEl.dataset.eventDate = eventDate || '';
+                propertyIdEl.dataset.eventLocation = eventLocation || '';
+                propertyIdEl.dataset.eventDescription = description || '';
             }
             
-            // Set the keyword
-            document.getElementById('ai-blog-keyword').value = title;
+            // Set the keyword - include date if it's an event
+            let keyword = title;
+            if (eventDate) {
+                const date = new Date(eventDate);
+                const dateStr = date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+                keyword = `${title} (${dateStr})`;
+            }
+            document.getElementById('ai-blog-keyword').value = keyword;
             
             // Set the category from the idea (convert from slug format to display format)
             if (category) {
                 const categoryField = document.getElementById('ai-blog-category');
                 if (categoryField) {
-                    // Convert "events_holidays" to "Events & Holidays"
-                    const displayCategory = category.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' & ');
-                    categoryField.value = displayCategory;
+                    // Use category directly if it's already display format, otherwise convert
+                    if (category.includes('_')) {
+                        const displayCategory = category.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' & ');
+                        categoryField.value = displayCategory;
+                    } else {
+                        categoryField.value = category;
+                    }
                 }
             }
             
@@ -35891,7 +35933,13 @@ Local honey and preserves"></textarea>
         async function generateAiBlog() {
             const keyword = document.getElementById('ai-blog-keyword').value;
             const language = document.getElementById('ai-blog-language').value;
-            const propertyId = document.getElementById('ai-blog-property-id').value;
+            const propertyIdEl = document.getElementById('ai-blog-property-id');
+            const propertyId = propertyIdEl.value;
+            
+            // Get event info if available (from idea)
+            const eventDate = propertyIdEl.dataset.eventDate || '';
+            const eventLocation = propertyIdEl.dataset.eventLocation || '';
+            const eventDescription = propertyIdEl.dataset.eventDescription || '';
             
             if (!propertyId) {
                 showNotification('Please select a property', 'error');
@@ -35915,7 +35963,10 @@ Local honey and preserves"></textarea>
                     body: JSON.stringify({
                         keyword,
                         language,
-                        property_id: propertyId || null
+                        property_id: propertyId || null,
+                        event_date: eventDate || null,
+                        event_location: eventLocation || null,
+                        event_description: eventDescription || null
                     })
                 });
                 
@@ -35941,6 +35992,8 @@ Local honey and preserves"></textarea>
                     document.getElementById('ai-blog-property-id').value = data.blog.property_id || propertyId || '';
                     document.getElementById('ai-blog-property-id').dataset.language = language;
                     document.getElementById('ai-blog-property-id').dataset.faqSchema = JSON.stringify(data.blog.faq_schema || null);
+                    // Keep event_date for saving to blog_posts
+                    document.getElementById('ai-blog-property-id').dataset.eventDate = eventDate;
                     
                     // Show result
                     document.getElementById('ai-blog-loading').style.display = 'none';
