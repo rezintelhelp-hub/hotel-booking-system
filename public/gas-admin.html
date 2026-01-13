@@ -22183,10 +22183,11 @@ Local honey and preserves"></textarea>
                     if (terms.additional_rules) document.getElementById('terms-additional-rules').value = terms.additional_rules;
                     if (terms.cancellation_policy) document.getElementById('terms-cancellation-policy').value = terms.cancellation_policy;
                     
-                    // Beds (using bed_type from database)
-                    if (beds.length > 0) {
-                        const container = document.getElementById('bed-configuration');
-                        container.innerHTML = '';
+                    // Beds (using bed_type from database) - OLD FORMAT
+                    // Only load into old UI if container exists
+                    const bedContainer = document.getElementById('bed-configuration');
+                    if (bedContainer && beds.length > 0) {
+                        bedContainer.innerHTML = '';
                         beds.forEach((bed, index) => {
                             const bedType = bed.bed_type || bed.type; // Handle both formats
                             const row = document.createElement('div');
@@ -22207,14 +22208,15 @@ Local honey and preserves"></textarea>
                                 <input type="number" class="form-input bed-qty" min="1" max="10" value="${bed.quantity || 1}" style="width: 80px;">
                                 <button class="btn btn-secondary btn-small" onclick="removeBedRow(this)" style="color: #ef4444;"></button>
                             `;
-                            container.appendChild(row);
+                            bedContainer.appendChild(row);
                         });
                     }
                     
-                    // Bathrooms (using bathroom_type from database)
-                    if (bathrooms.length > 0) {
-                        const container = document.getElementById('bathroom-configuration');
-                        container.innerHTML = '';
+                    // Bathrooms (using bathroom_type from database) - OLD FORMAT
+                    // Only load into old UI if container exists
+                    const bathroomContainer = document.getElementById('bathroom-configuration');
+                    if (bathroomContainer && bathrooms.length > 0) {
+                        bathroomContainer.innerHTML = '';
                         bathrooms.forEach((bathroom, index) => {
                             const bathroomType = bathroom.bathroom_type || bathroom.type;
                             const row = document.createElement('div');
@@ -22233,7 +22235,7 @@ Local honey and preserves"></textarea>
                                 <input type="number" class="form-input bathroom-qty" min="1" max="10" value="${bathroom.quantity || 1}" style="width: 80px;">
                                 <button class="btn btn-secondary btn-small" onclick="removeBathroomRow(this)" style="color: #ef4444;"></button>
                             `;
-                            container.appendChild(row);
+                            bathroomContainer.appendChild(row);
                         });
                     }
                     
