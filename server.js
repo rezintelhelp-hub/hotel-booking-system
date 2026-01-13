@@ -32357,6 +32357,64 @@ app.put('/api/admin/content-ideas/:id/status', async (req, res) => {
     }
 });
 
+// Update content idea (category, title, description, etc)
+app.put('/api/admin/content-ideas/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { category, title, description, subcategory, event_date, event_location } = req.body;
+        
+        // Build dynamic update query
+        const updates = [];
+        const params = [];
+        let paramIndex = 1;
+        
+        if (category !== undefined) {
+            updates.push(`category = $${paramIndex++}`);
+            params.push(category);
+        }
+        if (title !== undefined) {
+            updates.push(`title = $${paramIndex++}`);
+            params.push(title);
+        }
+        if (description !== undefined) {
+            updates.push(`description = $${paramIndex++}`);
+            params.push(description);
+        }
+        if (subcategory !== undefined) {
+            updates.push(`subcategory = $${paramIndex++}`);
+            params.push(subcategory);
+        }
+        if (event_date !== undefined) {
+            updates.push(`event_date = $${paramIndex++}`);
+            params.push(event_date);
+        }
+        if (event_location !== undefined) {
+            updates.push(`event_location = $${paramIndex++}`);
+            params.push(event_location);
+        }
+        
+        updates.push(`updated_at = NOW()`);
+        
+        if (updates.length === 1) {
+            return res.json({ success: false, error: 'No fields to update' });
+        }
+        
+        params.push(id);
+        const result = await pool.query(`
+            UPDATE content_ideas SET ${updates.join(', ')} WHERE id = $${paramIndex} RETURNING *
+        `, params);
+        
+        if (result.rows.length === 0) {
+            return res.json({ success: false, error: 'Idea not found' });
+        }
+        
+        res.json({ success: true, idea: result.rows[0] });
+    } catch (error) {
+        console.error('Update idea error:', error);
+        res.json({ success: false, error: error.message });
+    }
+});
+
 // Delete content idea
 app.delete('/api/admin/content-ideas/:id', async (req, res) => {
     try {
