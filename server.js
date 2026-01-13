@@ -2988,9 +2988,9 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
       const basePrice = parseFloat(room.base_price || roomRawData.rackRate) || null;
       const cleaningFee = parseFloat(roomRawData.cleaningFee) || null;
       const securityDeposit = parseFloat(roomRawData.securityDeposit) || null;
-      const bedrooms = roomRawData.bedrooms || roomRawData.numBedrooms || null;
+      let bedrooms = roomRawData.bedrooms || roomRawData.numBedrooms || null;
       const beds = roomRawData.beds || roomRawData.numBeds || null;
-      const bathrooms = roomRawData.bathrooms || roomRawData.numBathrooms || null;
+      let bathrooms = roomRawData.bathrooms || roomRawData.numBathrooms || null;
       const sizeSqm = roomRawData.size || roomRawData.sqm || null;
       
       // Extract feature codes for amenities
@@ -3000,6 +3000,19 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
           featureCodes = roomRawData.featureCodes;
         } else if (Array.isArray(roomRawData.featureCodes)) {
           featureCodes = roomRawData.featureCodes.join(',');
+        }
+      }
+      
+      // Count bedrooms and bathrooms from feature codes if not already set
+      if (featureCodes) {
+        const codes = featureCodes.split(',').map(c => c.trim().toUpperCase());
+        if (!bedrooms) {
+          const bedroomCodes = codes.filter(c => c.startsWith('BEDROOM') || c.includes('BED_'));
+          bedrooms = bedroomCodes.length || null;
+        }
+        if (!bathrooms) {
+          const bathroomCodes = codes.filter(c => c.startsWith('BATHROOM') || c.includes('BATH_') || c === 'FULLBATH' || c === 'HALFBATH');
+          bathrooms = bathroomCodes.length || null;
         }
       }
       
