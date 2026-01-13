@@ -40328,6 +40328,7 @@ app.post('/api/blog/feeds/fetch-ical', async (req, res) => {
     
     let totalEvents = 0;
     let ideasCreated = 0;
+    let ideasSkipped = 0;
     let feedsProcessed = 0;
     
     for (const feed of feeds.rows) {
@@ -40362,22 +40363,32 @@ app.post('/api/blog/feeds/fetch-ical', async (req, res) => {
             continue;
           }
           
-          // Check if idea already exists (by title + property)
-          const existing = await pool.query(
+          // Check if idea already exists (by title + property) - any status
+          const existingIdea = await pool.query(
             'SELECT id FROM content_ideas WHERE title = $1 AND property_id = $2',
             [event.summary, feed.property_id]
           );
           
-          if (existing.rows.length === 0) {
-            // Create new idea
-            await pool.query(`
-              INSERT INTO content_ideas (
-                client_id, property_id, title, description, content_type, 
-                category, subcategory, status, source_type, source_url, 
-                event_date, event_location
-              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-            `, [
-              feed.account_id,
+          // Also check if a blog post already exists with similar title
+          const existingBlog = await pool.query(
+            `SELECT id FROM blog_posts WHERE title ILIKE $1 AND property_id = $2`,
+            [`%${event.summary}%`, feed.property_id]
+          );
+          
+          if (existingIdea.rows.length > 0 || existingBlog.rows.length > 0) {
+            ideasSkipped++;
+            continue;
+          }
+          
+          // Create new idea
+          await pool.query(`
+            INSERT INTO content_ideas (
+              client_id, property_id, title, description, content_type, 
+              category, subcategory, status, source_type, source_url, 
+              event_date, event_location
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+          `, [
+            feed.account_id,
               feed.property_id,
               event.summary || 'Untitled Event',
               event.description || '',
@@ -40391,7 +40402,6 @@ app.post('/api/blog/feeds/fetch-ical', async (req, res) => {
               event.location || ''
             ]);
             ideasCreated++;
-          }
         }
         
         // Update last_fetched
@@ -40409,11 +40419,14 @@ app.post('/api/blog/feeds/fetch-ical', async (req, res) => {
       }
     }
     
+    console.log(`iCal fetch complete: ${ideasCreated} new ideas, ${ideasSkipped} skipped (duplicates/already have blog)`);
+    
     res.json({
       success: true,
       feeds_processed: feedsProcessed,
       events_count: totalEvents,
-      ideas_created: ideasCreated
+      ideas_created: ideasCreated,
+      ideas_skipped: ideasSkipped
     });
   } catch (error) {
     console.error('Fetch iCal error:', error);
@@ -40514,6 +40527,7 @@ app.post('/api/blog/feeds/fetch-rss', async (req, res) => {
     
     let totalArticles = 0;
     let ideasCreated = 0;
+    let ideasSkipped = 0;
     let feedsProcessed = 0;
     
     for (const feed of feeds.rows) {
@@ -40536,33 +40550,44 @@ app.post('/api/blog/feeds/fetch-rss', async (req, res) => {
         
         // Create blog ideas from articles (limit to recent ones)
         for (const article of articles.slice(0, 20)) { // Max 20 per feed
-          // Check if idea already exists (by title + property)
-          const existing = await pool.query(
+          if (!article.title) continue;
+          
+          // Check if idea already exists (by title + property) - any status
+          const existingIdea = await pool.query(
             'SELECT id FROM content_ideas WHERE title = $1 AND property_id = $2',
             [article.title, feed.property_id]
           );
           
-          if (existing.rows.length === 0 && article.title) {
-            // Create new idea
-            await pool.query(`
-              INSERT INTO content_ideas (
-                client_id, property_id, title, description, content_type, 
-                category, subcategory, status, source_type, source_url
-              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-            `, [
-              feed.account_id,
-              feed.property_id,
-              article.title.substring(0, 500),
-              article.description || '',
-              'blog',
-              'News & Updates',
-              'Local News',
-              'idea',
-              'rss',
-              article.link || feed.url
-            ]);
-            ideasCreated++;
+          // Also check if a blog post already exists with similar title
+          const existingBlog = await pool.query(
+            `SELECT id FROM blog_posts WHERE title ILIKE $1 AND property_id = $2`,
+            [`%${article.title.substring(0, 100)}%`, feed.property_id]
+          );
+          
+          if (existingIdea.rows.length > 0 || existingBlog.rows.length > 0) {
+            ideasSkipped++;
+            continue;
           }
+          
+          // Create new idea
+          await pool.query(`
+            INSERT INTO content_ideas (
+              client_id, property_id, title, description, content_type, 
+              category, subcategory, status, source_type, source_url
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          `, [
+            feed.account_id,
+            feed.property_id,
+            article.title.substring(0, 500),
+            article.description || '',
+            'blog',
+            'News & Updates',
+            'Local News',
+            'idea',
+            'rss',
+            article.link || feed.url
+          ]);
+          ideasCreated++;
         }
         
         // Update last_fetched
@@ -40580,11 +40605,14 @@ app.post('/api/blog/feeds/fetch-rss', async (req, res) => {
       }
     }
     
+    console.log(`RSS fetch complete: ${ideasCreated} new ideas, ${ideasSkipped} skipped (duplicates/already have blog)`);
+    
     res.json({
       success: true,
       feeds_processed: feedsProcessed,
       articles_count: totalArticles,
-      ideas_created: ideasCreated
+      ideas_created: ideasCreated,
+      ideas_skipped: ideasSkipped
     });
   } catch (error) {
     res.json({ success: false, error: error.message });
