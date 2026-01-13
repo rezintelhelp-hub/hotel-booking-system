@@ -18860,6 +18860,120 @@ app.post('/api/hostaway/resync-properties', async (req, res) => {
   }
 });
 
+// Resync a single Hostaway property by listing ID
+app.post('/api/hostaway/resync-single-property', async (req, res) => {
+  try {
+    const { token, listingId, accountId } = req.body;
+    
+    if (!token || !listingId) {
+      return res.json({ success: false, error: 'Token and listing ID required' });
+    }
+    
+    console.log(`🔄 Resyncing single Hostaway property: ${listingId}`);
+    
+    // Fetch fresh data from Hostaway
+    const response = await axios.get(`https://api.hostaway.com/v1/listings/${listingId}`, {
+      headers: { 'Authorization': `Bearer ${token}` },
+      timeout: 30000
+    });
+    
+    const listing = response.data?.result || response.data;
+    if (!listing) {
+      return res.json({ success: false, error: 'Property not found in Hostaway' });
+    }
+    
+    // Find existing property in GAS
+    const existingProp = await pool.query(
+      'SELECT id FROM properties WHERE hostaway_listing_id = $1',
+      [listingId]
+    );
+    
+    if (existingProp.rows.length === 0) {
+      return res.json({ success: false, error: 'Property not imported to GAS yet' });
+    }
+    
+    const propertyId = existingProp.rows[0].id;
+    
+    // Normalize values
+    const propertyName = (listing.name || `Property ${listingId}`).substring(0, 255);
+    const stateValue = (listing.state || '').substring(0, 50);
+    const currencyValue = (listing.currencyCode || 'USD').substring(0, 3);
+    const countryValue = listing.countryCode || listing.country || '';
+    
+    // Update property
+    await pool.query(`
+      UPDATE properties SET
+        name = $1,
+        property_type = $2,
+        address = $3,
+        city = $4,
+        state = $5,
+        postcode = $6,
+        country = $7,
+        latitude = $8,
+        longitude = $9,
+        check_in_from = $10,
+        check_out_by = $11,
+        currency = $12,
+        updated_at = NOW()
+      WHERE id = $13
+    `, [
+      propertyName,
+      listing.roomType || 'entire_home',
+      listing.address || listing.street || '',
+      listing.city || '',
+      stateValue,
+      listing.zipcode || '',
+      countryValue,
+      listing.lat || null,
+      listing.lng || null,
+      listing.checkInTimeStart ? `${listing.checkInTimeStart}:00` : '15:00',
+      listing.checkOutTime ? `${listing.checkOutTime}:00` : '11:00',
+      currencyValue,
+      propertyId
+    ]);
+    
+    // Update bookable unit
+    await pool.query(`
+      UPDATE bookable_units SET
+        name = $1,
+        unit_type = $2,
+        max_guests = $3,
+        max_adults = $4,
+        bedroom_count = $5,
+        bathroom_count = $6,
+        base_price = $7,
+        min_stay = $8,
+        max_stay = $9,
+        updated_at = NOW()
+      WHERE hostaway_listing_id = $10
+    `, [
+      propertyName,
+      listing.roomType || 'entire_home',
+      listing.personCapacity || 2,
+      listing.personCapacity || 2,
+      listing.bedroomsNumber || 1,
+      listing.bathroomsNumber || 1,
+      listing.price || 100,
+      listing.minNights || 1,
+      listing.maxNights || 365,
+      listingId
+    ]);
+    
+    console.log(`   ✓ Resynced: ${propertyName}`);
+    
+    res.json({
+      success: true,
+      message: `Synced: ${propertyName}`,
+      property: { id: propertyId, name: propertyName }
+    });
+    
+  } catch (error) {
+    console.error('Hostaway single property resync error:', error.message);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Sync availability from Hostaway for all listings
 app.post('/api/admin/sync-hostaway-availability', async (req, res) => {
   const client = await pool.connect();
