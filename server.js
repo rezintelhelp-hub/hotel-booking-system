@@ -25375,30 +25375,58 @@ app.put('/api/admin/properties/:id/terms', async (req, res) => {
       }
     }
     
-    // Update bathrooms - delete existing property-level bathrooms and insert new
-    if (bathrooms && Array.isArray(bathrooms)) {
-      await client.query('DELETE FROM property_bathrooms WHERE property_id = $1 AND room_id IS NULL', [propertyId]);
+    // Update bathrooms - only if using OLD format (no name field)
+    // Skip if bathrooms have names (new detailed format is handled by separate API)
+    if (bathrooms && Array.isArray(bathrooms) && bathrooms.length > 0) {
+      // Check if these are old-style bathrooms (no name, just type/quantity)
+      const isOldFormat = bathrooms.every(b => !b.name && b.type);
       
-      let totalBathrooms = 0;
-      for (let i = 0; i < bathrooms.length; i++) {
-        const bathroom = bathrooms[i];
-        if (bathroom.type) {
-          const qty = parseInt(bathroom.quantity) || 1;
-          totalBathrooms += qty;
+      if (isOldFormat) {
+        // Delete only old-format bathrooms (those without names)
+        await client.query('DELETE FROM property_bathrooms WHERE property_id = $1 AND room_id IS NULL AND name IS NULL', [propertyId]);
+        
+        let totalBathrooms = 0;
+        for (let i = 0; i < bathrooms.length; i++) {
+          const bathroom = bathrooms[i];
+          if (bathroom.type) {
+            const qty = parseInt(bathroom.quantity) || 1;
+            totalBathrooms += qty;
+            await client.query(
+              'INSERT INTO property_bathrooms (property_id, bathroom_type, quantity, display_order) VALUES ($1, $2, $3, $4)',
+              [propertyId, bathroom.type, qty, i]
+            );
+          }
+        }
+        
+        // Update num_bathrooms on all bookable_units for this property
+        // But also count new-style bathrooms
+        const newStyleCount = await client.query(
+          'SELECT COALESCE(SUM(quantity), 0) as count FROM property_bathrooms WHERE property_id = $1 AND room_id IS NULL AND name IS NOT NULL',
+          [propertyId]
+        );
+        totalBathrooms += parseInt(newStyleCount.rows[0]?.count || 0);
+        
+        if (totalBathrooms > 0) {
           await client.query(
-            'INSERT INTO property_bathrooms (property_id, bathroom_type, quantity, display_order) VALUES ($1, $2, $3, $4)',
-            [propertyId, bathroom.type, qty, i]
+            'UPDATE bookable_units SET num_bathrooms = $1 WHERE property_id = $2',
+            [totalBathrooms, propertyId]
           );
         }
       }
-      
-      // Update num_bathrooms on all bookable_units for this property
+    } else if (!bathrooms || bathrooms.length === 0) {
+      // No old-style bathrooms provided - just update count from new-style
+      const newStyleCount = await client.query(
+        'SELECT COALESCE(SUM(quantity), 0) as count FROM property_bathrooms WHERE property_id = $1 AND room_id IS NULL AND name IS NOT NULL',
+        [propertyId]
+      );
+      const totalBathrooms = parseInt(newStyleCount.rows[0]?.count || 0);
       if (totalBathrooms > 0) {
         await client.query(
           'UPDATE bookable_units SET num_bathrooms = $1 WHERE property_id = $2',
           [totalBathrooms, propertyId]
         );
       }
+    }
     }
     
     // Update cancellation_policy on properties table
