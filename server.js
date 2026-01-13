@@ -18811,7 +18811,8 @@ app.post('/api/hostaway/resync-single-property', async (req, res) => {
     
     // Normalize values
     const propertyName = (listing.name || `Property ${listingId}`).substring(0, 255);
-    const displayName = listing.externalListingName || propertyName;
+    const displayNameText = listing.externalListingName || propertyName;
+    const displayNameJson = JSON.stringify({ en: displayNameText });
     const stateValue = (listing.state || '').substring(0, 50);
     const currencyValue = (listing.currencyCode || 'USD').substring(0, 3);
     const countryValue = listing.countryCode || listing.country || '';
@@ -18836,7 +18837,7 @@ app.post('/api/hostaway/resync-single-property', async (req, res) => {
       WHERE id = $14
     `, [
       propertyName,
-      displayName,
+      displayNameText,
       listing.propertyType || 'entire_home',
       listing.address || listing.street || '',
       listing.city || '',
@@ -18851,11 +18852,11 @@ app.post('/api/hostaway/resync-single-property', async (req, res) => {
       propertyId
     ]);
     
-    // Update bookable_unit
+    // Update bookable_unit (display_name is JSONB so needs JSON format)
     await pool.query(`
       UPDATE bookable_units SET
         name = $1,
-        display_name = $2,
+        display_name = $2::jsonb,
         unit_type = $3,
         max_guests = $4,
         max_adults = $5,
@@ -18868,7 +18869,7 @@ app.post('/api/hostaway/resync-single-property', async (req, res) => {
       WHERE hostaway_listing_id = $11
     `, [
       propertyName,
-      displayName,
+      displayNameJson,
       listing.propertyType || 'entire_home',
       listing.personCapacity || 2,
       listing.personCapacity || 2,
@@ -18892,12 +18893,12 @@ app.post('/api/hostaway/resync-single-property', async (req, res) => {
       console.log('   Note: Could not update cache:', cacheErr.message);
     }
     
-    console.log(`   ✓ Updated: "${propertyName}" / display: "${displayName}"`);
+    console.log(`   ✓ Updated: "${propertyName}" / display: "${displayNameText}"`);
     
     res.json({
       success: true,
-      message: `Synced: ${displayName}`,
-      property: { id: propertyId, name: propertyName, displayName }
+      message: `Synced: ${displayNameText}`,
+      property: { id: propertyId, name: propertyName, displayName: displayNameText }
     });
     
   } catch (error) {
