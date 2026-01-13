@@ -40149,6 +40149,198 @@ app.get('/beds24-wizard', (req, res) => {
   }
 });
 
+// =====================================================
+// Blog Feed Management (iCal & RSS)
+// =====================================================
+
+// Ensure blog_feeds table exists
+(async () => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS blog_feeds (
+        id SERIAL PRIMARY KEY,
+        account_id INTEGER REFERENCES accounts(id),
+        type VARCHAR(10) NOT NULL CHECK (type IN ('ical', 'rss')),
+        name VARCHAR(255) NOT NULL,
+        url TEXT NOT NULL,
+        last_fetched TIMESTAMP,
+        last_error TEXT,
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    console.log('✅ blog_feeds table ensured');
+  } catch (e) {
+    console.log('ℹ️  blog_feeds table:', e.message);
+  }
+})();
+
+// Get feeds for account
+app.get('/api/blog/feeds', async (req, res) => {
+  try {
+    const { type, account_id } = req.query;
+    let query = 'SELECT * FROM blog_feeds WHERE 1=1';
+    const params = [];
+    
+    if (type) {
+      params.push(type);
+      query += ` AND type = $${params.length}`;
+    }
+    if (account_id) {
+      params.push(account_id);
+      query += ` AND account_id = $${params.length}`;
+    }
+    
+    query += ' ORDER BY created_at DESC';
+    
+    const result = await pool.query(query, params);
+    res.json({ success: true, feeds: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Add new feed
+app.post('/api/blog/feeds', async (req, res) => {
+  try {
+    const { type, name, url, account_id } = req.body;
+    
+    if (!type || !url) {
+      return res.json({ success: false, error: 'Type and URL are required' });
+    }
+    
+    const result = await pool.query(`
+      INSERT INTO blog_feeds (account_id, type, name, url)
+      VALUES ($1, $2, $3, $4)
+      RETURNING *
+    `, [account_id || null, type, name || `${type.toUpperCase()} Feed`, url]);
+    
+    res.json({ success: true, feed: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Delete feed
+app.delete('/api/blog/feeds/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM blog_feeds WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Fetch iCal events
+app.post('/api/blog/feeds/fetch-ical', async (req, res) => {
+  try {
+    const { account_id } = req.query;
+    
+    let query = 'SELECT * FROM blog_feeds WHERE type = $1 AND is_active = true';
+    const params = ['ical'];
+    
+    if (account_id) {
+      params.push(account_id);
+      query += ` AND account_id = $${params.length}`;
+    }
+    
+    const feeds = await pool.query(query, params);
+    
+    let totalEvents = 0;
+    let feedsProcessed = 0;
+    
+    for (const feed of feeds.rows) {
+      try {
+        const response = await axios.get(feed.url, { timeout: 30000 });
+        const icsData = response.data;
+        
+        // Simple iCal parsing - count VEVENT occurrences
+        const events = (icsData.match(/BEGIN:VEVENT/g) || []).length;
+        totalEvents += events;
+        feedsProcessed++;
+        
+        // Update last_fetched
+        await pool.query(
+          'UPDATE blog_feeds SET last_fetched = NOW(), last_error = NULL WHERE id = $1',
+          [feed.id]
+        );
+        
+        console.log(`iCal feed ${feed.name}: ${events} events found`);
+      } catch (feedError) {
+        await pool.query(
+          'UPDATE blog_feeds SET last_error = $1 WHERE id = $2',
+          [feedError.message, feed.id]
+        );
+        console.log(`iCal feed ${feed.name} error:`, feedError.message);
+      }
+    }
+    
+    res.json({
+      success: true,
+      feeds_processed: feedsProcessed,
+      events_count: totalEvents
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Fetch RSS articles
+app.post('/api/blog/feeds/fetch-rss', async (req, res) => {
+  try {
+    const { account_id } = req.query;
+    
+    let query = 'SELECT * FROM blog_feeds WHERE type = $1 AND is_active = true';
+    const params = ['rss'];
+    
+    if (account_id) {
+      params.push(account_id);
+      query += ` AND account_id = $${params.length}`;
+    }
+    
+    const feeds = await pool.query(query, params);
+    
+    let totalArticles = 0;
+    let feedsProcessed = 0;
+    
+    for (const feed of feeds.rows) {
+      try {
+        const response = await axios.get(feed.url, { timeout: 30000 });
+        const rssData = response.data;
+        
+        // Simple RSS parsing - count item occurrences
+        const articles = (rssData.match(/<item>/gi) || []).length || 
+                        (rssData.match(/<entry>/gi) || []).length; // Atom format
+        totalArticles += articles;
+        feedsProcessed++;
+        
+        // Update last_fetched
+        await pool.query(
+          'UPDATE blog_feeds SET last_fetched = NOW(), last_error = NULL WHERE id = $1',
+          [feed.id]
+        );
+        
+        console.log(`RSS feed ${feed.name}: ${articles} articles found`);
+      } catch (feedError) {
+        await pool.query(
+          'UPDATE blog_feeds SET last_error = $1 WHERE id = $2',
+          [feedError.message, feed.id]
+        );
+        console.log(`RSS feed ${feed.name} error:`, feedError.message);
+      }
+    }
+    
+    res.json({
+      success: true,
+      feeds_processed: feedsProcessed,
+      articles_count: totalArticles
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 app.listen(PORT, '0.0.0.0', () => {
   console.log('🚀 Server running on port ' + PORT);
   console.log('🔄 Auto-sync scheduled: Prices every 15min, Beds24 bookings every 15min, Inventory every 6hrs');
