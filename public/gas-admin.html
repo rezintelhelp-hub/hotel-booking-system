@@ -33798,32 +33798,46 @@ Local honey and preserves"></textarea>
                 return date.toLocaleDateString('en-US', options);
             }
             
+            // Filter out past events by default
+            const now = new Date();
+            const futureFiltered = filtered.filter(idea => {
+                if (!idea.event_date) return true; // Keep non-event ideas
+                return new Date(idea.event_date) >= now;
+            });
+            
             container.innerHTML = `
                 <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem;">
-                    ${filtered.map(idea => {
-                        const catLabel = catLabels[idea.category] || (idea.category ? idea.category.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' & ') : ' Blog');
+                    ${futureFiltered.map(idea => {
+                        const catLabel = catLabels[idea.category] || (idea.category ? idea.category.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' & ') : 'Blog');
                         const eventDateStr = formatEventDate(idea.event_date);
-                        const isPastEvent = idea.event_date && new Date(idea.event_date) < new Date();
                         return `
-                        <div class="card" style="padding: 1.25rem; border-left: 4px solid ${idea.event_date ? '#3b82f6' : '#8b5cf6'}; ${isPastEvent ? 'opacity: 0.6;' : ''}">
+                        <div class="card" style="padding: 1.25rem; border-left: 4px solid ${idea.event_date ? '#3b82f6' : '#8b5cf6'};">
                             <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
-                                <span style="background: #ede9fe; color: #7c3aed; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 500;">
-                                    ${catLabel}
-                                </span>
-                                ${eventDateStr ? `<span style="background: ${isPastEvent ? '#fef2f2' : '#dbeafe'}; color: ${isPastEvent ? '#dc2626' : '#1d4ed8'}; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.7rem; font-weight: 600;">
-                                    📅 ${eventDateStr}
+                                <select onchange="updateIdeaCategory(${idea.id}, this.value)" style="background: #ede9fe; color: #7c3aed; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 500; border: none; cursor: pointer;">
+                                    <option value="${idea.category || ''}" selected>${catLabel}</option>
+                                    <option value="General">General</option>
+                                    <option value="Events & Festivals">Events & Festivals</option>
+                                    <option value="Events & Concerts">Events & Concerts</option>
+                                    <option value="Local Guide">Local Guide</option>
+                                    <option value="Travel Tips">Travel Tips</option>
+                                    <option value="Food & Drink">Food & Drink</option>
+                                    <option value="Activities">Activities</option>
+                                    <option value="Attractions">Attractions</option>
+                                </select>
+                                ${eventDateStr ? `<span style="background: #dbeafe; color: #1d4ed8; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.7rem; font-weight: 600;">
+                                    ${eventDateStr}
                                 </span>` : ''}
                             </div>
                             <h4 style="margin: 0.5rem 0; font-size: 1rem; line-height: 1.4;">${escapeHtml(idea.title)}</h4>
-                            ${idea.event_location ? `<p style="color: #6b7280; font-size: 0.8rem; margin: 0 0 0.5rem;">📍 ${escapeHtml(idea.event_location)}</p>` : ''}
+                            ${idea.event_location ? `<p style="color: #6b7280; font-size: 0.8rem; margin: 0 0 0.5rem;">${escapeHtml(idea.event_location)}</p>` : ''}
                             ${idea.description ? `<p style="color: var(--text-secondary); font-size: 0.875rem; margin: 0 0 0.75rem; line-height: 1.4;">${escapeHtml(idea.description.substring(0, 100))}${idea.description.length > 100 ? '...' : ''}</p>` : ''}
-                            ${idea.property_name ? `<p style="color: var(--text-muted); font-size: 0.75rem; margin-bottom: 0.75rem;">🏠 ${escapeHtml(idea.property_name)}</p>` : ''}
+                            ${idea.property_name ? `<p style="color: var(--text-muted); font-size: 0.75rem; margin-bottom: 0.75rem;">${escapeHtml(idea.property_name)}</p>` : ''}
                             <div style="display: flex; gap: 0.5rem;">
                                 <button class="btn btn-small" onclick="createBlogFromIdea(${idea.id})" style="flex: 1; background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">
-                                     Create Post
+                                    Create Post
                                 </button>
                                 <button class="btn btn-small" onclick="dismissBlogIdea(${idea.id})" style="background: #fee2e2; color: #dc2626; border: none;">
-                                    
+                                    X
                                 </button>
                             </div>
                         </div>
@@ -34523,6 +34537,24 @@ Local honey and preserves"></textarea>
             
             // Trigger generation immediately
             generateAiBlog();
+        }
+        
+        // Update blog idea category
+        async function updateIdeaCategory(ideaId, newCategory) {
+            try {
+                await fetch(`/api/admin/content-ideas/${ideaId}`, {
+                    method: 'PUT',
+                    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ category: newCategory })
+                });
+                // Update in local array too
+                const idea = blogIdeas.find(i => i.id === ideaId);
+                if (idea) idea.category = newCategory;
+                showNotification('Category updated', 'success');
+            } catch (e) {
+                console.error('Error updating category:', e);
+                showNotification('Failed to update category', 'error');
+            }
         }
         
         async function dismissBlogIdea(ideaId) {
