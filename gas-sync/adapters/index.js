@@ -6,7 +6,17 @@
  */
 
 const { Beds24Adapter } = require('./beds24-adapter');
-const { HostawayAdapter } = require('./hostaway-adapter');
+
+// Try to load Hostaway adapter
+let HostawayAdapter = null;
+try {
+  const hostawayModule = require('./hostaway-adapter');
+  HostawayAdapter = hostawayModule.HostawayAdapter;
+  console.log('✅ Hostaway adapter loaded successfully');
+} catch (e) {
+  console.error('❌ Hostaway adapter failed to load:', e.message);
+  console.error('   Stack:', e.stack);
+}
 
 // Try to load Calry adapter (optional)
 let CalryAdapter = null;
@@ -15,7 +25,7 @@ try {
   const calryModule = require('./calry-adapter');
   CalryAdapter = calryModule.CalryAdapter;
   CALRY_SUPPORTED_PMS = calryModule.CALRY_SUPPORTED_PMS || [];
-  console.log('Calry adapter loaded successfully');
+  console.log('✅ Calry adapter loaded successfully');
 } catch (e) {
   console.log('Calry adapter not available:', e.message);
 }
@@ -25,9 +35,16 @@ try {
 // =====================================================
 
 const adapters = {
-  beds24: Beds24Adapter,
-  hostaway: HostawayAdapter
+  beds24: Beds24Adapter
 };
+
+// Add Hostaway if available
+if (HostawayAdapter) {
+  adapters.hostaway = HostawayAdapter;
+  console.log('✅ Hostaway adapter registered');
+} else {
+  console.error('❌ Hostaway adapter NOT registered - check error above');
+}
 
 // Add Calry if available
 if (CalryAdapter) {
@@ -329,6 +346,6 @@ module.exports = {
   SyncManager,
   // Re-export individual adapters
   Beds24Adapter,
-  HostawayAdapter,
+  ...(HostawayAdapter ? { HostawayAdapter } : {}),
   ...(CalryAdapter ? { CalryAdapter, CALRY_SUPPORTED_PMS } : {})
 };
