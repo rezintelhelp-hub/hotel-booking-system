@@ -18881,12 +18881,16 @@ app.post('/api/hostaway/resync-single-property', async (req, res) => {
     ]);
     
     // Also update gas_sync_properties raw_data so it's cached for future
-    await pool.query(`
-      UPDATE gas_sync_properties SET 
-        raw_data = $1,
-        synced_at = NOW()
-      WHERE external_id = $2
-    `, [JSON.stringify(listing), String(listingId)]);
+    try {
+      await pool.query(`
+        UPDATE gas_sync_properties SET 
+          raw_data = $1::jsonb,
+          synced_at = NOW()
+        WHERE connection_id = $2 AND external_id = $3
+      `, [JSON.stringify(listing), connectionId, String(listingId)]);
+    } catch (cacheErr) {
+      console.log('   Note: Could not update cache:', cacheErr.message);
+    }
     
     console.log(`   ✓ Updated: "${propertyName}" / display: "${displayName}"`);
     
