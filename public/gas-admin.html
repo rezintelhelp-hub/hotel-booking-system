@@ -38737,6 +38737,7 @@ Local honey and preserves"></textarea>
                             
                             <div class="connection-actions">
                                 <button class="btn btn-secondary btn-sm" onclick="showConnectionOverview(${conn.id})"> Sync</button>
+                                ${conn.adapter_code === 'hostaway' ? `<button class="btn btn-secondary btn-sm" onclick="resyncHostawayProperties(${conn.id}, '${conn.access_token || ''}', ${conn.account_id})">🔄 Resync Data</button>` : ''}
                                 <button class="btn btn-secondary btn-sm" onclick="showConnectionDetails(${conn.id})"> Details</button>
                                 <button class="btn btn-danger btn-sm" onclick="deleteConnection(${conn.id})" style="color: white;"> Delete</button>
                             </div>
@@ -38781,6 +38782,47 @@ Local honey and preserves"></textarea>
             return emojis[code] || '';
         }
 
+        // Resync Hostaway properties to pull latest name changes etc
+        async function resyncHostawayProperties(connectionId, token, accountId) {
+            try {
+                showNotification('Resyncing Hostaway properties...', 'info');
+                
+                // If no token provided, get a fresh one
+                let accessToken = token;
+                if (!accessToken) {
+                    // Try to get connection credentials
+                    const connResponse = await fetch(`/api/gas-sync/connections/${connectionId}`, { headers: authHeaders() });
+                    const connData = await connResponse.json();
+                    if (connData.success && connData.connection) {
+                        accessToken = connData.connection.access_token;
+                        accountId = connData.connection.account_id;
+                    }
+                }
+                
+                if (!accessToken) {
+                    showNotification('Could not get Hostaway access token. Please reconnect.', 'error');
+                    return;
+                }
+                
+                const response = await fetch('/api/hostaway/resync-properties', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ token: accessToken, accountId: accountId })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    showNotification(`✅ ${data.message}`, 'success');
+                    setTimeout(() => loadGasSyncConnections(), 2000);
+                } else {
+                    showNotification(data.error || 'Resync failed', 'error');
+                }
+            } catch (error) {
+                console.error('Hostaway resync error:', error);
+                showNotification('Failed to resync properties', 'error');
+            }
+        }
+        
         async function triggerSync(connectionId, type = 'incremental') {
             try {
                 showNotification('Starting sync...', 'info');
