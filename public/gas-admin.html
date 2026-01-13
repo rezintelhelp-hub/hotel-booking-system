@@ -2274,51 +2274,108 @@
                 <div id="amenities-tab-content">
                     <!-- Rooms Tab -->
                     <div id="amenities-tab-rooms" class="amenity-tab-panel">
+                        <!-- Bedroom Configuration -->
                         <div class="card">
-                            <div class="card-header">
-                                <h3> Property Overview</h3>
+                            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                                <h3>🛏️ Bedroom Configuration</h3>
+                                <button class="btn btn-primary btn-small" onclick="openBedroomModal()">+ Add Bedroom</button>
                             </div>
                             <div class="card-body">
-                                <p style="color: var(--text-secondary); margin-bottom: 1rem;">Set the number of bedrooms (displayed on property cards)</p>
-                                <div style="display: grid; grid-template-columns: 1fr; gap: 1rem; max-width: 200px;">
-                                    <div class="form-group">
-                                        <label class="form-label"> Bedrooms</label>
-                                        <input type="number" class="form-input" id="unit-num-bedrooms" min="0" max="20" value="1" style="width: 100%;">
-                                    </div>
+                                <p style="color: var(--text-secondary); margin-bottom: 1rem;">Configure each bedroom with its bed setup and features</p>
+                                <div id="bedrooms-list">
+                                    <p style="color: var(--text-secondary); text-align: center; padding: 2rem;">No bedrooms configured yet. Click "Add Bedroom" to get started.</p>
                                 </div>
                             </div>
                         </div>
 
+                        <!-- Bedroom Amenities (applies to all) -->
                         <div class="card" style="margin-top: 1rem;">
                             <div class="card-header">
-                                <h3> Bed Configuration</h3>
+                                <h3>🛋️ Bedroom Amenities</h3>
+                                <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0;">These amenities apply to all bedrooms</p>
                             </div>
                             <div class="card-body">
-                                <p style="color: var(--text-secondary); margin-bottom: 1rem;">Configure the beds in this room</p>
-                                <div id="bed-configuration">
-                                    <div class="bed-row" style="display: grid; grid-template-columns: 2fr 1fr auto; gap: 1rem; align-items: center; margin-bottom: 0.75rem;">
-                                        <select class="form-input bed-type-select">
-                                            <option value="">Select bed type...</option>
-                                            <option value="king">King Bed</option>
-                                            <option value="queen">Queen Bed</option>
-                                            <option value="double">Double Bed</option>
-                                            <option value="single">Single Bed</option>
-                                            <option value="twin">Twin Beds</option>
-                                            <option value="sofa">Sofa Bed</option>
-                                            <option value="bunk">Bunk Bed</option>
-                                            <option value="cot">Cot/Crib</option>
-                                        </select>
-                                        <input type="number" class="form-input bed-qty" min="1" max="10" value="1" style="width: 80px;">
-                                        <button class="btn btn-secondary btn-small" onclick="removeBedRow(this)" style="color: var(--error);"></button>
-                                    </div>
+                                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.75rem;">
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="checkbox" id="bedroom-linen" style="width: 18px; height: 18px;">
+                                        <span>Linen Provided</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="checkbox" id="bedroom-pillows" style="width: 18px; height: 18px;">
+                                        <span>Pillows</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="checkbox" id="bedroom-duvet" style="width: 18px; height: 18px;">
+                                        <span>Duvet/Comforter</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="checkbox" id="bedroom-blankets" style="width: 18px; height: 18px;">
+                                        <span>Extra Blankets</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="checkbox" id="bedroom-blackout" style="width: 18px; height: 18px;">
+                                        <span>Blackout Curtains</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="checkbox" id="bedroom-wardrobe" style="width: 18px; height: 18px;">
+                                        <span>Wardrobe/Closet</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="checkbox" id="bedroom-hangers" style="width: 18px; height: 18px;">
+                                        <span>Hangers</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="checkbox" id="bedroom-drawers" style="width: 18px; height: 18px;">
+                                        <span>Chest of Drawers</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="checkbox" id="bedroom-mirror" style="width: 18px; height: 18px;">
+                                        <span>Full-Length Mirror</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="checkbox" id="bedroom-desk" style="width: 18px; height: 18px;">
+                                        <span>Desk/Workspace</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="checkbox" id="bedroom-tv" style="width: 18px; height: 18px;">
+                                        <span>TV in Room</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="checkbox" id="bedroom-ac" style="width: 18px; height: 18px;">
+                                        <span>Air Conditioning</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="checkbox" id="bedroom-heating" style="width: 18px; height: 18px;">
+                                        <span>Heating</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="checkbox" id="bedroom-fan" style="width: 18px; height: 18px;">
+                                        <span>Ceiling Fan</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="checkbox" id="bedroom-safe" style="width: 18px; height: 18px;">
+                                        <span>Safe</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="checkbox" id="bedroom-usb" style="width: 18px; height: 18px;">
+                                        <span>USB Charging Ports</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="checkbox" id="bedroom-reading-lights" style="width: 18px; height: 18px;">
+                                        <span>Reading Lights</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="checkbox" id="bedroom-alarm" style="width: 18px; height: 18px;">
+                                        <span>Alarm Clock</span>
+                                    </label>
                                 </div>
-                                <button class="btn btn-secondary btn-small" onclick="addBedRow()" style="margin-top: 0.5rem;">+ Add Bed</button>
                             </div>
                         </div>
 
+                        <!-- Room Amenities (existing) -->
                         <div class="card" style="margin-top: 1rem;">
                             <div class="card-header">
-                                <h3> Room Amenities</h3>
+                                <h3>✨ Room Amenities</h3>
                             </div>
                             <div class="card-body" id="room-amenities-list">
                                 <p style="color: var(--text-secondary); text-align: center; padding: 1rem;">Select a room to load amenities</p>
@@ -2328,95 +2385,73 @@
 
                     <!-- Bathrooms Tab -->
                     <div id="amenities-tab-bathrooms" class="amenity-tab-panel" style="display: none;">
+                        <!-- Bathroom Configuration -->
                         <div class="card">
-                            <div class="card-header">
-                                <h3> Bathroom Configuration</h3>
+                            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                                <h3>🚿 Bathroom Configuration</h3>
+                                <button class="btn btn-primary btn-small" onclick="openBathroomModal()">+ Add Bathroom</button>
                             </div>
                             <div class="card-body">
-                                <p style="color: var(--text-secondary); margin-bottom: 1rem;">Configure the bathrooms for this room</p>
-                                <div id="bathroom-configuration">
-                                    <div class="bathroom-row" style="display: grid; grid-template-columns: 2fr 1fr auto; gap: 1rem; align-items: center; margin-bottom: 0.75rem;">
-                                        <select class="form-input bathroom-type-select">
-                                            <option value="">Select bathroom type...</option>
-                                            <option value="full-ensuite">Full Ensuite (Private, in room)</option>
-                                            <option value="half-ensuite">Half Bath Ensuite (Toilet & Sink only)</option>
-                                            <option value="full-adjacent">Full Adjacent (Private, outside room)</option>
-                                            <option value="full-shared">Full Shared Bathroom</option>
-                                            <option value="half-shared">Half Shared (Toilet & Sink only)</option>
-                                            <option value="outdoor-shower">Outdoor Shower</option>
-                                        </select>
-                                        <input type="number" class="form-input bathroom-qty" min="1" max="10" value="1" style="width: 80px;">
-                                        <button class="btn btn-secondary btn-small" onclick="removeBathroomRow(this)" style="color: var(--error);"></button>
-                                    </div>
+                                <p style="color: var(--text-secondary); margin-bottom: 1rem;">Configure each bathroom with its type, location and features</p>
+                                <div id="bathrooms-list">
+                                    <p style="color: var(--text-secondary); text-align: center; padding: 2rem;">No bathrooms configured yet. Click "Add Bathroom" to get started.</p>
                                 </div>
-                                <button class="btn btn-secondary btn-small" onclick="addBathroomRow()" style="margin-top: 0.5rem;">+ Add Bathroom</button>
                             </div>
                         </div>
 
+                        <!-- Bathroom Amenities (applies to all) -->
                         <div class="card" style="margin-top: 1rem;">
                             <div class="card-header">
-                                <h3> Bathroom Features</h3>
+                                <h3>🧴 Bathroom Amenities</h3>
+                                <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0;">These amenities apply to all bathrooms</p>
                             </div>
                             <div class="card-body">
                                 <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.75rem;">
                                     <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                                        <input type="checkbox" id="bath-shower" style="width: 18px; height: 18px;">
-                                        <span> Shower</span>
-                                    </label>
-                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                                        <input type="checkbox" id="bath-bathtub" style="width: 18px; height: 18px;">
-                                        <span> Bathtub</span>
-                                    </label>
-                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                                        <input type="checkbox" id="bath-rainfall" style="width: 18px; height: 18px;">
-                                        <span> Rainfall Shower</span>
-                                    </label>
-                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                                        <input type="checkbox" id="bath-walkin" style="width: 18px; height: 18px;">
-                                        <span> Walk-in Shower</span>
-                                    </label>
-                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                                        <input type="checkbox" id="bath-jacuzzi" style="width: 18px; height: 18px;">
-                                        <span> Jacuzzi/Spa Tub</span>
-                                    </label>
-                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                                        <input type="checkbox" id="bath-bidet" style="width: 18px; height: 18px;">
-                                        <span> Bidet</span>
-                                    </label>
-                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                                        <input type="checkbox" id="bath-heated-floor" style="width: 18px; height: 18px;">
-                                        <span> Heated Floor</span>
-                                    </label>
-                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                                        <input type="checkbox" id="bath-double-vanity" style="width: 18px; height: 18px;">
-                                        <span> Double Vanity</span>
-                                    </label>
-                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                                        <input type="checkbox" id="bath-hairdryer" style="width: 18px; height: 18px;">
-                                        <span> Hair Dryer</span>
+                                        <input type="checkbox" id="bath-towels" style="width: 18px; height: 18px;">
+                                        <span>Towels Provided</span>
                                     </label>
                                     <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
                                         <input type="checkbox" id="bath-toiletries" style="width: 18px; height: 18px;">
-                                        <span> Toiletries Provided</span>
+                                        <span>Toiletries Provided</span>
                                     </label>
                                     <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                                        <input type="checkbox" id="bath-towels" style="width: 18px; height: 18px;">
-                                        <span> Towels Provided</span>
+                                        <input type="checkbox" id="bath-hairdryer" style="width: 18px; height: 18px;">
+                                        <span>Hair Dryer</span>
                                     </label>
                                     <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
                                         <input type="checkbox" id="bath-robes" style="width: 18px; height: 18px;">
-                                        <span> Bathrobes</span>
+                                        <span>Bathrobes</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="checkbox" id="bath-slippers" style="width: 18px; height: 18px;">
+                                        <span>Slippers</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="checkbox" id="bath-shampoo" style="width: 18px; height: 18px;">
+                                        <span>Shampoo</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="checkbox" id="bath-conditioner" style="width: 18px; height: 18px;">
+                                        <span>Conditioner</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="checkbox" id="bath-bodywash" style="width: 18px; height: 18px;">
+                                        <span>Body Wash</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="checkbox" id="bath-soap" style="width: 18px; height: 18px;">
+                                        <span>Hand Soap</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="checkbox" id="bath-toilet-paper" style="width: 18px; height: 18px;">
+                                        <span>Toilet Paper</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="checkbox" id="bath-first-aid" style="width: 18px; height: 18px;">
+                                        <span>First Aid Kit</span>
                                     </label>
                                 </div>
-                            </div>
-                        </div>
-
-                        <div class="card" style="margin-top: 1rem;">
-                            <div class="card-header">
-                                <h3> Bathroom Amenities</h3>
-                            </div>
-                            <div class="card-body" id="bathroom-amenities-list">
-                                <p style="color: var(--text-secondary); text-align: center; padding: 1rem;">Select a room to load amenities</p>
                             </div>
                         </div>
                     </div>
@@ -15284,6 +15319,180 @@ Local honey and preserves"></textarea>
         </div>
     </div>
 
+<!-- Bedroom Modal -->
+<div id="bedroom-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center;">
+    <div style="background: var(--surface); border-radius: 12px; max-width: 600px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
+        <div style="padding: 1.5rem; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+            <h3 id="bedroom-modal-title" style="margin: 0; font-size: 1.25rem;">🛏️ Add Bedroom</h3>
+            <button onclick="closeBedroomModal()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-secondary);">×</button>
+        </div>
+        <div style="padding: 1.5rem;">
+            <input type="hidden" id="bedroom-edit-id">
+            
+            <div class="form-group" style="margin-bottom: 1rem;">
+                <label class="form-label">Bedroom Name *</label>
+                <input type="text" class="form-input" id="bedroom-name" placeholder="e.g., Master Bedroom, Bedroom 2, Kids Room">
+            </div>
+            
+            <div class="form-group" style="margin-bottom: 1rem;">
+                <label class="form-label">Bed Configuration</label>
+                <div id="bedroom-beds-config">
+                    <div class="bed-config-row" style="display: grid; grid-template-columns: 1fr auto auto; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem;">
+                        <select class="form-input bed-type-modal">
+                            <option value="">Select bed type...</option>
+                            <option value="king">King Bed</option>
+                            <option value="super-king">Super King Bed</option>
+                            <option value="queen">Queen Bed</option>
+                            <option value="double">Double Bed</option>
+                            <option value="single">Single/Twin Bed</option>
+                            <option value="sofa-bed">Sofa Bed</option>
+                            <option value="bunk">Bunk Bed</option>
+                            <option value="murphy">Murphy Bed</option>
+                            <option value="daybed">Daybed</option>
+                            <option value="trundle">Trundle Bed</option>
+                            <option value="cot">Cot/Crib</option>
+                            <option value="toddler">Toddler Bed</option>
+                            <option value="air-mattress">Air Mattress</option>
+                            <option value="futon">Futon</option>
+                            <option value="floor-mattress">Floor Mattress</option>
+                        </select>
+                        <input type="number" class="form-input bed-qty-modal" min="1" max="10" value="1" style="width: 60px;">
+                        <button type="button" onclick="removeBedroomBedRow(this)" style="background: none; border: none; color: var(--error); cursor: pointer; font-size: 1.2rem;">🗑️</button>
+                    </div>
+                </div>
+                <button type="button" class="btn btn-secondary btn-small" onclick="addBedroomBedRow()" style="margin-top: 0.5rem;">+ Add Bed</button>
+            </div>
+            
+            <div class="form-group" style="margin-bottom: 1rem;">
+                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                    <input type="checkbox" id="bedroom-has-ensuite" style="width: 18px; height: 18px;">
+                    <span>Has Ensuite Bathroom</span>
+                </label>
+            </div>
+            
+            <div id="ensuite-link-section" style="display: none; margin-bottom: 1rem; padding: 1rem; background: var(--background); border-radius: 8px;">
+                <label class="form-label">Link to Bathroom</label>
+                <select class="form-input" id="bedroom-ensuite-bathroom">
+                    <option value="">Select ensuite bathroom...</option>
+                </select>
+                <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.5rem;">Or add the bathroom in the Bathrooms tab first</p>
+            </div>
+            
+            <div class="form-group" style="margin-bottom: 1rem;">
+                <label class="form-label">Description (optional)</label>
+                <textarea class="form-input" id="bedroom-description" rows="3" placeholder="Any special features or notes about this bedroom..."></textarea>
+            </div>
+        </div>
+        <div style="padding: 1rem 1.5rem; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 0.5rem;">
+            <button class="btn btn-secondary" onclick="closeBedroomModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="saveBedroom()">Save Bedroom</button>
+        </div>
+    </div>
+</div>
+
+<!-- Bathroom Modal -->
+<div id="bathroom-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center;">
+    <div style="background: var(--surface); border-radius: 12px; max-width: 600px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
+        <div style="padding: 1.5rem; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+            <h3 id="bathroom-modal-title" style="margin: 0; font-size: 1.25rem;">🚿 Add Bathroom</h3>
+            <button onclick="closeBathroomModal()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-secondary);">×</button>
+        </div>
+        <div style="padding: 1.5rem;">
+            <input type="hidden" id="bathroom-edit-id">
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                <div class="form-group">
+                    <label class="form-label">Bathroom Name *</label>
+                    <input type="text" class="form-input" id="bathroom-name" placeholder="e.g., Master Ensuite, Hallway Bath">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Location</label>
+                    <input type="text" class="form-input" id="bathroom-location" placeholder="e.g., Upstairs, Ground Floor">
+                </div>
+            </div>
+            
+            <div class="form-group" style="margin-bottom: 1rem;">
+                <label class="form-label">Bathroom Type *</label>
+                <select class="form-input" id="bathroom-type">
+                    <option value="">Select type...</option>
+                    <option value="full-private">Full Private (Shower/Bath + Toilet + Sink)</option>
+                    <option value="full-shared">Full Shared (Shower/Bath + Toilet + Sink)</option>
+                    <option value="half-private">Half Private (Toilet + Sink only)</option>
+                    <option value="half-shared">Half Shared (Toilet + Sink only)</option>
+                    <option value="shower-room">Shower Room (Shower + Sink)</option>
+                    <option value="wc">WC (Toilet only)</option>
+                    <option value="outdoor">Outdoor Shower</option>
+                </select>
+            </div>
+            
+            <div class="form-group" style="margin-bottom: 1rem;">
+                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                    <input type="checkbox" id="bathroom-is-ensuite" style="width: 18px; height: 18px;">
+                    <span>This is an Ensuite (attached to bedroom)</span>
+                </label>
+            </div>
+            
+            <div id="ensuite-bedroom-link-section" style="display: none; margin-bottom: 1rem; padding: 1rem; background: var(--background); border-radius: 8px;">
+                <label class="form-label">Linked to Bedroom</label>
+                <select class="form-input" id="bathroom-linked-bedroom">
+                    <option value="">Select bedroom...</option>
+                </select>
+            </div>
+            
+            <div class="form-group" style="margin-bottom: 1rem;">
+                <label class="form-label">Features</label>
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem;">
+                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                        <input type="checkbox" id="bath-feat-shower" style="width: 16px; height: 16px;">
+                        <span style="font-size: 0.9rem;">Shower</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                        <input type="checkbox" id="bath-feat-bathtub" style="width: 16px; height: 16px;">
+                        <span style="font-size: 0.9rem;">Bathtub</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                        <input type="checkbox" id="bath-feat-rainfall" style="width: 16px; height: 16px;">
+                        <span style="font-size: 0.9rem;">Rainfall Shower</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                        <input type="checkbox" id="bath-feat-walkin" style="width: 16px; height: 16px;">
+                        <span style="font-size: 0.9rem;">Walk-in Shower</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                        <input type="checkbox" id="bath-feat-jacuzzi" style="width: 16px; height: 16px;">
+                        <span style="font-size: 0.9rem;">Jacuzzi/Spa</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                        <input type="checkbox" id="bath-feat-bidet" style="width: 16px; height: 16px;">
+                        <span style="font-size: 0.9rem;">Bidet</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                        <input type="checkbox" id="bath-feat-heated-floor" style="width: 16px; height: 16px;">
+                        <span style="font-size: 0.9rem;">Heated Floor</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                        <input type="checkbox" id="bath-feat-double-vanity" style="width: 16px; height: 16px;">
+                        <span style="font-size: 0.9rem;">Double Vanity</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                        <input type="checkbox" id="bath-feat-accessible" style="width: 16px; height: 16px;">
+                        <span style="font-size: 0.9rem;">Accessible</span>
+                    </label>
+                </div>
+            </div>
+            
+            <div class="form-group" style="margin-bottom: 1rem;">
+                <label class="form-label">Description (optional)</label>
+                <textarea class="form-input" id="bathroom-description" rows="2" placeholder="Any special features or notes about this bathroom..."></textarea>
+            </div>
+        </div>
+        <div style="padding: 1rem 1.5rem; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 0.5rem;">
+            <button class="btn btn-secondary" onclick="closeBathroomModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="saveBathroom()">Save Bathroom</button>
+        </div>
+    </div>
+</div>
+
     <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
         // =====================================================
         // AUTHENTICATION
@@ -20971,16 +21180,18 @@ Local honey and preserves"></textarea>
             
             // Reset room-specific amenities display
             const roomList = document.getElementById('room-amenities-list');
-            const bathroomList = document.getElementById('bathroom-amenities-list');
             const featuresList = document.getElementById('features-amenities-list');
             if (roomList) roomList.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 1rem;">Select a room to load amenities</p>';
-            if (bathroomList) bathroomList.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 1rem;">Select a room to load amenities</p>';
             if (featuresList) featuresList.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 1rem;">Select a room to load amenities</p>';
             
             if (!propertyId) return;
             
             // Load property-level terms
             await loadPropertyTerms(propertyId);
+            
+            // Load bedrooms and bathrooms for this property
+            if (typeof loadBedrooms === 'function') await loadBedrooms(propertyId);
+            if (typeof loadBathrooms === 'function') await loadBathrooms(propertyId);
             
             try {
                 const response = await fetch(`/api/db/bookable-units?property_id=${propertyId}`);
@@ -21239,6 +21450,496 @@ Local honey and preserves"></textarea>
                 }
             }
         });
+        
+        // =========================================================
+        // NEW BEDROOM MODAL FUNCTIONS
+        // =========================================================
+        
+        let currentPropertyIdForBedrooms = null;
+        let currentRoomIdForBedrooms = null;
+        let bedroomsData = [];
+        let bathroomsData = [];
+        
+        function openBedroomModal(bedroomId = null) {
+            const modal = document.getElementById('bedroom-modal');
+            modal.style.display = 'flex';
+            
+            // Reset form
+            document.getElementById('bedroom-edit-id').value = bedroomId || '';
+            document.getElementById('bedroom-name').value = '';
+            document.getElementById('bedroom-has-ensuite').checked = false;
+            document.getElementById('bedroom-ensuite-bathroom').value = '';
+            document.getElementById('bedroom-description').value = '';
+            document.getElementById('ensuite-link-section').style.display = 'none';
+            
+            // Reset bed config to one empty row
+            const bedsContainer = document.getElementById('bedroom-beds-config');
+            bedsContainer.innerHTML = `
+                <div class="bed-config-row" style="display: grid; grid-template-columns: 1fr auto auto; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem;">
+                    <select class="form-input bed-type-modal">
+                        <option value="">Select bed type...</option>
+                        <option value="king">King Bed</option>
+                        <option value="super-king">Super King Bed</option>
+                        <option value="queen">Queen Bed</option>
+                        <option value="double">Double Bed</option>
+                        <option value="single">Single/Twin Bed</option>
+                        <option value="sofa-bed">Sofa Bed</option>
+                        <option value="bunk">Bunk Bed</option>
+                        <option value="murphy">Murphy Bed</option>
+                        <option value="daybed">Daybed</option>
+                        <option value="trundle">Trundle Bed</option>
+                        <option value="cot">Cot/Crib</option>
+                        <option value="toddler">Toddler Bed</option>
+                        <option value="air-mattress">Air Mattress</option>
+                        <option value="futon">Futon</option>
+                        <option value="floor-mattress">Floor Mattress</option>
+                    </select>
+                    <input type="number" class="form-input bed-qty-modal" min="1" max="10" value="1" style="width: 60px;">
+                    <button type="button" onclick="removeBedroomBedRow(this)" style="background: none; border: none; color: var(--error); cursor: pointer; font-size: 1.2rem;">🗑️</button>
+                </div>
+            `;
+            
+            // Populate ensuite bathroom dropdown
+            populateEnsuiteBathroomDropdown();
+            
+            // If editing, load existing data
+            if (bedroomId) {
+                document.getElementById('bedroom-modal-title').textContent = '🛏️ Edit Bedroom';
+                const bedroom = bedroomsData.find(b => b.id == bedroomId);
+                if (bedroom) {
+                    document.getElementById('bedroom-name').value = bedroom.name || '';
+                    document.getElementById('bedroom-has-ensuite').checked = bedroom.has_ensuite || false;
+                    document.getElementById('bedroom-ensuite-bathroom').value = bedroom.ensuite_bathroom_id || '';
+                    document.getElementById('bedroom-description').value = bedroom.description || '';
+                    
+                    if (bedroom.has_ensuite) {
+                        document.getElementById('ensuite-link-section').style.display = 'block';
+                    }
+                    
+                    // Load bed config
+                    const bedConfig = typeof bedroom.bed_config === 'string' ? JSON.parse(bedroom.bed_config) : (bedroom.bed_config || []);
+                    if (bedConfig.length > 0) {
+                        bedsContainer.innerHTML = '';
+                        bedConfig.forEach(bed => {
+                            addBedroomBedRow(bed.type, bed.qty || bed.quantity || 1);
+                        });
+                    }
+                }
+            } else {
+                document.getElementById('bedroom-modal-title').textContent = '🛏️ Add Bedroom';
+            }
+            
+            // Toggle ensuite section visibility
+            document.getElementById('bedroom-has-ensuite').addEventListener('change', function() {
+                document.getElementById('ensuite-link-section').style.display = this.checked ? 'block' : 'none';
+            });
+        }
+        
+        function closeBedroomModal() {
+            document.getElementById('bedroom-modal').style.display = 'none';
+        }
+        
+        function addBedroomBedRow(type = '', qty = 1) {
+            const container = document.getElementById('bedroom-beds-config');
+            const row = document.createElement('div');
+            row.className = 'bed-config-row';
+            row.style.cssText = 'display: grid; grid-template-columns: 1fr auto auto; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem;';
+            row.innerHTML = `
+                <select class="form-input bed-type-modal">
+                    <option value="">Select bed type...</option>
+                    <option value="king" ${type === 'king' ? 'selected' : ''}>King Bed</option>
+                    <option value="super-king" ${type === 'super-king' ? 'selected' : ''}>Super King Bed</option>
+                    <option value="queen" ${type === 'queen' ? 'selected' : ''}>Queen Bed</option>
+                    <option value="double" ${type === 'double' ? 'selected' : ''}>Double Bed</option>
+                    <option value="single" ${type === 'single' ? 'selected' : ''}>Single/Twin Bed</option>
+                    <option value="sofa-bed" ${type === 'sofa-bed' ? 'selected' : ''}>Sofa Bed</option>
+                    <option value="bunk" ${type === 'bunk' ? 'selected' : ''}>Bunk Bed</option>
+                    <option value="murphy" ${type === 'murphy' ? 'selected' : ''}>Murphy Bed</option>
+                    <option value="daybed" ${type === 'daybed' ? 'selected' : ''}>Daybed</option>
+                    <option value="trundle" ${type === 'trundle' ? 'selected' : ''}>Trundle Bed</option>
+                    <option value="cot" ${type === 'cot' ? 'selected' : ''}>Cot/Crib</option>
+                    <option value="toddler" ${type === 'toddler' ? 'selected' : ''}>Toddler Bed</option>
+                    <option value="air-mattress" ${type === 'air-mattress' ? 'selected' : ''}>Air Mattress</option>
+                    <option value="futon" ${type === 'futon' ? 'selected' : ''}>Futon</option>
+                    <option value="floor-mattress" ${type === 'floor-mattress' ? 'selected' : ''}>Floor Mattress</option>
+                </select>
+                <input type="number" class="form-input bed-qty-modal" min="1" max="10" value="${qty}" style="width: 60px;">
+                <button type="button" onclick="removeBedroomBedRow(this)" style="background: none; border: none; color: var(--error); cursor: pointer; font-size: 1.2rem;">🗑️</button>
+            `;
+            container.appendChild(row);
+        }
+        
+        function removeBedroomBedRow(btn) {
+            const row = btn.closest('.bed-config-row');
+            const container = document.getElementById('bedroom-beds-config');
+            if (container.querySelectorAll('.bed-config-row').length > 1) {
+                row.remove();
+            }
+        }
+        
+        function populateEnsuiteBathroomDropdown() {
+            const select = document.getElementById('bedroom-ensuite-bathroom');
+            select.innerHTML = '<option value="">Select ensuite bathroom...</option>';
+            bathroomsData.filter(b => !b.linked_bedroom_id).forEach(bath => {
+                select.innerHTML += `<option value="${bath.id}">${bath.name || bath.bathroom_type}</option>`;
+            });
+        }
+        
+        async function saveBedroom() {
+            const editId = document.getElementById('bedroom-edit-id').value;
+            const name = document.getElementById('bedroom-name').value.trim();
+            
+            if (!name) {
+                alert('Please enter a bedroom name');
+                return;
+            }
+            
+            // Collect bed config
+            const bedConfig = [];
+            document.querySelectorAll('#bedroom-beds-config .bed-config-row').forEach(row => {
+                const type = row.querySelector('.bed-type-modal').value;
+                const qty = parseInt(row.querySelector('.bed-qty-modal').value) || 1;
+                if (type) {
+                    bedConfig.push({ type, qty });
+                }
+            });
+            
+            const data = {
+                name,
+                bed_config: bedConfig,
+                has_ensuite: document.getElementById('bedroom-has-ensuite').checked,
+                ensuite_bathroom_id: document.getElementById('bedroom-ensuite-bathroom').value || null,
+                description: document.getElementById('bedroom-description').value.trim(),
+                room_id: currentRoomIdForBedrooms
+            };
+            
+            try {
+                let response;
+                if (editId) {
+                    response = await fetch(`/api/admin/bedrooms/${editId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                        body: JSON.stringify(data)
+                    });
+                } else {
+                    response = await fetch(`/api/admin/properties/${currentPropertyIdForBedrooms}/bedrooms`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                        body: JSON.stringify(data)
+                    });
+                }
+                
+                const result = await response.json();
+                if (result.success) {
+                    closeBedroomModal();
+                    loadBedrooms(currentPropertyIdForBedrooms, currentRoomIdForBedrooms);
+                } else {
+                    alert('Error: ' + (result.error || 'Failed to save bedroom'));
+                }
+            } catch (error) {
+                console.error('Error saving bedroom:', error);
+                alert('Error saving bedroom');
+            }
+        }
+        
+        async function loadBedrooms(propertyId, roomId = null) {
+            currentPropertyIdForBedrooms = propertyId;
+            currentRoomIdForBedrooms = roomId;
+            
+            try {
+                const url = roomId 
+                    ? `/api/admin/properties/${propertyId}/bedrooms?room_id=${roomId}`
+                    : `/api/admin/properties/${propertyId}/bedrooms`;
+                    
+                const response = await fetch(url, { headers: authHeaders() });
+                const result = await response.json();
+                
+                if (result.success) {
+                    bedroomsData = result.bedrooms || [];
+                    renderBedroomsList(bedroomsData);
+                    
+                    // Load bedroom amenities checkboxes
+                    const amenities = result.bedroom_amenities || {};
+                    Object.keys(amenities).forEach(key => {
+                        const checkbox = document.getElementById(`bedroom-${key}`);
+                        if (checkbox) checkbox.checked = amenities[key];
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading bedrooms:', error);
+            }
+        }
+        
+        function renderBedroomsList(bedrooms) {
+            const container = document.getElementById('bedrooms-list');
+            
+            if (!bedrooms || bedrooms.length === 0) {
+                container.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 2rem;">No bedrooms configured yet. Click "Add Bedroom" to get started.</p>';
+                return;
+            }
+            
+            container.innerHTML = bedrooms.map(bedroom => {
+                const bedConfig = typeof bedroom.bed_config === 'string' ? JSON.parse(bedroom.bed_config) : (bedroom.bed_config || []);
+                const bedSummary = bedConfig.map(b => {
+                    const bedNames = {
+                        'king': 'King', 'super-king': 'Super King', 'queen': 'Queen', 'double': 'Double',
+                        'single': 'Single', 'sofa-bed': 'Sofa Bed', 'bunk': 'Bunk', 'murphy': 'Murphy',
+                        'daybed': 'Daybed', 'trundle': 'Trundle', 'cot': 'Cot', 'toddler': 'Toddler',
+                        'air-mattress': 'Air Mattress', 'futon': 'Futon', 'floor-mattress': 'Floor Mattress'
+                    };
+                    return `${b.qty || 1}× ${bedNames[b.type] || b.type}`;
+                }).join(', ') || 'No beds configured';
+                
+                return `
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; background: var(--background); border-radius: 8px; margin-bottom: 0.5rem;">
+                        <div>
+                            <strong style="font-size: 1rem;">${bedroom.name}</strong>
+                            ${bedroom.has_ensuite ? '<span style="background: var(--primary); color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; margin-left: 0.5rem;">Ensuite</span>' : ''}
+                            <div style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 0.25rem;">🛏️ ${bedSummary}</div>
+                            ${bedroom.description ? `<div style="color: var(--text-secondary); font-size: 0.8rem; margin-top: 0.25rem; font-style: italic;">${bedroom.description}</div>` : ''}
+                        </div>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button class="btn btn-secondary btn-small" onclick="openBedroomModal(${bedroom.id})">Edit</button>
+                            <button class="btn btn-secondary btn-small" onclick="deleteBedroom(${bedroom.id})" style="color: var(--error);">Delete</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        async function deleteBedroom(bedroomId) {
+            if (!confirm('Are you sure you want to delete this bedroom?')) return;
+            
+            try {
+                const response = await fetch(`/api/admin/bedrooms/${bedroomId}`, {
+                    method: 'DELETE',
+                    headers: authHeaders()
+                });
+                const result = await response.json();
+                if (result.success) {
+                    loadBedrooms(currentPropertyIdForBedrooms, currentRoomIdForBedrooms);
+                }
+            } catch (error) {
+                console.error('Error deleting bedroom:', error);
+            }
+        }
+        
+        // =========================================================
+        // NEW BATHROOM MODAL FUNCTIONS
+        // =========================================================
+        
+        function openBathroomModal(bathroomId = null) {
+            const modal = document.getElementById('bathroom-modal');
+            modal.style.display = 'flex';
+            
+            // Reset form
+            document.getElementById('bathroom-edit-id').value = bathroomId || '';
+            document.getElementById('bathroom-name').value = '';
+            document.getElementById('bathroom-location').value = '';
+            document.getElementById('bathroom-type').value = '';
+            document.getElementById('bathroom-is-ensuite').checked = false;
+            document.getElementById('bathroom-linked-bedroom').value = '';
+            document.getElementById('bathroom-description').value = '';
+            document.getElementById('ensuite-bedroom-link-section').style.display = 'none';
+            
+            // Reset feature checkboxes
+            ['shower', 'bathtub', 'rainfall', 'walkin', 'jacuzzi', 'bidet', 'heated-floor', 'double-vanity', 'accessible'].forEach(feat => {
+                const cb = document.getElementById(`bath-feat-${feat}`);
+                if (cb) cb.checked = false;
+            });
+            
+            // Populate bedroom dropdown
+            populateLinkedBedroomDropdown();
+            
+            // If editing, load existing data
+            if (bathroomId) {
+                document.getElementById('bathroom-modal-title').textContent = '🚿 Edit Bathroom';
+                const bathroom = bathroomsData.find(b => b.id == bathroomId);
+                if (bathroom) {
+                    document.getElementById('bathroom-name').value = bathroom.name || '';
+                    document.getElementById('bathroom-location').value = bathroom.location || '';
+                    document.getElementById('bathroom-type').value = bathroom.bathroom_type || '';
+                    document.getElementById('bathroom-is-ensuite').checked = bathroom.is_ensuite || false;
+                    document.getElementById('bathroom-linked-bedroom').value = bathroom.linked_bedroom_id || '';
+                    document.getElementById('bathroom-description').value = bathroom.description || '';
+                    
+                    if (bathroom.is_ensuite) {
+                        document.getElementById('ensuite-bedroom-link-section').style.display = 'block';
+                    }
+                    
+                    // Load features
+                    const features = typeof bathroom.features === 'string' ? JSON.parse(bathroom.features) : (bathroom.features || {});
+                    Object.keys(features).forEach(key => {
+                        const cb = document.getElementById(`bath-feat-${key}`);
+                        if (cb) cb.checked = features[key];
+                    });
+                }
+            } else {
+                document.getElementById('bathroom-modal-title').textContent = '🚿 Add Bathroom';
+            }
+            
+            // Toggle ensuite section visibility
+            document.getElementById('bathroom-is-ensuite').addEventListener('change', function() {
+                document.getElementById('ensuite-bedroom-link-section').style.display = this.checked ? 'block' : 'none';
+            });
+        }
+        
+        function closeBathroomModal() {
+            document.getElementById('bathroom-modal').style.display = 'none';
+        }
+        
+        function populateLinkedBedroomDropdown() {
+            const select = document.getElementById('bathroom-linked-bedroom');
+            select.innerHTML = '<option value="">Select bedroom...</option>';
+            bedroomsData.forEach(bedroom => {
+                select.innerHTML += `<option value="${bedroom.id}">${bedroom.name}</option>`;
+            });
+        }
+        
+        async function saveBathroom() {
+            const editId = document.getElementById('bathroom-edit-id').value;
+            const name = document.getElementById('bathroom-name').value.trim();
+            const bathroomType = document.getElementById('bathroom-type').value;
+            
+            if (!name) {
+                alert('Please enter a bathroom name');
+                return;
+            }
+            if (!bathroomType) {
+                alert('Please select a bathroom type');
+                return;
+            }
+            
+            // Collect features
+            const features = {};
+            ['shower', 'bathtub', 'rainfall', 'walkin', 'jacuzzi', 'bidet', 'heated-floor', 'double-vanity', 'accessible'].forEach(feat => {
+                const cb = document.getElementById(`bath-feat-${feat}`);
+                if (cb) features[feat] = cb.checked;
+            });
+            
+            const data = {
+                name,
+                bathroom_type: bathroomType,
+                location: document.getElementById('bathroom-location').value.trim(),
+                is_ensuite: document.getElementById('bathroom-is-ensuite').checked,
+                linked_bedroom_id: document.getElementById('bathroom-linked-bedroom').value || null,
+                features,
+                description: document.getElementById('bathroom-description').value.trim(),
+                quantity: 1,
+                room_id: currentRoomIdForBedrooms
+            };
+            
+            try {
+                let response;
+                if (editId) {
+                    response = await fetch(`/api/admin/bathrooms/${editId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                        body: JSON.stringify(data)
+                    });
+                } else {
+                    response = await fetch(`/api/admin/properties/${currentPropertyIdForBedrooms}/bathrooms-detailed`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                        body: JSON.stringify(data)
+                    });
+                }
+                
+                const result = await response.json();
+                if (result.success) {
+                    closeBathroomModal();
+                    loadBathrooms(currentPropertyIdForBedrooms, currentRoomIdForBedrooms);
+                } else {
+                    alert('Error: ' + (result.error || 'Failed to save bathroom'));
+                }
+            } catch (error) {
+                console.error('Error saving bathroom:', error);
+                alert('Error saving bathroom');
+            }
+        }
+        
+        async function loadBathrooms(propertyId, roomId = null) {
+            try {
+                const url = roomId 
+                    ? `/api/admin/properties/${propertyId}/bathrooms-detailed?room_id=${roomId}`
+                    : `/api/admin/properties/${propertyId}/bathrooms-detailed`;
+                    
+                const response = await fetch(url, { headers: authHeaders() });
+                const result = await response.json();
+                
+                if (result.success) {
+                    bathroomsData = result.bathrooms || [];
+                    renderBathroomsList(bathroomsData);
+                    
+                    // Load bathroom amenities checkboxes
+                    const amenities = result.bathroom_amenities || {};
+                    Object.keys(amenities).forEach(key => {
+                        const checkbox = document.getElementById(`bath-${key}`);
+                        if (checkbox) checkbox.checked = amenities[key];
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading bathrooms:', error);
+            }
+        }
+        
+        function renderBathroomsList(bathrooms) {
+            const container = document.getElementById('bathrooms-list');
+            
+            if (!bathrooms || bathrooms.length === 0) {
+                container.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 2rem;">No bathrooms configured yet. Click "Add Bathroom" to get started.</p>';
+                return;
+            }
+            
+            const typeNames = {
+                'full-private': 'Full Private', 'full-shared': 'Full Shared',
+                'half-private': 'Half Private', 'half-shared': 'Half Shared',
+                'shower-room': 'Shower Room', 'wc': 'WC', 'outdoor': 'Outdoor Shower',
+                'full-ensuite': 'Full Ensuite', 'half-ensuite': 'Half Ensuite',
+                'full-adjacent': 'Full Adjacent'
+            };
+            
+            container.innerHTML = bathrooms.map(bathroom => {
+                const features = typeof bathroom.features === 'string' ? JSON.parse(bathroom.features) : (bathroom.features || {});
+                const activeFeatures = Object.entries(features).filter(([k, v]) => v).map(([k]) => {
+                    const names = { 'shower': 'Shower', 'bathtub': 'Bathtub', 'rainfall': 'Rainfall', 'walkin': 'Walk-in', 'jacuzzi': 'Jacuzzi', 'bidet': 'Bidet', 'heated-floor': 'Heated Floor', 'double-vanity': 'Double Vanity', 'accessible': 'Accessible' };
+                    return names[k] || k;
+                });
+                
+                return `
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; background: var(--background); border-radius: 8px; margin-bottom: 0.5rem;">
+                        <div>
+                            <strong style="font-size: 1rem;">${bathroom.name || typeNames[bathroom.bathroom_type] || bathroom.bathroom_type}</strong>
+                            ${bathroom.is_ensuite ? '<span style="background: var(--primary); color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; margin-left: 0.5rem;">Ensuite</span>' : ''}
+                            ${bathroom.location ? `<span style="color: var(--text-secondary); font-size: 0.85rem; margin-left: 0.5rem;">📍 ${bathroom.location}</span>` : ''}
+                            <div style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 0.25rem;">${typeNames[bathroom.bathroom_type] || bathroom.bathroom_type}</div>
+                            ${activeFeatures.length > 0 ? `<div style="color: var(--text-secondary); font-size: 0.8rem; margin-top: 0.25rem;">✨ ${activeFeatures.join(', ')}</div>` : ''}
+                        </div>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button class="btn btn-secondary btn-small" onclick="openBathroomModal(${bathroom.id})">Edit</button>
+                            <button class="btn btn-secondary btn-small" onclick="deleteBathroom(${bathroom.id})" style="color: var(--error);">Delete</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        async function deleteBathroom(bathroomId) {
+            if (!confirm('Are you sure you want to delete this bathroom?')) return;
+            
+            try {
+                const response = await fetch(`/api/admin/bathrooms/${bathroomId}`, {
+                    method: 'DELETE',
+                    headers: authHeaders()
+                });
+                const result = await response.json();
+                if (result.success) {
+                    loadBathrooms(currentPropertyIdForBedrooms, currentRoomIdForBedrooms);
+                }
+            } catch (error) {
+                console.error('Error deleting bathroom:', error);
+            }
+        }
         
         // Save all amenities (Terms & Policies)
         async function saveAllAmenities() {
