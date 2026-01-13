@@ -33628,7 +33628,8 @@ Local honey and preserves"></textarea>
                 if (clientId) params.push(`client_id=${clientId}`);
                 if (propertyId) params.push(`property_id=${propertyId}`);
                 params.push('content_type=blog');
-                params.push('status=active');
+                // Include both 'active' and 'idea' status
+                params.push('status=active,idea');
                 
                 const url = '/api/admin/content-ideas?' + params.join('&');
                 const response = await fetch(url, { headers: authHeaders() });
@@ -33806,7 +33807,7 @@ Local honey and preserves"></textarea>
                 if (clientId) params.push(`client_id=${clientId}`);
                 if (propertyId) params.push(`property_id=${propertyId}`);
                 params.push('content_type=blog');
-                params.push('status=active');
+                params.push('status=active,idea');
                 
                 const ideasRes = await fetch('/api/admin/content-ideas?' + params.join('&'), { headers: authHeaders() });
                 const ideasData = await ideasRes.json();
