@@ -36,6 +36,44 @@
             --sidebar-active: #6366f1;
         }
 
+        /* Modal Overlay Styles */
+        .gas-modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 99999;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .gas-modal-overlay.active {
+            display: flex !important;
+        }
+        .gas-modal-overlay > div {
+            background: var(--bg-card, #fff);
+            border-radius: 12px;
+            max-width: 600px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            animation: modalSlideIn 0.2s ease-out;
+        }
+        @keyframes modalSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
         /* Website Editor Tabs */
         .editor-tab.active {
             color: #7c3aed !important;
@@ -15320,7 +15358,7 @@ Local honey and preserves"></textarea>
     </div>
 
 <!-- Bedroom Modal -->
-<div id="bedroom-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center;">
+<div id="bedroom-modal" class="gas-modal-overlay">
     <div style="background: var(--surface); border-radius: 12px; max-width: 600px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
         <div style="padding: 1.5rem; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
             <h3 id="bedroom-modal-title" style="margin: 0; font-size: 1.25rem;">🛏️ Add Bedroom</h3>
@@ -15391,7 +15429,7 @@ Local honey and preserves"></textarea>
 </div>
 
 <!-- Bathroom Modal -->
-<div id="bathroom-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center;">
+<div id="bathroom-modal" class="gas-modal-overlay">
     <div style="background: var(--surface); border-radius: 12px; max-width: 600px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
         <div style="padding: 1.5rem; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
             <h3 id="bathroom-modal-title" style="margin: 0; font-size: 1.25rem;">🚿 Add Bathroom</h3>
@@ -21462,7 +21500,7 @@ Local honey and preserves"></textarea>
         
         function openBedroomModal(bedroomId = null) {
             const modal = document.getElementById('bedroom-modal');
-            modal.style.display = 'flex';
+            modal.classList.add('active');
             
             // Reset form
             document.getElementById('bedroom-edit-id').value = bedroomId || '';
@@ -21536,7 +21574,7 @@ Local honey and preserves"></textarea>
         }
         
         function closeBedroomModal() {
-            document.getElementById('bedroom-modal').style.display = 'none';
+            document.getElementById('bedroom-modal').classList.remove('active');
         }
         
         function addBedroomBedRow(type = '', qty = 1) {
@@ -21730,7 +21768,7 @@ Local honey and preserves"></textarea>
         
         function openBathroomModal(bathroomId = null) {
             const modal = document.getElementById('bathroom-modal');
-            modal.style.display = 'flex';
+            modal.classList.add('active');
             
             // Reset form
             document.getElementById('bathroom-edit-id').value = bathroomId || '';
@@ -21785,7 +21823,7 @@ Local honey and preserves"></textarea>
         }
         
         function closeBathroomModal() {
-            document.getElementById('bathroom-modal').style.display = 'none';
+            document.getElementById('bathroom-modal').classList.remove('active');
         }
         
         function populateLinkedBedroomDropdown() {
