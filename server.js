@@ -1006,6 +1006,51 @@ async function runMigrations() {
       console.log('ℹ️  vendor_service_requests table:', vendorRequestError.message);
     }
     
+    // Detailed bedroom configuration table
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS property_bedrooms (
+          id SERIAL PRIMARY KEY,
+          property_id INTEGER REFERENCES properties(id) ON DELETE CASCADE,
+          room_id INTEGER REFERENCES bookable_units(id) ON DELETE CASCADE,
+          name VARCHAR(100) NOT NULL,
+          bed_config JSONB,
+          has_ensuite BOOLEAN DEFAULT false,
+          ensuite_bathroom_id INTEGER,
+          description TEXT,
+          display_order INTEGER DEFAULT 0,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_property_bedrooms_property ON property_bedrooms(property_id)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_property_bedrooms_room ON property_bedrooms(room_id)`);
+      console.log('✅ property_bedrooms table ensured');
+    } catch (bedroomsTableError) {
+      console.log('ℹ️  property_bedrooms table:', bedroomsTableError.message);
+    }
+
+    // Bedroom amenities (applies to all bedrooms) - stored in property_terms or separate
+    try {
+      await pool.query(`ALTER TABLE property_terms ADD COLUMN IF NOT EXISTS bedroom_amenities JSONB`);
+      console.log('✅ property_terms.bedroom_amenities column ensured');
+    } catch (bedroomAmenitiesError) {
+      console.log('ℹ️  property_terms.bedroom_amenities:', bedroomAmenitiesError.message);
+    }
+
+    // Enhance property_bathrooms table with more detail
+    try {
+      await pool.query(`ALTER TABLE property_bathrooms ADD COLUMN IF NOT EXISTS name VARCHAR(100)`);
+      await pool.query(`ALTER TABLE property_bathrooms ADD COLUMN IF NOT EXISTS location VARCHAR(100)`);
+      await pool.query(`ALTER TABLE property_bathrooms ADD COLUMN IF NOT EXISTS is_ensuite BOOLEAN DEFAULT false`);
+      await pool.query(`ALTER TABLE property_bathrooms ADD COLUMN IF NOT EXISTS linked_bedroom_id INTEGER`);
+      await pool.query(`ALTER TABLE property_bathrooms ADD COLUMN IF NOT EXISTS features JSONB`);
+      await pool.query(`ALTER TABLE property_bathrooms ADD COLUMN IF NOT EXISTS description TEXT`);
+      console.log('✅ property_bathrooms enhanced columns ensured');
+    } catch (bathroomEnhanceError) {
+      console.log('ℹ️  property_bathrooms enhance:', bathroomEnhanceError.message);
+    }
+
     // Property bathrooms table (like property_beds but for bathrooms)
     try {
       await pool.query(`
@@ -25375,6 +25420,343 @@ app.put('/api/admin/properties/:id/terms', async (req, res) => {
     client.release();
   }
 });
+
+// =========================================================
+// BEDROOM CONFIGURATION API
+// =========================================================
+
+// GET /api/admin/properties/:id/bedrooms - Get all bedrooms for property
+app.get('/api/admin/properties/:id/bedrooms', async (req, res) => {
+  try {
+    const propertyId = req.params.id;
+    const roomId = req.query.room_id;
+    
+    let query = `
+      SELECT pb.*, 
+        (SELECT name FROM property_bathrooms WHERE id = pb.ensuite_bathroom_id) as ensuite_bathroom_name
+      FROM property_bedrooms pb
+      WHERE pb.property_id = $1
+    `;
+    const params = [propertyId];
+    
+    if (roomId) {
+      query += ` AND pb.room_id = $2`;
+      params.push(roomId);
+    } else {
+      query += ` AND pb.room_id IS NULL`;
+    }
+    
+    query += ` ORDER BY pb.display_order, pb.id`;
+    
+    const result = await pool.query(query, params);
+    
+    // Also get bedroom amenities from property_terms
+    const termsResult = await pool.query(
+      'SELECT bedroom_amenities FROM property_terms WHERE property_id = $1',
+      [propertyId]
+    );
+    
+    res.json({ 
+      success: true, 
+      bedrooms: result.rows,
+      bedroom_amenities: termsResult.rows[0]?.bedroom_amenities || {}
+    });
+  } catch (error) {
+    console.error('Error fetching bedrooms:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/admin/properties/:id/bedrooms - Create a bedroom
+app.post('/api/admin/properties/:id/bedrooms', async (req, res) => {
+  try {
+    const propertyId = req.params.id;
+    const { room_id, name, bed_config, has_ensuite, ensuite_bathroom_id, description, display_order } = req.body;
+    
+    const result = await pool.query(`
+      INSERT INTO property_bedrooms (property_id, room_id, name, bed_config, has_ensuite, ensuite_bathroom_id, description, display_order)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING *
+    `, [
+      propertyId,
+      room_id || null,
+      name,
+      JSON.stringify(bed_config || []),
+      has_ensuite || false,
+      ensuite_bathroom_id || null,
+      description || null,
+      display_order || 0
+    ]);
+    
+    // Update num_bedrooms count on bookable_units
+    await updateBedroomCount(propertyId, room_id);
+    
+    res.json({ success: true, bedroom: result.rows[0] });
+  } catch (error) {
+    console.error('Error creating bedroom:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/admin/bedrooms/:id - Update a bedroom
+app.put('/api/admin/bedrooms/:id', async (req, res) => {
+  try {
+    const bedroomId = req.params.id;
+    const { name, bed_config, has_ensuite, ensuite_bathroom_id, description, display_order } = req.body;
+    
+    const result = await pool.query(`
+      UPDATE property_bedrooms 
+      SET name = $1, bed_config = $2, has_ensuite = $3, ensuite_bathroom_id = $4, description = $5, display_order = $6, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $7
+      RETURNING *
+    `, [
+      name,
+      JSON.stringify(bed_config || []),
+      has_ensuite || false,
+      ensuite_bathroom_id || null,
+      description || null,
+      display_order || 0,
+      bedroomId
+    ]);
+    
+    if (result.rows.length > 0) {
+      await updateBedroomCount(result.rows[0].property_id, result.rows[0].room_id);
+    }
+    
+    res.json({ success: true, bedroom: result.rows[0] });
+  } catch (error) {
+    console.error('Error updating bedroom:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// DELETE /api/admin/bedrooms/:id - Delete a bedroom
+app.delete('/api/admin/bedrooms/:id', async (req, res) => {
+  try {
+    const bedroomId = req.params.id;
+    
+    // Get property_id before deleting
+    const existing = await pool.query('SELECT property_id, room_id FROM property_bedrooms WHERE id = $1', [bedroomId]);
+    
+    await pool.query('DELETE FROM property_bedrooms WHERE id = $1', [bedroomId]);
+    
+    if (existing.rows.length > 0) {
+      await updateBedroomCount(existing.rows[0].property_id, existing.rows[0].room_id);
+    }
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting bedroom:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/admin/properties/:id/bedroom-amenities - Save bedroom amenities
+app.put('/api/admin/properties/:id/bedroom-amenities', async (req, res) => {
+  try {
+    const propertyId = req.params.id;
+    const { bedroom_amenities } = req.body;
+    
+    await pool.query(`
+      INSERT INTO property_terms (property_id, bedroom_amenities)
+      VALUES ($1, $2)
+      ON CONFLICT (property_id) DO UPDATE SET bedroom_amenities = $2, updated_at = CURRENT_TIMESTAMP
+    `, [propertyId, JSON.stringify(bedroom_amenities)]);
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error saving bedroom amenities:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Helper function to update bedroom count
+async function updateBedroomCount(propertyId, roomId) {
+  try {
+    let query, params;
+    if (roomId) {
+      query = 'SELECT COUNT(*) as count FROM property_bedrooms WHERE property_id = $1 AND room_id = $2';
+      params = [propertyId, roomId];
+    } else {
+      query = 'SELECT COUNT(*) as count FROM property_bedrooms WHERE property_id = $1 AND room_id IS NULL';
+      params = [propertyId];
+    }
+    
+    const countResult = await pool.query(query, params);
+    const count = parseInt(countResult.rows[0]?.count || 0);
+    
+    if (roomId) {
+      await pool.query('UPDATE bookable_units SET num_bedrooms = $1 WHERE id = $2', [count, roomId]);
+    } else {
+      // Update all rooms for this property that don't have room-specific bedrooms
+      await pool.query('UPDATE bookable_units SET num_bedrooms = $1 WHERE property_id = $2', [count, propertyId]);
+    }
+  } catch (e) {
+    console.log('Error updating bedroom count:', e.message);
+  }
+}
+
+// =========================================================
+// ENHANCED BATHROOM CONFIGURATION API
+// =========================================================
+
+// GET /api/admin/properties/:id/bathrooms-detailed - Get detailed bathrooms for property
+app.get('/api/admin/properties/:id/bathrooms-detailed', async (req, res) => {
+  try {
+    const propertyId = req.params.id;
+    const roomId = req.query.room_id;
+    
+    let query = `
+      SELECT pb.*,
+        (SELECT name FROM property_bedrooms WHERE id = pb.linked_bedroom_id) as linked_bedroom_name
+      FROM property_bathrooms pb
+      WHERE pb.property_id = $1
+    `;
+    const params = [propertyId];
+    
+    if (roomId) {
+      query += ` AND pb.room_id = $2`;
+      params.push(roomId);
+    } else {
+      query += ` AND pb.room_id IS NULL`;
+    }
+    
+    query += ` ORDER BY pb.display_order, pb.id`;
+    
+    const result = await pool.query(query, params);
+    
+    // Also get bathroom amenities from property_terms
+    const termsResult = await pool.query(
+      'SELECT bathroom_features FROM property_terms WHERE property_id = $1',
+      [propertyId]
+    );
+    
+    res.json({ 
+      success: true, 
+      bathrooms: result.rows,
+      bathroom_amenities: termsResult.rows[0]?.bathroom_features || {}
+    });
+  } catch (error) {
+    console.error('Error fetching detailed bathrooms:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/admin/properties/:id/bathrooms-detailed - Create a detailed bathroom
+app.post('/api/admin/properties/:id/bathrooms-detailed', async (req, res) => {
+  try {
+    const propertyId = req.params.id;
+    const { room_id, name, bathroom_type, location, is_ensuite, linked_bedroom_id, features, description, quantity, display_order } = req.body;
+    
+    const result = await pool.query(`
+      INSERT INTO property_bathrooms (property_id, room_id, name, bathroom_type, location, is_ensuite, linked_bedroom_id, features, description, quantity, display_order)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      RETURNING *
+    `, [
+      propertyId,
+      room_id || null,
+      name || null,
+      bathroom_type,
+      location || null,
+      is_ensuite || false,
+      linked_bedroom_id || null,
+      JSON.stringify(features || {}),
+      description || null,
+      quantity || 1,
+      display_order || 0
+    ]);
+    
+    // Update num_bathrooms count on bookable_units
+    await updateBathroomCount(propertyId, room_id);
+    
+    res.json({ success: true, bathroom: result.rows[0] });
+  } catch (error) {
+    console.error('Error creating bathroom:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/admin/bathrooms/:id - Update a bathroom
+app.put('/api/admin/bathrooms/:id', async (req, res) => {
+  try {
+    const bathroomId = req.params.id;
+    const { name, bathroom_type, location, is_ensuite, linked_bedroom_id, features, description, quantity, display_order } = req.body;
+    
+    const result = await pool.query(`
+      UPDATE property_bathrooms 
+      SET name = $1, bathroom_type = $2, location = $3, is_ensuite = $4, linked_bedroom_id = $5, features = $6, description = $7, quantity = $8, display_order = $9
+      WHERE id = $10
+      RETURNING *
+    `, [
+      name || null,
+      bathroom_type,
+      location || null,
+      is_ensuite || false,
+      linked_bedroom_id || null,
+      JSON.stringify(features || {}),
+      description || null,
+      quantity || 1,
+      display_order || 0,
+      bathroomId
+    ]);
+    
+    if (result.rows.length > 0) {
+      await updateBathroomCount(result.rows[0].property_id, result.rows[0].room_id);
+    }
+    
+    res.json({ success: true, bathroom: result.rows[0] });
+  } catch (error) {
+    console.error('Error updating bathroom:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// DELETE /api/admin/bathrooms/:id - Delete a bathroom
+app.delete('/api/admin/bathrooms/:id', async (req, res) => {
+  try {
+    const bathroomId = req.params.id;
+    
+    // Get property_id before deleting
+    const existing = await pool.query('SELECT property_id, room_id FROM property_bathrooms WHERE id = $1', [bathroomId]);
+    
+    await pool.query('DELETE FROM property_bathrooms WHERE id = $1', [bathroomId]);
+    
+    if (existing.rows.length > 0) {
+      await updateBathroomCount(existing.rows[0].property_id, existing.rows[0].room_id);
+    }
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting bathroom:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Helper function to update bathroom count
+async function updateBathroomCount(propertyId, roomId) {
+  try {
+    let query, params;
+    if (roomId) {
+      query = 'SELECT SUM(quantity) as count FROM property_bathrooms WHERE property_id = $1 AND room_id = $2';
+      params = [propertyId, roomId];
+    } else {
+      query = 'SELECT SUM(quantity) as count FROM property_bathrooms WHERE property_id = $1 AND room_id IS NULL';
+      params = [propertyId];
+    }
+    
+    const countResult = await pool.query(query, params);
+    const count = parseInt(countResult.rows[0]?.count || 0);
+    
+    if (roomId) {
+      await pool.query('UPDATE bookable_units SET num_bathrooms = $1 WHERE id = $2', [count, roomId]);
+    } else {
+      // Update all rooms for this property
+      await pool.query('UPDATE bookable_units SET num_bathrooms = $1 WHERE property_id = $2', [count, propertyId]);
+    }
+  } catch (e) {
+    console.log('Error updating bathroom count:', e.message);
+  }
+}
 
 // =========================================================
 // MARKETING FEATURES API (Property & Room Level)
