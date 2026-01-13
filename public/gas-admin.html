@@ -11443,6 +11443,14 @@ Local honey and preserves"></textarea>
             <div class="modal-body" style="padding: 1.5rem;">
                 <p style="color: #6b7280; margin-bottom: 1rem;">Add iCal feeds from local event calendars to generate blog ideas about upcoming events in your area.</p>
                 
+                <!-- Property selector -->
+                <div style="margin-bottom: 1rem;">
+                    <label class="form-label">Property</label>
+                    <select id="ical-property-select" class="form-input" style="width: 100%;">
+                        <option value="">All Properties</option>
+                    </select>
+                </div>
+                
                 <!-- Add new feed -->
                 <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
                     <input type="text" id="new-ical-url" class="form-input" placeholder="Paste iCal URL (.ics)" style="flex: 1;">
@@ -11471,6 +11479,14 @@ Local honey and preserves"></textarea>
             </div>
             <div class="modal-body" style="padding: 1.5rem;">
                 <p style="color: #6b7280; margin-bottom: 1rem;">Add RSS feeds from local news sources, tourism boards, or event sites to inspire blog content.</p>
+                
+                <!-- Property selector -->
+                <div style="margin-bottom: 1rem;">
+                    <label class="form-label">Property</label>
+                    <select id="rss-property-select" class="form-input" style="width: 100%;">
+                        <option value="">All Properties</option>
+                    </select>
+                </div>
                 
                 <!-- Add new feed -->
                 <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
@@ -33824,14 +33840,31 @@ Local honey and preserves"></textarea>
         
         // ===== iCal & RSS Feed Functions =====
         
-        function openIcalFeedsModal() {
+        async function openIcalFeedsModal() {
+            await populateFeedPropertySelect('ical-property-select');
             loadIcalFeeds();
             openModal('ical-feeds-modal');
         }
         
-        function openRssFeedsModal() {
+        async function openRssFeedsModal() {
+            await populateFeedPropertySelect('rss-property-select');
             loadRssFeeds();
             openModal('rss-feeds-modal');
+        }
+        
+        async function populateFeedPropertySelect(selectId) {
+            const select = document.getElementById(selectId);
+            select.innerHTML = '<option value="">All Properties</option>';
+            try {
+                const queryString = buildQueryString();
+                const response = await fetch(`/api/db/properties${queryString}`, { headers: authHeaders() });
+                const data = await response.json();
+                if (data.success && data.data) {
+                    data.data.forEach(p => {
+                        select.innerHTML += `<option value="${p.id}">${escapeHtml(p.name)}</option>`;
+                    });
+                }
+            } catch (e) {}
         }
         
         async function loadIcalFeeds() {
@@ -33847,7 +33880,10 @@ Local honey and preserves"></textarea>
                             <div style="flex: 1;">
                                 <div style="font-weight: 600;">${escapeHtml(feed.name)}</div>
                                 <div style="font-size: 0.8rem; color: #6b7280; word-break: break-all;">${escapeHtml(feed.url.substring(0, 50))}...</div>
-                                <div style="font-size: 0.75rem; color: #9ca3af;">${feed.last_fetched ? 'Last fetched: ' + formatTimeAgo(feed.last_fetched) : 'Never fetched'}</div>
+                                <div style="font-size: 0.75rem; color: #9ca3af;">
+                                    ${feed.property_name ? `<span style="color: #3b82f6;">📍 ${escapeHtml(feed.property_name)}</span> • ` : ''}
+                                    ${feed.last_fetched ? 'Last fetched: ' + formatTimeAgo(feed.last_fetched) : 'Never fetched'}
+                                </div>
                             </div>
                             <button onclick="deleteIcalFeed(${feed.id})" class="btn btn-sm" style="background: #fee2e2; color: #dc2626;">✕</button>
                         </div>
@@ -33873,7 +33909,10 @@ Local honey and preserves"></textarea>
                             <div style="flex: 1;">
                                 <div style="font-weight: 600;">${escapeHtml(feed.name)}</div>
                                 <div style="font-size: 0.8rem; color: #6b7280; word-break: break-all;">${escapeHtml(feed.url.substring(0, 50))}...</div>
-                                <div style="font-size: 0.75rem; color: #9ca3af;">${feed.last_fetched ? 'Last fetched: ' + formatTimeAgo(feed.last_fetched) : 'Never fetched'}</div>
+                                <div style="font-size: 0.75rem; color: #9ca3af;">
+                                    ${feed.property_name ? `<span style="color: #f97316;">📍 ${escapeHtml(feed.property_name)}</span> • ` : ''}
+                                    ${feed.last_fetched ? 'Last fetched: ' + formatTimeAgo(feed.last_fetched) : 'Never fetched'}
+                                </div>
                             </div>
                             <button onclick="deleteRssFeed(${feed.id})" class="btn btn-sm" style="background: #fee2e2; color: #dc2626;">✕</button>
                         </div>
@@ -33889,6 +33928,7 @@ Local honey and preserves"></textarea>
         async function addIcalFeed() {
             const url = document.getElementById('new-ical-url').value.trim();
             const name = document.getElementById('new-ical-name').value.trim() || 'iCal Feed';
+            const propertyId = document.getElementById('ical-property-select').value;
             
             if (!url) {
                 showNotification('Please enter an iCal URL', 'error');
@@ -33899,7 +33939,13 @@ Local honey and preserves"></textarea>
                 const response = await fetch('/api/blog/feeds', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                    body: JSON.stringify({ type: 'ical', url, name, account_id: selectedAccountId })
+                    body: JSON.stringify({ 
+                        type: 'ical', 
+                        url, 
+                        name, 
+                        account_id: selectedAccountId,
+                        property_id: propertyId || null
+                    })
                 });
                 const data = await response.json();
                 
@@ -33919,6 +33965,7 @@ Local honey and preserves"></textarea>
         async function addRssFeed() {
             const url = document.getElementById('new-rss-url').value.trim();
             const name = document.getElementById('new-rss-name').value.trim() || 'RSS Feed';
+            const propertyId = document.getElementById('rss-property-select').value;
             
             if (!url) {
                 showNotification('Please enter an RSS URL', 'error');
@@ -33929,7 +33976,13 @@ Local honey and preserves"></textarea>
                 const response = await fetch('/api/blog/feeds', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                    body: JSON.stringify({ type: 'rss', url, name, account_id: selectedAccountId })
+                    body: JSON.stringify({ 
+                        type: 'rss', 
+                        url, 
+                        name, 
+                        account_id: selectedAccountId,
+                        property_id: propertyId || null
+                    })
                 });
                 const data = await response.json();
                 
