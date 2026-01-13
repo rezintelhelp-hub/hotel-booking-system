@@ -31805,7 +31805,7 @@ app.get('/api/setup-content-ideas', async (req, res) => {
 // Get content ideas
 app.get('/api/admin/content-ideas', async (req, res) => {
     try {
-        let { client_id, property_id, content_type, status } = req.query;
+        let { client_id, property_id, content_type, status, account_id } = req.query;
         
         let query = `
             SELECT ci.*, p.name as property_name 
@@ -31822,6 +31822,12 @@ app.get('/api/admin/content-ideas', async (req, res) => {
             paramIndex++;
         }
         
+        if (account_id && account_id !== 'null' && account_id !== 'undefined') {
+            query += ` AND ci.client_id = $${paramIndex}`;
+            params.push(parseInt(account_id));
+            paramIndex++;
+        }
+        
         if (property_id) {
             query += ` AND ci.property_id = $${paramIndex}`;
             params.push(parseInt(property_id));
@@ -31835,9 +31841,17 @@ app.get('/api/admin/content-ideas', async (req, res) => {
         }
         
         if (status) {
-            query += ` AND ci.status = $${paramIndex}`;
-            params.push(status);
-            paramIndex++;
+            // Handle comma-separated statuses
+            const statuses = status.split(',').map(s => s.trim());
+            if (statuses.length === 1) {
+                query += ` AND ci.status = $${paramIndex}`;
+                params.push(statuses[0]);
+                paramIndex++;
+            } else {
+                query += ` AND ci.status = ANY($${paramIndex})`;
+                params.push(statuses);
+                paramIndex++;
+            }
         }
         
         query += ` ORDER BY ci.created_at DESC`;
