@@ -15018,15 +15018,12 @@ Local honey and preserves"></textarea>
                             
                             <div class="form-group">
                                 <label class="form-label">Category</label>
-                                <select class="form-input" id="blog-category">
-                                    <option value="">Select category...</option>
-                                    <option value="News">News</option>
-                                    <option value="Travel Tips">Travel Tips</option>
-                                    <option value="Local Guide">Local Guide</option>
-                                    <option value="Events">Events</option>
-                                    <option value="Food & Drink">Food & Drink</option>
-                                    <option value="Offers">Offers</option>
-                                </select>
+                                <div style="display: flex; gap: 8px;">
+                                    <select class="form-input" id="blog-category" style="flex: 1;">
+                                        <option value="">Select category...</option>
+                                    </select>
+                                    <button type="button" class="btn" onclick="showAddCategoryModal()" style="padding: 8px 12px; background: #10b981;" title="Add New Category">+</button>
+                                </div>
                             </div>
                             
                             <div class="form-group">
@@ -32694,6 +32691,9 @@ Local honey and preserves"></textarea>
             // Populate property dropdown in modal
             await populatePropertySelect('blog-property-id');
             
+            // Load categories for the dropdown
+            await loadBlogCategoriesForModal();
+            
             // Pre-select property from filter if set
             const filterProperty = document.getElementById('blog-property-select')?.value;
             if (filterProperty && !post) {
@@ -32725,6 +32725,104 @@ Local honey and preserves"></textarea>
             }
             
             openModal('blogModal');
+        }
+        
+        // Load blog categories for the Edit Blog Post modal
+        async function loadBlogCategoriesForModal(selectedCategory = null) {
+            try {
+                const select = document.getElementById('blog-category');
+                if (!select) return;
+                
+                const response = await fetch('/api/admin/blog-categories?client_id=' + currentClientId);
+                const data = await response.json();
+                
+                select.innerHTML = '<option value="">Select category...</option>';
+                
+                if (data.success && data.categories && data.categories.length > 0) {
+                    data.categories.forEach(cat => {
+                        const option = document.createElement('option');
+                        option.value = cat.name;
+                        option.textContent = cat.name;
+                        if (selectedCategory && cat.name === selectedCategory) {
+                            option.selected = true;
+                        }
+                        select.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.error('Failed to load blog categories:', error);
+            }
+        }
+        
+        // Show modal to add a new blog category
+        function showAddCategoryModal() {
+            const modalHtml = `
+                <div id="add-category-modal" class="modal" style="display: flex;" onclick="if(event.target === this) this.remove()">
+                    <div class="modal-content" style="max-width: 400px;">
+                        <div class="modal-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                            <h2 style="color: white; margin: 0;"> Add New Category</h2>
+                            <button class="modal-close" onclick="document.getElementById('add-category-modal').remove()" style="color: white;">&times;</button>
+                        </div>
+                        <div class="modal-body" style="padding: 1.5rem;">
+                            <div class="form-group">
+                                <label class="form-label">Category Name *</label>
+                                <input type="text" class="form-input" id="new-category-name" placeholder="e.g., Local Events">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Description (optional)</label>
+                                <input type="text" class="form-input" id="new-category-description" placeholder="Brief description...">
+                            </div>
+                        </div>
+                        <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 0.5rem; padding: 1rem 1.5rem; border-top: 1px solid #e5e7eb;">
+                            <button class="btn btn-secondary" onclick="document.getElementById('add-category-modal').remove()">Cancel</button>
+                            <button class="btn" onclick="saveNewCategory()" style="background: #10b981;">Save Category</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            document.getElementById('new-category-name').focus();
+        }
+        
+        // Save new blog category
+        async function saveNewCategory() {
+            const name = document.getElementById('new-category-name').value.trim();
+            const description = document.getElementById('new-category-description').value.trim();
+            
+            if (!name) {
+                showNotification('Please enter a category name', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/admin/blog-categories', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        client_id: currentClientId,
+                        name: name,
+                        description: description
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Category created successfully', 'success');
+                    document.getElementById('add-category-modal').remove();
+                    
+                    // Reload categories and select the new one
+                    await loadBlogCategoriesForModal(name);
+                    await loadBlogCategories(); // Also update AI blog generator if open
+                    
+                    // Select the new category in the dropdown
+                    document.getElementById('blog-category').value = name;
+                } else {
+                    showNotification(data.error || 'Failed to create category', 'error');
+                }
+            } catch (error) {
+                showNotification('Error creating category: ' + error.message, 'error');
+            }
         }
 
         async function editBlogPost(id) {
