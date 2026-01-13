@@ -38977,36 +38977,11 @@ Local honey and preserves"></textarea>
                                     ${isBeds24 ? `<tr><td style="padding: 8px 0; color: #6b7280;">V1 API Key:</td><td>${conn.v1_key_masked ? `<span style="color: #16a34a;"></span> ${conn.v1_key_masked}` : '<span style="color: #dc2626;"> Not set</span>'}</td></tr>` : ''}
                                 </tbody></table>
                             </div>
-                            <div class="master-only" style="display: none;">
-                                <h4>Sync Actions</h4>
-                                <div style="display: flex; flex-direction: column; gap: 10px;">
-                                    <div style="display: flex; gap: 10px; align-items: center;">
-                                        <button class="btn btn-primary" onclick="triggerSync(${conn.id}, 'full')" style="flex: 1;"> Full Sync</button>
-                                    </div>
-                                    <small style="color: #6b7280; margin: -5px 0 5px 0;">Syncs all properties, rooms, availability & bookings</small>
-                                    
-                                    <div style="display: flex; gap: 10px; align-items: center;">
-                                        <button class="btn btn-secondary" onclick="triggerSync(${conn.id}, 'incremental')" style="flex: 1;"> Incremental Sync</button>
-                                    </div>
-                                    <small style="color: #6b7280; margin: -5px 0 5px 0;">Quick sync of recent changes only</small>
-                                    
-                                    ${isBeds24 ? `
-                                    <div style="display: flex; gap: 10px; align-items: center;">
-                                        <button class="btn" onclick="triggerSync(${conn.id}, 'v1')" style="flex: 1; background: #8b5cf6;"}> V1 Sync</button>
-                                    </div>
-                                    <small style="color: #6b7280; margin: -5px 0 5px 0;">Images & fixed pricing (requires V1 API key)</small>
-                                    ` : ''}
-                                </div>
-                                ${conn.last_error ? `<div style="margin-top: 15px; padding: 12px; background: #fee2e2; border-radius: 8px; color: #dc2626;"><strong>Last Error:</strong><br>${conn.last_error}</div>` : ''}
+                            <div>
+                                <p style="color: #6b7280; font-size: 0.9rem;">Use the <strong>Properties</strong> tab to sync individual properties.</p>
                             </div>
                         </div>
                     `;
-                    // Re-apply master-only visibility to dynamically added content
-                    const user = currentAccount || JSON.parse(localStorage.getItem('gas_account') || '{}');
-                    const isMaster = user.role === 'master_admin';
-                    container.querySelectorAll('.master-only').forEach(el => {
-                        el.style.display = isMaster ? 'block' : 'none';
-                    });
                 }
             } catch (error) {
                 container.innerHTML = '<p style="color: #ef4444;">Error loading details</p>';
