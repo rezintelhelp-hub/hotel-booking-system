@@ -38965,7 +38965,8 @@ Local honey and preserves"></textarea>
                 if (data.success) {
                     const conn = data.connection;
                     const isBeds24 = conn.adapter_code === 'beds24';
-                    const isMasterAdmin = currentAccount && currentAccount.role === 'master_admin';
+                    const user = currentAccount || JSON.parse(localStorage.getItem('gas_account') || '{}');
+                    const isMasterAdmin = user.role === 'master_admin';
                     container.innerHTML = `
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
                             <div>
@@ -39004,7 +39005,6 @@ Local honey and preserves"></textarea>
                             ` : `
                             <div>
                                 <p style="color: #6b7280; font-size: 0.9rem;">Syncs run automatically. Use the <strong>Properties</strong> tab to sync individual properties.</p>
-                                ${conn.last_error ? `<div style="margin-top: 15px; padding: 12px; background: #fee2e2; border-radius: 8px; color: #dc2626;"><strong>Last Error:</strong><br>${conn.last_error}</div>` : ''}
                             </div>
                             `}
                             </div>
