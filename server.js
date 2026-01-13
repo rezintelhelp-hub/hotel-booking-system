@@ -9109,6 +9109,15 @@ app.get('/api/setup-database', async (req, res) => {
     await pool.query(`ALTER TABLE offers ADD COLUMN IF NOT EXISTS room_ids INTEGER[]`);
     // Add account_id for proper multi-tenant scoping
     await pool.query(`ALTER TABLE offers ADD COLUMN IF NOT EXISTS account_id INTEGER`);
+    // CRITICAL: Fix existing offers without account_id - set from property
+    await pool.query(`
+      UPDATE offers o
+      SET account_id = COALESCE(p.account_id, p.client_id)
+      FROM properties p
+      WHERE o.property_id = p.id
+        AND o.account_id IS NULL
+    `);
+    console.log('✅ Fixed offers without account_id');
     // Fix discount_value to allow NULL or default to 0
     await pool.query(`ALTER TABLE offers ALTER COLUMN discount_value SET DEFAULT 0`);
     await pool.query(`ALTER TABLE offers ALTER COLUMN discount_value DROP NOT NULL`);
@@ -20123,32 +20132,46 @@ app.post('/api/admin/offers', async (req, res) => {
   try {
     const {
       name, description, property_id, room_id,
-      property_ids, room_ids,
+      property_ids, room_ids, account_id,
       discount_type, discount_value, applies_to,
       min_nights, max_nights, min_guests, max_guests,
       min_advance_days, max_advance_days,
       valid_from, valid_until, valid_days_of_week,
       allowed_checkin_days, allowed_checkout_days,
-      stackable, priority, active, pricing_tier
+      stackable, priority, active, pricing_tier, price_per_night
     } = req.body;
+    
+    // CRITICAL: Get account_id from property if not provided
+    // This ensures offers are always scoped to an account
+    let finalAccountId = account_id;
+    if (!finalAccountId && property_id) {
+      const propResult = await pool.query('SELECT account_id, client_id FROM properties WHERE id = $1', [property_id]);
+      if (propResult.rows[0]) {
+        finalAccountId = propResult.rows[0].account_id || propResult.rows[0].client_id;
+      }
+    }
+    
+    if (!finalAccountId) {
+      return res.json({ success: false, error: 'Offer must be associated with a property or account' });
+    }
     
     let result;
     try {
       // Try with array columns and pricing_tier
       result = await pool.query(`
         INSERT INTO offers (
-          name, description, property_id, room_id, property_ids, room_ids,
+          name, description, property_id, room_id, property_ids, room_ids, account_id,
           discount_type, discount_value, price_per_night, applies_to,
           min_nights, max_nights, min_guests, max_guests,
           min_advance_days, max_advance_days,
           valid_from, valid_until, valid_days_of_week,
           allowed_checkin_days, allowed_checkout_days,
           stackable, priority, active, pricing_tier
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
         RETURNING *
       `, [
         name, description, property_id || null, room_id || null,
-        property_ids || null, room_ids || null,
+        property_ids || null, room_ids || null, finalAccountId,
         discount_type || 'percentage', discount_value || 0, price_per_night || null, applies_to || 'standard_price',
         min_nights || 1, max_nights || null, min_guests || null, max_guests || null,
         min_advance_days || null, max_advance_days || null,
@@ -20160,17 +20183,17 @@ app.post('/api/admin/offers', async (req, res) => {
       // Fallback without array columns
       result = await pool.query(`
         INSERT INTO offers (
-          name, description, property_id, room_id,
+          name, description, property_id, room_id, account_id,
           discount_type, discount_value, applies_to,
           min_nights, max_nights, min_guests, max_guests,
           min_advance_days, max_advance_days,
           valid_from, valid_until, valid_days_of_week,
           allowed_checkin_days, allowed_checkout_days,
           stackable, priority, active, pricing_tier
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
         RETURNING *
       `, [
-        name, description, property_id || null, room_id || null,
+        name, description, property_id || null, room_id || null, finalAccountId,
         discount_type || 'percentage', discount_value || 0, applies_to || 'standard_price',
         min_nights || 1, max_nights || null, min_guests || null, max_guests || null,
         min_advance_days || null, max_advance_days || null,
@@ -22095,15 +22118,21 @@ app.post('/api/pricing/calculate', async (req, res) => {
     
     const nights = availResult.rows.length;
     
-    // Get the property's account_id for offer filtering
-    // Get the room's property_id for offer filtering
-    const roomPropertyResult = await pool.query(`SELECT property_id FROM bookable_units WHERE id = $1`, [room_id]);
+    // Get the room's property_id AND account_id for offer filtering
+    const roomPropertyResult = await pool.query(`
+      SELECT bu.property_id, p.account_id, p.client_id 
+      FROM bookable_units bu 
+      LEFT JOIN properties p ON bu.property_id = p.id 
+      WHERE bu.id = $1
+    `, [room_id]);
     const roomPropertyId = roomPropertyResult.rows[0]?.property_id;
+    const roomAccountId = roomPropertyResult.rows[0]?.account_id || roomPropertyResult.rows[0]?.client_id;
     
-    // Get applicable offers - filtered by property_id
+    // Get applicable offers - MUST match account_id to prevent cross-account bleeding
     const offersResult = await pool.query(`
       SELECT * FROM offers
       WHERE active = true
+      AND account_id = $7
       AND (property_id IS NULL OR property_id = $6)
       AND (room_id IS NULL OR room_id = $1)
       AND (min_nights IS NULL OR min_nights <= $2)
@@ -22113,7 +22142,7 @@ app.post('/api/pricing/calculate', async (req, res) => {
       AND (valid_from IS NULL OR valid_from <= $4)
       AND (valid_until IS NULL OR valid_until >= $5)
       ORDER BY priority DESC
-    `, [room_id, nights, guests, check_in, check_out, roomPropertyId]);
+    `, [room_id, nights, guests, check_in, check_out, roomPropertyId, roomAccountId]);
     
     // Calculate pricing
     let baseTotal = 0;
@@ -28023,9 +28052,19 @@ app.post('/api/public/calculate-price', async (req, res) => {
     const requestedPricingTier = req.body.pricing_tier || 'standard';
     isNonStandardTier = requestedPricingTier !== 'standard';
     
+    // Get the account_id for the unit to scope offers correctly
+    const unitAccountResult = await pool.query(`
+      SELECT p.account_id, p.client_id 
+      FROM bookable_units bu 
+      JOIN properties p ON bu.property_id = p.id 
+      WHERE bu.id = $1
+    `, [unit_id]);
+    const unitAccountId = unitAccountResult.rows[0]?.account_id || unitAccountResult.rows[0]?.client_id;
+    
     const offers = await pool.query(`
       SELECT * FROM offers
       WHERE active = true
+        AND account_id = $6
         AND (property_id IS NULL OR property_id = (SELECT property_id FROM bookable_units WHERE id = $1))
         AND (room_id IS NULL OR room_id = $1)
         AND (min_nights IS NULL OR min_nights <= $2)
@@ -28034,7 +28073,7 @@ app.post('/api/public/calculate-price', async (req, res) => {
         AND (pricing_tier IS NULL OR pricing_tier = $5)
       ORDER BY priority DESC, discount_value DESC
       LIMIT 1
-    `, [unit_id, nights, check_in, check_out, requestedPricingTier]);
+    `, [unit_id, nights, check_in, check_out, requestedPricingTier, unitAccountId]);
     
     if (offers.rows[0]) {
       const offer = offers.rows[0];
