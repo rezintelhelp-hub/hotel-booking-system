@@ -18567,6 +18567,13 @@ app.post('/api/hostaway/import-property', async (req, res) => {
     
     await client.query('BEGIN');
     
+    // Normalize values to prevent varchar overflow
+    const propertyName = (property.name || `Property ${property.id}`).substring(0, 255);
+    const stateValue = (property.state || '').substring(0, 50);
+    const currencyValue = (property.currencyCode || 'USD').substring(0, 3);
+    // Use countryCode if available (2-char ISO), otherwise use full country name (column is VARCHAR(100))
+    const countryValue = property.countryCode || property.country || '';
+    
     // Check if property already exists
     const existingProp = await client.query(
       'SELECT id FROM properties WHERE hostaway_listing_id = $1',
@@ -18576,7 +18583,7 @@ app.post('/api/hostaway/import-property', async (req, res) => {
     let propertyId;
     
     if (existingProp.rows.length > 0) {
-      // Update existing
+      // Update existing - include name to sync any name changes
       propertyId = existingProp.rows[0].id;
       await client.query(`
         UPDATE properties SET
@@ -18596,30 +18603,24 @@ app.post('/api/hostaway/import-property', async (req, res) => {
           updated_at = NOW()
         WHERE id = $13
       `, [
-        property.name,
+        propertyName,
         property.roomType || 'entire_home',
         property.address || property.street || '',
         property.city || '',
-        property.state || '',
+        stateValue,
         property.zipcode || '',
-        property.country || '',
+        countryValue,
         property.lat || null,
         property.lng || null,
         property.checkInTimeStart ? `${property.checkInTimeStart}:00` : '15:00',
         property.checkOutTime ? `${property.checkOutTime}:00` : '11:00',
-        property.currencyCode || 'USD',
+        currencyValue,
         propertyId
       ]);
       
       console.log('   Updated existing property, GAS ID:', propertyId);
     } else {
-      // Insert new property - truncate fields to fit column constraints
-      const propertyName = property.name || `Property ${property.id}`;
-      const stateValue = (property.state || '').substring(0, 50);
-      const currencyValue = (property.currencyCode || 'USD').substring(0, 3);
-      // Use countryCode if available, otherwise truncate country to 2 chars
-      const countryValue = (property.countryCode || property.country || '').substring(0, 2);
-      
+      // Insert new property
       const result = await client.query(`
         INSERT INTO properties (
           user_id, name, property_type, address, city, state, postcode, country,
@@ -18670,7 +18671,7 @@ app.post('/api/hostaway/import-property', async (req, res) => {
           updated_at = NOW()
         WHERE id = $11
       `, [
-        property.name,
+        propertyName,
         property.roomType || 'entire_home',
         property.personCapacity || 2,
         property.personCapacity || 2,
@@ -18692,7 +18693,7 @@ app.post('/api/hostaway/import-property', async (req, res) => {
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), NOW())
       `, [
         propertyId,
-        property.name,
+        propertyName,
         property.roomType || 'entire_home',
         property.personCapacity || 2,
         property.personCapacity || 2,
@@ -18718,6 +18719,141 @@ app.post('/api/hostaway/import-property', async (req, res) => {
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('Hostaway import error:', error.message);
+    res.json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+// Resync existing Hostaway properties - pull latest data from Hostaway
+app.post('/api/hostaway/resync-properties', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { token, accountId } = req.body;
+    
+    if (!token || !accountId) {
+      return res.json({ success: false, error: 'Token and account ID required' });
+    }
+    
+    console.log('🔄 Resyncing Hostaway properties for account:', accountId);
+    
+    // Get all Hostaway-linked properties for this account
+    const existingResult = await client.query(`
+      SELECT p.id, p.hostaway_listing_id, p.name as gas_name,
+             bu.id as unit_id
+      FROM properties p
+      LEFT JOIN bookable_units bu ON bu.property_id = p.id AND bu.hostaway_listing_id = p.hostaway_listing_id
+      WHERE p.account_id = $1 AND p.hostaway_listing_id IS NOT NULL
+    `, [accountId]);
+    
+    if (existingResult.rows.length === 0) {
+      return res.json({ success: true, message: 'No Hostaway properties found to resync', updated: 0 });
+    }
+    
+    let updated = 0;
+    let errors = [];
+    
+    for (const prop of existingResult.rows) {
+      try {
+        // Fetch fresh data from Hostaway
+        const response = await axios.get(`https://api.hostaway.com/v1/listings/${prop.hostaway_listing_id}`, {
+          headers: { 'Authorization': `Bearer ${token}` },
+          timeout: 30000
+        });
+        
+        const listing = response.data?.result || response.data;
+        if (!listing) continue;
+        
+        // Normalize values
+        const propertyName = (listing.name || prop.gas_name).substring(0, 255);
+        const stateValue = (listing.state || '').substring(0, 50);
+        const currencyValue = (listing.currencyCode || 'USD').substring(0, 3);
+        const countryValue = listing.countryCode || listing.country || '';
+        
+        // Update property
+        await client.query(`
+          UPDATE properties SET
+            name = $1,
+            property_type = $2,
+            address = $3,
+            city = $4,
+            state = $5,
+            postcode = $6,
+            country = $7,
+            latitude = $8,
+            longitude = $9,
+            check_in_from = $10,
+            check_out_by = $11,
+            currency = $12,
+            updated_at = NOW()
+          WHERE id = $13
+        `, [
+          propertyName,
+          listing.roomType || 'entire_home',
+          listing.address || listing.street || '',
+          listing.city || '',
+          stateValue,
+          listing.zipcode || '',
+          countryValue,
+          listing.lat || null,
+          listing.lng || null,
+          listing.checkInTimeStart ? `${listing.checkInTimeStart}:00` : '15:00',
+          listing.checkOutTime ? `${listing.checkOutTime}:00` : '11:00',
+          currencyValue,
+          prop.id
+        ]);
+        
+        // Update bookable unit if it exists
+        if (prop.unit_id) {
+          await client.query(`
+            UPDATE bookable_units SET
+              name = $1,
+              unit_type = $2,
+              max_guests = $3,
+              max_adults = $4,
+              bedroom_count = $5,
+              bathroom_count = $6,
+              base_price = $7,
+              min_stay = $8,
+              max_stay = $9,
+              updated_at = NOW()
+            WHERE id = $10
+          `, [
+            propertyName,
+            listing.roomType || 'entire_home',
+            listing.personCapacity || 2,
+            listing.personCapacity || 2,
+            listing.bedroomsNumber || 1,
+            listing.bathroomsNumber || 1,
+            listing.price || 100,
+            listing.minNights || 1,
+            listing.maxNights || 365,
+            prop.unit_id
+          ]);
+        }
+        
+        updated++;
+        console.log(`   ✓ Resynced: ${propertyName} (ID: ${prop.id})`);
+        
+        // Rate limit
+        await new Promise(r => setTimeout(r, 500));
+        
+      } catch (propErr) {
+        console.log(`   ✗ Failed to resync property ${prop.id}: ${propErr.message}`);
+        errors.push({ id: prop.id, name: prop.gas_name, error: propErr.message });
+      }
+    }
+    
+    res.json({
+      success: true,
+      message: `Resynced ${updated} of ${existingResult.rows.length} properties`,
+      updated,
+      total: existingResult.rows.length,
+      errors: errors.length > 0 ? errors : undefined
+    });
+    
+  } catch (error) {
+    console.error('Hostaway resync error:', error.message);
     res.json({ success: false, error: error.message });
   } finally {
     client.release();
@@ -40811,246 +40947,6 @@ app.get('/api/plugin/reviews', async (req, res) => {
     console.error('Plugin reviews error:', error);
     res.json({ success: false, error: 'Failed to fetch reviews' });
   }
-});
-
-// ============================================
-// APP SETTINGS API ENDPOINTS
-// ============================================
-
-// PUBLIC endpoint for WordPress plugins to fetch reviews
-app.get('/api/public/client/:clientId/reviews', async (req, res) => {
-    try {
-        const { clientId } = req.params;
-        const { property_id, min_rating, limit } = req.query;
-        
-        // Get account - try by id first (numeric), then by account_code
-        let accountId;
-        const numericId = parseInt(clientId);
-        
-        if (!isNaN(numericId)) {
-            const accountResult = await pool.query('SELECT id FROM accounts WHERE id = $1', [numericId]);
-            if (accountResult.rows.length > 0) {
-                accountId = accountResult.rows[0].id;
-            }
-        }
-        
-        if (!accountId) {
-            const accountResult = await pool.query('SELECT id FROM accounts WHERE account_code = $1', [clientId]);
-            if (accountResult.rows.length > 0) {
-                accountId = accountResult.rows[0].id;
-            }
-        }
-        
-        if (!accountId) {
-            return res.json({ success: true, reviews: [] });
-        }
-        
-        let query = `
-            SELECT r.*, p.name as property_name
-            FROM reviews r
-            JOIN properties p ON r.property_id = p.id
-            WHERE p.account_id = $1 AND r.is_public = true
-        `;
-        const params = [accountId];
-        let paramIndex = 2;
-        
-        if (property_id) {
-            query += ` AND r.property_id = $${paramIndex}`;
-            params.push(property_id);
-            paramIndex++;
-        }
-        
-        if (min_rating) {
-            query += ` AND r.rating >= $${paramIndex}`;
-            params.push(parseFloat(min_rating));
-            paramIndex++;
-        }
-        
-        const reviewLimit = Math.min(parseInt(limit) || 50, 100);
-        query += ` ORDER BY r.review_date DESC NULLS LAST, r.created_at DESC LIMIT ${reviewLimit}`;
-        
-        const reviewsResult = await pool.query(query, params);
-        
-        res.json({
-            success: true,
-            reviews: reviewsResult.rows.map(r => ({
-                id: r.id,
-                property_id: r.property_id,
-                property_name: r.property_name,
-                guest_name: r.guest_name,
-                guest_country: r.guest_country,
-                rating: r.rating,
-                comment: r.comment,
-                review_date: r.review_date,
-                source: r.source || r.channel_name
-            })),
-            total: reviewsResult.rows.length
-        });
-        
-    } catch (error) {
-        console.error('Public reviews error:', error);
-        res.json({ success: true, reviews: [] });
-    }
-});
-
-// GET /api/app-settings/:app - Get app display settings (blog, attractions, reviews)
-app.get('/api/app-settings/:app', async (req, res) => {
-    try {
-        const { app } = req.params;
-        const validApps = ['blog', 'attractions', 'reviews'];
-        
-        if (!validApps.includes(app)) {
-            return res.status(400).json({ success: false, error: 'Invalid app name' });
-        }
-        
-        // Ensure table exists
-        await pool.query(`
-            CREATE TABLE IF NOT EXISTS app_settings (
-                id SERIAL PRIMARY KEY,
-                account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
-                app_name VARCHAR(50) NOT NULL,
-                settings JSONB DEFAULT '{}',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(account_id, app_name)
-            )
-        `);
-        
-        const accountId = req.query.account_id || req.user?.account_id || 1;
-        
-        const result = await pool.query(
-            `SELECT settings FROM app_settings WHERE account_id = $1 AND app_name = $2`,
-            [accountId, app]
-        );
-        
-        if (result.rows.length > 0) {
-            res.json({ success: true, colors: result.rows[0].settings?.colors || {} });
-        } else {
-            // Return defaults
-            const defaults = {
-                blog: { accent: '#667eea', bg: '#ffffff', card_bg: '#ffffff', text: '#1a1a1a', text_secondary: '#666666', category_bg: '#e0e7ff', category_text: '#4338ca' },
-                attractions: { accent: '#f59e0b', bg: '#ffffff', card_bg: '#ffffff', text: '#1a1a1a', text_secondary: '#666666', category_bg: '#fef3c7', category_text: '#92400e' },
-                reviews: { accent: '#667eea', bg: '#ffffff', card_bg: '#ffffff', text: '#1e293b', text_secondary: '#64748b', star: '#fbbf24' }
-            };
-            res.json({ success: true, colors: defaults[app] });
-        }
-    } catch (error) {
-        console.error('Error getting app settings:', error);
-        res.status(500).json({ success: false, error: 'Failed to get settings' });
-    }
-});
-
-// PUT /api/app-settings/:app - Save app display settings
-app.put('/api/app-settings/:app', async (req, res) => {
-    try {
-        const { app } = req.params;
-        const { colors } = req.body;
-        const validApps = ['blog', 'attractions', 'reviews'];
-        
-        if (!validApps.includes(app)) {
-            return res.status(400).json({ success: false, error: 'Invalid app name' });
-        }
-        
-        // Ensure table exists
-        await pool.query(`
-            CREATE TABLE IF NOT EXISTS app_settings (
-                id SERIAL PRIMARY KEY,
-                account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
-                app_name VARCHAR(50) NOT NULL,
-                settings JSONB DEFAULT '{}',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(account_id, app_name)
-            )
-        `);
-        
-        const accountId = req.body.account_id || req.query.account_id || req.user?.account_id || 1;
-        
-        const result = await pool.query(
-            `INSERT INTO app_settings (account_id, app_name, settings, updated_at)
-             VALUES ($1, $2, $3, NOW())
-             ON CONFLICT (account_id, app_name) 
-             DO UPDATE SET settings = $3, updated_at = NOW()
-             RETURNING *`,
-            [accountId, app, { colors }]
-        );
-        
-        res.json({ success: true, message: 'Settings saved', settings: result.rows[0] });
-    } catch (error) {
-        console.error('Error saving app settings:', error);
-        res.status(500).json({ success: false, error: 'Failed to save settings' });
-    }
-});
-
-// PUBLIC endpoint for WordPress plugins to fetch colors
-app.get('/api/public/client/:clientId/app-settings/:app', async (req, res) => {
-    try {
-        const { clientId, app } = req.params;
-        const validApps = ['blog', 'attractions', 'reviews'];
-        
-        if (!validApps.includes(app)) {
-            return res.status(400).json({ success: false, error: 'Invalid app name' });
-        }
-        
-        // Default colors to return
-        const defaults = {
-            blog: { accent: '#667eea', bg: '#ffffff', card_bg: '#ffffff', text: '#1a1a1a', text_secondary: '#666666', category_bg: '#e0e7ff', category_text: '#4338ca' },
-            attractions: { accent: '#f59e0b', bg: '#ffffff', card_bg: '#ffffff', text: '#1a1a1a', text_secondary: '#666666', category_bg: '#fef3c7', category_text: '#92400e' },
-            reviews: { accent: '#667eea', bg: '#ffffff', card_bg: '#ffffff', text: '#1e293b', text_secondary: '#64748b', star: '#fbbf24' }
-        };
-        
-        // Get account - try by id first (numeric), then by account_code
-        let accountId;
-        const numericId = parseInt(clientId);
-        
-        if (!isNaN(numericId)) {
-            // Client ID is numeric, query by id
-            const accountResult = await pool.query(
-                'SELECT id FROM accounts WHERE id = $1',
-                [numericId]
-            );
-            if (accountResult.rows.length > 0) {
-                accountId = accountResult.rows[0].id;
-            }
-        }
-        
-        if (!accountId) {
-            // Try by account_code
-            const accountResult = await pool.query(
-                'SELECT id FROM accounts WHERE account_code = $1',
-                [clientId]
-            );
-            if (accountResult.rows.length > 0) {
-                accountId = accountResult.rows[0].id;
-            }
-        }
-        
-        if (!accountId) {
-            // Return defaults if account not found
-            return res.json({ success: true, colors: defaults[app] });
-        }
-        
-        // Check if table exists and query it
-        try {
-            const result = await pool.query(
-                `SELECT settings FROM app_settings WHERE account_id = $1 AND app_name = $2`,
-                [accountId, app]
-            );
-            
-            if (result.rows.length > 0 && result.rows[0].settings?.colors) {
-                res.json({ success: true, colors: result.rows[0].settings.colors });
-            } else {
-                res.json({ success: true, colors: defaults[app] });
-            }
-        } catch (tableError) {
-            // Table doesn't exist yet, return defaults
-            console.log('app_settings table not found, returning defaults');
-            res.json({ success: true, colors: defaults[app] });
-        }
-    } catch (error) {
-        console.error('Error getting public app settings:', error);
-        res.status(500).json({ success: false, error: 'Failed to get settings' });
-    }
 });
 
 // ============================================
