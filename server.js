@@ -40160,6 +40160,7 @@ app.get('/beds24-wizard', (req, res) => {
       CREATE TABLE IF NOT EXISTS blog_feeds (
         id SERIAL PRIMARY KEY,
         account_id INTEGER REFERENCES accounts(id),
+        property_id INTEGER REFERENCES properties(id),
         type VARCHAR(10) NOT NULL CHECK (type IN ('ical', 'rss')),
         name VARCHAR(255) NOT NULL,
         url TEXT NOT NULL,
@@ -40170,6 +40171,8 @@ app.get('/beds24-wizard', (req, res) => {
         updated_at TIMESTAMP DEFAULT NOW()
       )
     `);
+    // Add property_id column if table already exists
+    await pool.query(`ALTER TABLE blog_feeds ADD COLUMN IF NOT EXISTS property_id INTEGER REFERENCES properties(id)`);
     console.log('✅ blog_feeds table ensured');
   } catch (e) {
     console.log('ℹ️  blog_feeds table:', e.message);
@@ -40179,20 +40182,29 @@ app.get('/beds24-wizard', (req, res) => {
 // Get feeds for account
 app.get('/api/blog/feeds', async (req, res) => {
   try {
-    const { type, account_id } = req.query;
-    let query = 'SELECT * FROM blog_feeds WHERE 1=1';
+    const { type, account_id, property_id } = req.query;
+    let query = `
+      SELECT bf.*, p.name as property_name 
+      FROM blog_feeds bf
+      LEFT JOIN properties p ON bf.property_id = p.id
+      WHERE 1=1
+    `;
     const params = [];
     
     if (type) {
       params.push(type);
-      query += ` AND type = $${params.length}`;
+      query += ` AND bf.type = $${params.length}`;
     }
     if (account_id) {
       params.push(account_id);
-      query += ` AND account_id = $${params.length}`;
+      query += ` AND bf.account_id = $${params.length}`;
+    }
+    if (property_id) {
+      params.push(property_id);
+      query += ` AND bf.property_id = $${params.length}`;
     }
     
-    query += ' ORDER BY created_at DESC';
+    query += ' ORDER BY bf.created_at DESC';
     
     const result = await pool.query(query, params);
     res.json({ success: true, feeds: result.rows });
@@ -40204,17 +40216,17 @@ app.get('/api/blog/feeds', async (req, res) => {
 // Add new feed
 app.post('/api/blog/feeds', async (req, res) => {
   try {
-    const { type, name, url, account_id } = req.body;
+    const { type, name, url, account_id, property_id } = req.body;
     
     if (!type || !url) {
       return res.json({ success: false, error: 'Type and URL are required' });
     }
     
     const result = await pool.query(`
-      INSERT INTO blog_feeds (account_id, type, name, url)
-      VALUES ($1, $2, $3, $4)
+      INSERT INTO blog_feeds (account_id, property_id, type, name, url)
+      VALUES ($1, $2, $3, $4, $5)
       RETURNING *
-    `, [account_id || null, type, name || `${type.toUpperCase()} Feed`, url]);
+    `, [account_id || null, property_id || null, type, name || `${type.toUpperCase()} Feed`, url]);
     
     res.json({ success: true, feed: result.rows[0] });
   } catch (error) {
