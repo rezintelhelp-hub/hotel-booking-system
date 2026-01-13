@@ -40244,10 +40244,37 @@ app.delete('/api/blog/feeds/:id', async (req, res) => {
   }
 });
 
-// Fetch iCal events
+// Fetch iCal events and create blog ideas
 app.post('/api/blog/feeds/fetch-ical', async (req, res) => {
   try {
     const { account_id } = req.query;
+    
+    // Ensure content_ideas table exists
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS content_ideas (
+        id SERIAL PRIMARY KEY,
+        client_id INTEGER,
+        property_id INTEGER,
+        title VARCHAR(500) NOT NULL,
+        description TEXT,
+        content_type VARCHAR(50) DEFAULT 'blog',
+        category VARCHAR(100),
+        subcategory VARCHAR(100),
+        status VARCHAR(50) DEFAULT 'idea',
+        source_type VARCHAR(50),
+        source_url TEXT,
+        event_date TIMESTAMP,
+        event_location TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    // Add missing columns if table exists
+    await pool.query(`ALTER TABLE content_ideas ADD COLUMN IF NOT EXISTS subcategory VARCHAR(100)`).catch(() => {});
+    await pool.query(`ALTER TABLE content_ideas ADD COLUMN IF NOT EXISTS source_type VARCHAR(50)`).catch(() => {});
+    await pool.query(`ALTER TABLE content_ideas ADD COLUMN IF NOT EXISTS source_url TEXT`).catch(() => {});
+    await pool.query(`ALTER TABLE content_ideas ADD COLUMN IF NOT EXISTS event_date TIMESTAMP`).catch(() => {});
+    await pool.query(`ALTER TABLE content_ideas ADD COLUMN IF NOT EXISTS event_location TEXT`).catch(() => {});
     
     // Get feeds - if account_id provided filter by it, otherwise get all
     let query = 'SELECT * FROM blog_feeds WHERE type = $1 AND is_active = true';
@@ -40262,6 +40289,7 @@ app.post('/api/blog/feeds/fetch-ical', async (req, res) => {
     console.log(`Fetching ${feeds.rows.length} iCal feeds...`);
     
     let totalEvents = 0;
+    let ideasCreated = 0;
     let feedsProcessed = 0;
     
     for (const feed of feeds.rows) {
@@ -40281,10 +40309,52 @@ app.post('/api/blog/feeds/fetch-ical', async (req, res) => {
         });
         const icsData = response.data;
         
-        // Simple iCal parsing - count VEVENT occurrences
-        const events = (icsData.match(/BEGIN:VEVENT/g) || []).length;
-        totalEvents += events;
+        // Parse iCal events
+        const events = parseIcalEvents(icsData);
+        totalEvents += events.length;
         feedsProcessed++;
+        
+        console.log(`iCal feed ${feed.name}: ${events.length} events found`);
+        
+        // Create blog ideas from events (only future events)
+        const now = new Date();
+        for (const event of events) {
+          // Skip past events (more than 1 day ago)
+          if (event.startDate && new Date(event.startDate) < new Date(now - 86400000)) {
+            continue;
+          }
+          
+          // Check if idea already exists (by title + property)
+          const existing = await pool.query(
+            'SELECT id FROM content_ideas WHERE title = $1 AND property_id = $2',
+            [event.summary, feed.property_id]
+          );
+          
+          if (existing.rows.length === 0) {
+            // Create new idea
+            await pool.query(`
+              INSERT INTO content_ideas (
+                client_id, property_id, title, description, content_type, 
+                category, subcategory, status, source_type, source_url, 
+                event_date, event_location
+              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            `, [
+              feed.account_id,
+              feed.property_id,
+              event.summary || 'Untitled Event',
+              event.description || '',
+              'blog',
+              'Events & Concerts',
+              'Local Events',
+              'idea',
+              'ical',
+              feed.url,
+              event.startDate,
+              event.location || ''
+            ]);
+            ideasCreated++;
+          }
+        }
         
         // Update last_fetched
         await pool.query(
@@ -40292,7 +40362,6 @@ app.post('/api/blog/feeds/fetch-ical', async (req, res) => {
           [feed.id]
         );
         
-        console.log(`iCal feed ${feed.name}: ${events} events found`);
       } catch (feedError) {
         await pool.query(
           'UPDATE blog_feeds SET last_error = $1 WHERE id = $2',
@@ -40305,14 +40374,90 @@ app.post('/api/blog/feeds/fetch-ical', async (req, res) => {
     res.json({
       success: true,
       feeds_processed: feedsProcessed,
-      events_count: totalEvents
+      events_count: totalEvents,
+      ideas_created: ideasCreated
     });
   } catch (error) {
+    console.error('Fetch iCal error:', error);
     res.json({ success: false, error: error.message });
   }
 });
 
-// Fetch RSS articles
+// Helper function to parse iCal data
+function parseIcalEvents(icsData) {
+  const events = [];
+  const eventBlocks = icsData.split('BEGIN:VEVENT');
+  
+  for (let i = 1; i < eventBlocks.length; i++) {
+    const block = eventBlocks[i].split('END:VEVENT')[0];
+    const event = {};
+    
+    // Extract SUMMARY (title)
+    const summaryMatch = block.match(/SUMMARY[^:]*:(.+?)(?:\r?\n(?! )|\r?\n(?=\w+:))/s);
+    if (summaryMatch) {
+      event.summary = summaryMatch[1].replace(/\\n/g, ' ').replace(/\\,/g, ',').replace(/\r?\n /g, '').trim();
+    }
+    
+    // Extract DESCRIPTION
+    const descMatch = block.match(/DESCRIPTION[^:]*:(.+?)(?:\r?\n(?! )|\r?\n(?=\w+:))/s);
+    if (descMatch) {
+      event.description = descMatch[1].replace(/\\n/g, '\n').replace(/\\,/g, ',').replace(/\r?\n /g, '').trim();
+    }
+    
+    // Extract LOCATION
+    const locMatch = block.match(/LOCATION[^:]*:(.+?)(?:\r?\n(?! )|\r?\n(?=\w+:))/s);
+    if (locMatch) {
+      event.location = locMatch[1].replace(/\\n/g, ' ').replace(/\\,/g, ',').replace(/\r?\n /g, '').trim();
+    }
+    
+    // Extract DTSTART (start date)
+    const startMatch = block.match(/DTSTART[^:]*:(\d{8}(?:T\d{6})?Z?)/);
+    if (startMatch) {
+      const dateStr = startMatch[1];
+      // Parse YYYYMMDD or YYYYMMDDTHHmmss format
+      const year = dateStr.substring(0, 4);
+      const month = dateStr.substring(4, 6);
+      const day = dateStr.substring(6, 8);
+      let hour = '00', min = '00', sec = '00';
+      if (dateStr.length >= 15) {
+        hour = dateStr.substring(9, 11);
+        min = dateStr.substring(11, 13);
+        sec = dateStr.substring(13, 15);
+      }
+      event.startDate = `${year}-${month}-${day}T${hour}:${min}:${sec}`;
+    }
+    
+    // Extract DTEND (end date)
+    const endMatch = block.match(/DTEND[^:]*:(\d{8}(?:T\d{6})?Z?)/);
+    if (endMatch) {
+      const dateStr = endMatch[1];
+      const year = dateStr.substring(0, 4);
+      const month = dateStr.substring(4, 6);
+      const day = dateStr.substring(6, 8);
+      let hour = '00', min = '00', sec = '00';
+      if (dateStr.length >= 15) {
+        hour = dateStr.substring(9, 11);
+        min = dateStr.substring(11, 13);
+        sec = dateStr.substring(13, 15);
+      }
+      event.endDate = `${year}-${month}-${day}T${hour}:${min}:${sec}`;
+    }
+    
+    // Extract URL if present
+    const urlMatch = block.match(/URL[^:]*:(.+?)(?:\r?\n|$)/);
+    if (urlMatch) {
+      event.url = urlMatch[1].trim();
+    }
+    
+    if (event.summary) {
+      events.push(event);
+    }
+  }
+  
+  return events;
+}
+
+// Fetch RSS articles and create blog ideas
 app.post('/api/blog/feeds/fetch-rss', async (req, res) => {
   try {
     const { account_id } = req.query;
@@ -40330,6 +40475,7 @@ app.post('/api/blog/feeds/fetch-rss', async (req, res) => {
     console.log(`Fetching ${feeds.rows.length} RSS feeds...`);
     
     let totalArticles = 0;
+    let ideasCreated = 0;
     let feedsProcessed = 0;
     
     for (const feed of feeds.rows) {
@@ -40343,11 +40489,43 @@ app.post('/api/blog/feeds/fetch-rss', async (req, res) => {
         });
         const rssData = response.data;
         
-        // Simple RSS parsing - count item occurrences
-        const articles = (rssData.match(/<item>/gi) || []).length || 
-                        (rssData.match(/<entry>/gi) || []).length; // Atom format
-        totalArticles += articles;
+        // Parse RSS/Atom feed
+        const articles = parseRssFeed(rssData);
+        totalArticles += articles.length;
         feedsProcessed++;
+        
+        console.log(`RSS feed ${feed.name}: ${articles.length} articles found`);
+        
+        // Create blog ideas from articles (limit to recent ones)
+        for (const article of articles.slice(0, 20)) { // Max 20 per feed
+          // Check if idea already exists (by title + property)
+          const existing = await pool.query(
+            'SELECT id FROM content_ideas WHERE title = $1 AND property_id = $2',
+            [article.title, feed.property_id]
+          );
+          
+          if (existing.rows.length === 0 && article.title) {
+            // Create new idea
+            await pool.query(`
+              INSERT INTO content_ideas (
+                client_id, property_id, title, description, content_type, 
+                category, subcategory, status, source_type, source_url
+              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            `, [
+              feed.account_id,
+              feed.property_id,
+              article.title.substring(0, 500),
+              article.description || '',
+              'blog',
+              'News & Updates',
+              'Local News',
+              'idea',
+              'rss',
+              article.link || feed.url
+            ]);
+            ideasCreated++;
+          }
+        }
         
         // Update last_fetched
         await pool.query(
@@ -40355,7 +40533,6 @@ app.post('/api/blog/feeds/fetch-rss', async (req, res) => {
           [feed.id]
         );
         
-        console.log(`RSS feed ${feed.name}: ${articles} articles found`);
       } catch (feedError) {
         await pool.query(
           'UPDATE blog_feeds SET last_error = $1 WHERE id = $2',
@@ -40368,12 +40545,62 @@ app.post('/api/blog/feeds/fetch-rss', async (req, res) => {
     res.json({
       success: true,
       feeds_processed: feedsProcessed,
-      articles_count: totalArticles
+      articles_count: totalArticles,
+      ideas_created: ideasCreated
     });
   } catch (error) {
     res.json({ success: false, error: error.message });
   }
 });
+
+// Helper function to parse RSS/Atom feeds
+function parseRssFeed(rssData) {
+  const articles = [];
+  
+  // Try RSS 2.0 format first
+  const itemMatches = rssData.match(/<item>([\s\S]*?)<\/item>/gi);
+  if (itemMatches) {
+    for (const item of itemMatches) {
+      const article = {};
+      
+      const titleMatch = item.match(/<title[^>]*>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/i);
+      if (titleMatch) article.title = titleMatch[1].trim();
+      
+      const descMatch = item.match(/<description[^>]*>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/description>/i);
+      if (descMatch) article.description = descMatch[1].replace(/<[^>]+>/g, '').trim().substring(0, 500);
+      
+      const linkMatch = item.match(/<link[^>]*>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/link>/i);
+      if (linkMatch) article.link = linkMatch[1].trim();
+      
+      const pubDateMatch = item.match(/<pubDate[^>]*>([\s\S]*?)<\/pubDate>/i);
+      if (pubDateMatch) article.pubDate = pubDateMatch[1].trim();
+      
+      if (article.title) articles.push(article);
+    }
+    return articles;
+  }
+  
+  // Try Atom format
+  const entryMatches = rssData.match(/<entry>([\s\S]*?)<\/entry>/gi);
+  if (entryMatches) {
+    for (const entry of entryMatches) {
+      const article = {};
+      
+      const titleMatch = entry.match(/<title[^>]*>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/i);
+      if (titleMatch) article.title = titleMatch[1].trim();
+      
+      const summaryMatch = entry.match(/<summary[^>]*>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/summary>/i);
+      if (summaryMatch) article.description = summaryMatch[1].replace(/<[^>]+>/g, '').trim().substring(0, 500);
+      
+      const linkMatch = entry.match(/<link[^>]*href=["']([^"']+)["'][^>]*\/?>/i);
+      if (linkMatch) article.link = linkMatch[1].trim();
+      
+      if (article.title) articles.push(article);
+    }
+  }
+  
+  return articles;
+}
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log('🚀 Server running on port ' + PORT);
