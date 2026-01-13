@@ -39471,20 +39471,12 @@ Local honey and preserves"></textarea>
                 if (adapterCode === 'hostaway') {
                     showNotification('Fetching fresh data from Hostaway...', 'info');
                     
-                    // Get connection to get the token
-                    const conn = gasSyncConnections.find(c => c.id === selectedConnectionId);
-                    if (!conn || !conn.access_token) {
-                        showNotification('Could not get Hostaway access token', 'error');
-                        return;
-                    }
-                    
                     const response = await fetch('/api/hostaway/resync-single-property', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', ...authHeaders() },
                         body: JSON.stringify({ 
-                            token: conn.access_token, 
-                            listingId: externalId,
-                            accountId: conn.account_id
+                            connectionId: selectedConnectionId, 
+                            listingId: externalId
                         })
                     });
                     const data = await response.json();
