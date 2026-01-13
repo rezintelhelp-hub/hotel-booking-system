@@ -34044,13 +34044,10 @@ Local honey and preserves"></textarea>
                 const data = await response.json();
                 
                 if (data.success) {
-                    showNotification(`Found ${data.events_count || 0} events from ${data.feeds_processed || 0} feeds`, 'success');
+                    showNotification(`Found ${data.events_count || 0} events, created ${data.ideas_created || 0} new ideas`, 'success');
                     loadIcalFeeds();
-                    // Optionally open ideas wizard with events
-                    if (data.events_count > 0) {
-                        closeModal('ical-feeds-modal');
-                        // Could trigger blog ideas generation here
-                    }
+                    // Refresh the blog ideas list if visible
+                    if (typeof loadBlogByTab === 'function') loadBlogByTab();
                 } else {
                     showNotification(data.error || 'Failed to fetch events', 'error');
                 }
@@ -34070,12 +34067,10 @@ Local honey and preserves"></textarea>
                 const data = await response.json();
                 
                 if (data.success) {
-                    showNotification(`Found ${data.articles_count || 0} articles from ${data.feeds_processed || 0} feeds`, 'success');
+                    showNotification(`Found ${data.articles_count || 0} articles, created ${data.ideas_created || 0} new ideas`, 'success');
                     loadRssFeeds();
-                    // Optionally trigger blog ideas
-                    if (data.articles_count > 0) {
-                        closeModal('rss-feeds-modal');
-                    }
+                    // Refresh the blog ideas list if visible
+                    if (typeof loadBlogByTab === 'function') loadBlogByTab();
                 } else {
                     showNotification(data.error || 'Failed to fetch articles', 'error');
                 }
