@@ -3374,6 +3374,17 @@ app.post('/api/gas-sync/connections/:id/fix-room-ids', async (req, res) => {
   }
 });
 
+// Clear last_error for a connection
+app.post('/api/gas-sync/connections/:id/clear-error', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query('UPDATE gas_sync_connections SET last_error = NULL WHERE id = $1', [id]);
+    res.json({ success: true, message: 'Error cleared' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Reconnect Beds24 - exchange new invite code for fresh tokens
 app.post('/api/gas-sync/connections/:id/reconnect', async (req, res) => {
   try {
