@@ -2591,12 +2591,19 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     
     console.log('link-to-gas: Extracted texts - desc:', propDescription?.substring(0,50), 'houseRules:', propHouseRules?.substring(0,30));
     
+    // Extract property-level display name (Hostaway uses externalListingName)
+    const propDisplayName = prop.adapter_code === 'hostaway' 
+      ? (rawData.externalListingName || '') 
+      : '';
+    console.log('link-to-gas: propDisplayName:', propDisplayName || '(empty)');
+    
     // 2. Check if already linked
     let gasPropertyId = null;
     
     // Add all necessary columns
     await pool.query('ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS gas_property_id INTEGER');
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS currency VARCHAR(3) DEFAULT \'GBP\'');
+    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS display_name VARCHAR(500)');
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS short_description TEXT');
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS full_description TEXT');
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS house_rules TEXT');
@@ -2693,6 +2700,9 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
       }
       if (propDamagePolicy) {
         await pool.query('UPDATE properties SET damage_policy = $1 WHERE id = $2', [propDamagePolicy, gasPropertyId]).catch(() => {});
+      }
+      if (propDisplayName) {
+        await pool.query('UPDATE properties SET display_name = $1 WHERE id = $2', [propDisplayName, gasPropertyId]).catch(() => {});
       }
       
       // Sync property_terms with Beds24 data (check-in/out, house rules, cancellation)
@@ -2947,8 +2957,16 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         return '';
       }
       
-      // Beds24 Display Name → GAS display_name
-      const displayName = getText(texts.displayName) || '';
+      // Display Name: Hostaway uses externalListingName, Beds24 uses texts.displayName
+      let displayName = '';
+      if (prop.adapter_code === 'hostaway') {
+        // Hostaway: externalListingName is the promotional name for channels
+        displayName = roomRawData.externalListingName || rawData.externalListingName || '';
+        console.log('link-to-gas: Hostaway externalListingName:', displayName);
+      } else {
+        // Beds24 Display Name → GAS display_name
+        displayName = getText(texts.displayName) || '';
+      }
       
       // Beds24 roomDescription1 (Room Description) → GAS short_description (for listings)
       const roomShortDesc = getText(texts.roomDescription1) || getText(roomRawData.description) || '';
