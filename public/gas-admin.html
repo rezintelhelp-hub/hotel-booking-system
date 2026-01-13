@@ -38737,7 +38737,6 @@ Local honey and preserves"></textarea>
                             
                             <div class="connection-actions">
                                 <button class="btn btn-secondary btn-sm" onclick="showConnectionOverview(${conn.id})"> Sync</button>
-                                ${conn.adapter_code === 'hostaway' ? `<button class="btn btn-secondary btn-sm" onclick="resyncHostawayProperties(${conn.id}, '${conn.access_token || ''}', ${conn.account_id})">🔄 Resync Data</button>` : ''}
                                 <button class="btn btn-secondary btn-sm" onclick="showConnectionDetails(${conn.id})"> Details</button>
                                 <button class="btn btn-danger btn-sm" onclick="deleteConnection(${conn.id})" style="color: white;"> Delete</button>
                             </div>
@@ -38782,47 +38781,6 @@ Local honey and preserves"></textarea>
             return emojis[code] || '';
         }
 
-        // Resync Hostaway properties to pull latest name changes etc
-        async function resyncHostawayProperties(connectionId, token, accountId) {
-            try {
-                showNotification('Resyncing Hostaway properties...', 'info');
-                
-                // If no token provided, get a fresh one
-                let accessToken = token;
-                if (!accessToken) {
-                    // Try to get connection credentials
-                    const connResponse = await fetch(`/api/gas-sync/connections/${connectionId}`, { headers: authHeaders() });
-                    const connData = await connResponse.json();
-                    if (connData.success && connData.connection) {
-                        accessToken = connData.connection.access_token;
-                        accountId = connData.connection.account_id;
-                    }
-                }
-                
-                if (!accessToken) {
-                    showNotification('Could not get Hostaway access token. Please reconnect.', 'error');
-                    return;
-                }
-                
-                const response = await fetch('/api/hostaway/resync-properties', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                    body: JSON.stringify({ token: accessToken, accountId: accountId })
-                });
-                
-                const data = await response.json();
-                if (data.success) {
-                    showNotification(`✅ ${data.message}`, 'success');
-                    setTimeout(() => loadGasSyncConnections(), 2000);
-                } else {
-                    showNotification(data.error || 'Resync failed', 'error');
-                }
-            } catch (error) {
-                console.error('Hostaway resync error:', error);
-                showNotification('Failed to resync properties', 'error');
-            }
-        }
-        
         async function triggerSync(connectionId, type = 'incremental') {
             try {
                 showNotification('Starting sync...', 'info');
@@ -39345,7 +39303,7 @@ Local honey and preserves"></textarea>
                                 </td>
                                 <td>
                                     <div style="display: flex; gap: 4px;">
-                                        ${p.gas_property_id ? `<button onclick="syncPropertyContent(${p.id}, '${conn?.adapter_code || 'beds24'}', ${p.external_id})" class="btn btn-sm btn-primary" title="Re-sync descriptions, amenities & images">🔄 Sync</button>` : ''}
+                                        ${p.gas_property_id ? `<button onclick="syncPropertyContent(${p.id})" class="btn btn-sm btn-primary" title="Re-sync descriptions, amenities & images">🔄 Sync</button>` : ''}
                                         ${p.gas_property_id ? `<button onclick="viewPropertyInGAS(${p.gas_property_id})" class="btn btn-sm btn-secondary" title="View in GAS">👁</button>` : ''}
                                         ${p.gas_property_id ? `<button onclick="unlinkSyncedProperty(${p.id}, '${p.name.replace(/'/g, "\\'")}')" class="btn btn-sm" style="background: #fee2e2; color: #dc2626;" title="Unlink from GAS">🔗</button>` : ''}
                                     </div>
@@ -39508,39 +39466,8 @@ Local honey and preserves"></textarea>
             }
         }
 
-        async function syncPropertyContent(syncPropertyId, adapterCode, externalId) {
+        async function syncPropertyContent(syncPropertyId) {
             try {
-                // For Hostaway, use direct API sync
-                if (adapterCode === 'hostaway') {
-                    showNotification('Syncing property from Hostaway...', 'info');
-                    
-                    // Get connection to get the token
-                    const conn = gasSyncConnections.find(c => c.id === selectedConnectionId);
-                    if (!conn || !conn.access_token) {
-                        showNotification('Could not get Hostaway access token', 'error');
-                        return;
-                    }
-                    
-                    const response = await fetch('/api/hostaway/resync-single-property', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                        body: JSON.stringify({ 
-                            token: conn.access_token, 
-                            listingId: externalId,
-                            accountId: conn.account_id
-                        })
-                    });
-                    const data = await response.json();
-                    if (data.success) {
-                        showNotification(`✅ ${data.message || 'Property synced successfully'}`, 'success');
-                        loadConnectionPropertiesTab();
-                    } else {
-                        showNotification(data.error || 'Sync failed', 'error');
-                    }
-                    return;
-                }
-                
-                // For Beds24 and other adapters, use the GasSync framework
                 showNotification('Syncing content (descriptions, amenities, images)...', 'info');
                 const response = await fetch(`/api/gas-sync/properties/${syncPropertyId}/link-to-gas`, {
                     method: 'POST',
