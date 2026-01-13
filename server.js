@@ -18756,6 +18756,135 @@ app.post('/api/hostaway/import-property', async (req, res) => {
   }
 });
 
+// Resync a single Hostaway property - fetch fresh from API and update GAS
+app.post('/api/hostaway/resync-single-property', async (req, res) => {
+  try {
+    const { token, listingId, accountId } = req.body;
+    
+    if (!token || !listingId) {
+      return res.json({ success: false, error: 'Token and listing ID required' });
+    }
+    
+    console.log(`🔄 Resyncing Hostaway property ${listingId} - fetching fresh data...`);
+    
+    // Fetch fresh data from Hostaway API
+    const response = await axios.get(`https://api.hostaway.com/v1/listings/${listingId}`, {
+      headers: { 'Authorization': `Bearer ${token}` },
+      timeout: 30000
+    });
+    
+    const listing = response.data?.result || response.data;
+    if (!listing) {
+      return res.json({ success: false, error: 'Property not found in Hostaway' });
+    }
+    
+    console.log(`   Hostaway returned: name="${listing.name}", externalListingName="${listing.externalListingName}"`);
+    
+    // Find existing property in GAS
+    const existingProp = await pool.query(
+      'SELECT id FROM properties WHERE hostaway_listing_id = $1',
+      [listingId]
+    );
+    
+    if (existingProp.rows.length === 0) {
+      return res.json({ success: false, error: 'Property not imported to GAS yet' });
+    }
+    
+    const propertyId = existingProp.rows[0].id;
+    
+    // Normalize values
+    const propertyName = (listing.name || `Property ${listingId}`).substring(0, 255);
+    const displayName = listing.externalListingName || propertyName;
+    const stateValue = (listing.state || '').substring(0, 50);
+    const currencyValue = (listing.currencyCode || 'USD').substring(0, 3);
+    const countryValue = listing.countryCode || listing.country || '';
+    
+    // Update property
+    await pool.query(`
+      UPDATE properties SET
+        name = $1,
+        display_name = $2,
+        property_type = $3,
+        address = $4,
+        city = $5,
+        state = $6,
+        postcode = $7,
+        country = $8,
+        latitude = $9,
+        longitude = $10,
+        check_in_from = $11,
+        check_out_by = $12,
+        currency = $13,
+        updated_at = NOW()
+      WHERE id = $14
+    `, [
+      propertyName,
+      displayName,
+      listing.propertyType || 'entire_home',
+      listing.address || listing.street || '',
+      listing.city || '',
+      stateValue,
+      listing.zipcode || '',
+      countryValue,
+      listing.lat || null,
+      listing.lng || null,
+      listing.checkInTimeStart ? `${listing.checkInTimeStart}:00` : '15:00',
+      listing.checkOutTime ? `${listing.checkOutTime}:00` : '11:00',
+      currencyValue,
+      propertyId
+    ]);
+    
+    // Update bookable_unit
+    await pool.query(`
+      UPDATE bookable_units SET
+        name = $1,
+        display_name = $2,
+        unit_type = $3,
+        max_guests = $4,
+        max_adults = $5,
+        bedroom_count = $6,
+        bathroom_count = $7,
+        base_price = $8,
+        min_stay = $9,
+        max_stay = $10,
+        updated_at = NOW()
+      WHERE hostaway_listing_id = $11
+    `, [
+      propertyName,
+      displayName,
+      listing.propertyType || 'entire_home',
+      listing.personCapacity || 2,
+      listing.personCapacity || 2,
+      listing.bedroomsNumber || 1,
+      listing.bathroomsNumber || 1,
+      listing.price || 100,
+      listing.minNights || 1,
+      listing.maxNights || 365,
+      listingId
+    ]);
+    
+    // Also update gas_sync_properties raw_data so it's cached for future
+    await pool.query(`
+      UPDATE gas_sync_properties SET 
+        raw_data = $1,
+        synced_at = NOW()
+      WHERE external_id = $2
+    `, [JSON.stringify(listing), String(listingId)]);
+    
+    console.log(`   ✓ Updated: "${propertyName}" / display: "${displayName}"`);
+    
+    res.json({
+      success: true,
+      message: `Synced: ${displayName}`,
+      property: { id: propertyId, name: propertyName, displayName }
+    });
+    
+  } catch (error) {
+    console.error('Hostaway resync error:', error.message);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Sync availability from Hostaway for all listings
 app.post('/api/admin/sync-hostaway-availability', async (req, res) => {
   const client = await pool.connect();
