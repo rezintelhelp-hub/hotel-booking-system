@@ -4013,7 +4013,8 @@ app.post('/api/gas-sync/connections/:connectionId/full-sync', async (req, res) =
 app.post('/api/gas-sync/properties/:propertyId/sync-prices', async (req, res) => {
   try {
     const { propertyId } = req.params;
-    const { days = MANUAL_SYNC_DAYS, force = false } = req.body;
+    const { days = MANUAL_SYNC_DAYS, force } = req.body;
+    const forceSync = force === true || force === 'true';
     
     await ensureSyncTrackingColumns();
     
@@ -4032,7 +4033,7 @@ app.post('/api/gas-sync/properties/:propertyId/sync-prices', async (req, res) =>
     const prop = propResult.rows[0];
     
     // Check rate limit (unless force=true for admin)
-    if (!force && prop.last_price_sync) {
+    if (!forceSync && prop.last_price_sync) {
       const minutesSinceLastSync = (Date.now() - new Date(prop.last_price_sync).getTime()) / 60000;
       if (minutesSinceLastSync < SYNC_RATE_LIMIT_MINUTES) {
         const waitMinutes = Math.ceil(SYNC_RATE_LIMIT_MINUTES - minutesSinceLastSync);
@@ -4068,6 +4069,13 @@ app.post('/api/gas-sync/properties/:propertyId/sync-prices', async (req, res) =>
       ? JSON.parse(prop.credentials || '{}') 
       : (prop.credentials || {});
     const v1ApiKey = credentials.v1ApiKey || credentials.apiKey;
+    
+    console.log(`[Property Sync] ${prop.name}: V1 credentials check:`, {
+      hasCredentials: !!prop.credentials,
+      credentialsType: typeof prop.credentials,
+      hasV1ApiKey: !!v1ApiKey,
+      hasPropKey: !!prop.prop_key
+    });
     
     // Get rooms for this property
     const roomsResult = await pool.query(`
