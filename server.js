@@ -4020,7 +4020,7 @@ app.post('/api/gas-sync/properties/:propertyId/sync-prices', async (req, res) =>
     
     // Get property and connection info
     const propResult = await pool.query(`
-      SELECT sp.*, c.access_token, c.refresh_token, c.credentials, c.id as connection_id
+      SELECT sp.*, c.access_token, c.refresh_token, c.credentials, c.api_key as connection_api_key, c.id as connection_id
       FROM gas_sync_properties sp
       JOIN gas_sync_connections c ON c.id = sp.connection_id
       WHERE sp.id = $1 OR sp.external_id = $2
@@ -4064,10 +4064,25 @@ app.post('/api/gas-sync/properties/:propertyId/sync-prices', async (req, res) =>
       return res.json({ success: false, error: 'No access token. Please reconnect to Beds24.' });
     }
     
-    // Get V1 credentials for fallback
-    const credentials = typeof prop.credentials === 'string' 
-      ? JSON.parse(prop.credentials || '{}') 
-      : (prop.credentials || {});
+    // Get V1 credentials for fallback - check both 'credentials' and 'api_key' columns
+    let credentials = {};
+    if (prop.credentials) {
+      credentials = typeof prop.credentials === 'string' 
+        ? JSON.parse(prop.credentials || '{}') 
+        : (prop.credentials || {});
+    }
+    // Also check api_key column (wizard stores here)
+    if (!credentials.v1ApiKey && prop.connection_api_key) {
+      const apiKeyCreds = typeof prop.connection_api_key === 'string'
+        ? JSON.parse(prop.connection_api_key || '{}')
+        : (prop.connection_api_key || {});
+      if (apiKeyCreds.v1ApiKey) {
+        credentials.v1ApiKey = apiKeyCreds.v1ApiKey;
+      }
+      if (apiKeyCreds.apiKey) {
+        credentials.apiKey = apiKeyCreds.apiKey;
+      }
+    }
     const v1ApiKey = credentials.v1ApiKey || credentials.apiKey;
     
     console.log(`[Property Sync] ${prop.name}: V1 credentials check:`, {
@@ -4229,6 +4244,7 @@ app.post('/api/gas-sync/properties/:propertyId/sync-prices', async (req, res) =>
           console.log(`  [${room.name}] V2 returned no prices, trying V1 fallback...`);
           
           // V1 fallback - get prices day by day (slower but works for Fixed Prices)
+          let v1DebugLogged = false;
           for (let i = 0; i < Math.min(days, 30); i++) { // Limit V1 to 30 days to avoid rate limits
             const d = new Date(today);
             d.setDate(d.getDate() + i);
@@ -4247,6 +4263,13 @@ app.post('/api/gas-sync/properties/:propertyId/sync-prices', async (req, res) =>
               });
               
               const priceData = v1Response.data;
+              
+              // Debug: log first V1 response
+              if (!v1DebugLogged) {
+                console.log(`    V1 response for ${room.name}:`, JSON.stringify(priceData).substring(0, 300));
+                v1DebugLogged = true;
+              }
+              
               const price = priceData?.price || priceData?.totalPrice || priceData?.[0]?.price || null;
               const minStay = priceData?.minStay || 1;
               const isAvailable = priceData?.available !== false && priceData?.numAvail !== 0;
@@ -4273,6 +4296,10 @@ app.post('/api/gas-sync/properties/:propertyId/sync-prices', async (req, res) =>
               await new Promise(resolve => setTimeout(resolve, 300));
               
             } catch (v1Err) {
+              if (!v1DebugLogged) {
+                console.log(`    V1 error for ${room.name}:`, v1Err.response?.data || v1Err.message);
+                v1DebugLogged = true;
+              }
               if (v1Err.response?.status === 429) throw v1Err;
               // Skip individual day errors
             }
