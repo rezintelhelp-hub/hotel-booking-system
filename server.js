@@ -26395,22 +26395,21 @@ app.put('/api/admin/properties/:id/bedroom-amenities', async (req, res) => {
 // Helper function to update bedroom count
 async function updateBedroomCount(propertyId, roomId) {
   try {
-    let query, params;
     if (roomId) {
-      query = 'SELECT COUNT(*) as count FROM property_bedrooms WHERE property_id = $1 AND room_id = $2';
-      params = [propertyId, roomId];
-    } else {
-      query = 'SELECT COUNT(*) as count FROM property_bedrooms WHERE property_id = $1 AND room_id IS NULL';
-      params = [propertyId];
-    }
-    
-    const countResult = await pool.query(query, params);
-    const count = parseInt(countResult.rows[0]?.count || 0);
-    
-    if (roomId) {
+      // Count bedrooms for this specific room
+      const countResult = await pool.query(
+        'SELECT COUNT(*) as count FROM property_bedrooms WHERE room_id = $1',
+        [roomId]
+      );
+      const count = parseInt(countResult.rows[0]?.count || 0);
       await pool.query('UPDATE bookable_units SET num_bedrooms = $1 WHERE id = $2', [count, roomId]);
     } else {
       // Update all rooms for this property that don't have room-specific bedrooms
+      const countResult = await pool.query(
+        'SELECT COUNT(*) as count FROM property_bedrooms WHERE property_id = $1 AND room_id IS NULL',
+        [propertyId]
+      );
+      const count = parseInt(countResult.rows[0]?.count || 0);
       await pool.query('UPDATE bookable_units SET num_bedrooms = $1 WHERE property_id = $2', [count, propertyId]);
     }
   } catch (e) {
