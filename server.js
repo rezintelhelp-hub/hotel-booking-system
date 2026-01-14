@@ -4382,7 +4382,8 @@ app.post('/api/gas-sync/properties/:propertyId/sync-prices', async (req, res) =>
 app.post('/api/gas-sync/properties/:propertyId/sync-images', async (req, res) => {
   try {
     const { propertyId } = req.params;
-    const { force = false } = req.body;
+    const { force } = req.body;
+    const forceSync = force === true || force === 'true';
     
     await ensureSyncTrackingColumns();
     
@@ -4401,7 +4402,7 @@ app.post('/api/gas-sync/properties/:propertyId/sync-images', async (req, res) =>
     const prop = propResult.rows[0];
     
     // Check rate limit
-    if (!force && prop.last_image_sync) {
+    if (!forceSync && prop.last_image_sync) {
       const minutesSinceLastSync = (Date.now() - new Date(prop.last_image_sync).getTime()) / 60000;
       if (minutesSinceLastSync < SYNC_RATE_LIMIT_MINUTES) {
         const waitMinutes = Math.ceil(SYNC_RATE_LIMIT_MINUTES - minutesSinceLastSync);
@@ -4495,7 +4496,8 @@ app.post('/api/gas-sync/properties/:propertyId/sync-images', async (req, res) =>
 app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) => {
   try {
     const { propertyId } = req.params;
-    const { force = false } = req.body;
+    const { force } = req.body;
+    const forceSync = force === true || force === 'true';
     
     await ensureSyncTrackingColumns();
     
@@ -4514,7 +4516,7 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
     const prop = propResult.rows[0];
     
     // Check rate limit
-    if (!force && prop.last_content_sync) {
+    if (!forceSync && prop.last_content_sync) {
       const minutesSinceLastSync = (Date.now() - new Date(prop.last_content_sync).getTime()) / 60000;
       if (minutesSinceLastSync < SYNC_RATE_LIMIT_MINUTES) {
         const waitMinutes = Math.ceil(SYNC_RATE_LIMIT_MINUTES - minutesSinceLastSync);
@@ -4546,13 +4548,14 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
     
     console.log(`[Content Sync] ${prop.name}: Fetching texts and amenities`);
     
-    // Fetch property with texts from V2 API
+    // Fetch property with texts and features from V2 API
     const propResponse = await axios.get('https://beds24.com/api/v2/properties', {
       headers: { 'token': accessToken },
       params: {
         id: prop.external_id,
         includeTexts: true,
-        includeAllRooms: true
+        includeAllRooms: true,
+        includeFeatures: true
       }
     });
     
@@ -4561,8 +4564,9 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
       return res.json({ success: false, error: 'Property not found in Beds24' });
     }
     
-    // Update property description
+    // Update property description and features
     const texts = propData.texts || {};
+    const features = propData.features || [];
     await pool.query(`
       UPDATE gas_sync_properties SET
         description = $1,
@@ -4571,9 +4575,52 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
       WHERE id = $3
     `, [
       texts.description || propData.description || '',
-      JSON.stringify({ texts }),
+      JSON.stringify({ texts, features }),
       prop.id
     ]);
+    
+    console.log(`[Content Sync] ${prop.name}: Found ${features.length} features`);
+    
+    // Map Beds24 features to GAS amenities
+    if (features.length > 0) {
+      // Get master amenities to match against
+      const masterAmenities = await pool.query('SELECT id, amenity_code FROM master_amenities WHERE is_active = true');
+      const amenityMap = {};
+      masterAmenities.rows.forEach(a => {
+        amenityMap[a.amenity_code.toUpperCase()] = a.id;
+      });
+      
+      // Get rooms for this property
+      const rooms = await pool.query(`
+        SELECT rt.gas_room_id 
+        FROM gas_sync_room_types rt 
+        WHERE rt.sync_property_id = $1 AND rt.gas_room_id IS NOT NULL
+      `, [prop.id]);
+      
+      // Apply features to each room
+      for (const room of rooms.rows) {
+        const roomId = room.gas_room_id;
+        let amenitiesAdded = 0;
+        
+        for (const feature of features) {
+          const code = (feature.code || feature.name || '').toUpperCase().replace(/[^A-Z0-9]/g, '_');
+          const amenityId = amenityMap[code];
+          
+          if (amenityId) {
+            try {
+              await pool.query(`
+                INSERT INTO room_amenity_selections (room_id, amenity_id, display_order)
+                VALUES ($1, $2, $3)
+                ON CONFLICT (room_id, amenity_id) DO NOTHING
+              `, [roomId, amenityId, amenitiesAdded]);
+              amenitiesAdded++;
+            } catch (e) {
+              // Skip duplicates
+            }
+          }
+        }
+      }
+    }
     
     // Update room content if we have V1 credentials
     let roomsUpdated = 0;
