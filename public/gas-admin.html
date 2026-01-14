@@ -21379,6 +21379,13 @@ Local honey and preserves"></textarea>
                 } catch (e) {
                     console.log('Error loading unit data:', e);
                 }
+                
+                // Load bedrooms and bathrooms for this specific room
+                const propertyId = document.getElementById('amenities-property-select')?.value;
+                if (propertyId) {
+                    if (typeof loadBedrooms === 'function') await loadBedrooms(propertyId, roomId);
+                    if (typeof loadBathrooms === 'function') await loadBathrooms(propertyId, roomId);
+                }
             } catch (error) {
                 console.error('Error loading amenities:', error);
                 const errorMsg = '<p style="color: #ef4444; text-align: center; padding: 1rem;">Error loading amenities</p>';
