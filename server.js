@@ -4022,8 +4022,8 @@ app.post('/api/gas-sync/properties/:propertyId/sync-prices', async (req, res) =>
       SELECT sp.*, c.access_token, c.refresh_token, c.credentials, c.id as connection_id
       FROM gas_sync_properties sp
       JOIN gas_sync_connections c ON c.id = sp.connection_id
-      WHERE sp.id = $1 OR sp.external_id = $1
-    `, [propertyId]);
+      WHERE sp.id = $1 OR sp.external_id = $2
+    `, [propertyId, String(propertyId)]);
     
     if (propResult.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Property not found' });
@@ -4253,8 +4253,8 @@ app.post('/api/gas-sync/properties/:propertyId/sync-images', async (req, res) =>
       SELECT sp.*, c.credentials, c.id as connection_id
       FROM gas_sync_properties sp
       JOIN gas_sync_connections c ON c.id = sp.connection_id
-      WHERE sp.id = $1 OR sp.external_id = $1
-    `, [propertyId]);
+      WHERE sp.id = $1 OR sp.external_id = $2
+    `, [propertyId, String(propertyId)]);
     
     if (propResult.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Property not found' });
@@ -4366,8 +4366,8 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
       SELECT sp.*, c.access_token, c.refresh_token, c.credentials, c.id as connection_id
       FROM gas_sync_properties sp
       JOIN gas_sync_connections c ON c.id = sp.connection_id
-      WHERE sp.id = $1 OR sp.external_id = $1
-    `, [propertyId]);
+      WHERE sp.id = $1 OR sp.external_id = $2
+    `, [propertyId, String(propertyId)]);
     
     if (propResult.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Property not found' });
@@ -4511,6 +4511,8 @@ app.get('/api/gas-sync/properties/:propertyId/sync-status', async (req, res) => 
   try {
     const { propertyId } = req.params;
     
+    await ensureSyncTrackingColumns();
+    
     const result = await pool.query(`
       SELECT 
         sp.id,
@@ -4525,9 +4527,9 @@ app.get('/api/gas-sync/properties/:propertyId/sync-status', async (req, res) => 
       FROM gas_sync_properties sp
       LEFT JOIN gas_sync_room_types rt ON rt.sync_property_id = sp.id
       LEFT JOIN gas_sync_images si ON si.sync_property_id = sp.id
-      WHERE sp.id = $1 OR sp.external_id = $1
+      WHERE sp.id = $1 OR sp.external_id = $2
       GROUP BY sp.id
-    `, [propertyId]);
+    `, [propertyId, String(propertyId)]);
     
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Property not found' });
@@ -41807,9 +41809,21 @@ function parseRssFeed(rssData) {
   return articles;
 }
 
-app.listen(PORT, '0.0.0.0', () => {
+app.listen(PORT, '0.0.0.0', async () => {
   console.log('🚀 Server running on port ' + PORT);
   console.log('🔄 Auto-sync scheduled: Prices every 15min, Beds24 bookings every 15min, Inventory every 6hrs');
+  
+  // Run database migrations on startup
+  try {
+    console.log('📦 Running database migrations...');
+    await pool.query(`ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS last_price_sync TIMESTAMP`);
+    await pool.query(`ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS last_image_sync TIMESTAMP`);
+    await pool.query(`ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS last_content_sync TIMESTAMP`);
+    await pool.query(`ALTER TABLE gas_sync_room_types ADD COLUMN IF NOT EXISTS tier5_synced_at TIMESTAMP`);
+    console.log('✅ Database migrations complete');
+  } catch (migrationError) {
+    console.log('⚠️ Migration error (may already exist):', migrationError.message);
+  }
   
   // Start internal tiered availability sync scheduler
   startTieredSyncScheduler();
