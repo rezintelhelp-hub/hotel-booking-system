@@ -4089,12 +4089,16 @@ app.post('/api/gas-sync/properties/:propertyId/sync-prices', async (req, res) =>
     let totalDaysUpdated = 0;
     const errors = [];
     
+    // Cache for source room prices (avoid fetching same source multiple times)
+    const sourceRoomPriceCache = {};
+    
     console.log(`[Property Sync] ${prop.name}: Syncing ${roomsResult.rows.length} rooms for ${days} days`);
     
     // Sync each room - one API call per room
     for (const room of roomsResult.rows) {
       try {
         const beds24RoomId = parseInt(room.beds24_room_id);
+        const linking = room.price_linking ? (typeof room.price_linking === 'string' ? JSON.parse(room.price_linking) : room.price_linking) : null;
         
         // Fetch calendar from Beds24 V2
         const calResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/calendar', {
@@ -4115,8 +4119,103 @@ app.post('/api/gas-sync/properties/:propertyId/sync-prices', async (req, res) =>
         // Check if V2 returned any prices
         const hasAnyPrices = calendarData.some(entry => entry.price1 || entry.price);
         
-        // If V2 has no prices and we have V1 credentials, try V1 getPrice fallback
-        if (!hasAnyPrices && v1ApiKey && prop.prop_key) {
+        // If no prices and has price linking, fetch from source room
+        if (!hasAnyPrices && linking && linking.sourceRoomId) {
+          console.log(`  [${room.name}] No prices, fetching from linked room ${linking.sourceRoomId}`);
+          
+          const cacheKey = `${linking.sourceRoomId}_${startDate}_${endDate}`;
+          let sourcePriceMap = sourceRoomPriceCache[cacheKey];
+          
+          if (!sourcePriceMap) {
+            try {
+              const sourceCalResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/calendar', {
+                headers: { 'token': accessToken },
+                params: {
+                  roomId: linking.sourceRoomId,
+                  startDate,
+                  endDate,
+                  includeNumAvail: true,
+                  includePrices: true,
+                  includeMinStay: true
+                }
+              });
+              
+              const sourceCalendar = sourceCalResponse.data.data?.[0]?.calendar || [];
+              sourcePriceMap = {};
+              
+              for (const entry of sourceCalendar) {
+                if (entry.price1 || entry.price) {
+                  const fromDate = new Date(entry.from);
+                  const toDate = new Date(entry.to);
+                  for (let d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
+                    const dateStr = d.toISOString().split('T')[0];
+                    sourcePriceMap[dateStr] = {
+                      price: entry.price1 || entry.price,
+                      minStay: entry.minStay || 1
+                    };
+                  }
+                }
+              }
+              
+              sourceRoomPriceCache[cacheKey] = sourcePriceMap;
+              console.log(`    Fetched ${Object.keys(sourcePriceMap).length} prices from source room`);
+              
+              // Rate limit protection
+              await new Promise(resolve => setTimeout(resolve, 1500));
+              
+            } catch (sourceErr) {
+              console.log(`    Failed to fetch source room: ${sourceErr.message}`);
+              sourcePriceMap = {};
+            }
+          }
+          
+          // Apply offset to source prices
+          const applyOffset = (price) => {
+            if (!price) return null;
+            return (price * (linking.offsetMultiplier || 1)) + (linking.offsetAmount || 0);
+          };
+          
+          // Merge source prices into calendar data
+          if (calendarData.length > 0) {
+            // Expand calendar entries with prices from source
+            const expandedData = [];
+            for (const entry of calendarData) {
+              const fromDate = new Date(entry.from);
+              const toDate = new Date(entry.to);
+              for (let d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
+                const dateStr = d.toISOString().split('T')[0];
+                const sourceData = sourcePriceMap[dateStr];
+                expandedData.push({
+                  from: dateStr,
+                  to: dateStr,
+                  numAvail: entry.numAvail,
+                  minStay: entry.minStay || sourceData?.minStay || 1,
+                  price1: entry.price1 || applyOffset(sourceData?.price)
+                });
+              }
+            }
+            calendarData = expandedData;
+          } else {
+            // No calendar data - create from source prices
+            for (let i = 0; i < days; i++) {
+              const d = new Date(today);
+              d.setDate(d.getDate() + i);
+              const dateStr = d.toISOString().split('T')[0];
+              const sourceData = sourcePriceMap[dateStr];
+              if (sourceData) {
+                calendarData.push({
+                  from: dateStr,
+                  to: dateStr,
+                  numAvail: 1,
+                  minStay: sourceData.minStay || 1,
+                  price1: applyOffset(sourceData.price)
+                });
+              }
+            }
+          }
+        }
+        // If still no prices and we have V1 credentials, try V1 getPrice fallback
+        else if (!hasAnyPrices && v1ApiKey && prop.prop_key) {
           console.log(`  [${room.name}] V2 returned no prices, trying V1 fallback...`);
           
           // V1 fallback - get prices day by day (slower but works for Fixed Prices)
@@ -4168,8 +4267,10 @@ app.post('/api/gas-sync/properties/:propertyId/sync-prices', async (req, res) =>
               // Skip individual day errors
             }
           }
-        } else {
-          // Process V2 calendar data
+        }
+        
+        // Process calendar data (V2 or from price linking)
+        if (calendarData.length > 0 && (hasAnyPrices || (linking && linking.sourceRoomId))) {
           for (const entry of calendarData) {
             const fromDate = new Date(entry.from);
             const toDate = new Date(entry.to);
