@@ -42077,70 +42077,11 @@ async function runTieredSync() {
             // Check if V2 returned any prices (not just availability)
             const hasAnyPrices = calendarData.some(entry => entry.price1 || entry.price);
             
-            // If V2 has no prices and we have V1 credentials, try V1 getPrice fallback
-            if (!hasAnyPrices && v1ApiKey && propKey) {
-              console.log(`  📦 ${room.name}: V2 returned no prices, trying V1 getPrice fallback...`);
-              
-              // V1 getPrice endpoint - gets calculated price for specific dates
-              try {
-                for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-                  const dateStr = d.toISOString().split('T')[0];
-                  const nextDay = new Date(d);
-                  nextDay.setDate(nextDay.getDate() + 1);
-                  const departStr = nextDay.toISOString().split('T')[0];
-                  
-                  try {
-                    const v1Response = await axios.post('https://api.beds24.com/json/getPrice', {
-                      authentication: {
-                        apiKey: v1ApiKey,
-                        propKey: propKey
-                      },
-                      roomId: room.beds24_room_id,
-                      arrival: dateStr,
-                      departure: departStr,
-                      numAdult: 2
-                    });
-                    
-                    // Debug: log first V1 response to see format
-                    if (daysUpdated === 0) {
-                      console.log(`    V1 getPrice response for ${room.name}:`, JSON.stringify(v1Response.data).substring(0, 500));
-                    }
-                    
-                    // getPrice returns price info including calculated price
-                    const priceData = v1Response.data;
-                    const price = priceData?.price || priceData?.totalPrice || priceData?.[0]?.price || priceData?.roomPrice || null;
-                    const minStay = priceData?.minStay || priceData?.[0]?.minStay || 1;
-                    const isAvailable = priceData?.available !== false && priceData?.numAvail !== 0;
-                    
-                    if (price !== null) {
-                      await pool.query(`
-                        INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
-                        VALUES ($1, $2, $3, $3, $4, $5, $6, $6, 'beds24-v1', NOW())
-                        ON CONFLICT (room_id, date) 
-                        DO UPDATE SET 
-                          cm_price = COALESCE($3, room_availability.cm_price),
-                          is_available = $4,
-                          is_blocked = $5,
-                          min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $6 END,
-                          cm_min_stay = $6,
-                          source = 'beds24-v1',
-                          updated_at = NOW()
-                      `, [room.gas_room_id, dateStr, price, isAvailable, !isAvailable, minStay]);
-                      
-                      daysUpdated++;
-                    }
-                    
-                    // Small delay between V1 calls to avoid rate limits
-                    await new Promise(resolve => setTimeout(resolve, 500));
-                    
-                  } catch (dayErr) {
-                    // Skip individual day errors
-                    if (dayErr.response?.status === 429) throw dayErr; // Re-throw rate limits
-                  }
-                }
-              } catch (v1Error) {
-                console.log(`  ⚠️ V1 fallback failed for ${room.name}: ${v1Error.message}`);
-              }
+            // NOTE: V1 fallback removed from background sync - too many API calls
+            // V1 is only used in manual property-level sync (sync-prices endpoint)
+            // If V2 has no prices, just log and skip
+            if (!hasAnyPrices) {
+              console.log(`  ⏭️ ${room.name}: V2 returned no prices, skipping (use manual sync for V1)`);
             } else {
               // Process V2 calendar data
               for (const entry of calendarData) {
