@@ -4073,8 +4073,10 @@ app.post('/api/gas-sync/properties/:propertyId/sync-prices', async (req, res) =>
     console.log(`[Property Sync] ${prop.name}: V1 credentials check:`, {
       hasCredentials: !!prop.credentials,
       credentialsType: typeof prop.credentials,
+      credentialsKeys: prop.credentials ? Object.keys(typeof prop.credentials === 'string' ? JSON.parse(prop.credentials) : prop.credentials) : [],
       hasV1ApiKey: !!v1ApiKey,
-      hasPropKey: !!prop.prop_key
+      hasPropKey: !!prop.prop_key,
+      propKey: prop.prop_key ? prop.prop_key.substring(0, 5) + '...' : null
     });
     
     // Get rooms for this property
@@ -4227,7 +4229,7 @@ app.post('/api/gas-sync/properties/:propertyId/sync-prices', async (req, res) =>
           console.log(`  [${room.name}] V2 returned no prices, trying V1 fallback...`);
           
           // V1 fallback - get prices day by day (slower but works for Fixed Prices)
-          for (let i = 0; i < Math.min(days, 90); i++) { // Limit V1 to 90 days to avoid rate limits
+          for (let i = 0; i < Math.min(days, 30); i++) { // Limit V1 to 30 days to avoid rate limits
             const d = new Date(today);
             d.setDate(d.getDate() + i);
             const dateStr = d.toISOString().split('T')[0];
