@@ -3099,9 +3099,10 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
       const basePrice = parseFloat(room.base_price || roomRawData.rackRate) || null;
       const cleaningFee = parseFloat(roomRawData.cleaningFee) || null;
       const securityDeposit = parseFloat(roomRawData.securityDeposit) || null;
-      let bedrooms = roomRawData.bedrooms || roomRawData.numBedrooms || null;
-      const beds = roomRawData.beds || roomRawData.numBeds || null;
-      let bathrooms = roomRawData.bathrooms || roomRawData.numBathrooms || null;
+      // Read bedroom/beds from the room record first (synced from Beds24), fallback to rawData
+      let bedrooms = room.bedrooms || roomRawData.bedrooms || roomRawData.numBedrooms || null;
+      const beds = room.beds || roomRawData.beds || roomRawData.numBeds || null;
+      let bathrooms = room.bathrooms || roomRawData.bathrooms || roomRawData.numBathrooms || null;
       const sizeSqm = roomRawData.size || roomRawData.sqm || null;
       
       // Extract feature codes for amenities
