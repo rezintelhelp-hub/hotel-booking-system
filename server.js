@@ -1598,6 +1598,16 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', database: !!process.env.DATABASE_URL, beds24: !!BEDS24_TOKEN });
 });
 
+// Get server's outbound IP (for whitelisting)
+app.get('/api/server-ip', async (req, res) => {
+  try {
+    const response = await axios.get('https://api.ipify.org?format=json');
+    res.json({ success: true, ip: response.data.ip });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Fix gas_sync_reservations table - add missing columns
 app.get('/api/fix-gas-sync-tables', async (req, res) => {
   try {
