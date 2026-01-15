@@ -4894,9 +4894,20 @@ app.post('/api/gas-sync/connections/:connectionId/sync-v1-content', async (req, 
         
         console.log(`[V1 Content Sync] ${prop.name}: V1 response keys:`, Object.keys(v1Response.data || {}));
         
-        const content = v1Response.data?.getPropertyContent?.[0];
-        if (!content) {
-          console.log(`[V1 Content Sync] ${prop.name}: No content returned`);
+        // Handle different V1 API response structures
+        let content = v1Response.data?.getPropertyContent?.[0] 
+          || v1Response.data?.[0] 
+          || v1Response.data;
+        
+        // If content has error, log it
+        if (content?.error || v1Response.data?.error) {
+          console.log(`[V1 Content Sync] ${prop.name}: API error:`, content?.error || v1Response.data?.error);
+          results.skipped++;
+          continue;
+        }
+        
+        if (!content || (!content.texts && !content.featureCodes && !content.images)) {
+          console.log(`[V1 Content Sync] ${prop.name}: No content returned, raw:`, JSON.stringify(v1Response.data).substring(0, 200));
           results.skipped++;
           continue;
         }
