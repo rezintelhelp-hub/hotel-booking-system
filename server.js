@@ -42392,6 +42392,69 @@ function parseRssFeed(rssData) {
 // AIRWALLEX BILLING ENDPOINTS
 // ============================================
 
+// Manually create billing tables (if init missed them)
+app.post('/api/billing/init-tables', async (req, res) => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS billing_usage (
+        id SERIAL PRIMARY KEY,
+        account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
+        billing_period DATE NOT NULL,
+        room_count INTEGER DEFAULT 0,
+        blog_posts_generated INTEGER DEFAULT 0,
+        attractions_generated INTEGER DEFAULT 0,
+        reviews_synced INTEGER DEFAULT 0,
+        websites_active INTEGER DEFAULT 0,
+        plugins_active INTEGER DEFAULT 0,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(account_id, billing_period)
+      )
+    `);
+    
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS airwallex_customers (
+        id SERIAL PRIMARY KEY,
+        account_id INTEGER UNIQUE REFERENCES accounts(id) ON DELETE CASCADE,
+        airwallex_customer_id VARCHAR(255) UNIQUE,
+        payment_consent_id VARCHAR(255),
+        payment_method_id VARCHAR(255),
+        payment_method_last4 VARCHAR(4),
+        payment_method_brand VARCHAR(50),
+        email VARCHAR(255),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS billing_invoices (
+        id SERIAL PRIMARY KEY,
+        account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
+        billing_period DATE NOT NULL,
+        status VARCHAR(50) DEFAULT 'draft',
+        base_amount DECIMAL(10,2) DEFAULT 0,
+        room_overage_amount DECIMAL(10,2) DEFAULT 0,
+        blog_amount DECIMAL(10,2) DEFAULT 0,
+        attractions_amount DECIMAL(10,2) DEFAULT 0,
+        reviews_amount DECIMAL(10,2) DEFAULT 0,
+        total_amount DECIMAL(10,2) DEFAULT 0,
+        currency VARCHAR(3) DEFAULT 'USD',
+        line_items JSONB DEFAULT '[]',
+        airwallex_payment_intent_id VARCHAR(255),
+        paid_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    console.log('✅ Billing tables created manually');
+    res.json({ success: true, message: 'Billing tables created' });
+  } catch (error) {
+    console.error('Init tables error:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Pricing configuration
 const BILLING_CONFIG = {
   base_monthly: 19.99,       // Base fee includes 5 rooms
