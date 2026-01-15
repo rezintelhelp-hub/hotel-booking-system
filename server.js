@@ -42482,7 +42482,22 @@ app.post('/api/billing/init-tables', async (req, res) => {
         currency VARCHAR(3) DEFAULT 'USD',
         line_items JSONB DEFAULT '[]',
         airwallex_payment_intent_id VARCHAR(255),
+        gocardless_payment_id VARCHAR(255),
         paid_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS gocardless_customers (
+        id SERIAL PRIMARY KEY,
+        account_id INTEGER UNIQUE REFERENCES accounts(id) ON DELETE CASCADE,
+        gocardless_customer_id VARCHAR(255),
+        gocardless_mandate_id VARCHAR(255),
+        email VARCHAR(255),
+        company_name VARCHAR(255),
+        status VARCHAR(50) DEFAULT 'active',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
