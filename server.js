@@ -4892,6 +4892,8 @@ app.post('/api/gas-sync/connections/:connectionId/sync-v1-content', async (req, 
           images: true
         });
         
+        console.log(`[V1 Content Sync] ${prop.name}: V1 response keys:`, Object.keys(v1Response.data || {}));
+        
         const content = v1Response.data?.getPropertyContent?.[0];
         if (!content) {
           console.log(`[V1 Content Sync] ${prop.name}: No content returned`);
