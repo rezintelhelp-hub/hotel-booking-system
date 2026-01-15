@@ -1114,13 +1114,13 @@
             document.getElementById('nextBtn').disabled = true;
             
             try {
-                // Save V1 API key to connection
+                // Save V1 API key to connection using the dedicated endpoint
                 if (v1ApiKey) {
-                    await fetch(`/api/gas-sync/connections/${wizardData.connectionId}`, {
-                        method: 'PUT',
+                    await fetch(`/api/gas-sync/connections/${wizardData.connectionId}/set-v1-api-key`, {
+                        method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            credentials: { apiKey: v1ApiKey }
+                            v1ApiKey: v1ApiKey
                         })
                     });
                 }
