@@ -2541,6 +2541,28 @@ function extractText(obj, ...paths) {
   return '';
 }
 
+// Debug endpoint to check connection credentials
+app.get('/api/gas-sync/debug/connection-credentials', async (req, res) => {
+  try {
+    const { connectionId } = req.query;
+    const result = await pool.query('SELECT id, credentials FROM gas_sync_connections WHERE id = $1', [connectionId]);
+    if (result.rows.length === 0) {
+      return res.json({ error: 'Connection not found' });
+    }
+    const conn = result.rows[0];
+    const creds = typeof conn.credentials === 'string' ? JSON.parse(conn.credentials || '{}') : (conn.credentials || {});
+    res.json({
+      connectionId: conn.id,
+      credentialsType: typeof conn.credentials,
+      credentialsKeys: Object.keys(creds),
+      hasV1ApiKey: !!creds.v1ApiKey,
+      hasApiKey: !!creds.apiKey
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Debug endpoint to see room raw_data from Beds24
 app.get('/api/gas-sync/debug/room-raw-data', async (req, res) => {
   try {
