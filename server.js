@@ -33,6 +33,30 @@ const AIRWALLEX_BASE_URL = AIRWALLEX_ENV === 'sandbox'
   ? 'https://api-demo.airwallex.com/api/v1'
   : 'https://api.airwallex.com/api/v1';
 
+// GoCardless payment processing
+const GOCARDLESS_ACCESS_TOKEN = process.env.GOCARDLESS_ACCESS_TOKEN;
+const GOCARDLESS_WEBHOOK_SECRET = process.env.GOCARDLESS_WEBHOOK_SECRET;
+const GOCARDLESS_ENV = process.env.GOCARDLESS_ENV || 'live'; // 'sandbox' or 'live'
+const GOCARDLESS_BASE_URL = GOCARDLESS_ENV === 'sandbox'
+  ? 'https://api-sandbox.gocardless.com'
+  : 'https://api.gocardless.com';
+
+async function gocardlessRequest(method, endpoint, data = null) {
+  const config = {
+    method,
+    url: `${GOCARDLESS_BASE_URL}${endpoint}`,
+    headers: {
+      'Authorization': `Bearer ${GOCARDLESS_ACCESS_TOKEN}`,
+      'GoCardless-Version': '2015-07-06',
+      'Content-Type': 'application/json'
+    }
+  };
+  if (data) config.data = data;
+  
+  const response = await axios(config);
+  return response.data;
+}
+
 // Airwallex auth token cache
 let airwallexToken = null;
 let airwallexTokenExpiry = null;
@@ -11881,12 +11905,29 @@ app.get('/api/setup-billing', async (req, res) => {
         currency VARCHAR(3) DEFAULT 'USD',
         line_items JSONB DEFAULT '[]',
         airwallex_payment_intent_id VARCHAR(255),
+        gocardless_payment_id VARCHAR(255),
         paid_at TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
     console.log('✅ billing_invoices table ensured');
+    
+    // GoCardless customer mapping
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS gocardless_customers (
+        id SERIAL PRIMARY KEY,
+        account_id INTEGER UNIQUE REFERENCES accounts(id) ON DELETE CASCADE,
+        gocardless_customer_id VARCHAR(255),
+        gocardless_mandate_id VARCHAR(255),
+        email VARCHAR(255),
+        company_name VARCHAR(255),
+        status VARCHAR(50) DEFAULT 'active',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('✅ gocardless_customers table ensured');
     const planCheck = await pool.query('SELECT COUNT(*) FROM billing_plans');
     if (parseInt(planCheck.rows[0].count) === 0) {
       await pool.query(`
@@ -42979,6 +43020,385 @@ app.get('/api/billing/airwallex/test', async (req, res) => {
 
 // ============================================
 // END AIRWALLEX BILLING ENDPOINTS
+// ============================================
+
+// ============================================
+// GOCARDLESS BILLING ENDPOINTS
+// ============================================
+
+// Test GoCardless connection
+app.get('/api/billing/gocardless/test', async (req, res) => {
+  try {
+    const result = await gocardlessRequest('GET', '/creditors');
+    res.json({ 
+      success: true, 
+      message: 'GoCardless connection successful',
+      creditorId: result.creditors?.[0]?.id
+    });
+  } catch (error) {
+    console.error('GoCardless test error:', error.response?.data || error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Link existing GoCardless customer to GAS account
+app.post('/api/billing/gocardless/link-customer', async (req, res) => {
+  try {
+    const { accountId, gocardlessCustomerId } = req.body;
+    
+    if (!accountId || !gocardlessCustomerId) {
+      return res.status(400).json({ success: false, error: 'accountId and gocardlessCustomerId required' });
+    }
+    
+    // Verify customer exists in GoCardless
+    const gcCustomer = await gocardlessRequest('GET', `/customers/${gocardlessCustomerId}`);
+    
+    if (!gcCustomer.customers) {
+      return res.status(404).json({ success: false, error: 'GoCardless customer not found' });
+    }
+    
+    const customer = gcCustomer.customers;
+    
+    // Get their active mandate
+    const mandates = await gocardlessRequest('GET', `/mandates?customer=${gocardlessCustomerId}&status=active`);
+    const activeMandate = mandates.mandates?.[0];
+    
+    // Save to database
+    await pool.query(`
+      INSERT INTO gocardless_customers (account_id, gocardless_customer_id, gocardless_mandate_id, email, company_name)
+      VALUES ($1, $2, $3, $4, $5)
+      ON CONFLICT (account_id) DO UPDATE SET
+        gocardless_customer_id = $2,
+        gocardless_mandate_id = $3,
+        email = $4,
+        company_name = $5,
+        updated_at = NOW()
+    `, [accountId, gocardlessCustomerId, activeMandate?.id, customer.email, customer.company_name]);
+    
+    console.log(`✅ Linked GoCardless customer ${gocardlessCustomerId} to account ${accountId}`);
+    
+    res.json({ 
+      success: true, 
+      message: 'Customer linked successfully',
+      customer: {
+        email: customer.email,
+        companyName: customer.company_name,
+        mandateId: activeMandate?.id,
+        mandateStatus: activeMandate?.status
+      }
+    });
+  } catch (error) {
+    console.error('GoCardless link error:', error.response?.data || error.message);
+    res.status(500).json({ success: false, error: error.response?.data?.error?.message || error.message });
+  }
+});
+
+// List all GoCardless customers (for mapping)
+app.get('/api/billing/gocardless/customers', async (req, res) => {
+  try {
+    const result = await gocardlessRequest('GET', '/customers?limit=100');
+    
+    // Get already linked customers
+    const linked = await pool.query('SELECT gocardless_customer_id FROM gocardless_customers');
+    const linkedIds = linked.rows.map(r => r.gocardless_customer_id);
+    
+    const customers = result.customers.map(c => ({
+      id: c.id,
+      email: c.email,
+      companyName: c.company_name,
+      givenName: c.given_name,
+      familyName: c.family_name,
+      createdAt: c.created_at,
+      isLinked: linkedIds.includes(c.id)
+    }));
+    
+    res.json({ success: true, customers });
+  } catch (error) {
+    console.error('GoCardless list error:', error.response?.data || error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get GoCardless billing status for account
+app.get('/api/billing/gocardless/account/:accountId/status', async (req, res) => {
+  try {
+    const { accountId } = req.params;
+    
+    const customer = await pool.query('SELECT * FROM gocardless_customers WHERE account_id = $1', [accountId]);
+    
+    if (customer.rows.length === 0) {
+      return res.json({ 
+        success: true, 
+        linked: false,
+        message: 'No GoCardless customer linked'
+      });
+    }
+    
+    const gc = customer.rows[0];
+    
+    // Get mandate status from GoCardless
+    let mandateStatus = 'unknown';
+    if (gc.gocardless_mandate_id) {
+      try {
+        const mandate = await gocardlessRequest('GET', `/mandates/${gc.gocardless_mandate_id}`);
+        mandateStatus = mandate.mandates?.status || 'unknown';
+      } catch (e) {
+        mandateStatus = 'error';
+      }
+    }
+    
+    res.json({
+      success: true,
+      linked: true,
+      customerId: gc.gocardless_customer_id,
+      mandateId: gc.gocardless_mandate_id,
+      mandateStatus,
+      email: gc.email,
+      companyName: gc.company_name
+    });
+  } catch (error) {
+    console.error('GoCardless status error:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Create payment for invoice via GoCardless
+app.post('/api/billing/gocardless/charge-invoice', async (req, res) => {
+  try {
+    const { invoiceId } = req.body;
+    
+    // Get invoice
+    const invoice = await pool.query('SELECT * FROM billing_invoices WHERE id = $1', [invoiceId]);
+    if (invoice.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Invoice not found' });
+    }
+    
+    const inv = invoice.rows[0];
+    
+    if (inv.status === 'paid') {
+      return res.json({ success: true, message: 'Invoice already paid' });
+    }
+    
+    if (parseFloat(inv.total_amount) === 0) {
+      await pool.query('UPDATE billing_invoices SET status = $1, paid_at = NOW() WHERE id = $2', ['paid', invoiceId]);
+      return res.json({ success: true, message: 'No charge needed (zero amount)' });
+    }
+    
+    // Get GoCardless customer
+    const customer = await pool.query('SELECT * FROM gocardless_customers WHERE account_id = $1', [inv.account_id]);
+    if (customer.rows.length === 0 || !customer.rows[0].gocardless_mandate_id) {
+      return res.status(400).json({ success: false, error: 'No GoCardless mandate on file' });
+    }
+    
+    const gc = customer.rows[0];
+    
+    // Create payment in GoCardless (amount in pence/cents)
+    const amountInCents = Math.round(parseFloat(inv.total_amount) * 100);
+    
+    const payment = await gocardlessRequest('POST', '/payments', {
+      payments: {
+        amount: amountInCents,
+        currency: inv.currency || 'GBP',
+        description: `GAS Invoice ${invoiceId} - ${inv.billing_period}`,
+        metadata: {
+          invoice_id: String(invoiceId),
+          account_id: String(inv.account_id),
+          billing_period: inv.billing_period
+        },
+        links: {
+          mandate: gc.gocardless_mandate_id
+        }
+      }
+    });
+    
+    const paymentId = payment.payments?.id;
+    
+    // Update invoice with payment ID (status will update via webhook)
+    await pool.query(`
+      UPDATE billing_invoices SET
+        gocardless_payment_id = $1,
+        status = 'pending',
+        updated_at = NOW()
+      WHERE id = $2
+    `, [paymentId, invoiceId]);
+    
+    console.log(`✅ Created GoCardless payment ${paymentId} for invoice ${invoiceId}`);
+    
+    res.json({
+      success: true,
+      paymentId,
+      amount: inv.total_amount,
+      currency: inv.currency,
+      status: payment.payments?.status
+    });
+  } catch (error) {
+    console.error('GoCardless charge error:', error.response?.data || error.message);
+    res.status(500).json({ success: false, error: error.response?.data?.error?.message || error.message });
+  }
+});
+
+// GoCardless webhook handler
+app.post('/api/billing/gocardless/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+  try {
+    const signature = req.headers['webhook-signature'];
+    const body = req.body.toString();
+    
+    // Verify webhook signature
+    const crypto = require('crypto');
+    const expectedSignature = crypto
+      .createHmac('sha256', GOCARDLESS_WEBHOOK_SECRET)
+      .update(body)
+      .digest('hex');
+    
+    if (signature !== expectedSignature) {
+      console.error('GoCardless webhook signature mismatch');
+      return res.status(401).json({ error: 'Invalid signature' });
+    }
+    
+    const payload = JSON.parse(body);
+    const events = payload.events || [];
+    
+    for (const event of events) {
+      console.log(`📬 GoCardless webhook: ${event.resource_type} - ${event.action}`);
+      
+      if (event.resource_type === 'payments') {
+        const paymentId = event.links?.payment;
+        
+        if (event.action === 'confirmed' || event.action === 'paid_out') {
+          // Payment successful
+          await pool.query(`
+            UPDATE billing_invoices SET status = 'paid', paid_at = NOW(), updated_at = NOW()
+            WHERE gocardless_payment_id = $1
+          `, [paymentId]);
+          
+          // Record in billing_payments
+          const invoice = await pool.query('SELECT * FROM billing_invoices WHERE gocardless_payment_id = $1', [paymentId]);
+          if (invoice.rows.length > 0) {
+            const inv = invoice.rows[0];
+            await pool.query(`
+              INSERT INTO billing_payments (account_id, amount, currency, type, status, description, metadata)
+              VALUES ($1, $2, $3, 'subscription', 'completed', $4, $5)
+            `, [
+              inv.account_id,
+              inv.total_amount,
+              inv.currency,
+              `Invoice for ${inv.billing_period}`,
+              JSON.stringify({ invoice_id: inv.id, gocardless_payment_id: paymentId })
+            ]);
+          }
+          
+          console.log(`✅ GoCardless payment ${paymentId} confirmed`);
+        } else if (event.action === 'failed' || event.action === 'cancelled') {
+          // Payment failed
+          await pool.query(`
+            UPDATE billing_invoices SET status = 'failed', updated_at = NOW()
+            WHERE gocardless_payment_id = $1
+          `, [paymentId]);
+          
+          console.log(`❌ GoCardless payment ${paymentId} failed`);
+        }
+      }
+    }
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('GoCardless webhook error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Run monthly billing for all accounts with GoCardless
+app.post('/api/billing/gocardless/run-monthly-billing', async (req, res) => {
+  try {
+    const billingPeriod = new Date().toISOString().slice(0, 7) + '-01';
+    
+    // Get all accounts with GoCardless linked
+    const accounts = await pool.query(`
+      SELECT gc.account_id, gc.gocardless_customer_id, gc.gocardless_mandate_id, a.company_name
+      FROM gocardless_customers gc
+      JOIN accounts a ON gc.account_id = a.id
+      WHERE gc.gocardless_mandate_id IS NOT NULL
+    `);
+    
+    const results = {
+      processed: 0,
+      charged: 0,
+      skipped: 0,
+      errors: []
+    };
+    
+    for (const acc of accounts.rows) {
+      try {
+        // Generate invoice
+        const invoiceRes = await pool.query(`
+          SELECT * FROM billing_invoices 
+          WHERE account_id = $1 AND billing_period = $2
+        `, [acc.account_id, billingPeriod]);
+        
+        let invoiceId;
+        if (invoiceRes.rows.length === 0) {
+          // Need to generate invoice first - call internal logic
+          // (simplified - in production, extract invoice generation to a function)
+          results.skipped++;
+          continue;
+        } else {
+          invoiceId = invoiceRes.rows[0].id;
+        }
+        
+        const invoice = invoiceRes.rows[0];
+        
+        if (invoice.status === 'paid') {
+          results.skipped++;
+          continue;
+        }
+        
+        if (parseFloat(invoice.total_amount) === 0) {
+          await pool.query('UPDATE billing_invoices SET status = $1 WHERE id = $2', ['paid', invoiceId]);
+          results.skipped++;
+          continue;
+        }
+        
+        // Create GoCardless payment
+        const amountInCents = Math.round(parseFloat(invoice.total_amount) * 100);
+        
+        const payment = await gocardlessRequest('POST', '/payments', {
+          payments: {
+            amount: amountInCents,
+            currency: invoice.currency || 'GBP',
+            description: `GAS Invoice - ${billingPeriod}`,
+            metadata: {
+              invoice_id: String(invoiceId),
+              account_id: String(acc.account_id)
+            },
+            links: {
+              mandate: acc.gocardless_mandate_id
+            }
+          }
+        });
+        
+        await pool.query(`
+          UPDATE billing_invoices SET gocardless_payment_id = $1, status = 'pending' WHERE id = $2
+        `, [payment.payments?.id, invoiceId]);
+        
+        results.charged++;
+        results.processed++;
+        
+      } catch (err) {
+        results.errors.push({ accountId: acc.account_id, error: err.message });
+        results.processed++;
+      }
+    }
+    
+    console.log(`💳 Monthly billing complete:`, results);
+    res.json({ success: true, results });
+  } catch (error) {
+    console.error('Monthly billing error:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================
+// END GOCARDLESS BILLING ENDPOINTS
 // ============================================
 
 app.listen(PORT, '0.0.0.0', async () => {
