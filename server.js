@@ -4884,7 +4884,7 @@ app.post('/api/gas-sync/connections/:connectionId/sync-v1-content', async (req, 
         // Update property raw_data with V1 content
         await pool.query(`
           UPDATE gas_sync_properties SET
-            raw_data = $1::text,
+            raw_data = $1::jsonb,
             last_content_sync = NOW(),
             synced_at = NOW()
           WHERE id = $2
@@ -4910,7 +4910,7 @@ app.post('/api/gas-sync/connections/:connectionId/sync-v1-content', async (req, 
           await pool.query(`
             UPDATE gas_sync_room_types SET
               description = COALESCE(NULLIF($1, ''), description),
-              raw_data = $2::text,
+              raw_data = $2::jsonb,
               synced_at = NOW()
             WHERE id = $3
           `, [
