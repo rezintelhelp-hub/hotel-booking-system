@@ -4826,6 +4826,7 @@ app.post('/api/gas-sync/connections/:connectionId/sync-v1-content', async (req, 
     const credentials = typeof conn.credentials === 'string' 
       ? JSON.parse(conn.credentials || '{}') 
       : (conn.credentials || {});
+    console.log('[V1 Content Sync] credentials type:', typeof conn.credentials, 'parsed keys:', Object.keys(credentials));
     const v1ApiKey = credentials.v1ApiKey || credentials.apiKey;
     
     if (!v1ApiKey) {
