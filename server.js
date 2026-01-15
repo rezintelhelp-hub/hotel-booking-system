@@ -634,6 +634,33 @@ async function runMigrations() {
       console.log('ℹ️  prop_key column:', propKeyError.message);
     }
     
+    // Fix: Ensure gas_sync_properties.raw_data is JSONB (not TEXT)
+    try {
+      await pool.query(`ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS raw_data JSONB`);
+      console.log('✅ gas_sync_properties.raw_data ensured as JSONB');
+    } catch (rawDataError) {
+      // Column exists - try to convert if it's TEXT
+      try {
+        await pool.query(`ALTER TABLE gas_sync_properties ALTER COLUMN raw_data TYPE JSONB USING raw_data::jsonb`);
+        console.log('✅ gas_sync_properties.raw_data converted to JSONB');
+      } catch (convertErr) {
+        console.log('ℹ️  raw_data column:', convertErr.message);
+      }
+    }
+    
+    // Fix: Ensure gas_sync_room_types.raw_data is JSONB (not TEXT)
+    try {
+      await pool.query(`ALTER TABLE gas_sync_room_types ADD COLUMN IF NOT EXISTS raw_data JSONB`);
+      console.log('✅ gas_sync_room_types.raw_data ensured as JSONB');
+    } catch (rawDataError) {
+      try {
+        await pool.query(`ALTER TABLE gas_sync_room_types ALTER COLUMN raw_data TYPE JSONB USING raw_data::jsonb`);
+        console.log('✅ gas_sync_room_types.raw_data converted to JSONB');
+      } catch (convertErr) {
+        console.log('ℹ️  room_types raw_data:', convertErr.message);
+      }
+    }
+    
     // Fix: Extend room_availability.source column to VARCHAR(50) if it's VARCHAR(20)
     try {
       await pool.query(`ALTER TABLE room_availability ALTER COLUMN source TYPE VARCHAR(50)`);
@@ -1595,7 +1622,7 @@ app.post('/api/migration/deploy', async (req, res) => {
 // =====================================================
 
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', database: !!process.env.DATABASE_URL, beds24: !!BEDS24_TOKEN });
+  res.json({ status: 'ok', version: 'v20260115-1', database: !!process.env.DATABASE_URL, beds24: !!BEDS24_TOKEN });
 });
 
 // Get server's outbound IP (for whitelisting)
@@ -4854,10 +4881,10 @@ app.post('/api/gas-sync/connections/:connectionId/sync-v1-content', async (req, 
         
         console.log(`[V1 Content Sync] ${prop.name}: texts keys=${Object.keys(texts).length}, featureCodes=${featureCodes.length}, images=${images.length}`);
         
-        // Update property raw_data with V1 content (handle both TEXT and JSONB column types)
+        // Update property raw_data with V1 content
         await pool.query(`
           UPDATE gas_sync_properties SET
-            raw_data = $1,
+            raw_data = $1::text,
             last_content_sync = NOW(),
             synced_at = NOW()
           WHERE id = $2
@@ -4879,11 +4906,11 @@ app.post('/api/gas-sync/connections/:connectionId/sync-v1-content', async (req, 
           const roomDesc = getText(texts.roomDescription1);
           const auxText = getText(texts.auxiliaryText);
           
-          // Update gas_sync_room_types with full V1 data (handle both TEXT and JSONB)
+          // Update gas_sync_room_types with full V1 data
           await pool.query(`
             UPDATE gas_sync_room_types SET
               description = COALESCE(NULLIF($1, ''), description),
-              raw_data = $2,
+              raw_data = $2::text,
               synced_at = NOW()
             WHERE id = $3
           `, [
