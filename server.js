@@ -4856,7 +4856,7 @@ app.post('/api/gas-sync/connections/:connectionId/sync-v1-content', async (req, 
     }
     
     const properties = conn.properties || [];
-    console.log(`[V1 Content Sync] Starting for ${properties.length} properties`);
+    console.log(`[V1 Content Sync] Starting for ${properties.length} properties, props:`, JSON.stringify(properties));
     
     const results = {
       total: properties.length,
