@@ -4909,12 +4909,10 @@ app.post('/api/gas-sync/connections/:connectionId/sync-v1-content', async (req, 
           // Update gas_sync_room_types with full V1 data
           await pool.query(`
             UPDATE gas_sync_room_types SET
-              description = COALESCE(NULLIF($1, ''), description),
-              raw_data = $2::jsonb,
+              raw_data = $1::jsonb,
               synced_at = NOW()
-            WHERE id = $3
+            WHERE id = $2
           `, [
-            roomDesc,
             JSON.stringify({ texts, featureCodes }),
             room.id
           ]);
