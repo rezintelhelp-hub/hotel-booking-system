@@ -4910,7 +4910,7 @@ app.post('/api/gas-sync/connections/:connectionId/sync-v1-content', async (req, 
           await pool.query(`
             UPDATE gas_sync_room_types SET
               description = COALESCE(NULLIF($1, ''), description),
-              raw_data = $2::jsonb,
+              raw_data = $2::text,
               synced_at = NOW()
             WHERE id = $3
           `, [
