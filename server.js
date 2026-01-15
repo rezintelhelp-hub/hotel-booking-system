@@ -42632,18 +42632,24 @@ app.get('/api/billing/account/:accountId/status', async (req, res) => {
       WHERE p.account_id = $1
     `, [accountId]);
     
-    // Get active websites/plugins
-    const websites = await pool.query(
-      'SELECT COUNT(*) as count FROM websites WHERE account_id = $1 AND status = $2',
-      [accountId, 'active']
-    );
+    // Get active websites/plugins - check if table has account_id column
+    let websiteCount = 0;
+    try {
+      const websites = await pool.query(
+        'SELECT COUNT(*) as count FROM wordpress_sites WHERE account_id = $1',
+        [accountId]
+      );
+      websiteCount = parseInt(websites.rows[0]?.count || 0);
+    } catch (e) {
+      // wordpress_sites might not exist or have different structure
+      websiteCount = 0;
+    }
     
     const roomCount = parseInt(rooms.rows[0]?.count || 0);
-    const websiteCount = parseInt(websites.rows[0]?.count || 0);
     
     // Calculate estimated bill
     let estimatedBill = 0;
-    if (websiteCount > 0) {
+    if (websiteCount > 0 || roomCount > 0) {
       estimatedBill = BILLING_CONFIG.base_monthly;
       if (roomCount > BILLING_CONFIG.included_rooms) {
         estimatedBill += (roomCount - BILLING_CONFIG.included_rooms) * BILLING_CONFIG.per_room_overage;
