@@ -4678,24 +4678,72 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
             [prop.id]
           );
           
-          for (const room of rooms.rows) {
-            const displayName = roomTexts[`displayName_${room.external_id}`] || roomTexts.displayName;
-            const roomDesc = roomTexts[`roomDescription1_${room.external_id}`] || roomTexts.roomDescription1;
-            
-            if (displayName || roomDesc) {
-              await pool.query(`
-                UPDATE gas_sync_room_types SET
-                  description = COALESCE($1, description),
-                  raw_data = COALESCE(raw_data, '{}'::jsonb) || $2,
-                  synced_at = NOW()
-                WHERE id = $3
-              `, [
-                roomDesc,
-                JSON.stringify({ displayName, roomDescription1: roomDesc }),
-                room.id
-              ]);
-              roomsUpdated++;
+          // V1 texts structure: texts.displayName = { EN: "...", DE: "..." }
+          // Helper to extract text
+          const getText = (val) => {
+            if (!val) return '';
+            if (typeof val === 'string') return val;
+            if (typeof val === 'object') {
+              return val.EN || val.en || val.DE || val.de || Object.values(val).find(v => typeof v === 'string' && v.trim()) || '';
             }
+            return '';
+          };
+          
+          // Get featureCodes from V1 response
+          const v1FeatureCodes = content.featureCodes || [];
+          console.log(`[Content Sync] V1 featureCodes:`, Array.isArray(v1FeatureCodes) ? v1FeatureCodes.length + ' codes' : typeof v1FeatureCodes);
+          
+          for (const room of rooms.rows) {
+            // V1 texts can be property-level or room-specific
+            const displayName = getText(roomTexts.displayName);
+            const roomDesc = getText(roomTexts.roomDescription1);
+            const auxText = getText(roomTexts.auxiliaryText);
+            
+            console.log(`[Content Sync] Room ${room.external_id}: displayName="${displayName}", desc="${roomDesc?.substring(0,50)}..."`);
+            
+            // Build raw_data with texts and featureCodes
+            const rawDataUpdate = { 
+              texts: roomTexts,
+              featureCodes: v1FeatureCodes 
+            };
+            
+            // Update gas_sync_room_types
+            await pool.query(`
+              UPDATE gas_sync_room_types SET
+                description = COALESCE(NULLIF($1, ''), description),
+                raw_data = COALESCE(raw_data, '{}'::jsonb) || $2::jsonb,
+                synced_at = NOW()
+              WHERE id = $3
+            `, [
+              roomDesc,
+              JSON.stringify(rawDataUpdate),
+              room.id
+            ]);
+            
+            // Also update bookable_units if linked
+            const syncRoom = await pool.query('SELECT gas_room_id FROM gas_sync_room_types WHERE id = $1', [room.id]);
+            const gasRoomId = syncRoom.rows[0]?.gas_room_id;
+            
+            if (gasRoomId) {
+              await pool.query(`
+                UPDATE bookable_units SET
+                  display_name = COALESCE(NULLIF($1, ''), display_name),
+                  short_description = COALESCE(NULLIF($2, ''), short_description),
+                  full_description = COALESCE(NULLIF($3, ''), full_description),
+                  feature_codes = COALESCE(NULLIF($4, ''), feature_codes),
+                  updated_at = NOW()
+                WHERE id = $5
+              `, [
+                displayName,
+                roomDesc,
+                auxText,
+                Array.isArray(v1FeatureCodes) ? v1FeatureCodes.join(',') : '',
+                gasRoomId
+              ]);
+              console.log(`[Content Sync] Updated bookable_unit ${gasRoomId} with V1 content`);
+            }
+            
+            roomsUpdated++;
           }
         }
       } catch (v1Error) {
@@ -4717,6 +4765,175 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
     
   } catch (error) {
     console.error('Property content sync error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * Sync V1 content (texts, featureCodes) for ALL properties in a connection
+ * This is a lightweight sync that only calls V1 getPropertyContent - no pricing
+ */
+app.post('/api/gas-sync/connections/:connectionId/sync-v1-content', async (req, res) => {
+  try {
+    const { connectionId } = req.params;
+    
+    // Get connection and all its properties
+    const connResult = await pool.query(`
+      SELECT c.*, 
+        (SELECT json_agg(json_build_object(
+          'id', sp.id, 
+          'name', sp.name, 
+          'external_id', sp.external_id,
+          'prop_key', sp.prop_key
+        )) FROM gas_sync_properties sp WHERE sp.connection_id = c.id) as properties
+      FROM gas_sync_connections c 
+      WHERE c.id = $1
+    `, [connectionId]);
+    
+    if (connResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Connection not found' });
+    }
+    
+    const conn = connResult.rows[0];
+    const credentials = typeof conn.credentials === 'string' 
+      ? JSON.parse(conn.credentials || '{}') 
+      : (conn.credentials || {});
+    const v1ApiKey = credentials.v1ApiKey || credentials.apiKey;
+    
+    if (!v1ApiKey) {
+      return res.json({ success: false, error: 'No V1 API key configured. Add it in connection settings.' });
+    }
+    
+    const properties = conn.properties || [];
+    console.log(`[V1 Content Sync] Starting for ${properties.length} properties`);
+    
+    const results = {
+      total: properties.length,
+      synced: 0,
+      skipped: 0,
+      errors: []
+    };
+    
+    // Helper to extract text from Beds24 V1 format
+    const getText = (val) => {
+      if (!val) return '';
+      if (typeof val === 'string') return val;
+      if (typeof val === 'object') {
+        return val.EN || val.en || val.DE || val.de || Object.values(val).find(v => typeof v === 'string' && v.trim()) || '';
+      }
+      return '';
+    };
+    
+    for (const prop of properties) {
+      if (!prop.prop_key) {
+        console.log(`[V1 Content Sync] ${prop.name}: No prop_key, skipping`);
+        results.skipped++;
+        continue;
+      }
+      
+      try {
+        console.log(`[V1 Content Sync] ${prop.name}: Fetching V1 content...`);
+        
+        const v1Response = await axios.post('https://api.beds24.com/json/getPropertyContent', {
+          authentication: { apiKey: v1ApiKey, propKey: prop.prop_key },
+          texts: true,
+          featureCodes: true,
+          images: true
+        });
+        
+        const content = v1Response.data?.getPropertyContent?.[0];
+        if (!content) {
+          console.log(`[V1 Content Sync] ${prop.name}: No content returned`);
+          results.skipped++;
+          continue;
+        }
+        
+        const texts = content.texts || {};
+        const featureCodes = content.featureCodes || [];
+        const images = content.images || [];
+        
+        console.log(`[V1 Content Sync] ${prop.name}: texts keys=${Object.keys(texts).length}, featureCodes=${featureCodes.length}, images=${images.length}`);
+        
+        // Update property raw_data with V1 content
+        await pool.query(`
+          UPDATE gas_sync_properties SET
+            raw_data = COALESCE(raw_data, '{}'::jsonb) || $1::jsonb,
+            last_content_sync = NOW(),
+            synced_at = NOW()
+          WHERE id = $2
+        `, [
+          JSON.stringify({ texts, featureCodes, images, v1SyncedAt: new Date().toISOString() }),
+          prop.id
+        ]);
+        
+        // Get rooms for this property
+        const rooms = await pool.query(`
+          SELECT rt.id, rt.external_id, rt.gas_room_id 
+          FROM gas_sync_room_types rt 
+          WHERE rt.sync_property_id = $1
+        `, [prop.id]);
+        
+        // Update each room
+        for (const room of rooms.rows) {
+          const displayName = getText(texts.displayName);
+          const roomDesc = getText(texts.roomDescription1);
+          const auxText = getText(texts.auxiliaryText);
+          
+          // Update gas_sync_room_types with full V1 data
+          await pool.query(`
+            UPDATE gas_sync_room_types SET
+              description = COALESCE(NULLIF($1, ''), description),
+              raw_data = COALESCE(raw_data, '{}'::jsonb) || $2::jsonb,
+              synced_at = NOW()
+            WHERE id = $3
+          `, [
+            roomDesc,
+            JSON.stringify({ texts, featureCodes }),
+            room.id
+          ]);
+          
+          // Update bookable_units if linked
+          if (room.gas_room_id) {
+            await pool.query(`
+              UPDATE bookable_units SET
+                display_name = COALESCE(NULLIF($1, ''), display_name),
+                short_description = COALESCE(NULLIF($2, ''), short_description),
+                full_description = COALESCE(NULLIF($3, ''), full_description),
+                feature_codes = COALESCE(NULLIF($4, ''), feature_codes),
+                updated_at = NOW()
+              WHERE id = $5
+            `, [
+              displayName,
+              roomDesc,
+              auxText,
+              Array.isArray(featureCodes) ? featureCodes.join(',') : '',
+              room.gas_room_id
+            ]);
+          }
+        }
+        
+        results.synced++;
+        console.log(`[V1 Content Sync] ${prop.name}: ✓ Updated ${rooms.rows.length} rooms`);
+        
+      } catch (propError) {
+        console.error(`[V1 Content Sync] ${prop.name}: Error - ${propError.message}`);
+        results.errors.push({ property: prop.name, error: propError.message });
+      }
+      
+      // Small delay to avoid rate limits
+      await new Promise(r => setTimeout(r, 500));
+    }
+    
+    console.log(`[V1 Content Sync] Complete: ${results.synced}/${results.total} synced`);
+    
+    res.json({
+      success: true,
+      message: `V1 content synced for ${results.synced} of ${results.total} properties`,
+      results
+    });
+    
+  } catch (error) {
+    console.error('V1 Content Sync error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
