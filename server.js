@@ -3270,49 +3270,40 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         const codes = featureCodes.split(',').map(c => c.trim()).filter(c => c);
         
         if (codes.length > 0) {
-          // Ensure beds24_code column exists on master_amenities
-          await pool.query('ALTER TABLE master_amenities ADD COLUMN IF NOT EXISTS beds24_code VARCHAR(100)').catch(() => {});
-          
-          // Ensure bookable_unit_amenities table exists
+          // Ensure room_amenity_selections table exists
           await pool.query(`
-            CREATE TABLE IF NOT EXISTS bookable_unit_amenities (
+            CREATE TABLE IF NOT EXISTS room_amenity_selections (
               id SERIAL PRIMARY KEY,
-              bookable_unit_id INTEGER,
-              amenity_id INTEGER,
-              amenity_code VARCHAR(100),
-              amenity_name VARCHAR(255),
-              category VARCHAR(100),
+              room_id INTEGER NOT NULL,
+              amenity_id INTEGER NOT NULL,
               display_order INTEGER DEFAULT 0,
-              created_at TIMESTAMP DEFAULT NOW()
+              created_at TIMESTAMP DEFAULT NOW(),
+              UNIQUE(room_id, amenity_id)
             )
           `).catch(() => {});
           
+          let amenitiesAdded = 0;
           for (const code of codes) {
-            // Try to find matching master amenity by beds24_code or amenity_code
+            // Try to find matching master amenity
             const masterMatch = await pool.query(`
               SELECT id, amenity_code, amenity_name, category 
               FROM master_amenities 
-              WHERE beds24_code = $1 OR amenity_code = $1 OR UPPER(amenity_code) = UPPER($1)
+              WHERE amenity_code = $1 OR UPPER(amenity_code) = UPPER($1) OR beds24_code = $1
               LIMIT 1
             `, [code]);
             
             if (masterMatch.rows.length > 0) {
               const ma = masterMatch.rows[0];
-              // Check if already linked
-              const existing = await pool.query(
-                'SELECT id FROM bookable_unit_amenities WHERE bookable_unit_id = $1 AND amenity_id = $2',
-                [gasRoomId, ma.id]
-              );
-              
-              if (existing.rows.length === 0) {
-                await pool.query(`
-                  INSERT INTO bookable_unit_amenities (bookable_unit_id, amenity_id, amenity_code, amenity_name, category)
-                  VALUES ($1, $2, $3, $4, $5)
-                `, [gasRoomId, ma.id, ma.amenity_code, ma.amenity_name, ma.category]);
-              }
+              // Insert into room_amenity_selections (the table the UI reads from)
+              await pool.query(`
+                INSERT INTO room_amenity_selections (room_id, amenity_id, display_order)
+                VALUES ($1, $2, $3)
+                ON CONFLICT (room_id, amenity_id) DO NOTHING
+              `, [gasRoomId, ma.id, amenitiesAdded]).catch(() => {});
+              amenitiesAdded++;
             }
-            // If no match, the feature code is stored in feature_codes column for manual mapping later
           }
+          console.log(`link-to-gas: Mapped ${amenitiesAdded} amenities for room ${room.name}`);
         }
       }
     }
