@@ -2126,12 +2126,15 @@ app.post('/api/gas-sync/test-prop-key', async (req, res) => {
     }
     
     const prop = propResult.rows[0];
+    console.log('Test prop key - raw credentials type:', typeof prop.credentials, 'value:', prop.credentials ? JSON.stringify(prop.credentials).substring(0, 100) : 'NULL');
+    console.log('Test prop key - connection_id from property:', prop.connection_id);
+    
     let credentials = prop.credentials || {};
     if (typeof credentials === 'string') {
       credentials = JSON.parse(credentials);
     }
     
-    console.log('Test prop key - credentials found:', !!credentials, 'v1ApiKey:', !!credentials.v1ApiKey);
+    console.log('Test prop key - credentials found:', !!credentials, 'v1ApiKey:', !!credentials.v1ApiKey, 'keys:', Object.keys(credentials));
     
     // For Beds24, test by fetching property data using the propKey
     if (prop.adapter_code === 'beds24') {
