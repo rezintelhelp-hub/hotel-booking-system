@@ -25,6 +25,59 @@ const { v4: uuidv4 } = require('uuid');
 const Stripe = require('stripe');
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
+// Airwallex payment processing
+const AIRWALLEX_CLIENT_ID = process.env.AIRWALLEX_CLIENT_ID;
+const AIRWALLEX_API_KEY = process.env.AIRWALLEX_API_KEY;
+const AIRWALLEX_ENV = process.env.AIRWALLEX_ENV || 'production'; // 'sandbox' or 'production'
+const AIRWALLEX_BASE_URL = AIRWALLEX_ENV === 'sandbox' 
+  ? 'https://api-demo.airwallex.com/api/v1'
+  : 'https://api.airwallex.com/api/v1';
+
+// Airwallex auth token cache
+let airwallexToken = null;
+let airwallexTokenExpiry = null;
+
+async function getAirwallexToken() {
+  // Return cached token if still valid (with 5 min buffer)
+  if (airwallexToken && airwallexTokenExpiry && new Date(airwallexTokenExpiry) > new Date(Date.now() + 5 * 60 * 1000)) {
+    return airwallexToken;
+  }
+  
+  try {
+    const response = await axios.post(`${AIRWALLEX_BASE_URL}/authentication/login`, {}, {
+      headers: {
+        'Content-Type': 'application/json',
+        'x-client-id': AIRWALLEX_CLIENT_ID,
+        'x-api-key': AIRWALLEX_API_KEY
+      }
+    });
+    
+    airwallexToken = response.data.token;
+    airwallexTokenExpiry = response.data.expires_at;
+    console.log('✅ Airwallex token refreshed, expires:', airwallexTokenExpiry);
+    return airwallexToken;
+  } catch (error) {
+    console.error('❌ Airwallex auth failed:', error.response?.data || error.message);
+    throw new Error('Airwallex authentication failed');
+  }
+}
+
+async function airwallexRequest(method, endpoint, data = null) {
+  const token = await getAirwallexToken();
+  const config = {
+    method,
+    url: `${AIRWALLEX_BASE_URL}${endpoint}`,
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    }
+  };
+  if (data) config.data = data;
+  
+  const response = await axios(config);
+  return response.data;
+}
+
 // Google APIs for Analytics & Search Console
 const { google } = require('googleapis');
 let googleAuth = null;
@@ -11776,6 +11829,64 @@ app.get('/api/setup-billing', async (req, res) => {
     `);
     
     // Insert default plans if empty
+    
+    // Usage tracking for metered billing
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS billing_usage (
+        id SERIAL PRIMARY KEY,
+        account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
+        billing_period DATE NOT NULL,
+        room_count INTEGER DEFAULT 0,
+        blog_posts_generated INTEGER DEFAULT 0,
+        attractions_generated INTEGER DEFAULT 0,
+        reviews_synced INTEGER DEFAULT 0,
+        websites_active INTEGER DEFAULT 0,
+        plugins_active INTEGER DEFAULT 0,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(account_id, billing_period)
+      )
+    `);
+    console.log('✅ billing_usage table ensured');
+    
+    // Airwallex customer mapping
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS airwallex_customers (
+        id SERIAL PRIMARY KEY,
+        account_id INTEGER UNIQUE REFERENCES accounts(id) ON DELETE CASCADE,
+        airwallex_customer_id VARCHAR(255) UNIQUE,
+        payment_consent_id VARCHAR(255),
+        payment_method_id VARCHAR(255),
+        payment_method_last4 VARCHAR(4),
+        payment_method_brand VARCHAR(50),
+        email VARCHAR(255),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('✅ airwallex_customers table ensured');
+    
+    // Billing invoices for usage-based billing
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS billing_invoices (
+        id SERIAL PRIMARY KEY,
+        account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
+        billing_period DATE NOT NULL,
+        status VARCHAR(50) DEFAULT 'draft',
+        base_amount DECIMAL(10,2) DEFAULT 0,
+        room_overage_amount DECIMAL(10,2) DEFAULT 0,
+        blog_amount DECIMAL(10,2) DEFAULT 0,
+        attractions_amount DECIMAL(10,2) DEFAULT 0,
+        reviews_amount DECIMAL(10,2) DEFAULT 0,
+        total_amount DECIMAL(10,2) DEFAULT 0,
+        currency VARCHAR(3) DEFAULT 'USD',
+        line_items JSONB DEFAULT '[]',
+        airwallex_payment_intent_id VARCHAR(255),
+        paid_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('✅ billing_invoices table ensured');
     const planCheck = await pool.query('SELECT COUNT(*) FROM billing_plans');
     if (parseInt(planCheck.rows[0].count) === 0) {
       await pool.query(`
@@ -42276,6 +42387,530 @@ function parseRssFeed(rssData) {
   
   return articles;
 }
+
+// ============================================
+// AIRWALLEX BILLING ENDPOINTS
+// ============================================
+
+// Pricing configuration
+const BILLING_CONFIG = {
+  base_monthly: 19.99,       // Base fee includes 5 rooms
+  included_rooms: 5,
+  per_room_overage: 1.00,    // Per room over 5
+  blog_module: 10.00,        // Blog module monthly
+  blog_posts_included: 50,
+  attractions_module: 10.00, // Attractions module monthly
+  attractions_included: 100,
+  reviews_module: 10.00,     // Reviews module (Hostaway only)
+  currency: 'USD'
+};
+
+// Get Airwallex billing config
+app.get('/api/billing/config', (req, res) => {
+  res.json({ success: true, config: BILLING_CONFIG });
+});
+
+// Create Airwallex customer for account
+app.post('/api/billing/airwallex/create-customer', async (req, res) => {
+  try {
+    const { accountId } = req.body;
+    
+    // Get account details
+    const account = await pool.query('SELECT * FROM accounts WHERE id = $1', [accountId]);
+    if (account.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Account not found' });
+    }
+    
+    const acc = account.rows[0];
+    
+    // Check if customer already exists
+    const existing = await pool.query('SELECT * FROM airwallex_customers WHERE account_id = $1', [accountId]);
+    if (existing.rows.length > 0) {
+      return res.json({ 
+        success: true, 
+        message: 'Customer already exists',
+        customerId: existing.rows[0].airwallex_customer_id 
+      });
+    }
+    
+    // Create customer in Airwallex
+    const customer = await airwallexRequest('POST', '/pa/customers/create', {
+      email: acc.email,
+      first_name: acc.company_name || acc.email.split('@')[0],
+      last_name: 'Account',
+      merchant_customer_id: `gas_account_${accountId}`,
+      metadata: {
+        gas_account_id: String(accountId),
+        company_name: acc.company_name || ''
+      }
+    });
+    
+    // Save to database
+    await pool.query(`
+      INSERT INTO airwallex_customers (account_id, airwallex_customer_id, email)
+      VALUES ($1, $2, $3)
+    `, [accountId, customer.id, acc.email]);
+    
+    console.log(`✅ Created Airwallex customer ${customer.id} for account ${accountId}`);
+    
+    res.json({ 
+      success: true, 
+      customerId: customer.id,
+      message: 'Customer created successfully'
+    });
+  } catch (error) {
+    console.error('Airwallex create customer error:', error.response?.data || error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Create payment setup session (for collecting card details)
+app.post('/api/billing/airwallex/create-setup-session', async (req, res) => {
+  try {
+    const { accountId } = req.body;
+    
+    // Get or create Airwallex customer
+    let customerResult = await pool.query('SELECT * FROM airwallex_customers WHERE account_id = $1', [accountId]);
+    
+    if (customerResult.rows.length === 0) {
+      // Create customer first
+      const account = await pool.query('SELECT * FROM accounts WHERE id = $1', [accountId]);
+      if (account.rows.length === 0) {
+        return res.status(404).json({ success: false, error: 'Account not found' });
+      }
+      
+      const acc = account.rows[0];
+      const customer = await airwallexRequest('POST', '/pa/customers/create', {
+        email: acc.email,
+        first_name: acc.company_name || acc.email.split('@')[0],
+        last_name: 'Account',
+        merchant_customer_id: `gas_account_${accountId}`,
+        metadata: { gas_account_id: String(accountId) }
+      });
+      
+      await pool.query(`
+        INSERT INTO airwallex_customers (account_id, airwallex_customer_id, email)
+        VALUES ($1, $2, $3)
+      `, [accountId, customer.id, acc.email]);
+      
+      customerResult = await pool.query('SELECT * FROM airwallex_customers WHERE account_id = $1', [accountId]);
+    }
+    
+    const customerId = customerResult.rows[0].airwallex_customer_id;
+    
+    // Create a $0 payment intent for card setup
+    const intent = await airwallexRequest('POST', '/pa/payment_intents/create', {
+      amount: 0,
+      currency: BILLING_CONFIG.currency.toLowerCase(),
+      customer_id: customerId,
+      merchant_order_id: `setup_${accountId}_${Date.now()}`,
+      metadata: {
+        type: 'card_setup',
+        gas_account_id: String(accountId)
+      },
+      request_id: `setup_${accountId}_${Date.now()}`
+    });
+    
+    res.json({
+      success: true,
+      intentId: intent.id,
+      clientSecret: intent.client_secret,
+      customerId: customerId
+    });
+  } catch (error) {
+    console.error('Airwallex setup session error:', error.response?.data || error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Save payment consent after card is added
+app.post('/api/billing/airwallex/save-payment-method', async (req, res) => {
+  try {
+    const { accountId, paymentConsentId, paymentMethodId, last4, brand } = req.body;
+    
+    await pool.query(`
+      UPDATE airwallex_customers SET
+        payment_consent_id = $1,
+        payment_method_id = $2,
+        payment_method_last4 = $3,
+        payment_method_brand = $4,
+        updated_at = NOW()
+      WHERE account_id = $5
+    `, [paymentConsentId, paymentMethodId, last4, brand, accountId]);
+    
+    console.log(`✅ Saved payment method for account ${accountId}`);
+    
+    res.json({ success: true, message: 'Payment method saved' });
+  } catch (error) {
+    console.error('Save payment method error:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get account billing status
+app.get('/api/billing/account/:accountId/status', async (req, res) => {
+  try {
+    const { accountId } = req.params;
+    
+    // Get customer info
+    const customer = await pool.query('SELECT * FROM airwallex_customers WHERE account_id = $1', [accountId]);
+    
+    // Get current usage
+    const currentPeriod = new Date().toISOString().slice(0, 7) + '-01';
+    const usage = await pool.query(
+      'SELECT * FROM billing_usage WHERE account_id = $1 AND billing_period = $2',
+      [accountId, currentPeriod]
+    );
+    
+    // Get room count
+    const rooms = await pool.query(`
+      SELECT COUNT(*) as count FROM bookable_units bu
+      JOIN properties p ON bu.property_id = p.id
+      WHERE p.account_id = $1
+    `, [accountId]);
+    
+    // Get active websites/plugins
+    const websites = await pool.query(
+      'SELECT COUNT(*) as count FROM websites WHERE account_id = $1 AND status = $2',
+      [accountId, 'active']
+    );
+    
+    const roomCount = parseInt(rooms.rows[0]?.count || 0);
+    const websiteCount = parseInt(websites.rows[0]?.count || 0);
+    
+    // Calculate estimated bill
+    let estimatedBill = 0;
+    if (websiteCount > 0) {
+      estimatedBill = BILLING_CONFIG.base_monthly;
+      if (roomCount > BILLING_CONFIG.included_rooms) {
+        estimatedBill += (roomCount - BILLING_CONFIG.included_rooms) * BILLING_CONFIG.per_room_overage;
+      }
+    }
+    
+    res.json({
+      success: true,
+      hasPaymentMethod: !!customer.rows[0]?.payment_consent_id,
+      paymentMethodLast4: customer.rows[0]?.payment_method_last4,
+      paymentMethodBrand: customer.rows[0]?.payment_method_brand,
+      usage: {
+        roomCount,
+        websiteCount,
+        blogPostsGenerated: usage.rows[0]?.blog_posts_generated || 0,
+        attractionsGenerated: usage.rows[0]?.attractions_generated || 0
+      },
+      estimatedBill,
+      currency: BILLING_CONFIG.currency
+    });
+  } catch (error) {
+    console.error('Billing status error:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Track usage (call this when blogs/attractions are generated)
+app.post('/api/billing/track-usage', async (req, res) => {
+  try {
+    const { accountId, type, count = 1 } = req.body;
+    
+    const currentPeriod = new Date().toISOString().slice(0, 7) + '-01';
+    
+    // Upsert usage record
+    let updateField;
+    switch (type) {
+      case 'blog': updateField = 'blog_posts_generated'; break;
+      case 'attraction': updateField = 'attractions_generated'; break;
+      case 'review': updateField = 'reviews_synced'; break;
+      default: return res.status(400).json({ success: false, error: 'Invalid usage type' });
+    }
+    
+    await pool.query(`
+      INSERT INTO billing_usage (account_id, billing_period, ${updateField})
+      VALUES ($1, $2, $3)
+      ON CONFLICT (account_id, billing_period)
+      DO UPDATE SET ${updateField} = billing_usage.${updateField} + $3, updated_at = NOW()
+    `, [accountId, currentPeriod, count]);
+    
+    res.json({ success: true, message: 'Usage tracked' });
+  } catch (error) {
+    console.error('Track usage error:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Generate invoice for account
+app.post('/api/billing/generate-invoice', async (req, res) => {
+  try {
+    const { accountId, billingPeriod } = req.body;
+    
+    const period = billingPeriod || new Date().toISOString().slice(0, 7) + '-01';
+    
+    // Get room count
+    const rooms = await pool.query(`
+      SELECT COUNT(*) as count FROM bookable_units bu
+      JOIN properties p ON bu.property_id = p.id
+      WHERE p.account_id = $1
+    `, [accountId]);
+    const roomCount = parseInt(rooms.rows[0]?.count || 0);
+    
+    // Get usage
+    const usage = await pool.query(
+      'SELECT * FROM billing_usage WHERE account_id = $1 AND billing_period = $2',
+      [accountId, period]
+    );
+    const usageData = usage.rows[0] || {};
+    
+    // Get active features
+    const websites = await pool.query(
+      'SELECT COUNT(*) as count FROM websites WHERE account_id = $1 AND status = $2',
+      [accountId, 'active']
+    );
+    const websiteCount = parseInt(websites.rows[0]?.count || 0);
+    
+    // Calculate line items
+    const lineItems = [];
+    let total = 0;
+    
+    // Base fee (if has active website/plugin)
+    if (websiteCount > 0) {
+      lineItems.push({
+        description: `GAS Platform (includes ${BILLING_CONFIG.included_rooms} rooms)`,
+        quantity: 1,
+        unit_price: BILLING_CONFIG.base_monthly,
+        amount: BILLING_CONFIG.base_monthly
+      });
+      total += BILLING_CONFIG.base_monthly;
+      
+      // Room overage
+      if (roomCount > BILLING_CONFIG.included_rooms) {
+        const overageRooms = roomCount - BILLING_CONFIG.included_rooms;
+        const overageAmount = overageRooms * BILLING_CONFIG.per_room_overage;
+        lineItems.push({
+          description: `Additional rooms (${overageRooms} rooms @ $${BILLING_CONFIG.per_room_overage}/room)`,
+          quantity: overageRooms,
+          unit_price: BILLING_CONFIG.per_room_overage,
+          amount: overageAmount
+        });
+        total += overageAmount;
+      }
+    }
+    
+    // Blog module (if used)
+    if (usageData.blog_posts_generated > 0) {
+      lineItems.push({
+        description: `Blog Module (${usageData.blog_posts_generated} posts generated)`,
+        quantity: 1,
+        unit_price: BILLING_CONFIG.blog_module,
+        amount: BILLING_CONFIG.blog_module
+      });
+      total += BILLING_CONFIG.blog_module;
+    }
+    
+    // Attractions module (if used)
+    if (usageData.attractions_generated > 0) {
+      lineItems.push({
+        description: `Attractions Module (${usageData.attractions_generated} items generated)`,
+        quantity: 1,
+        unit_price: BILLING_CONFIG.attractions_module,
+        amount: BILLING_CONFIG.attractions_module
+      });
+      total += BILLING_CONFIG.attractions_module;
+    }
+    
+    // Create or update invoice
+    const existingInvoice = await pool.query(
+      'SELECT id FROM billing_invoices WHERE account_id = $1 AND billing_period = $2',
+      [accountId, period]
+    );
+    
+    let invoiceId;
+    if (existingInvoice.rows.length > 0) {
+      invoiceId = existingInvoice.rows[0].id;
+      await pool.query(`
+        UPDATE billing_invoices SET
+          base_amount = $1,
+          room_overage_amount = $2,
+          blog_amount = $3,
+          attractions_amount = $4,
+          total_amount = $5,
+          line_items = $6,
+          updated_at = NOW()
+        WHERE id = $7
+      `, [
+        websiteCount > 0 ? BILLING_CONFIG.base_monthly : 0,
+        roomCount > BILLING_CONFIG.included_rooms ? (roomCount - BILLING_CONFIG.included_rooms) * BILLING_CONFIG.per_room_overage : 0,
+        usageData.blog_posts_generated > 0 ? BILLING_CONFIG.blog_module : 0,
+        usageData.attractions_generated > 0 ? BILLING_CONFIG.attractions_module : 0,
+        total,
+        JSON.stringify(lineItems),
+        invoiceId
+      ]);
+    } else {
+      const result = await pool.query(`
+        INSERT INTO billing_invoices (account_id, billing_period, base_amount, room_overage_amount, blog_amount, attractions_amount, total_amount, line_items, currency)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        RETURNING id
+      `, [
+        accountId,
+        period,
+        websiteCount > 0 ? BILLING_CONFIG.base_monthly : 0,
+        roomCount > BILLING_CONFIG.included_rooms ? (roomCount - BILLING_CONFIG.included_rooms) * BILLING_CONFIG.per_room_overage : 0,
+        usageData.blog_posts_generated > 0 ? BILLING_CONFIG.blog_module : 0,
+        usageData.attractions_generated > 0 ? BILLING_CONFIG.attractions_module : 0,
+        total,
+        JSON.stringify(lineItems),
+        BILLING_CONFIG.currency
+      ]);
+      invoiceId = result.rows[0].id;
+    }
+    
+    res.json({
+      success: true,
+      invoiceId,
+      lineItems,
+      total,
+      currency: BILLING_CONFIG.currency
+    });
+  } catch (error) {
+    console.error('Generate invoice error:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Charge invoice using stored payment method
+app.post('/api/billing/charge-invoice', async (req, res) => {
+  try {
+    const { invoiceId } = req.body;
+    
+    // Get invoice
+    const invoice = await pool.query('SELECT * FROM billing_invoices WHERE id = $1', [invoiceId]);
+    if (invoice.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Invoice not found' });
+    }
+    
+    const inv = invoice.rows[0];
+    
+    if (inv.status === 'paid') {
+      return res.json({ success: true, message: 'Invoice already paid' });
+    }
+    
+    if (parseFloat(inv.total_amount) === 0) {
+      // Mark as paid if zero amount
+      await pool.query(`
+        UPDATE billing_invoices SET status = 'paid', paid_at = NOW() WHERE id = $1
+      `, [invoiceId]);
+      return res.json({ success: true, message: 'No charge needed (zero amount)' });
+    }
+    
+    // Get payment method
+    const customer = await pool.query('SELECT * FROM airwallex_customers WHERE account_id = $1', [inv.account_id]);
+    if (customer.rows.length === 0 || !customer.rows[0].payment_consent_id) {
+      return res.status(400).json({ success: false, error: 'No payment method on file' });
+    }
+    
+    const cust = customer.rows[0];
+    
+    // Create payment intent with saved payment method
+    const intent = await airwallexRequest('POST', '/pa/payment_intents/create', {
+      amount: parseFloat(inv.total_amount),
+      currency: inv.currency.toLowerCase(),
+      customer_id: cust.airwallex_customer_id,
+      payment_consent_reference: {
+        id: cust.payment_consent_id
+      },
+      merchant_order_id: `invoice_${invoiceId}_${Date.now()}`,
+      metadata: {
+        invoice_id: String(invoiceId),
+        gas_account_id: String(inv.account_id),
+        billing_period: inv.billing_period
+      },
+      request_id: `charge_${invoiceId}_${Date.now()}`
+    });
+    
+    // Confirm the payment
+    const confirmed = await airwallexRequest('POST', `/pa/payment_intents/${intent.id}/confirm`, {
+      payment_consent_id: cust.payment_consent_id
+    });
+    
+    // Update invoice
+    await pool.query(`
+      UPDATE billing_invoices SET
+        status = $1,
+        airwallex_payment_intent_id = $2,
+        paid_at = CASE WHEN $1 = 'paid' THEN NOW() ELSE paid_at END,
+        updated_at = NOW()
+      WHERE id = $3
+    `, [
+      confirmed.status === 'SUCCEEDED' ? 'paid' : 'pending',
+      intent.id,
+      invoiceId
+    ]);
+    
+    // Record payment
+    if (confirmed.status === 'SUCCEEDED') {
+      await pool.query(`
+        INSERT INTO billing_payments (account_id, amount, currency, type, status, description, metadata)
+        VALUES ($1, $2, $3, 'subscription', 'completed', $4, $5)
+      `, [
+        inv.account_id,
+        inv.total_amount,
+        inv.currency,
+        `Invoice for ${inv.billing_period}`,
+        JSON.stringify({ invoice_id: invoiceId, airwallex_intent_id: intent.id })
+      ]);
+    }
+    
+    console.log(`✅ Charged invoice ${invoiceId}: $${inv.total_amount} - ${confirmed.status}`);
+    
+    res.json({
+      success: true,
+      status: confirmed.status,
+      intentId: intent.id,
+      amount: inv.total_amount,
+      currency: inv.currency
+    });
+  } catch (error) {
+    console.error('Charge invoice error:', error.response?.data || error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get invoices for account
+app.get('/api/billing/account/:accountId/invoices', async (req, res) => {
+  try {
+    const { accountId } = req.params;
+    
+    const invoices = await pool.query(`
+      SELECT * FROM billing_invoices 
+      WHERE account_id = $1 
+      ORDER BY billing_period DESC
+      LIMIT 12
+    `, [accountId]);
+    
+    res.json({ success: true, invoices: invoices.rows });
+  } catch (error) {
+    console.error('Get invoices error:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Test Airwallex connection
+app.get('/api/billing/airwallex/test', async (req, res) => {
+  try {
+    const token = await getAirwallexToken();
+    res.json({ 
+      success: true, 
+      message: 'Airwallex connection successful',
+      environment: AIRWALLEX_ENV,
+      tokenPreview: token.substring(0, 20) + '...'
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================
+// END AIRWALLEX BILLING ENDPOINTS
+// ============================================
 
 app.listen(PORT, '0.0.0.0', async () => {
   console.log('🚀 Server running on port ' + PORT);
