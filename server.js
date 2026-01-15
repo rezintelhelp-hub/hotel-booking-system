@@ -2517,10 +2517,10 @@ function extractText(obj, ...paths) {
 // Debug endpoint to see room raw_data from Beds24
 app.get('/api/gas-sync/debug/room-raw-data', async (req, res) => {
   try {
-    const { propertyId } = req.query;
+    const { propertyId, full } = req.query;
     
     const result = await pool.query(`
-      SELECT rt.id, rt.external_id, rt.name, rt.raw_data 
+      SELECT rt.id, rt.external_id, rt.name, rt.max_guests, rt.bedrooms, rt.beds, rt.raw_data 
       FROM gas_sync_room_types rt
       WHERE rt.sync_property_id = $1
       LIMIT 3
@@ -2528,15 +2528,33 @@ app.get('/api/gas-sync/debug/room-raw-data', async (req, res) => {
     
     const rooms = result.rows.map(r => {
       const rawData = typeof r.raw_data === 'string' ? JSON.parse(r.raw_data) : r.raw_data;
+      
+      if (full === 'true') {
+        return {
+          id: r.id,
+          external_id: r.external_id,
+          name: r.name,
+          db_max_guests: r.max_guests,
+          db_bedrooms: r.bedrooms,
+          db_beds: r.beds,
+          raw_data: rawData
+        };
+      }
+      
       return {
         id: r.id,
         external_id: r.external_id,
         name: r.name,
-        raw_data_keys: Object.keys(rawData || {}),
-        texts: rawData?.texts,
-        displayName: rawData?.displayName,
-        description: rawData?.description,
-        auxiliaryText: rawData?.auxiliaryText
+        db_max_guests: r.max_guests,
+        db_bedrooms: r.bedrooms,
+        db_beds: r.beds,
+        raw_maxPeople: rawData?.maxPeople,
+        raw_maxAdult: rawData?.maxAdult,
+        raw_maxChildren: rawData?.maxChildren,
+        raw_roomSize: rawData?.roomSize,
+        raw_roomType: rawData?.roomType,
+        raw_featureCodes: rawData?.featureCodes,
+        raw_data_keys: Object.keys(rawData || {})
       };
     });
     
