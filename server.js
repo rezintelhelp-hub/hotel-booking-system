@@ -4916,25 +4916,6 @@ app.post('/api/gas-sync/connections/:connectionId/sync-v1-content', async (req, 
             JSON.stringify({ texts, featureCodes }),
             room.id
           ]);
-          
-          // Update bookable_units if linked
-          if (room.gas_room_id) {
-            await pool.query(`
-              UPDATE bookable_units SET
-                display_name = COALESCE(NULLIF($1, ''), display_name),
-                short_description = COALESCE(NULLIF($2, ''), short_description),
-                full_description = COALESCE(NULLIF($3, ''), full_description),
-                feature_codes = COALESCE(NULLIF($4, ''), feature_codes),
-                updated_at = NOW()
-              WHERE id = $5
-            `, [
-              displayName,
-              roomDesc,
-              auxText,
-              Array.isArray(featureCodes) ? featureCodes.join(',') : '',
-              room.gas_room_id
-            ]);
-          }
         }
         
         results.synced++;
