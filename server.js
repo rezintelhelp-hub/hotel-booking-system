@@ -2570,10 +2570,12 @@ app.get('/api/gas-sync/debug/gas-room-data', async (req, res) => {
     const { propertyId } = req.query;
     
     const result = await pool.query(`
-      SELECT id, name, display_name, short_description, full_description, cm_room_id, beds24_room_id
+      SELECT id, name, display_name, short_description, full_description, 
+             cm_room_id, beds24_room_id, max_guests, bedrooms, beds, bathrooms,
+             room_type, base_price, feature_codes
       FROM bookable_units
       WHERE property_id = $1
-      LIMIT 5
+      LIMIT 10
     `, [propertyId]);
     
     res.json({ success: true, rooms: result.rows });
