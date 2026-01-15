@@ -4854,10 +4854,10 @@ app.post('/api/gas-sync/connections/:connectionId/sync-v1-content', async (req, 
         
         console.log(`[V1 Content Sync] ${prop.name}: texts keys=${Object.keys(texts).length}, featureCodes=${featureCodes.length}, images=${images.length}`);
         
-        // Update property raw_data with V1 content
+        // Update property raw_data with V1 content (handle both TEXT and JSONB column types)
         await pool.query(`
           UPDATE gas_sync_properties SET
-            raw_data = COALESCE(raw_data, '{}'::jsonb) || $1::jsonb,
+            raw_data = $1,
             last_content_sync = NOW(),
             synced_at = NOW()
           WHERE id = $2
@@ -4879,11 +4879,11 @@ app.post('/api/gas-sync/connections/:connectionId/sync-v1-content', async (req, 
           const roomDesc = getText(texts.roomDescription1);
           const auxText = getText(texts.auxiliaryText);
           
-          // Update gas_sync_room_types with full V1 data
+          // Update gas_sync_room_types with full V1 data (handle both TEXT and JSONB)
           await pool.query(`
             UPDATE gas_sync_room_types SET
               description = COALESCE(NULLIF($1, ''), description),
-              raw_data = COALESCE(raw_data, '{}'::jsonb) || $2::jsonb,
+              raw_data = $2,
               synced_at = NOW()
             WHERE id = $3
           `, [
