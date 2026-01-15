@@ -4603,7 +4603,7 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
     await pool.query(`
       UPDATE gas_sync_properties SET
         description = $1,
-        raw_data = COALESCE(raw_data, '{}'::jsonb) || $2,
+        raw_data = COALESCE(raw_data, '{}'::jsonb) || $2::jsonb,
         synced_at = NOW()
       WHERE id = $3
     `, [
