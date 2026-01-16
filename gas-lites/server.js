@@ -586,10 +586,18 @@ function parseDescription(desc) {
     .replace(/[\u{FE00}-\u{FE0F}]/gu, '')   // Remove variation selectors
     .replace(/[\u{1F000}-\u{1F02F}]/gu, '') // Remove mahjong/domino
     .replace(/\*\*/g, '')                    // Remove markdown bold
-    .replace(/^\s*-\s*/gm, '• ')            // Clean up list markers
-    .replace(/\n{3,}/g, '\n\n')             // Max 2 newlines
-    .replace(/[ \t]+/g, ' ')                // Collapse spaces
-    .replace(/\n /g, '\n')                  // Remove leading space after newline
+    .replace(/^.*airbnb\.com.*$/gmi, '')     // Remove Airbnb links
+    .replace(/^.*booking\.com.*$/gmi, '')    // Remove Booking links
+    .replace(/^.*vrbo\.com.*$/gmi, '')       // Remove VRBO links
+    .replace(/^\s*\(Copy\/Paste\)\s*$/gmi, '') // Remove copy/paste instructions
+    .replace(/SALE!?/gi, '')                 // Remove SALE spam
+    .replace(/Prices just went down[^!]*!?/gi, '') // Remove price drop spam
+    .replace(/Book (now|today)!?/gi, '')     // Remove book now spam
+    .replace(/^[\s•\-]*$/gm, '')             // Remove empty bullet lines
+    .replace(/^\s*-\s*/gm, '• ')             // Clean up list markers
+    .replace(/\n{3,}/g, '\n\n')              // Max 2 newlines
+    .replace(/[ \t]+/g, ' ')                 // Collapse spaces
+    .replace(/\n /g, '\n')                   // Remove leading space after newline
     .trim();
   
   return text;
@@ -707,18 +715,23 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     
     /* Room Header */
     .room-header { margin-bottom: 24px; }
-    .room-title { font-size: 1.75rem; font-weight: 700; margin-bottom: 8px; }
-    .room-location { color: #64748b; margin-bottom: 12px; }
-    .room-tagline { color: #94a3b8; font-size: 15px; line-height: 1.5; margin-top: 12px; font-style: italic; }
-    .room-meta { display: flex; flex-wrap: wrap; gap: 16px; }
+    .room-title { font-size: 2rem; font-weight: 400; font-style: italic; color: #d4a855; margin-bottom: 8px; }
+    .room-subtitle { color: #94a3b8; font-size: 0.95rem; margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid #334155; }
+    .room-meta { display: flex; flex-wrap: wrap; gap: 24px; margin-bottom: 24px; }
+    .meta-item { display: flex; align-items: center; gap: 8px; color: #e2e8f0; font-size: 0.9rem; }
+    .meta-icon { opacity: 0.7; }
+    .more-info { margin-top: 20px; }
+    .more-info summary { color: #d4a855; cursor: pointer; font-weight: 500; display: flex; align-items: center; gap: 6px; }
+    .more-info summary:hover { text-decoration: underline; }
+    .more-info .more-content { margin-top: 16px; padding-top: 16px; border-top: 1px solid #334155; }
     .meta-item { display: flex; align-items: center; gap: 6px; font-size: 14px; color: #64748b; }
     .rating-badge { background: var(--accent); color: white; padding: 4px 10px; border-radius: 6px; font-weight: 600; font-size: 14px; }
     
     /* Tabs */
-    .tabs-nav { display: flex; gap: 4px; border-bottom: 2px solid #e2e8f0; margin-bottom: 24px; overflow-x: auto; }
-    .tab-btn { padding: 12px 20px; border: none; background: none; font-size: 14px; font-weight: 500; color: #64748b; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; white-space: nowrap; }
-    .tab-btn:hover { color: #1e293b; }
-    .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .tabs-nav { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 24px; }
+    .tab-btn { padding: 10px 20px; border: 1px solid #475569; background: transparent; font-size: 14px; font-weight: 500; color: #94a3b8; cursor: pointer; border-radius: 25px; margin-right: 8px; margin-bottom: 8px; transition: all 0.2s; }
+    .tab-btn:hover { border-color: #d4a855; color: #d4a855; }
+    .tab-btn.active { background: #d4a855; color: #0f172a; border-color: #d4a855; }
     .tab-content { display: none; }
     .tab-content.active { display: block; }
     
@@ -830,29 +843,35 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
       <div class="room-main">
         <div class="room-header">
           <h1 class="room-title">${title}</h1>
-          <p class="room-location">📍 ${lite.city || ''}${lite.state ? ', ' + lite.state : ''}${lite.country ? ', ' + lite.country : ''}</p>
+          <p class="room-subtitle">${title}</p>
           <div class="room-meta">
-            ${lite.bedroom_count ? `<span class="meta-item">🛏️ ${lite.bedroom_count} Bedroom${lite.bedroom_count > 1 ? 's' : ''}</span>` : ''}
-            ${lite.bathroom_count ? `<span class="meta-item">🚿 ${lite.bathroom_count} Bath</span>` : ''}
-            ${lite.max_guests ? `<span class="meta-item">👥 Up to ${lite.max_guests} guests</span>` : ''}
-            ${showReviews && avgRating ? `<span class="rating-badge">★ ${avgRating}</span>` : ''}
+            ${lite.max_guests ? `<span class="meta-item"><span class="meta-icon">👤</span> Guests: ${lite.max_guests}</span>` : ''}
+            ${lite.bedroom_count ? `<span class="meta-item"><span class="meta-icon">🛏</span> Bedrooms: ${lite.bedroom_count}</span>` : ''}
+            ${lite.bathroom_count ? `<span class="meta-item"><span class="meta-icon">🚿</span> Bathrooms: ${lite.bathroom_count}</span>` : ''}
+            ${lite.room_type ? `<span class="meta-item"><span class="meta-icon">🏠</span> ${lite.room_type}</span>` : ''}
           </div>
-          ${shortDescription ? `<p class="room-tagline">${shortDescription.split('\n')[0].substring(0, 200)}</p>` : ''}
         </div>
         
         <div class="tabs">
           <div class="tabs-nav">
             <button class="tab-btn active" onclick="showTab('description')">Description</button>
-            <button class="tab-btn" onclick="showTab('features')">Features</button>
             <button class="tab-btn" onclick="showTab('availability')">Availability</button>
-            ${showReviews ? `<button class="tab-btn" onclick="showTab('reviews')">Reviews (${reviews.length})</button>` : ''}
+            <button class="tab-btn" onclick="showTab('features')">Features</button>
+            ${showReviews ? `<button class="tab-btn" onclick="showTab('reviews')">Reviews</button>` : ''}
             <button class="tab-btn" onclick="showTab('terms')">Terms</button>
-            ${lite.latitude ? `<button class="tab-btn" onclick="showTab('location')">Location</button>` : ''}
           </div>
           
           <div class="tab-content active" id="tab-description">
             <div class="description">
-              ${description ? description.split('\n').filter(p => p.trim()).map(p => `<p>${p}</p>`).join('') : '<p>No description available.</p>'}
+              ${shortDescription ? `<p>${shortDescription.replace(/\n/g, ' ')}</p>` : ''}
+              ${description && description !== shortDescription ? `
+                <details class="more-info">
+                  <summary>More Information</summary>
+                  <div class="more-content">
+                    ${description.split('\n').filter(p => p.trim()).map(p => `<p>${p}</p>`).join('')}
+                  </div>
+                </details>
+              ` : ''}
             </div>
           </div>
           
