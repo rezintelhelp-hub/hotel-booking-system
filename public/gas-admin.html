@@ -41944,6 +41944,290 @@ Local honey and preserves"></textarea>
         })();
     </script>
 
+    <!-- GAS Lite Preview Panel -->
+    <div id="lite-preview-panel" class="lite-preview-panel" style="display: none;">
+        <div class="lite-preview-header" id="lite-preview-header">
+            <span class="lite-preview-title">👁️ Room Preview</span>
+            <div class="lite-preview-actions">
+                <a id="lite-preview-link" href="#" target="_blank" style="color: white; text-decoration: none; font-size: 12px; margin-right: 8px; opacity: 0.9;">🔗 Open</a>
+                <button class="lite-preview-btn" onclick="refreshLitePreview()" title="Refresh">🔄</button>
+                <button class="lite-preview-btn" onclick="openLiteInNewWindow()" title="Open in new window">↗️</button>
+                <button class="lite-preview-btn" onclick="closeLitePreview()" title="Close">✕</button>
+            </div>
+        </div>
+        <iframe id="lite-preview-iframe" src="about:blank"></iframe>
+        <div class="lite-preview-footer">
+            <span>Drag header to move • Drag corner to resize</span>
+            <span>⤡</span>
+        </div>
+        <div class="lite-preview-resize-handle"></div>
+    </div>
+
+    <style>
+        .lite-preview-panel {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 400px;
+            height: 600px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            resize: both;
+            min-width: 320px;
+            min-height: 400px;
+        }
+        .lite-preview-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            cursor: move;
+            user-select: none;
+        }
+        .lite-preview-title {
+            font-weight: 600;
+            font-size: 14px;
+        }
+        .lite-preview-actions {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .lite-preview-btn {
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            width: 28px;
+            height: 28px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .lite-preview-btn:hover {
+            background: rgba(255,255,255,0.3);
+        }
+        #lite-preview-iframe {
+            flex: 1;
+            border: none;
+            width: 100%;
+        }
+        .lite-preview-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            background: #f8fafc;
+            border-top: 1px solid #e2e8f0;
+            font-size: 11px;
+            color: #64748b;
+        }
+        .lite-preview-resize-handle {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 24px;
+            height: 24px;
+            cursor: nwse-resize;
+            background: linear-gradient(135deg, transparent 50%, #667eea 50%);
+            border-radius: 0 0 12px 0;
+        }
+        
+        /* Eye button for room selectors */
+        .room-preview-eye {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            color: white;
+            width: 38px;
+            height: 38px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            margin-left: 8px;
+            flex-shrink: 0;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .room-preview-eye:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        .room-preview-eye.visible {
+            display: flex;
+        }
+    </style>
+
+    <script>
+    // GAS Lite Preview Panel Functions
+    let currentPreviewRoomId = null;
+    let previewDragOffset = { x: 0, y: 0 };
+    
+    async function showLitePreview(roomId) {
+        if (!roomId) return;
+        currentPreviewRoomId = roomId;
+        
+        const panel = document.getElementById('lite-preview-panel');
+        const iframe = document.getElementById('lite-preview-iframe');
+        const linkEl = document.getElementById('lite-preview-link');
+        
+        panel.style.display = 'flex';
+        iframe.src = 'about:blank';
+        
+        try {
+            // Get or create lite for this room
+            const response = await fetch(`https://lite.gas.travel/api/room/${roomId}/lite`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            const data = await response.json();
+            
+            if (data.success && data.lite) {
+                const liteUrl = `https://lite.gas.travel/${data.lite.slug}`;
+                iframe.src = liteUrl;
+                linkEl.href = liteUrl;
+                linkEl.textContent = '🔗 ' + data.lite.slug;
+            } else {
+                iframe.srcdoc = '<div style="display:flex;align-items:center;justify-content:center;height:100%;font-family:system-ui;color:#64748b;">Could not load preview</div>';
+            }
+        } catch (error) {
+            console.error('Preview error:', error);
+            iframe.srcdoc = '<div style="display:flex;align-items:center;justify-content:center;height:100%;font-family:system-ui;color:#ef4444;">Error loading preview</div>';
+        }
+    }
+    
+    function closeLitePreview() {
+        document.getElementById('lite-preview-panel').style.display = 'none';
+        document.getElementById('lite-preview-iframe').src = 'about:blank';
+    }
+    
+    function refreshLitePreview() {
+        if (currentPreviewRoomId) {
+            showLitePreview(currentPreviewRoomId);
+        }
+    }
+    
+    function openLiteInNewWindow() {
+        const iframe = document.getElementById('lite-preview-iframe');
+        if (iframe.src && iframe.src !== 'about:blank') {
+            window.open(iframe.src, '_blank');
+        }
+    }
+    
+    // Make preview panel draggable
+    (function() {
+        const header = document.getElementById('lite-preview-header');
+        const panel = document.getElementById('lite-preview-panel');
+        if (!header || !panel) return;
+        
+        let isDragging = false;
+        
+        header.addEventListener('mousedown', (e) => {
+            if (e.target.closest('.lite-preview-btn') || e.target.closest('a')) return;
+            isDragging = true;
+            const rect = panel.getBoundingClientRect();
+            previewDragOffset.x = e.clientX - rect.left;
+            previewDragOffset.y = e.clientY - rect.top;
+            panel.style.transition = 'none';
+        });
+        
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            const x = e.clientX - previewDragOffset.x;
+            const y = e.clientY - previewDragOffset.y;
+            panel.style.left = x + 'px';
+            panel.style.top = y + 'px';
+            panel.style.right = 'auto';
+            panel.style.bottom = 'auto';
+        });
+        
+        document.addEventListener('mouseup', () => {
+            isDragging = false;
+            panel.style.transition = '';
+        });
+    })();
+    
+    // Add eye buttons to room selectors
+    function updateRoomPreviewButtons() {
+        const roomSelectors = [
+            'amenities-room-select',
+            'images-room-select', 
+            'availability-room-select',
+            'terms-room-select',
+            'offers-room-select',
+            'vouchers-room-select',
+            'upsells-room-select',
+            'taxes-room-select',
+            'bookings-room-select'
+        ];
+        
+        roomSelectors.forEach(selectId => {
+            const select = document.getElementById(selectId);
+            if (!select) return;
+            
+            // Check if eye button already exists
+            const wrapper = select.parentElement;
+            let eyeBtn = wrapper.querySelector('.room-preview-eye');
+            
+            if (!eyeBtn) {
+                // Create wrapper div if select isn't already wrapped properly
+                if (!wrapper.style.display || wrapper.style.display !== 'flex') {
+                    wrapper.style.display = 'flex';
+                    wrapper.style.alignItems = 'center';
+                }
+                
+                eyeBtn = document.createElement('button');
+                eyeBtn.className = 'room-preview-eye';
+                eyeBtn.innerHTML = '👁️';
+                eyeBtn.title = 'Preview room page';
+                eyeBtn.type = 'button';
+                eyeBtn.onclick = (e) => {
+                    e.preventDefault();
+                    const roomId = select.value;
+                    if (roomId) showLitePreview(roomId);
+                };
+                select.parentElement.appendChild(eyeBtn);
+            }
+            
+            // Show/hide based on selection
+            if (select.value) {
+                eyeBtn.classList.add('visible');
+            } else {
+                eyeBtn.classList.remove('visible');
+            }
+        });
+    }
+    
+    // Hook into room selector changes - auto-open preview
+    document.addEventListener('change', (e) => {
+        if (e.target.id && e.target.id.includes('-room-select')) {
+            setTimeout(updateRoomPreviewButtons, 100);
+            const roomId = e.target.value;
+            if (roomId) {
+                showLitePreview(roomId);
+            }
+        }
+    });
+    
+    // Initial setup after page load
+    document.addEventListener('DOMContentLoaded', () => {
+        setTimeout(updateRoomPreviewButtons, 1000);
+    });
+    
+    // Also run on navigation
+    setTimeout(updateRoomPreviewButtons, 1500);
+    </script>
+
     <!-- AI Chat Widget Styles -->
     <style>
         #ai-chat-button {
