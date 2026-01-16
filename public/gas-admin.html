@@ -2206,17 +2206,17 @@
 
                 <!-- Property Selector -->
                 <div class="card" style="margin-bottom: 1rem;">
-                    <div style="display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap;">
+                    <div style="display: flex; gap: 1rem; align-items: flex-start; flex-wrap: wrap;">
                         <div style="flex: 1; min-width: 200px; max-width: 400px;">
                             <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Property</label>
                             <select id="images-property-select" class="form-input" onchange="loadImagesForProperty()">
                                 <option value="">Select Property...</option>
                             </select>
                         </div>
-                        <div style="flex: 1; min-width: 200px; max-width: 400px; display: flex; align-items: center; gap: 8px;">
-                            <div style="flex: 1;">
-                                <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Room/Unit</label>
-                                <select id="images-room-select" class="form-input" onchange="loadImagesForProperty()">
+                        <div style="flex: 1; min-width: 200px; max-width: 400px;">
+                            <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Room/Unit</label>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <select id="images-room-select" class="form-input" style="flex: 1;" onchange="loadImagesForProperty()">
                                     <option value="">All Rooms</option>
                                 </select>
                             </div>
@@ -42233,10 +42233,15 @@ Local honey and preserves"></textarea>
         });
     }
     
-    // Hook into room selector changes
+    // Hook into room selector changes - auto-open preview
     document.addEventListener('change', (e) => {
         if (e.target.id && e.target.id.includes('-room-select')) {
             setTimeout(updateRoomPreviewButtons, 100);
+            // Auto-open preview if a room is selected
+            const roomId = e.target.value;
+            if (roomId) {
+                showLitePreview(roomId);
+            }
         }
     });
     
