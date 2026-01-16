@@ -788,7 +788,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
           <button class="book-btn" id="bookBtn" disabled>Select dates</button>
           <div class="qr-section">
             <img src="${qrCode}" alt="QR">
-            <div class="qr-text">Scan to view on mobile<br><strong>lite.gas.travel/${lite.slug}</strong></div>
+            <div class="qr-text">Scan to view on mobile<br><strong>#${lite.slug}</strong></div>
           </div>
         </div>
       </div>
@@ -975,7 +975,7 @@ function renderPromoCard({ lite, image, price, offer, qrCode, liteUrl }) {
     </div>
     <div class="qr-section">
       <img src="${qrCode}" alt="QR">
-      <div><div class="qr-text">Scan to view on your phone</div><div class="qr-url">lite.gas.travel/${lite.slug}</div></div>
+      <div><div class="qr-text">Scan to view on your phone</div><div class="qr-url">#${lite.slug}</div></div>
     </div>
     <div class="footer">Powered by GAS.travel</div>
   </div>
@@ -1011,7 +1011,7 @@ function renderPrintCard({ lite, qrCode, liteUrl, image }) {
       <p class="location">📍 ${lite.city}, ${lite.country}</p>
       <div class="qr-area">
         <img src="${qrCode}">
-        <div><div class="qr-text">Scan to book direct</div><div class="qr-url">lite.gas.travel/${lite.slug}</div></div>
+        <div><div class="qr-text">Scan to book direct</div><div class="qr-url">#${lite.slug}</div></div>
       </div>
     </div>
   </div>
