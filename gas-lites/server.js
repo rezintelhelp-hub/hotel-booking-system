@@ -359,20 +359,20 @@ app.post('/api/room/:roomId/lite', async (req, res) => {
     
     const room = roomResult.rows[0];
     
-    // Generate slug from room name
-    let baseSlug = (room.name || room.display_name || `room-${roomId}`)
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-|-$/g, '')
-      .substring(0, 50);
-    
-    // Ensure unique slug
-    let slug = baseSlug;
-    let counter = 1;
-    while (true) {
+    // Generate random 6-digit slug (like Facebook's approach)
+    let slug;
+    let attempts = 0;
+    while (attempts < 10) {
+      const randomNum = Math.floor(100000 + Math.random() * 900000); // 6 digits
+      slug = String(randomNum);
       const slugCheck = await pool.query('SELECT id FROM gas_lites WHERE slug = $1', [slug]);
       if (slugCheck.rows.length === 0) break;
-      slug = `${baseSlug}-${counter++}`;
+      attempts++;
+    }
+    
+    if (attempts >= 10) {
+      // Fallback to timestamp-based if random keeps colliding
+      slug = Date.now().toString(36);
     }
     
     // Create the lite
