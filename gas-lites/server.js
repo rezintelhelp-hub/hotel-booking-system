@@ -88,7 +88,7 @@ app.get('/:slug', async (req, res) => {
     // Get rooms/units
     const roomsResult = await pool.query(`
       SELECT bu.*, 
-             (SELECT url FROM room_images ri WHERE ri.room_id = bu.id AND ri.is_primary = true LIMIT 1) as primary_image
+             (SELECT image_url FROM room_images ri WHERE ri.room_id = bu.id AND ri.is_primary = true LIMIT 1) as primary_image
       FROM bookable_units bu
       WHERE bu.property_id = $1 AND (bu.is_hidden = false OR bu.is_hidden IS NULL)
       ORDER BY bu.created_at
@@ -96,7 +96,7 @@ app.get('/:slug', async (req, res) => {
     
     // Get property images
     const imagesResult = await pool.query(`
-      SELECT url, caption, is_primary FROM property_images
+      SELECT image_url as url, caption, is_primary FROM property_images
       WHERE property_id = $1
       ORDER BY is_primary DESC, display_order ASC
       LIMIT 10
@@ -190,7 +190,7 @@ app.get('/:slug/print', async (req, res) => {
     
     // Get primary image
     const imageResult = await pool.query(`
-      SELECT url FROM property_images
+      SELECT image_url as url FROM property_images
       WHERE property_id = $1
       ORDER BY is_primary DESC, display_order ASC
       LIMIT 1
