@@ -322,6 +322,43 @@ app.get('/api/check-slug/:slug', async (req, res) => {
   res.json({ available: result.rows.length === 0 });
 });
 
+// ONE-TIME MIGRATION: Convert all slugs to random 6-digit numbers
+// Visit https://lite.gas.travel/api/migrate-to-numbers once, then remove this endpoint
+app.get('/api/migrate-to-numbers', async (req, res) => {
+  try {
+    const lites = await pool.query('SELECT id, slug FROM gas_lites');
+    const updated = [];
+    
+    for (const lite of lites.rows) {
+      // Skip if already a 6-digit number
+      if (/^[0-9]{6}$/.test(lite.slug)) {
+        continue;
+      }
+      
+      // Generate unique random 6-digit slug
+      let newSlug;
+      let attempts = 0;
+      while (attempts < 20) {
+        newSlug = String(Math.floor(100000 + Math.random() * 900000));
+        const exists = await pool.query('SELECT id FROM gas_lites WHERE slug = $1', [newSlug]);
+        if (exists.rows.length === 0) break;
+        attempts++;
+      }
+      
+      await pool.query('UPDATE gas_lites SET slug = $1 WHERE id = $2', [newSlug, lite.id]);
+      updated.push({ old: lite.slug, new: newSlug });
+    }
+    
+    res.json({ 
+      success: true, 
+      message: `Migrated ${updated.length} lites to random numbers`,
+      updated 
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 app.get('/api/property/:propertyId', async (req, res) => {
   const result = await pool.query('SELECT * FROM gas_lites WHERE property_id = $1', [req.params.propertyId]);
   res.json({ success: true, lites: result.rows });
@@ -971,7 +1008,7 @@ function renderPromoCard({ lite, image, price, offer, qrCode, liteUrl }) {
         <div>${price ? `<span class="price">${currency}${Math.round(price).toLocaleString()}</span><span style="color:#64748b;font-size:14px;"> / night</span>` : '<span class="price">View rates</span>'}</div>
         ${lite.average_rating ? `<div style="color:#fbbf24;font-size:16px;">★ ${lite.average_rating}</div>` : ''}
       </div>
-      <a href="${liteUrl}" class="cta">View Full Details →</a>
+      <a href="${liteUrl}" target="_blank" class="cta">View Full Details →</a>
     </div>
     <div class="qr-section">
       <img src="${qrCode}" alt="QR">
