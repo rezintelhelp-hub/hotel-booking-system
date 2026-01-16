@@ -16446,6 +16446,47 @@ app.get('/api/db/properties/:id', async (req, res) => {
   }
 });
 
+// GET single room/bookable unit by ID
+app.get('/api/db/rooms/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query('SELECT * FROM bookable_units WHERE id = $1', [id]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Room not found' });
+    }
+    
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// GET sync property ID by GAS property ID
+app.get('/api/gas-sync/property-by-gas-id/:propertyId', async (req, res) => {
+  try {
+    const { propertyId } = req.params;
+    const result = await pool.query(
+      'SELECT id, external_id, name, connection_id FROM gas_sync_properties WHERE gas_property_id = $1',
+      [propertyId]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Sync property not found' });
+    }
+    
+    res.json({ 
+      success: true, 
+      syncPropertyId: result.rows[0].id,
+      externalId: result.rows[0].external_id,
+      name: result.rows[0].name,
+      connectionId: result.rows[0].connection_id
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // GET all bookable units/rooms
 app.get('/api/db/bookable-units', async (req, res) => {
   try {
