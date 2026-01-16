@@ -41956,6 +41956,7 @@ Local honey and preserves"></textarea>
                 <button class="lite-preview-btn" onclick="editLiteSlug()" title="Edit URL">✏️</button>
                 <button class="lite-preview-btn" onclick="refreshLitePreview()" title="Refresh">🔄</button>
                 <button class="lite-preview-btn" onclick="openLiteInNewWindow()" title="Open in new window">↗️</button>
+                <button class="lite-preview-btn" onclick="openLiteCard()" title="View promo card">🎴</button>
                 <button class="lite-preview-btn" onclick="closeLitePreview()" title="Close">✕</button>
             </div>
         </div>
@@ -42178,6 +42179,12 @@ Local honey and preserves"></textarea>
         const iframe = document.getElementById('lite-preview-iframe');
         if (iframe.src && iframe.src !== 'about:blank') {
             window.open(iframe.src, '_blank');
+        }
+    }
+    
+    function openLiteCard() {
+        if (currentLiteSlug) {
+            window.open(`https://lite.gas.travel/${currentLiteSlug}/card`, '_blank');
         }
     }
     
