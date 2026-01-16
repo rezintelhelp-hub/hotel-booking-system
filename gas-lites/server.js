@@ -557,11 +557,15 @@ function parseDescription(desc) {
   if (!desc) return '';
   let text = desc;
   
-  // Handle JSON format like {"en":"..."}
+  // If it's already an object (not stringified JSON)
+  if (typeof text === 'object' && text !== null) {
+    text = text.en || text.EN || text.default || Object.values(text)[0] || '';
+  }
+  
+  // Handle JSON string format like {"en":"..."}
   if (typeof text === 'string' && text.trim().startsWith('{')) {
     try {
       const parsed = JSON.parse(text);
-      // Try common language keys
       text = parsed.en || parsed.EN || parsed.default || Object.values(parsed)[0] || '';
     } catch (e) {
       // Not valid JSON, use as-is
@@ -574,12 +578,18 @@ function parseDescription(desc) {
     .replace(/\\r/g, '')
     .replace(/\\t/g, '  ');
   
-  // Clean up excessive emojis and formatting (keep first emoji per line if any)
+  // Clean up: remove ALL emojis, markdown, excessive whitespace
   text = text
-    .replace(/[\u{1F300}-\u{1F9FF}][\u{1F300}-\u{1F9FF}]+/gu, '') // Remove emoji clusters
-    .replace(/^\s*[\u{1F300}-\u{1F9FF}]\s*/gmu, '') // Remove leading emojis from lines
-    .replace(/\*\*/g, '') // Remove markdown bold
-    .replace(/\n{3,}/g, '\n\n') // Max 2 newlines
+    .replace(/[\u{1F300}-\u{1F9FF}]/gu, '') // Remove all emojis
+    .replace(/[\u{2600}-\u{26FF}]/gu, '')   // Remove misc symbols
+    .replace(/[\u{2700}-\u{27BF}]/gu, '')   // Remove dingbats
+    .replace(/[\u{FE00}-\u{FE0F}]/gu, '')   // Remove variation selectors
+    .replace(/[\u{1F000}-\u{1F02F}]/gu, '') // Remove mahjong/domino
+    .replace(/\*\*/g, '')                    // Remove markdown bold
+    .replace(/^\s*-\s*/gm, '• ')            // Clean up list markers
+    .replace(/\n{3,}/g, '\n\n')             // Max 2 newlines
+    .replace(/[ \t]+/g, ' ')                // Collapse spaces
+    .replace(/\n /g, '\n')                  // Remove leading space after newline
     .trim();
   
   return text;
