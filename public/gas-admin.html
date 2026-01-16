@@ -21125,7 +21125,10 @@ Local honey and preserves"></textarea>
                                                     ${unit.is_hidden ? ' Show' : ' Hide'}
                                                 </button>
                                             </td>
-                                            <td><button class="btn btn-secondary btn-small" onclick="editRoom(${unit.id})">Edit</button></td>
+                                            <td style="display: flex; gap: 4px;">
+                                                <button class="btn btn-small" style="background: linear-gradient(135deg, #667eea, #764ba2); color: white; border: none; padding: 4px 8px;" onclick="showLitePreview(${unit.id})" title="Preview Room Page">👁️</button>
+                                                <button class="btn btn-secondary btn-small" onclick="editRoom(${unit.id})">Edit</button>
+                                            </td>
                                         </tr>
                                     `).join('')}
                                 </tbody>
@@ -42161,7 +42164,12 @@ Local honey and preserves"></textarea>
             'amenities-room-select',
             'images-room-select', 
             'availability-room-select',
-            'terms-room-select'
+            'terms-room-select',
+            'offers-room-select',
+            'vouchers-room-select',
+            'upsells-room-select',
+            'taxes-room-select',
+            'bookings-room-select'
         ];
         
         roomSelectors.forEach(selectId => {
