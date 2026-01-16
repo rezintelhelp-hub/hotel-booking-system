@@ -41952,7 +41952,8 @@ Local honey and preserves"></textarea>
         <div class="lite-preview-header" id="lite-preview-header">
             <span class="lite-preview-title">👁️ Room Preview</span>
             <div class="lite-preview-actions">
-                <a id="lite-preview-link" href="#" target="_blank" style="color: white; text-decoration: none; font-size: 12px; margin-right: 8px; opacity: 0.9;">🔗 Open</a>
+                <span id="lite-preview-slug" style="color: white; font-size: 11px; opacity: 0.9; cursor: pointer;" onclick="editLiteSlug()" title="Click to edit slug">loading...</span>
+                <button class="lite-preview-btn" onclick="editLiteSlug()" title="Edit URL">✏️</button>
                 <button class="lite-preview-btn" onclick="refreshLitePreview()" title="Refresh">🔄</button>
                 <button class="lite-preview-btn" onclick="openLiteInNewWindow()" title="Open in new window">↗️</button>
                 <button class="lite-preview-btn" onclick="closeLitePreview()" title="Close">✕</button>
@@ -41960,7 +41961,7 @@ Local honey and preserves"></textarea>
         </div>
         <iframe id="lite-preview-iframe" src="about:blank"></iframe>
         <div class="lite-preview-footer">
-            <span>Drag header to move • Drag corner to resize</span>
+            <a id="lite-preview-link" href="#" target="_blank" style="color: #667eea; text-decoration: none; font-size: 11px;">🔗 lite.gas.travel/...</a>
             <span>⤡</span>
         </div>
         <div class="lite-preview-resize-handle"></div>
@@ -42076,6 +42077,9 @@ Local honey and preserves"></textarea>
     let currentPreviewRoomId = null;
     let previewDragOffset = { x: 0, y: 0 };
     
+    let currentLiteId = null;
+    let currentLiteSlug = null;
+    
     async function showLitePreview(roomId) {
         if (!roomId) return;
         currentPreviewRoomId = roomId;
@@ -42083,9 +42087,11 @@ Local honey and preserves"></textarea>
         const panel = document.getElementById('lite-preview-panel');
         const iframe = document.getElementById('lite-preview-iframe');
         const linkEl = document.getElementById('lite-preview-link');
+        const slugEl = document.getElementById('lite-preview-slug');
         
         panel.style.display = 'flex';
         iframe.src = 'about:blank';
+        slugEl.textContent = 'loading...';
         
         try {
             // Get or create lite for this room
@@ -42096,22 +42102,70 @@ Local honey and preserves"></textarea>
             const data = await response.json();
             
             if (data.success && data.lite) {
+                currentLiteId = data.lite.id;
+                currentLiteSlug = data.lite.slug;
                 const liteUrl = `https://lite.gas.travel/${data.lite.slug}`;
                 iframe.src = liteUrl;
                 linkEl.href = liteUrl;
-                linkEl.textContent = '🔗 ' + data.lite.slug;
+                linkEl.textContent = '🔗 lite.gas.travel/' + data.lite.slug;
+                slugEl.textContent = '/' + data.lite.slug;
             } else {
+                slugEl.textContent = 'error';
                 iframe.srcdoc = '<div style="display:flex;align-items:center;justify-content:center;height:100%;font-family:system-ui;color:#64748b;">Could not load preview</div>';
             }
         } catch (error) {
             console.error('Preview error:', error);
+            slugEl.textContent = 'error';
             iframe.srcdoc = '<div style="display:flex;align-items:center;justify-content:center;height:100%;font-family:system-ui;color:#ef4444;">Error loading preview</div>';
+        }
+    }
+    
+    async function editLiteSlug() {
+        if (!currentLiteId || !currentLiteSlug) {
+            showNotification('No lite loaded', 'error');
+            return;
+        }
+        
+        const newSlug = prompt('Enter new URL slug (letters, numbers, hyphens only):', currentLiteSlug);
+        if (!newSlug || newSlug === currentLiteSlug) return;
+        
+        // Validate slug
+        const cleanSlug = newSlug.toLowerCase().replace(/[^a-z0-9-]/g, '');
+        if (cleanSlug.length < 2) {
+            showNotification('Slug must be at least 2 characters', 'error');
+            return;
+        }
+        if (cleanSlug.length > 50) {
+            showNotification('Slug must be 50 characters or less', 'error');
+            return;
+        }
+        
+        try {
+            const response = await fetch(`https://lite.gas.travel/api/lites/${currentLiteId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ slug: cleanSlug })
+            });
+            const data = await response.json();
+            
+            if (data.success) {
+                showNotification('URL updated to: lite.gas.travel/' + cleanSlug, 'success');
+                currentLiteSlug = cleanSlug;
+                refreshLitePreview();
+            } else {
+                showNotification(data.error || 'Failed to update URL', 'error');
+            }
+        } catch (error) {
+            console.error('Edit slug error:', error);
+            showNotification('Error updating URL', 'error');
         }
     }
     
     function closeLitePreview() {
         document.getElementById('lite-preview-panel').style.display = 'none';
         document.getElementById('lite-preview-iframe').src = 'about:blank';
+        currentLiteId = null;
+        currentLiteSlug = null;
     }
     
     function refreshLitePreview() {
