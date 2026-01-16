@@ -756,18 +756,22 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     
     /* Availability Calendar */
     .calendar-container { margin-top: 16px; }
-    .calendar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-    .calendar-nav { display: flex; gap: 8px; }
-    .calendar-nav button { background: #f1f5f9; border: none; width: 32px; height: 32px; border-radius: 6px; cursor: pointer; }
+    .calendar-header { display: flex; align-items: flex-start; gap: 16px; }
+    .cal-nav-btn { background: #334155; border: none; width: 36px; height: 36px; border-radius: 8px; cursor: pointer; color: white; font-size: 18px; margin-top: 30px; }
+    .cal-nav-btn:hover { background: #475569; }
+    .calendar-months-wrapper { display: flex; gap: 24px; flex: 1; }
+    .calendar-month-col { flex: 1; }
+    .calendar-month-col h3 { text-align: center; margin-bottom: 12px; font-size: 1rem; color: #e2e8f0; }
     .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
-    .calendar-day-header { text-align: center; font-size: 12px; color: #64748b; padding: 8px 0; font-weight: 500; }
-    .calendar-day { text-align: center; padding: 8px 4px; border-radius: 6px; font-size: 13px; cursor: pointer; }
-    .calendar-day.available { background: #d1fae5; color: #065f46; }
-    .calendar-day.unavailable { background: #fee2e2; color: #991b1b; text-decoration: line-through; }
-    .calendar-day.empty { background: transparent; }
-    .calendar-day.today { border: 2px solid var(--accent); }
-    .calendar-day:hover:not(.empty):not(.unavailable) { background: var(--accent); color: white; }
-    .calendar-legend { display: flex; gap: 16px; margin-top: 12px; font-size: 12px; color: #64748b; }
+    .calendar-day-header { text-align: center; font-size: 11px; color: #64748b; padding: 6px 0; font-weight: 500; }
+    .calendar-day { text-align: center; padding: 6px 2px; border-radius: 6px; font-size: 12px; cursor: pointer; }
+    .calendar-day.available { background: #134e4a; color: #5eead4; }
+    .calendar-day.unavailable { background: #7f1d1d; color: #fca5a5; text-decoration: line-through; }
+    .calendar-day.empty { background: transparent; cursor: default; }
+    .calendar-day.today { border: 2px solid #d4a855; }
+    .calendar-day:hover:not(.empty):not(.unavailable) { background: #d4a855; color: #0f172a; }
+    .calendar-day .price { font-size: 9px; opacity: 0.8; }
+    .calendar-legend { display: flex; gap: 16px; margin-top: 16px; font-size: 12px; color: #94a3b8; justify-content: center; }
     .legend-item { display: flex; align-items: center; gap: 6px; }
     .legend-dot { width: 12px; height: 12px; border-radius: 3px; }
     
@@ -854,11 +858,11 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
         
         <div class="tabs">
           <div class="tabs-nav">
-            <button class="tab-btn active" onclick="showTab('description')">Description</button>
-            <button class="tab-btn" onclick="showTab('availability')">Availability</button>
-            <button class="tab-btn" onclick="showTab('features')">Features</button>
-            ${showReviews ? `<button class="tab-btn" onclick="showTab('reviews')">Reviews</button>` : ''}
-            <button class="tab-btn" onclick="showTab('terms')">Terms</button>
+            <button class="tab-btn active" onclick="showTab('description', this)">Description</button>
+            <button class="tab-btn" onclick="showTab('availability', this)">Availability</button>
+            <button class="tab-btn" onclick="showTab('features', this)">Features</button>
+            ${showReviews ? `<button class="tab-btn" onclick="showTab('reviews', this)">Reviews</button>` : ''}
+            <button class="tab-btn" onclick="showTab('terms', this)">Terms</button>
           </div>
           
           <div class="tab-content active" id="tab-description">
@@ -891,13 +895,19 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
           <div class="tab-content" id="tab-availability">
             <div class="calendar-container">
               <div class="calendar-header">
-                <h3 id="calendar-month">Loading...</h3>
-                <div class="calendar-nav">
-                  <button onclick="prevMonth()">‹</button>
-                  <button onclick="nextMonth()">›</button>
+                <button class="cal-nav-btn" onclick="prevMonth()">‹</button>
+                <div class="calendar-months-wrapper">
+                  <div class="calendar-month-col">
+                    <h3 id="calendar-month-1">Loading...</h3>
+                    <div class="calendar-grid" id="calendar-grid-1"></div>
+                  </div>
+                  <div class="calendar-month-col">
+                    <h3 id="calendar-month-2">Loading...</h3>
+                    <div class="calendar-grid" id="calendar-grid-2"></div>
+                  </div>
                 </div>
+                <button class="cal-nav-btn" onclick="nextMonth()">›</button>
               </div>
-              <div class="calendar-grid" id="calendar-grid"></div>
               <div class="calendar-legend">
                 <div class="legend-item"><div class="legend-dot" style="background:#d1fae5;"></div> Available</div>
                 <div class="legend-item"><div class="legend-dot" style="background:#fee2e2;"></div> Unavailable</div>
@@ -989,10 +999,10 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     function navLightbox(d) { currentImage = (currentImage + d + images.length) % images.length; document.getElementById('lightbox-img').src = images[currentImage]; }
     
     // Tabs
-    function showTab(id) {
+    function showTab(id, btn) {
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
       document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-      event.target.classList.add('active');
+      btn.classList.add('active');
       document.getElementById('tab-' + id).classList.add('active');
       if (id === 'availability') renderCalendar();
     }
@@ -1008,19 +1018,28 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     
     // Calendar
     function renderCalendar() {
-      const grid = document.getElementById('calendar-grid');
-      const monthLabel = document.getElementById('calendar-month');
-      const year = currentMonth.getFullYear();
-      const month = currentMonth.getMonth();
+      renderMonth(0, 'calendar-grid-1', 'calendar-month-1');
+      renderMonth(1, 'calendar-grid-2', 'calendar-month-2');
+    }
+    
+    function renderMonth(offset, gridId, labelId) {
+      const grid = document.getElementById(gridId);
+      const monthLabel = document.getElementById(labelId);
       
-      monthLabel.textContent = currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+      const displayMonth = new Date(currentMonth);
+      displayMonth.setMonth(displayMonth.getMonth() + offset);
+      
+      const year = displayMonth.getFullYear();
+      const month = displayMonth.getMonth();
+      
+      monthLabel.textContent = displayMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
       
       const firstDay = new Date(year, month, 1).getDay();
       const daysInMonth = new Date(year, month + 1, 0).getDate();
       const today = new Date();
       today.setHours(0,0,0,0);
       
-      let html = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => '<div class="calendar-day-header">' + d + '</div>').join('');
+      let html = ['Su','Mo','Tu','We','Th','Fr','Sa'].map(d => '<div class="calendar-day-header">' + d + '</div>').join('');
       
       for (let i = 0; i < firstDay; i++) html += '<div class="calendar-day empty"></div>';
       
@@ -1038,7 +1057,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
           cls += ' empty';
         } else if (avail) {
           cls += avail.available ? ' available' : ' unavailable';
-          if (avail.price) priceStr = '<div style="font-size:10px;">' + currency + Math.round(avail.price) + '</div>';
+          if (avail.price && avail.available) priceStr = '<div class="price">' + currency + Math.round(avail.price) + '</div>';
         } else {
           cls += ' available';
         }
