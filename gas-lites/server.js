@@ -213,7 +213,8 @@ app.get('/:slug', async (req, res) => {
     
     res.send(renderFullPage({ 
       lite, images, amenities, reviews, availability, 
-      todayPrice, qrCode, liteUrl, showReviews 
+      todayPrice, qrCode, liteUrl, showReviews,
+      roomId, propertyId
     }));
   } catch (error) {
     console.error('Lite page error:', error);
@@ -827,7 +828,7 @@ function renderError(msg) {
   <div style="text-align:center"><h1>⚠️ Error</h1><p>${msg||'Please try again.'}</p></div></body></html>`;
 }
 
-function renderFullPage({ lite, images, amenities, reviews, availability, todayPrice, qrCode, liteUrl, showReviews }) {
+function renderFullPage({ lite, images, amenities, reviews, availability, todayPrice, qrCode, liteUrl, showReviews, roomId, propertyId }) {
   const title = lite.custom_title || lite.room_name || lite.property_name;
   
   // Short description for intro/tagline
