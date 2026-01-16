@@ -41947,25 +41947,21 @@ Local honey and preserves"></textarea>
         })();
     </script>
 
-    <!-- GAS Lite Preview Panel -->
+    <!-- GAS Lite Preview Panel - Shows Card -->
     <div id="lite-preview-panel" class="lite-preview-panel" style="display: none;">
-        <div class="lite-preview-header" id="lite-preview-header">
-            <span class="lite-preview-title">👁️ Room Preview</span>
+        <div class="lite-preview-header">
+            <span class="lite-preview-title">🎴 Room Card Preview</span>
             <div class="lite-preview-actions">
-                <span id="lite-preview-slug" style="color: white; font-size: 11px; opacity: 0.9; cursor: pointer;" onclick="editLiteSlug()" title="Click to edit slug">loading...</span>
+                <span id="lite-preview-slug" style="color: white; font-size: 12px; font-weight: 600; cursor: pointer; background: rgba(255,255,255,0.2); padding: 4px 8px; border-radius: 4px;" onclick="editLiteSlug()" title="Click to edit URL">#loading</span>
                 <button class="lite-preview-btn" onclick="editLiteSlug()" title="Edit URL">✏️</button>
                 <button class="lite-preview-btn" onclick="refreshLitePreview()" title="Refresh">🔄</button>
-                <button class="lite-preview-btn" onclick="openLiteInNewWindow()" title="Open in new window">↗️</button>
-                <button class="lite-preview-btn" onclick="openLiteCard()" title="View promo card">🎴</button>
                 <button class="lite-preview-btn" onclick="closeLitePreview()" title="Close">✕</button>
             </div>
         </div>
         <iframe id="lite-preview-iframe" src="about:blank"></iframe>
         <div class="lite-preview-footer">
-            <a id="lite-preview-link" href="#" target="_blank" style="color: #667eea; text-decoration: none; font-size: 11px;">🔗 lite.gas.travel/...</a>
-            <span>⤡</span>
+            <a id="lite-preview-link" href="#" target="_blank" class="lite-fullpage-btn">↗️ Open Full Page</a>
         </div>
-        <div class="lite-preview-resize-handle"></div>
     </div>
 
     <style>
@@ -41973,18 +41969,16 @@ Local honey and preserves"></textarea>
             position: fixed;
             bottom: 20px;
             right: 20px;
-            width: 400px;
-            height: 600px;
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            width: 420px;
+            height: auto;
+            max-height: 90vh;
+            background: #0f172a;
+            border-radius: 16px;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.4);
             z-index: 9999;
             display: flex;
             flex-direction: column;
             overflow: hidden;
-            resize: both;
-            min-width: 320px;
-            min-height: 400px;
         }
         .lite-preview-header {
             display: flex;
@@ -41993,8 +41987,6 @@ Local honey and preserves"></textarea>
             padding: 12px 16px;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            cursor: move;
-            user-select: none;
         }
         .lite-preview-title {
             font-weight: 600;
@@ -42003,7 +41995,7 @@ Local honey and preserves"></textarea>
         .lite-preview-actions {
             display: flex;
             align-items: center;
-            gap: 4px;
+            gap: 6px;
         }
         .lite-preview-btn {
             background: rgba(255,255,255,0.2);
@@ -42025,26 +42017,29 @@ Local honey and preserves"></textarea>
             flex: 1;
             border: none;
             width: 100%;
+            min-height: 500px;
+            background: #0f172a;
         }
         .lite-preview-footer {
             display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 8px 12px;
-            background: #f8fafc;
-            border-top: 1px solid #e2e8f0;
-            font-size: 11px;
-            color: #64748b;
+            justify-content: center;
+            padding: 12px;
+            background: #0f172a;
         }
-        .lite-preview-resize-handle {
-            position: absolute;
-            bottom: 0;
-            right: 0;
-            width: 24px;
-            height: 24px;
-            cursor: nwse-resize;
-            background: linear-gradient(135deg, transparent 50%, #667eea 50%);
-            border-radius: 0 0 12px 0;
+        .lite-fullpage-btn {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-decoration: none;
+            padding: 10px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 14px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .lite-fullpage-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
         }
         
         /* Eye button for room selectors */
@@ -42076,7 +42071,6 @@ Local honey and preserves"></textarea>
     <script>
     // GAS Lite Preview Panel Functions
     let currentPreviewRoomId = null;
-    let previewDragOffset = { x: 0, y: 0 };
     
     let currentLiteId = null;
     let currentLiteSlug = null;
@@ -42092,7 +42086,7 @@ Local honey and preserves"></textarea>
         
         panel.style.display = 'flex';
         iframe.src = 'about:blank';
-        slugEl.textContent = 'loading...';
+        slugEl.textContent = '#...';
         
         try {
             // Get or create lite for this room
@@ -42105,19 +42099,21 @@ Local honey and preserves"></textarea>
             if (data.success && data.lite) {
                 currentLiteId = data.lite.id;
                 currentLiteSlug = data.lite.slug;
-                const liteUrl = `https://lite.gas.travel/${data.lite.slug}`;
-                iframe.src = liteUrl;
-                linkEl.href = liteUrl;
-                linkEl.textContent = '🔗 lite.gas.travel/' + data.lite.slug;
-                slugEl.textContent = '/' + data.lite.slug;
+                // Load the CARD view in iframe
+                const cardUrl = `https://lite.gas.travel/${data.lite.slug}/card`;
+                const fullUrl = `https://lite.gas.travel/${data.lite.slug}`;
+                iframe.src = cardUrl;
+                linkEl.href = fullUrl;
+                // Show slug with # prefix
+                slugEl.textContent = '#' + data.lite.slug;
             } else {
-                slugEl.textContent = 'error';
-                iframe.srcdoc = '<div style="display:flex;align-items:center;justify-content:center;height:100%;font-family:system-ui;color:#64748b;">Could not load preview</div>';
+                slugEl.textContent = '#error';
+                iframe.srcdoc = '<div style="display:flex;align-items:center;justify-content:center;height:100%;font-family:system-ui;color:#64748b;background:#0f172a;">Could not load preview</div>';
             }
         } catch (error) {
             console.error('Preview error:', error);
-            slugEl.textContent = 'error';
-            iframe.srcdoc = '<div style="display:flex;align-items:center;justify-content:center;height:100%;font-family:system-ui;color:#ef4444;">Error loading preview</div>';
+            slugEl.textContent = '#error';
+            iframe.srcdoc = '<div style="display:flex;align-items:center;justify-content:center;height:100%;font-family:system-ui;color:#ef4444;background:#0f172a;">Error loading preview</div>';
         }
     }
     
@@ -42127,7 +42123,7 @@ Local honey and preserves"></textarea>
             return;
         }
         
-        const newSlug = prompt('Enter new URL slug (letters, numbers, hyphens only):', currentLiteSlug);
+        const newSlug = prompt('Enter new URL code (numbers, letters, hyphens):', currentLiteSlug);
         if (!newSlug || newSlug === currentLiteSlug) return;
         
         // Validate slug
@@ -42187,39 +42183,6 @@ Local honey and preserves"></textarea>
             window.open(`https://lite.gas.travel/${currentLiteSlug}/card`, '_blank');
         }
     }
-    
-    // Make preview panel draggable
-    (function() {
-        const header = document.getElementById('lite-preview-header');
-        const panel = document.getElementById('lite-preview-panel');
-        if (!header || !panel) return;
-        
-        let isDragging = false;
-        
-        header.addEventListener('mousedown', (e) => {
-            if (e.target.closest('.lite-preview-btn') || e.target.closest('a')) return;
-            isDragging = true;
-            const rect = panel.getBoundingClientRect();
-            previewDragOffset.x = e.clientX - rect.left;
-            previewDragOffset.y = e.clientY - rect.top;
-            panel.style.transition = 'none';
-        });
-        
-        document.addEventListener('mousemove', (e) => {
-            if (!isDragging) return;
-            const x = e.clientX - previewDragOffset.x;
-            const y = e.clientY - previewDragOffset.y;
-            panel.style.left = x + 'px';
-            panel.style.top = y + 'px';
-            panel.style.right = 'auto';
-            panel.style.bottom = 'auto';
-        });
-        
-        document.addEventListener('mouseup', () => {
-            isDragging = false;
-            panel.style.transition = '';
-        });
-    })();
     
     // Add eye buttons to room selectors
     function updateRoomPreviewButtons() {
