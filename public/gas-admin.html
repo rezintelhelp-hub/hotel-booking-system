@@ -2206,18 +2206,20 @@
 
                 <!-- Property Selector -->
                 <div class="card" style="margin-bottom: 1rem;">
-                    <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
-                        <div style="flex: 1; min-width: 200px;">
+                    <div style="display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap;">
+                        <div style="flex: 1; min-width: 200px; max-width: 400px;">
                             <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Property</label>
                             <select id="images-property-select" class="form-input" onchange="loadImagesForProperty()">
                                 <option value="">Select Property...</option>
                             </select>
                         </div>
-                        <div style="flex: 1; min-width: 200px;">
-                            <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Room/Unit</label>
-                            <select id="images-room-select" class="form-input" onchange="loadImagesForProperty()">
-                                <option value="">All Rooms</option>
-                            </select>
+                        <div style="flex: 1; min-width: 200px; max-width: 400px; display: flex; align-items: center; gap: 8px;">
+                            <div style="flex: 1;">
+                                <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Room/Unit</label>
+                                <select id="images-room-select" class="form-input" onchange="loadImagesForProperty()">
+                                    <option value="">All Rooms</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -41962,6 +41964,10 @@ Local honey and preserves"></textarea>
             </div>
         </div>
         <iframe id="lite-preview-iframe" src="about:blank"></iframe>
+        <div class="lite-preview-footer">
+            <span>Drag header to move • Drag corner to resize</span>
+            <span>⤡</span>
+        </div>
         <div class="lite-preview-resize-handle"></div>
     </div>
 
@@ -42031,9 +42037,30 @@ Local honey and preserves"></textarea>
             position: absolute;
             bottom: 0;
             right: 0;
-            width: 20px;
-            height: 20px;
+            width: 24px;
+            height: 24px;
             cursor: nwse-resize;
+            background: linear-gradient(135deg, transparent 50%, #667eea 50%);
+            border-radius: 0 0 12px 0;
+        }
+        .lite-preview-resize-handle::before {
+            content: '⤡';
+            position: absolute;
+            bottom: 2px;
+            right: 4px;
+            font-size: 12px;
+            color: white;
+            transform: rotate(90deg);
+        }
+        .lite-preview-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            background: #f8fafc;
+            border-top: 1px solid #e2e8f0;
+            font-size: 11px;
+            color: #64748b;
         }
         
         /* Eye button for room selectors */
