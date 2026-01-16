@@ -36,6 +36,7 @@ async function ensureLitesTable() {
     CREATE TABLE IF NOT EXISTS gas_lites (
       id SERIAL PRIMARY KEY,
       property_id INTEGER REFERENCES properties(id) ON DELETE CASCADE,
+      room_id INTEGER REFERENCES bookable_units(id) ON DELETE CASCADE,
       account_id INTEGER REFERENCES accounts(id),
       slug VARCHAR(100) UNIQUE NOT NULL,
       custom_title VARCHAR(255),
@@ -52,6 +53,8 @@ async function ensureLitesTable() {
       updated_at TIMESTAMP DEFAULT NOW()
     )
   `);
+  // Add room_id column if table already exists
+  await pool.query(`ALTER TABLE gas_lites ADD COLUMN IF NOT EXISTS room_id INTEGER REFERENCES bookable_units(id) ON DELETE CASCADE`);
   console.log('✅ gas_lites table ready');
 }
 
@@ -63,9 +66,12 @@ app.get('/:slug', async (req, res) => {
     const { slug } = req.params;
     
     const liteResult = await pool.query(`
-      SELECT l.*, p.*, a.business_name as account_name
+      SELECT l.*, p.*, bu.*, a.business_name as account_name,
+             p.name as property_name, bu.name as room_name,
+             p.id as property_id, bu.id as room_id
       FROM gas_lites l
       JOIN properties p ON l.property_id = p.id
+      LEFT JOIN bookable_units bu ON l.room_id = bu.id
       LEFT JOIN accounts a ON l.account_id = a.id
       WHERE l.slug = $1 AND l.active = true
     `, [slug.toLowerCase()]);
@@ -76,17 +82,12 @@ app.get('/:slug', async (req, res) => {
     
     const lite = liteResult.rows[0];
     const propertyId = lite.property_id;
+    const roomId = lite.room_id;
     
     await pool.query('UPDATE gas_lites SET views = views + 1 WHERE id = $1', [lite.id]);
     
-    // Get room
-    const roomsResult = await pool.query(`
-      SELECT * FROM bookable_units
-      WHERE property_id = $1 AND (is_hidden = false OR is_hidden IS NULL)
-      ORDER BY created_at LIMIT 1
-    `, [propertyId]);
-    const room = roomsResult.rows[0];
-    const roomId = room?.id;
+    // Room data is already in lite from the join
+    const room = roomId ? lite : null;
     
     // Get images (room first, then property)
     let images = [];
@@ -262,27 +263,89 @@ app.get('/api/check-slug/:slug', async (req, res) => {
 
 app.get('/api/property/:propertyId', async (req, res) => {
   const result = await pool.query('SELECT * FROM gas_lites WHERE property_id = $1', [req.params.propertyId]);
+  res.json({ success: true, lites: result.rows });
+});
+
+// Get lite by room_id - main endpoint for preview
+app.get('/api/room/:roomId', async (req, res) => {
+  const result = await pool.query('SELECT * FROM gas_lites WHERE room_id = $1', [req.params.roomId]);
   res.json({ success: true, lite: result.rows[0] || null });
+});
+
+// Get or create lite for a room (used by preview button)
+app.post('/api/room/:roomId/lite', async (req, res) => {
+  try {
+    const roomId = req.params.roomId;
+    
+    // Check if lite exists
+    const existing = await pool.query('SELECT * FROM gas_lites WHERE room_id = $1', [roomId]);
+    if (existing.rows.length > 0) {
+      return res.json({ success: true, lite: existing.rows[0], created: false });
+    }
+    
+    // Get room and property info for auto-generating slug
+    const roomResult = await pool.query(`
+      SELECT bu.*, p.id as property_id, p.name as property_name, a.id as account_id
+      FROM bookable_units bu
+      JOIN properties p ON bu.property_id = p.id
+      LEFT JOIN accounts a ON p.account_id = a.id
+      WHERE bu.id = $1
+    `, [roomId]);
+    
+    if (roomResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Room not found' });
+    }
+    
+    const room = roomResult.rows[0];
+    
+    // Generate slug from room name or fallback to room-{id}
+    let baseSlug = (room.name || room.display_name || `room-${roomId}`)
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+      .substring(0, 50);
+    
+    // Ensure unique slug
+    let slug = baseSlug;
+    let counter = 1;
+    while (true) {
+      const slugCheck = await pool.query('SELECT id FROM gas_lites WHERE slug = $1', [slug]);
+      if (slugCheck.rows.length === 0) break;
+      slug = `${baseSlug}-${counter++}`;
+    }
+    
+    // Create the lite
+    const result = await pool.query(`
+      INSERT INTO gas_lites (property_id, room_id, account_id, slug, custom_title)
+      VALUES ($1, $2, $3, $4, $5) RETURNING *
+    `, [room.property_id, roomId, room.account_id, slug, room.name || room.display_name]);
+    
+    res.json({ success: true, lite: result.rows[0], created: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
 });
 
 app.get('/api/account/:accountId', async (req, res) => {
   const result = await pool.query(`
-    SELECT l.*, p.name as property_name, p.city FROM gas_lites l
-    JOIN properties p ON l.property_id = p.id WHERE l.account_id = $1
+    SELECT l.*, p.name as property_name, p.city, bu.name as room_name FROM gas_lites l
+    JOIN properties p ON l.property_id = p.id
+    LEFT JOIN bookable_units bu ON l.room_id = bu.id
+    WHERE l.account_id = $1
   `, [req.params.accountId]);
   res.json({ success: true, lites: result.rows });
 });
 
 app.post('/api/lites', async (req, res) => {
   try {
-    const { property_id, account_id, slug, custom_title, custom_tagline, theme, accent_color } = req.body;
+    const { property_id, room_id, account_id, slug, custom_title, custom_tagline, theme, accent_color } = req.body;
     const cleanSlug = slug.toLowerCase().replace(/[^a-z0-9-]/g, '-');
     const existing = await pool.query('SELECT id FROM gas_lites WHERE slug = $1', [cleanSlug]);
     if (existing.rows.length > 0) return res.json({ success: false, error: 'Slug taken' });
     const result = await pool.query(`
-      INSERT INTO gas_lites (property_id, account_id, slug, custom_title, custom_tagline, theme, accent_color)
-      VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *
-    `, [property_id, account_id, cleanSlug, custom_title, custom_tagline, theme || 'default', accent_color || '#3b82f6']);
+      INSERT INTO gas_lites (property_id, room_id, account_id, slug, custom_title, custom_tagline, theme, accent_color)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *
+    `, [property_id, room_id, account_id, cleanSlug, custom_title, custom_tagline, theme || 'default', accent_color || '#3b82f6']);
     res.json({ success: true, lite: result.rows[0] });
   } catch (error) {
     res.json({ success: false, error: error.message });
