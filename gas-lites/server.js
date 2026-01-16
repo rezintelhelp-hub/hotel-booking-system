@@ -549,6 +549,210 @@ app.get('/api/availability/:roomId', async (req, res) => {
   res.json({ success: true, availability: result.rows });
 });
 
+// Calculate pricing for date range
+app.get('/api/pricing/:roomId', async (req, res) => {
+  try {
+    const { checkin, checkout, adults, children } = req.query;
+    const roomId = req.params.roomId;
+    
+    // Get room base price
+    const roomResult = await pool.query(
+      'SELECT base_price, cleaning_fee, extra_guest_fee, max_guests FROM bookable_units WHERE id = $1',
+      [roomId]
+    );
+    if (roomResult.rows.length === 0) return res.json({ success: false, error: 'Room not found' });
+    const room = roomResult.rows[0];
+    
+    // Get availability/pricing for each night
+    const availResult = await pool.query(`
+      SELECT date, is_available, is_blocked,
+             COALESCE(direct_price, cm_price, standard_price, $2) as price, min_stay
+      FROM room_availability 
+      WHERE room_id = $1 AND date >= $3 AND date < $4
+      ORDER BY date
+    `, [roomId, room.base_price, checkin, checkout]);
+    
+    const nights = availResult.rows;
+    const numNights = nights.length;
+    
+    // Check all nights available
+    const unavailable = nights.filter(n => !n.is_available || n.is_blocked);
+    if (unavailable.length > 0) {
+      return res.json({ success: false, error: 'Some dates are not available', unavailable });
+    }
+    
+    // Check min stay
+    const minStay = nights[0]?.min_stay || 1;
+    if (numNights < minStay) {
+      return res.json({ success: false, error: `Minimum stay is ${minStay} nights` });
+    }
+    
+    // Calculate totals
+    const nightlyTotal = nights.reduce((sum, n) => sum + parseFloat(n.price || room.base_price), 0);
+    const cleaningFee = parseFloat(room.cleaning_fee) || 0;
+    const totalGuests = parseInt(adults || 1) + parseInt(children || 0);
+    const extraGuestFee = totalGuests > (room.max_guests || 2) ? 
+      (totalGuests - room.max_guests) * parseFloat(room.extra_guest_fee || 0) * numNights : 0;
+    
+    res.json({
+      success: true,
+      pricing: {
+        nights: numNights,
+        nightlyRates: nights.map(n => ({ date: n.date, price: parseFloat(n.price) })),
+        nightlyTotal,
+        cleaningFee,
+        extraGuestFee,
+        subtotal: nightlyTotal + cleaningFee + extraGuestFee,
+        avgPerNight: nightlyTotal / numNights
+      }
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get upsells for property/room
+app.get('/api/upsells/:propertyId', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT id, name, description, price, upsell_type, is_per_night, is_per_guest, icon
+      FROM upsells 
+      WHERE property_id = $1 AND active = true
+      ORDER BY sort_order, name
+    `, [req.params.propertyId]);
+    res.json({ success: true, upsells: result.rows });
+  } catch (error) {
+    res.json({ success: true, upsells: [] }); // Return empty if table doesn't exist
+  }
+});
+
+// Validate voucher code
+app.post('/api/voucher/validate', async (req, res) => {
+  try {
+    const { code, propertyId, roomId, subtotal } = req.body;
+    
+    const result = await pool.query(`
+      SELECT v.*, 
+             CASE WHEN v.usage_count >= v.usage_limit THEN true ELSE false END as exhausted
+      FROM vouchers v
+      WHERE v.code = $1 
+        AND v.active = true
+        AND (v.property_id IS NULL OR v.property_id = $2)
+        AND (v.valid_from IS NULL OR v.valid_from <= CURRENT_DATE)
+        AND (v.valid_until IS NULL OR v.valid_until >= CURRENT_DATE)
+    `, [code.toUpperCase(), propertyId]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Invalid voucher code' });
+    }
+    
+    const voucher = result.rows[0];
+    
+    if (voucher.exhausted) {
+      return res.json({ success: false, error: 'Voucher has been fully redeemed' });
+    }
+    
+    if (voucher.min_spend && subtotal < voucher.min_spend) {
+      return res.json({ success: false, error: `Minimum spend of ${voucher.min_spend} required` });
+    }
+    
+    // Calculate discount
+    let discount = 0;
+    if (voucher.discount_type === 'percentage') {
+      discount = subtotal * (voucher.discount_value / 100);
+      if (voucher.max_discount) discount = Math.min(discount, voucher.max_discount);
+    } else {
+      discount = voucher.discount_value;
+    }
+    
+    res.json({
+      success: true,
+      voucher: {
+        id: voucher.id,
+        code: voucher.code,
+        discount_type: voucher.discount_type,
+        discount_value: voucher.discount_value,
+        discount_amount: discount,
+        description: voucher.description
+      }
+    });
+  } catch (error) {
+    res.json({ success: false, error: 'Voucher validation failed' });
+  }
+});
+
+// Get active offers for Lite
+app.get('/api/offers/:propertyId', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT id, name, description, discount_type, discount_value, 
+             valid_from, valid_until, promo_code, min_nights
+      FROM offers 
+      WHERE property_id = $1 
+        AND active = true
+        AND (valid_from IS NULL OR valid_from <= CURRENT_DATE)
+        AND (valid_until IS NULL OR valid_until >= CURRENT_DATE)
+      ORDER BY discount_value DESC
+    `, [req.params.propertyId]);
+    res.json({ success: true, offers: result.rows });
+  } catch (error) {
+    res.json({ success: true, offers: [] });
+  }
+});
+
+// Submit booking
+app.post('/api/book', async (req, res) => {
+  try {
+    const {
+      liteSlug, roomId, propertyId,
+      checkin, checkout, adults, children,
+      guestName, guestEmail, guestPhone,
+      upsells, voucherCode, offerId,
+      pricing, total
+    } = req.body;
+    
+    // Validate required fields
+    if (!roomId || !checkin || !checkout || !guestName || !guestEmail) {
+      return res.json({ success: false, error: 'Missing required fields' });
+    }
+    
+    // Generate confirmation code
+    const confirmationCode = 'GAS' + Date.now().toString(36).toUpperCase() + Math.random().toString(36).substring(2, 6).toUpperCase();
+    
+    // Create reservation
+    const result = await pool.query(`
+      INSERT INTO reservations (
+        property_id, room_id, confirmation_code, source,
+        check_in, check_out, adults, children,
+        guest_name, guest_email, guest_phone,
+        total_price, status, created_at, 
+        upsells_json, voucher_code, offer_id, lite_slug
+      ) VALUES ($1, $2, $3, 'gas-lite', $4, $5, $6, $7, $8, $9, $10, $11, 'pending', NOW(), $12, $13, $14, $15)
+      RETURNING id, confirmation_code
+    `, [
+      propertyId, roomId, confirmationCode,
+      checkin, checkout, adults || 1, children || 0,
+      guestName, guestEmail, guestPhone || null,
+      total, JSON.stringify(upsells || []), voucherCode || null, offerId || null, liteSlug
+    ]);
+    
+    // TODO: Send confirmation email
+    // TODO: Push to channel manager
+    // TODO: Process payment
+    
+    res.json({
+      success: true,
+      booking: {
+        id: result.rows[0].id,
+        confirmationCode: result.rows[0].confirmation_code
+      }
+    });
+  } catch (error) {
+    console.error('Booking error:', error);
+    res.json({ success: false, error: 'Booking failed. Please try again.' });
+  }
+});
+
 // ============================================
 // RENDER FUNCTIONS
 // ============================================
@@ -799,6 +1003,33 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     .book-btn { width: 100%; padding: 16px; background: var(--accent); color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; }
     .book-btn:hover { filter: brightness(0.9); }
     .book-btn:disabled { background: #cbd5e1; cursor: not-allowed; }
+    .price-breakdown { margin: 16px 0; padding: 16px 0; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; }
+    .breakdown-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px; color: #475569; }
+    .breakdown-row.discount { color: #059669; }
+    .breakdown-total { display: flex; justify-content: space-between; padding-top: 12px; margin-top: 8px; border-top: 1px solid #e2e8f0; font-weight: 600; font-size: 16px; }
+    .upsells-section { margin: 16px 0; padding: 16px 0; border-bottom: 1px solid #e2e8f0; }
+    .upsells-section h4 { font-size: 14px; font-weight: 600; margin-bottom: 12px; color: #1e293b; }
+    .upsell-item { display: flex; align-items: center; gap: 12px; padding: 10px; background: #f8fafc; border-radius: 8px; margin-bottom: 8px; cursor: pointer; }
+    .upsell-item:hover { background: #f1f5f9; }
+    .upsell-item.selected { background: #eff6ff; border: 1px solid #3b82f6; }
+    .upsell-checkbox { width: 18px; height: 18px; }
+    .upsell-info { flex: 1; }
+    .upsell-name { font-size: 14px; font-weight: 500; }
+    .upsell-desc { font-size: 12px; color: #64748b; }
+    .upsell-price { font-weight: 600; color: #1e293b; }
+    .voucher-section { margin: 16px 0; }
+    .voucher-row { display: flex; gap: 8px; }
+    .voucher-row input { flex: 1; padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 14px; }
+    .voucher-row button { padding: 10px 16px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 8px; font-weight: 500; cursor: pointer; }
+    .voucher-row button:hover { background: #e2e8f0; }
+    .voucher-msg { font-size: 13px; margin-top: 8px; }
+    .voucher-msg.success { color: #059669; }
+    .voucher-msg.error { color: #dc2626; }
+    .guest-form { margin-top: 16px; padding-top: 16px; border-top: 1px solid #e2e8f0; }
+    .guest-form h4 { font-size: 14px; font-weight: 600; margin-bottom: 12px; }
+    .guest-form input { width: 100%; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 10px; font-size: 14px; }
+    .guest-form input:focus { outline: none; border-color: #667eea; }
+    .confirm-btn { background: #059669 !important; margin-top: 8px; }
     .qr-section { display: flex; align-items: center; gap: 12px; margin-top: 20px; padding-top: 20px; border-top: 1px solid #e2e8f0; }
     .qr-section img { width: 60px; height: 60px; }
     .qr-text { font-size: 12px; color: #64748b; }
@@ -1008,7 +1239,40 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
             <div class="guest-field"><label>Adults</label><select id="adults">${[1,2,3,4,5,6,7,8].map(n => `<option>${n}</option>`).join('')}</select></div>
             <div class="guest-field"><label>Children</label><select id="children">${[0,1,2,3,4,5].map(n => `<option>${n}</option>`).join('')}</select></div>
           </div>
-          <button class="book-btn" id="bookBtn" disabled>Select dates</button>
+          <button class="book-btn" id="bookBtn" disabled>Select dates to check availability</button>
+          
+          <!-- Price breakdown -->
+          <div id="priceBreakdown" class="price-breakdown" style="display:none;">
+            <div class="breakdown-row" id="nightlyRow"><span></span><span></span></div>
+            <div class="breakdown-row" id="cleaningRow" style="display:none;"><span>Cleaning fee</span><span></span></div>
+            <div class="breakdown-row" id="upsellsRow" style="display:none;"><span>Extras</span><span></span></div>
+            <div class="breakdown-row discount" id="discountRow" style="display:none;"><span></span><span></span></div>
+            <div class="breakdown-total"><span>Total</span><span id="totalAmount"></span></div>
+          </div>
+          
+          <!-- Upsells section -->
+          <div id="upsellsSection" class="upsells-section" style="display:none;">
+            <h4>Enhance your stay</h4>
+            <div id="upsellsList"></div>
+          </div>
+          
+          <!-- Voucher input -->
+          <div class="voucher-section">
+            <div class="voucher-row">
+              <input type="text" id="voucherCode" placeholder="Voucher code">
+              <button type="button" id="applyVoucher">Apply</button>
+            </div>
+            <div id="voucherMsg" class="voucher-msg"></div>
+          </div>
+          
+          <!-- Guest details form -->
+          <div id="guestForm" class="guest-form" style="display:none;">
+            <h4>Your details</h4>
+            <input type="text" id="guestName" placeholder="Full name *">
+            <input type="email" id="guestEmail" placeholder="Email address *">
+            <input type="tel" id="guestPhone" placeholder="Phone number">
+            <button class="book-btn confirm-btn" id="confirmBtn">Confirm Booking</button>
+          </div>
           <div class="qr-section">
             <img src="${qrCode}" alt="QR">
             <div class="qr-text">Scan to view on mobile<br><strong>#${lite.slug}</strong></div>
@@ -1113,22 +1377,249 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
       renderCalendar();
     }
     
-    // Booking form
-    const checkinEl = document.getElementById('checkin'), checkoutEl = document.getElementById('checkout'), bookBtn = document.getElementById('bookBtn');
+    // Booking form elements
+    const checkinEl = document.getElementById('checkin');
+    const checkoutEl = document.getElementById('checkout');
+    const adultsEl = document.getElementById('adults');
+    const childrenEl = document.getElementById('children');
+    const bookBtn = document.getElementById('bookBtn');
+    const priceBreakdown = document.getElementById('priceBreakdown');
+    const upsellsSection = document.getElementById('upsellsSection');
+    const guestForm = document.getElementById('guestForm');
+    
+    // Date change handlers
     checkinEl.addEventListener('change', () => {
       const next = new Date(checkinEl.value); next.setDate(next.getDate() + 1);
       checkoutEl.min = next.toISOString().split('T')[0];
       if (checkoutEl.value && checkoutEl.value <= checkinEl.value) checkoutEl.value = next.toISOString().split('T')[0];
-      updateBtn();
+      if (checkoutEl.value) fetchPricing();
     });
-    checkoutEl.addEventListener('change', updateBtn);
-    function updateBtn() {
-      if (checkinEl.value && checkoutEl.value) {
-        const nights = Math.ceil((new Date(checkoutEl.value) - new Date(checkinEl.value)) / 86400000);
-        bookBtn.textContent = 'Book ' + nights + ' night' + (nights > 1 ? 's' : '');
-        bookBtn.disabled = false;
+    checkoutEl.addEventListener('change', fetchPricing);
+    adultsEl.addEventListener('change', fetchPricing);
+    childrenEl.addEventListener('change', fetchPricing);
+    
+    // Fetch pricing from API
+    async function fetchPricing() {
+      if (!checkinEl.value || !checkoutEl.value) return;
+      
+      bookBtn.textContent = 'Checking availability...';
+      bookBtn.disabled = true;
+      
+      try {
+        const res = await fetch('/api/pricing/' + roomId + '?checkin=' + checkinEl.value + '&checkout=' + checkoutEl.value + '&adults=' + adultsEl.value + '&children=' + childrenEl.value);
+        const data = await res.json();
+        
+        if (data.success) {
+          currentPricing = data.pricing;
+          displayPricing();
+          loadUpsells();
+          bookBtn.textContent = 'Book ' + data.pricing.nights + ' night' + (data.pricing.nights > 1 ? 's' : '');
+          bookBtn.disabled = false;
+        } else {
+          priceBreakdown.style.display = 'none';
+          bookBtn.textContent = data.error || 'Not available';
+          bookBtn.disabled = true;
+        }
+      } catch (e) {
+        bookBtn.textContent = 'Error checking availability';
+        bookBtn.disabled = true;
       }
     }
+    
+    // Display price breakdown
+    function displayPricing() {
+      if (!currentPricing) return;
+      
+      const p = currentPricing;
+      document.getElementById('nightlyRow').innerHTML = '<span>' + currency + Math.round(p.avgPerNight) + ' × ' + p.nights + ' nights</span><span>' + currency + Math.round(p.nightlyTotal) + '</span>';
+      
+      const cleaningRow = document.getElementById('cleaningRow');
+      if (p.cleaningFee > 0) {
+        cleaningRow.style.display = 'flex';
+        cleaningRow.querySelector('span:last-child').textContent = currency + Math.round(p.cleaningFee);
+      } else {
+        cleaningRow.style.display = 'none';
+      }
+      
+      updateTotal();
+      priceBreakdown.style.display = 'block';
+    }
+    
+    // Calculate and update total
+    function updateTotal() {
+      if (!currentPricing) return;
+      
+      let total = currentPricing.subtotal;
+      
+      // Add upsells
+      let upsellTotal = 0;
+      selectedUpsells.forEach(u => {
+        let uPrice = u.price;
+        if (u.is_per_night) uPrice *= currentPricing.nights;
+        if (u.is_per_guest) uPrice *= (parseInt(adultsEl.value) + parseInt(childrenEl.value));
+        upsellTotal += uPrice;
+      });
+      
+      const upsellsRow = document.getElementById('upsellsRow');
+      if (upsellTotal > 0) {
+        upsellsRow.style.display = 'flex';
+        upsellsRow.querySelector('span:last-child').textContent = currency + Math.round(upsellTotal);
+        total += upsellTotal;
+      } else {
+        upsellsRow.style.display = 'none';
+      }
+      
+      // Apply voucher
+      const discountRow = document.getElementById('discountRow');
+      if (appliedVoucher) {
+        discountRow.style.display = 'flex';
+        discountRow.querySelector('span:first-child').textContent = 'Discount (' + appliedVoucher.code + ')';
+        discountRow.querySelector('span:last-child').textContent = '-' + currency + Math.round(appliedVoucher.discount_amount);
+        total -= appliedVoucher.discount_amount;
+      } else {
+        discountRow.style.display = 'none';
+      }
+      
+      document.getElementById('totalAmount').textContent = currency + Math.round(total);
+    }
+    
+    // Load upsells
+    async function loadUpsells() {
+      try {
+        const res = await fetch('/api/upsells/' + propertyId);
+        const data = await res.json();
+        
+        if (data.upsells && data.upsells.length > 0) {
+          const list = document.getElementById('upsellsList');
+          list.innerHTML = data.upsells.map(u => 
+            '<label class="upsell-item" data-id="' + u.id + '">' +
+              '<input type="checkbox" class="upsell-checkbox" data-upsell=\'' + JSON.stringify(u) + '\'>' +
+              '<div class="upsell-info"><div class="upsell-name">' + (u.icon || '') + ' ' + u.name + '</div>' +
+              (u.description ? '<div class="upsell-desc">' + u.description + '</div>' : '') + '</div>' +
+              '<div class="upsell-price">' + currency + u.price + (u.is_per_night ? '/night' : '') + '</div>' +
+            '</label>'
+          ).join('');
+          
+          list.querySelectorAll('.upsell-checkbox').forEach(cb => {
+            cb.addEventListener('change', function() {
+              const upsell = JSON.parse(this.dataset.upsell);
+              if (this.checked) {
+                selectedUpsells.push(upsell);
+                this.closest('.upsell-item').classList.add('selected');
+              } else {
+                selectedUpsells = selectedUpsells.filter(u => u.id !== upsell.id);
+                this.closest('.upsell-item').classList.remove('selected');
+              }
+              updateTotal();
+            });
+          });
+          
+          upsellsSection.style.display = 'block';
+        }
+      } catch (e) {
+        console.log('No upsells available');
+      }
+    }
+    
+    // Voucher handling
+    document.getElementById('applyVoucher').addEventListener('click', async () => {
+      const code = document.getElementById('voucherCode').value.trim();
+      const msgEl = document.getElementById('voucherMsg');
+      
+      if (!code) return;
+      if (!currentPricing) {
+        msgEl.textContent = 'Please select dates first';
+        msgEl.className = 'voucher-msg error';
+        return;
+      }
+      
+      try {
+        const res = await fetch('/api/voucher/validate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code, propertyId, roomId, subtotal: currentPricing.subtotal })
+        });
+        const data = await res.json();
+        
+        if (data.success) {
+          appliedVoucher = data.voucher;
+          msgEl.textContent = 'Voucher applied! ' + (data.voucher.discount_type === 'percentage' ? data.voucher.discount_value + '% off' : currency + data.voucher.discount_value + ' off');
+          msgEl.className = 'voucher-msg success';
+          updateTotal();
+        } else {
+          msgEl.textContent = data.error;
+          msgEl.className = 'voucher-msg error';
+        }
+      } catch (e) {
+        msgEl.textContent = 'Error validating voucher';
+        msgEl.className = 'voucher-msg error';
+      }
+    });
+    
+    // Book button - show guest form
+    bookBtn.addEventListener('click', () => {
+      guestForm.style.display = 'block';
+      bookBtn.style.display = 'none';
+      document.getElementById('guestName').focus();
+    });
+    
+    // Confirm booking
+    document.getElementById('confirmBtn').addEventListener('click', async () => {
+      const name = document.getElementById('guestName').value.trim();
+      const email = document.getElementById('guestEmail').value.trim();
+      const phone = document.getElementById('guestPhone').value.trim();
+      
+      if (!name || !email) {
+        alert('Please enter your name and email');
+        return;
+      }
+      
+      const confirmBtn = document.getElementById('confirmBtn');
+      confirmBtn.textContent = 'Processing...';
+      confirmBtn.disabled = true;
+      
+      try {
+        const res = await fetch('/api/book', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            liteSlug,
+            roomId,
+            propertyId,
+            checkin: checkinEl.value,
+            checkout: checkoutEl.value,
+            adults: adultsEl.value,
+            children: childrenEl.value,
+            guestName: name,
+            guestEmail: email,
+            guestPhone: phone,
+            upsells: selectedUpsells,
+            voucherCode: appliedVoucher?.code,
+            pricing: currentPricing,
+            total: parseFloat(document.getElementById('totalAmount').textContent.replace(/[^0-9.]/g, ''))
+          })
+        });
+        const data = await res.json();
+        
+        if (data.success) {
+          document.querySelector('.booking-card').innerHTML = 
+            '<div style="text-align:center;padding:40px 20px;">' +
+              '<div style="font-size:48px;margin-bottom:16px;">✓</div>' +
+              '<h3 style="margin-bottom:8px;">Booking Confirmed!</h3>' +
+              '<p style="color:#64748b;margin-bottom:16px;">Confirmation: <strong>' + data.booking.confirmationCode + '</strong></p>' +
+              '<p style="color:#64748b;font-size:14px;">A confirmation email will be sent to ' + email + '</p>' +
+            '</div>';
+        } else {
+          alert(data.error || 'Booking failed. Please try again.');
+          confirmBtn.textContent = 'Confirm Booking';
+          confirmBtn.disabled = false;
+        }
+      } catch (e) {
+        alert('Error processing booking. Please try again.');
+        confirmBtn.textContent = 'Confirm Booking';
+        confirmBtn.disabled = false;
+      }
+    });
     
     // Keyboard nav
     document.addEventListener('keydown', e => { 
