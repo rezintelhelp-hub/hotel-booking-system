@@ -2882,7 +2882,7 @@
                             </label>
                         </div>
                         <div style="display: flex; gap: 0.5rem; align-items: center; margin-left: auto;">
-                            <button class="btn btn-secondary" onclick="refreshCalendar()" title="Refresh calendar data" style="padding: 0.5rem 0.75rem;">🔄</button>
+                            
                             <button class="btn btn-secondary" onclick="shiftGridDays(-7)">⏪</button>
                             <button class="btn btn-secondary" onclick="shiftGridDays(-1)">◀</button>
                             <button class="btn btn-secondary" onclick="goToToday()">Today</button>
@@ -26163,7 +26163,9 @@ Local honey and preserves"></textarea>
                 // Row 1: Status (Available/Blocked/Booked)
                 html += '<tr>';
                 html += `<td rowspan="2" style="position: sticky; left: 0; background: #ffffff; z-index: 5; padding: 8px; font-weight: 500; border-bottom: 2px solid #e5e7eb; color: #1f2937;">${room.name}</td>`;
-                html += `<td style="padding: 4px; font-size: 0.65rem; color: #9ca3af; background: #fafafa;">Status</td>`;
+                html += `<td rowspan="2" style="padding: 4px; text-align: center; background: #fafafa; border-bottom: 2px solid #e5e7eb;">
+                    <button onclick="syncRoomPricing(${room.id}, '${room.name}')" class="btn btn-sm" style="padding: 2px 6px; font-size: 0.7rem; background: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer;" title="Sync pricing from channel manager">&#8635;</button>
+                </td>`;
                 
                 dates.forEach(d => {
                     const dateStr = d.toISOString().split('T')[0];
@@ -26210,7 +26212,6 @@ Local honey and preserves"></textarea>
                 
                 // Row 2: Price
                 html += '<tr style="border-bottom: 2px solid #e5e7eb;">';
-                html += `<td style="padding: 4px; font-size: 0.65rem; color: #9ca3af; background: #fafafa;">Price</td>`;
                 
                 dates.forEach(d => {
                     const dateStr = d.toISOString().split('T')[0];
@@ -26239,6 +26240,54 @@ Local honey and preserves"></textarea>
             
             html += '</tbody>';
             table.innerHTML = html;
+        }
+        
+        async function syncRoomPricing(roomId, roomName) {
+            const btn = event.target;
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '⏳';
+            btn.disabled = true;
+            
+            try {
+                // Get the room's property ID first
+                const roomResponse = await fetch(`/api/db/rooms/${roomId}`, { headers: authHeaders() });
+                const roomData = await roomResponse.json();
+                
+                if (!roomData.success || !roomData.data) {
+                    throw new Error('Room not found');
+                }
+                
+                const propertyId = roomData.data.property_id;
+                
+                // Get the sync property ID from gas_sync_properties
+                const syncPropResponse = await fetch(`/api/gas-sync/property-by-gas-id/${propertyId}`, { headers: authHeaders() });
+                const syncPropData = await syncPropResponse.json();
+                
+                if (!syncPropData.success || !syncPropData.syncPropertyId) {
+                    throw new Error('Sync property not found - is this property linked to a channel manager?');
+                }
+                
+                // Call the pricing sync endpoint
+                const syncResponse = await fetch(`/api/gas-sync/properties/${syncPropData.syncPropertyId}/sync-prices`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ force: true })
+                });
+                const syncResult = await syncResponse.json();
+                
+                if (syncResult.success) {
+                    showNotification(`✅ Synced pricing for ${roomName}: ${syncResult.daysUpdated || 0} days updated`, 'success');
+                    // Reload the grid data
+                    await loadGridData();
+                } else {
+                    showNotification(syncResult.error || 'Sync failed', 'error');
+                }
+            } catch (error) {
+                showNotification(`Failed to sync: ${error.message}`, 'error');
+            } finally {
+                btn.innerHTML = '&#8635;';
+                btn.disabled = false;
+            }
         }
         
         function selectDateRange(roomId, dateStr) {
