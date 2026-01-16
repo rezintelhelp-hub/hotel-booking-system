@@ -139,7 +139,7 @@ app.get('/:slug', async (req, res) => {
       pricing = priceRes.rows[0];
     }
     
-    const liteUrl = `https://lite.gas.travel/\${slug}`;
+    const liteUrl = `https://lite.gas.travel/${slug}`;
     const qrCode = await QRCode.toDataURL(liteUrl, { width: 150, margin: 1 });
     
     res.send(renderFullPage({ lite, room, images, amenities, reviews, pricing, qrCode, liteUrl }));
@@ -200,7 +200,7 @@ app.get('/:slug/card', async (req, res) => {
       activeOffer = offerRes.rows[0];
     }
     
-    const liteUrl = `https://lite.gas.travel/\${slug}`;
+    const liteUrl = `https://lite.gas.travel/${slug}`;
     const qrCode = await QRCode.toDataURL(liteUrl, { width: 200, margin: 1 });
     
     res.send(renderPromoCard({
@@ -217,7 +217,7 @@ app.get('/:slug/card', async (req, res) => {
 app.get('/:slug/qr', async (req, res) => {
   try {
     const size = parseInt(req.query.size) || 300;
-    const qrBuffer = await QRCode.toBuffer(`https://lite.gas.travel/\${req.params.slug}`, { width: size, margin: 2 });
+    const qrBuffer = await QRCode.toBuffer(`https://lite.gas.travel/${req.params.slug}`, { width: size, margin: 2 });
     res.set('Content-Type', 'image/png');
     res.send(qrBuffer);
   } catch (error) {
@@ -238,7 +238,7 @@ app.get('/:slug/print', async (req, res) => {
     if (liteResult.rows.length === 0) return res.status(404).send('Not found');
     
     const lite = liteResult.rows[0];
-    const liteUrl = `https://lite.gas.travel/\${slug}`;
+    const liteUrl = `https://lite.gas.travel/${slug}`;
     const qrCode = await QRCode.toDataURL(liteUrl, { width: 400, margin: 2 });
     
     const imgRes = await pool.query(`
@@ -330,14 +330,14 @@ function renderNotFound(slug) {
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <style>body{font-family:sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh;background:#f1f5f9;margin:0}
   .c{text-align:center;padding:2rem}h1{color:#1e293b}p{color:#64748b}a{color:#3b82f6}</style></head>
-  <body><div class="c"><h1>🔍 Not Found</h1><p>"\${slug}" doesn't exist yet.</p>
+  <body><div class="c"><h1>🔍 Not Found</h1><p>"${slug}" doesn't exist yet.</p>
   <p><a href="https://gas.travel">Create your free GAS Lite →</a></p></div></body></html>`;
 }
 
 function renderError(msg) {
   return `<!DOCTYPE html><html><head><title>Error</title></head>
   <body style="font-family:sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh">
-  <div style="text-align:center"><h1>⚠️ Error</h1><p>\${msg||'Please try again.'}</p></div></body></html>`;
+  <div style="text-align:center"><h1>⚠️ Error</h1><p>${msg||'Please try again.'}</p></div></body></html>`;
 }
 
 function renderFullPage({ lite, room, images, amenities, reviews, pricing, qrCode, liteUrl }) {
