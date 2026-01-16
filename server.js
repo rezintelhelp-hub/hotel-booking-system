@@ -26750,7 +26750,8 @@ app.get('/api/admin/properties/:id/bedrooms', async (req, res) => {
     const params = [propertyId];
     
     if (roomId) {
-      query += ` AND pb.room_id = $2`;
+      // Show bedrooms for this room OR property-level bedrooms (room_id IS NULL)
+      query += ` AND (pb.room_id = $2 OR pb.room_id IS NULL)`;
       params.push(roomId);
     } else {
       query += ` AND pb.room_id IS NULL`;
@@ -26924,7 +26925,8 @@ app.get('/api/admin/properties/:id/bathrooms-detailed', async (req, res) => {
     const params = [propertyId];
     
     if (roomId) {
-      query += ` AND pb.room_id = $2`;
+      // Show bathrooms for this room OR property-level bathrooms (room_id IS NULL)
+      query += ` AND (pb.room_id = $2 OR pb.room_id IS NULL)`;
       params.push(roomId);
     } else {
       query += ` AND pb.room_id IS NULL`;
