@@ -58,6 +58,40 @@ async function ensureLitesTable() {
 }
 
 // ============================================
+// ROOT - Handle #code URLs
+// ============================================
+app.get('/', (req, res) => {
+  res.send(`<!DOCTYPE html>
+<html><head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>GAS Lite</title>
+  <style>
+    body { font-family: system-ui, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; background: linear-gradient(135deg, #1e293b, #0f172a); color: white; }
+    .container { text-align: center; padding: 2rem; }
+    h1 { font-size: 3rem; margin-bottom: 0.5rem; }
+    p { color: #94a3b8; }
+    .code { font-size: 2rem; color: #667eea; font-weight: bold; }
+  </style>
+  <script>
+    // Check for #code in URL
+    if (window.location.hash && window.location.hash.length > 1) {
+      const code = window.location.hash.substring(1); // Remove #
+      window.location.href = '/' + code;
+    }
+  </script>
+</head>
+<body>
+  <div class="container">
+    <h1>⭐ GAS Lite</h1>
+    <p>Enter a code like <span class="code">#390580</span></p>
+    <p style="margin-top: 2rem;"><a href="https://gas.travel" style="color: #667eea;">Create your own GAS Lite →</a></p>
+  </div>
+</body>
+</html>`);
+});
+
+// ============================================
 // MAIN ROOM PAGE - /:slug
 // ============================================
 app.get('/:slug', async (req, res) => {
@@ -174,7 +208,7 @@ app.get('/:slug', async (req, res) => {
       todayPrice = todayAvail?.price || lite.base_price;
     }
     
-    const liteUrl = `https://lite.gas.travel/${slug}`;
+    const liteUrl = `https://lite.gas.travel/#${slug}`;
     const qrCode = await QRCode.toDataURL(liteUrl, { width: 150, margin: 1 });
     
     res.send(renderFullPage({ 
@@ -251,7 +285,7 @@ app.get('/:slug/card', async (req, res) => {
       activeOffer = offerRes.rows[0];
     }
     
-    const liteUrl = `https://lite.gas.travel/${slug}`;
+    const liteUrl = `https://lite.gas.travel/#${slug}`;
     const qrCode = await QRCode.toDataURL(liteUrl, { width: 200, margin: 1 });
     
     res.send(renderPromoCard({ lite, image, price, offer: activeOffer, qrCode, liteUrl }));
@@ -265,7 +299,7 @@ app.get('/:slug/card', async (req, res) => {
 app.get('/:slug/qr', async (req, res) => {
   try {
     const size = parseInt(req.query.size) || 300;
-    const qrBuffer = await QRCode.toBuffer(`https://lite.gas.travel/${req.params.slug}`, { width: size, margin: 2 });
+    const qrBuffer = await QRCode.toBuffer(`https://lite.gas.travel/#${req.params.slug}`, { width: size, margin: 2 });
     res.set('Content-Type', 'image/png');
     res.send(qrBuffer);
   } catch (error) {
@@ -289,7 +323,7 @@ app.get('/:slug/print', async (req, res) => {
     if (liteResult.rows.length === 0) return res.status(404).send('Not found');
     
     const lite = liteResult.rows[0];
-    const liteUrl = `https://lite.gas.travel/${slug}`;
+    const liteUrl = `https://lite.gas.travel/#${slug}`;
     const qrCode = await QRCode.toDataURL(liteUrl, { width: 400, margin: 2 });
     
     let image = null;
