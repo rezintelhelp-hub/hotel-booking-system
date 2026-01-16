@@ -356,6 +356,42 @@ app.get('/api/check-slug/:slug', async (req, res) => {
   res.json({ available: result.rows.length === 0 });
 });
 
+// DEBUG: View raw lite data - visit /api/debug/SLUG
+app.get('/api/debug/:slug', async (req, res) => {
+  try {
+    const liteResult = await pool.query(`
+      SELECT l.*, 
+             p.short_description as property_short_desc,
+             p.full_description as property_full_desc, 
+             p.description as property_desc,
+             bu.short_description as room_short_desc, 
+             bu.full_description as room_full_desc
+      FROM gas_lites l
+      JOIN properties p ON l.property_id = p.id
+      LEFT JOIN bookable_units bu ON l.room_id = bu.id
+      WHERE l.slug = $1
+    `, [req.params.slug.toLowerCase()]);
+    
+    if (liteResult.rows.length === 0) {
+      return res.json({ error: 'Not found' });
+    }
+    
+    const lite = liteResult.rows[0];
+    res.json({
+      slug: lite.slug,
+      property_short_desc: lite.property_short_desc,
+      property_full_desc: lite.property_full_desc,
+      property_desc: lite.property_desc,
+      room_short_desc: lite.room_short_desc,
+      room_full_desc: lite.room_full_desc,
+      parsed_short: parseDescription(lite.room_short_desc || lite.property_short_desc),
+      parsed_full: parseDescription(lite.room_full_desc || lite.property_full_desc || lite.property_desc)
+    });
+  } catch (error) {
+    res.json({ error: error.message });
+  }
+});
+
 // ONE-TIME MIGRATION: Convert all slugs to random 6-digit numbers
 // Visit https://lite.gas.travel/api/migrate-to-numbers once, then remove this endpoint
 app.get('/api/migrate-to-numbers', async (req, res) => {
@@ -537,6 +573,14 @@ function parseDescription(desc) {
     .replace(/\\n/g, '\n')
     .replace(/\\r/g, '')
     .replace(/\\t/g, '  ');
+  
+  // Clean up excessive emojis and formatting (keep first emoji per line if any)
+  text = text
+    .replace(/[\u{1F300}-\u{1F9FF}][\u{1F300}-\u{1F9FF}]+/gu, '') // Remove emoji clusters
+    .replace(/^\s*[\u{1F300}-\u{1F9FF}]\s*/gmu, '') // Remove leading emojis from lines
+    .replace(/\*\*/g, '') // Remove markdown bold
+    .replace(/\n{3,}/g, '\n\n') // Max 2 newlines
+    .trim();
   
   return text;
 }
