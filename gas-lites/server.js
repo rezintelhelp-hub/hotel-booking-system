@@ -715,23 +715,23 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     
     /* Room Header */
     .room-header { margin-bottom: 24px; }
-    .room-title { font-size: 2rem; font-weight: 400; font-style: italic; color: #d4a855; margin-bottom: 8px; }
-    .room-subtitle { color: #94a3b8; font-size: 0.95rem; margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid #334155; }
+    .room-title { font-size: 1.75rem; font-weight: 700; color: #1e293b; margin-bottom: 4px; }
+    .room-subtitle { color: #64748b; font-size: 0.95rem; margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid #e2e8f0; }
     .room-meta { display: flex; flex-wrap: wrap; gap: 24px; margin-bottom: 24px; }
-    .meta-item { display: flex; align-items: center; gap: 8px; color: #e2e8f0; font-size: 0.9rem; }
+    .meta-item { display: flex; align-items: center; gap: 8px; color: #475569; font-size: 0.9rem; }
     .meta-icon { opacity: 0.7; }
     .more-info { margin-top: 20px; }
-    .more-info summary { color: #d4a855; cursor: pointer; font-weight: 500; display: flex; align-items: center; gap: 6px; }
+    .more-info summary { color: #667eea; cursor: pointer; font-weight: 500; display: flex; align-items: center; gap: 6px; }
     .more-info summary:hover { text-decoration: underline; }
-    .more-info .more-content { margin-top: 16px; padding-top: 16px; border-top: 1px solid #334155; }
+    .more-info .more-content { margin-top: 16px; padding-top: 16px; border-top: 1px solid #e2e8f0; }
     .meta-item { display: flex; align-items: center; gap: 6px; font-size: 14px; color: #64748b; }
     .rating-badge { background: var(--accent); color: white; padding: 4px 10px; border-radius: 6px; font-weight: 600; font-size: 14px; }
     
     /* Tabs */
     .tabs-nav { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 24px; }
-    .tab-btn { padding: 10px 20px; border: 1px solid #475569; background: transparent; font-size: 14px; font-weight: 500; color: #94a3b8; cursor: pointer; border-radius: 25px; margin-right: 8px; margin-bottom: 8px; transition: all 0.2s; }
-    .tab-btn:hover { border-color: #d4a855; color: #d4a855; }
-    .tab-btn.active { background: #d4a855; color: #0f172a; border-color: #d4a855; }
+    .tab-btn { padding: 10px 20px; border: 1px solid #e2e8f0; background: #f8fafc; font-size: 14px; font-weight: 500; color: #64748b; cursor: pointer; border-radius: 25px; margin-right: 8px; margin-bottom: 8px; transition: all 0.2s; }
+    .tab-btn:hover { border-color: #cbd5e1; color: #475569; background: #f1f5f9; }
+    .tab-btn.active { background: #f43f5e; color: white; border-color: #f43f5e; }
     .tab-content { display: none; }
     .tab-content.active { display: block; }
     
@@ -757,21 +757,23 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     /* Availability Calendar */
     .calendar-container { margin-top: 16px; }
     .calendar-header { display: flex; align-items: flex-start; gap: 16px; }
-    .cal-nav-btn { background: #334155; border: none; width: 36px; height: 36px; border-radius: 8px; cursor: pointer; color: white; font-size: 18px; margin-top: 30px; }
-    .cal-nav-btn:hover { background: #475569; }
-    .calendar-months-wrapper { display: flex; gap: 24px; flex: 1; }
+    .cal-nav-btn { background: white; border: 1px solid #e2e8f0; width: 32px; height: 32px; border-radius: 6px; cursor: pointer; color: #64748b; font-size: 16px; margin-top: 24px; }
+    .cal-nav-btn:hover { background: #f1f5f9; }
+    .calendar-months-wrapper { display: flex; gap: 32px; flex: 1; }
     .calendar-month-col { flex: 1; }
-    .calendar-month-col h3 { text-align: center; margin-bottom: 12px; font-size: 1rem; color: #e2e8f0; }
+    .calendar-month-col h3 { text-align: left; margin-bottom: 16px; font-size: 1rem; color: #1e293b; font-weight: 600; }
     .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
-    .calendar-day-header { text-align: center; font-size: 11px; color: #64748b; padding: 6px 0; font-weight: 500; }
-    .calendar-day { text-align: center; padding: 6px 2px; border-radius: 6px; font-size: 12px; cursor: pointer; }
-    .calendar-day.available { background: #134e4a; color: #5eead4; }
-    .calendar-day.unavailable { background: #7f1d1d; color: #fca5a5; text-decoration: line-through; }
-    .calendar-day.empty { background: transparent; cursor: default; }
-    .calendar-day.today { border: 2px solid #d4a855; }
-    .calendar-day:hover:not(.empty):not(.unavailable) { background: #d4a855; color: #0f172a; }
+    .calendar-day-header { text-align: center; font-size: 12px; color: #64748b; padding: 8px 0; font-weight: 500; }
+    .calendar-day { text-align: center; padding: 10px 4px; border-radius: 8px; font-size: 13px; cursor: pointer; }
+    .calendar-day.available { background: #dcfce7; color: #166534; }
+    .calendar-day.unavailable { background: #ffe4e6; color: #9f1239; }
+    .calendar-day.empty { background: transparent; cursor: default; color: #cbd5e1; }
+    .calendar-day.today { border: 2px solid #3b82f6; }
+    .calendar-day:hover:not(.empty):not(.unavailable) { background: #bbf7d0; }
     .calendar-day .price { font-size: 9px; opacity: 0.8; }
-    .calendar-legend { display: flex; gap: 16px; margin-top: 16px; font-size: 12px; color: #94a3b8; justify-content: center; }
+    .calendar-legend { display: flex; gap: 16px; margin-top: 16px; font-size: 12px; color: #64748b; }
+    .legend-item { display: flex; align-items: center; gap: 6px; }
+    .legend-dot { width: 12px; height: 12px; border-radius: 3px; }
     .legend-item { display: flex; align-items: center; gap: 6px; }
     .legend-dot { width: 12px; height: 12px; border-radius: 3px; }
     
@@ -909,8 +911,8 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
                 <button class="cal-nav-btn" onclick="nextMonth()">›</button>
               </div>
               <div class="calendar-legend">
-                <div class="legend-item"><div class="legend-dot" style="background:#d1fae5;"></div> Available</div>
-                <div class="legend-item"><div class="legend-dot" style="background:#fee2e2;"></div> Unavailable</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#dcfce7;"></div> Available</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#ffe4e6;"></div> Unavailable</div>
               </div>
             </div>
           </div>
