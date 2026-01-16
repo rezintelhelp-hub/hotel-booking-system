@@ -363,7 +363,7 @@ function renderFullPage({ lite, room, images, amenities, reviews, pricing, qrCod
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${title} | Book Direct</title>
-  <meta name="description" content="${(room?.short_description || lite.short_description || '').substring(0,160)}">
+  <meta name="description" content="${String(room?.short_description || lite.short_description || '').substring(0,160)}">
   <meta property="og:title" content="${title}">
   <meta property="og:image" content="${images[0]?.url || ''}">
   <meta property="og:url" content="${liteUrl}">
