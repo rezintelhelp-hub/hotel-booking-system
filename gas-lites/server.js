@@ -811,7 +811,13 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     .accordion-item { border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 8px; overflow: hidden; }
     .accordion-header { width: 100%; padding: 16px 20px; background: white; border: none; display: flex; justify-content: space-between; cursor: pointer; font-size: 15px; font-weight: 500; text-align: left; }
     .accordion-content { padding: 0 20px; max-height: 0; overflow: hidden; transition: all 0.3s; }
-    .accordion-item.open .accordion-content { padding: 0 20px 20px; max-height: 500px; }
+    .accordion-item.open .accordion-content { padding: 0 20px 20px; max-height: 2000px; }
+    .terms-list { list-style: none; padding: 0; margin: 0 0 16px 0; }
+    .terms-list li { padding: 8px 0; border-bottom: 1px solid #f1f5f9; color: #475569; }
+    .terms-list li:last-child { border-bottom: none; }
+    .terms-list strong { color: #1e293b; }
+    .house-rules-text { color: #475569; line-height: 1.7; white-space: pre-wrap; }
+    .policy-type { color: #475569; text-transform: capitalize; }
     .accordion-icon { font-size: 20px; transition: transform 0.3s; }
     .accordion-item.open .accordion-icon { transform: rotate(45deg); }
     
@@ -950,16 +956,32 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
           
           <div class="tab-content" id="tab-terms">
             <div class="accordion-item">
+              <button class="accordion-header" onclick="toggleAccordion(this)"><span>General Terms</span><span class="accordion-icon">+</span></button>
+              <div class="accordion-content">
+                <ul class="terms-list">
+                  <li><strong>Check-in:</strong> ${lite.check_in_time || '3:00 PM'}</li>
+                  <li><strong>Check-out:</strong> ${lite.check_out_time || '11:00 AM'}</li>
+                  <li><strong>Children:</strong> ${lite.children_allowed ? 'Children of all ages welcome' : 'Not suitable for children'}</li>
+                  <li><strong>Events:</strong> ${lite.events_allowed ? 'Events allowed' : 'No events or parties'}</li>
+                </ul>
+              </div>
+            </div>
+            <div class="accordion-item">
               <button class="accordion-header" onclick="toggleAccordion(this)"><span>House Rules</span><span class="accordion-icon">+</span></button>
-              <div class="accordion-content">${lite.house_rules || '<p>No house rules specified.</p>'}</div>
+              <div class="accordion-content">
+                <ul class="terms-list">
+                  <li><strong>Smoking:</strong> ${lite.smoking_allowed ? 'Smoking allowed' : 'No smoking'}</li>
+                  <li><strong>Pets:</strong> ${lite.pets_allowed ? 'Pets allowed' : 'No pets allowed'}</li>
+                  ${lite.quiet_hours_start ? `<li><strong>Quiet hours:</strong> ${lite.quiet_hours_start} - ${lite.quiet_hours_end || '08:00'}</li>` : ''}
+                </ul>
+                ${lite.house_rules ? `<div class="house-rules-text">${parseDescription(lite.house_rules)}</div>` : ''}
+              </div>
             </div>
             <div class="accordion-item">
               <button class="accordion-header" onclick="toggleAccordion(this)"><span>Cancellation Policy</span><span class="accordion-icon">+</span></button>
-              <div class="accordion-content">${lite.cancellation_policy || '<p>Contact host for cancellation policy.</p>'}</div>
-            </div>
-            <div class="accordion-item">
-              <button class="accordion-header" onclick="toggleAccordion(this)"><span>Check-in / Check-out</span><span class="accordion-icon">+</span></button>
-              <div class="accordion-content"><p><strong>Check-in:</strong> ${lite.check_in_time || '3:00 PM'}</p><p><strong>Check-out:</strong> ${lite.check_out_time || '11:00 AM'}</p></div>
+              <div class="accordion-content">
+                <p class="policy-type">${lite.cancellation_policy || 'Contact host for cancellation policy'}</p>
+              </div>
             </div>
           </div>
           
