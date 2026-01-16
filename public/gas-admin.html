@@ -41950,10 +41950,9 @@ Local honey and preserves"></textarea>
     <!-- GAS Lite Preview Panel - Shows Card -->
     <div id="lite-preview-panel" class="lite-preview-panel" style="display: none;">
         <div class="lite-preview-header">
-            <span class="lite-preview-title">🎴 Room Card Preview</span>
+            <span class="lite-preview-title">⭐ GAS Lite</span>
             <div class="lite-preview-actions">
-                <span id="lite-preview-slug" style="color: white; font-size: 12px; font-weight: 600; cursor: pointer; background: rgba(255,255,255,0.2); padding: 4px 8px; border-radius: 4px;" onclick="editLiteSlug()" title="Click to edit URL">#loading</span>
-                <button class="lite-preview-btn" onclick="editLiteSlug()" title="Edit URL">✏️</button>
+                <span id="lite-preview-slug" style="color: white; font-size: 14px; font-weight: 700; background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 4px;">#...</span>
                 <button class="lite-preview-btn" onclick="refreshLitePreview()" title="Refresh">🔄</button>
                 <button class="lite-preview-btn" onclick="closeLitePreview()" title="Close">✕</button>
             </div>
@@ -42114,47 +42113,6 @@ Local honey and preserves"></textarea>
             console.error('Preview error:', error);
             slugEl.textContent = '#error';
             iframe.srcdoc = '<div style="display:flex;align-items:center;justify-content:center;height:100%;font-family:system-ui;color:#ef4444;background:#0f172a;">Error loading preview</div>';
-        }
-    }
-    
-    async function editLiteSlug() {
-        if (!currentLiteId || !currentLiteSlug) {
-            showNotification('No lite loaded', 'error');
-            return;
-        }
-        
-        const newSlug = prompt('Enter new URL code (numbers, letters, hyphens):', currentLiteSlug);
-        if (!newSlug || newSlug === currentLiteSlug) return;
-        
-        // Validate slug
-        const cleanSlug = newSlug.toLowerCase().replace(/[^a-z0-9-]/g, '');
-        if (cleanSlug.length < 2) {
-            showNotification('Slug must be at least 2 characters', 'error');
-            return;
-        }
-        if (cleanSlug.length > 50) {
-            showNotification('Slug must be 50 characters or less', 'error');
-            return;
-        }
-        
-        try {
-            const response = await fetch(`https://lite.gas.travel/api/lites/${currentLiteId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ slug: cleanSlug })
-            });
-            const data = await response.json();
-            
-            if (data.success) {
-                showNotification('URL updated to: lite.gas.travel/' + cleanSlug, 'success');
-                currentLiteSlug = cleanSlug;
-                refreshLitePreview();
-            } else {
-                showNotification(data.error || 'Failed to update URL', 'error');
-            }
-        } catch (error) {
-            console.error('Edit slug error:', error);
-            showNotification('Error updating URL', 'error');
         }
     }
     
