@@ -21125,7 +21125,10 @@ Local honey and preserves"></textarea>
                                                     ${unit.is_hidden ? ' Show' : ' Hide'}
                                                 </button>
                                             </td>
-                                            <td><button class="btn btn-secondary btn-small" onclick="editRoom(${unit.id})">Edit</button></td>
+                                            <td style="display: flex; gap: 4px;">
+                                                <button class="btn btn-small" style="background: linear-gradient(135deg, #667eea, #764ba2); color: white; border: none; padding: 6px 10px;" onclick="showLitePreview(${unit.id})" title="Preview Room Page">👁️</button>
+                                                <button class="btn btn-secondary btn-small" onclick="editRoom(${unit.id})">Edit</button>
+                                            </td>
                                         </tr>
                                     `).join('')}
                                 </tbody>
@@ -42175,29 +42178,39 @@ Local honey and preserves"></textarea>
             const select = document.getElementById(selectId);
             if (!select) return;
             
-            // Check if eye button already exists
-            const wrapper = select.parentElement;
-            let eyeBtn = wrapper.querySelector('.room-preview-eye');
-            
-            if (!eyeBtn) {
-                // Create wrapper div if select isn't already wrapped properly
-                if (!wrapper.style.display || wrapper.style.display !== 'flex') {
-                    wrapper.style.display = 'flex';
-                    wrapper.style.alignItems = 'center';
+            // Check if eye button already exists next to this select
+            let eyeBtn = select.nextElementSibling;
+            if (eyeBtn && eyeBtn.classList.contains('room-preview-eye')) {
+                // Already exists, just update visibility
+                if (select.value) {
+                    eyeBtn.classList.add('visible');
+                } else {
+                    eyeBtn.classList.remove('visible');
                 }
-                
-                eyeBtn = document.createElement('button');
-                eyeBtn.className = 'room-preview-eye';
-                eyeBtn.innerHTML = '👁️';
-                eyeBtn.title = 'Preview room page';
-                eyeBtn.type = 'button';
-                eyeBtn.onclick = (e) => {
-                    e.preventDefault();
-                    const roomId = select.value;
-                    if (roomId) showLitePreview(roomId);
-                };
-                select.parentElement.appendChild(eyeBtn);
+                return;
             }
+            
+            // Create eye button
+            eyeBtn = document.createElement('button');
+            eyeBtn.className = 'room-preview-eye';
+            eyeBtn.innerHTML = '👁️';
+            eyeBtn.title = 'Preview room page';
+            eyeBtn.type = 'button';
+            eyeBtn.onclick = (e) => {
+                e.preventDefault();
+                const roomId = select.value;
+                if (roomId) showLitePreview(roomId);
+            };
+            
+            // Insert after the select, wrapping both in a flex container
+            const parent = select.parentElement;
+            const wrapper = document.createElement('div');
+            wrapper.style.cssText = 'display: flex; align-items: center; gap: 8px;';
+            
+            // Move select into wrapper
+            select.parentNode.insertBefore(wrapper, select);
+            wrapper.appendChild(select);
+            wrapper.appendChild(eyeBtn);
             
             // Show/hide based on selection
             if (select.value) {
