@@ -113,16 +113,16 @@ app.get('/:slug', async (req, res) => {
     if (roomId) {
       const roomImgRes = await pool.query(`
         SELECT image_url as url, caption, is_primary FROM room_images
-        WHERE room_id = $1 AND (is_active = true OR is_active IS NULL)
-        ORDER BY is_primary DESC NULLS LAST, display_order ASC NULLS LAST LIMIT 20
+        WHERE room_id = $1
+        ORDER BY is_primary DESC NULLS LAST, display_order ASC NULLS LAST, id ASC LIMIT 20
       `, [roomId]);
       images = roomImgRes.rows;
     }
     if (images.length === 0) {
       const propImgRes = await pool.query(`
         SELECT image_url as url, caption, is_primary FROM property_images
-        WHERE property_id = $1 AND (is_active = true OR is_active IS NULL)
-        ORDER BY is_primary DESC NULLS LAST, display_order ASC NULLS LAST LIMIT 20
+        WHERE property_id = $1
+        ORDER BY is_primary DESC NULLS LAST, display_order ASC NULLS LAST, id ASC LIMIT 20
       `, [propertyId]);
       images = propImgRes.rows;
     }
@@ -216,16 +216,16 @@ app.get('/:slug/card', async (req, res) => {
     if (lite.room_id) {
       const roomImgRes = await pool.query(`
         SELECT image_url as url FROM room_images
-        WHERE room_id = $1 AND (is_active = true OR is_active IS NULL)
-        ORDER BY is_primary DESC NULLS LAST LIMIT 1
+        WHERE room_id = $1
+        ORDER BY is_primary DESC NULLS LAST, id ASC LIMIT 1
       `, [lite.room_id]);
       image = roomImgRes.rows[0]?.url;
     }
     if (!image) {
       const propImgRes = await pool.query(`
         SELECT image_url as url FROM property_images
-        WHERE property_id = $1 AND (is_active = true OR is_active IS NULL)
-        ORDER BY is_primary DESC NULLS LAST LIMIT 1
+        WHERE property_id = $1
+        ORDER BY is_primary DESC NULLS LAST, id ASC LIMIT 1
       `, [lite.property_id]);
       image = propImgRes.rows[0]?.url;
     }
