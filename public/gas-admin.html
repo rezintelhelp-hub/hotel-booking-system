@@ -26584,7 +26584,8 @@ Local honey and preserves"></textarea>
                 data.currency_symbol = currencySymbol;
                 
                 // Get offers for this room
-                const offersResponse = await fetch('/api/admin/offers');
+                const offersQueryString = buildQueryString();
+                const offersResponse = await fetch(`/api/admin/offers${offersQueryString}`);
                 const offersData = await offersResponse.json();
                 
                 // Get property_id for this room
@@ -27917,7 +27918,8 @@ Local honey and preserves"></textarea>
                 `;
                 
                 // Get other offers
-                const response = await fetch('/api/admin/offers');
+                const queryString = buildQueryString();
+                const response = await fetch(`/api/admin/offers${queryString}`);
                 const data = await response.json();
                 
                 if (data.success && data.data?.length) {
@@ -28261,7 +28263,8 @@ Local honey and preserves"></textarea>
                     const roomId = document.getElementById('offers-room-select').value;
                     
                     // Check if Standard Price offer exists for this room
-                    const checkResp = await fetch('/api/admin/offers');
+                    const offersCheckQuery = buildQueryString();
+                    const checkResp = await fetch(`/api/admin/offers${offersCheckQuery}`);
                     const checkData = await checkResp.json();
                     const existingStdOffer = (checkData.data || []).find(o => o.name === 'Standard Price' && o.room_id == roomId);
                     
