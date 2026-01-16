@@ -516,6 +516,31 @@ app.get('/api/availability/:roomId', async (req, res) => {
 // ============================================
 // RENDER FUNCTIONS
 // ============================================
+// Parse description - handles JSON format {"en":"..."} and escaped newlines
+function parseDescription(desc) {
+  if (!desc) return '';
+  let text = desc;
+  
+  // Handle JSON format like {"en":"..."}
+  if (typeof text === 'string' && text.trim().startsWith('{')) {
+    try {
+      const parsed = JSON.parse(text);
+      // Try common language keys
+      text = parsed.en || parsed.EN || parsed.default || Object.values(parsed)[0] || '';
+    } catch (e) {
+      // Not valid JSON, use as-is
+    }
+  }
+  
+  // Convert escaped newlines to actual newlines
+  text = String(text)
+    .replace(/\\n/g, '\n')
+    .replace(/\\r/g, '')
+    .replace(/\\t/g, '  ');
+  
+  return text;
+}
+
 function getCurrencySymbol(c) {
   const s = { USD:'$', EUR:'€', GBP:'£', PHP:'₱', THB:'฿', JPY:'¥', AUD:'A$', CAD:'C$', INR:'₹' };
   return s[c] || (c ? c+' ' : '$');
@@ -538,7 +563,15 @@ function renderError(msg) {
 
 function renderFullPage({ lite, images, amenities, reviews, availability, todayPrice, qrCode, liteUrl, showReviews }) {
   const title = lite.custom_title || lite.room_name || lite.property_name;
-  const description = lite.room_full_desc || lite.room_short_desc || lite.property_full_desc || lite.property_short_desc || lite.property_desc || '';
+  
+  // Short description for intro/tagline
+  const rawShortDesc = lite.room_short_desc || lite.property_short_desc || '';
+  const shortDescription = parseDescription(rawShortDesc);
+  
+  // Full description for details tab
+  const rawFullDesc = lite.room_full_desc || lite.property_full_desc || lite.property_desc || rawShortDesc || '';
+  const description = parseDescription(rawFullDesc);
+  
   const currency = getCurrencySymbol(lite.currency);
   const price = todayPrice;
   const accent = lite.accent_color || '#3b82f6';
@@ -622,6 +655,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     .room-header { margin-bottom: 24px; }
     .room-title { font-size: 1.75rem; font-weight: 700; margin-bottom: 8px; }
     .room-location { color: #64748b; margin-bottom: 12px; }
+    .room-tagline { color: #94a3b8; font-size: 15px; line-height: 1.5; margin-top: 12px; font-style: italic; }
     .room-meta { display: flex; flex-wrap: wrap; gap: 16px; }
     .meta-item { display: flex; align-items: center; gap: 6px; font-size: 14px; color: #64748b; }
     .rating-badge { background: var(--accent); color: white; padding: 4px 10px; border-radius: 6px; font-weight: 600; font-size: 14px; }
@@ -749,6 +783,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
             ${lite.max_guests ? `<span class="meta-item">👥 Up to ${lite.max_guests} guests</span>` : ''}
             ${showReviews && avgRating ? `<span class="rating-badge">★ ${avgRating}</span>` : ''}
           </div>
+          ${shortDescription ? `<p class="room-tagline">${shortDescription.split('\n')[0].substring(0, 200)}</p>` : ''}
         </div>
         
         <div class="tabs">
