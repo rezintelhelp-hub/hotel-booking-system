@@ -638,12 +638,22 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
   const price = todayPrice;
   const accent = lite.accent_color || '#3b82f6';
   
-  // Group amenities by category
+  // Group amenities by category and parse names
   const amenByCategory = {};
   amenities.forEach(a => {
     const cat = a.category || 'General';
     if (!amenByCategory[cat]) amenByCategory[cat] = [];
-    amenByCategory[cat].push(a);
+    // Parse amenity name if it's JSON
+    let name = a.amenity_name;
+    if (typeof name === 'object') {
+      name = name.en || name.EN || Object.values(name)[0] || '';
+    } else if (typeof name === 'string' && name.trim().startsWith('{')) {
+      try {
+        const parsed = JSON.parse(name);
+        name = parsed.en || parsed.EN || Object.values(parsed)[0] || name;
+      } catch (e) {}
+    }
+    amenByCategory[cat].push({ ...a, amenity_name: name });
   });
   
   // Calculate average rating from reviews
@@ -730,8 +740,8 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     /* Tabs */
     .tabs-nav { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 24px; }
     .tab-btn { padding: 10px 20px; border: 1px solid #e2e8f0; background: #f8fafc; font-size: 14px; font-weight: 500; color: #64748b; cursor: pointer; border-radius: 25px; margin-right: 8px; margin-bottom: 8px; transition: all 0.2s; }
-    .tab-btn:hover { border-color: #cbd5e1; color: #475569; background: #f1f5f9; }
-    .tab-btn.active { background: #f43f5e; color: white; border-color: #f43f5e; }
+    .tab-btn:hover { border-color: #667eea; color: #667eea; background: #f1f5f9; }
+    .tab-btn.active { background: #667eea; color: white; border-color: #667eea; }
     .tab-content { display: none; }
     .tab-content.active { display: block; }
     
