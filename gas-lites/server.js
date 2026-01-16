@@ -53,7 +53,6 @@ async function ensureLitesTable() {
       updated_at TIMESTAMP DEFAULT NOW()
     )
   `);
-  // Add room_id column if table already exists
   await pool.query(`ALTER TABLE gas_lites ADD COLUMN IF NOT EXISTS room_id INTEGER REFERENCES bookable_units(id) ON DELETE CASCADE`);
   console.log('✅ gas_lites table ready');
 }
@@ -65,10 +64,22 @@ app.get('/:slug', async (req, res) => {
   try {
     const { slug } = req.params;
     
+    // Get lite config with all related data
     const liteResult = await pool.query(`
-      SELECT l.*, p.*, bu.*, a.business_name as account_name,
-             p.name as property_name, bu.name as room_name,
-             p.id as property_id, bu.id as room_id
+      SELECT l.*, 
+             p.id as property_id, p.name as property_name, p.short_description as property_short_desc,
+             p.full_description as property_full_desc, p.description as property_desc,
+             p.address, p.city, p.state, p.country, p.postal_code,
+             p.latitude, p.longitude, p.currency,
+             p.check_in_time, p.check_out_time,
+             p.contact_email, p.contact_phone, p.website_url,
+             p.house_rules, p.cancellation_policy,
+             p.pets_allowed, p.smoking_allowed, p.children_allowed,
+             bu.id as room_id, bu.name as room_name, bu.display_name,
+             bu.short_description as room_short_desc, bu.full_description as room_full_desc,
+             bu.bedroom_count, bu.bathroom_count, bu.max_guests, bu.base_price,
+             bu.unit_type as room_type,
+             a.id as account_id, a.business_name, a.plan, a.settings as account_settings
       FROM gas_lites l
       JOIN properties p ON l.property_id = p.id
       LEFT JOIN bookable_units bu ON l.room_id = bu.id
@@ -83,32 +94,40 @@ app.get('/:slug', async (req, res) => {
     const lite = liteResult.rows[0];
     const propertyId = lite.property_id;
     const roomId = lite.room_id;
+    const accountId = lite.account_id;
     
+    // Increment view counter
     await pool.query('UPDATE gas_lites SET views = views + 1 WHERE id = $1', [lite.id]);
     
-    // Room data is already in lite from the join
-    const room = roomId ? lite : null;
+    // Check if reviews module is enabled (check plan or settings)
+    let showReviews = false;
+    if (lite.plan === 'enterprise' || lite.plan === 'business') {
+      showReviews = true;
+    }
+    if (lite.account_settings?.reviews_widget || lite.account_settings?.reviews_enabled) {
+      showReviews = true;
+    }
     
     // Get images (room first, then property)
     let images = [];
     if (roomId) {
       const roomImgRes = await pool.query(`
         SELECT image_url as url, caption, is_primary FROM room_images
-        WHERE room_id = $1 AND is_active = true
-        ORDER BY is_primary DESC, display_order ASC LIMIT 20
+        WHERE room_id = $1 AND (is_active = true OR is_active IS NULL)
+        ORDER BY is_primary DESC NULLS LAST, display_order ASC NULLS LAST LIMIT 20
       `, [roomId]);
       images = roomImgRes.rows;
     }
     if (images.length === 0) {
       const propImgRes = await pool.query(`
         SELECT image_url as url, caption, is_primary FROM property_images
-        WHERE property_id = $1 AND is_active = true
-        ORDER BY is_primary DESC, display_order ASC LIMIT 20
+        WHERE property_id = $1 AND (is_active = true OR is_active IS NULL)
+        ORDER BY is_primary DESC NULLS LAST, display_order ASC NULLS LAST LIMIT 20
       `, [propertyId]);
       images = propImgRes.rows;
     }
     
-    // Get amenities
+    // Get amenities for the room
     let amenities = [];
     if (roomId) {
       const amenRes = await pool.query(`
@@ -121,29 +140,47 @@ app.get('/:slug', async (req, res) => {
       amenities = amenRes.rows;
     }
     
-    // Get reviews
-    const reviewsRes = await pool.query(`
-      SELECT * FROM reviews
-      WHERE property_id = $1 AND is_approved = true
-      ORDER BY review_date DESC LIMIT 10
-    `, [propertyId]);
-    const reviews = reviewsRes.rows;
+    // Get reviews only if module is enabled
+    let reviews = [];
+    if (showReviews) {
+      const reviewsRes = await pool.query(`
+        SELECT * FROM reviews
+        WHERE property_id = $1 AND is_approved = true
+        ORDER BY review_date DESC LIMIT 10
+      `, [propertyId]);
+      reviews = reviewsRes.rows;
+    }
     
-    // Get pricing
-    const today = new Date().toISOString().split('T')[0];
-    let pricing = null;
+    // Get availability for next 60 days
+    const today = new Date();
+    const endDate = new Date(today);
+    endDate.setDate(endDate.getDate() + 60);
+    
+    let availability = [];
+    let todayPrice = null;
     if (roomId) {
-      const priceRes = await pool.query(`
-        SELECT cm_price, direct_price, standard_price, min_stay
-        FROM room_availability WHERE room_id = $1 AND date = $2
-      `, [roomId, today]);
-      pricing = priceRes.rows[0];
+      const availRes = await pool.query(`
+        SELECT date, is_available, is_blocked, 
+               COALESCE(direct_price, cm_price, standard_price) as price,
+               min_stay
+        FROM room_availability 
+        WHERE room_id = $1 AND date >= $2 AND date <= $3
+        ORDER BY date
+      `, [roomId, today.toISOString().split('T')[0], endDate.toISOString().split('T')[0]]);
+      availability = availRes.rows;
+      
+      // Get today's price
+      const todayAvail = availability.find(a => a.date.toISOString().split('T')[0] === today.toISOString().split('T')[0]);
+      todayPrice = todayAvail?.price || lite.base_price;
     }
     
     const liteUrl = `https://lite.gas.travel/${slug}`;
     const qrCode = await QRCode.toDataURL(liteUrl, { width: 150, margin: 1 });
     
-    res.send(renderFullPage({ lite, room, images, amenities, reviews, pricing, qrCode, liteUrl }));
+    res.send(renderFullPage({ 
+      lite, images, amenities, reviews, availability, 
+      todayPrice, qrCode, liteUrl, showReviews 
+    }));
   } catch (error) {
     console.error('Lite page error:', error);
     res.status(500).send(renderError(error.message));
@@ -160,9 +197,11 @@ app.get('/:slug/card', async (req, res) => {
     
     const liteResult = await pool.query(`
       SELECT l.*, p.name, p.city, p.country, p.currency, p.short_description,
-             p.average_rating, p.pets_allowed, p.children_allowed
+             p.average_rating, p.pets_allowed, p.children_allowed,
+             bu.name as room_name, bu.bedroom_count, bu.max_guests, bu.base_price
       FROM gas_lites l
       JOIN properties p ON l.property_id = p.id
+      LEFT JOIN bookable_units bu ON l.room_id = bu.id
       WHERE l.slug = $1 AND l.active = true
     `, [slug.toLowerCase()]);
     
@@ -172,24 +211,35 @@ app.get('/:slug/card', async (req, res) => {
     
     const lite = liteResult.rows[0];
     
-    const imgRes = await pool.query(`
-      SELECT image_url as url FROM property_images
-      WHERE property_id = $1 AND is_active = true
-      ORDER BY is_primary DESC LIMIT 1
-    `, [lite.property_id]);
+    // Get image (room first, then property)
+    let image = null;
+    if (lite.room_id) {
+      const roomImgRes = await pool.query(`
+        SELECT image_url as url FROM room_images
+        WHERE room_id = $1 AND (is_active = true OR is_active IS NULL)
+        ORDER BY is_primary DESC NULLS LAST LIMIT 1
+      `, [lite.room_id]);
+      image = roomImgRes.rows[0]?.url;
+    }
+    if (!image) {
+      const propImgRes = await pool.query(`
+        SELECT image_url as url FROM property_images
+        WHERE property_id = $1 AND (is_active = true OR is_active IS NULL)
+        ORDER BY is_primary DESC NULLS LAST LIMIT 1
+      `, [lite.property_id]);
+      image = propImgRes.rows[0]?.url;
+    }
     
-    const roomRes = await pool.query(`
-      SELECT bedroom_count, max_guests FROM bookable_units
-      WHERE property_id = $1 AND (is_hidden = false OR is_hidden IS NULL)
-    `, [lite.property_id]);
-    
+    // Get today's price
     const today = new Date().toISOString().split('T')[0];
-    const priceRes = await pool.query(`
-      SELECT MIN(COALESCE(direct_price, cm_price)) as price
-      FROM room_availability ra
-      JOIN bookable_units bu ON ra.room_id = bu.id
-      WHERE bu.property_id = $1 AND ra.date = $2
-    `, [lite.property_id, today]);
+    let price = lite.base_price;
+    if (lite.room_id) {
+      const priceRes = await pool.query(`
+        SELECT COALESCE(direct_price, cm_price, standard_price) as price
+        FROM room_availability WHERE room_id = $1 AND date = $2
+      `, [lite.room_id, today]);
+      if (priceRes.rows[0]?.price) price = priceRes.rows[0].price;
+    }
     
     let activeOffer = null;
     if (offer) {
@@ -204,17 +254,14 @@ app.get('/:slug/card', async (req, res) => {
     const liteUrl = `https://lite.gas.travel/${slug}`;
     const qrCode = await QRCode.toDataURL(liteUrl, { width: 200, margin: 1 });
     
-    res.send(renderPromoCard({
-      lite, image: imgRes.rows[0]?.url, rooms: roomRes.rows,
-      price: priceRes.rows[0]?.price, offer: activeOffer, qrCode, liteUrl
-    }));
+    res.send(renderPromoCard({ lite, image, price, offer: activeOffer, qrCode, liteUrl }));
   } catch (error) {
     console.error('Card error:', error);
     res.status(500).send(renderError());
   }
 });
 
-// QR Code
+// QR Code endpoint
 app.get('/:slug/qr', async (req, res) => {
   try {
     const size = parseInt(req.query.size) || 300;
@@ -231,8 +278,11 @@ app.get('/:slug/print', async (req, res) => {
   try {
     const { slug } = req.params;
     const liteResult = await pool.query(`
-      SELECT l.*, p.name, p.city, p.country, p.contact_phone, p.contact_email
-      FROM gas_lites l JOIN properties p ON l.property_id = p.id
+      SELECT l.*, p.name, p.city, p.country, p.contact_phone, p.contact_email,
+             bu.name as room_name
+      FROM gas_lites l 
+      JOIN properties p ON l.property_id = p.id
+      LEFT JOIN bookable_units bu ON l.room_id = bu.id
       WHERE l.slug = $1 AND l.active = true
     `, [slug.toLowerCase()]);
     
@@ -242,12 +292,23 @@ app.get('/:slug/print', async (req, res) => {
     const liteUrl = `https://lite.gas.travel/${slug}`;
     const qrCode = await QRCode.toDataURL(liteUrl, { width: 400, margin: 2 });
     
-    const imgRes = await pool.query(`
-      SELECT image_url as url FROM property_images
-      WHERE property_id = $1 AND is_active = true ORDER BY is_primary DESC LIMIT 1
-    `, [lite.property_id]);
+    let image = null;
+    if (lite.room_id) {
+      const imgRes = await pool.query(`
+        SELECT image_url as url FROM room_images
+        WHERE room_id = $1 ORDER BY is_primary DESC NULLS LAST LIMIT 1
+      `, [lite.room_id]);
+      image = imgRes.rows[0]?.url;
+    }
+    if (!image) {
+      const imgRes = await pool.query(`
+        SELECT image_url as url FROM property_images
+        WHERE property_id = $1 ORDER BY is_primary DESC NULLS LAST LIMIT 1
+      `, [lite.property_id]);
+      image = imgRes.rows[0]?.url;
+    }
     
-    res.send(renderPrintCard({ lite, qrCode, liteUrl, image: imgRes.rows[0]?.url }));
+    res.send(renderPrintCard({ lite, qrCode, liteUrl, image }));
   } catch (error) {
     res.status(500).send('Error');
   }
@@ -266,7 +327,7 @@ app.get('/api/property/:propertyId', async (req, res) => {
   res.json({ success: true, lites: result.rows });
 });
 
-// Get lite by room_id - main endpoint for preview
+// Get lite by room_id
 app.get('/api/room/:roomId', async (req, res) => {
   const result = await pool.query('SELECT * FROM gas_lites WHERE room_id = $1', [req.params.roomId]);
   res.json({ success: true, lite: result.rows[0] || null });
@@ -283,7 +344,7 @@ app.post('/api/room/:roomId/lite', async (req, res) => {
       return res.json({ success: true, lite: existing.rows[0], created: false });
     }
     
-    // Get room and property info for auto-generating slug
+    // Get room and property info
     const roomResult = await pool.query(`
       SELECT bu.*, p.id as property_id, p.name as property_name, a.id as account_id
       FROM bookable_units bu
@@ -298,7 +359,7 @@ app.post('/api/room/:roomId/lite', async (req, res) => {
     
     const room = roomResult.rows[0];
     
-    // Generate slug from room name or fallback to room-{id}
+    // Generate slug from room name
     let baseSlug = (room.name || room.display_name || `room-${roomId}`)
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
@@ -374,7 +435,8 @@ app.delete('/api/lites/:id', async (req, res) => {
 app.get('/api/availability/:roomId', async (req, res) => {
   const { from, to } = req.query;
   const result = await pool.query(`
-    SELECT date, is_available, is_blocked, cm_price, direct_price, standard_price, min_stay
+    SELECT date, is_available, is_blocked, 
+           COALESCE(direct_price, cm_price, standard_price) as price, min_stay
     FROM room_availability WHERE room_id = $1 AND date >= $2 AND date <= $3 ORDER BY date
   `, [req.params.roomId, from, to]);
   res.json({ success: true, availability: result.rows });
@@ -391,7 +453,7 @@ function getCurrencySymbol(c) {
 function renderNotFound(slug) {
   return `<!DOCTYPE html><html><head><title>Not Found</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <style>body{font-family:sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh;background:#f1f5f9;margin:0}
+  <style>body{font-family:system-ui,sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh;background:#f1f5f9;margin:0}
   .c{text-align:center;padding:2rem}h1{color:#1e293b}p{color:#64748b}a{color:#3b82f6}</style></head>
   <body><div class="c"><h1>🔍 Not Found</h1><p>"${slug}" doesn't exist yet.</p>
   <p><a href="https://gas.travel">Create your free GAS Lite →</a></p></div></body></html>`;
@@ -399,17 +461,18 @@ function renderNotFound(slug) {
 
 function renderError(msg) {
   return `<!DOCTYPE html><html><head><title>Error</title></head>
-  <body style="font-family:sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh">
+  <body style="font-family:system-ui,sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh">
   <div style="text-align:center"><h1>⚠️ Error</h1><p>${msg||'Please try again.'}</p></div></body></html>`;
 }
 
-function renderFullPage({ lite, room, images, amenities, reviews, pricing, qrCode, liteUrl }) {
-  const title = lite.custom_title || lite.name;
-  const desc = room?.full_description || room?.short_description || lite.full_description || lite.description || '';
+function renderFullPage({ lite, images, amenities, reviews, availability, todayPrice, qrCode, liteUrl, showReviews }) {
+  const title = lite.custom_title || lite.room_name || lite.property_name;
+  const description = lite.room_full_desc || lite.room_short_desc || lite.property_full_desc || lite.property_short_desc || lite.property_desc || '';
   const currency = getCurrencySymbol(lite.currency);
-  const price = pricing?.direct_price || pricing?.standard_price || pricing?.cm_price;
+  const price = todayPrice;
   const accent = lite.accent_color || '#3b82f6';
   
+  // Group amenities by category
   const amenByCategory = {};
   amenities.forEach(a => {
     const cat = a.category || 'General';
@@ -417,8 +480,18 @@ function renderFullPage({ lite, room, images, amenities, reviews, pricing, qrCod
     amenByCategory[cat].push(a);
   });
   
-  const avgRating = lite.average_rating || (reviews.length > 0 
-    ? (reviews.reduce((s,r) => s + (r.rating||0), 0) / reviews.length).toFixed(1) : null);
+  // Calculate average rating from reviews
+  const avgRating = reviews.length > 0 
+    ? (reviews.reduce((s,r) => s + (r.rating||0), 0) / reviews.length).toFixed(1) 
+    : null;
+  
+  // Build availability calendar data (next 60 days)
+  const availabilityJson = JSON.stringify(availability.map(a => ({
+    date: a.date,
+    available: a.is_available !== false && !a.is_blocked,
+    price: a.price,
+    minStay: a.min_stay
+  })));
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -426,7 +499,7 @@ function renderFullPage({ lite, room, images, amenities, reviews, pricing, qrCod
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${title} | Book Direct</title>
-  <meta name="description" content="${String(room?.short_description || lite.short_description || '').substring(0,160)}">
+  <meta name="description" content="${String(description).substring(0,160).replace(/"/g, '&quot;')}">
   <meta property="og:title" content="${title}">
   <meta property="og:image" content="${images[0]?.url || ''}">
   <meta property="og:url" content="${liteUrl}">
@@ -434,8 +507,13 @@ function renderFullPage({ lite, room, images, amenities, reviews, pricing, qrCod
   <style>
     :root { --accent: ${accent}; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Inter', sans-serif; color: #1e293b; line-height: 1.6; background: #f8fafc; }
+    body { font-family: 'Inter', system-ui, sans-serif; color: #1e293b; line-height: 1.6; background: #f8fafc; }
     .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+    
+    /* URL Bar */
+    .url-bar { background: #ffffff; border-bottom: 1px solid #e2e8f0; padding: 8px 20px; text-align: center; }
+    .url-bar a { color: var(--accent); text-decoration: none; font-size: 14px; font-weight: 500; }
+    .url-bar a:hover { text-decoration: underline; }
     
     /* Header */
     .header { background: white; border-bottom: 1px solid #e2e8f0; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; }
@@ -504,13 +582,22 @@ function renderFullPage({ lite, room, images, amenities, reviews, pricing, qrCod
     .review-date { color: #64748b; font-size: 13px; }
     .review-rating { color: #fbbf24; }
     
-    /* Accordion */
-    .accordion-item { border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 8px; overflow: hidden; }
-    .accordion-header { width: 100%; padding: 16px 20px; background: white; border: none; display: flex; justify-content: space-between; cursor: pointer; font-size: 15px; font-weight: 500; }
-    .accordion-content { padding: 0 20px; max-height: 0; overflow: hidden; transition: all 0.3s; }
-    .accordion-item.open .accordion-content { padding: 0 20px 20px; max-height: 500px; }
-    .accordion-icon { font-size: 20px; transition: transform 0.3s; }
-    .accordion-item.open .accordion-icon { transform: rotate(45deg); }
+    /* Availability Calendar */
+    .calendar-container { margin-top: 16px; }
+    .calendar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .calendar-nav { display: flex; gap: 8px; }
+    .calendar-nav button { background: #f1f5f9; border: none; width: 32px; height: 32px; border-radius: 6px; cursor: pointer; }
+    .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+    .calendar-day-header { text-align: center; font-size: 12px; color: #64748b; padding: 8px 0; font-weight: 500; }
+    .calendar-day { text-align: center; padding: 8px 4px; border-radius: 6px; font-size: 13px; cursor: pointer; }
+    .calendar-day.available { background: #d1fae5; color: #065f46; }
+    .calendar-day.unavailable { background: #fee2e2; color: #991b1b; text-decoration: line-through; }
+    .calendar-day.empty { background: transparent; }
+    .calendar-day.today { border: 2px solid var(--accent); }
+    .calendar-day:hover:not(.empty):not(.unavailable) { background: var(--accent); color: white; }
+    .calendar-legend { display: flex; gap: 16px; margin-top: 12px; font-size: 12px; color: #64748b; }
+    .legend-item { display: flex; align-items: center; gap: 6px; }
+    .legend-dot { width: 12px; height: 12px; border-radius: 3px; }
     
     /* Booking Card */
     .booking-card { background: white; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); padding: 24px; position: sticky; top: 80px; }
@@ -532,12 +619,24 @@ function renderFullPage({ lite, room, images, amenities, reviews, pricing, qrCod
     .map-section { margin-top: 24px; border-radius: 12px; overflow: hidden; height: 300px; }
     .map-section iframe { width: 100%; height: 100%; border: none; }
     
+    /* Accordion */
+    .accordion-item { border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 8px; overflow: hidden; }
+    .accordion-header { width: 100%; padding: 16px 20px; background: white; border: none; display: flex; justify-content: space-between; cursor: pointer; font-size: 15px; font-weight: 500; text-align: left; }
+    .accordion-content { padding: 0 20px; max-height: 0; overflow: hidden; transition: all 0.3s; }
+    .accordion-item.open .accordion-content { padding: 0 20px 20px; max-height: 500px; }
+    .accordion-icon { font-size: 20px; transition: transform 0.3s; }
+    .accordion-item.open .accordion-icon { transform: rotate(45deg); }
+    
     /* Footer */
     .footer { text-align: center; padding: 40px 20px; color: #64748b; font-size: 13px; }
     .footer a { color: var(--accent); text-decoration: none; }
   </style>
 </head>
 <body>
+  <div class="url-bar">
+    <a href="${liteUrl}" target="_blank">🔗 ${liteUrl}</a>
+  </div>
+  
   <header class="header">
     <a href="/" class="logo">GAS Lite</a>
     <button class="share-btn" onclick="shareProperty()">📤 Share</button>
@@ -574,12 +673,10 @@ function renderFullPage({ lite, room, images, amenities, reviews, pricing, qrCod
           <h1 class="room-title">${title}</h1>
           <p class="room-location">📍 ${lite.city || ''}${lite.state ? ', ' + lite.state : ''}${lite.country ? ', ' + lite.country : ''}</p>
           <div class="room-meta">
-            ${room ? `
-              ${room.bedroom_count ? `<span class="meta-item">🛏️ ${room.bedroom_count} Bedroom${room.bedroom_count > 1 ? 's' : ''}</span>` : ''}
-              ${room.bathroom_count ? `<span class="meta-item">🚿 ${room.bathroom_count} Bath</span>` : ''}
-              ${room.max_guests ? `<span class="meta-item">👥 Up to ${room.max_guests} guests</span>` : ''}
-            ` : ''}
-            ${avgRating ? `<span class="rating-badge">★ ${avgRating}</span>` : ''}
+            ${lite.bedroom_count ? `<span class="meta-item">🛏️ ${lite.bedroom_count} Bedroom${lite.bedroom_count > 1 ? 's' : ''}</span>` : ''}
+            ${lite.bathroom_count ? `<span class="meta-item">🚿 ${lite.bathroom_count} Bath</span>` : ''}
+            ${lite.max_guests ? `<span class="meta-item">👥 Up to ${lite.max_guests} guests</span>` : ''}
+            ${showReviews && avgRating ? `<span class="rating-badge">★ ${avgRating}</span>` : ''}
           </div>
         </div>
         
@@ -587,14 +684,15 @@ function renderFullPage({ lite, room, images, amenities, reviews, pricing, qrCod
           <div class="tabs-nav">
             <button class="tab-btn active" onclick="showTab('description')">Description</button>
             <button class="tab-btn" onclick="showTab('features')">Features</button>
-            <button class="tab-btn" onclick="showTab('reviews')">Reviews (${reviews.length})</button>
+            <button class="tab-btn" onclick="showTab('availability')">Availability</button>
+            ${showReviews ? `<button class="tab-btn" onclick="showTab('reviews')">Reviews (${reviews.length})</button>` : ''}
             <button class="tab-btn" onclick="showTab('terms')">Terms</button>
             ${lite.latitude ? `<button class="tab-btn" onclick="showTab('location')">Location</button>` : ''}
           </div>
           
           <div class="tab-content active" id="tab-description">
             <div class="description">
-              ${desc ? desc.split('\\n').map(p => `<p>${p}</p>`).join('') : '<p>No description available.</p>'}
+              ${description ? description.split('\n').filter(p => p.trim()).map(p => `<p>${p}</p>`).join('') : '<p>No description available.</p>'}
             </div>
           </div>
           
@@ -611,6 +709,24 @@ function renderFullPage({ lite, room, images, amenities, reviews, pricing, qrCod
             : '<p style="color:#64748b;">No amenities listed.</p>'}
           </div>
           
+          <div class="tab-content" id="tab-availability">
+            <div class="calendar-container">
+              <div class="calendar-header">
+                <h3 id="calendar-month">Loading...</h3>
+                <div class="calendar-nav">
+                  <button onclick="prevMonth()">‹</button>
+                  <button onclick="nextMonth()">›</button>
+                </div>
+              </div>
+              <div class="calendar-grid" id="calendar-grid"></div>
+              <div class="calendar-legend">
+                <div class="legend-item"><div class="legend-dot" style="background:#d1fae5;"></div> Available</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#fee2e2;"></div> Unavailable</div>
+              </div>
+            </div>
+          </div>
+          
+          ${showReviews ? `
           <div class="tab-content" id="tab-reviews">
             ${reviews.length > 0 ? `
               <div class="reviews-summary">
@@ -629,6 +745,7 @@ function renderFullPage({ lite, room, images, amenities, reviews, pricing, qrCod
               `).join('')}
             ` : '<p style="color:#64748b;text-align:center;padding:40px;">No reviews yet.</p>'}
           </div>
+          ` : ''}
           
           <div class="tab-content" id="tab-terms">
             <div class="accordion-item">
@@ -658,7 +775,7 @@ function renderFullPage({ lite, room, images, amenities, reviews, pricing, qrCod
       <div class="room-sidebar">
         <div class="booking-card">
           <div class="price-display">
-            ${price ? `<span class="price-amount">${currency}${Math.round(price)}</span><span class="price-period"> / night</span>` : '<span class="price-amount">Check availability</span>'}
+            ${price ? `<span class="price-amount">${currency}${Math.round(price).toLocaleString()}</span><span class="price-period"> / night</span>` : '<span class="price-amount">Check availability</span>'}
           </div>
           <div class="date-inputs">
             <div class="date-field"><label>Check-in</label><input type="date" id="checkin" min="${new Date().toISOString().split('T')[0]}"></div>
@@ -682,20 +799,89 @@ function renderFullPage({ lite, room, images, amenities, reviews, pricing, qrCod
   
   <script>
     const images = ${JSON.stringify(images.map(i => i.url))};
+    const availability = ${availabilityJson};
+    const currency = '${currency}';
     let currentImage = 0;
+    let currentMonth = new Date();
     
+    // Lightbox
     function openLightbox(i) { currentImage = i; document.getElementById('lightbox-img').src = images[i]; document.getElementById('lightbox').classList.add('active'); }
     function closeLightbox() { document.getElementById('lightbox').classList.remove('active'); }
     function navLightbox(d) { currentImage = (currentImage + d + images.length) % images.length; document.getElementById('lightbox-img').src = images[currentImage]; }
+    
+    // Tabs
     function showTab(id) {
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
       document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-      document.querySelector('[onclick="showTab(\\''+id+'\\')"]').classList.add('active');
+      event.target.classList.add('active');
       document.getElementById('tab-' + id).classList.add('active');
+      if (id === 'availability') renderCalendar();
     }
-    function toggleAccordion(h) { h.parentElement.classList.toggle('open'); }
-    function shareProperty() { if (navigator.share) navigator.share({ title: '${title}', url: '${liteUrl}' }); else { navigator.clipboard.writeText('${liteUrl}'); alert('Link copied!'); } }
     
+    // Accordion
+    function toggleAccordion(h) { h.parentElement.classList.toggle('open'); }
+    
+    // Share
+    function shareProperty() { 
+      if (navigator.share) navigator.share({ title: '${title.replace(/'/g, "\\'")}', url: '${liteUrl}' }); 
+      else { navigator.clipboard.writeText('${liteUrl}'); alert('Link copied!'); } 
+    }
+    
+    // Calendar
+    function renderCalendar() {
+      const grid = document.getElementById('calendar-grid');
+      const monthLabel = document.getElementById('calendar-month');
+      const year = currentMonth.getFullYear();
+      const month = currentMonth.getMonth();
+      
+      monthLabel.textContent = currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+      
+      const firstDay = new Date(year, month, 1).getDay();
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const today = new Date();
+      today.setHours(0,0,0,0);
+      
+      let html = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => '<div class="calendar-day-header">' + d + '</div>').join('');
+      
+      for (let i = 0; i < firstDay; i++) html += '<div class="calendar-day empty"></div>';
+      
+      for (let day = 1; day <= daysInMonth; day++) {
+        const date = new Date(year, month, day);
+        const dateStr = date.toISOString().split('T')[0];
+        const avail = availability.find(a => a.date && a.date.split('T')[0] === dateStr);
+        const isToday = date.getTime() === today.getTime();
+        const isPast = date < today;
+        
+        let cls = 'calendar-day';
+        let priceStr = '';
+        
+        if (isPast) {
+          cls += ' empty';
+        } else if (avail) {
+          cls += avail.available ? ' available' : ' unavailable';
+          if (avail.price) priceStr = '<div style="font-size:10px;">' + currency + Math.round(avail.price) + '</div>';
+        } else {
+          cls += ' available';
+        }
+        if (isToday) cls += ' today';
+        
+        html += '<div class="' + cls + '">' + day + priceStr + '</div>';
+      }
+      
+      grid.innerHTML = html;
+    }
+    
+    function prevMonth() {
+      currentMonth.setMonth(currentMonth.getMonth() - 1);
+      renderCalendar();
+    }
+    
+    function nextMonth() {
+      currentMonth.setMonth(currentMonth.getMonth() + 1);
+      renderCalendar();
+    }
+    
+    // Booking form
     const checkinEl = document.getElementById('checkin'), checkoutEl = document.getElementById('checkout'), bookBtn = document.getElementById('bookBtn');
     checkinEl.addEventListener('change', () => {
       const next = new Date(checkinEl.value); next.setDate(next.getDate() + 1);
@@ -711,18 +897,25 @@ function renderFullPage({ lite, room, images, amenities, reviews, pricing, qrCod
         bookBtn.disabled = false;
       }
     }
-    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); if (e.key === 'ArrowLeft') navLightbox(-1); if (e.key === 'ArrowRight') navLightbox(1); });
+    
+    // Keyboard nav
+    document.addEventListener('keydown', e => { 
+      if (e.key === 'Escape') closeLightbox(); 
+      if (e.key === 'ArrowLeft') navLightbox(-1); 
+      if (e.key === 'ArrowRight') navLightbox(1); 
+    });
     document.getElementById('lightbox').addEventListener('click', e => { if (e.target.id === 'lightbox') closeLightbox(); });
+    
+    // Init calendar
+    renderCalendar();
   </script>
 </body>
 </html>`;
 }
 
-function renderPromoCard({ lite, image, rooms, price, offer, qrCode, liteUrl }) {
-  const title = lite.custom_title || lite.name;
+function renderPromoCard({ lite, image, price, offer, qrCode, liteUrl }) {
+  const title = lite.custom_title || lite.room_name || lite.name;
   const currency = getCurrencySymbol(lite.currency);
-  const totalBeds = rooms.reduce((s, r) => s + (r.bedroom_count || 1), 0);
-  const maxGuests = Math.max(...rooms.map(r => r.max_guests || 2), 2);
   const accent = lite.accent_color || '#3b82f6';
   
   return `<!DOCTYPE html>
@@ -734,7 +927,7 @@ function renderPromoCard({ lite, image, rooms, price, offer, qrCode, liteUrl }) 
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Inter', sans-serif; background: linear-gradient(135deg, #1e293b, #0f172a); min-height: 100vh; padding: 20px; display: flex; justify-content: center; align-items: center; }
+    body { font-family: 'Inter', system-ui, sans-serif; background: linear-gradient(135deg, #1e293b, #0f172a); min-height: 100vh; padding: 20px; display: flex; justify-content: center; align-items: center; }
     .card { background: white; border-radius: 24px; overflow: hidden; max-width: 400px; width: 100%; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); }
     .hero { position: relative; height: 240px; }
     .hero img { width: 100%; height: 100%; object-fit: cover; }
@@ -769,13 +962,13 @@ function renderPromoCard({ lite, image, rooms, price, offer, qrCode, liteUrl }) 
     <div class="content">
       ${lite.short_description ? `<p class="tagline">${lite.short_description}</p>` : ''}
       <div class="features">
-        <div class="feature">🛏️ ${totalBeds} Bed${totalBeds > 1 ? 's' : ''}</div>
-        <div class="feature">👥 Up to ${maxGuests}</div>
+        ${lite.bedroom_count ? `<div class="feature">🛏️ ${lite.bedroom_count} Bed${lite.bedroom_count > 1 ? 's' : ''}</div>` : ''}
+        ${lite.max_guests ? `<div class="feature">👥 Up to ${lite.max_guests}</div>` : ''}
         ${lite.pets_allowed ? '<div class="feature">🐕 Pets OK</div>' : ''}
         ${lite.children_allowed ? '<div class="feature">👶 Family</div>' : ''}
       </div>
       <div class="price-row">
-        <div>${price ? `<span class="price">${currency}${Math.round(price)}</span><span style="color:#64748b;font-size:14px;"> / night</span>` : '<span class="price">View rates</span>'}</div>
+        <div>${price ? `<span class="price">${currency}${Math.round(price).toLocaleString()}</span><span style="color:#64748b;font-size:14px;"> / night</span>` : '<span class="price">View rates</span>'}</div>
         ${lite.average_rating ? `<div style="color:#fbbf24;font-size:16px;">★ ${lite.average_rating}</div>` : ''}
       </div>
       <a href="${liteUrl}" class="cta">View Full Details →</a>
@@ -791,12 +984,13 @@ function renderPromoCard({ lite, image, rooms, price, offer, qrCode, liteUrl }) 
 }
 
 function renderPrintCard({ lite, qrCode, liteUrl, image }) {
+  const title = lite.custom_title || lite.room_name || lite.name;
   return `<!DOCTYPE html>
-<html><head><meta charset="UTF-8"><title>Print - ${lite.custom_title || lite.name}</title>
+<html><head><meta charset="UTF-8"><title>Print - ${title}</title>
 <style>
   @page { size: A6; margin: 0; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: sans-serif; width: 105mm; height: 148mm; padding: 8mm; }
+  body { font-family: system-ui, sans-serif; width: 105mm; height: 148mm; padding: 8mm; }
   .card { border: 2px solid #e2e8f0; border-radius: 12px; overflow: hidden; height: 100%; display: flex; flex-direction: column; }
   .image { height: 45%; background: #f1f5f9; }
   .image img { width: 100%; height: 100%; object-fit: cover; }
@@ -813,7 +1007,7 @@ function renderPrintCard({ lite, qrCode, liteUrl, image }) {
   <div class="card">
     <div class="image">${image ? `<img src="${image}">` : ''}</div>
     <div class="content">
-      <h1 class="title">${lite.custom_title || lite.name}</h1>
+      <h1 class="title">${title}</h1>
       <p class="location">📍 ${lite.city}, ${lite.country}</p>
       <div class="qr-area">
         <img src="${qrCode}">
