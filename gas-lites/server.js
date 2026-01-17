@@ -109,7 +109,12 @@ app.get('/:slug', async (req, res) => {
              p.contact_email, p.contact_phone, p.website_url,
              p.house_rules, p.cancellation_policy,
              p.pets_allowed, p.smoking_allowed, p.children_allowed,
-             bu.id as room_id, bu.name as room_name, bu.display_name,
+             bu.id as room_id, bu.name as room_name,
+             CASE 
+               WHEN bu.display_name IS NULL THEN NULL
+               WHEN jsonb_typeof(bu.display_name::jsonb) = 'object' THEN bu.display_name::jsonb->>'en'
+               ELSE bu.display_name::text
+             END as display_name,
              bu.short_description as room_short_desc, bu.full_description as room_full_desc,
              bu.bedroom_count, bu.bathroom_count, bu.max_guests, bu.base_price,
              bu.unit_type as room_type,
@@ -233,7 +238,13 @@ app.get('/:slug/card', async (req, res) => {
     const liteResult = await pool.query(`
       SELECT l.*, p.name, p.city, p.country, p.currency, p.short_description,
              p.average_rating, p.pets_allowed, p.children_allowed,
-             bu.name as room_name, bu.display_name, bu.bedroom_count, bu.max_guests, bu.base_price
+             bu.name as room_name, 
+             CASE 
+               WHEN bu.display_name IS NULL THEN NULL
+               WHEN jsonb_typeof(bu.display_name::jsonb) = 'object' THEN bu.display_name::jsonb->>'en'
+               ELSE bu.display_name::text
+             END as display_name,
+             bu.bedroom_count, bu.max_guests, bu.base_price
       FROM gas_lites l
       JOIN properties p ON l.property_id = p.id
       LEFT JOIN bookable_units bu ON l.room_id = bu.id
@@ -314,7 +325,12 @@ app.get('/:slug/print', async (req, res) => {
     const { slug } = req.params;
     const liteResult = await pool.query(`
       SELECT l.*, p.name, p.city, p.country, p.contact_phone, p.contact_email,
-             bu.name as room_name, bu.display_name
+             bu.name as room_name,
+             CASE 
+               WHEN bu.display_name IS NULL THEN NULL
+               WHEN jsonb_typeof(bu.display_name::jsonb) = 'object' THEN bu.display_name::jsonb->>'en'
+               ELSE bu.display_name::text
+             END as display_name
       FROM gas_lites l 
       JOIN properties p ON l.property_id = p.id
       LEFT JOIN bookable_units bu ON l.room_id = bu.id
@@ -497,7 +513,13 @@ app.post('/api/room/:roomId/lite', async (req, res) => {
 
 app.get('/api/account/:accountId', async (req, res) => {
   const result = await pool.query(`
-    SELECT l.*, p.name as property_name, p.city, bu.name as room_name, bu.display_name FROM gas_lites l
+    SELECT l.*, p.name as property_name, p.city, bu.name as room_name,
+           CASE 
+             WHEN bu.display_name IS NULL THEN NULL
+             WHEN jsonb_typeof(bu.display_name::jsonb) = 'object' THEN bu.display_name::jsonb->>'en'
+             ELSE bu.display_name::text
+           END as display_name
+    FROM gas_lites l
     JOIN properties p ON l.property_id = p.id
     LEFT JOIN bookable_units bu ON l.room_id = bu.id
     WHERE l.account_id = $1
@@ -897,9 +919,7 @@ function renderError(msg) {
 }
 
 function renderFullPage({ lite, images, amenities, reviews, availability, todayPrice, qrCode, liteUrl, showReviews, roomId, propertyId }) {
-  // Parse display_name if it's JSON
-  const displayName = parseDescription(lite.display_name);
-  const title = lite.custom_title || displayName || lite.room_name || lite.property_name;
+  const title = lite.custom_title || lite.display_name || lite.room_name || lite.property_name;
   
   // Short description for intro/tagline
   const rawShortDesc = lite.room_short_desc || lite.property_short_desc || '';
@@ -2298,9 +2318,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
 }
 
 function renderPromoCard({ lite, image, price, offer, qrCode, liteUrl }) {
-  // Parse display_name if it's JSON
-  const displayName = parseDescription(lite.display_name);
-  const title = lite.custom_title || displayName || lite.room_name || lite.name;
+  const title = lite.custom_title || lite.display_name || lite.room_name || lite.name;
   const currency = getCurrencySymbol(lite.currency);
   const accent = lite.accent_color || '#3b82f6';
   
@@ -2373,9 +2391,7 @@ function renderPromoCard({ lite, image, price, offer, qrCode, liteUrl }) {
 }
 
 function renderPrintCard({ lite, qrCode, liteUrl, image }) {
-  // Parse display_name if it's JSON
-  const displayName = parseDescription(lite.display_name);
-  const title = lite.custom_title || displayName || lite.room_name || lite.name;
+  const title = lite.custom_title || lite.display_name || lite.room_name || lite.name;
   return `<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><title>Print - ${title}</title>
 <style>
