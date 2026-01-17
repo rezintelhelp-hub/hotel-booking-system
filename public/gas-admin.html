@@ -1657,6 +1657,49 @@
                 </div>
 
                 <div class="nav-section collapsed">
+                    <div class="nav-label" onclick="toggleNavSection(this)">Generators</div>
+                    <div class="nav-section-items">
+                    <a class="nav-item" data-view="app-blog" data-requires-feature="blog_module" href="#" onclick="return handleFeatureClick(this, 'app-blog', 'blog_module');">
+                        <span class="nav-icon">📋</span>
+                        <span>Blog</span>
+                        <span class="feature-lock" style="display:none; margin-left: auto; font-size: 0.75rem;"></span>
+                    </a>
+                    <a class="nav-item" data-view="app-attractions" data-requires-feature="attractions_module" href="#" onclick="return handleFeatureClick(this, 'app-attractions', 'attractions_module');">
+                        <span class="nav-icon">📋</span>
+                        <span>Attractions</span>
+                        <span class="feature-lock" style="display:none; margin-left: auto; font-size: 0.75rem;"></span>
+                    </a>
+                    <a class="nav-item" data-view="app-reviews" data-requires-feature="reviews_widget" href="#" onclick="return handleFeatureClick(this, 'app-reviews', 'reviews_widget');">
+                        <span class="nav-icon">📋</span>
+                        <span>Reviews</span>
+                        <span class="feature-lock" style="display:none; margin-left: auto; font-size: 0.75rem;"></span>
+                    </a>
+                    <a class="nav-item" data-view="app-seo" href="#" onclick="showView('app-seo'); return false;">
+                        <span class="nav-icon">📋</span>
+                        <span>SEO Analytics</span>
+                    </a>
+                    </div>
+                </div>
+
+                <div class="nav-section collapsed">
+                    <div class="nav-label" onclick="toggleNavSection(this)">Agents</div>
+                    <div class="nav-section-items">
+                    <a class="nav-item" data-view="agent-requests" href="#" onclick="navClick(this, 'agent-requests'); return false;">
+                        <span class="nav-icon">📋</span>
+                        <span>Requests</span>
+                    </a>
+                    <a class="nav-item" data-view="agent-approved" href="#" onclick="navClick(this, 'agent-approved'); return false;">
+                        <span class="nav-icon">✅</span>
+                        <span>Approved</span>
+                    </a>
+                    <a class="nav-item" data-view="agent-pricing" href="#" onclick="navClick(this, 'agent-pricing'); return false;">
+                        <span class="nav-icon">💰</span>
+                        <span>Agent Pricing</span>
+                    </a>
+                    </div>
+                </div>
+
+                <div class="nav-section collapsed">
                     <div class="nav-label" onclick="toggleNavSection(this)">Website Builder</div>
                     <div class="nav-section-items">
                     <a class="nav-item" data-view="deploy-sites" href="#" onclick="navClick(this, 'deploy-sites'); return false;" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%); color: white; border-radius: 8px; margin-bottom: 0.5rem;">
@@ -1740,31 +1783,6 @@
                     <a class="nav-item" data-view="settings" href="#" onclick="navClick(this, 'settings'); return false;">
                         <span class="nav-icon">📋</span>
                         <span>Settings</span>
-                    </a>
-                    </div>
-                </div>
-
-                <div class="nav-section collapsed">
-                    <div class="nav-label" onclick="toggleNavSection(this)">Generators</div>
-                    <div class="nav-section-items">
-                    <a class="nav-item" data-view="app-blog" data-requires-feature="blog_module" href="#" onclick="return handleFeatureClick(this, 'app-blog', 'blog_module');">
-                        <span class="nav-icon">📋</span>
-                        <span>Blog</span>
-                        <span class="feature-lock" style="display:none; margin-left: auto; font-size: 0.75rem;"></span>
-                    </a>
-                    <a class="nav-item" data-view="app-attractions" data-requires-feature="attractions_module" href="#" onclick="return handleFeatureClick(this, 'app-attractions', 'attractions_module');">
-                        <span class="nav-icon">📋</span>
-                        <span>Attractions</span>
-                        <span class="feature-lock" style="display:none; margin-left: auto; font-size: 0.75rem;"></span>
-                    </a>
-                    <a class="nav-item" data-view="app-reviews" data-requires-feature="reviews_widget" href="#" onclick="return handleFeatureClick(this, 'app-reviews', 'reviews_widget');">
-                        <span class="nav-icon">📋</span>
-                        <span>Reviews</span>
-                        <span class="feature-lock" style="display:none; margin-left: auto; font-size: 0.75rem;"></span>
-                    </a>
-                    <a class="nav-item" data-view="app-seo" href="#" onclick="showView('app-seo'); return false;">
-                        <span class="nav-icon">📋</span>
-                        <span>SEO Analytics</span>
                     </a>
                     </div>
                 </div>
@@ -4359,6 +4377,102 @@
                                 <span>+</span>
                                 <span>Create Your First Post</span>
                             </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Agent Requests View -->
+            <div id="agent-requests" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>📋 Agent Requests</h2>
+                            <p>Travel agents requesting access to market your properties</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" style="text-align: center; padding: 3rem;">
+                    <div style="font-size: 4rem; margin-bottom: 1rem;">📋</div>
+                    <h3 style="margin-bottom: 0.5rem; color: #1e293b;">No Pending Requests</h3>
+                    <p style="color: #64748b; max-width: 500px; margin: 0 auto 1.5rem;">
+                        When travel agents request access to market your properties, they'll appear here for your approval.
+                    </p>
+                    <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 1rem; max-width: 400px; margin: 0 auto;">
+                        <p style="margin: 0; color: #1e40af; font-size: 0.9rem;">
+                            <strong>💡 How it works:</strong><br>
+                            Agents find your property → Request access → You approve → Set your agent price → They book clients
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Agent Approved View -->
+            <div id="agent-approved" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>✅ Approved Agents</h2>
+                            <p>Travel agents authorized to book your properties</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" style="text-align: center; padding: 3rem;">
+                    <div style="font-size: 4rem; margin-bottom: 1rem;">✅</div>
+                    <h3 style="margin-bottom: 0.5rem; color: #1e293b;">No Approved Agents Yet</h3>
+                    <p style="color: #64748b; max-width: 500px; margin: 0 auto;">
+                        Agents you approve will appear here. You can manage their access and view their bookings.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Agent Pricing View -->
+            <div id="agent-pricing" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>💰 Agent Pricing</h2>
+                            <p>Set the net rates agents pay you - they add their own markup</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Property/Room Selector -->
+                <div class="card" style="margin-bottom: 1.5rem;">
+                    <div style="display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap;">
+                        <div style="flex: 1; min-width: 200px;">
+                            <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Property</label>
+                            <select id="agent-pricing-property" class="form-input" onchange="loadAgentPricingRooms()">
+                                <option value="">Select Property...</option>
+                            </select>
+                        </div>
+                        <div style="flex: 1; min-width: 200px;">
+                            <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Room/Unit</label>
+                            <select id="agent-pricing-room" class="form-input" onchange="loadAgentPricing()">
+                                <option value="">Select Room...</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pricing Info -->
+                <div class="card">
+                    <div style="text-align: center; padding: 2rem; color: #64748b;">
+                        <div style="font-size: 3rem; margin-bottom: 1rem;">💰</div>
+                        <h3 style="margin-bottom: 0.5rem; color: #1e293b;">Agent Pricing Coming Soon</h3>
+                        <p style="max-width: 500px; margin: 0 auto 1.5rem;">
+                            Set net rates for travel agents. They see your price, add their markup, and pay you the agreed amount.
+                        </p>
+                        <div style="background: #fef3c7; border: 1px solid #fde68a; border-radius: 8px; padding: 1rem; max-width: 450px; margin: 0 auto;">
+                            <p style="margin: 0; color: #92400e; font-size: 0.9rem;">
+                                <strong>Example:</strong><br>
+                                Your standard price: £200/night<br>
+                                Your agent price: £160/night<br>
+                                Agent sells at: £190/night (their choice)<br>
+                                Agent pays you: £160/night ✓
+                            </p>
                         </div>
                     </div>
                 </div>
