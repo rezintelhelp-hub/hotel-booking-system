@@ -133,7 +133,8 @@ app.get('/:slug', async (req, res) => {
              bu.short_description as room_short_desc, bu.full_description as room_full_desc,
              bu.bedroom_count, bu.bathroom_count, bu.max_guests, bu.base_price,
              bu.unit_type as room_type,
-             a.id as account_id, a.business_name, a.plan, a.settings as account_settings
+             a.id as account_id, a.business_name, a.plan, a.settings as account_settings,
+             COALESCE(a.display_name, a.business_name) as account_display_name
       FROM gas_lites l
       JOIN properties p ON l.property_id = p.id
       LEFT JOIN bookable_units bu ON l.room_id = bu.id
@@ -1438,17 +1439,16 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
   <style>
     :root { --accent: ${accent}; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Inter', system-ui, sans-serif; color: #1e293b; line-height: 1.6; background: #f8fafc; }
+    body { font-family: 'Inter', system-ui, sans-serif; color: #1e293b; line-height: 1.6; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
+    .page-wrapper { background: #f8fafc; margin: 0 auto; max-width: 1400px; min-height: 100vh; box-shadow: 0 0 60px rgba(0,0,0,0.3); }
     .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
-    
-    /* URL Bar */
-    .url-bar { background: #ffffff; border-bottom: 1px solid #e2e8f0; padding: 8px 20px; text-align: center; }
-    .url-bar a { color: var(--accent); text-decoration: none; font-size: 14px; font-weight: 500; }
-    .url-bar a:hover { text-decoration: underline; }
     
     /* Header */
     .header { background: white; border-bottom: 1px solid #e2e8f0; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; }
-    .logo { font-weight: 700; font-size: 1.25rem; color: var(--accent); text-decoration: none; }
+    .header-brand { display: flex; align-items: center; gap: 8px; }
+    .logo { font-weight: 600; font-size: 14px; color: var(--accent); text-decoration: none; }
+    .header-presents { font-size: 14px; color: #64748b; }
+    .header-presents strong { color: #1e293b; font-weight: 600; }
     .share-btn { background: none; border: 1px solid #e2e8f0; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 14px; }
     
     /* Gallery */
@@ -1736,17 +1736,17 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     .flatpickr-day.selected { background: var(--accent) !important; border-color: var(--accent) !important; }
     
     /* Footer */
-    .footer { text-align: center; padding: 40px 20px; color: #64748b; font-size: 13px; }
+    .footer { text-align: center; padding: 40px 20px; color: #64748b; font-size: 13px; background: white; border-top: 1px solid #e2e8f0; }
     .footer a { color: var(--accent); text-decoration: none; }
   </style>
 </head>
 <body>
-  <div class="url-bar">
-    <a href="${liteUrl}" target="_blank">🔗 ${liteUrl}</a>
-  </div>
-  
+  <div class="page-wrapper">
   <header class="header">
-    <a href="/" class="logo">GAS Lite</a>
+    <div class="header-brand">
+      <a href="/" class="logo">GAS Lite</a>
+      ${lite.account_display_name ? `<span class="header-presents">— <strong>${escapeForHTML(lite.account_display_name)}</strong> Presents</span>` : ''}
+    </div>
     <button class="share-btn" onclick="shareProperty()">📤 Share</button>
   </header>
   
@@ -2178,6 +2178,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
   </div>
   
   <footer class="footer">Powered by <a href="https://gas.travel">GAS.travel</a> • <a href="${liteUrl}/card">View Promo Card</a></footer>
+  </div><!-- end page-wrapper -->
   
   <script>
     const images = ${JSON.stringify(images.map(i => i.url))};
