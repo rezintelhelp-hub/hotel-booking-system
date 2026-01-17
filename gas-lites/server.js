@@ -31,6 +31,25 @@ const pool = new Pool({
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
+// Helper to parse JSON text fields (display_name, short_description, etc.)
+function parseJsonTextField(value) {
+  if (!value) return '';
+  try {
+    if (typeof value === 'object') {
+      // Already an object (JSONB returned as object)
+      return value.en || value.EN || Object.values(value)[0] || '';
+    } else if (typeof value === 'string' && value.trim().startsWith('{')) {
+      // JSON string
+      const parsed = JSON.parse(value);
+      return parsed.en || parsed.EN || Object.values(parsed)[0] || value;
+    } else {
+      return String(value);
+    }
+  } catch (e) {
+    return String(value);
+  }
+}
+
 async function ensureLitesTable() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS gas_lites (
@@ -128,19 +147,8 @@ app.get('/:slug', async (req, res) => {
     
     const lite = liteResult.rows[0];
     
-    // Parse display_name from JSON string if needed
-    if (lite.display_name_raw) {
-      try {
-        if (lite.display_name_raw.trim().startsWith('{')) {
-          const parsed = JSON.parse(lite.display_name_raw);
-          lite.display_name = parsed.en || parsed.EN || Object.values(parsed)[0] || lite.display_name_raw;
-        } else {
-          lite.display_name = lite.display_name_raw;
-        }
-      } catch (e) {
-        lite.display_name = lite.display_name_raw;
-      }
-    }
+    // Parse display_name from JSON
+    lite.display_name = parseJsonTextField(lite.display_name_raw);
     
     const propertyId = lite.property_id;
     const roomId = lite.room_id;
@@ -263,19 +271,8 @@ app.get('/:slug/card', async (req, res) => {
     
     const lite = liteResult.rows[0];
     
-    // Parse display_name from JSON string if needed
-    if (lite.display_name_raw) {
-      try {
-        if (lite.display_name_raw.trim().startsWith('{')) {
-          const parsed = JSON.parse(lite.display_name_raw);
-          lite.display_name = parsed.en || parsed.EN || Object.values(parsed)[0] || lite.display_name_raw;
-        } else {
-          lite.display_name = lite.display_name_raw;
-        }
-      } catch (e) {
-        lite.display_name = lite.display_name_raw;
-      }
-    }
+    // Parse display_name from JSON
+    lite.display_name = parseJsonTextField(lite.display_name_raw);
     
     // Get image (room first, then property)
     let image = null;
@@ -356,19 +353,8 @@ app.get('/:slug/print', async (req, res) => {
     
     const lite = liteResult.rows[0];
     
-    // Parse display_name from JSON string if needed
-    if (lite.display_name_raw) {
-      try {
-        if (lite.display_name_raw.trim().startsWith('{')) {
-          const parsed = JSON.parse(lite.display_name_raw);
-          lite.display_name = parsed.en || parsed.EN || Object.values(parsed)[0] || lite.display_name_raw;
-        } else {
-          lite.display_name = lite.display_name_raw;
-        }
-      } catch (e) {
-        lite.display_name = lite.display_name_raw;
-      }
-    }
+    // Parse display_name from JSON
+    lite.display_name = parseJsonTextField(lite.display_name_raw);
     
     const liteUrl = `https://lite.gas.travel/#${slug}`;
     const qrCode = await QRCode.toDataURL(liteUrl, { width: 400, margin: 2 });
@@ -553,18 +539,7 @@ app.get('/api/account/:accountId', async (req, res) => {
   
   // Parse display_name for each lite
   const lites = result.rows.map(lite => {
-    if (lite.display_name_raw) {
-      try {
-        if (lite.display_name_raw.trim().startsWith('{')) {
-          const parsed = JSON.parse(lite.display_name_raw);
-          lite.display_name = parsed.en || parsed.EN || Object.values(parsed)[0] || lite.display_name_raw;
-        } else {
-          lite.display_name = lite.display_name_raw;
-        }
-      } catch (e) {
-        lite.display_name = lite.display_name_raw;
-      }
-    }
+    lite.display_name = parseJsonTextField(lite.display_name_raw);
     return lite;
   });
   
