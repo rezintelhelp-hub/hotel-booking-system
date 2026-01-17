@@ -1125,23 +1125,30 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     .book-btn.loading .btn-text { display: none; }
     .book-btn.loading .btn-loading { display: inline; }
     
+    /* Special Offer Banner */
+    .offer-banner { background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border-radius: 12px; padding: 16px; margin-bottom: 16px; display: none; }
+    .offer-banner.visible { display: block; }
+    .offer-banner-badge { display: inline-block; background: #f59e0b; color: white; font-size: 11px; font-weight: 700; text-transform: uppercase; padding: 4px 10px; border-radius: 20px; margin-bottom: 8px; }
+    .offer-banner-title { font-size: 15px; font-weight: 600; color: #92400e; margin-bottom: 4px; }
+    .offer-banner-hint { font-size: 13px; color: #a16207; }
+    
     /* Rate Options */
-    .rate-options-section { margin: 16px 0; padding: 16px 0; border-top: 1px solid #e2e8f0; }
-    .rate-options-section h4 { font-size: 14px; font-weight: 600; margin-bottom: 12px; color: #1e293b; }
-    .rate-options-list { display: flex; flex-direction: column; gap: 8px; }
-    .rate-option { display: flex; align-items: center; gap: 12px; padding: 14px; background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 10px; cursor: pointer; transition: all 0.2s; }
-    .rate-option:hover { border-color: #cbd5e1; background: #f1f5f9; }
-    .rate-option.selected { border-color: var(--accent); background: rgba(59, 130, 246, 0.05); }
-    .rate-option-radio { width: 20px; height: 20px; border: 2px solid #cbd5e1; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .rate-options-section { margin: 16px 0; padding: 0; }
+    .rate-options-section h4 { font-size: 14px; font-weight: 600; margin-bottom: 12px; color: #64748b; }
+    .rate-options-list { display: flex; flex-direction: column; gap: 10px; }
+    .rate-option { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; background: white; border: 2px solid #e2e8f0; border-radius: 12px; cursor: pointer; transition: all 0.2s; }
+    .rate-option:hover { border-color: #cbd5e1; }
+    .rate-option.selected { border-color: var(--accent); background: rgba(59, 130, 246, 0.02); }
+    .rate-option-radio { width: 20px; height: 20px; border: 2px solid #cbd5e1; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px; }
     .rate-option.selected .rate-option-radio { border-color: var(--accent); }
     .rate-option.selected .rate-option-radio::after { content: ''; width: 10px; height: 10px; background: var(--accent); border-radius: 50%; }
     .rate-option-info { flex: 1; }
-    .rate-option-name { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
-    .rate-option-desc { font-size: 12px; color: #64748b; margin-top: 2px; }
-    .rate-option-badge { background: #fef3c7; color: #92400e; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; }
-    .rate-option-price { text-align: right; }
-    .rate-option-price-amount { font-size: 16px; font-weight: 700; color: #1e293b; }
-    .rate-option-price-was { font-size: 12px; color: #94a3b8; text-decoration: line-through; }
+    .rate-option-name { font-size: 15px; font-weight: 600; color: #1e293b; margin-bottom: 4px; }
+    .rate-option-features { display: flex; flex-direction: column; gap: 2px; }
+    .rate-option-feature { font-size: 13px; display: flex; align-items: center; gap: 4px; }
+    .rate-option-feature.positive { color: #059669; }
+    .rate-option-feature.negative { color: #dc2626; }
+    .rate-option-badge { display: inline-block; background: #dcfce7; color: #166534; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 20px; margin-left: 8px; }
     
     .price-breakdown { margin: 16px 0; padding: 16px 0; border-top: 1px solid #e2e8f0; }
     .price-breakdown h4 { font-size: 14px; font-weight: 600; margin-bottom: 12px; }
@@ -1470,9 +1477,16 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
               <span class="btn-loading" style="display:none;">Checking...</span>
             </button>
             
+            <!-- Special Offer Banner -->
+            <div id="offerBanner" class="offer-banner">
+              <div class="offer-banner-badge">🎉 Special Offer</div>
+              <div class="offer-banner-title">We have special rates available for your dates!</div>
+              <div class="offer-banner-hint">See rate options below ↓</div>
+            </div>
+            
             <!-- Rate Options (shown when offers available) -->
             <div id="rateOptionsSection" class="rate-options-section" style="display:none;">
-              <h4>🎉 Choose your rate</h4>
+              <h4>Choose your rate:</h4>
               <div id="rateOptionsList" class="rate-options-list"></div>
             </div>
             
@@ -1914,6 +1928,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
         } else {
           document.getElementById('priceBreakdown').style.display = 'none';
           document.getElementById('rateOptionsSection').style.display = 'none';
+          document.getElementById('offerBanner').classList.remove('visible');
           btnText.textContent = data.error || 'Not available';
           bookBtn.disabled = true;
         }
@@ -1938,20 +1953,23 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
         
         const section = document.getElementById('rateOptionsSection');
         const list = document.getElementById('rateOptionsList');
+        const banner = document.getElementById('offerBanner');
         
         if (availableOffers.length > 0) {
-          // Show rate options
+          // Show offer banner
+          banner.classList.add('visible');
+          
+          // Build rate options HTML
           let html = '';
           
-          // Standard rate option
+          // Standard rate option (selected by default)
           html += '<div class="rate-option selected" data-rate="standard" onclick="selectRate(this, null)">';
           html += '<div class="rate-option-radio"></div>';
           html += '<div class="rate-option-info">';
           html += '<div class="rate-option-name">Standard Rate</div>';
-          html += '<div class="rate-option-desc">Our regular rate</div>';
+          html += '<div class="rate-option-features">';
+          html += '<div class="rate-option-feature positive">✓ Free cancellation</div>';
           html += '</div>';
-          html += '<div class="rate-option-price">';
-          html += '<div class="rate-option-price-amount">' + currency + Math.round(currentPricing.subtotal) + '</div>';
           html += '</div>';
           html += '</div>';
           
@@ -1960,18 +1978,15 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
             const discount = offer.discount_type === 'percentage' 
               ? currentPricing.nightlyTotal * (offer.discount_value / 100)
               : parseFloat(offer.discount_value);
-            const offerTotal = currentPricing.subtotal - discount;
             const savingsPercent = Math.round((discount / currentPricing.nightlyTotal) * 100);
             
             html += '<div class="rate-option" data-rate="offer" data-offer-idx="' + idx + '" onclick="selectRate(this, ' + idx + ')">';
             html += '<div class="rate-option-radio"></div>';
             html += '<div class="rate-option-info">';
-            html += '<div class="rate-option-name">' + (offer.name || 'Special Offer').replace(/</g, '&lt;') + ' <span class="rate-option-badge">Save ' + savingsPercent + '%</span></div>';
-            if (offer.description) html += '<div class="rate-option-desc">' + offer.description.replace(/</g, '&lt;').substring(0, 60) + '</div>';
+            html += '<div class="rate-option-name">' + (offer.name || 'Special Offer').replace(/</g, '&lt;') + '<span class="rate-option-badge">Save ' + savingsPercent + '%</span></div>';
+            html += '<div class="rate-option-features">';
+            html += '<div class="rate-option-feature negative">✗ Non-refundable</div>';
             html += '</div>';
-            html += '<div class="rate-option-price">';
-            html += '<div class="rate-option-price-was">' + currency + Math.round(currentPricing.subtotal) + '</div>';
-            html += '<div class="rate-option-price-amount">' + currency + Math.round(offerTotal) + '</div>';
             html += '</div>';
             html += '</div>';
           });
@@ -1979,10 +1994,12 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
           list.innerHTML = html;
           section.style.display = 'block';
         } else {
+          banner.classList.remove('visible');
           section.style.display = 'none';
         }
       } catch (e) {
         console.log('No offers available');
+        document.getElementById('offerBanner').classList.remove('visible');
         document.getElementById('rateOptionsSection').style.display = 'none';
       }
     }
