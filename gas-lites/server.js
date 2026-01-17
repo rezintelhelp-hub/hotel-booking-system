@@ -1517,11 +1517,11 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
         if (data.upsells && data.upsells.length > 0) {
           const list = document.getElementById('upsellsList');
           list.innerHTML = data.upsells.map(u => {
-            const safeJson = JSON.stringify(u).replace(/'/g, '&#39;');
+            const safeJson = JSON.stringify(u).replace(/"/g, '&quot;');
             const safeName = (u.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
             const safeDesc = (u.description || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
             return '<label class="upsell-item" data-id="' + u.id + '">' +
-              '<input type="checkbox" class="upsell-checkbox" data-upsell=\'' + safeJson + '\'>' +
+              '<input type="checkbox" class="upsell-checkbox" data-upsell="' + safeJson + '">' +
               '<div class="upsell-info"><div class="upsell-name">' + (u.icon || '') + ' ' + safeName + '</div>' +
               (safeDesc ? '<div class="upsell-desc">' + safeDesc + '</div>' : '') + '</div>' +
               '<div class="upsell-price">' + currency + u.price + (u.is_per_night ? '/night' : '') + '</div>' +
