@@ -906,6 +906,8 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
   <meta property="og:image" content="${images[0]?.url || ''}">
   <meta property="og:url" content="${liteUrl}">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
   <style>
     :root { --accent: ${accent}; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1020,38 +1022,124 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     .price-period { color: #64748b; font-size: 14px; }
     .date-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
     .date-field label { display: block; font-size: 11px; font-weight: 600; color: #64748b; margin-bottom: 4px; text-transform: uppercase; }
-    .date-field input, .guest-field select { width: 100%; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 14px; }
+    .date-field input, .guest-field select { width: 100%; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 14px; cursor: pointer; background: white; }
+    .date-field input:focus, .guest-field select:focus { outline: none; border-color: var(--accent); }
     .guest-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
-    .book-btn { width: 100%; padding: 16px; background: var(--accent); color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; }
-    .book-btn:hover { filter: brightness(0.9); }
+    .guest-field label { display: block; font-size: 11px; font-weight: 600; color: #64748b; margin-bottom: 4px; text-transform: uppercase; }
+    .child-age-hint { font-size: 10px; font-weight: 400; color: #94a3b8; }
+    .book-btn { width: 100%; padding: 16px; background: var(--accent); color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s; }
+    .book-btn:hover { filter: brightness(0.95); }
     .book-btn:disabled { background: #cbd5e1; cursor: not-allowed; }
-    .price-breakdown { margin: 16px 0; padding: 16px 0; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; }
+    .btn-loading { display: none; }
+    .book-btn.loading .btn-text { display: none; }
+    .book-btn.loading .btn-loading { display: inline; }
+    .price-breakdown { margin: 16px 0; padding: 16px 0; border-top: 1px solid #e2e8f0; }
+    .price-breakdown h4 { font-size: 14px; font-weight: 600; margin-bottom: 12px; }
     .breakdown-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px; color: #475569; }
     .breakdown-row.discount { color: #059669; }
-    .breakdown-total { display: flex; justify-content: space-between; padding-top: 12px; margin-top: 8px; border-top: 1px solid #e2e8f0; font-weight: 600; font-size: 16px; }
-    .upsells-section { margin: 16px 0; padding: 16px 0; border-bottom: 1px solid #e2e8f0; }
+    .breakdown-total { display: flex; justify-content: space-between; padding-top: 12px; margin-top: 8px; border-top: 2px solid #e2e8f0; font-weight: 700; font-size: 16px; }
+    .upsells-section { margin: 16px 0; padding: 16px 0; border-top: 1px solid #e2e8f0; }
     .upsells-section h4 { font-size: 14px; font-weight: 600; margin-bottom: 12px; color: #1e293b; }
-    .upsell-item { display: flex; align-items: center; gap: 12px; padding: 10px; background: #f8fafc; border-radius: 8px; margin-bottom: 8px; cursor: pointer; }
+    .upsell-item { display: flex; align-items: center; gap: 12px; padding: 12px; background: #f8fafc; border-radius: 8px; margin-bottom: 8px; cursor: pointer; border: 1px solid transparent; transition: all 0.2s; }
     .upsell-item:hover { background: #f1f5f9; }
-    .upsell-item.selected { background: #eff6ff; border: 1px solid #3b82f6; }
-    .upsell-checkbox { width: 18px; height: 18px; }
+    .upsell-item.selected { background: #eff6ff; border-color: var(--accent); }
+    .upsell-checkbox { width: 20px; height: 20px; border: 2px solid #e2e8f0; border-radius: 4px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .upsell-item.selected .upsell-checkbox { background: var(--accent); border-color: var(--accent); }
+    .upsell-item.selected .upsell-checkbox::after { content: '✓'; color: white; font-size: 12px; font-weight: bold; }
     .upsell-info { flex: 1; }
-    .upsell-name { font-size: 14px; font-weight: 500; }
+    .upsell-name { font-size: 14px; font-weight: 600; }
     .upsell-desc { font-size: 12px; color: #64748b; }
-    .upsell-price { font-weight: 600; color: #1e293b; }
-    .voucher-section { margin: 16px 0; }
-    .voucher-row { display: flex; gap: 8px; }
-    .voucher-row input { flex: 1; padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 14px; }
-    .voucher-row button { padding: 10px 16px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 8px; font-weight: 500; cursor: pointer; }
-    .voucher-row button:hover { background: #e2e8f0; }
+    .upsell-price { font-weight: 700; font-size: 14px; color: var(--accent); }
+    
+    /* Voucher Section */
+    .voucher-section { margin: 16px 0; padding-top: 16px; border-top: 1px solid #e2e8f0; }
+    .voucher-toggle { font-size: 13px; color: var(--accent); cursor: pointer; text-align: center; }
+    .voucher-toggle:hover { text-decoration: underline; }
+    .voucher-row { display: flex; gap: 8px; margin-top: 10px; }
+    .voucher-input { flex: 1; padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 14px; text-transform: uppercase; }
+    .voucher-input:focus { outline: none; border-color: var(--accent); }
+    .voucher-apply-btn { padding: 10px 16px; background: var(--accent); color: white; border: none; border-radius: 8px; font-weight: 600; font-size: 13px; cursor: pointer; }
+    .voucher-apply-btn:hover { filter: brightness(0.9); }
+    .voucher-applied { display: flex; align-items: center; justify-content: space-between; background: #dcfce7; border: 1px solid #86efac; padding: 10px 14px; border-radius: 6px; margin-top: 10px; }
+    .voucher-name { font-size: 13px; font-weight: 600; color: #166534; }
+    .voucher-remove { background: none; border: none; color: #166534; cursor: pointer; font-size: 18px; padding: 0 4px; }
+    .voucher-remove:hover { color: #dc2626; }
     .voucher-msg { font-size: 13px; margin-top: 8px; }
     .voucher-msg.success { color: #059669; }
     .voucher-msg.error { color: #dc2626; }
-    .guest-form { margin-top: 16px; padding-top: 16px; border-top: 1px solid #e2e8f0; }
-    .guest-form h4 { font-size: 14px; font-weight: 600; margin-bottom: 12px; }
-    .guest-form input { width: 100%; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 10px; font-size: 14px; }
-    .guest-form input:focus { outline: none; border-color: #667eea; }
-    .confirm-btn { background: #059669 !important; margin-top: 8px; }
+    
+    /* Multi-step Checkout */
+    .checkout-step { animation: fadeIn 0.3s ease; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .step-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+    .step-header h3 { flex: 1; font-size: 16px; margin: 0; }
+    .back-btn { background: none; border: none; color: var(--accent); cursor: pointer; font-size: 14px; padding: 0; }
+    .back-btn:hover { text-decoration: underline; }
+    .steps-indicator { display: flex; gap: 8px; margin-bottom: 20px; }
+    .steps-indicator .step { width: 28px; height: 28px; border-radius: 50%; background: #e2e8f0; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; color: #94a3b8; }
+    .steps-indicator .step.active { background: var(--accent); color: white; }
+    .steps-indicator .step.completed { background: #10b981; color: white; }
+    
+    /* Guest Form */
+    .guest-form-full { }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+    .form-field { }
+    .form-field.full { grid-column: 1 / -1; }
+    .form-field label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 4px; }
+    .form-field label .required { color: #ef4444; }
+    .form-field label .optional { color: #94a3b8; font-weight: 400; font-size: 12px; }
+    .form-field input, .form-field select, .form-field textarea { width: 100%; padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 14px; font-family: inherit; }
+    .form-field input:focus, .form-field select:focus, .form-field textarea:focus { outline: none; border-color: var(--accent); }
+    .form-field textarea { resize: vertical; min-height: 80px; }
+    .field-hint { font-size: 12px; color: #94a3b8; margin-top: 4px; }
+    .checkbox-label { display: flex; align-items: flex-start; gap: 8px; cursor: pointer; font-size: 13px; color: #64748b; }
+    .checkbox-label input { width: auto; margin-top: 2px; }
+    .email-match-status { font-size: 12px; margin-top: 4px; }
+    .email-match-status.match { color: #10b981; }
+    .email-match-status.mismatch { color: #ef4444; }
+    
+    /* Payment Options */
+    .payment-options { margin-bottom: 16px; }
+    .payment-option { display: flex; align-items: flex-start; gap: 12px; padding: 16px; border: 1px solid #e2e8f0; border-radius: 8px; cursor: pointer; margin-bottom: 8px; transition: all 0.2s; }
+    .payment-option:hover { border-color: #cbd5e1; }
+    .payment-option.selected { border-color: var(--accent); background: rgba(37, 99, 235, 0.05); }
+    .payment-option.disabled { opacity: 0.5; cursor: not-allowed; }
+    .payment-option input { margin-top: 4px; }
+    .payment-content { flex: 1; display: flex; gap: 12px; }
+    .payment-icon { font-size: 24px; }
+    .payment-details { }
+    .payment-details strong { display: block; font-size: 14px; }
+    .payment-details span { font-size: 13px; color: #64748b; }
+    .deposit-info { background: #f8fafc; border-radius: 8px; padding: 12px; margin-bottom: 12px; }
+    .deposit-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 14px; }
+    .card-element { padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 12px; }
+    
+    /* Step Navigation */
+    .step-nav { display: flex; justify-content: space-between; margin-top: 20px; padding-top: 16px; border-top: 1px solid #e2e8f0; }
+    .btn-secondary { padding: 12px 20px; background: white; color: #1e293b; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; }
+    .btn-secondary:hover { background: #f8fafc; }
+    .btn-primary { padding: 12px 20px; background: var(--accent); color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+    .btn-primary:hover { filter: brightness(0.95); }
+    .btn-primary:disabled { background: #cbd5e1; cursor: not-allowed; }
+    
+    /* Booking Summary Mini */
+    .booking-summary-mini { background: #f8fafc; border-radius: 8px; padding: 12px; margin-bottom: 16px; }
+    .summary-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 14px; }
+    .summary-row.total { font-weight: 700; border-top: 1px solid #e2e8f0; margin-top: 8px; padding-top: 8px; }
+    
+    /* Confirmation */
+    .confirmation { text-align: center; padding: 20px 0; }
+    .confirmation-icon { width: 64px; height: 64px; background: #10b981; color: white; font-size: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; }
+    .confirmation h3 { font-size: 20px; margin-bottom: 8px; }
+    .booking-ref { font-size: 24px; font-weight: 700; color: var(--accent); margin-bottom: 8px; }
+    .confirmation-email { font-size: 14px; color: #64748b; margin-bottom: 20px; }
+    .confirmation-details { text-align: left; background: #f8fafc; border-radius: 8px; padding: 16px; }
+    .conf-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e2e8f0; font-size: 14px; }
+    .conf-row:last-child { border-bottom: none; }
+    .conf-row.total { font-weight: 700; }
+    .confirmation-note { font-size: 13px; color: #64748b; margin-top: 16px; }
+    
+    /* QR Section */
     .qr-section { display: flex; align-items: center; gap: 12px; margin-top: 20px; padding-top: 20px; border-top: 1px solid #e2e8f0; }
     .qr-section img { width: 60px; height: 60px; }
     .qr-text { font-size: 12px; color: #64748b; }
@@ -1073,6 +1161,10 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     .policy-type { color: #475569; text-transform: capitalize; }
     .accordion-icon { font-size: 20px; transition: transform 0.3s; }
     .accordion-item.open .accordion-icon { transform: rotate(45deg); }
+    
+    /* Flatpickr custom */
+    .flatpickr-calendar { font-family: 'Inter', system-ui, sans-serif; }
+    .flatpickr-day.selected { background: var(--accent) !important; border-color: var(--accent) !important; }
     
     /* Footer */
     .footer { text-align: center; padding: 40px 20px; color: #64748b; font-size: 13px; }
@@ -1250,52 +1342,242 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
       
       <div class="room-sidebar">
         <div class="booking-card">
-          <div class="price-display">
-            ${price ? `<span class="price-amount">${currency}${Math.round(price).toLocaleString()}</span><span class="price-period"> / night</span>` : '<span class="price-amount">Check availability</span>'}
-          </div>
-          <div class="date-inputs">
-            <div class="date-field"><label>Check-in</label><input type="date" id="checkin" min="${new Date().toISOString().split('T')[0]}"></div>
-            <div class="date-field"><label>Check-out</label><input type="date" id="checkout"></div>
-          </div>
-          <div class="guest-fields">
-            <div class="guest-field"><label>Adults</label><select id="adults">${[1,2,3,4,5,6,7,8].map(n => `<option>${n}</option>`).join('')}</select></div>
-            <div class="guest-field"><label>Children</label><select id="children">${[0,1,2,3,4,5].map(n => `<option>${n}</option>`).join('')}</select></div>
-          </div>
-          <button class="book-btn" id="bookBtn" disabled>Select dates to check availability</button>
-          
-          <!-- Price breakdown -->
-          <div id="priceBreakdown" class="price-breakdown" style="display:none;">
-            <div class="breakdown-row" id="nightlyRow"><span></span><span></span></div>
-            <div class="breakdown-row" id="cleaningRow" style="display:none;"><span>Cleaning fee</span><span></span></div>
-            <div class="breakdown-row" id="upsellsRow" style="display:none;"><span>Extras</span><span></span></div>
-            <div class="breakdown-row discount" id="discountRow" style="display:none;"><span></span><span></span></div>
-            <div class="breakdown-total"><span>Total</span><span id="totalAmount"></span></div>
-          </div>
-          
-          <!-- Upsells section -->
-          <div id="upsellsSection" class="upsells-section" style="display:none;">
-            <h4>Enhance your stay</h4>
-            <div id="upsellsList"></div>
-          </div>
-          
-          <!-- Voucher input -->
-          <div class="voucher-section" id="voucherSection">
-            <div class="voucher-row">
-              <input type="text" id="voucherCode" placeholder="Voucher code">
-              <button type="button" id="applyVoucher">Apply</button>
+          <!-- Step 0: Initial booking selection -->
+          <div id="bookingStep0">
+            <div class="price-display">
+              ${price ? `<span class="price-amount">${currency}${Math.round(price).toLocaleString()}</span><span class="price-period"> / night</span>` : '<span class="price-amount">Check availability</span>'}
             </div>
-            <div id="voucherMsg" class="voucher-msg"></div>
+            <div class="date-inputs">
+              <div class="date-field"><label>Check-in</label><input type="text" id="checkin" placeholder="Select date" readonly></div>
+              <div class="date-field"><label>Check-out</label><input type="text" id="checkout" placeholder="Select date" readonly></div>
+            </div>
+            <div class="guest-fields">
+              <div class="guest-field"><label>Adults</label><select id="adults">${[1,2,3,4,5,6,7,8].map(n => `<option value="${n}">${n}</option>`).join('')}</select></div>
+              <div class="guest-field"><label>Children <span class="child-age-hint">(under 12)</span></label><select id="children">${[0,1,2,3,4,5].map(n => `<option value="${n}">${n}</option>`).join('')}</select></div>
+            </div>
+            <button class="book-btn" id="bookBtn" disabled>
+              <span class="btn-text">Select dates to check availability</span>
+              <span class="btn-loading" style="display:none;">Checking...</span>
+            </button>
+            
+            <!-- Price breakdown -->
+            <div id="priceBreakdown" class="price-breakdown" style="display:none;">
+              <h4>Price Details</h4>
+              <div class="breakdown-row" id="nightlyRow"><span></span><span></span></div>
+              <div class="breakdown-row" id="cleaningRow" style="display:none;"><span>Cleaning fee</span><span></span></div>
+              <div class="breakdown-row" id="upsellsRow" style="display:none;"><span>Extras</span><span></span></div>
+              <div class="breakdown-row discount" id="discountRow" style="display:none;"><span></span><span></span></div>
+              <div class="breakdown-total"><span>Total</span><span id="totalAmount"></span></div>
+            </div>
+            
+            <!-- Upsells section -->
+            <div id="upsellsSection" class="upsells-section" style="display:none;">
+              <h4>✨ Enhance your stay</h4>
+              <div id="upsellsList"></div>
+            </div>
+            
+            <!-- Voucher toggle -->
+            <div class="voucher-section" id="voucherSection" style="display:none;">
+              <div class="voucher-toggle" onclick="toggleVoucherInput()">🎟️ Have a promo code?</div>
+              <div class="voucher-input-wrapper" id="voucherInputWrapper" style="display:none;">
+                <div class="voucher-row">
+                  <input type="text" id="voucherCode" placeholder="Enter code" class="voucher-input">
+                  <button type="button" id="applyVoucher" class="voucher-apply-btn">Apply</button>
+                </div>
+              </div>
+              <div id="voucherApplied" class="voucher-applied" style="display:none;">
+                <span class="voucher-name"></span>
+                <button type="button" class="voucher-remove" onclick="removeVoucher()">×</button>
+              </div>
+              <div id="voucherMsg" class="voucher-msg"></div>
+            </div>
           </div>
           
-          <!-- Guest details form -->
-          <div id="guestForm" class="guest-form" style="display:none;">
-            <h4>Your details</h4>
-            <input type="text" id="guestName" placeholder="Full name *">
-            <input type="email" id="guestEmail" placeholder="Email address *">
-            <input type="tel" id="guestPhone" placeholder="Phone number">
-            <button class="book-btn confirm-btn" id="confirmBtn">Confirm Booking</button>
+          <!-- Step 1: Guest Details -->
+          <div id="bookingStep1" class="checkout-step" style="display:none;">
+            <div class="step-header">
+              <button class="back-btn" onclick="goToStep(0)">← Back</button>
+              <h3>👤 Your Details</h3>
+            </div>
+            <div class="steps-indicator">
+              <div class="step active" data-step="1">1</div>
+              <div class="step" data-step="2">2</div>
+              <div class="step" data-step="3">3</div>
+            </div>
+            
+            <form id="guestForm" class="guest-form-full">
+              <div class="form-row">
+                <div class="form-field">
+                  <label>First Name <span class="required">*</span></label>
+                  <input type="text" id="firstName" name="first_name" required placeholder="John">
+                </div>
+                <div class="form-field">
+                  <label>Last Name <span class="required">*</span></label>
+                  <input type="text" id="lastName" name="last_name" required placeholder="Smith">
+                </div>
+              </div>
+              
+              <div class="form-row">
+                <div class="form-field full">
+                  <label>Email Address <span class="required">*</span></label>
+                  <input type="email" id="guestEmail" name="email" required placeholder="john@example.com">
+                </div>
+              </div>
+              
+              <div class="form-row">
+                <div class="form-field full">
+                  <label>Confirm Email <span class="required">*</span></label>
+                  <input type="email" id="confirmEmail" name="confirm_email" required placeholder="john@example.com">
+                  <div class="email-match-status"></div>
+                </div>
+              </div>
+              
+              <div class="form-row">
+                <div class="form-field">
+                  <label>Phone Number <span class="required">*</span></label>
+                  <input type="tel" id="guestPhone" name="phone" required placeholder="+1 555 123 4567">
+                </div>
+                <div class="form-field">
+                  <label>Country</label>
+                  <select id="guestCountry" name="country">
+                    <option value="GB">United Kingdom</option>
+                    <option value="US">United States</option>
+                    <option value="CA">Canada</option>
+                    <option value="AU">Australia</option>
+                    <option value="DE">Germany</option>
+                    <option value="FR">France</option>
+                    <option value="ES">Spain</option>
+                    <option value="IT">Italy</option>
+                    <option value="NL">Netherlands</option>
+                    <option value="PH">Philippines</option>
+                    <option value="TH">Thailand</option>
+                    <option value="OTHER">Other</option>
+                  </select>
+                </div>
+              </div>
+              
+              <div class="form-row">
+                <div class="form-field full">
+                  <label>Address <span class="optional">(optional)</span></label>
+                  <input type="text" id="guestAddress" name="address" placeholder="123 Main Street">
+                </div>
+              </div>
+              
+              <div class="form-row">
+                <div class="form-field">
+                  <label>City <span class="optional">(optional)</span></label>
+                  <input type="text" id="guestCity" name="city" placeholder="London">
+                </div>
+                <div class="form-field">
+                  <label>Postcode <span class="optional">(optional)</span></label>
+                  <input type="text" id="guestPostcode" name="postcode" placeholder="SW1A 1AA">
+                </div>
+              </div>
+              
+              <div class="form-row">
+                <div class="form-field full">
+                  <label>Special Requests <span class="optional">(optional)</span></label>
+                  <textarea id="guestNotes" name="notes" rows="3" placeholder="E.g., late check-in, dietary requirements, special occasion..."></textarea>
+                  <p class="field-hint">Special requests are subject to availability and cannot be guaranteed.</p>
+                </div>
+              </div>
+              
+              <div class="form-row">
+                <div class="form-field full">
+                  <label class="checkbox-label">
+                    <input type="checkbox" id="marketingConsent" name="marketing">
+                    <span>Send me special offers and updates (you can unsubscribe anytime)</span>
+                  </label>
+                </div>
+              </div>
+            </form>
+            
+            <div class="step-nav">
+              <button class="btn-secondary" onclick="goToStep(0)">← Back</button>
+              <button class="btn-primary" onclick="goToStep(2)">Continue to Payment →</button>
+            </div>
           </div>
-          <div class="qr-section">
+          
+          <!-- Step 2: Payment -->
+          <div id="bookingStep2" class="checkout-step" style="display:none;">
+            <div class="step-header">
+              <button class="back-btn" onclick="goToStep(1)">← Back</button>
+              <h3>💳 Payment</h3>
+            </div>
+            <div class="steps-indicator">
+              <div class="step completed" data-step="1">✓</div>
+              <div class="step active" data-step="2">2</div>
+              <div class="step" data-step="3">3</div>
+            </div>
+            
+            <div class="booking-summary-mini">
+              <div class="summary-row"><span>Dates:</span><span id="summaryDates"></span></div>
+              <div class="summary-row"><span>Guests:</span><span id="summaryGuests"></span></div>
+              <div class="summary-row total"><span>Total:</span><span id="summaryTotal"></span></div>
+            </div>
+            
+            <div class="payment-options">
+              <label class="payment-option selected">
+                <input type="radio" name="payment_method" value="property" checked>
+                <div class="payment-content">
+                  <span class="payment-icon">🏠</span>
+                  <div class="payment-details">
+                    <strong>Pay at Property</strong>
+                    <span>Pay when you arrive - no payment needed now</span>
+                  </div>
+                </div>
+              </label>
+              
+              <label class="payment-option disabled" id="cardPaymentOption" style="display:none;">
+                <input type="radio" name="payment_method" value="card" disabled>
+                <div class="payment-content">
+                  <span class="payment-icon">💳</span>
+                  <div class="payment-details">
+                    <strong>Pay Now</strong>
+                    <span>Secure payment with deposit</span>
+                  </div>
+                </div>
+              </label>
+            </div>
+            
+            <div id="cardPaymentSection" style="display:none;">
+              <div class="deposit-info">
+                <div class="deposit-row"><span>Deposit Due Now:</span><span id="depositAmount"></span></div>
+                <div class="deposit-row"><span>Balance on Arrival:</span><span id="balanceAmount"></span></div>
+              </div>
+              <div id="card-element" class="card-element"></div>
+            </div>
+            
+            <div class="step-nav">
+              <button class="btn-secondary" onclick="goToStep(1)">← Back</button>
+              <button class="btn-primary" id="confirmBookingBtn" onclick="submitBooking()">
+                <span class="btn-text">Confirm Booking</span>
+                <span class="btn-loading" style="display:none;">Processing...</span>
+              </button>
+            </div>
+          </div>
+          
+          <!-- Step 3: Confirmation -->
+          <div id="bookingStep3" class="checkout-step" style="display:none;">
+            <div class="confirmation">
+              <div class="confirmation-icon">✓</div>
+              <h3>Booking Confirmed!</h3>
+              <p class="booking-ref" id="confirmationCode"></p>
+              <p class="confirmation-email">Confirmation sent to <strong id="confirmationEmail"></strong></p>
+              
+              <div class="confirmation-details">
+                <div class="conf-row"><span>Property:</span><span>${escapeForHTML(title)}</span></div>
+                <div class="conf-row"><span>Check-in:</span><span id="confCheckin"></span></div>
+                <div class="conf-row"><span>Check-out:</span><span id="confCheckout"></span></div>
+                <div class="conf-row"><span>Guests:</span><span id="confGuests"></span></div>
+                <div class="conf-row total"><span>Total:</span><span id="confTotal"></span></div>
+              </div>
+              
+              <p class="confirmation-note">The property will contact you with check-in details.</p>
+            </div>
+          </div>
+          
+          <div class="qr-section" id="qrSection">
             <img src="${qrCode}" alt="QR">
             <div class="qr-text">Scan to view on mobile<br><strong>#${lite.slug}</strong></div>
           </div>
@@ -1310,13 +1592,91 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     const images = ${JSON.stringify(images.map(i => i.url))};
     const availability = ${availabilityJson};
     const currency = '${currency}';
+    const currencyCode = '${currencyCode}';
     const roomId = ${roomId || 'null'};
     const propertyId = ${propertyId || 'null'};
+    const liteSlug = '${lite.slug}';
     let currentImage = 0;
     let currentMonth = new Date();
     let currentPricing = null;
     let selectedUpsells = [];
     let appliedVoucher = null;
+    let currentStep = 0;
+    
+    // Initialize Flatpickr date pickers
+    document.addEventListener('DOMContentLoaded', function() {
+      const today = new Date();
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      
+      const checkinPicker = flatpickr('#checkin', {
+        dateFormat: 'Y-m-d',
+        altInput: true,
+        altFormat: 'd M Y',
+        minDate: 'today',
+        onChange: function(selectedDates, dateStr) {
+          if (selectedDates[0]) {
+            const nextDay = new Date(selectedDates[0]);
+            nextDay.setDate(nextDay.getDate() + 1);
+            checkoutPicker.set('minDate', nextDay);
+            setTimeout(() => checkoutPicker.open(), 100);
+          }
+        }
+      });
+      
+      const checkoutPicker = flatpickr('#checkout', {
+        dateFormat: 'Y-m-d',
+        altInput: true,
+        altFormat: 'd M Y',
+        minDate: tomorrow,
+        onChange: function(selectedDates, dateStr) {
+          if (selectedDates[0] && document.getElementById('checkin').value) {
+            fetchPricing();
+          }
+        }
+      });
+      
+      // Guest field changes
+      document.getElementById('adults').addEventListener('change', () => { if (document.getElementById('checkout').value) fetchPricing(); });
+      document.getElementById('children').addEventListener('change', () => { if (document.getElementById('checkout').value) fetchPricing(); });
+      
+      // Email match check
+      document.getElementById('confirmEmail').addEventListener('input', checkEmailMatch);
+      document.getElementById('guestEmail').addEventListener('input', checkEmailMatch);
+      
+      // Payment option selection
+      document.querySelectorAll('.payment-option').forEach(opt => {
+        opt.addEventListener('click', function() {
+          if (this.classList.contains('disabled')) return;
+          document.querySelectorAll('.payment-option').forEach(o => o.classList.remove('selected'));
+          this.classList.add('selected');
+          this.querySelector('input').checked = true;
+        });
+      });
+      
+      // Voucher apply button
+      document.getElementById('applyVoucher').addEventListener('click', applyVoucherCode);
+      
+      // Book button
+      document.getElementById('bookBtn').addEventListener('click', () => goToStep(1));
+    });
+    
+    function checkEmailMatch() {
+      const email = document.getElementById('guestEmail').value;
+      const confirm = document.getElementById('confirmEmail').value;
+      const statusEl = document.querySelector('.email-match-status');
+      
+      if (!confirm) {
+        statusEl.textContent = '';
+        statusEl.className = 'email-match-status';
+      } else if (email === confirm) {
+        statusEl.textContent = '✓ Emails match';
+        statusEl.className = 'email-match-status match';
+      } else {
+        statusEl.textContent = '✗ Emails don\\'t match';
+        statusEl.className = 'email-match-status mismatch';
+      }
+    }
     
     // Lightbox
     function openLightbox(i) { currentImage = i; document.getElementById('lightbox-img').src = images[i]; document.getElementById('lightbox').classList.add('active'); }
@@ -1350,6 +1710,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     function renderMonth(offset, gridId, labelId) {
       const grid = document.getElementById(gridId);
       const monthLabel = document.getElementById(labelId);
+      if (!grid || !monthLabel) return;
       
       const displayMonth = new Date(currentMonth);
       displayMonth.setMonth(displayMonth.getMonth() + offset);
@@ -1404,53 +1765,41 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
       renderCalendar();
     }
     
-    // Booking form elements
-    const checkinEl = document.getElementById('checkin');
-    const checkoutEl = document.getElementById('checkout');
-    const adultsEl = document.getElementById('adults');
-    const childrenEl = document.getElementById('children');
-    const bookBtn = document.getElementById('bookBtn');
-    const priceBreakdown = document.getElementById('priceBreakdown');
-    const upsellsSection = document.getElementById('upsellsSection');
-    const guestForm = document.getElementById('guestForm');
-    
-    // Date change handlers
-    checkinEl.addEventListener('change', () => {
-      const next = new Date(checkinEl.value); next.setDate(next.getDate() + 1);
-      checkoutEl.min = next.toISOString().split('T')[0];
-      if (checkoutEl.value && checkoutEl.value <= checkinEl.value) checkoutEl.value = next.toISOString().split('T')[0];
-      if (checkoutEl.value) fetchPricing();
-    });
-    checkoutEl.addEventListener('change', fetchPricing);
-    adultsEl.addEventListener('change', fetchPricing);
-    childrenEl.addEventListener('change', fetchPricing);
-    
     // Fetch pricing from API
     async function fetchPricing() {
-      if (!checkinEl.value || !checkoutEl.value) return;
+      const checkin = document.getElementById('checkin').value;
+      const checkout = document.getElementById('checkout').value;
+      if (!checkin || !checkout) return;
       
-      bookBtn.textContent = 'Checking availability...';
+      const bookBtn = document.getElementById('bookBtn');
+      const btnText = bookBtn.querySelector('.btn-text');
+      const btnLoading = bookBtn.querySelector('.btn-loading');
+      
+      btnText.textContent = 'Checking...';
       bookBtn.disabled = true;
       
       try {
-        const res = await fetch('/api/pricing/' + roomId + '?checkin=' + checkinEl.value + '&checkout=' + checkoutEl.value + '&adults=' + adultsEl.value + '&children=' + childrenEl.value);
+        const adults = document.getElementById('adults').value;
+        const children = document.getElementById('children').value;
+        const res = await fetch('/api/pricing/' + roomId + '?checkin=' + checkin + '&checkout=' + checkout + '&adults=' + adults + '&children=' + children);
         const data = await res.json();
         
         if (data.success) {
           currentPricing = data.pricing;
           displayPricing();
-          bookBtn.textContent = 'Book ' + data.pricing.nights + ' night' + (data.pricing.nights > 1 ? 's' : '');
+          btnText.textContent = 'Book ' + data.pricing.nights + ' night' + (data.pricing.nights > 1 ? 's' : '') + ' - ' + currency + Math.round(data.pricing.grandTotal);
           bookBtn.disabled = false;
-          // Load upsells separately so errors don't break booking
+          document.getElementById('voucherSection').style.display = 'block';
+          // Load upsells
           try { loadUpsells(); } catch(e) { console.log('Upsells error:', e); }
         } else {
-          priceBreakdown.style.display = 'none';
-          bookBtn.textContent = data.error || 'Not available';
+          document.getElementById('priceBreakdown').style.display = 'none';
+          btnText.textContent = data.error || 'Not available';
           bookBtn.disabled = true;
         }
       } catch (e) {
         console.error('Pricing error:', e);
-        bookBtn.textContent = 'Error checking availability';
+        btnText.textContent = 'Error checking availability';
         bookBtn.disabled = true;
       }
     }
@@ -1460,7 +1809,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
       if (!currentPricing) return;
       
       const p = currentPricing;
-      document.getElementById('nightlyRow').innerHTML = '<span>' + currency + Math.round(p.avgPerNight) + ' × ' + p.nights + ' nights</span><span>' + currency + Math.round(p.nightlyTotal) + '</span>';
+      document.getElementById('nightlyRow').innerHTML = '<span>' + currency + Math.round(p.avgPerNight) + ' × ' + p.nights + ' nights</span><span>' + currency + Math.round(p.accommodationTotal) + '</span>';
       
       const cleaningRow = document.getElementById('cleaningRow');
       if (p.cleaningFee > 0) {
@@ -1471,21 +1820,25 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
       }
       
       updateTotal();
-      priceBreakdown.style.display = 'block';
+      document.getElementById('priceBreakdown').style.display = 'block';
     }
     
     // Calculate and update total
     function updateTotal() {
       if (!currentPricing) return;
       
-      let total = currentPricing.subtotal;
+      let total = currentPricing.grandTotal;
       
       // Add upsells
       let upsellTotal = 0;
+      const nights = currentPricing.nights;
+      const guests = parseInt(document.getElementById('adults').value) + parseInt(document.getElementById('children').value);
+      
       selectedUpsells.forEach(u => {
         let uPrice = u.price;
-        if (u.is_per_night) uPrice *= currentPricing.nights;
-        if (u.is_per_guest) uPrice *= (parseInt(adultsEl.value) + parseInt(childrenEl.value));
+        if (u.charge_type === 'per_night') uPrice *= nights;
+        else if (u.charge_type === 'per_guest') uPrice *= guests;
+        else if (u.charge_type === 'per_guest_per_night') uPrice *= nights * guests;
         upsellTotal += uPrice;
       });
       
@@ -1498,63 +1851,70 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
         upsellsRow.style.display = 'none';
       }
       
-      // Apply voucher
+      // Apply voucher discount
       const discountRow = document.getElementById('discountRow');
       if (appliedVoucher) {
         discountRow.style.display = 'flex';
         discountRow.querySelector('span:first-child').textContent = 'Discount (' + appliedVoucher.code + ')';
-        discountRow.querySelector('span:last-child').textContent = '-' + currency + Math.round(appliedVoucher.discount_amount);
-        total -= appliedVoucher.discount_amount;
+        discountRow.querySelector('span:last-child').textContent = '-' + currency + Math.round(appliedVoucher.discount);
+        total -= appliedVoucher.discount;
       } else {
         discountRow.style.display = 'none';
       }
       
       document.getElementById('totalAmount').textContent = currency + Math.round(total);
+      
+      // Update book button text
+      const bookBtn = document.getElementById('bookBtn');
+      if (!bookBtn.disabled && currentPricing) {
+        bookBtn.querySelector('.btn-text').textContent = 'Book ' + currentPricing.nights + ' night' + (currentPricing.nights > 1 ? 's' : '') + ' - ' + currency + Math.round(total);
+      }
     }
     
     // Load upsells
     async function loadUpsells() {
       try {
-        const res = await fetch('/api/upsells/' + propertyId);
+        const res = await fetch('/api/upsells/' + roomId);
         const data = await res.json();
         
-        if (data.upsells && data.upsells.length > 0) {
+        if (data.success && data.upsells && data.upsells.length > 0) {
           const list = document.getElementById('upsellsList');
           list.innerHTML = data.upsells.map(u => {
-            const safeJson = JSON.stringify(u).replace(/"/g, '&quot;');
-            const safeName = (u.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-            const safeDesc = (u.description || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-            return '<label class="upsell-item" data-id="' + u.id + '">' +
-              '<input type="checkbox" class="upsell-checkbox" data-upsell="' + safeJson + '">' +
-              '<div class="upsell-info"><div class="upsell-name">' + (u.icon || '') + ' ' + safeName + '</div>' +
-              (safeDesc ? '<div class="upsell-desc">' + safeDesc + '</div>' : '') + '</div>' +
-              '<div class="upsell-price">' + currency + u.price + (u.is_per_night ? '/night' : '') + '</div>' +
-            '</label>';
+            const priceText = u.charge_type === 'per_night' ? '/night' : u.charge_type === 'per_guest' ? '/guest' : u.charge_type === 'per_guest_per_night' ? '/guest/night' : '';
+            return '<div class="upsell-item" data-id="' + u.id + '" data-upsell=\\'' + JSON.stringify(u).replace(/'/g, "\\\\'") + '\\' onclick="toggleUpsell(this)">' +
+              '<div class="upsell-checkbox"></div>' +
+              '<div class="upsell-info"><div class="upsell-name">' + (u.name || '').replace(/</g, '&lt;') + '</div>' +
+              (u.description ? '<div class="upsell-desc">' + u.description.replace(/</g, '&lt;') + '</div>' : '') + '</div>' +
+              '<div class="upsell-price">' + currency + u.price + '<small>' + priceText + '</small></div>' +
+            '</div>';
           }).join('');
           
-          list.querySelectorAll('.upsell-checkbox').forEach(cb => {
-            cb.addEventListener('change', function() {
-              const upsell = JSON.parse(this.dataset.upsell);
-              if (this.checked) {
-                selectedUpsells.push(upsell);
-                this.closest('.upsell-item').classList.add('selected');
-              } else {
-                selectedUpsells = selectedUpsells.filter(u => u.id !== upsell.id);
-                this.closest('.upsell-item').classList.remove('selected');
-              }
-              updateTotal();
-            });
-          });
-          
-          upsellsSection.style.display = 'block';
+          document.getElementById('upsellsSection').style.display = 'block';
         }
       } catch (e) {
         console.log('No upsells available');
       }
     }
     
+    function toggleUpsell(el) {
+      const upsell = JSON.parse(el.dataset.upsell);
+      el.classList.toggle('selected');
+      
+      if (el.classList.contains('selected')) {
+        selectedUpsells.push(upsell);
+      } else {
+        selectedUpsells = selectedUpsells.filter(u => u.id !== upsell.id);
+      }
+      updateTotal();
+    }
+    
     // Voucher handling
-    document.getElementById('applyVoucher').addEventListener('click', async () => {
+    function toggleVoucherInput() {
+      const wrapper = document.getElementById('voucherInputWrapper');
+      wrapper.style.display = wrapper.style.display === 'none' ? 'block' : 'none';
+    }
+    
+    async function applyVoucherCode() {
       const code = document.getElementById('voucherCode').value.trim();
       const msgEl = document.getElementById('voucherMsg');
       
@@ -1569,14 +1929,24 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
         const res = await fetch('/api/voucher/validate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code, propertyId, roomId, subtotal: currentPricing.subtotal })
+          body: JSON.stringify({ 
+            code, 
+            roomId, 
+            checkin: document.getElementById('checkin').value,
+            checkout: document.getElementById('checkout').value,
+            total: currentPricing.grandTotal 
+          })
         });
         const data = await res.json();
         
         if (data.success) {
           appliedVoucher = data.voucher;
-          msgEl.textContent = 'Voucher applied! ' + (data.voucher.discount_type === 'percentage' ? data.voucher.discount_value + '% off' : currency + data.voucher.discount_value + ' off');
-          msgEl.className = 'voucher-msg success';
+          document.getElementById('voucherInputWrapper').style.display = 'none';
+          document.querySelector('.voucher-toggle').style.display = 'none';
+          const appliedEl = document.getElementById('voucherApplied');
+          appliedEl.style.display = 'flex';
+          appliedEl.querySelector('.voucher-name').textContent = '✓ ' + data.voucher.name + ' (-' + currency + Math.round(data.voucher.discount) + ')';
+          msgEl.textContent = '';
           updateTotal();
         } else {
           msgEl.textContent = data.error;
@@ -1586,29 +1956,94 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
         msgEl.textContent = 'Error validating voucher';
         msgEl.className = 'voucher-msg error';
       }
-    });
+    }
     
-    // Book button - show guest form
-    bookBtn.addEventListener('click', () => {
-      guestForm.style.display = 'block';
-      bookBtn.style.display = 'none';
-      document.getElementById('guestName').focus();
-    });
+    function removeVoucher() {
+      appliedVoucher = null;
+      document.getElementById('voucherApplied').style.display = 'none';
+      document.querySelector('.voucher-toggle').style.display = 'block';
+      document.getElementById('voucherCode').value = '';
+      updateTotal();
+    }
     
-    // Confirm booking
-    document.getElementById('confirmBtn').addEventListener('click', async () => {
-      const name = document.getElementById('guestName').value.trim();
-      const email = document.getElementById('guestEmail').value.trim();
-      const phone = document.getElementById('guestPhone').value.trim();
-      
-      if (!name || !email) {
-        alert('Please enter your name and email');
-        return;
+    // Multi-step navigation
+    function goToStep(step) {
+      // Validate current step before proceeding
+      if (step > currentStep) {
+        if (currentStep === 0 && !currentPricing) {
+          alert('Please select dates first');
+          return;
+        }
+        if (currentStep === 1) {
+          // Validate guest form
+          const form = document.getElementById('guestForm');
+          if (!form.checkValidity()) {
+            form.reportValidity();
+            return;
+          }
+          const email = document.getElementById('guestEmail').value;
+          const confirmEmail = document.getElementById('confirmEmail').value;
+          if (email !== confirmEmail) {
+            alert('Email addresses do not match');
+            return;
+          }
+        }
       }
       
-      const confirmBtn = document.getElementById('confirmBtn');
-      confirmBtn.textContent = 'Processing...';
+      currentStep = step;
+      
+      // Hide all steps
+      document.querySelectorAll('.checkout-step, #bookingStep0').forEach(s => s.style.display = 'none');
+      
+      // Show current step
+      document.getElementById('bookingStep' + step).style.display = 'block';
+      
+      // Hide QR section during checkout
+      document.getElementById('qrSection').style.display = step === 0 || step === 3 ? 'flex' : 'none';
+      
+      // Update summary on step 2
+      if (step === 2) {
+        updateBookingSummary();
+      }
+      
+      // Scroll to top of booking card
+      document.querySelector('.booking-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    
+    function updateBookingSummary() {
+      const checkin = document.getElementById('checkin');
+      const checkout = document.getElementById('checkout');
+      const adults = document.getElementById('adults').value;
+      const children = document.getElementById('children').value;
+      
+      // Format dates nicely
+      const formatDate = (input) => {
+        if (input._flatpickr && input._flatpickr.selectedDates[0]) {
+          return input._flatpickr.selectedDates[0].toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+        }
+        return input.value;
+      };
+      
+      document.getElementById('summaryDates').textContent = formatDate(checkin) + ' → ' + formatDate(checkout);
+      
+      let guestText = adults + ' Adult' + (adults > 1 ? 's' : '');
+      if (parseInt(children) > 0) guestText += ', ' + children + ' Child' + (children > 1 ? 'ren' : '');
+      document.getElementById('summaryGuests').textContent = guestText;
+      
+      document.getElementById('summaryTotal').textContent = document.getElementById('totalAmount').textContent;
+    }
+    
+    // Submit booking
+    async function submitBooking() {
+      const confirmBtn = document.getElementById('confirmBookingBtn');
+      const btnText = confirmBtn.querySelector('.btn-text');
+      const btnLoading = confirmBtn.querySelector('.btn-loading');
+      
+      btnText.style.display = 'none';
+      btnLoading.style.display = 'inline';
       confirmBtn.disabled = true;
+      
+      const total = parseFloat(document.getElementById('totalAmount').textContent.replace(/[^0-9.]/g, ''));
       
       try {
         const res = await fetch('/api/book', {
@@ -1618,40 +2053,61 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
             liteSlug,
             roomId,
             propertyId,
-            checkin: checkinEl.value,
-            checkout: checkoutEl.value,
-            adults: adultsEl.value,
-            children: childrenEl.value,
-            guestName: name,
-            guestEmail: email,
-            guestPhone: phone,
+            checkin: document.getElementById('checkin').value,
+            checkout: document.getElementById('checkout').value,
+            adults: document.getElementById('adults').value,
+            children: document.getElementById('children').value,
+            guestFirstName: document.getElementById('firstName').value,
+            guestLastName: document.getElementById('lastName').value,
+            guestEmail: document.getElementById('guestEmail').value,
+            guestPhone: document.getElementById('guestPhone').value,
+            guestAddress: document.getElementById('guestAddress').value,
+            guestCity: document.getElementById('guestCity').value,
+            guestCountry: document.getElementById('guestCountry').value,
+            guestPostcode: document.getElementById('guestPostcode').value,
+            notes: document.getElementById('guestNotes').value,
+            marketing: document.getElementById('marketingConsent').checked,
             upsells: selectedUpsells,
             voucherCode: appliedVoucher?.code,
+            rateType: 'standard',
+            paymentMethod: document.querySelector('input[name="payment_method"]:checked')?.value || 'property',
             pricing: currentPricing,
-            total: parseFloat(document.getElementById('totalAmount').textContent.replace(/[^0-9.]/g, ''))
+            total: total
           })
         });
         const data = await res.json();
         
         if (data.success) {
-          document.querySelector('.booking-card').innerHTML = 
-            '<div style="text-align:center;padding:40px 20px;">' +
-              '<div style="font-size:48px;margin-bottom:16px;">✓</div>' +
-              '<h3 style="margin-bottom:8px;">Booking Confirmed!</h3>' +
-              '<p style="color:#64748b;margin-bottom:16px;">Confirmation: <strong>' + data.booking.confirmationCode + '</strong></p>' +
-              '<p style="color:#64748b;font-size:14px;">A confirmation email will be sent to ' + email + '</p>' +
-            '</div>';
+          // Show confirmation
+          document.getElementById('confirmationCode').textContent = data.booking_id || data.booking.confirmationCode;
+          document.getElementById('confirmationEmail').textContent = document.getElementById('guestEmail').value;
+          
+          const checkinDate = document.getElementById('checkin')._flatpickr?.selectedDates[0];
+          const checkoutDate = document.getElementById('checkout')._flatpickr?.selectedDates[0];
+          document.getElementById('confCheckin').textContent = checkinDate ? checkinDate.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) : document.getElementById('checkin').value;
+          document.getElementById('confCheckout').textContent = checkoutDate ? checkoutDate.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) : document.getElementById('checkout').value;
+          
+          const adults = document.getElementById('adults').value;
+          const children = document.getElementById('children').value;
+          let guestText = adults + ' Adult' + (adults > 1 ? 's' : '');
+          if (parseInt(children) > 0) guestText += ', ' + children + ' Child' + (children > 1 ? 'ren' : '');
+          document.getElementById('confGuests').textContent = guestText;
+          document.getElementById('confTotal').textContent = currency + Math.round(total);
+          
+          goToStep(3);
         } else {
           alert(data.error || 'Booking failed. Please try again.');
-          confirmBtn.textContent = 'Confirm Booking';
+          btnText.style.display = 'inline';
+          btnLoading.style.display = 'none';
           confirmBtn.disabled = false;
         }
       } catch (e) {
         alert('Error processing booking. Please try again.');
-        confirmBtn.textContent = 'Confirm Booking';
+        btnText.style.display = 'inline';
+        btnLoading.style.display = 'none';
         confirmBtn.disabled = false;
       }
-    });
+    }
     
     // Keyboard nav
     document.addEventListener('keydown', e => { 
