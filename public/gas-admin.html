@@ -1636,8 +1636,18 @@
                     <div class="nav-label" onclick="toggleNavSection(this)">Marketing</div>
                     <div class="nav-section-items">
                     <a class="nav-item" data-view="marketing" href="#" onclick="navClick(this, 'marketing'); return false;">
-                        <span class="nav-icon">📋</span>
-                        <span>Features & Tags</span>
+                        <span class="nav-icon">🏷️</span>
+                        <span>Marketing Tags</span>
+                    </a>
+                    </div>
+                </div>
+
+                <div class="nav-section collapsed">
+                    <div class="nav-label" onclick="toggleNavSection(this)">Turbines</div>
+                    <div class="nav-section-items">
+                    <a class="nav-item" data-view="turbines" href="#" onclick="navClick(this, 'turbines'); return false;">
+                        <span class="nav-icon">⚡</span>
+                        <span>Social Media</span>
                     </a>
                     </div>
                 </div>
@@ -2843,7 +2853,7 @@
                             <p style="margin: 0; color: #6366f1;">Tell guests what makes your property special - location, style, and who it's perfect for!</p>
                         </div>
                         <a href="#" onclick="navClick(document.querySelector('[data-view=marketing]'), 'marketing'); return false;" class="btn" style="background: linear-gradient(135deg, #6366f1, #8b5cf6); white-space: nowrap;">
-                             Marketing Features & Tags
+                             Marketing Tags
                         </a>
                     </div>
                 </div>
@@ -3871,7 +3881,7 @@
                 <div class="header">
                     <div class="header-top">
                         <div>
-                            <h2>Marketing Features & Tags</h2>
+                            <h2>Marketing Tags</h2>
                             <p>Define what makes your property special to help travel agents find you</p>
                         </div>
                     </div>
@@ -4183,6 +4193,59 @@
                         <div class="empty-icon"></div>
                         <h3>Select a Property</h3>
                         <p>Choose a property above to manage its marketing features and tags</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Turbines View (Social Media) -->
+            <div id="turbines" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>⚡ Social Media Turbines</h2>
+                            <p>Connect your social media accounts and share offers directly to your audience</p>
+                        </div>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button class="btn" onclick="openConnectTurbineModal()" disabled style="opacity: 0.5;">
+                                <span>+</span>
+                                <span>Connect Account</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Coming Soon Card -->
+                <div class="card" style="text-align: center; padding: 3rem;">
+                    <div style="font-size: 4rem; margin-bottom: 1rem;">⚡</div>
+                    <h3 style="margin-bottom: 0.5rem; color: #1e293b;">Turbines Coming Soon</h3>
+                    <p style="color: #64748b; max-width: 500px; margin: 0 auto 1.5rem;">
+                        Connect your social media accounts (Facebook, Instagram, Twitter, TikTok) and share your GAS Lite offers directly to your audience with one click.
+                    </p>
+                    
+                    <div style="display: flex; justify-content: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 2rem;">
+                        <div style="padding: 1rem; background: #f1f5f9; border-radius: 12px; min-width: 120px;">
+                            <div style="font-size: 1.5rem; margin-bottom: 0.25rem;">📘</div>
+                            <div style="font-size: 0.85rem; color: #64748b;">Facebook</div>
+                        </div>
+                        <div style="padding: 1rem; background: #f1f5f9; border-radius: 12px; min-width: 120px;">
+                            <div style="font-size: 1.5rem; margin-bottom: 0.25rem;">📸</div>
+                            <div style="font-size: 0.85rem; color: #64748b;">Instagram</div>
+                        </div>
+                        <div style="padding: 1rem; background: #f1f5f9; border-radius: 12px; min-width: 120px;">
+                            <div style="font-size: 1.5rem; margin-bottom: 0.25rem;">🐦</div>
+                            <div style="font-size: 0.85rem; color: #64748b;">Twitter/X</div>
+                        </div>
+                        <div style="padding: 1rem; background: #f1f5f9; border-radius: 12px; min-width: 120px;">
+                            <div style="font-size: 1.5rem; margin-bottom: 0.25rem;">🎵</div>
+                            <div style="font-size: 0.85rem; color: #64748b;">TikTok</div>
+                        </div>
+                    </div>
+                    
+                    <div style="background: #fef3c7; border: 1px solid #fde68a; border-radius: 8px; padding: 1rem; max-width: 400px; margin: 0 auto;">
+                        <p style="margin: 0; color: #92400e; font-size: 0.9rem;">
+                            <strong>How it will work:</strong><br>
+                            Create Offer → Link to GAS Lite → Share to Social Media
+                        </p>
                     </div>
                 </div>
             </div>
