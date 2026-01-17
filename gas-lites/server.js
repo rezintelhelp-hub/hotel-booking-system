@@ -152,6 +152,14 @@ app.get('/:slug', async (req, res) => {
     
     const lite = liteResult.rows[0];
     
+    // Debug account info
+    console.log('Lite account info:', {
+      slug: lite.slug,
+      account_id: lite.account_id,
+      business_name: lite.business_name,
+      account_display_name: lite.account_display_name
+    });
+    
     // Parse display_name from JSON
     lite.display_name = parseJsonTextField(lite.display_name_raw);
     
