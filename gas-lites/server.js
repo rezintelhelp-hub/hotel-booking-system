@@ -725,25 +725,34 @@ app.post('/api/voucher/validate', async (req, res) => {
 // Get active offers for Lite with eligibility check
 app.get('/api/offers/:propertyId', async (req, res) => {
   try {
-    const { checkin, checkout, roomId } = req.query;
+    const { checkin, checkout, roomId, accountId } = req.query;
     const propertyId = req.params.propertyId;
     
+    // Get account_id from property if not provided
+    let accId = accountId;
+    if (!accId) {
+      const propRes = await pool.query('SELECT account_id FROM properties WHERE id = $1', [propertyId]);
+      accId = propRes.rows[0]?.account_id;
+    }
+    
     let query = `
-      SELECT id, name, description, discount_type, discount_value, 
-             valid_from, valid_until, min_nights, max_nights,
-             min_advance_days, max_advance_days,
-             allowed_checkin_days, allowed_checkout_days,
-             available_website
-      FROM offers 
-      WHERE (property_id = $1 OR (property_id IS NULL AND room_id = $2))
-        AND active = true
-        AND available_website = true
-        AND (valid_from IS NULL OR valid_from <= CURRENT_DATE)
-        AND (valid_until IS NULL OR valid_until >= CURRENT_DATE)
-      ORDER BY priority DESC, discount_value DESC
+      SELECT o.id, o.name, o.description, o.discount_type, o.discount_value, 
+             o.valid_from, o.valid_until, o.min_nights, o.max_nights,
+             o.min_advance_days, o.max_advance_days,
+             o.allowed_checkin_days, o.allowed_checkout_days,
+             o.available_website, o.property_id, o.room_id
+      FROM offers o
+      LEFT JOIN properties p ON o.property_id = p.id
+      WHERE o.active = true
+        AND (o.available_website = true OR o.available_website IS NULL)
+        AND (o.account_id = $1 OR p.account_id = $1 OR o.property_id = $2)
+        AND (o.valid_from IS NULL OR o.valid_from <= CURRENT_DATE)
+        AND (o.valid_until IS NULL OR o.valid_until >= CURRENT_DATE)
+        AND ($3::integer IS NULL OR o.room_id IS NULL OR o.room_id = $3)
+      ORDER BY o.priority DESC, o.discount_value DESC
     `;
     
-    const result = await pool.query(query, [propertyId, roomId || null]);
+    const result = await pool.query(query, [accId, propertyId, roomId || null]);
     
     // Filter offers by eligibility if dates provided
     let offers = result.rows;
@@ -1725,6 +1734,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     const currencyCode = '${currencyCode}';
     const roomId = ${roomId || 'null'};
     const propertyId = ${propertyId || 'null'};
+    const accountId = ${accountId || 'null'};
     const liteSlug = '${lite.slug}';
     let currentImage = 0;
     let currentMonth = new Date();
@@ -1945,7 +1955,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
       const checkout = document.getElementById('checkout').value;
       
       try {
-        const res = await fetch('/api/offers/' + propertyId + '?checkin=' + checkin + '&checkout=' + checkout + '&roomId=' + roomId);
+        const res = await fetch('/api/offers/' + propertyId + '?checkin=' + checkin + '&checkout=' + checkout + '&roomId=' + roomId + '&accountId=' + accountId);
         const data = await res.json();
         
         availableOffers = data.offers || [];
