@@ -884,6 +884,190 @@ app.get('/api/deposit/:propertyId', async (req, res) => {
   }
 });
 
+// Get Stripe info for property
+app.get('/api/stripe/:propertyId', async (req, res) => {
+  try {
+    const propertyId = req.params.propertyId;
+    
+    // Check payment_configurations table first
+    let paymentConfig = await pool.query(`
+      SELECT pc.*
+      FROM payment_configurations pc
+      WHERE pc.property_id = $1 AND pc.provider = 'stripe' AND pc.is_enabled = true
+      LIMIT 1
+    `, [propertyId]);
+    
+    // Fall back to account-level config
+    if (paymentConfig.rows.length === 0) {
+      paymentConfig = await pool.query(`
+        SELECT pc.*
+        FROM payment_configurations pc
+        JOIN properties p ON pc.account_id = p.account_id
+        WHERE p.id = $1 AND pc.property_id IS NULL AND pc.provider = 'stripe' AND pc.is_enabled = true
+        LIMIT 1
+      `, [propertyId]);
+    }
+    
+    if (paymentConfig.rows.length > 0) {
+      const config = paymentConfig.rows[0];
+      return res.json({
+        success: true,
+        stripe_enabled: true,
+        stripe_publishable_key: config.credentials?.publishable_key
+      });
+    }
+    
+    // Fall back to legacy property stripe fields
+    const result = await pool.query(`
+      SELECT p.stripe_publishable_key, p.stripe_secret_key, p.stripe_enabled,
+             a.stripe_account_id, a.stripe_onboarding_complete
+      FROM properties p
+      JOIN accounts a ON p.account_id = a.id
+      WHERE p.id = $1
+    `, [propertyId]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: true, stripe_enabled: false });
+    }
+    
+    const data = result.rows[0];
+    const hasPropertyStripe = data.stripe_enabled && data.stripe_publishable_key && data.stripe_secret_key;
+    const hasAccountStripe = !!(data.stripe_account_id && data.stripe_onboarding_complete);
+    
+    res.json({
+      success: true,
+      stripe_enabled: hasPropertyStripe || hasAccountStripe,
+      stripe_publishable_key: hasPropertyStripe ? data.stripe_publishable_key : (hasAccountStripe ? process.env.STRIPE_PUBLISHABLE_KEY : null),
+      stripe_account_id: hasAccountStripe ? data.stripe_account_id : null
+    });
+  } catch (error) {
+    console.error('Stripe info error:', error);
+    res.json({ success: true, stripe_enabled: false });
+  }
+});
+
+// Create payment intent
+app.post('/api/payment-intent', async (req, res) => {
+  try {
+    const { propertyId, amount, currency, bookingData } = req.body;
+    
+    // Check payment_configurations table first
+    let paymentConfig = await pool.query(`
+      SELECT pc.*
+      FROM payment_configurations pc
+      WHERE pc.property_id = $1 AND pc.provider = 'stripe' AND pc.is_enabled = true
+      LIMIT 1
+    `, [propertyId]);
+    
+    // Fall back to account-level config
+    if (paymentConfig.rows.length === 0) {
+      paymentConfig = await pool.query(`
+        SELECT pc.*
+        FROM payment_configurations pc
+        JOIN properties p ON pc.account_id = p.account_id
+        WHERE p.id = $1 AND pc.property_id IS NULL AND pc.provider = 'stripe' AND pc.is_enabled = true
+        LIMIT 1
+      `, [propertyId]);
+    }
+    
+    let paymentIntent;
+    
+    // Use payment_configurations if available
+    if (paymentConfig.rows.length > 0 && paymentConfig.rows[0].credentials?.secret_key) {
+      const config = paymentConfig.rows[0];
+      const Stripe = require('stripe');
+      const configStripe = new Stripe(config.credentials.secret_key);
+      
+      paymentIntent = await configStripe.paymentIntents.create({
+        amount: Math.round(amount * 100),
+        currency: (currency || 'gbp').toLowerCase(),
+        metadata: {
+          property_id: propertyId,
+          guest_email: bookingData?.email || '',
+          check_in: bookingData?.checkin || '',
+          check_out: bookingData?.checkout || '',
+          source: 'gas_lites'
+        }
+      });
+      
+      return res.json({
+        success: true,
+        client_secret: paymentIntent.client_secret,
+        payment_intent_id: paymentIntent.id
+      });
+    }
+    
+    // Fall back to legacy property stripe fields
+    const result = await pool.query(`
+      SELECT p.stripe_secret_key, p.stripe_publishable_key, p.stripe_enabled,
+             a.stripe_account_id
+      FROM properties p
+      JOIN accounts a ON p.account_id = a.id
+      WHERE p.id = $1
+    `, [propertyId]);
+    
+    if (result.rows.length === 0) {
+      return res.status(400).json({ success: false, error: 'Property not found' });
+    }
+    
+    const prop = result.rows[0];
+    const Stripe = require('stripe');
+    
+    // Use property's own Stripe keys
+    if (prop.stripe_enabled && prop.stripe_secret_key) {
+      const propertyStripe = new Stripe(prop.stripe_secret_key);
+      
+      paymentIntent = await propertyStripe.paymentIntents.create({
+        amount: Math.round(amount * 100),
+        currency: (currency || 'gbp').toLowerCase(),
+        metadata: {
+          property_id: propertyId,
+          guest_email: bookingData?.email || '',
+          check_in: bookingData?.checkin || '',
+          check_out: bookingData?.checkout || '',
+          source: 'gas_lites'
+        }
+      });
+      
+      return res.json({
+        success: true,
+        client_secret: paymentIntent.client_secret,
+        payment_intent_id: paymentIntent.id
+      });
+    }
+    // Fall back to Stripe Connect
+    else if (prop.stripe_account_id) {
+      const platformStripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+      
+      paymentIntent = await platformStripe.paymentIntents.create({
+        amount: Math.round(amount * 100),
+        currency: (currency || 'gbp').toLowerCase(),
+        metadata: {
+          property_id: propertyId,
+          guest_email: bookingData?.email || '',
+          check_in: bookingData?.checkin || '',
+          check_out: bookingData?.checkout || '',
+          source: 'gas_lites'
+        }
+      }, {
+        stripeAccount: prop.stripe_account_id
+      });
+      
+      return res.json({
+        success: true,
+        client_secret: paymentIntent.client_secret,
+        payment_intent_id: paymentIntent.id,
+        stripe_account_id: prop.stripe_account_id
+      });
+    }
+    
+    res.status(400).json({ success: false, error: 'Stripe not configured for this property' });
+  } catch (error) {
+    console.error('Payment intent error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Validate voucher code
 app.post('/api/voucher/validate', async (req, res) => {
   try {
@@ -1026,10 +1210,15 @@ app.post('/api/book', async (req, res) => {
     const {
       liteSlug, roomId, propertyId,
       checkin, checkout, adults, children,
-      guestName, guestEmail, guestPhone,
-      upsells, voucherCode, offerId,
+      guestFirstName, guestLastName, guestEmail, guestPhone,
+      guestAddress, guestCity, guestCountry, guestPostcode,
+      notes, marketing,
+      upsells, voucherCode, offerId, offerName, offerDiscount,
+      rateType, paymentMethod, stripePaymentIntentId, depositAmount,
       pricing, total
     } = req.body;
+    
+    const guestName = (guestFirstName + ' ' + guestLastName).trim();
     
     // Validate required fields
     if (!roomId || !checkin || !checkout || !guestName || !guestEmail) {
@@ -1039,26 +1228,40 @@ app.post('/api/book', async (req, res) => {
     // Generate confirmation code
     const confirmationCode = 'GAS' + Date.now().toString(36).toUpperCase() + Math.random().toString(36).substring(2, 6).toUpperCase();
     
+    // Determine payment status
+    let paymentStatus = 'pending';
+    if (paymentMethod === 'card' && stripePaymentIntentId) {
+      paymentStatus = depositAmount ? 'deposit_paid' : 'paid';
+    }
+    
     // Create reservation
     const result = await pool.query(`
       INSERT INTO reservations (
         property_id, room_id, confirmation_code, source,
         check_in, check_out, adults, children,
         guest_name, guest_email, guest_phone,
-        total_price, status, created_at, 
-        upsells_json, voucher_code, offer_id, lite_slug
-      ) VALUES ($1, $2, $3, 'gas-lite', $4, $5, $6, $7, $8, $9, $10, $11, 'pending', NOW(), $12, $13, $14, $15)
+        guest_address, guest_city, guest_country, guest_postcode,
+        notes, marketing_consent,
+        total_price, deposit_amount, payment_status, payment_method,
+        stripe_payment_intent_id, status, created_at, 
+        upsells_json, voucher_code, offer_id, offer_name, offer_discount,
+        rate_type, lite_slug
+      ) VALUES ($1, $2, $3, 'gas-lite', $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, 'confirmed', NOW(), $22, $23, $24, $25, $26, $27, $28)
       RETURNING id, confirmation_code
     `, [
       propertyId, roomId, confirmationCode,
       checkin, checkout, adults || 1, children || 0,
       guestName, guestEmail, guestPhone || null,
-      total, JSON.stringify(upsells || []), voucherCode || null, offerId || null, liteSlug
+      guestAddress || null, guestCity || null, guestCountry || null, guestPostcode || null,
+      notes || null, marketing || false,
+      total, depositAmount || null, paymentStatus, paymentMethod || 'property',
+      stripePaymentIntentId || null,
+      JSON.stringify(upsells || []), voucherCode || null, offerId || null, offerName || null, offerDiscount || null,
+      rateType || 'standard', liteSlug
     ]);
     
     // TODO: Send confirmation email
     // TODO: Push to channel manager
-    // TODO: Process payment
     
     res.json({
       success: true,
@@ -1231,6 +1434,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+  <script src="https://js.stripe.com/v3/"></script>
   <style>
     :root { --accent: ${accent}; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1391,6 +1595,15 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     .deposit-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 14px; }
     .deposit-row:first-child { font-weight: 600; color: var(--accent); }
     .deposit-row.balance { color: #64748b; font-size: 13px; }
+    
+    /* Stripe Card Element */
+    .stripe-section { margin: 20px 0; padding: 20px; background: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0; }
+    .stripe-section h4 { font-size: 14px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+    .stripe-section h4 .lock-icon { color: #059669; }
+    #card-element { padding: 12px; background: white; border: 1px solid #e2e8f0; border-radius: 8px; }
+    #card-errors { color: #dc2626; font-size: 13px; margin-top: 8px; min-height: 20px; }
+    .stripe-badge { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #64748b; margin-top: 12px; }
+    .stripe-badge img { height: 20px; }
     .breakdown-total { display: flex; justify-content: space-between; padding-top: 12px; margin-top: 8px; border-top: 2px solid #e2e8f0; font-weight: 700; font-size: 16px; }
     .upsells-section { margin: 16px 0; padding: 16px 0; border-top: 1px solid #e2e8f0; }
     .upsells-section h4 { font-size: 14px; font-weight: 600; margin-bottom: 12px; color: #1e293b; }
@@ -1916,12 +2129,14 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
               </label>
             </div>
             
-            <div id="cardPaymentSection" style="display:none;">
-              <div class="deposit-info">
-                <div class="deposit-row"><span>Deposit Due Now:</span><span id="depositAmount"></span></div>
-                <div class="deposit-row"><span>Balance on Arrival:</span><span id="balanceAmount"></span></div>
+            <div id="cardPaymentSection" class="stripe-section" style="display:none;">
+              <h4><span class="lock-icon">🔒</span> Secure Card Payment</h4>
+              <div id="card-element"></div>
+              <div id="card-errors" role="alert"></div>
+              <div class="stripe-badge">
+                <span>Powered by</span>
+                <svg width="50" height="20" viewBox="0 0 60 25"><path fill="#635BFF" d="M5 10c0-2.8 1.3-4 3.5-4 1.6 0 2.8.5 3.5 1.3l-.8 1.2c-.5-.6-1.4-1-2.5-1-1.5 0-2.2.8-2.2 2.5v2c0 1.7.7 2.5 2.2 2.5 1.1 0 2-.4 2.5-1l.8 1.2c-.7.8-1.9 1.3-3.5 1.3-2.2 0-3.5-1.2-3.5-4v-2zm8 5V4h1.5v11h-1.5zm4-9c0-.5.4-1 1-1s1 .5 1 1-.4 1-1 1-1-.5-1-1zm.25 2h1.5v7h-1.5v-7zm3 0h1.5v.9c.5-.6 1.2-1 2.1-1 1.6 0 2.5 1 2.5 2.8v4.3h-1.5v-4c0-1.2-.5-1.7-1.5-1.7-.8 0-1.5.4-1.6 1v4.7h-1.5v-7zm8.5-.1c1.4 0 2.4.6 3 1.5l-1 .9c-.4-.6-1.1-1-1.9-1-1.4 0-2.3 1-2.3 2.6 0 1.6.9 2.6 2.3 2.6.8 0 1.5-.4 1.9-1l1 .9c-.6.9-1.6 1.5-3 1.5-2.3 0-3.8-1.5-3.8-4 0-2.6 1.5-4 3.8-4z"/></svg>
               </div>
-              <div id="card-element" class="card-element"></div>
             </div>
             
             <div class="step-nav">
@@ -1983,6 +2198,10 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     let selectedOffer = null;
     let currentTaxes = [];
     let depositRule = null;
+    let stripeEnabled = false;
+    let stripe = null;
+    let cardElement = null;
+    let stripeAccountId = null;
     
     // Initialize Flatpickr date pickers
     document.addEventListener('DOMContentLoaded', function() {
@@ -2040,7 +2259,72 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
       
       // Book button
       document.getElementById('bookBtn').addEventListener('click', () => goToStep(1));
+      
+      // Load Stripe info
+      loadStripeInfo();
+      
+      // Payment option toggle
+      document.querySelectorAll('input[name="payment_method"]').forEach(radio => {
+        radio.addEventListener('change', function() {
+          document.querySelectorAll('.payment-option').forEach(opt => opt.classList.remove('selected'));
+          this.closest('.payment-option').classList.add('selected');
+          
+          const cardSection = document.getElementById('cardPaymentSection');
+          if (this.value === 'card') {
+            cardSection.style.display = 'block';
+          } else {
+            cardSection.style.display = 'none';
+          }
+        });
+      });
     });
+    
+    // Load Stripe configuration
+    async function loadStripeInfo() {
+      try {
+        const res = await fetch('/api/stripe/' + propertyId);
+        const data = await res.json();
+        
+        if (data.success && data.stripe_enabled && data.stripe_publishable_key) {
+          stripeEnabled = true;
+          stripeAccountId = data.stripe_account_id || null;
+          
+          // Initialize Stripe
+          const stripeOptions = stripeAccountId ? { stripeAccount: stripeAccountId } : {};
+          stripe = Stripe(data.stripe_publishable_key, stripeOptions);
+          
+          // Create card element
+          const elements = stripe.elements();
+          cardElement = elements.create('card', {
+            style: {
+              base: {
+                fontSize: '16px',
+                color: '#1e293b',
+                fontFamily: 'Inter, system-ui, sans-serif',
+                '::placeholder': { color: '#94a3b8' }
+              },
+              invalid: { color: '#dc2626' }
+            }
+          });
+          cardElement.mount('#card-element');
+          
+          // Handle card errors
+          cardElement.on('change', function(event) {
+            const displayError = document.getElementById('card-errors');
+            displayError.textContent = event.error ? event.error.message : '';
+          });
+          
+          // Enable card payment option
+          const cardOption = document.getElementById('cardPaymentOption');
+          cardOption.style.display = 'block';
+          cardOption.classList.remove('disabled');
+          cardOption.querySelector('input').disabled = false;
+          cardOption.querySelector('.payment-details span').textContent = 'Secure payment via Stripe';
+        }
+      } catch (e) {
+        console.log('Stripe not available:', e);
+      }
+    }
     
     function checkEmailMatch() {
       const email = document.getElementById('guestEmail').value;
@@ -2640,8 +2924,60 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
       confirmBtn.disabled = true;
       
       const total = parseFloat(document.getElementById('totalAmount').textContent.replace(/[^0-9.]/g, ''));
+      const paymentMethod = document.querySelector('input[name="payment_method"]:checked')?.value || 'property';
+      
+      let stripePaymentIntentId = null;
       
       try {
+        // Handle card payment with Stripe
+        if (paymentMethod === 'card' && stripeEnabled && cardElement) {
+          const paymentAmount = window.currentDepositAmount || total;
+          
+          // Create payment intent
+          const intentRes = await fetch('/api/payment-intent', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              propertyId,
+              amount: paymentAmount,
+              currency: currencyCode,
+              bookingData: {
+                email: document.getElementById('guestEmail').value,
+                checkin: document.getElementById('checkin').value,
+                checkout: document.getElementById('checkout').value
+              }
+            })
+          });
+          const intentData = await intentRes.json();
+          
+          if (!intentData.success) {
+            throw new Error(intentData.error || 'Failed to create payment');
+          }
+          
+          // Confirm card payment
+          const { error, paymentIntent } = await stripe.confirmCardPayment(intentData.client_secret, {
+            payment_method: {
+              card: cardElement,
+              billing_details: {
+                name: document.getElementById('firstName').value + ' ' + document.getElementById('lastName').value,
+                email: document.getElementById('guestEmail').value,
+                phone: document.getElementById('guestPhone').value
+              }
+            }
+          });
+          
+          if (error) {
+            throw new Error(error.message);
+          }
+          
+          if (paymentIntent.status === 'succeeded') {
+            stripePaymentIntentId = paymentIntent.id;
+          } else {
+            throw new Error('Payment was not completed');
+          }
+        }
+        
+        // Create booking
         const res = await fetch('/api/book', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -2669,7 +3005,9 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
             offerName: selectedOffer?.name,
             offerDiscount: selectedOffer ? (selectedOffer.discount_type === 'percentage' ? currentPricing.nightlyTotal * (selectedOffer.discount_value / 100) : parseFloat(selectedOffer.discount_value)) : 0,
             rateType: selectedOffer ? 'offer' : 'standard',
-            paymentMethod: document.querySelector('input[name="payment_method"]:checked')?.value || 'property',
+            paymentMethod: paymentMethod,
+            stripePaymentIntentId: stripePaymentIntentId,
+            depositAmount: window.currentDepositAmount || null,
             pricing: currentPricing,
             total: total
           })
@@ -2701,7 +3039,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
           confirmBtn.disabled = false;
         }
       } catch (e) {
-        alert('Error processing booking. Please try again.');
+        alert(e.message || 'Error processing booking. Please try again.');
         btnText.style.display = 'inline';
         btnLoading.style.display = 'none';
         confirmBtn.disabled = false;
