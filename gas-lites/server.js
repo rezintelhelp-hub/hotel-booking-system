@@ -897,7 +897,9 @@ function renderError(msg) {
 }
 
 function renderFullPage({ lite, images, amenities, reviews, availability, todayPrice, qrCode, liteUrl, showReviews, roomId, propertyId }) {
-  const title = lite.custom_title || lite.display_name || lite.room_name || lite.property_name;
+  // Parse display_name if it's JSON
+  const displayName = parseDescription(lite.display_name);
+  const title = lite.custom_title || displayName || lite.room_name || lite.property_name;
   
   // Short description for intro/tagline
   const rawShortDesc = lite.room_short_desc || lite.property_short_desc || '';
@@ -2296,20 +2298,14 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
 }
 
 function renderPromoCard({ lite, image, price, offer, qrCode, liteUrl }) {
-  const title = lite.custom_title || lite.display_name || lite.room_name || lite.name;
+  // Parse display_name if it's JSON
+  const displayName = parseDescription(lite.display_name);
+  const title = lite.custom_title || displayName || lite.room_name || lite.name;
   const currency = getCurrencySymbol(lite.currency);
   const accent = lite.accent_color || '#3b82f6';
   
   // Parse short_description if it's JSON
-  let shortDesc = lite.short_description || '';
-  if (typeof shortDesc === 'object') {
-    shortDesc = shortDesc.en || shortDesc.EN || Object.values(shortDesc)[0] || '';
-  } else if (typeof shortDesc === 'string' && shortDesc.trim().startsWith('{')) {
-    try {
-      const parsed = JSON.parse(shortDesc);
-      shortDesc = parsed.en || parsed.EN || Object.values(parsed)[0] || '';
-    } catch (e) {}
-  }
+  let shortDesc = parseDescription(lite.short_description);
   
   return `<!DOCTYPE html>
 <html lang="en">
@@ -2377,7 +2373,9 @@ function renderPromoCard({ lite, image, price, offer, qrCode, liteUrl }) {
 }
 
 function renderPrintCard({ lite, qrCode, liteUrl, image }) {
-  const title = lite.custom_title || lite.display_name || lite.room_name || lite.name;
+  // Parse display_name if it's JSON
+  const displayName = parseDescription(lite.display_name);
+  const title = lite.custom_title || displayName || lite.room_name || lite.name;
   return `<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><title>Print - ${title}</title>
 <style>
