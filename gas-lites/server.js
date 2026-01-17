@@ -233,7 +233,7 @@ app.get('/:slug/card', async (req, res) => {
     const liteResult = await pool.query(`
       SELECT l.*, p.name, p.city, p.country, p.currency, p.short_description,
              p.average_rating, p.pets_allowed, p.children_allowed,
-             bu.name as room_name, bu.bedroom_count, bu.max_guests, bu.base_price
+             bu.name as room_name, bu.display_name, bu.bedroom_count, bu.max_guests, bu.base_price
       FROM gas_lites l
       JOIN properties p ON l.property_id = p.id
       LEFT JOIN bookable_units bu ON l.room_id = bu.id
@@ -314,7 +314,7 @@ app.get('/:slug/print', async (req, res) => {
     const { slug } = req.params;
     const liteResult = await pool.query(`
       SELECT l.*, p.name, p.city, p.country, p.contact_phone, p.contact_email,
-             bu.name as room_name
+             bu.name as room_name, bu.display_name
       FROM gas_lites l 
       JOIN properties p ON l.property_id = p.id
       LEFT JOIN bookable_units bu ON l.room_id = bu.id
@@ -497,7 +497,7 @@ app.post('/api/room/:roomId/lite', async (req, res) => {
 
 app.get('/api/account/:accountId', async (req, res) => {
   const result = await pool.query(`
-    SELECT l.*, p.name as property_name, p.city, bu.name as room_name FROM gas_lites l
+    SELECT l.*, p.name as property_name, p.city, bu.name as room_name, bu.display_name FROM gas_lites l
     JOIN properties p ON l.property_id = p.id
     LEFT JOIN bookable_units bu ON l.room_id = bu.id
     WHERE l.account_id = $1
