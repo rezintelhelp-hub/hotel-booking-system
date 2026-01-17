@@ -133,12 +133,16 @@ app.get('/:slug', async (req, res) => {
              bu.short_description as room_short_desc, bu.full_description as room_full_desc,
              bu.bedroom_count, bu.bathroom_count, bu.max_guests, bu.base_price,
              bu.unit_type as room_type,
-             a.id as account_id, a.business_name, a.plan, a.settings as account_settings,
-             a.business_name as account_display_name
+             COALESCE(a.id, pa.id) as account_id,
+             COALESCE(a.business_name, pa.business_name) as business_name,
+             COALESCE(a.plan, pa.plan) as plan,
+             COALESCE(a.settings, pa.settings) as account_settings,
+             COALESCE(a.business_name, pa.business_name) as account_display_name
       FROM gas_lites l
       JOIN properties p ON l.property_id = p.id
       LEFT JOIN bookable_units bu ON l.room_id = bu.id
       LEFT JOIN accounts a ON l.account_id = a.id
+      LEFT JOIN accounts pa ON p.account_id = pa.id
       WHERE l.slug = $1 AND l.active = true
     `, [slug.toLowerCase()]);
     
@@ -259,10 +263,13 @@ app.get('/:slug/card', async (req, res) => {
       SELECT l.*, p.name, p.city, p.country, p.currency, p.short_description,
              p.average_rating, p.pets_allowed, p.children_allowed,
              bu.name as room_name, bu.display_name as display_name_raw,
-             bu.bedroom_count, bu.max_guests, bu.base_price
+             bu.bedroom_count, bu.max_guests, bu.base_price,
+             COALESCE(a.business_name, pa.business_name) as account_display_name
       FROM gas_lites l
       JOIN properties p ON l.property_id = p.id
       LEFT JOIN bookable_units bu ON l.room_id = bu.id
+      LEFT JOIN accounts a ON l.account_id = a.id
+      LEFT JOIN accounts pa ON p.account_id = pa.id
       WHERE l.slug = $1 AND l.active = true
     `, [slug.toLowerCase()]);
     
@@ -3123,7 +3130,7 @@ function renderPromoCard({ lite, image, price, offer, qrCode, liteUrl, hasOffers
       <img src="${qrCode}" alt="QR">
       <div><div class="qr-text">Scan to view on your phone</div><div class="qr-url">#${lite.slug}</div></div>
     </div>
-    <div class="footer">Powered by GAS.travel</div>
+    <div class="footer">${lite.account_display_name ? `<strong>${escapeForHTML(lite.account_display_name)}</strong> • ` : ''}Powered by GAS.travel</div>
   </div>
 </body>
 </html>`;
