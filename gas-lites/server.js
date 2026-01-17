@@ -1481,10 +1481,6 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
               <div class="guest-field"><label>Adults</label><select id="adults">${[1,2,3,4,5,6,7,8].map(n => `<option value="${n}">${n}</option>`).join('')}</select></div>
               <div class="guest-field"><label>Children <span class="child-age-hint">(under 12)</span></label><select id="children">${[0,1,2,3,4,5].map(n => `<option value="${n}">${n}</option>`).join('')}</select></div>
             </div>
-            <button class="book-btn" id="bookBtn" disabled>
-              <span class="btn-text">Select dates to check availability</span>
-              <span class="btn-loading" style="display:none;">Checking...</span>
-            </button>
             
             <!-- Special Offer Banner -->
             <div id="offerBanner" class="offer-banner">
@@ -1530,6 +1526,12 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
               </div>
               <div id="voucherMsg" class="voucher-msg"></div>
             </div>
+            
+            <!-- Book Button (at bottom after all options) -->
+            <button class="book-btn" id="bookBtn" disabled>
+              <span class="btn-text">Select dates to check availability</span>
+              <span class="btn-loading" style="display:none;">Checking...</span>
+            </button>
           </div>
           
           <!-- Step 1: Guest Details -->
