@@ -314,10 +314,28 @@ app.get('/:slug/card', async (req, res) => {
       activeOffer = offerRes.rows[0];
     }
     
+    // Check if there are ANY active offers for this property/account (for the star badge)
+    const accRes = await pool.query('SELECT account_id FROM properties WHERE id = $1', [lite.property_id]);
+    const accId = accRes.rows[0]?.account_id;
+    let hasOffers = false;
+    if (accId) {
+      const offersCheck = await pool.query(`
+        SELECT 1 FROM offers o
+        LEFT JOIN properties p ON o.property_id = p.id
+        WHERE o.active = true
+          AND (o.available_website = true OR o.available_website IS NULL)
+          AND (o.account_id = $1 OR p.account_id = $1 OR o.property_id = $2)
+          AND (o.valid_from IS NULL OR o.valid_from <= CURRENT_DATE)
+          AND (o.valid_until IS NULL OR o.valid_until >= CURRENT_DATE)
+        LIMIT 1
+      `, [accId, lite.property_id]);
+      hasOffers = offersCheck.rows.length > 0;
+    }
+    
     const liteUrl = `https://lite.gas.travel/#${slug}`;
     const qrCode = await QRCode.toDataURL(liteUrl, { width: 200, margin: 1 });
     
-    res.send(renderPromoCard({ lite, image, price, offer: activeOffer, qrCode, liteUrl }));
+    res.send(renderPromoCard({ lite, image, price, offer: activeOffer, qrCode, liteUrl, hasOffers }));
   } catch (error) {
     console.error('Card error:', error);
     res.status(500).send(renderError());
@@ -1470,6 +1488,13 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
         <div class="booking-card">
           <!-- Step 0: Initial booking selection -->
           <div id="bookingStep0">
+            <!-- Special Offer Banner (at top) -->
+            <div id="offerBanner" class="offer-banner">
+              <div class="offer-banner-badge">🎉 Special Offer</div>
+              <div class="offer-banner-title">We have special rates available for your dates!</div>
+              <div class="offer-banner-hint">See rate options below ↓</div>
+            </div>
+            
             <div class="price-display">
               ${price ? `<span class="price-amount">${currency}${Math.round(price).toLocaleString()}</span><span class="price-period"> / night</span>` : '<span class="price-amount">Check availability</span>'}
             </div>
@@ -1480,13 +1505,6 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
             <div class="guest-fields">
               <div class="guest-field"><label>Adults</label><select id="adults">${[1,2,3,4,5,6,7,8].map(n => `<option value="${n}">${n}</option>`).join('')}</select></div>
               <div class="guest-field"><label>Children <span class="child-age-hint">(under 12)</span></label><select id="children">${[0,1,2,3,4,5].map(n => `<option value="${n}">${n}</option>`).join('')}</select></div>
-            </div>
-            
-            <!-- Special Offer Banner -->
-            <div id="offerBanner" class="offer-banner">
-              <div class="offer-banner-badge">🎉 Special Offer</div>
-              <div class="offer-banner-title">We have special rates available for your dates!</div>
-              <div class="offer-banner-hint">See rate options below ↓</div>
             </div>
             
             <!-- Rate Options (shown when offers available) -->
@@ -2367,7 +2385,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
 </html>`;
 }
 
-function renderPromoCard({ lite, image, price, offer, qrCode, liteUrl }) {
+function renderPromoCard({ lite, image, price, offer, qrCode, liteUrl, hasOffers }) {
   // Use custom_title only if it's different from room_name (i.e., truly custom)
   const effectiveCustomTitle = (lite.custom_title && lite.custom_title !== lite.room_name) ? lite.custom_title : null;
   const title = effectiveCustomTitle || lite.display_name || lite.room_name || lite.name;
@@ -2393,7 +2411,8 @@ function renderPromoCard({ lite, image, price, offer, qrCode, liteUrl }) {
     .hero-overlay { position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(transparent, rgba(0,0,0,0.8)); padding: 40px 20px 20px; color: white; }
     .location { font-size: 14px; opacity: 0.9; margin-bottom: 4px; }
     .title { font-size: 1.5rem; font-weight: 700; }
-    ${offer ? `.offer-badge { position: absolute; top: 16px; right: 16px; background: #ef4444; color: white; padding: 8px 16px; border-radius: 20px; font-weight: 600; font-size: 14px; }` : ''}
+    .offer-star { position: absolute; top: 12px; left: 12px; background: linear-gradient(135deg, #f59e0b, #d97706); color: white; padding: 6px 12px; border-radius: 20px; font-weight: 600; font-size: 12px; display: flex; align-items: center; gap: 4px; box-shadow: 0 2px 8px rgba(245,158,11,0.4); }
+    ${offer ? `.offer-badge { position: absolute; top: 12px; right: 12px; background: #ef4444; color: white; padding: 6px 12px; border-radius: 20px; font-weight: 600; font-size: 12px; }` : ''}
     .content { padding: 20px; }
     .tagline { color: #64748b; font-size: 14px; line-height: 1.6; margin-bottom: 16px; }
     .features { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
@@ -2412,6 +2431,7 @@ function renderPromoCard({ lite, image, price, offer, qrCode, liteUrl }) {
   <div class="card">
     <div class="hero">
       ${image ? `<img src="${image}" alt="${escapeForHTML(title)}">` : '<div style="background:#e2e8f0;height:100%;display:flex;align-items:center;justify-content:center;font-size:60px;">🏠</div>'}
+      ${hasOffers ? '<div class="offer-star">⭐ Special Offers</div>' : ''}
       ${offer ? `<div class="offer-badge">🔥 ${offer.discount_value}% OFF</div>` : ''}
       <div class="hero-overlay">
         <div class="location">📍 ${escapeForHTML(lite.city || '')}${lite.country ? ', ' + escapeForHTML(lite.country) : ''}</div>
