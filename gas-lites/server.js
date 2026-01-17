@@ -850,7 +850,7 @@ function renderError(msg) {
 }
 
 function renderFullPage({ lite, images, amenities, reviews, availability, todayPrice, qrCode, liteUrl, showReviews, roomId, propertyId }) {
-  const title = lite.custom_title || lite.room_name || lite.property_name;
+  const title = lite.custom_title || lite.display_name || lite.room_name || lite.property_name;
   
   // Short description for intro/tagline
   const rawShortDesc = lite.room_short_desc || lite.property_short_desc || '';
@@ -2125,7 +2125,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
 }
 
 function renderPromoCard({ lite, image, price, offer, qrCode, liteUrl }) {
-  const title = lite.custom_title || lite.room_name || lite.name;
+  const title = lite.custom_title || lite.display_name || lite.room_name || lite.name;
   const currency = getCurrencySymbol(lite.currency);
   const accent = lite.accent_color || '#3b82f6';
   
@@ -2206,7 +2206,7 @@ function renderPromoCard({ lite, image, price, offer, qrCode, liteUrl }) {
 }
 
 function renderPrintCard({ lite, qrCode, liteUrl, image }) {
-  const title = lite.custom_title || lite.room_name || lite.name;
+  const title = lite.custom_title || lite.display_name || lite.room_name || lite.name;
   return `<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><title>Print - ${title}</title>
 <style>
