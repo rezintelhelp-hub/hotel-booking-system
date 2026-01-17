@@ -813,6 +813,19 @@ function getCurrencySymbol(c) {
   return s[c] || (c ? c+' ' : '$');
 }
 
+// Escape string for safe use in JavaScript
+function escapeForJS(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r')
+    .replace(/`/g, '\\`')
+    .replace(/\$/g, '\\$');
+}
+
 function renderNotFound(slug) {
   return `<!DOCTYPE html><html><head><title>Not Found</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -881,7 +894,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${title} | Book Direct</title>
   <meta name="description" content="${String(description).substring(0,160).replace(/"/g, '&quot;')}">
-  <meta property="og:title" content="${title}">
+  <meta property="og:title" content="${String(title).replace(/"/g, '&quot;')}">
   <meta property="og:image" content="${images[0]?.url || ''}">
   <meta property="og:url" content="${liteUrl}">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -1071,7 +1084,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
   <div class="container">
     <div class="gallery">
       ${images.length > 0 ? `
-        <img src="${images[0].url}" alt="${title}" class="gallery-main" onclick="openLightbox(0)">
+        <img src="${images[0].url}" alt="${escapeForJS(title)}" class="gallery-main" onclick="openLightbox(0)">
         <div class="gallery-grid">
           ${images.slice(1, 5).map((img, i) => {
             if (i === 3 && images.length > 5) {
@@ -1220,7 +1233,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
           <div class="tab-content" id="tab-location">
             ${lite.latitude && lite.longitude ? `
               <div class="map-section">
-                <iframe src="https://www.openstreetmap.org/export/embed.html?bbox=${lite.longitude-0.01},${lite.latitude-0.01},${lite.longitude+0.01},${lite.latitude+0.01}&layer=mapnik&marker=${lite.latitude},${lite.longitude}"></iframe>
+                <iframe src="https://www.openstreetmap.org/export/embed.html?bbox=${parseFloat(lite.longitude)-0.01},${parseFloat(lite.latitude)-0.01},${parseFloat(lite.longitude)+0.01},${parseFloat(lite.latitude)+0.01}&layer=mapnik&marker=${lite.latitude},${lite.longitude}"></iframe>
               </div>
             ` : '<p>Location not available.</p>'}
           </div>
@@ -1313,7 +1326,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     
     // Share
     function shareProperty() { 
-      if (navigator.share) navigator.share({ title: '${title.replace(/'/g, "\\'")}', url: '${liteUrl}' }); 
+      if (navigator.share) navigator.share({ title: '${escapeForJS(title)}', url: '${liteUrl}' }); 
       else { navigator.clipboard.writeText('${liteUrl}'); alert('Link copied!'); } 
     }
     
@@ -1678,7 +1691,7 @@ function renderPromoCard({ lite, image, price, offer, qrCode, liteUrl }) {
 <body>
   <div class="card">
     <div class="hero">
-      ${image ? `<img src="${image}" alt="${title}">` : '<div style="background:#e2e8f0;height:100%;display:flex;align-items:center;justify-content:center;font-size:60px;">🏠</div>'}
+      ${image ? `<img src="${image}" alt="${escapeForJS(title)}">` : '<div style="background:#e2e8f0;height:100%;display:flex;align-items:center;justify-content:center;font-size:60px;">🏠</div>'}
       ${offer ? `<div class="offer-badge">🔥 ${offer.discount_value}% OFF</div>` : ''}
       <div class="hero-overlay">
         <div class="location">📍 ${lite.city}${lite.country ? ', ' + lite.country : ''}</div>
