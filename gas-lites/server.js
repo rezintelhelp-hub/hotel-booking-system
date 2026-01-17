@@ -861,6 +861,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
   const description = parseDescription(rawFullDesc);
   
   const currency = getCurrencySymbol(lite.currency);
+  const currencyCode = lite.currency || 'USD';
   const price = todayPrice;
   const accent = lite.accent_color || '#3b82f6';
   
