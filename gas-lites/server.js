@@ -671,17 +671,58 @@ app.get('/api/pricing/:roomId', async (req, res) => {
 });
 
 // Get upsells for property/room
-app.get('/api/upsells/:propertyId', async (req, res) => {
+app.get('/api/upsells/:roomId', async (req, res) => {
   try {
+    const roomId = req.params.roomId;
+    const { propertyId, accountId } = req.query;
+    
+    // Get property_id and account_id if not provided
+    let propId = propertyId;
+    let accId = accountId;
+    if (!propId || !accId) {
+      const roomRes = await pool.query(`
+        SELECT bu.property_id, p.account_id 
+        FROM bookable_units bu 
+        JOIN properties p ON bu.property_id = p.id 
+        WHERE bu.id = $1
+      `, [roomId]);
+      if (roomRes.rows[0]) {
+        propId = propId || roomRes.rows[0].property_id;
+        accId = accId || roomRes.rows[0].account_id;
+      }
+    }
+    
     const result = await pool.query(`
-      SELECT id, name, description, price, upsell_type, is_per_night, is_per_guest, icon
-      FROM upsells 
-      WHERE property_id = $1 AND active = true
-      ORDER BY sort_order, name
-    `, [req.params.propertyId]);
-    res.json({ success: true, upsells: result.rows });
+      SELECT u.id, u.name, u.description, u.price, u.charge_type, u.max_quantity, 
+             u.image_url, u.category, u.property_id, u.room_id, u.room_ids
+      FROM upsells u
+      LEFT JOIN properties p ON u.property_id = p.id
+      WHERE u.active = true
+        AND (p.account_id = $1 OR u.property_id IS NULL OR u.property_id = $2)
+        AND (
+          u.room_id IS NULL 
+          OR u.room_id = $3
+          OR u.room_ids LIKE '%' || $3::text || '%'
+        )
+      ORDER BY u.category NULLS LAST, u.name
+    `, [accId, propId, roomId]);
+    
+    // Group by category
+    const grouped = {};
+    result.rows.forEach(upsell => {
+      const cat = upsell.category || 'Extras';
+      if (!grouped[cat]) grouped[cat] = [];
+      grouped[cat].push(upsell);
+    });
+    
+    res.json({ 
+      success: true, 
+      upsells: result.rows,
+      upsells_by_category: grouped
+    });
   } catch (error) {
-    res.json({ success: true, upsells: [] }); // Return empty if table doesn't exist
+    console.error('Upsells error:', error);
+    res.json({ success: true, upsells: [] });
   }
 });
 
@@ -1200,6 +1241,8 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     .upsell-name { font-size: 14px; font-weight: 600; }
     .upsell-desc { font-size: 12px; color: #64748b; }
     .upsell-price { font-weight: 700; font-size: 14px; color: var(--accent); }
+    .upsell-price small { font-weight: 400; font-size: 11px; color: #64748b; }
+    .upsell-category { font-size: 12px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin: 12px 0 8px 0; padding-bottom: 4px; border-bottom: 1px solid #e2e8f0; }
     
     /* Voucher Section */
     .voucher-section { margin: 16px 0; padding-top: 16px; border-top: 1px solid #e2e8f0; }
@@ -2096,8 +2139,18 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
       
       selectedUpsells.forEach(u => {
         let uPrice = parseFloat(u.price) || 0;
-        if (u.is_per_night) uPrice *= nights;
-        if (u.is_per_guest) uPrice *= guests;
+        switch (u.charge_type) {
+          case 'per_night':
+            uPrice *= nights;
+            break;
+          case 'per_guest':
+            uPrice *= guests;
+            break;
+          case 'per_guest_per_night':
+            uPrice *= nights * guests;
+            break;
+          // 'per_booking' or default - no multiplication
+        }
         upsellTotal += uPrice;
       });
       
@@ -2138,26 +2191,46 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     // Load upsells
     async function loadUpsells() {
       try {
-        const res = await fetch('/api/upsells/' + roomId);
+        const res = await fetch('/api/upsells/' + roomId + '?propertyId=' + propertyId + '&accountId=' + accountId);
         const data = await res.json();
         
         if (data.success && data.upsells && data.upsells.length > 0) {
           const list = document.getElementById('upsellsList');
-          list.innerHTML = data.upsells.map(u => {
-            const priceText = u.charge_type === 'per_night' ? '/night' : u.charge_type === 'per_guest' ? '/guest' : u.charge_type === 'per_guest_per_night' ? '/guest/night' : '';
-            return '<div class="upsell-item" data-id="' + u.id + '" data-upsell=\\'' + JSON.stringify(u).replace(/'/g, "\\\\'") + '\\' onclick="toggleUpsell(this)">' +
-              '<div class="upsell-checkbox"></div>' +
-              '<div class="upsell-info"><div class="upsell-name">' + (u.name || '').replace(/</g, '&lt;') + '</div>' +
-              (u.description ? '<div class="upsell-desc">' + u.description.replace(/</g, '&lt;') + '</div>' : '') + '</div>' +
-              '<div class="upsell-price">' + currency + u.price + '<small>' + priceText + '</small></div>' +
-            '</div>';
-          }).join('');
+          let html = '';
           
+          // If we have categories, group them
+          if (data.upsells_by_category && Object.keys(data.upsells_by_category).length > 1) {
+            for (const [category, upsells] of Object.entries(data.upsells_by_category)) {
+              html += '<div class="upsell-category">' + category + '</div>';
+              html += upsells.map(u => renderUpsellItem(u)).join('');
+            }
+          } else {
+            html = data.upsells.map(u => renderUpsellItem(u)).join('');
+          }
+          
+          list.innerHTML = html;
           document.getElementById('upsellsSection').style.display = 'block';
         }
       } catch (e) {
         console.log('No upsells available');
       }
+    }
+    
+    function renderUpsellItem(u) {
+      let priceText = '';
+      switch (u.charge_type) {
+        case 'per_night': priceText = '/night'; break;
+        case 'per_guest': priceText = '/guest'; break;
+        case 'per_guest_per_night': priceText = '/guest/night'; break;
+        default: priceText = '';
+      }
+      
+      return '<div class="upsell-item" data-id="' + u.id + '" data-upsell=\'' + JSON.stringify(u).replace(/'/g, "\\'") + '\' onclick="toggleUpsell(this)">' +
+        '<div class="upsell-checkbox"></div>' +
+        '<div class="upsell-info"><div class="upsell-name">' + (u.name || '').replace(/</g, '&lt;') + '</div>' +
+        (u.description ? '<div class="upsell-desc">' + u.description.replace(/</g, '&lt;') + '</div>' : '') + '</div>' +
+        '<div class="upsell-price">' + currency + parseFloat(u.price).toFixed(2) + '<small>' + priceText + '</small></div>' +
+      '</div>';
     }
     
     function toggleUpsell(el) {
