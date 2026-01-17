@@ -128,11 +128,15 @@ app.get('/:slug', async (req, res) => {
              p.contact_email, p.contact_phone, p.website_url,
              p.house_rules, p.cancellation_policy,
              p.pets_allowed, p.smoking_allowed, p.children_allowed,
+             p.account_id as property_account_id,
              bu.id as room_id, bu.name as room_name,
              bu.display_name as display_name_raw,
              bu.short_description as room_short_desc, bu.full_description as room_full_desc,
              bu.bedroom_count, bu.bathroom_count, bu.max_guests, bu.base_price,
              bu.unit_type as room_type,
+             l.account_id as lite_account_id,
+             a.id as a_id, a.business_name as a_business_name,
+             pa.id as pa_id, pa.business_name as pa_business_name,
              COALESCE(a.id, pa.id) as account_id,
              COALESCE(a.business_name, pa.business_name) as business_name,
              COALESCE(a.plan, pa.plan) as plan,
@@ -155,8 +159,14 @@ app.get('/:slug', async (req, res) => {
     // Debug account info
     console.log('Lite account info:', {
       slug: lite.slug,
-      account_id: lite.account_id,
-      business_name: lite.business_name,
+      lite_account_id: lite.lite_account_id,
+      property_account_id: lite.property_account_id,
+      a_id: lite.a_id,
+      a_business_name: lite.a_business_name,
+      pa_id: lite.pa_id,
+      pa_business_name: lite.pa_business_name,
+      final_account_id: lite.account_id,
+      final_business_name: lite.business_name,
       account_display_name: lite.account_display_name
     });
     
