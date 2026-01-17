@@ -2995,26 +2995,26 @@
 
                 <!-- Property/Room Selector -->
                 <div class="card" style="margin-bottom: 1rem;">
-                    <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
-                        <div style="flex: 1; min-width: 200px;">
+                    <div style="display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap;">
+                        <div style="min-width: 200px; max-width: 280px;">
                             <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Property</label>
                             <select id="offers-property-select" class="form-input" onchange="loadOffersRooms()">
                                 <option value="">Select Property...</option>
                             </select>
                         </div>
-                        <div style="flex: 1; min-width: 200px;">
+                        <div style="min-width: 200px; max-width: 280px;">
                             <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Room/Unit</label>
                             <select id="offers-room-select" class="form-input" onchange="loadOffersPricingGrid()">
                                 <option value="">Select Room...</option>
                             </select>
                         </div>
-                        <div style="display: flex; gap: 0.5rem; align-items: flex-end; padding-bottom: 2px;">
-                            <button class="btn btn-secondary" onclick="loadOffersPricingGrid()" title="Refresh" style="padding: 0.5rem 0.75rem;">&#x21bb;</button>
-                            <button class="btn btn-secondary" onclick="shiftOffersDays(-7)">&laquo;&laquo;</button>
-                            <button class="btn btn-secondary" onclick="shiftOffersDays(-1)">&laquo;</button>
+                        <div style="display: flex; gap: 0.5rem; align-items: center; margin-bottom: 1px;">
+                            <button class="btn btn-secondary" onclick="loadOffersPricingGrid()" title="Refresh" style="padding: 0.5rem 0.65rem;">↻</button>
+                            <button class="btn btn-secondary" onclick="shiftOffersDays(-7)">««</button>
+                            <button class="btn btn-secondary" onclick="shiftOffersDays(-1)">«</button>
                             <button class="btn btn-secondary" onclick="offersGoToToday()">Today</button>
-                            <button class="btn btn-secondary" onclick="shiftOffersDays(1)">&raquo;</button>
-                            <button class="btn btn-secondary" onclick="shiftOffersDays(7)">&raquo;&raquo;</button>
+                            <button class="btn btn-secondary" onclick="shiftOffersDays(1)">»</button>
+                            <button class="btn btn-secondary" onclick="shiftOffersDays(7)">»»</button>
                         </div>
                     </div>
                 </div>
