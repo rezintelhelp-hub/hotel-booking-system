@@ -681,21 +681,68 @@ app.post('/api/voucher/validate', async (req, res) => {
   }
 });
 
-// Get active offers for Lite
+// Get active offers for Lite with eligibility check
 app.get('/api/offers/:propertyId', async (req, res) => {
   try {
-    const result = await pool.query(`
+    const { checkin, checkout, roomId } = req.query;
+    const propertyId = req.params.propertyId;
+    
+    let query = `
       SELECT id, name, description, discount_type, discount_value, 
-             valid_from, valid_until, promo_code, min_nights
+             valid_from, valid_until, min_nights, max_nights,
+             min_advance_days, max_advance_days,
+             allowed_checkin_days, allowed_checkout_days,
+             available_website
       FROM offers 
-      WHERE property_id = $1 
+      WHERE (property_id = $1 OR (property_id IS NULL AND room_id = $2))
         AND active = true
+        AND available_website = true
         AND (valid_from IS NULL OR valid_from <= CURRENT_DATE)
         AND (valid_until IS NULL OR valid_until >= CURRENT_DATE)
-      ORDER BY discount_value DESC
-    `, [req.params.propertyId]);
-    res.json({ success: true, offers: result.rows });
+      ORDER BY priority DESC, discount_value DESC
+    `;
+    
+    const result = await pool.query(query, [propertyId, roomId || null]);
+    
+    // Filter offers by eligibility if dates provided
+    let offers = result.rows;
+    if (checkin && checkout) {
+      const checkinDate = new Date(checkin);
+      const checkoutDate = new Date(checkout);
+      const nights = Math.ceil((checkoutDate - checkinDate) / (1000 * 60 * 60 * 24));
+      const today = new Date();
+      const advanceDays = Math.ceil((checkinDate - today) / (1000 * 60 * 60 * 24));
+      const checkinDayOfWeek = checkinDate.getDay();
+      const checkoutDayOfWeek = checkoutDate.getDay();
+      
+      offers = offers.filter(offer => {
+        // Check min/max nights
+        if (offer.min_nights && nights < offer.min_nights) return false;
+        if (offer.max_nights && nights > offer.max_nights) return false;
+        
+        // Check advance booking days
+        if (offer.min_advance_days && advanceDays < offer.min_advance_days) return false;
+        if (offer.max_advance_days && advanceDays > offer.max_advance_days) return false;
+        
+        // Check allowed check-in days
+        if (offer.allowed_checkin_days) {
+          const allowedDays = offer.allowed_checkin_days.split(',').map(d => parseInt(d));
+          if (!allowedDays.includes(checkinDayOfWeek)) return false;
+        }
+        
+        // Check allowed check-out days
+        if (offer.allowed_checkout_days) {
+          const allowedDays = offer.allowed_checkout_days.split(',').map(d => parseInt(d));
+          if (!allowedDays.includes(checkoutDayOfWeek)) return false;
+        }
+        
+        return true;
+      });
+    }
+    
+    res.json({ success: true, offers });
   } catch (error) {
+    console.error('Offers error:', error);
     res.json({ success: true, offers: [] });
   }
 });
@@ -1034,6 +1081,25 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     .btn-loading { display: none; }
     .book-btn.loading .btn-text { display: none; }
     .book-btn.loading .btn-loading { display: inline; }
+    
+    /* Rate Options */
+    .rate-options-section { margin: 16px 0; padding: 16px 0; border-top: 1px solid #e2e8f0; }
+    .rate-options-section h4 { font-size: 14px; font-weight: 600; margin-bottom: 12px; color: #1e293b; }
+    .rate-options-list { display: flex; flex-direction: column; gap: 8px; }
+    .rate-option { display: flex; align-items: center; gap: 12px; padding: 14px; background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 10px; cursor: pointer; transition: all 0.2s; }
+    .rate-option:hover { border-color: #cbd5e1; background: #f1f5f9; }
+    .rate-option.selected { border-color: var(--accent); background: rgba(59, 130, 246, 0.05); }
+    .rate-option-radio { width: 20px; height: 20px; border: 2px solid #cbd5e1; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .rate-option.selected .rate-option-radio { border-color: var(--accent); }
+    .rate-option.selected .rate-option-radio::after { content: ''; width: 10px; height: 10px; background: var(--accent); border-radius: 50%; }
+    .rate-option-info { flex: 1; }
+    .rate-option-name { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+    .rate-option-desc { font-size: 12px; color: #64748b; margin-top: 2px; }
+    .rate-option-badge { background: #fef3c7; color: #92400e; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; }
+    .rate-option-price { text-align: right; }
+    .rate-option-price-amount { font-size: 16px; font-weight: 700; color: #1e293b; }
+    .rate-option-price-was { font-size: 12px; color: #94a3b8; text-decoration: line-through; }
+    
     .price-breakdown { margin: 16px 0; padding: 16px 0; border-top: 1px solid #e2e8f0; }
     .price-breakdown h4 { font-size: 14px; font-weight: 600; margin-bottom: 12px; }
     .breakdown-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px; color: #475569; }
@@ -1361,6 +1427,12 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
               <span class="btn-loading" style="display:none;">Checking...</span>
             </button>
             
+            <!-- Rate Options (shown when offers available) -->
+            <div id="rateOptionsSection" class="rate-options-section" style="display:none;">
+              <h4>🎉 Choose your rate</h4>
+              <div id="rateOptionsList" class="rate-options-list"></div>
+            </div>
+            
             <!-- Price breakdown -->
             <div id="priceBreakdown" class="price-breakdown" style="display:none;">
               <h4>Price Details</h4>
@@ -1603,6 +1675,8 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     let selectedUpsells = [];
     let appliedVoucher = null;
     let currentStep = 0;
+    let availableOffers = [];
+    let selectedOffer = null;
     
     // Initialize Flatpickr date pickers
     document.addEventListener('DOMContentLoaded', function() {
@@ -1791,10 +1865,12 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
           btnText.textContent = 'Book ' + data.pricing.nights + ' night' + (data.pricing.nights > 1 ? 's' : '') + ' - ' + currency + Math.round(data.pricing.subtotal);
           bookBtn.disabled = false;
           document.getElementById('voucherSection').style.display = 'block';
-          // Load upsells
+          // Load offers and upsells
+          try { await loadOffers(); } catch(e) { console.log('Offers error:', e); }
           try { loadUpsells(); } catch(e) { console.log('Upsells error:', e); }
         } else {
           document.getElementById('priceBreakdown').style.display = 'none';
+          document.getElementById('rateOptionsSection').style.display = 'none';
           btnText.textContent = data.error || 'Not available';
           bookBtn.disabled = true;
         }
@@ -1803,6 +1879,82 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
         btnText.textContent = 'Error checking availability';
         bookBtn.disabled = true;
       }
+    }
+    
+    // Load and display offers
+    async function loadOffers() {
+      const checkin = document.getElementById('checkin').value;
+      const checkout = document.getElementById('checkout').value;
+      
+      try {
+        const res = await fetch('/api/offers/' + propertyId + '?checkin=' + checkin + '&checkout=' + checkout + '&roomId=' + roomId);
+        const data = await res.json();
+        
+        availableOffers = data.offers || [];
+        selectedOffer = null;
+        
+        const section = document.getElementById('rateOptionsSection');
+        const list = document.getElementById('rateOptionsList');
+        
+        if (availableOffers.length > 0) {
+          // Show rate options
+          let html = '';
+          
+          // Standard rate option
+          html += '<div class="rate-option selected" data-rate="standard" onclick="selectRate(this, null)">';
+          html += '<div class="rate-option-radio"></div>';
+          html += '<div class="rate-option-info">';
+          html += '<div class="rate-option-name">Standard Rate</div>';
+          html += '<div class="rate-option-desc">Our regular rate</div>';
+          html += '</div>';
+          html += '<div class="rate-option-price">';
+          html += '<div class="rate-option-price-amount">' + currency + Math.round(currentPricing.subtotal) + '</div>';
+          html += '</div>';
+          html += '</div>';
+          
+          // Offer rate options
+          availableOffers.forEach((offer, idx) => {
+            const discount = offer.discount_type === 'percentage' 
+              ? currentPricing.nightlyTotal * (offer.discount_value / 100)
+              : parseFloat(offer.discount_value);
+            const offerTotal = currentPricing.subtotal - discount;
+            const savingsPercent = Math.round((discount / currentPricing.nightlyTotal) * 100);
+            
+            html += '<div class="rate-option" data-rate="offer" data-offer-idx="' + idx + '" onclick="selectRate(this, ' + idx + ')">';
+            html += '<div class="rate-option-radio"></div>';
+            html += '<div class="rate-option-info">';
+            html += '<div class="rate-option-name">' + (offer.name || 'Special Offer').replace(/</g, '&lt;') + ' <span class="rate-option-badge">Save ' + savingsPercent + '%</span></div>';
+            if (offer.description) html += '<div class="rate-option-desc">' + offer.description.replace(/</g, '&lt;').substring(0, 60) + '</div>';
+            html += '</div>';
+            html += '<div class="rate-option-price">';
+            html += '<div class="rate-option-price-was">' + currency + Math.round(currentPricing.subtotal) + '</div>';
+            html += '<div class="rate-option-price-amount">' + currency + Math.round(offerTotal) + '</div>';
+            html += '</div>';
+            html += '</div>';
+          });
+          
+          list.innerHTML = html;
+          section.style.display = 'block';
+        } else {
+          section.style.display = 'none';
+        }
+      } catch (e) {
+        console.log('No offers available');
+        document.getElementById('rateOptionsSection').style.display = 'none';
+      }
+    }
+    
+    function selectRate(el, offerIdx) {
+      document.querySelectorAll('.rate-option').forEach(opt => opt.classList.remove('selected'));
+      el.classList.add('selected');
+      
+      if (offerIdx !== null && availableOffers[offerIdx]) {
+        selectedOffer = availableOffers[offerIdx];
+      } else {
+        selectedOffer = null;
+      }
+      
+      updateTotal();
     }
     
     // Display price breakdown
@@ -1829,6 +1981,17 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
       if (!currentPricing) return;
       
       let total = currentPricing.subtotal;
+      let offerDiscount = 0;
+      
+      // Apply offer discount first (before upsells)
+      if (selectedOffer) {
+        if (selectedOffer.discount_type === 'percentage') {
+          offerDiscount = currentPricing.nightlyTotal * (selectedOffer.discount_value / 100);
+        } else {
+          offerDiscount = parseFloat(selectedOffer.discount_value);
+        }
+        total -= offerDiscount;
+      }
       
       // Add upsells
       let upsellTotal = 0;
@@ -1851,9 +2014,14 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
         upsellsRow.style.display = 'none';
       }
       
-      // Apply voucher discount
+      // Show offer discount in breakdown
       const discountRow = document.getElementById('discountRow');
-      if (appliedVoucher) {
+      if (selectedOffer && offerDiscount > 0) {
+        discountRow.style.display = 'flex';
+        discountRow.querySelector('span:first-child').textContent = selectedOffer.name || 'Offer discount';
+        discountRow.querySelector('span:last-child').textContent = '-' + currency + Math.round(offerDiscount);
+      } else if (appliedVoucher) {
+        // Apply voucher discount (only if no offer, or in addition - depending on stackable setting)
         discountRow.style.display = 'flex';
         discountRow.querySelector('span:first-child').textContent = 'Discount (' + appliedVoucher.code + ')';
         discountRow.querySelector('span:last-child').textContent = '-' + currency + Math.round(appliedVoucher.discount);
@@ -2069,7 +2237,10 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
             marketing: document.getElementById('marketingConsent').checked,
             upsells: selectedUpsells,
             voucherCode: appliedVoucher?.code,
-            rateType: 'standard',
+            offerId: selectedOffer?.id,
+            offerName: selectedOffer?.name,
+            offerDiscount: selectedOffer ? (selectedOffer.discount_type === 'percentage' ? currentPricing.nightlyTotal * (selectedOffer.discount_value / 100) : parseFloat(selectedOffer.discount_value)) : 0,
+            rateType: selectedOffer ? 'offer' : 'standard',
             paymentMethod: document.querySelector('input[name="payment_method"]:checked')?.value || 'property',
             pricing: currentPricing,
             total: total
