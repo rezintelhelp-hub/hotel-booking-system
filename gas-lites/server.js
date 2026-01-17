@@ -841,6 +841,49 @@ app.get('/api/taxes/:roomId', async (req, res) => {
   }
 });
 
+// Get deposit rule for property
+app.get('/api/deposit/:propertyId', async (req, res) => {
+  try {
+    const propertyId = req.params.propertyId;
+    
+    // Get account_id from property
+    const propRes = await pool.query('SELECT account_id FROM properties WHERE id = $1', [propertyId]);
+    const accountId = propRes.rows[0]?.account_id;
+    
+    if (!accountId) {
+      return res.json({ success: true, deposit_rule: null });
+    }
+    
+    // First try property-specific rule
+    let depositRule = null;
+    const ruleResult = await pool.query(`
+      SELECT * FROM deposit_rules 
+      WHERE property_id = $1 AND is_active = true 
+      ORDER BY created_at DESC LIMIT 1
+    `, [propertyId]);
+    
+    if (ruleResult.rows.length > 0) {
+      depositRule = ruleResult.rows[0];
+    } else {
+      // Fall back to account-level rule
+      const accountRuleResult = await pool.query(`
+        SELECT * FROM deposit_rules 
+        WHERE account_id = $1 AND property_id IS NULL AND is_active = true
+        ORDER BY created_at DESC LIMIT 1
+      `, [accountId]);
+      
+      if (accountRuleResult.rows.length > 0) {
+        depositRule = accountRuleResult.rows[0];
+      }
+    }
+    
+    res.json({ success: true, deposit_rule: depositRule });
+  } catch (error) {
+    console.error('Deposit error:', error);
+    res.json({ success: true, deposit_rule: null });
+  }
+});
+
 // Validate voucher code
 app.post('/api/voucher/validate', async (req, res) => {
   try {
@@ -1344,6 +1387,10 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     .breakdown-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px; color: #475569; }
     .breakdown-row.discount { color: #059669; }
     .breakdown-row.tax-row { color: #64748b; font-size: 13px; }
+    .deposit-section { margin-top: 12px; padding-top: 12px; border-top: 1px dashed #e2e8f0; }
+    .deposit-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 14px; }
+    .deposit-row:first-child { font-weight: 600; color: var(--accent); }
+    .deposit-row.balance { color: #64748b; font-size: 13px; }
     .breakdown-total { display: flex; justify-content: space-between; padding-top: 12px; margin-top: 8px; border-top: 2px solid #e2e8f0; font-weight: 700; font-size: 16px; }
     .upsells-section { margin: 16px 0; padding: 16px 0; border-top: 1px solid #e2e8f0; }
     .upsells-section h4 { font-size: 14px; font-weight: 600; margin-bottom: 12px; color: #1e293b; }
@@ -1687,6 +1734,10 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
               <div class="breakdown-row discount" id="discountRow" style="display:none;"><span></span><span></span></div>
               <div id="taxesContainer"></div>
               <div class="breakdown-total"><span>Total</span><span id="totalAmount"></span></div>
+              <div id="depositSection" class="deposit-section" style="display:none;">
+                <div class="deposit-row"><span>Due now (deposit)</span><span id="depositAmount"></span></div>
+                <div class="deposit-row balance"><span>Balance due later</span><span id="balanceAmount"></span></div>
+              </div>
             </div>
             
             <!-- Upsells section -->
@@ -1931,6 +1982,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     let availableOffers = [];
     let selectedOffer = null;
     let currentTaxes = [];
+    let depositRule = null;
     
     // Initialize Flatpickr date pickers
     document.addEventListener('DOMContentLoaded', function() {
@@ -2123,6 +2175,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
           try { await loadOffers(); } catch(e) { console.log('Offers error:', e); }
           try { loadUpsells(); } catch(e) { console.log('Upsells error:', e); }
           try { await loadTaxes(); } catch(e) { console.log('Taxes error:', e); }
+          try { await loadDepositRule(); } catch(e) { console.log('Deposit error:', e); }
         } else {
           document.getElementById('priceBreakdown').style.display = 'none';
           document.getElementById('rateOptionsSection').style.display = 'none';
@@ -2315,10 +2368,37 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
       
       document.getElementById('totalAmount').textContent = currency + Math.round(total);
       
+      // Display deposit info if rule exists
+      const depositSection = document.getElementById('depositSection');
+      if (depositRule && depositRule.deposit_type !== 'full') {
+        let depositAmount = total;
+        let balanceAmount = 0;
+        
+        if (depositRule.deposit_type === 'percentage') {
+          depositAmount = total * (parseFloat(depositRule.deposit_percentage) / 100);
+          balanceAmount = total - depositAmount;
+        } else if (depositRule.deposit_type === 'fixed') {
+          depositAmount = parseFloat(depositRule.deposit_fixed_amount) || total;
+          balanceAmount = total - depositAmount;
+        }
+        
+        document.getElementById('depositAmount').textContent = currency + Math.round(depositAmount);
+        document.getElementById('balanceAmount').textContent = currency + Math.round(balanceAmount);
+        depositSection.style.display = 'block';
+        
+        // Store for booking submission
+        window.currentDepositAmount = depositAmount;
+      } else {
+        depositSection.style.display = 'none';
+        window.currentDepositAmount = null;
+      }
+      
       // Update book button text
       const bookBtn = document.getElementById('bookBtn');
       if (!bookBtn.disabled && currentPricing) {
-        bookBtn.querySelector('.btn-text').textContent = 'Book ' + currentPricing.nights + ' night' + (currentPricing.nights > 1 ? 's' : '') + ' - ' + currency + Math.round(total);
+        const btnAmount = window.currentDepositAmount ? window.currentDepositAmount : total;
+        const btnLabel = window.currentDepositAmount ? 'Pay deposit' : 'Book';
+        bookBtn.querySelector('.btn-text').textContent = btnLabel + ' ' + currentPricing.nights + ' night' + (currentPricing.nights > 1 ? 's' : '') + ' - ' + currency + Math.round(btnAmount);
       }
     }
     
@@ -2391,6 +2471,24 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
       } catch (e) {
         console.log('No taxes available');
         currentTaxes = [];
+      }
+    }
+    
+    // Load deposit rule
+    async function loadDepositRule() {
+      try {
+        const res = await fetch('/api/deposit/' + propertyId);
+        const data = await res.json();
+        
+        if (data.success && data.deposit_rule) {
+          depositRule = data.deposit_rule;
+        } else {
+          depositRule = null;
+        }
+        updateTotal();
+      } catch (e) {
+        console.log('No deposit rule');
+        depositRule = null;
       }
     }
     
