@@ -558,7 +558,7 @@ app.get('/api/pricing/:roomId', async (req, res) => {
     
     // Get room base price
     const roomResult = await pool.query(
-      'SELECT base_price, cleaning_fee, extra_guest_fee, max_guests FROM bookable_units WHERE id = $1',
+      'SELECT base_price, cleaning_fee, max_guests FROM bookable_units WHERE id = $1',
       [roomId]
     );
     if (roomResult.rows.length === 0) return res.json({ success: false, error: 'Room not found' });
@@ -592,8 +592,7 @@ app.get('/api/pricing/:roomId', async (req, res) => {
     const nightlyTotal = nights.reduce((sum, n) => sum + parseFloat(n.price || room.base_price), 0);
     const cleaningFee = parseFloat(room.cleaning_fee) || 0;
     const totalGuests = parseInt(adults || 1) + parseInt(children || 0);
-    const extraGuestFee = totalGuests > (room.max_guests || 2) ? 
-      (totalGuests - room.max_guests) * parseFloat(room.extra_guest_fee || 0) * numNights : 0;
+    const extraGuestFee = 0; // extra_guest_fee column not available
     
     res.json({
       success: true,
