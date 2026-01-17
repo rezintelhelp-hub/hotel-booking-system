@@ -110,11 +110,7 @@ app.get('/:slug', async (req, res) => {
              p.house_rules, p.cancellation_policy,
              p.pets_allowed, p.smoking_allowed, p.children_allowed,
              bu.id as room_id, bu.name as room_name,
-             CASE 
-               WHEN bu.display_name IS NULL THEN NULL
-               WHEN jsonb_typeof(bu.display_name::jsonb) = 'object' THEN bu.display_name::jsonb->>'en'
-               ELSE bu.display_name::text
-             END as display_name,
+             bu.display_name as display_name_raw,
              bu.short_description as room_short_desc, bu.full_description as room_full_desc,
              bu.bedroom_count, bu.bathroom_count, bu.max_guests, bu.base_price,
              bu.unit_type as room_type,
@@ -131,6 +127,21 @@ app.get('/:slug', async (req, res) => {
     }
     
     const lite = liteResult.rows[0];
+    
+    // Parse display_name from JSON string if needed
+    if (lite.display_name_raw) {
+      try {
+        if (lite.display_name_raw.trim().startsWith('{')) {
+          const parsed = JSON.parse(lite.display_name_raw);
+          lite.display_name = parsed.en || parsed.EN || Object.values(parsed)[0] || lite.display_name_raw;
+        } else {
+          lite.display_name = lite.display_name_raw;
+        }
+      } catch (e) {
+        lite.display_name = lite.display_name_raw;
+      }
+    }
+    
     const propertyId = lite.property_id;
     const roomId = lite.room_id;
     const accountId = lite.account_id;
@@ -238,12 +249,7 @@ app.get('/:slug/card', async (req, res) => {
     const liteResult = await pool.query(`
       SELECT l.*, p.name, p.city, p.country, p.currency, p.short_description,
              p.average_rating, p.pets_allowed, p.children_allowed,
-             bu.name as room_name, 
-             CASE 
-               WHEN bu.display_name IS NULL THEN NULL
-               WHEN jsonb_typeof(bu.display_name::jsonb) = 'object' THEN bu.display_name::jsonb->>'en'
-               ELSE bu.display_name::text
-             END as display_name,
+             bu.name as room_name, bu.display_name as display_name_raw,
              bu.bedroom_count, bu.max_guests, bu.base_price
       FROM gas_lites l
       JOIN properties p ON l.property_id = p.id
@@ -256,6 +262,20 @@ app.get('/:slug/card', async (req, res) => {
     }
     
     const lite = liteResult.rows[0];
+    
+    // Parse display_name from JSON string if needed
+    if (lite.display_name_raw) {
+      try {
+        if (lite.display_name_raw.trim().startsWith('{')) {
+          const parsed = JSON.parse(lite.display_name_raw);
+          lite.display_name = parsed.en || parsed.EN || Object.values(parsed)[0] || lite.display_name_raw;
+        } else {
+          lite.display_name = lite.display_name_raw;
+        }
+      } catch (e) {
+        lite.display_name = lite.display_name_raw;
+      }
+    }
     
     // Get image (room first, then property)
     let image = null;
@@ -325,12 +345,7 @@ app.get('/:slug/print', async (req, res) => {
     const { slug } = req.params;
     const liteResult = await pool.query(`
       SELECT l.*, p.name, p.city, p.country, p.contact_phone, p.contact_email,
-             bu.name as room_name,
-             CASE 
-               WHEN bu.display_name IS NULL THEN NULL
-               WHEN jsonb_typeof(bu.display_name::jsonb) = 'object' THEN bu.display_name::jsonb->>'en'
-               ELSE bu.display_name::text
-             END as display_name
+             bu.name as room_name, bu.display_name as display_name_raw
       FROM gas_lites l 
       JOIN properties p ON l.property_id = p.id
       LEFT JOIN bookable_units bu ON l.room_id = bu.id
@@ -340,6 +355,21 @@ app.get('/:slug/print', async (req, res) => {
     if (liteResult.rows.length === 0) return res.status(404).send('Not found');
     
     const lite = liteResult.rows[0];
+    
+    // Parse display_name from JSON string if needed
+    if (lite.display_name_raw) {
+      try {
+        if (lite.display_name_raw.trim().startsWith('{')) {
+          const parsed = JSON.parse(lite.display_name_raw);
+          lite.display_name = parsed.en || parsed.EN || Object.values(parsed)[0] || lite.display_name_raw;
+        } else {
+          lite.display_name = lite.display_name_raw;
+        }
+      } catch (e) {
+        lite.display_name = lite.display_name_raw;
+      }
+    }
+    
     const liteUrl = `https://lite.gas.travel/#${slug}`;
     const qrCode = await QRCode.toDataURL(liteUrl, { width: 400, margin: 2 });
     
@@ -514,17 +544,31 @@ app.post('/api/room/:roomId/lite', async (req, res) => {
 app.get('/api/account/:accountId', async (req, res) => {
   const result = await pool.query(`
     SELECT l.*, p.name as property_name, p.city, bu.name as room_name,
-           CASE 
-             WHEN bu.display_name IS NULL THEN NULL
-             WHEN jsonb_typeof(bu.display_name::jsonb) = 'object' THEN bu.display_name::jsonb->>'en'
-             ELSE bu.display_name::text
-           END as display_name
+           bu.display_name as display_name_raw
     FROM gas_lites l
     JOIN properties p ON l.property_id = p.id
     LEFT JOIN bookable_units bu ON l.room_id = bu.id
     WHERE l.account_id = $1
   `, [req.params.accountId]);
-  res.json({ success: true, lites: result.rows });
+  
+  // Parse display_name for each lite
+  const lites = result.rows.map(lite => {
+    if (lite.display_name_raw) {
+      try {
+        if (lite.display_name_raw.trim().startsWith('{')) {
+          const parsed = JSON.parse(lite.display_name_raw);
+          lite.display_name = parsed.en || parsed.EN || Object.values(parsed)[0] || lite.display_name_raw;
+        } else {
+          lite.display_name = lite.display_name_raw;
+        }
+      } catch (e) {
+        lite.display_name = lite.display_name_raw;
+      }
+    }
+    return lite;
+  });
+  
+  res.json({ success: true, lites });
 });
 
 app.post('/api/lites', async (req, res) => {
