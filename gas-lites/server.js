@@ -1788,7 +1788,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
         if (data.success) {
           currentPricing = data.pricing;
           displayPricing();
-          btnText.textContent = 'Book ' + data.pricing.nights + ' night' + (data.pricing.nights > 1 ? 's' : '') + ' - ' + currency + Math.round(data.pricing.grandTotal);
+          btnText.textContent = 'Book ' + data.pricing.nights + ' night' + (data.pricing.nights > 1 ? 's' : '') + ' - ' + currency + Math.round(data.pricing.subtotal);
           bookBtn.disabled = false;
           document.getElementById('voucherSection').style.display = 'block';
           // Load upsells
@@ -1810,7 +1810,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
       if (!currentPricing) return;
       
       const p = currentPricing;
-      document.getElementById('nightlyRow').innerHTML = '<span>' + currency + Math.round(p.avgPerNight) + ' × ' + p.nights + ' nights</span><span>' + currency + Math.round(p.accommodationTotal) + '</span>';
+      document.getElementById('nightlyRow').innerHTML = '<span>' + currency + Math.round(p.avgPerNight) + ' × ' + p.nights + ' nights</span><span>' + currency + Math.round(p.nightlyTotal) + '</span>';
       
       const cleaningRow = document.getElementById('cleaningRow');
       if (p.cleaningFee > 0) {
@@ -1828,7 +1828,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     function updateTotal() {
       if (!currentPricing) return;
       
-      let total = currentPricing.grandTotal;
+      let total = currentPricing.subtotal;
       
       // Add upsells
       let upsellTotal = 0;
@@ -1836,10 +1836,9 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
       const guests = parseInt(document.getElementById('adults').value) + parseInt(document.getElementById('children').value);
       
       selectedUpsells.forEach(u => {
-        let uPrice = u.price;
-        if (u.charge_type === 'per_night') uPrice *= nights;
-        else if (u.charge_type === 'per_guest') uPrice *= guests;
-        else if (u.charge_type === 'per_guest_per_night') uPrice *= nights * guests;
+        let uPrice = parseFloat(u.price) || 0;
+        if (u.is_per_night) uPrice *= nights;
+        if (u.is_per_guest) uPrice *= guests;
         upsellTotal += uPrice;
       });
       
@@ -1935,7 +1934,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
             roomId, 
             checkin: document.getElementById('checkin').value,
             checkout: document.getElementById('checkout').value,
-            total: currentPricing.grandTotal 
+            total: currentPricing.subtotal 
           })
         });
         const data = await res.json();
