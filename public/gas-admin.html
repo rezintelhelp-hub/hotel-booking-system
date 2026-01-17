@@ -3008,7 +3008,8 @@
                                 <option value="">Select Room...</option>
                             </select>
                         </div>
-                        <div style="display: flex; gap: 0.5rem; align-items: flex-end;">
+                        <div style="display: flex; gap: 0.5rem; align-items: flex-end; padding-bottom: 2px;">
+                            <button class="btn btn-secondary" onclick="loadOffersPricingGrid()" title="Refresh" style="padding: 0.5rem 0.75rem;">&#x21bb;</button>
                             <button class="btn btn-secondary" onclick="shiftOffersDays(-7)">&laquo;&laquo;</button>
                             <button class="btn btn-secondary" onclick="shiftOffersDays(-1)">&laquo;</button>
                             <button class="btn btn-secondary" onclick="offersGoToToday()">Today</button>
@@ -27816,23 +27817,28 @@ Local honey and preserves"></textarea>
         // 
         
         function openBulkEditModal() {
-            // Set default dates
-            const today = new Date();
-            const threeMonths = new Date();
-            threeMonths.setMonth(threeMonths.getMonth() + 3);
-            
-            document.getElementById('bulk-date-from').value = today.toISOString().split('T')[0];
-            document.getElementById('bulk-date-to').value = threeMonths.toISOString().split('T')[0];
-            
-            // Reset to price type
-            document.querySelector('input[name="bulk-edit-type"][value="price"]').checked = true;
-            toggleBulkEditType();
-            
-            // Load rooms and offers
-            loadBulkRooms();
-            loadBulkOffers();
-            
-            document.getElementById('bulkEditModal').classList.add('active');
+            try {
+                // Set default dates
+                const today = new Date();
+                const threeMonths = new Date();
+                threeMonths.setMonth(threeMonths.getMonth() + 3);
+                
+                document.getElementById('bulk-date-from').value = today.toISOString().split('T')[0];
+                document.getElementById('bulk-date-to').value = threeMonths.toISOString().split('T')[0];
+                
+                // Reset to price type
+                document.querySelector('input[name="bulk-edit-type"][value="price"]').checked = true;
+                toggleBulkEditType();
+                
+                // Load rooms and offers
+                loadBulkRooms();
+                loadBulkOffers();
+                
+                document.getElementById('bulkEditModal').classList.add('active');
+            } catch (error) {
+                console.error('Error opening Bulk Edit modal:', error);
+                showToast('Error opening Bulk Edit: ' + error.message, 'error');
+            }
         }
         
         function toggleBulkEditType() {
