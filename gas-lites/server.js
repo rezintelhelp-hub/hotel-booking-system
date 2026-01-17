@@ -529,11 +529,11 @@ app.post('/api/room/:roomId/lite', async (req, res) => {
       slug = Date.now().toString(36);
     }
     
-    // Create the lite
+    // Create the lite - don't set custom_title, let display_name be used from the room
     const result = await pool.query(`
-      INSERT INTO gas_lites (property_id, room_id, account_id, slug, custom_title)
-      VALUES ($1, $2, $3, $4, $5) RETURNING *
-    `, [room.property_id, roomId, room.account_id, slug, room.name || room.display_name]);
+      INSERT INTO gas_lites (property_id, room_id, account_id, slug)
+      VALUES ($1, $2, $3, $4) RETURNING *
+    `, [room.property_id, roomId, room.account_id, slug]);
     
     res.json({ success: true, lite: result.rows[0], created: true });
   } catch (error) {
@@ -963,7 +963,9 @@ function renderError(msg) {
 }
 
 function renderFullPage({ lite, images, amenities, reviews, availability, todayPrice, qrCode, liteUrl, showReviews, roomId, propertyId }) {
-  const title = lite.custom_title || lite.display_name || lite.room_name || lite.property_name;
+  // Use custom_title only if it's different from room_name (i.e., truly custom)
+  const effectiveCustomTitle = (lite.custom_title && lite.custom_title !== lite.room_name) ? lite.custom_title : null;
+  const title = effectiveCustomTitle || lite.display_name || lite.room_name || lite.property_name;
   
   // Short description for intro/tagline
   const rawShortDesc = lite.room_short_desc || lite.property_short_desc || '';
@@ -2362,7 +2364,9 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
 }
 
 function renderPromoCard({ lite, image, price, offer, qrCode, liteUrl }) {
-  const title = lite.custom_title || lite.display_name || lite.room_name || lite.name;
+  // Use custom_title only if it's different from room_name (i.e., truly custom)
+  const effectiveCustomTitle = (lite.custom_title && lite.custom_title !== lite.room_name) ? lite.custom_title : null;
+  const title = effectiveCustomTitle || lite.display_name || lite.room_name || lite.name;
   const currency = getCurrencySymbol(lite.currency);
   const accent = lite.accent_color || '#3b82f6';
   
@@ -2435,7 +2439,9 @@ function renderPromoCard({ lite, image, price, offer, qrCode, liteUrl }) {
 }
 
 function renderPrintCard({ lite, qrCode, liteUrl, image }) {
-  const title = lite.custom_title || lite.display_name || lite.room_name || lite.name;
+  // Use custom_title only if it's different from room_name (i.e., truly custom)
+  const effectiveCustomTitle = (lite.custom_title && lite.custom_title !== lite.room_name) ? lite.custom_title : null;
+  const title = effectiveCustomTitle || lite.display_name || lite.room_name || lite.name;
   return `<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><title>Print - ${title}</title>
 <style>
