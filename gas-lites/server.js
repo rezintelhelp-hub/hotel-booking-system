@@ -1454,9 +1454,9 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
     
     /* Header */
-    .header { background: white; border-bottom: 1px solid #e2e8f0; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; }
-    .header-brand { display: flex; align-items: center; gap: 8px; }
-    .logo { font-weight: 600; font-size: 14px; color: var(--accent); text-decoration: none; }
+    .header { background: white; border-bottom: 1px solid #e2e8f0; padding: 12px 40px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; }
+    .header-brand { display: flex; align-items: center; gap: 12px; }
+    .logo { font-weight: 700; font-size: 16px; color: var(--accent); text-decoration: none; }
     .header-presents { font-size: 14px; color: #64748b; }
     .header-presents strong { color: #1e293b; font-weight: 600; }
     .share-btn { background: none; border: 1px solid #e2e8f0; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 14px; }
@@ -1756,7 +1756,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
   <header class="header">
     <div class="header-brand">
       <a href="/" class="logo">GAS Lite</a>
-      ${lite.account_display_name ? `<span class="header-presents">— <strong>${escapeForHTML(lite.account_display_name)}</strong> Presents</span>` : ''}
+      ${(lite.account_display_name || lite.business_name) ? `<span class="header-presents">— <strong>${escapeForHTML(lite.account_display_name || lite.business_name)}</strong> Presents</span>` : ''}
     </div>
     <button class="share-btn" onclick="shareProperty()">📤 Share</button>
   </header>
