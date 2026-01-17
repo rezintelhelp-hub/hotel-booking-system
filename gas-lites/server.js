@@ -752,8 +752,9 @@ app.get('/api/taxes/:roomId', async (req, res) => {
     const property = roomRes.rows[0];
     const taxBreakdown = [];
     let taxTotal = 0;
+    let foundTaxesInTable = false;
     
-    // Get taxes from taxes table
+    // Get taxes from taxes table (preferred source)
     try {
       const taxes = await pool.query(`
         SELECT * FROM taxes 
@@ -762,38 +763,44 @@ app.get('/api/taxes/:roomId', async (req, res) => {
           AND (room_id IS NULL OR room_id = $2)
       `, [property.property_id, roomId]);
       
-      taxes.rows.forEach(tax => {
-        let taxAmount = 0;
-        const taxType = tax.amount_type || tax.charge_per || 'fixed';
-        const taxRate = parseFloat(tax.amount) || 0;
+      if (taxes.rows.length > 0) {
+        foundTaxesInTable = true;
         
-        if (taxType === 'percentage') {
-          taxAmount = subTotal * (taxRate / 100);
-        } else if (taxType === 'per_night') {
-          const taxableNights = tax.max_nights ? Math.min(numNights, tax.max_nights) : numNights;
-          taxAmount = taxRate * taxableNights;
-        } else if (taxType === 'per_person_per_night' || taxType === 'per_guest_per_night') {
-          const taxableNights = tax.max_nights ? Math.min(numNights, tax.max_nights) : numNights;
-          taxAmount = taxRate * taxableNights * numGuests;
-        } else {
-          taxAmount = taxRate;
-        }
-        
-        if (taxAmount > 0) {
-          taxTotal += taxAmount;
-          taxBreakdown.push({ 
-            name: tax.name, 
-            amount: taxAmount,
-            type: taxType
-          });
-        }
-      });
+        taxes.rows.forEach(tax => {
+          let taxAmount = 0;
+          const taxType = tax.amount_type || tax.charge_per || 'fixed';
+          const taxRate = parseFloat(tax.amount) || 0;
+          
+          if (taxType === 'percentage') {
+            taxAmount = subTotal * (taxRate / 100);
+          } else if (taxType === 'per_night') {
+            const taxableNights = tax.max_nights ? Math.min(numNights, tax.max_nights) : numNights;
+            taxAmount = taxRate * taxableNights;
+          } else if (taxType === 'per_person_per_night' || taxType === 'per_guest_per_night') {
+            const taxableNights = tax.max_nights ? Math.min(numNights, tax.max_nights) : numNights;
+            taxAmount = taxRate * taxableNights * numGuests;
+          } else if (taxType === 'per_booking' || taxType === 'fixed') {
+            taxAmount = taxRate;
+          } else {
+            taxAmount = taxRate;
+          }
+          
+          if (taxAmount > 0) {
+            taxTotal += taxAmount;
+            taxBreakdown.push({ 
+              name: tax.name, 
+              amount: taxAmount,
+              type: taxType
+            });
+          }
+        });
+      }
     } catch (e) {
       console.log('Taxes table query failed:', e.message);
     }
     
-    // Check property-level tourist tax
-    if (property.tourist_tax_enabled && property.tourist_tax_amount) {
+    // Only check property-level tourist tax if NO taxes found in taxes table
+    if (!foundTaxesInTable && property.tourist_tax_enabled && property.tourist_tax_amount) {
       const taxableNights = property.tourist_tax_max_nights 
         ? Math.min(numNights, property.tourist_tax_max_nights) 
         : numNights;
