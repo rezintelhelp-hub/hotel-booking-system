@@ -755,11 +755,12 @@ app.get('/api/taxes/:roomId', async (req, res) => {
     let foundTaxesInTable = false;
     
     // Get taxes from taxes table (preferred source)
+    // Only get taxes specifically assigned to this property
     try {
       const taxes = await pool.query(`
         SELECT * FROM taxes 
         WHERE active = true
-          AND (property_id = $1 OR property_id IS NULL)
+          AND property_id = $1
           AND (room_id IS NULL OR room_id = $2)
       `, [property.property_id, roomId]);
       
