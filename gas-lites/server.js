@@ -2129,6 +2129,17 @@ function renderPromoCard({ lite, image, price, offer, qrCode, liteUrl }) {
   const currency = getCurrencySymbol(lite.currency);
   const accent = lite.accent_color || '#3b82f6';
   
+  // Parse short_description if it's JSON
+  let shortDesc = lite.short_description || '';
+  if (typeof shortDesc === 'object') {
+    shortDesc = shortDesc.en || shortDesc.EN || Object.values(shortDesc)[0] || '';
+  } else if (typeof shortDesc === 'string' && shortDesc.trim().startsWith('{')) {
+    try {
+      const parsed = JSON.parse(shortDesc);
+      shortDesc = parsed.en || parsed.EN || Object.values(parsed)[0] || '';
+    } catch (e) {}
+  }
+  
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -2171,7 +2182,7 @@ function renderPromoCard({ lite, image, price, offer, qrCode, liteUrl }) {
       </div>
     </div>
     <div class="content">
-      ${lite.short_description ? `<p class="tagline">${escapeForHTML(lite.short_description)}</p>` : ''}
+      ${shortDesc ? `<p class="tagline">${escapeForHTML(shortDesc)}</p>` : ''}
       <div class="features">
         ${lite.bedroom_count ? `<div class="feature">🛏️ ${lite.bedroom_count} Bed${lite.bedroom_count > 1 ? 's' : ''}</div>` : ''}
         ${lite.max_guests ? `<div class="feature">👥 Up to ${lite.max_guests}</div>` : ''}
