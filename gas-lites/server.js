@@ -1279,7 +1279,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
           </div>
           
           <!-- Voucher input -->
-          <div class="voucher-section">
+          <div class="voucher-section" id="voucherSection">
             <div class="voucher-row">
               <input type="text" id="voucherCode" placeholder="Voucher code">
               <button type="button" id="applyVoucher">Apply</button>
@@ -1436,15 +1436,17 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
         if (data.success) {
           currentPricing = data.pricing;
           displayPricing();
-          loadUpsells();
           bookBtn.textContent = 'Book ' + data.pricing.nights + ' night' + (data.pricing.nights > 1 ? 's' : '');
           bookBtn.disabled = false;
+          // Load upsells separately so errors don't break booking
+          try { loadUpsells(); } catch(e) { console.log('Upsells error:', e); }
         } else {
           priceBreakdown.style.display = 'none';
           bookBtn.textContent = data.error || 'Not available';
           bookBtn.disabled = true;
         }
       } catch (e) {
+        console.error('Pricing error:', e);
         bookBtn.textContent = 'Error checking availability';
         bookBtn.disabled = true;
       }
