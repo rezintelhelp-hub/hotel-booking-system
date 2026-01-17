@@ -813,17 +813,26 @@ function getCurrencySymbol(c) {
   return s[c] || (c ? c+' ' : '$');
 }
 
-// Escape string for safe use in JavaScript
+// Escape string for safe use in JavaScript string literals
 function escapeForJS(str) {
   if (!str) return '';
   return String(str)
     .replace(/\\/g, '\\\\')
     .replace(/'/g, "\\'")
     .replace(/"/g, '\\"')
-    .replace(/\n/g, '\\n')
-    .replace(/\r/g, '\\r')
-    .replace(/`/g, '\\`')
-    .replace(/\$/g, '\\$');
+    .replace(/\n/g, ' ')
+    .replace(/\r/g, ' ');
+}
+
+// Escape string for safe use in HTML attributes
+function escapeForHTML(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 function renderNotFound(slug) {
@@ -892,7 +901,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${title} | Book Direct</title>
+  <title>${String(title).replace(/</g, '&lt;').replace(/>/g, '&gt;')} | Book Direct</title>
   <meta name="description" content="${String(description).substring(0,160).replace(/"/g, '&quot;')}">
   <meta property="og:title" content="${String(title).replace(/"/g, '&quot;')}">
   <meta property="og:image" content="${images[0]?.url || ''}">
@@ -1084,7 +1093,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
   <div class="container">
     <div class="gallery">
       ${images.length > 0 ? `
-        <img src="${images[0].url}" alt="${escapeForJS(title)}" class="gallery-main" onclick="openLightbox(0)">
+        <img src="${images[0].url}" alt="${escapeForHTML(title)}" class="gallery-main" onclick="openLightbox(0)">
         <div class="gallery-grid">
           ${images.slice(1, 5).map((img, i) => {
             if (i === 3 && images.length > 5) {
@@ -1109,8 +1118,8 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     <div class="room-layout">
       <div class="room-main">
         <div class="room-header">
-          <h1 class="room-title">${title}</h1>
-          <p class="room-subtitle">${title}</p>
+          <h1 class="room-title">${escapeForHTML(title)}</h1>
+          <p class="room-subtitle">${escapeForHTML(lite.city || '')}${lite.city && lite.country ? ', ' : ''}${escapeForHTML(lite.country || '')}</p>
           <div class="room-meta">
             ${lite.max_guests ? `<span class="meta-item"><span class="meta-icon">👤</span> Guests: ${lite.max_guests}</span>` : ''}
             ${lite.bedroom_count ? `<span class="meta-item"><span class="meta-icon">🛏</span> Bedrooms: ${lite.bedroom_count}</span>` : ''}
@@ -1691,15 +1700,15 @@ function renderPromoCard({ lite, image, price, offer, qrCode, liteUrl }) {
 <body>
   <div class="card">
     <div class="hero">
-      ${image ? `<img src="${image}" alt="${escapeForJS(title)}">` : '<div style="background:#e2e8f0;height:100%;display:flex;align-items:center;justify-content:center;font-size:60px;">🏠</div>'}
+      ${image ? `<img src="${image}" alt="${escapeForHTML(title)}">` : '<div style="background:#e2e8f0;height:100%;display:flex;align-items:center;justify-content:center;font-size:60px;">🏠</div>'}
       ${offer ? `<div class="offer-badge">🔥 ${offer.discount_value}% OFF</div>` : ''}
       <div class="hero-overlay">
-        <div class="location">📍 ${lite.city}${lite.country ? ', ' + lite.country : ''}</div>
-        <h1 class="title">${title}</h1>
+        <div class="location">📍 ${escapeForHTML(lite.city || '')}${lite.country ? ', ' + escapeForHTML(lite.country) : ''}</div>
+        <h1 class="title">${escapeForHTML(title)}</h1>
       </div>
     </div>
     <div class="content">
-      ${lite.short_description ? `<p class="tagline">${lite.short_description}</p>` : ''}
+      ${lite.short_description ? `<p class="tagline">${escapeForHTML(lite.short_description)}</p>` : ''}
       <div class="features">
         ${lite.bedroom_count ? `<div class="feature">🛏️ ${lite.bedroom_count} Bed${lite.bedroom_count > 1 ? 's' : ''}</div>` : ''}
         ${lite.max_guests ? `<div class="feature">👥 Up to ${lite.max_guests}</div>` : ''}
@@ -1746,8 +1755,8 @@ function renderPrintCard({ lite, qrCode, liteUrl, image }) {
   <div class="card">
     <div class="image">${image ? `<img src="${image}">` : ''}</div>
     <div class="content">
-      <h1 class="title">${title}</h1>
-      <p class="location">📍 ${lite.city}, ${lite.country}</p>
+      <h1 class="title">${escapeForHTML(title)}</h1>
+      <p class="location">📍 ${escapeForHTML(lite.city || '')}, ${escapeForHTML(lite.country || '')}</p>
       <div class="qr-area">
         <img src="${qrCode}">
         <div><div class="qr-text">Scan to book direct</div><div class="qr-url">#${lite.slug}</div></div>
