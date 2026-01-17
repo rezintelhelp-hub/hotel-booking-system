@@ -2225,7 +2225,10 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
         default: priceText = '';
       }
       
-      return '<div class="upsell-item" data-id="' + u.id + '" data-upsell=\'' + JSON.stringify(u).replace(/'/g, "\\'") + '\' onclick="toggleUpsell(this)">' +
+      // Use btoa to safely encode the JSON data
+      const upsellData = btoa(JSON.stringify(u));
+      
+      return '<div class="upsell-item" data-id="' + u.id + '" data-upsell="' + upsellData + '" onclick="toggleUpsell(this)">' +
         '<div class="upsell-checkbox"></div>' +
         '<div class="upsell-info"><div class="upsell-name">' + (u.name || '').replace(/</g, '&lt;') + '</div>' +
         (u.description ? '<div class="upsell-desc">' + u.description.replace(/</g, '&lt;') + '</div>' : '') + '</div>' +
@@ -2234,7 +2237,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     }
     
     function toggleUpsell(el) {
-      const upsell = JSON.parse(el.dataset.upsell);
+      const upsell = JSON.parse(atob(el.dataset.upsell));
       el.classList.toggle('selected');
       
       if (el.classList.contains('selected')) {
