@@ -238,7 +238,7 @@ app.get('/:slug', async (req, res) => {
     res.send(renderFullPage({ 
       lite, images, amenities, reviews, availability, 
       todayPrice, qrCode, liteUrl, showReviews,
-      roomId, propertyId
+      roomId, propertyId, accountId
     }));
   } catch (error) {
     console.error('Lite page error:', error);
@@ -946,7 +946,7 @@ function renderError(msg) {
   <div style="text-align:center"><h1>⚠️ Error</h1><p>${msg||'Please try again.'}</p></div></body></html>`;
 }
 
-function renderFullPage({ lite, images, amenities, reviews, availability, todayPrice, qrCode, liteUrl, showReviews, roomId, propertyId }) {
+function renderFullPage({ lite, images, amenities, reviews, availability, todayPrice, qrCode, liteUrl, showReviews, roomId, propertyId, accountId }) {
   // Use custom_title only if it's different from room_name (i.e., truly custom)
   const effectiveCustomTitle = (lite.custom_title && lite.custom_title !== lite.room_name) ? lite.custom_title : null;
   const title = effectiveCustomTitle || lite.display_name || lite.room_name || lite.property_name;
