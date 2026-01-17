@@ -1314,6 +1314,9 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     const propertyId = ${propertyId || 'null'};
     let currentImage = 0;
     let currentMonth = new Date();
+    let currentPricing = null;
+    let selectedUpsells = [];
+    let appliedVoucher = null;
     
     // Lightbox
     function openLightbox(i) { currentImage = i; document.getElementById('lightbox-img').src = images[i]; document.getElementById('lightbox').classList.add('active'); }
