@@ -690,16 +690,21 @@ app.post('/api/voucher/validate', async (req, res) => {
   try {
     const { code, propertyId, roomId, subtotal } = req.body;
     
+    // Get account_id from property
+    const propRes = await pool.query('SELECT account_id FROM properties WHERE id = $1', [propertyId]);
+    const accountId = propRes.rows[0]?.account_id;
+    
     const result = await pool.query(`
       SELECT v.*, 
-             CASE WHEN v.usage_count >= v.usage_limit THEN true ELSE false END as exhausted
+             CASE WHEN v.max_uses IS NOT NULL AND v.times_used >= v.max_uses THEN true ELSE false END as exhausted
       FROM vouchers v
-      WHERE v.code = $1 
+      LEFT JOIN properties p ON v.property_id = p.id
+      WHERE UPPER(v.code) = UPPER($1) 
         AND v.active = true
-        AND (v.property_id IS NULL OR v.property_id = $2)
+        AND (v.account_id IS NULL OR v.account_id = $2 OR p.account_id = $2 OR v.property_id = $3)
         AND (v.valid_from IS NULL OR v.valid_from <= CURRENT_DATE)
         AND (v.valid_until IS NULL OR v.valid_until >= CURRENT_DATE)
-    `, [code.toUpperCase(), propertyId]);
+    `, [code, accountId, propertyId]);
     
     if (result.rows.length === 0) {
       return res.json({ success: false, error: 'Invalid voucher code' });
@@ -729,6 +734,7 @@ app.post('/api/voucher/validate', async (req, res) => {
       voucher: {
         id: voucher.id,
         code: voucher.code,
+        name: voucher.name || voucher.code,
         discount_type: voucher.discount_type,
         discount_value: voucher.discount_value,
         discount_amount: discount,
@@ -2189,21 +2195,21 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
             code, 
+            propertyId,
             roomId, 
-            checkin: document.getElementById('checkin').value,
-            checkout: document.getElementById('checkout').value,
-            total: currentPricing.subtotal 
+            subtotal: currentPricing.subtotal 
           })
         });
         const data = await res.json();
         
         if (data.success) {
           appliedVoucher = data.voucher;
+          appliedVoucher.discount = data.voucher.discount_amount;
           document.getElementById('voucherInputWrapper').style.display = 'none';
           document.querySelector('.voucher-toggle').style.display = 'none';
           const appliedEl = document.getElementById('voucherApplied');
           appliedEl.style.display = 'flex';
-          appliedEl.querySelector('.voucher-name').textContent = '✓ ' + data.voucher.name + ' (-' + currency + Math.round(data.voucher.discount) + ')';
+          appliedEl.querySelector('.voucher-name').textContent = '✓ ' + (data.voucher.name || data.voucher.code) + ' (-' + currency + Math.round(appliedVoucher.discount) + ')';
           msgEl.textContent = '';
           updateTotal();
         } else {
