@@ -726,6 +726,113 @@ app.get('/api/upsells/:roomId', async (req, res) => {
   }
 });
 
+// Get taxes for property/room
+app.get('/api/taxes/:roomId', async (req, res) => {
+  try {
+    const roomId = req.params.roomId;
+    const { nights, guests, subtotal } = req.query;
+    const numNights = parseInt(nights) || 1;
+    const numGuests = parseInt(guests) || 1;
+    const subTotal = parseFloat(subtotal) || 0;
+    
+    // Get property_id from room
+    const roomRes = await pool.query(`
+      SELECT bu.property_id, p.account_id,
+             p.tourist_tax_enabled, p.tourist_tax_type, p.tourist_tax_amount,
+             p.tourist_tax_name, p.tourist_tax_max_nights, p.tourist_tax_exempt_children
+      FROM bookable_units bu 
+      JOIN properties p ON bu.property_id = p.id 
+      WHERE bu.id = $1
+    `, [roomId]);
+    
+    if (roomRes.rows.length === 0) {
+      return res.json({ success: true, taxes: [], taxTotal: 0 });
+    }
+    
+    const property = roomRes.rows[0];
+    const taxBreakdown = [];
+    let taxTotal = 0;
+    
+    // Get taxes from taxes table
+    try {
+      const taxes = await pool.query(`
+        SELECT * FROM taxes 
+        WHERE active = true
+          AND (property_id = $1 OR property_id IS NULL)
+          AND (room_id IS NULL OR room_id = $2)
+      `, [property.property_id, roomId]);
+      
+      taxes.rows.forEach(tax => {
+        let taxAmount = 0;
+        const taxType = tax.amount_type || tax.charge_per || 'fixed';
+        const taxRate = parseFloat(tax.amount) || 0;
+        
+        if (taxType === 'percentage') {
+          taxAmount = subTotal * (taxRate / 100);
+        } else if (taxType === 'per_night') {
+          const taxableNights = tax.max_nights ? Math.min(numNights, tax.max_nights) : numNights;
+          taxAmount = taxRate * taxableNights;
+        } else if (taxType === 'per_person_per_night' || taxType === 'per_guest_per_night') {
+          const taxableNights = tax.max_nights ? Math.min(numNights, tax.max_nights) : numNights;
+          taxAmount = taxRate * taxableNights * numGuests;
+        } else {
+          taxAmount = taxRate;
+        }
+        
+        if (taxAmount > 0) {
+          taxTotal += taxAmount;
+          taxBreakdown.push({ 
+            name: tax.name, 
+            amount: taxAmount,
+            type: taxType
+          });
+        }
+      });
+    } catch (e) {
+      console.log('Taxes table query failed:', e.message);
+    }
+    
+    // Check property-level tourist tax
+    if (property.tourist_tax_enabled && property.tourist_tax_amount) {
+      const taxableNights = property.tourist_tax_max_nights 
+        ? Math.min(numNights, property.tourist_tax_max_nights) 
+        : numNights;
+      let touristTaxAmount = 0;
+      
+      switch (property.tourist_tax_type) {
+        case 'per_guest_per_night':
+          touristTaxAmount = parseFloat(property.tourist_tax_amount) * taxableNights * numGuests;
+          break;
+        case 'per_night':
+          touristTaxAmount = parseFloat(property.tourist_tax_amount) * taxableNights;
+          break;
+        case 'per_booking':
+          touristTaxAmount = parseFloat(property.tourist_tax_amount);
+          break;
+        case 'percentage':
+          touristTaxAmount = subTotal * (parseFloat(property.tourist_tax_amount) / 100);
+          break;
+        default:
+          touristTaxAmount = parseFloat(property.tourist_tax_amount) * taxableNights * numGuests;
+      }
+      
+      if (touristTaxAmount > 0) {
+        taxTotal += touristTaxAmount;
+        taxBreakdown.push({ 
+          name: property.tourist_tax_name || 'Tourist Tax', 
+          amount: touristTaxAmount,
+          type: 'tourist_tax'
+        });
+      }
+    }
+    
+    res.json({ success: true, taxes: taxBreakdown, taxTotal });
+  } catch (error) {
+    console.error('Taxes error:', error);
+    res.json({ success: true, taxes: [], taxTotal: 0 });
+  }
+});
+
 // Validate voucher code
 app.post('/api/voucher/validate', async (req, res) => {
   try {
@@ -1228,6 +1335,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     .price-breakdown h4 { font-size: 14px; font-weight: 600; margin-bottom: 12px; }
     .breakdown-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px; color: #475569; }
     .breakdown-row.discount { color: #059669; }
+    .breakdown-row.tax-row { color: #64748b; font-size: 13px; }
     .breakdown-total { display: flex; justify-content: space-between; padding-top: 12px; margin-top: 8px; border-top: 2px solid #e2e8f0; font-weight: 700; font-size: 16px; }
     .upsells-section { margin: 16px 0; padding: 16px 0; border-top: 1px solid #e2e8f0; }
     .upsells-section h4 { font-size: 14px; font-weight: 600; margin-bottom: 12px; color: #1e293b; }
@@ -1569,6 +1677,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
               <div class="breakdown-row" id="cleaningRow" style="display:none;"><span>Cleaning fee</span><span></span></div>
               <div class="breakdown-row" id="upsellsRow" style="display:none;"><span>Extras</span><span></span></div>
               <div class="breakdown-row discount" id="discountRow" style="display:none;"><span></span><span></span></div>
+              <div id="taxesContainer"></div>
               <div class="breakdown-total"><span>Total</span><span id="totalAmount"></span></div>
             </div>
             
@@ -1813,6 +1922,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     let currentStep = 0;
     let availableOffers = [];
     let selectedOffer = null;
+    let currentTaxes = [];
     
     // Initialize Flatpickr date pickers
     document.addEventListener('DOMContentLoaded', function() {
@@ -2001,9 +2111,10 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
           btnText.textContent = 'Book ' + data.pricing.nights + ' night' + (data.pricing.nights > 1 ? 's' : '') + ' - ' + currency + Math.round(data.pricing.subtotal);
           bookBtn.disabled = false;
           document.getElementById('voucherSection').style.display = 'block';
-          // Load offers and upsells
+          // Load offers, upsells, and taxes
           try { await loadOffers(); } catch(e) { console.log('Offers error:', e); }
           try { loadUpsells(); } catch(e) { console.log('Upsells error:', e); }
+          try { await loadTaxes(); } catch(e) { console.log('Taxes error:', e); }
         } else {
           document.getElementById('priceBreakdown').style.display = 'none';
           document.getElementById('rateOptionsSection').style.display = 'none';
@@ -2179,6 +2290,21 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
         discountRow.style.display = 'none';
       }
       
+      // Display taxes
+      const taxesContainer = document.getElementById('taxesContainer');
+      let taxTotal = 0;
+      if (currentTaxes && currentTaxes.length > 0) {
+        let taxHtml = '';
+        currentTaxes.forEach(tax => {
+          taxTotal += tax.amount;
+          taxHtml += '<div class="breakdown-row tax-row"><span>' + tax.name + '</span><span>' + currency + tax.amount.toFixed(2) + '</span></div>';
+        });
+        taxesContainer.innerHTML = taxHtml;
+        total += taxTotal;
+      } else {
+        taxesContainer.innerHTML = '';
+      }
+      
       document.getElementById('totalAmount').textContent = currency + Math.round(total);
       
       // Update book button text
@@ -2234,6 +2360,30 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
         (u.description ? '<div class="upsell-desc">' + u.description.replace(/</g, '&lt;') + '</div>' : '') + '</div>' +
         '<div class="upsell-price">' + currency + parseFloat(u.price).toFixed(2) + '<small>' + priceText + '</small></div>' +
       '</div>';
+    }
+    
+    // Load and display taxes
+    async function loadTaxes() {
+      if (!currentPricing) return;
+      
+      try {
+        const nights = currentPricing.nights;
+        const guests = parseInt(document.getElementById('adults').value) + parseInt(document.getElementById('children').value);
+        const subtotal = currentPricing.subtotal;
+        
+        const res = await fetch('/api/taxes/' + roomId + '?nights=' + nights + '&guests=' + guests + '&subtotal=' + subtotal);
+        const data = await res.json();
+        
+        if (data.success && data.taxes && data.taxes.length > 0) {
+          currentTaxes = data.taxes;
+        } else {
+          currentTaxes = [];
+        }
+        updateTotal();
+      } catch (e) {
+        console.log('No taxes available');
+        currentTaxes = [];
+      }
     }
     
     function toggleUpsell(el) {
