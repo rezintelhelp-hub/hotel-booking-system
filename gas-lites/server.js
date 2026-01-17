@@ -1289,6 +1289,8 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     const images = ${JSON.stringify(images.map(i => i.url))};
     const availability = ${availabilityJson};
     const currency = '${currency}';
+    const roomId = ${roomId || 'null'};
+    const propertyId = ${propertyId || 'null'};
     let currentImage = 0;
     let currentMonth = new Date();
     
