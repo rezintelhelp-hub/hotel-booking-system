@@ -41541,8 +41541,27 @@ Local honey and preserves"></textarea>
                     return;
                 }
                 
-                // For other adapters, use link-to-gas (cached data)
-                showNotification('Syncing content (descriptions, amenities, images)...', 'info');
+                // For Beds24 and other adapters:
+                // Step 1: Fetch fresh content from Beds24 V1 API (descriptions, amenities)
+                showNotification('Step 1/2: Fetching content from Beds24...', 'info');
+                try {
+                    const contentResponse = await fetch(`/api/gas-sync/properties/${syncPropertyId}/sync-content`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                        body: JSON.stringify({ force: true })
+                    });
+                    const contentData = await contentResponse.json();
+                    if (contentData.success) {
+                        console.log('Content sync:', contentData);
+                    } else {
+                        console.log('Content sync skipped:', contentData.error);
+                    }
+                } catch (contentError) {
+                    console.log('Content sync error (continuing):', contentError.message);
+                }
+                
+                // Step 2: Link content to GAS (update bookable_units with descriptions, images)
+                showNotification('Step 2/2: Syncing to GAS...', 'info');
                 const response = await fetch(`/api/gas-sync/properties/${syncPropertyId}/link-to-gas`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', ...authHeaders() },
