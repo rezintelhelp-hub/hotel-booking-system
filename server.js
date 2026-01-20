@@ -3111,17 +3111,20 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
           prop.adapter_code === 'beds24' ? parseInt(room.external_id) : null
         ]);
         
-        // Update text fields separately (handle JSONB/TEXT type differences)
+        // Update text fields separately - columns are JSONB, need {"en": "..."} format
         if (displayName) {
-          await pool.query('UPDATE bookable_units SET display_name = $1 WHERE id = $2', [displayName, gasRoomId])
+          const jsonVal = JSON.stringify({ en: displayName });
+          await pool.query('UPDATE bookable_units SET display_name = $1::jsonb WHERE id = $2', [jsonVal, gasRoomId])
             .catch(e => console.log('link-to-gas: display_name update failed:', e.message));
         }
         if (roomShortDesc) {
-          await pool.query('UPDATE bookable_units SET short_description = $1 WHERE id = $2', [roomShortDesc, gasRoomId])
+          const jsonVal = JSON.stringify({ en: roomShortDesc });
+          await pool.query('UPDATE bookable_units SET short_description = $1::jsonb WHERE id = $2', [jsonVal, gasRoomId])
             .catch(e => console.log('link-to-gas: short_description update failed:', e.message));
         }
         if (roomFullDesc) {
-          await pool.query('UPDATE bookable_units SET full_description = $1 WHERE id = $2', [roomFullDesc, gasRoomId])
+          const jsonVal = JSON.stringify({ en: roomFullDesc });
+          await pool.query('UPDATE bookable_units SET full_description = $1::jsonb WHERE id = $2', [jsonVal, gasRoomId])
             .catch(e => console.log('link-to-gas: full_description update failed:', e.message));
         }
         
@@ -3160,17 +3163,20 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         ]);
         gasRoomId = roomResult.rows[0].id;
         
-        // Update text fields separately (handle JSONB/TEXT type differences)
+        // Update text fields separately - columns are JSONB, need {"en": "..."} format
         if (displayName) {
-          await pool.query('UPDATE bookable_units SET display_name = $1 WHERE id = $2', [displayName, gasRoomId])
+          const jsonVal = JSON.stringify({ en: displayName });
+          await pool.query('UPDATE bookable_units SET display_name = $1::jsonb WHERE id = $2', [jsonVal, gasRoomId])
             .catch(e => console.log('link-to-gas: display_name update failed:', e.message));
         }
         if (roomShortDesc) {
-          await pool.query('UPDATE bookable_units SET short_description = $1 WHERE id = $2', [roomShortDesc, gasRoomId])
+          const jsonVal = JSON.stringify({ en: roomShortDesc });
+          await pool.query('UPDATE bookable_units SET short_description = $1::jsonb WHERE id = $2', [jsonVal, gasRoomId])
             .catch(e => console.log('link-to-gas: short_description update failed:', e.message));
         }
         if (roomFullDesc) {
-          await pool.query('UPDATE bookable_units SET full_description = $1 WHERE id = $2', [roomFullDesc, gasRoomId])
+          const jsonVal = JSON.stringify({ en: roomFullDesc });
+          await pool.query('UPDATE bookable_units SET full_description = $1::jsonb WHERE id = $2', [jsonVal, gasRoomId])
             .catch(e => console.log('link-to-gas: full_description update failed:', e.message));
         }
         
