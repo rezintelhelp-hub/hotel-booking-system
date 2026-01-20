@@ -43128,15 +43128,14 @@ app.post('/webhooks/elevate/:accountId/:apiKey/property/create', validateElevate
         name, 
         address,
         city,
-        region,
+        state,
         country,
         zip_code,
         phone,
         email,
-        status,
-        created_at,
-        updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), NOW())
+        active,
+        created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
       RETURNING id, external_id, name
     `, [
       account.id,
@@ -43150,7 +43149,7 @@ app.post('/webhooks/elevate/:accountId/:apiKey/property/create', validateElevate
       address?.postcode || null,
       phone || null,
       email || null,
-      'active'
+      true
     ]);
     
     const property = result.rows[0];
@@ -43216,7 +43215,7 @@ app.post('/webhooks/elevate/:accountId/:apiKey/property/update', validateElevate
       values.push(address.city);
     }
     if (address?.region !== undefined) {
-      updates.push(`region = $${paramIndex++}`);
+      updates.push(`state = $${paramIndex++}`);
       values.push(address.region);
     }
     if (address?.country !== undefined) {
