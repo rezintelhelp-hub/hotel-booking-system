@@ -4548,23 +4548,34 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
     
     // Fetch property with texts and features from V2 API
     const propResponse = await axios.get('https://beds24.com/api/v2/properties', {
-      headers: { 'token': accessToken },
+      headers: { 'token': accessToken, 'accept': 'application/json' },
       params: {
         id: prop.external_id,
-        includeTexts: true,
+        includeTexts: 'all',
         includeAllRooms: true,
+        includeUnitDetails: true,
         includeFeatures: true
       }
     });
     
-    const propData = propResponse.data?.data?.[0];
+    const propData = propResponse.data?.data?.[0] || propResponse.data?.[0];
     if (!propData) {
       return res.json({ success: false, error: 'Property not found in Beds24' });
     }
     
+    console.log(`[Content Sync] ${prop.name}: V2 response keys:`, Object.keys(propData).join(', '));
+    
     // Update property description and features
-    const texts = propData.texts || {};
-    const features = propData.features || [];
+    // V2 texts can be array or object
+    let propertyDescription = '';
+    if (propData.texts && Array.isArray(propData.texts) && propData.texts.length > 0) {
+      const defaultText = propData.texts[0];
+      propertyDescription = defaultText.propertyDescription || defaultText.description || '';
+    } else if (propData.texts && typeof propData.texts === 'object') {
+      propertyDescription = propData.texts.description || '';
+    }
+    
+    const features = propData.features || propData.featureCodes || [];
     await pool.query(`
       UPDATE gas_sync_properties SET
         description = $1,
@@ -4572,41 +4583,56 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
         synced_at = NOW()
       WHERE id = $3
     `, [
-      texts.description || propData.description || '',
-      JSON.stringify({ texts, features }),
+      propertyDescription,
+      JSON.stringify({ texts: propData.texts, features }),
       prop.id
     ]);
     
-    console.log(`[Content Sync] ${prop.name}: Found ${features.length} features`);
+    console.log(`[Content Sync] ${prop.name}: Found ${Array.isArray(features) ? features.length : 0} features`);
     
-    // NEW: Update room texts from V2 API response
+    // Update room texts from V2 API response - rooms are in roomTypes array
     let roomsUpdatedFromV2 = 0;
-    const rooms = propData.rooms || [];
+    const rooms = propData.roomTypes || propData.rooms || [];
     console.log(`[Content Sync] ${prop.name}: Found ${rooms.length} rooms in V2 response`);
     
     for (const room of rooms) {
-      const roomTexts = room.texts || {};
-      const roomId = room.id;
+      const roomId = room.id || room.roomId;
       
-      // Log what texts we found
-      const textKeys = Object.keys(roomTexts);
-      if (textKeys.length > 0) {
-        console.log(`[Content Sync] Room ${roomId} texts:`, textKeys.join(', '));
+      // V2 room texts is an array: [{language: "en", displayName: "...", roomDescription: "...", auxiliary: "..."}]
+      let displayName = '';
+      let roomDescription = '';
+      let auxiliaryText = '';
+      
+      if (room.texts && Array.isArray(room.texts) && room.texts.length > 0) {
+        const roomText = room.texts[0]; // First = default language
+        displayName = roomText.displayName || '';
+        roomDescription = roomText.roomDescription || roomText.description || '';
+        auxiliaryText = roomText.auxiliary || roomText.auxiliaryText || '';
+        console.log(`[Content Sync] Room ${roomId}: displayName=${displayName ? 'YES' : 'NO'}, roomDesc=${roomDescription ? 'YES' : 'NO'}, auxiliary=${auxiliaryText ? 'YES' : 'NO'}`);
       }
       
-      // Update gas_sync_room_types with texts
-      if (textKeys.length > 0) {
+      // Update gas_sync_room_types with texts in expected format
+      if (displayName || roomDescription || auxiliaryText) {
+        const textsToStore = {
+          texts: {
+            displayName: { EN: displayName },
+            roomDescription1: { EN: roomDescription },
+            auxiliaryText: { EN: auxiliaryText }
+          }
+        };
+        
         await pool.query(`
           UPDATE gas_sync_room_types SET
             raw_data = COALESCE(raw_data, '{}'::jsonb) || $1,
             synced_at = NOW()
           WHERE sync_property_id = $2 AND external_id = $3
         `, [
-          JSON.stringify({ texts: roomTexts }),
+          JSON.stringify(textsToStore),
           prop.id,
           String(roomId)
         ]);
         roomsUpdatedFromV2++;
+        console.log(`[Content Sync] Updated room ${roomId} with texts`);
       }
     }
     
