@@ -43132,10 +43132,8 @@ app.post('/webhooks/elevate/:accountId/:apiKey/property/create', validateElevate
         country,
         zip_code,
         phone,
-        email,
-        active,
-        created_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
+        email
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING id, external_id, name
     `, [
       account.id,
@@ -43148,8 +43146,7 @@ app.post('/webhooks/elevate/:accountId/:apiKey/property/create', validateElevate
       address?.country,
       address?.postcode || null,
       phone || null,
-      email || null,
-      true
+      email || null
     ]);
     
     const property = result.rows[0];
