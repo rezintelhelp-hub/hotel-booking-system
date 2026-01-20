@@ -3086,17 +3086,24 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
       const sizeSqm = roomRawData.size || roomRawData.sqm || null;
       
       // Extract feature codes for amenities
+      // Beds24 sends featureCodes as array where each element is a space-separated group
+      // e.g. ["BEDROOM_ENSUITE BED_KING BED_SOFA", "BEDROOM BED_QUEEN", "BATHROOM BATH_TUB"]
       let featureCodes = null;
+      let featureCodesArray = null; // Keep original array for structured parsing
       if (roomRawData.featureCodes) {
         if (typeof roomRawData.featureCodes === 'string') {
           featureCodes = roomRawData.featureCodes;
         } else if (Array.isArray(roomRawData.featureCodes)) {
+          featureCodesArray = roomRawData.featureCodes; // Preserve array structure
           featureCodes = roomRawData.featureCodes.join(',');
         }
       }
       
       // Log featureCodes for debugging
       console.log('link-to-gas: featureCodes:', featureCodes ? featureCodes.substring(0, 100) : '(none)');
+      if (featureCodesArray) {
+        console.log('link-to-gas: featureCodesArray (first 5):', JSON.stringify(featureCodesArray.slice(0, 5)));
+      }
       
       // Count bedrooms and bathrooms from feature codes if not already set
       if (featureCodes) {
@@ -3288,26 +3295,11 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
       // =========================================================
       // AUTO-CREATE BEDROOMS AND BATHROOMS FROM FEATURE CODES
       // =========================================================
-      if (featureCodes && gasRoomId && gasPropertyId) {
-        const codes = featureCodes.split(',').map(c => c.trim().toUpperCase()).filter(c => c);
-        
-        // Parse bedroom codes: BEDROOM, BED_KING, BED_QUEEN, BED_SOFA, etc.
-        const bedroomCodes = codes.filter(c => c === 'BEDROOM' || c.startsWith('BEDROOM'));
-        const bedCodes = codes.filter(c => c.startsWith('BED_'));
-        
-        // Parse bathroom codes: BATHROOM_FULL, BATHROOM_HALF, BATH_*, etc.
-        const bathroomTypeCodes = codes.filter(c => c.startsWith('BATHROOM_'));
-        const bathFeatureCodes = codes.filter(c => c.startsWith('BATH_') && !c.startsWith('BATHROOM_'));
-        
-        // Count bedrooms (each BEDROOM code = 1 bedroom)
-        const numBedrooms = bedroomCodes.length || (bedCodes.length > 0 ? 1 : 0);
-        
-        // Count bed types
-        const bedCounts = {};
-        for (const code of bedCodes) {
-          bedCounts[code] = (bedCounts[code] || 0) + 1;
-        }
-        
+      // Beds24 sends featureCodes as array where each element is space-separated:
+      // ["BEDROOM_ENSUITE BED_KING BED_SOFA", "BEDROOM BED_QUEEN", "BATHROOM BATH_TUB BATH_SHOWER"]
+      // Each BEDROOM line defines one bedroom with its beds
+      
+      if (gasRoomId && gasPropertyId && (featureCodesArray || featureCodes)) {
         // Map bed codes to friendly names
         const bedNames = {
           'BED_KING': 'King Bed', 'BED_QUEEN': 'Queen Bed', 'BED_DOUBLE': 'Double Bed',
@@ -3318,45 +3310,157 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
           'BED_COUCH': 'Couch', 'BED_HAMMOCK': 'Hammock'
         };
         
-        // Create bed_config array
-        const bedConfig = Object.entries(bedCounts).map(([code, qty]) => ({
-          type: code,
-          name: bedNames[code] || code.replace('BED_', '').replace(/_/g, ' '),
-          quantity: qty
-        }));
+        // Parse structured bedroom definitions from array
+        const bedroomDefinitions = [];
+        const bathroomDefinitions = [];
         
-        // Only create bedrooms if we have bed codes and no existing bedrooms
-        if (numBedrooms > 0 || bedConfig.length > 0) {
+        if (featureCodesArray && featureCodesArray.length > 0) {
+          // Use structured array - each element is a space-separated group
+          for (const line of featureCodesArray) {
+            const parts = line.trim().toUpperCase().split(/\s+/);
+            
+            // Check if this line defines a bedroom
+            if (parts.some(p => p.startsWith('BEDROOM'))) {
+              const bedroomType = parts.find(p => p.startsWith('BEDROOM')) || 'BEDROOM';
+              const isEnsuite = bedroomType.includes('ENSUITE');
+              const beds = parts.filter(p => p.startsWith('BED_'));
+              
+              // Normalize bed codes (handle single/twin combos)
+              const normalizedBeds = [];
+              for (const bed of beds) {
+                if (bed.toLowerCase().includes('/')) {
+                  const subParts = bed.split('/');
+                  for (const sp of subParts) {
+                    const norm = sp.toUpperCase().trim();
+                    normalizedBeds.push(norm.startsWith('BED_') ? norm : `BED_${norm}`);
+                  }
+                } else {
+                  normalizedBeds.push(bed);
+                }
+              }
+              
+              bedroomDefinitions.push({
+                type: bedroomType,
+                isEnsuite,
+                beds: normalizedBeds
+              });
+            }
+            
+            // Check if this line defines a bathroom
+            if (parts.some(p => p.startsWith('BATHROOM') || p === 'FULLBATH' || p === 'HALFBATH')) {
+              const bathroomType = parts.find(p => p.startsWith('BATHROOM')) || 'BATHROOM';
+              const features = parts.filter(p => p.startsWith('BATH_') && !p.startsWith('BATHROOM'));
+              
+              bathroomDefinitions.push({
+                type: bathroomType,
+                features
+              });
+            }
+          }
+          
+          console.log(`link-to-gas: Parsed ${bedroomDefinitions.length} bedroom(s) and ${bathroomDefinitions.length} bathroom(s) from structured featureCodes`);
+        }
+        
+        // Fallback: if no structured array or no bedrooms found, use flat parsing
+        if (bedroomDefinitions.length === 0 && featureCodes) {
+          const codes = featureCodes.split(',').map(c => c.trim().toUpperCase()).filter(c => c);
+          const bedroomCodes = codes.filter(c => c === 'BEDROOM' || c.startsWith('BEDROOM'));
+          const bedCodes = codes.filter(c => c.startsWith('BED_'));
+          
+          // Create one definition per BEDROOM code, distribute beds
+          const numBedrooms = bedroomCodes.length || (bedCodes.length > 0 ? 1 : 0);
+          
+          if (numBedrooms > 0) {
+            // Normalize bed codes
+            const normalizedBeds = [];
+            for (const code of bedCodes) {
+              if (code.toLowerCase().includes('/')) {
+                const parts = code.split('/');
+                for (const part of parts) {
+                  const normalized = part.toUpperCase().trim();
+                  normalizedBeds.push(normalized.startsWith('BED_') ? normalized : `BED_${normalized}`);
+                }
+              } else {
+                normalizedBeds.push(code);
+              }
+            }
+            
+            // Distribute beds across bedrooms
+            for (let i = 0; i < numBedrooms; i++) {
+              bedroomDefinitions.push({
+                type: bedroomCodes[i] || 'BEDROOM',
+                isEnsuite: (bedroomCodes[i] || '').includes('ENSUITE'),
+                beds: [] // Will be filled below
+              });
+            }
+            
+            // Distribute beds round-robin
+            normalizedBeds.forEach((bed, idx) => {
+              bedroomDefinitions[idx % numBedrooms].beds.push(bed);
+            });
+          }
+          
+          // Parse bathrooms from flat codes
+          const bathroomCodes = codes.filter(c => c.startsWith('BATHROOM'));
+          const bathFeatures = codes.filter(c => c.startsWith('BATH_') && !c.startsWith('BATHROOM'));
+          
+          for (const bc of bathroomCodes) {
+            bathroomDefinitions.push({
+              type: bc,
+              features: [] // Can't determine which features go with which bathroom in flat format
+            });
+          }
+          
+          console.log(`link-to-gas: Parsed ${bedroomDefinitions.length} bedroom(s) from flat featureCodes (fallback)`);
+        }
+        
+        // Create bedrooms if we have definitions and none exist
+        if (bedroomDefinitions.length > 0) {
           const existingBedrooms = await pool.query(
             'SELECT COUNT(*) as count FROM property_bedrooms WHERE property_id = $1 AND room_id = $2',
             [gasPropertyId, gasRoomId]
           );
           
           if (parseInt(existingBedrooms.rows[0].count) === 0) {
-            console.log(`link-to-gas: Auto-creating ${numBedrooms || 1} bedroom(s) with ${bedConfig.length} bed type(s)`);
+            console.log(`link-to-gas: Auto-creating ${bedroomDefinitions.length} bedroom(s) with their specific beds`);
             
-            // If we have specific BEDROOM codes, create that many bedrooms
-            // Otherwise create 1 bedroom with all beds
-            const bedroomsToCreate = numBedrooms || 1;
-            
-            // Distribute beds across bedrooms (simple: put all in first bedroom for now)
-            for (let i = 0; i < bedroomsToCreate; i++) {
-              const bedroomName = bedroomsToCreate === 1 ? 'Bedroom' : `Bedroom ${i + 1}`;
-              const bedsForThisBedroom = i === 0 ? bedConfig : []; // All beds in first bedroom
+            for (let i = 0; i < bedroomDefinitions.length; i++) {
+              const def = bedroomDefinitions[i];
+              const bedroomName = bedroomDefinitions.length === 1 ? 'Bedroom' : `Bedroom ${i + 1}`;
+              
+              // Count bed types for this bedroom
+              const bedCounts = {};
+              for (const bed of def.beds) {
+                bedCounts[bed] = (bedCounts[bed] || 0) + 1;
+              }
+              
+              // Create bed_config array
+              const bedConfig = Object.entries(bedCounts).map(([type, qty]) => ({
+                type,
+                name: bedNames[type] || type.replace('BED_', '').replace(/_/g, ' '),
+                quantity: qty
+              }));
+              
+              console.log(`link-to-gas: ${bedroomName}${def.isEnsuite ? ' (ensuite)' : ''}: ${bedConfig.map(b => `${b.quantity}x ${b.name}`).join(', ') || 'no beds'}`);
               
               await pool.query(`
-                INSERT INTO property_bedrooms (property_id, room_id, name, bed_config, display_order)
-                VALUES ($1, $2, $3, $4, $5)
+                INSERT INTO property_bedrooms (property_id, room_id, name, bed_config, has_ensuite, display_order)
+                VALUES ($1, $2, $3, $4, $5, $6)
               `, [
                 gasPropertyId,
                 gasRoomId,
                 bedroomName,
-                JSON.stringify(bedsForThisBedroom),
+                JSON.stringify(bedConfig),
+                def.isEnsuite,
                 i
               ]).catch(e => console.log('link-to-gas: bedroom create failed:', e.message));
             }
           }
         }
+        
+        // Parse bathroom codes for bathroom creation
+        const bathroomTypeCodes = codes.filter(c => c.startsWith('BATHROOM_'));
+        const bathFeatureCodes = codes.filter(c => c.startsWith('BATH_') && !c.startsWith('BATHROOM_'));
         
         // Parse bathroom types and features
         const bathroomTypes = {
@@ -19246,15 +19350,46 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
       // 3. In featureCodes string: "BED_KING,BED_SINGLE,BED_SINGLE"
       let bedConfig = null;
       
+      // Helper to normalize bed codes (handle "single/twin" combos)
+      function normalizeBedCode(code) {
+        const result = [];
+        // Handle "single/twin" or similar combined codes
+        if (code.toLowerCase().includes('/')) {
+          const parts = code.split('/');
+          for (const part of parts) {
+            const normalized = part.toUpperCase().trim();
+            result.push(normalized.startsWith('BED_') ? normalized : `BED_${normalized}`);
+          }
+        } else if (code.includes('_') && code.split('_').length > 2) {
+          // Handle "BED_SINGLE_TWIN" format
+          const lowerCode = code.toLowerCase();
+          if (lowerCode.includes('single') && lowerCode.includes('twin')) {
+            result.push('BED_SINGLE');
+            result.push('BED_TWIN');
+          } else {
+            result.push(code);
+          }
+        } else {
+          result.push(code);
+        }
+        return result;
+      }
+      
       // Try structured bedTypes first
       if (room.bedTypes && Array.isArray(room.bedTypes) && room.bedTypes.length > 0) {
-        bedConfig = { 
-          beds: room.bedTypes.map(b => ({
-            type: b.type || b.bedType || 'BED_DOUBLE',
-            quantity: b.quantity || b.count || 1,
-            name: getBedName(b.type || b.bedType)
-          }))
-        };
+        const normalizedBeds = [];
+        for (const b of room.bedTypes) {
+          const bedType = b.type || b.bedType || 'BED_DOUBLE';
+          const normalizedCodes = normalizeBedCode(bedType);
+          for (const code of normalizedCodes) {
+            normalizedBeds.push({
+              type: code,
+              quantity: b.quantity || b.count || 1,
+              name: getBedName(code)
+            });
+          }
+        }
+        bedConfig = { beds: normalizedBeds };
       } 
       // Try bedConfiguration object
       else if (room.bedConfiguration && typeof room.bedConfiguration === 'object') {
@@ -19262,9 +19397,15 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
       }
       // Extract from featureCodes if present
       else if (room.featureCodes && typeof room.featureCodes === 'string') {
-        const bedCodes = room.featureCodes.split(',')
+        const rawBedCodes = room.featureCodes.split(',')
           .map(c => c.trim())
-          .filter(c => c.startsWith('BED_'));
+          .filter(c => c.startsWith('BED_') || c.toLowerCase().includes('bed'));
+        
+        // Normalize all bed codes
+        const bedCodes = [];
+        for (const code of rawBedCodes) {
+          bedCodes.push(...normalizeBedCode(code));
+        }
         
         if (bedCodes.length > 0) {
           // Count occurrences of each bed type
@@ -19289,8 +19430,9 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
           'BED_BUNK': 'Bunkbed', 'BED_CHILD': 'Child Bed', 'BED_CRIB': 'Cot',
           'BED_DOUBLE': 'Double Bed', 'BED_KING': 'King Bed', 'BED_MURPHY': 'Murphy Bed',
           'BED_QUEEN': 'Queen Bed', 'BED_SOFA': 'Sofa Bed', 'BED_SINGLE': 'Single Bed',
-          'BED_FUTON': 'Futon', 'BED_FLOORMATTRESS': 'Floor Mattress', 'BED_TODDLER': 'Toddler Bed',
-          'BED_HAMMOCK': 'Hammock', 'BED_AIRMATTRESS': 'Air Mattress', 'BED_COUCH': 'Couch'
+          'BED_TWIN': 'Twin Bed', 'BED_FUTON': 'Futon', 'BED_FLOORMATTRESS': 'Floor Mattress', 
+          'BED_TODDLER': 'Toddler Bed', 'BED_HAMMOCK': 'Hammock', 'BED_AIRMATTRESS': 'Air Mattress', 
+          'BED_COUCH': 'Couch'
         };
         return names[code] || code;
       }
@@ -27540,7 +27682,7 @@ app.post('/webhooks/elevate/:accountId/:apiKey/availability/update', async (req,
   
   try {
     const { accountId, apiKey } = req.params;
-    const { external_id, availability } = req.body;
+    const { external_id, rates } = req.body;
     
     // Validate API key
     const isValid = await validateElevateApiKey(accountId, apiKey);
@@ -27549,8 +27691,8 @@ app.post('/webhooks/elevate/:accountId/:apiKey/availability/update', async (req,
       return res.status(401).json({ success: false, error: 'Invalid API key' });
     }
     
-    if (!external_id || !availability || !Array.isArray(availability)) {
-      return res.status(400).json({ success: false, error: 'external_id and availability array required' });
+    if (!external_id || !rates || !Array.isArray(rates)) {
+      return res.status(400).json({ success: false, error: 'external_id and rates array required' });
     }
     
     // Find the room by GAS room ID
@@ -27568,13 +27710,13 @@ app.post('/webhooks/elevate/:accountId/:apiKey/availability/update', async (req,
     let updated = 0;
     
     // Update availability for each date
-    for (const item of availability) {
-      const { date, available } = item;
+    for (const rate of rates) {
+      const { date, available } = rate;
       if (!date || available === undefined) continue;
       
-      // available can be boolean (true/false) or number (0 = blocked, >0 = available)
-      const isAvailable = available === true || available > 0;
-      const isBlocked = available === false || available === 0;
+      // available = number of rooms available (0 = blocked, >0 = available)
+      const isAvailable = available > 0;
+      const isBlocked = available === 0;
       
       await pool.query(`
         INSERT INTO room_availability (room_id, date, is_available, is_blocked, source, updated_at)
