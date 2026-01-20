@@ -43123,7 +43123,6 @@ app.post('/webhooks/elevate/:accountId/:apiKey/property/create', validateElevate
     const result = await pool.query(`
       INSERT INTO properties (
         user_id,
-        client_id,
         account_id, 
         external_id,
         external_source,
@@ -43135,7 +43134,7 @@ app.post('/webhooks/elevate/:accountId/:apiKey/property/create', validateElevate
         zip_code,
         phone,
         email
-      ) VALUES (1, $1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      ) VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING id, external_id, name
     `, [
       account.id,
