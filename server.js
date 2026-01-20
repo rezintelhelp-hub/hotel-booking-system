@@ -27540,7 +27540,7 @@ app.post('/webhooks/elevate/:accountId/:apiKey/availability/update', async (req,
   
   try {
     const { accountId, apiKey } = req.params;
-    const { external_id, rates } = req.body;
+    const { external_id, availability } = req.body;
     
     // Validate API key
     const isValid = await validateElevateApiKey(accountId, apiKey);
@@ -27549,8 +27549,8 @@ app.post('/webhooks/elevate/:accountId/:apiKey/availability/update', async (req,
       return res.status(401).json({ success: false, error: 'Invalid API key' });
     }
     
-    if (!external_id || !rates || !Array.isArray(rates)) {
-      return res.status(400).json({ success: false, error: 'external_id and rates array required' });
+    if (!external_id || !availability || !Array.isArray(availability)) {
+      return res.status(400).json({ success: false, error: 'external_id and availability array required' });
     }
     
     // Find the room by GAS room ID
@@ -27568,13 +27568,13 @@ app.post('/webhooks/elevate/:accountId/:apiKey/availability/update', async (req,
     let updated = 0;
     
     // Update availability for each date
-    for (const rate of rates) {
-      const { date, available } = rate;
+    for (const item of availability) {
+      const { date, available } = item;
       if (!date || available === undefined) continue;
       
-      // available = number of rooms available (0 = blocked, >0 = available)
-      const isAvailable = available > 0;
-      const isBlocked = available === 0;
+      // available can be boolean (true/false) or number (0 = blocked, >0 = available)
+      const isAvailable = available === true || available > 0;
+      const isBlocked = available === false || available === 0;
       
       await pool.query(`
         INSERT INTO room_availability (room_id, date, is_available, is_blocked, source, updated_at)
