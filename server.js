@@ -3020,17 +3020,37 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         displayName = getText(texts.displayName) || '';
       }
       
+      // Helper to strip HTML tags and decode entities
+      function stripHtml(html) {
+        if (!html) return '';
+        return html
+          .replace(/<[^>]*>/g, '') // Remove HTML tags
+          .replace(/&nbsp;/g, ' ')
+          .replace(/&amp;/g, '&')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/&quot;/g, '"')
+          .replace(/&#39;/g, "'")
+          .replace(/\s+/g, ' ') // Normalize whitespace
+          .trim();
+      }
+      
       // Beds24 roomDescription1 (Room Description) → GAS short_description (for listings)
-      const roomShortDesc = getText(texts.roomDescription1) || getText(roomRawData.description) || '';
+      const roomShortDescRaw = getText(texts.roomDescription1) || getText(roomRawData.description) || '';
+      const roomShortDesc = stripHtml(roomShortDescRaw);
       
       // Beds24 auxiliaryText (Auxiliary Text) → GAS full_description (long description)
-      const roomFullDesc = getText(texts.auxiliaryText) || getText(roomRawData.fullDescription) || '';
+      const roomFullDescRaw = getText(texts.auxiliaryText) || getText(roomRawData.fullDescription) || '';
+      const roomFullDesc = stripHtml(roomFullDescRaw);
+      
+      // Also strip HTML from displayName just in case
+      displayName = stripHtml(displayName);
       
       // Log what we found
       console.log('link-to-gas: Room', room.name);
       console.log('  - displayName:', displayName || '(empty)');
-      console.log('  - shortDesc (roomDescription1):', roomShortDesc || '(empty)');
-      console.log('  - fullDesc (auxiliaryText):', roomFullDesc || '(empty)');
+      console.log('  - shortDesc (roomDescription1):', roomShortDesc?.substring(0, 100) || '(empty)');
+      console.log('  - fullDesc (auxiliaryText):', roomFullDesc?.substring(0, 100) || '(empty)');
       
       const roomType = getText(texts.accommodationType) || getText(roomRawData.accommodationType) || '';
       
