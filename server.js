@@ -2641,6 +2641,12 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     const propAreaInfo = extractText(texts.areaInfo, texts.areaDescription, rawData.areaInfo);
     const propDamagePolicy = extractText(texts.damagePolicy, rawData.damagePolicy);
     
+    // Extract propertyDescription1 and propertyDescription2 for room-level fallbacks
+    // These are commonly used in Beds24 Booking Engine > Property Page
+    const propDescription1 = extractText(texts.propertyDescription1, rawData.propertyDescription1);
+    const propDescription2 = extractText(texts.propertyDescription2, rawData.propertyDescription2);
+    console.log('link-to-gas: Property fallback texts - propDesc1:', propDescription1?.substring(0,50) || '(empty)', 'propDesc2:', propDescription2?.substring(0,50) || '(empty)');
+    
     console.log('link-to-gas: Extracted texts - desc:', propDescription?.substring(0,50), 'houseRules:', propHouseRules?.substring(0,30));
     
     // Extract property-level display name (Hostaway uses externalListingName)
@@ -3039,11 +3045,21 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
       }
       
       // Beds24 roomDescription1 (Room Description) → GAS short_description (for listings)
-      const roomShortDescRaw = getText(texts.roomDescription1) || getText(roomRawData.description) || '';
+      // Fallback to propertyDescription1 if room description is empty
+      let roomShortDescRaw = getText(texts.roomDescription1) || getText(roomRawData.description) || '';
+      if (!roomShortDescRaw && propDescription1) {
+        roomShortDescRaw = propDescription1;
+        console.log('link-to-gas: Using propertyDescription1 as short_description fallback');
+      }
       const roomShortDesc = stripHtml(roomShortDescRaw);
       
       // Beds24 auxiliaryText (Auxiliary Text) → GAS full_description (long description)
-      const roomFullDescRaw = getText(texts.auxiliaryText) || getText(roomRawData.fullDescription) || '';
+      // Fallback to propertyDescription2 if auxiliary text is empty
+      let roomFullDescRaw = getText(texts.auxiliaryText) || getText(roomRawData.fullDescription) || '';
+      if (!roomFullDescRaw && propDescription2) {
+        roomFullDescRaw = propDescription2;
+        console.log('link-to-gas: Using propertyDescription2 as full_description fallback');
+      }
       const roomFullDesc = stripHtml(roomFullDescRaw);
       
       // Also strip HTML from displayName just in case
@@ -4762,11 +4778,17 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
     // Update property description and features
     // V2 texts can be array or object
     let propertyDescription = '';
+    let propTextsForStorage = propData.texts;
+    
     if (propData.texts && Array.isArray(propData.texts) && propData.texts.length > 0) {
       const defaultText = propData.texts[0];
       propertyDescription = defaultText.propertyDescription || defaultText.description || '';
+      console.log(`[Content Sync] V2 property texts keys:`, Object.keys(defaultText).join(', '));
+      console.log(`[Content Sync] propertyDescription1:`, defaultText.propertyDescription1 ? 'YES' : 'NO');
+      console.log(`[Content Sync] propertyDescription2:`, defaultText.propertyDescription2 ? 'YES' : 'NO');
     } else if (propData.texts && typeof propData.texts === 'object') {
       propertyDescription = propData.texts.description || '';
+      console.log(`[Content Sync] V2 property texts (object) keys:`, Object.keys(propData.texts).join(', '));
     }
     
     const features = propData.features || propData.featureCodes || [];
