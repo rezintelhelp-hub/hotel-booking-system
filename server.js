@@ -25,83 +25,6 @@ const { v4: uuidv4 } = require('uuid');
 const Stripe = require('stripe');
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
-// Airwallex payment processing
-const AIRWALLEX_CLIENT_ID = process.env.AIRWALLEX_CLIENT_ID;
-const AIRWALLEX_API_KEY = process.env.AIRWALLEX_API_KEY;
-const AIRWALLEX_ENV = process.env.AIRWALLEX_ENV || 'production'; // 'sandbox' or 'production'
-const AIRWALLEX_BASE_URL = AIRWALLEX_ENV === 'sandbox' 
-  ? 'https://api-demo.airwallex.com/api/v1'
-  : 'https://api.airwallex.com/api/v1';
-
-// GoCardless payment processing
-const GOCARDLESS_ACCESS_TOKEN = process.env.GOCARDLESS_ACCESS_TOKEN;
-const GOCARDLESS_WEBHOOK_SECRET = process.env.GOCARDLESS_WEBHOOK_SECRET;
-const GOCARDLESS_ENV = process.env.GOCARDLESS_ENV || 'live'; // 'sandbox' or 'live'
-const GOCARDLESS_BASE_URL = GOCARDLESS_ENV === 'sandbox'
-  ? 'https://api-sandbox.gocardless.com'
-  : 'https://api.gocardless.com';
-
-async function gocardlessRequest(method, endpoint, data = null) {
-  const config = {
-    method,
-    url: `${GOCARDLESS_BASE_URL}${endpoint}`,
-    headers: {
-      'Authorization': `Bearer ${GOCARDLESS_ACCESS_TOKEN}`,
-      'GoCardless-Version': '2015-07-06',
-      'Content-Type': 'application/json'
-    }
-  };
-  if (data) config.data = data;
-  
-  const response = await axios(config);
-  return response.data;
-}
-
-// Airwallex auth token cache
-let airwallexToken = null;
-let airwallexTokenExpiry = null;
-
-async function getAirwallexToken() {
-  // Return cached token if still valid (with 5 min buffer)
-  if (airwallexToken && airwallexTokenExpiry && new Date(airwallexTokenExpiry) > new Date(Date.now() + 5 * 60 * 1000)) {
-    return airwallexToken;
-  }
-  
-  try {
-    const response = await axios.post(`${AIRWALLEX_BASE_URL}/authentication/login`, {}, {
-      headers: {
-        'Content-Type': 'application/json',
-        'x-client-id': AIRWALLEX_CLIENT_ID,
-        'x-api-key': AIRWALLEX_API_KEY
-      }
-    });
-    
-    airwallexToken = response.data.token;
-    airwallexTokenExpiry = response.data.expires_at;
-    console.log('✅ Airwallex token refreshed, expires:', airwallexTokenExpiry);
-    return airwallexToken;
-  } catch (error) {
-    console.error('❌ Airwallex auth failed:', error.response?.data || error.message);
-    throw new Error('Airwallex authentication failed');
-  }
-}
-
-async function airwallexRequest(method, endpoint, data = null) {
-  const token = await getAirwallexToken();
-  const config = {
-    method,
-    url: `${AIRWALLEX_BASE_URL}${endpoint}`,
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    }
-  };
-  if (data) config.data = data;
-  
-  const response = await axios(config);
-  return response.data;
-}
-
 // Google APIs for Analytics & Search Console
 const { google } = require('googleapis');
 let googleAuth = null;
@@ -709,33 +632,6 @@ async function runMigrations() {
       console.log('✅ gas_sync_properties.prop_key ensured');
     } catch (propKeyError) {
       console.log('ℹ️  prop_key column:', propKeyError.message);
-    }
-    
-    // Fix: Ensure gas_sync_properties.raw_data is JSONB (not TEXT)
-    try {
-      await pool.query(`ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS raw_data JSONB`);
-      console.log('✅ gas_sync_properties.raw_data ensured as JSONB');
-    } catch (rawDataError) {
-      // Column exists - try to convert if it's TEXT
-      try {
-        await pool.query(`ALTER TABLE gas_sync_properties ALTER COLUMN raw_data TYPE JSONB USING raw_data::jsonb`);
-        console.log('✅ gas_sync_properties.raw_data converted to JSONB');
-      } catch (convertErr) {
-        console.log('ℹ️  raw_data column:', convertErr.message);
-      }
-    }
-    
-    // Fix: Ensure gas_sync_room_types.raw_data is JSONB (not TEXT)
-    try {
-      await pool.query(`ALTER TABLE gas_sync_room_types ADD COLUMN IF NOT EXISTS raw_data JSONB`);
-      console.log('✅ gas_sync_room_types.raw_data ensured as JSONB');
-    } catch (rawDataError) {
-      try {
-        await pool.query(`ALTER TABLE gas_sync_room_types ALTER COLUMN raw_data TYPE JSONB USING raw_data::jsonb`);
-        console.log('✅ gas_sync_room_types.raw_data converted to JSONB');
-      } catch (convertErr) {
-        console.log('ℹ️  room_types raw_data:', convertErr.message);
-      }
     }
     
     // Fix: Extend room_availability.source column to VARCHAR(50) if it's VARCHAR(20)
@@ -1699,17 +1595,7 @@ app.post('/api/migration/deploy', async (req, res) => {
 // =====================================================
 
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', version: 'v20260115-1', database: !!process.env.DATABASE_URL, beds24: !!BEDS24_TOKEN });
-});
-
-// Get server's outbound IP (for whitelisting)
-app.get('/api/server-ip', async (req, res) => {
-  try {
-    const response = await axios.get('https://api.ipify.org?format=json');
-    res.json({ success: true, ip: response.data.ip });
-  } catch (error) {
-    res.json({ success: false, error: error.message });
-  }
+  res.json({ status: 'ok', database: !!process.env.DATABASE_URL, beds24: !!BEDS24_TOKEN });
 });
 
 // Fix gas_sync_reservations table - add missing columns
@@ -2240,19 +2126,16 @@ app.post('/api/gas-sync/test-prop-key', async (req, res) => {
     }
     
     const prop = propResult.rows[0];
-    console.log('Test prop key - raw credentials type:', typeof prop.credentials, 'value:', prop.credentials ? JSON.stringify(prop.credentials).substring(0, 100) : 'NULL');
-    console.log('Test prop key - connection_id from property:', prop.connection_id);
-    
     let credentials = prop.credentials || {};
     if (typeof credentials === 'string') {
       credentials = JSON.parse(credentials);
     }
     
-    console.log('Test prop key - credentials found:', !!credentials, 'v1ApiKey:', !!credentials.v1ApiKey, 'keys:', Object.keys(credentials));
+    console.log('Test prop key - credentials found:', !!credentials, 'v1ApiKey:', !!credentials.v1ApiKey);
     
     // For Beds24, test by fetching property data using the propKey
     if (prop.adapter_code === 'beds24') {
-      const v1ApiKey = credentials.v1ApiKey || credentials.apiKey;
+      const v1ApiKey = credentials.v1ApiKey;
       
       if (!v1ApiKey) {
         return res.json({ success: false, error: 'V1 API key not configured for this connection. Add it in the connection settings.' });
@@ -2618,35 +2501,13 @@ function extractText(obj, ...paths) {
   return '';
 }
 
-// Debug endpoint to check connection credentials
-app.get('/api/gas-sync/debug/connection-credentials', async (req, res) => {
-  try {
-    const { connectionId } = req.query;
-    const result = await pool.query('SELECT id, credentials FROM gas_sync_connections WHERE id = $1', [connectionId]);
-    if (result.rows.length === 0) {
-      return res.json({ error: 'Connection not found' });
-    }
-    const conn = result.rows[0];
-    const creds = typeof conn.credentials === 'string' ? JSON.parse(conn.credentials || '{}') : (conn.credentials || {});
-    res.json({
-      connectionId: conn.id,
-      credentialsType: typeof conn.credentials,
-      credentialsKeys: Object.keys(creds),
-      hasV1ApiKey: !!creds.v1ApiKey,
-      hasApiKey: !!creds.apiKey
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
 // Debug endpoint to see room raw_data from Beds24
 app.get('/api/gas-sync/debug/room-raw-data', async (req, res) => {
   try {
-    const { propertyId, full } = req.query;
+    const { propertyId } = req.query;
     
     const result = await pool.query(`
-      SELECT rt.id, rt.external_id, rt.name, rt.max_guests, rt.bedrooms, rt.beds, rt.raw_data 
+      SELECT rt.id, rt.external_id, rt.name, rt.raw_data 
       FROM gas_sync_room_types rt
       WHERE rt.sync_property_id = $1
       LIMIT 3
@@ -2654,33 +2515,15 @@ app.get('/api/gas-sync/debug/room-raw-data', async (req, res) => {
     
     const rooms = result.rows.map(r => {
       const rawData = typeof r.raw_data === 'string' ? JSON.parse(r.raw_data) : r.raw_data;
-      
-      if (full === 'true') {
-        return {
-          id: r.id,
-          external_id: r.external_id,
-          name: r.name,
-          db_max_guests: r.max_guests,
-          db_bedrooms: r.bedrooms,
-          db_beds: r.beds,
-          raw_data: rawData
-        };
-      }
-      
       return {
         id: r.id,
         external_id: r.external_id,
         name: r.name,
-        db_max_guests: r.max_guests,
-        db_bedrooms: r.bedrooms,
-        db_beds: r.beds,
-        raw_maxPeople: rawData?.maxPeople,
-        raw_maxAdult: rawData?.maxAdult,
-        raw_maxChildren: rawData?.maxChildren,
-        raw_roomSize: rawData?.roomSize,
-        raw_roomType: rawData?.roomType,
-        raw_featureCodes: rawData?.featureCodes,
-        raw_data_keys: Object.keys(rawData || {})
+        raw_data_keys: Object.keys(rawData || {}),
+        texts: rawData?.texts,
+        displayName: rawData?.displayName,
+        description: rawData?.description,
+        auxiliaryText: rawData?.auxiliaryText
       };
     });
     
@@ -2696,12 +2539,10 @@ app.get('/api/gas-sync/debug/gas-room-data', async (req, res) => {
     const { propertyId } = req.query;
     
     const result = await pool.query(`
-      SELECT id, name, display_name, short_description, full_description, 
-             cm_room_id, beds24_room_id, max_guests, bedrooms, beds, bathrooms,
-             room_type, base_price, feature_codes
+      SELECT id, name, display_name, short_description, full_description, cm_room_id, beds24_room_id
       FROM bookable_units
       WHERE property_id = $1
-      LIMIT 10
+      LIMIT 5
     `, [propertyId]);
     
     res.json({ success: true, rooms: result.rows });
@@ -3198,10 +3039,9 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
       const basePrice = parseFloat(room.base_price || roomRawData.rackRate) || null;
       const cleaningFee = parseFloat(roomRawData.cleaningFee) || null;
       const securityDeposit = parseFloat(roomRawData.securityDeposit) || null;
-      // Read bedroom/beds from the room record first (synced from Beds24), fallback to rawData
-      let bedrooms = room.bedrooms || roomRawData.bedrooms || roomRawData.numBedrooms || null;
-      const beds = room.beds || roomRawData.beds || roomRawData.numBeds || null;
-      let bathrooms = room.bathrooms || roomRawData.bathrooms || roomRawData.numBathrooms || null;
+      let bedrooms = roomRawData.bedrooms || roomRawData.numBedrooms || null;
+      const beds = roomRawData.beds || roomRawData.numBeds || null;
+      let bathrooms = roomRawData.bathrooms || roomRawData.numBathrooms || null;
       const sizeSqm = roomRawData.size || roomRawData.sqm || null;
       
       // Extract feature codes for amenities
@@ -3347,40 +3187,49 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         const codes = featureCodes.split(',').map(c => c.trim()).filter(c => c);
         
         if (codes.length > 0) {
-          // Ensure room_amenity_selections table exists
+          // Ensure beds24_code column exists on master_amenities
+          await pool.query('ALTER TABLE master_amenities ADD COLUMN IF NOT EXISTS beds24_code VARCHAR(100)').catch(() => {});
+          
+          // Ensure bookable_unit_amenities table exists
           await pool.query(`
-            CREATE TABLE IF NOT EXISTS room_amenity_selections (
+            CREATE TABLE IF NOT EXISTS bookable_unit_amenities (
               id SERIAL PRIMARY KEY,
-              room_id INTEGER NOT NULL,
-              amenity_id INTEGER NOT NULL,
+              bookable_unit_id INTEGER,
+              amenity_id INTEGER,
+              amenity_code VARCHAR(100),
+              amenity_name VARCHAR(255),
+              category VARCHAR(100),
               display_order INTEGER DEFAULT 0,
-              created_at TIMESTAMP DEFAULT NOW(),
-              UNIQUE(room_id, amenity_id)
+              created_at TIMESTAMP DEFAULT NOW()
             )
           `).catch(() => {});
           
-          let amenitiesAdded = 0;
           for (const code of codes) {
-            // Try to find matching master amenity
+            // Try to find matching master amenity by beds24_code or amenity_code
             const masterMatch = await pool.query(`
               SELECT id, amenity_code, amenity_name, category 
               FROM master_amenities 
-              WHERE amenity_code = $1 OR UPPER(amenity_code) = UPPER($1) OR beds24_code = $1
+              WHERE beds24_code = $1 OR amenity_code = $1 OR UPPER(amenity_code) = UPPER($1)
               LIMIT 1
             `, [code]);
             
             if (masterMatch.rows.length > 0) {
               const ma = masterMatch.rows[0];
-              // Insert into room_amenity_selections (the table the UI reads from)
-              await pool.query(`
-                INSERT INTO room_amenity_selections (room_id, amenity_id, display_order)
-                VALUES ($1, $2, $3)
-                ON CONFLICT (room_id, amenity_id) DO NOTHING
-              `, [gasRoomId, ma.id, amenitiesAdded]).catch(() => {});
-              amenitiesAdded++;
+              // Check if already linked
+              const existing = await pool.query(
+                'SELECT id FROM bookable_unit_amenities WHERE bookable_unit_id = $1 AND amenity_id = $2',
+                [gasRoomId, ma.id]
+              );
+              
+              if (existing.rows.length === 0) {
+                await pool.query(`
+                  INSERT INTO bookable_unit_amenities (bookable_unit_id, amenity_id, amenity_code, amenity_name, category)
+                  VALUES ($1, $2, $3, $4, $5)
+                `, [gasRoomId, ma.id, ma.amenity_code, ma.amenity_name, ma.category]);
+              }
             }
+            // If no match, the feature code is stored in feature_codes column for manual mapping later
           }
-          console.log(`link-to-gas: Mapped ${amenitiesAdded} amenities for room ${room.name}`);
         }
       }
     }
@@ -4533,8 +4382,7 @@ app.post('/api/gas-sync/properties/:propertyId/sync-prices', async (req, res) =>
 app.post('/api/gas-sync/properties/:propertyId/sync-images', async (req, res) => {
   try {
     const { propertyId } = req.params;
-    const { force } = req.body;
-    const forceSync = force === true || force === 'true';
+    const { force = false } = req.body;
     
     await ensureSyncTrackingColumns();
     
@@ -4553,7 +4401,7 @@ app.post('/api/gas-sync/properties/:propertyId/sync-images', async (req, res) =>
     const prop = propResult.rows[0];
     
     // Check rate limit
-    if (!forceSync && prop.last_image_sync) {
+    if (!force && prop.last_image_sync) {
       const minutesSinceLastSync = (Date.now() - new Date(prop.last_image_sync).getTime()) / 60000;
       if (minutesSinceLastSync < SYNC_RATE_LIMIT_MINUTES) {
         const waitMinutes = Math.ceil(SYNC_RATE_LIMIT_MINUTES - minutesSinceLastSync);
@@ -4647,8 +4495,7 @@ app.post('/api/gas-sync/properties/:propertyId/sync-images', async (req, res) =>
 app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) => {
   try {
     const { propertyId } = req.params;
-    const { force } = req.body;
-    const forceSync = force === true || force === 'true';
+    const { force = false } = req.body;
     
     await ensureSyncTrackingColumns();
     
@@ -4667,7 +4514,7 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
     const prop = propResult.rows[0];
     
     // Check rate limit
-    if (!forceSync && prop.last_content_sync) {
+    if (!force && prop.last_content_sync) {
       const minutesSinceLastSync = (Date.now() - new Date(prop.last_content_sync).getTime()) / 60000;
       if (minutesSinceLastSync < SYNC_RATE_LIMIT_MINUTES) {
         const waitMinutes = Math.ceil(SYNC_RATE_LIMIT_MINUTES - minutesSinceLastSync);
@@ -4721,7 +4568,7 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
     await pool.query(`
       UPDATE gas_sync_properties SET
         description = $1,
-        raw_data = $2,
+        raw_data = COALESCE(raw_data, '{}'::jsonb) || $2,
         synced_at = NOW()
       WHERE id = $3
     `, [
@@ -4796,72 +4643,24 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
             [prop.id]
           );
           
-          // V1 texts structure: texts.displayName = { EN: "...", DE: "..." }
-          // Helper to extract text
-          const getText = (val) => {
-            if (!val) return '';
-            if (typeof val === 'string') return val;
-            if (typeof val === 'object') {
-              return val.EN || val.en || val.DE || val.de || Object.values(val).find(v => typeof v === 'string' && v.trim()) || '';
-            }
-            return '';
-          };
-          
-          // Get featureCodes from V1 response
-          const v1FeatureCodes = content.featureCodes || [];
-          console.log(`[Content Sync] V1 featureCodes:`, Array.isArray(v1FeatureCodes) ? v1FeatureCodes.length + ' codes' : typeof v1FeatureCodes);
-          
           for (const room of rooms.rows) {
-            // V1 texts can be property-level or room-specific
-            const displayName = getText(roomTexts.displayName);
-            const roomDesc = getText(roomTexts.roomDescription1);
-            const auxText = getText(roomTexts.auxiliaryText);
+            const displayName = roomTexts[`displayName_${room.external_id}`] || roomTexts.displayName;
+            const roomDesc = roomTexts[`roomDescription1_${room.external_id}`] || roomTexts.roomDescription1;
             
-            console.log(`[Content Sync] Room ${room.external_id}: displayName="${displayName}", desc="${roomDesc?.substring(0,50)}..."`);
-            
-            // Build raw_data with texts and featureCodes
-            const rawDataUpdate = { 
-              texts: roomTexts,
-              featureCodes: v1FeatureCodes 
-            };
-            
-            // Update gas_sync_room_types
-            await pool.query(`
-              UPDATE gas_sync_room_types SET
-                description = COALESCE(NULLIF($1, ''), description),
-                raw_data = $2,
-                synced_at = NOW()
-              WHERE id = $3
-            `, [
-              roomDesc,
-              JSON.stringify(rawDataUpdate),
-              room.id
-            ]);
-            
-            // Also update bookable_units if linked
-            const syncRoom = await pool.query('SELECT gas_room_id FROM gas_sync_room_types WHERE id = $1', [room.id]);
-            const gasRoomId = syncRoom.rows[0]?.gas_room_id;
-            
-            if (gasRoomId) {
+            if (displayName || roomDesc) {
               await pool.query(`
-                UPDATE bookable_units SET
-                  display_name = COALESCE(NULLIF($1, ''), display_name),
-                  short_description = COALESCE(NULLIF($2, ''), short_description),
-                  full_description = COALESCE(NULLIF($3, ''), full_description),
-                  feature_codes = COALESCE(NULLIF($4, ''), feature_codes),
-                  updated_at = NOW()
-                WHERE id = $5
+                UPDATE gas_sync_room_types SET
+                  description = COALESCE($1, description),
+                  raw_data = COALESCE(raw_data, '{}'::jsonb) || $2,
+                  synced_at = NOW()
+                WHERE id = $3
               `, [
-                displayName,
                 roomDesc,
-                auxText,
-                Array.isArray(v1FeatureCodes) ? v1FeatureCodes.join(',') : '',
-                gasRoomId
+                JSON.stringify({ displayName, roomDescription1: roomDesc }),
+                room.id
               ]);
-              console.log(`[Content Sync] Updated bookable_unit ${gasRoomId} with V1 content`);
+              roomsUpdated++;
             }
-            
-            roomsUpdated++;
           }
         }
       } catch (v1Error) {
@@ -4883,168 +4682,6 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
     
   } catch (error) {
     console.error('Property content sync error:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-/**
- * Sync V1 content (texts, featureCodes) for ALL properties in a connection
- * This is a lightweight sync that only calls V1 getPropertyContent - no pricing
- */
-app.post('/api/gas-sync/connections/:connectionId/sync-v1-content', async (req, res) => {
-  try {
-    const { connectionId } = req.params;
-    
-    // Get connection and all its properties
-    const connResult = await pool.query(`
-      SELECT c.*, 
-        (SELECT json_agg(json_build_object(
-          'id', sp.id, 
-          'name', sp.name, 
-          'external_id', sp.external_id,
-          'prop_key', sp.prop_key
-        )) FROM gas_sync_properties sp WHERE sp.connection_id = c.id) as properties
-      FROM gas_sync_connections c 
-      WHERE c.id = $1
-    `, [connectionId]);
-    
-    if (connResult.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Connection not found' });
-    }
-    
-    const conn = connResult.rows[0];
-    const credentials = typeof conn.credentials === 'string' 
-      ? JSON.parse(conn.credentials || '{}') 
-      : (conn.credentials || {});
-    console.log('[V1 Content Sync] credentials type:', typeof conn.credentials, 'parsed keys:', Object.keys(credentials));
-    const v1ApiKey = credentials.v1ApiKey || credentials.apiKey;
-    
-    if (!v1ApiKey) {
-      return res.json({ success: false, error: 'No V1 API key configured. Add it in connection settings.' });
-    }
-    
-    const properties = conn.properties || [];
-    console.log(`[V1 Content Sync] Starting for ${properties.length} properties, props:`, JSON.stringify(properties));
-    
-    const results = {
-      total: properties.length,
-      synced: 0,
-      skipped: 0,
-      errors: []
-    };
-    
-    // Helper to extract text from Beds24 V1 format
-    const getText = (val) => {
-      if (!val) return '';
-      if (typeof val === 'string') return val;
-      if (typeof val === 'object') {
-        return val.EN || val.en || val.DE || val.de || Object.values(val).find(v => typeof v === 'string' && v.trim()) || '';
-      }
-      return '';
-    };
-    
-    for (const prop of properties) {
-      if (!prop.prop_key) {
-        console.log(`[V1 Content Sync] ${prop.name}: No prop_key, skipping`);
-        results.skipped++;
-        continue;
-      }
-      
-      try {
-        console.log(`[V1 Content Sync] ${prop.name}: Fetching V1 content...`);
-        
-        const v1Response = await axios.post('https://api.beds24.com/json/getPropertyContent', {
-          authentication: { apiKey: v1ApiKey, propKey: prop.prop_key },
-          texts: true,
-          featureCodes: true,
-          images: true
-        });
-        
-        console.log(`[V1 Content Sync] ${prop.name}: V1 response keys:`, Object.keys(v1Response.data || {}));
-        
-        // Handle different V1 API response structures
-        let content = v1Response.data?.getPropertyContent?.[0] 
-          || v1Response.data?.[0] 
-          || v1Response.data;
-        
-        // If content has error, log it
-        if (content?.error || v1Response.data?.error) {
-          console.log(`[V1 Content Sync] ${prop.name}: API error:`, content?.error || v1Response.data?.error);
-          results.skipped++;
-          continue;
-        }
-        
-        if (!content || (!content.texts && !content.featureCodes && !content.images)) {
-          console.log(`[V1 Content Sync] ${prop.name}: No content returned, raw:`, JSON.stringify(v1Response.data).substring(0, 200));
-          results.skipped++;
-          continue;
-        }
-        
-        const texts = content.texts || {};
-        const featureCodes = content.featureCodes || [];
-        const images = content.images || [];
-        
-        console.log(`[V1 Content Sync] ${prop.name}: texts keys=${Object.keys(texts).length}, featureCodes=${featureCodes.length}, images=${images.length}`);
-        
-        // Update property raw_data with V1 content
-        await pool.query(`
-          UPDATE gas_sync_properties SET
-            raw_data = $1::jsonb,
-            last_content_sync = NOW(),
-            synced_at = NOW()
-          WHERE id = $2
-        `, [
-          JSON.stringify({ texts, featureCodes, images, v1SyncedAt: new Date().toISOString() }),
-          prop.id
-        ]);
-        
-        // Get rooms for this property
-        const rooms = await pool.query(`
-          SELECT rt.id, rt.external_id, rt.gas_room_id 
-          FROM gas_sync_room_types rt 
-          WHERE rt.sync_property_id = $1
-        `, [prop.id]);
-        
-        // Update each room
-        for (const room of rooms.rows) {
-          const displayName = getText(texts.displayName);
-          const roomDesc = getText(texts.roomDescription1);
-          const auxText = getText(texts.auxiliaryText);
-          
-          // Update gas_sync_room_types with full V1 data
-          await pool.query(`
-            UPDATE gas_sync_room_types SET
-              raw_data = $1::jsonb,
-              synced_at = NOW()
-            WHERE id = $2
-          `, [
-            JSON.stringify({ texts, featureCodes }),
-            room.id
-          ]);
-        }
-        
-        results.synced++;
-        console.log(`[V1 Content Sync] ${prop.name}: ✓ Updated ${rooms.rows.length} rooms`);
-        
-      } catch (propError) {
-        console.error(`[V1 Content Sync] ${prop.name}: Error - ${propError.message}`);
-        results.errors.push({ property: prop.name, error: propError.message });
-      }
-      
-      // Small delay to avoid rate limits
-      await new Promise(r => setTimeout(r, 500));
-    }
-    
-    console.log(`[V1 Content Sync] Complete: ${results.synced}/${results.total} synced`);
-    
-    res.json({
-      success: true,
-      message: `V1 content synced for ${results.synced} of ${results.total} properties`,
-      results
-    });
-    
-  } catch (error) {
-    console.error('V1 Content Sync error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -11853,81 +11490,6 @@ app.get('/api/setup-billing', async (req, res) => {
     `);
     
     // Insert default plans if empty
-    
-    // Usage tracking for metered billing
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS billing_usage (
-        id SERIAL PRIMARY KEY,
-        account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
-        billing_period DATE NOT NULL,
-        room_count INTEGER DEFAULT 0,
-        blog_posts_generated INTEGER DEFAULT 0,
-        attractions_generated INTEGER DEFAULT 0,
-        reviews_synced INTEGER DEFAULT 0,
-        websites_active INTEGER DEFAULT 0,
-        plugins_active INTEGER DEFAULT 0,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(account_id, billing_period)
-      )
-    `);
-    console.log('✅ billing_usage table ensured');
-    
-    // Airwallex customer mapping
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS airwallex_customers (
-        id SERIAL PRIMARY KEY,
-        account_id INTEGER UNIQUE REFERENCES accounts(id) ON DELETE CASCADE,
-        airwallex_customer_id VARCHAR(255) UNIQUE,
-        payment_consent_id VARCHAR(255),
-        payment_method_id VARCHAR(255),
-        payment_method_last4 VARCHAR(4),
-        payment_method_brand VARCHAR(50),
-        email VARCHAR(255),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    console.log('✅ airwallex_customers table ensured');
-    
-    // Billing invoices for usage-based billing
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS billing_invoices (
-        id SERIAL PRIMARY KEY,
-        account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
-        billing_period DATE NOT NULL,
-        status VARCHAR(50) DEFAULT 'draft',
-        base_amount DECIMAL(10,2) DEFAULT 0,
-        room_overage_amount DECIMAL(10,2) DEFAULT 0,
-        blog_amount DECIMAL(10,2) DEFAULT 0,
-        attractions_amount DECIMAL(10,2) DEFAULT 0,
-        reviews_amount DECIMAL(10,2) DEFAULT 0,
-        total_amount DECIMAL(10,2) DEFAULT 0,
-        currency VARCHAR(3) DEFAULT 'USD',
-        line_items JSONB DEFAULT '[]',
-        airwallex_payment_intent_id VARCHAR(255),
-        gocardless_payment_id VARCHAR(255),
-        paid_at TIMESTAMP,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    console.log('✅ billing_invoices table ensured');
-    
-    // GoCardless customer mapping
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS gocardless_customers (
-        id SERIAL PRIMARY KEY,
-        account_id INTEGER UNIQUE REFERENCES accounts(id) ON DELETE CASCADE,
-        gocardless_customer_id VARCHAR(255),
-        gocardless_mandate_id VARCHAR(255),
-        email VARCHAR(255),
-        company_name VARCHAR(255),
-        status VARCHAR(50) DEFAULT 'active',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    console.log('✅ gocardless_customers table ensured');
     const planCheck = await pool.query('SELECT COUNT(*) FROM billing_plans');
     if (parseInt(planCheck.rows[0].count) === 0) {
       await pool.query(`
@@ -16446,47 +16008,6 @@ app.get('/api/db/properties/:id', async (req, res) => {
   }
 });
 
-// GET single room/bookable unit by ID
-app.get('/api/db/rooms/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const result = await pool.query('SELECT * FROM bookable_units WHERE id = $1', [id]);
-    
-    if (result.rows.length === 0) {
-      return res.json({ success: false, error: 'Room not found' });
-    }
-    
-    res.json({ success: true, data: result.rows[0] });
-  } catch (error) {
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// GET sync property ID by GAS property ID
-app.get('/api/gas-sync/property-by-gas-id/:propertyId', async (req, res) => {
-  try {
-    const { propertyId } = req.params;
-    const result = await pool.query(
-      'SELECT id, external_id, name, connection_id FROM gas_sync_properties WHERE gas_property_id = $1',
-      [propertyId]
-    );
-    
-    if (result.rows.length === 0) {
-      return res.json({ success: false, error: 'Sync property not found' });
-    }
-    
-    res.json({ 
-      success: true, 
-      syncPropertyId: result.rows[0].id,
-      externalId: result.rows[0].external_id,
-      name: result.rows[0].name,
-      connectionId: result.rows[0].connection_id
-    });
-  } catch (error) {
-    res.json({ success: false, error: error.message });
-  }
-});
-
 // GET all bookable units/rooms
 app.get('/api/db/bookable-units', async (req, res) => {
   try {
@@ -20512,7 +20033,7 @@ app.post('/api/webhooks/hostaway', async (req, res) => {
           // Create new booking
           const newBooking = await client.query(`
             INSERT INTO bookings (
-              property_id, bookable_unit_id, account_id,
+              property_id, room_id, account_id,
               check_in, check_out,
               guest_first_name, guest_last_name, guest_email, guest_phone,
               num_adults, total_price, currency, status,
@@ -21434,24 +20955,13 @@ app.get('/api/webhooks/smoobu', (req, res) => {
 // Get all offers
 app.get('/api/admin/offers', async (req, res) => {
   try {
-    const accountId = req.query.account_id;
-    
-    let query = `
+    const result = await pool.query(`
       SELECT o.*, p.name as property_name, bu.name as room_name
       FROM offers o
       LEFT JOIN properties p ON o.property_id = p.id
       LEFT JOIN bookable_units bu ON o.room_id = bu.id
-    `;
-    
-    const params = [];
-    if (accountId) {
-      query += ` WHERE o.account_id = $1`;
-      params.push(accountId);
-    }
-    
-    query += ` ORDER BY o.priority DESC, o.created_at DESC`;
-    
-    const result = await pool.query(query, params);
+      ORDER BY o.priority DESC, o.created_at DESC
+    `);
     res.json({ success: true, data: result.rows });
   } catch (error) {
     res.json({ success: false, error: error.message });
@@ -26750,8 +26260,7 @@ app.get('/api/admin/properties/:id/bedrooms', async (req, res) => {
     const params = [propertyId];
     
     if (roomId) {
-      // Show bedrooms for this room OR property-level bedrooms (room_id IS NULL)
-      query += ` AND (pb.room_id = $2 OR pb.room_id IS NULL)`;
+      query += ` AND pb.room_id = $2`;
       params.push(roomId);
     } else {
       query += ` AND pb.room_id IS NULL`;
@@ -26884,21 +26393,22 @@ app.put('/api/admin/properties/:id/bedroom-amenities', async (req, res) => {
 // Helper function to update bedroom count
 async function updateBedroomCount(propertyId, roomId) {
   try {
+    let query, params;
     if (roomId) {
-      // Count bedrooms for this specific room
-      const countResult = await pool.query(
-        'SELECT COUNT(*) as count FROM property_bedrooms WHERE room_id = $1',
-        [roomId]
-      );
-      const count = parseInt(countResult.rows[0]?.count || 0);
+      query = 'SELECT COUNT(*) as count FROM property_bedrooms WHERE property_id = $1 AND room_id = $2';
+      params = [propertyId, roomId];
+    } else {
+      query = 'SELECT COUNT(*) as count FROM property_bedrooms WHERE property_id = $1 AND room_id IS NULL';
+      params = [propertyId];
+    }
+    
+    const countResult = await pool.query(query, params);
+    const count = parseInt(countResult.rows[0]?.count || 0);
+    
+    if (roomId) {
       await pool.query('UPDATE bookable_units SET num_bedrooms = $1 WHERE id = $2', [count, roomId]);
     } else {
       // Update all rooms for this property that don't have room-specific bedrooms
-      const countResult = await pool.query(
-        'SELECT COUNT(*) as count FROM property_bedrooms WHERE property_id = $1 AND room_id IS NULL',
-        [propertyId]
-      );
-      const count = parseInt(countResult.rows[0]?.count || 0);
       await pool.query('UPDATE bookable_units SET num_bedrooms = $1 WHERE property_id = $2', [count, propertyId]);
     }
   } catch (e) {
@@ -26925,8 +26435,7 @@ app.get('/api/admin/properties/:id/bathrooms-detailed', async (req, res) => {
     const params = [propertyId];
     
     if (roomId) {
-      // Show bathrooms for this room OR property-level bathrooms (room_id IS NULL)
-      query += ` AND (pb.room_id = $2 OR pb.room_id IS NULL)`;
+      query += ` AND pb.room_id = $2`;
       params.push(roomId);
     } else {
       query += ` AND pb.room_id IS NULL`;
@@ -42483,993 +41992,6 @@ function parseRssFeed(rssData) {
   return articles;
 }
 
-// ============================================
-// AIRWALLEX BILLING ENDPOINTS
-// ============================================
-
-// Manually create billing tables (if init missed them)
-app.post('/api/billing/init-tables', async (req, res) => {
-  try {
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS billing_usage (
-        id SERIAL PRIMARY KEY,
-        account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
-        billing_period DATE NOT NULL,
-        room_count INTEGER DEFAULT 0,
-        blog_posts_generated INTEGER DEFAULT 0,
-        attractions_generated INTEGER DEFAULT 0,
-        reviews_synced INTEGER DEFAULT 0,
-        websites_active INTEGER DEFAULT 0,
-        plugins_active INTEGER DEFAULT 0,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(account_id, billing_period)
-      )
-    `);
-    
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS airwallex_customers (
-        id SERIAL PRIMARY KEY,
-        account_id INTEGER UNIQUE REFERENCES accounts(id) ON DELETE CASCADE,
-        airwallex_customer_id VARCHAR(255) UNIQUE,
-        payment_consent_id VARCHAR(255),
-        payment_method_id VARCHAR(255),
-        payment_method_last4 VARCHAR(4),
-        payment_method_brand VARCHAR(50),
-        email VARCHAR(255),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS billing_invoices (
-        id SERIAL PRIMARY KEY,
-        account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
-        billing_period DATE NOT NULL,
-        status VARCHAR(50) DEFAULT 'draft',
-        base_amount DECIMAL(10,2) DEFAULT 0,
-        room_overage_amount DECIMAL(10,2) DEFAULT 0,
-        blog_amount DECIMAL(10,2) DEFAULT 0,
-        attractions_amount DECIMAL(10,2) DEFAULT 0,
-        reviews_amount DECIMAL(10,2) DEFAULT 0,
-        total_amount DECIMAL(10,2) DEFAULT 0,
-        currency VARCHAR(3) DEFAULT 'USD',
-        line_items JSONB DEFAULT '[]',
-        airwallex_payment_intent_id VARCHAR(255),
-        gocardless_payment_id VARCHAR(255),
-        paid_at TIMESTAMP,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS gocardless_customers (
-        id SERIAL PRIMARY KEY,
-        account_id INTEGER UNIQUE REFERENCES accounts(id) ON DELETE CASCADE,
-        gocardless_customer_id VARCHAR(255),
-        gocardless_mandate_id VARCHAR(255),
-        email VARCHAR(255),
-        company_name VARCHAR(255),
-        status VARCHAR(50) DEFAULT 'active',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    
-    console.log('✅ Billing tables created manually');
-    res.json({ success: true, message: 'Billing tables created' });
-  } catch (error) {
-    console.error('Init tables error:', error.message);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// Pricing configuration
-const BILLING_CONFIG = {
-  base_monthly: 19.99,       // Base fee includes 5 rooms
-  included_rooms: 5,
-  per_room_overage: 1.00,    // Per room over 5
-  blog_module: 10.00,        // Blog module monthly
-  blog_posts_included: 50,
-  attractions_module: 10.00, // Attractions module monthly
-  attractions_included: 100,
-  reviews_module: 10.00,     // Reviews module (Hostaway only)
-  currency: 'USD'
-};
-
-// Get Airwallex billing config
-app.get('/api/billing/config', (req, res) => {
-  res.json({ success: true, config: BILLING_CONFIG });
-});
-
-// Create Airwallex customer for account
-app.post('/api/billing/airwallex/create-customer', async (req, res) => {
-  try {
-    const { accountId } = req.body;
-    
-    // Get account details
-    const account = await pool.query('SELECT * FROM accounts WHERE id = $1', [accountId]);
-    if (account.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Account not found' });
-    }
-    
-    const acc = account.rows[0];
-    
-    // Check if customer already exists
-    const existing = await pool.query('SELECT * FROM airwallex_customers WHERE account_id = $1', [accountId]);
-    if (existing.rows.length > 0) {
-      return res.json({ 
-        success: true, 
-        message: 'Customer already exists',
-        customerId: existing.rows[0].airwallex_customer_id 
-      });
-    }
-    
-    // Create customer in Airwallex
-    const customer = await airwallexRequest('POST', '/pa/customers/create', {
-      email: acc.email,
-      first_name: acc.company_name || acc.email.split('@')[0],
-      last_name: 'Account',
-      merchant_customer_id: `gas_account_${accountId}`,
-      metadata: {
-        gas_account_id: String(accountId),
-        company_name: acc.company_name || ''
-      }
-    });
-    
-    // Save to database
-    await pool.query(`
-      INSERT INTO airwallex_customers (account_id, airwallex_customer_id, email)
-      VALUES ($1, $2, $3)
-    `, [accountId, customer.id, acc.email]);
-    
-    console.log(`✅ Created Airwallex customer ${customer.id} for account ${accountId}`);
-    
-    res.json({ 
-      success: true, 
-      customerId: customer.id,
-      message: 'Customer created successfully'
-    });
-  } catch (error) {
-    console.error('Airwallex create customer error:', error.response?.data || error.message);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// Create payment setup session (for collecting card details)
-app.post('/api/billing/airwallex/create-setup-session', async (req, res) => {
-  try {
-    const { accountId } = req.body;
-    
-    // Get or create Airwallex customer
-    let customerResult = await pool.query('SELECT * FROM airwallex_customers WHERE account_id = $1', [accountId]);
-    
-    if (customerResult.rows.length === 0) {
-      // Create customer first
-      const account = await pool.query('SELECT * FROM accounts WHERE id = $1', [accountId]);
-      if (account.rows.length === 0) {
-        return res.status(404).json({ success: false, error: 'Account not found' });
-      }
-      
-      const acc = account.rows[0];
-      const customer = await airwallexRequest('POST', '/pa/customers/create', {
-        email: acc.email,
-        first_name: acc.company_name || acc.email.split('@')[0],
-        last_name: 'Account',
-        merchant_customer_id: `gas_account_${accountId}`,
-        metadata: { gas_account_id: String(accountId) }
-      });
-      
-      await pool.query(`
-        INSERT INTO airwallex_customers (account_id, airwallex_customer_id, email)
-        VALUES ($1, $2, $3)
-      `, [accountId, customer.id, acc.email]);
-      
-      customerResult = await pool.query('SELECT * FROM airwallex_customers WHERE account_id = $1', [accountId]);
-    }
-    
-    const customerId = customerResult.rows[0].airwallex_customer_id;
-    
-    // Create a $0 payment intent for card setup
-    const intent = await airwallexRequest('POST', '/pa/payment_intents/create', {
-      amount: 0,
-      currency: BILLING_CONFIG.currency.toLowerCase(),
-      customer_id: customerId,
-      merchant_order_id: `setup_${accountId}_${Date.now()}`,
-      metadata: {
-        type: 'card_setup',
-        gas_account_id: String(accountId)
-      },
-      request_id: `setup_${accountId}_${Date.now()}`
-    });
-    
-    res.json({
-      success: true,
-      intentId: intent.id,
-      clientSecret: intent.client_secret,
-      customerId: customerId
-    });
-  } catch (error) {
-    console.error('Airwallex setup session error:', error.response?.data || error.message);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// Save payment consent after card is added
-app.post('/api/billing/airwallex/save-payment-method', async (req, res) => {
-  try {
-    const { accountId, paymentConsentId, paymentMethodId, last4, brand } = req.body;
-    
-    await pool.query(`
-      UPDATE airwallex_customers SET
-        payment_consent_id = $1,
-        payment_method_id = $2,
-        payment_method_last4 = $3,
-        payment_method_brand = $4,
-        updated_at = NOW()
-      WHERE account_id = $5
-    `, [paymentConsentId, paymentMethodId, last4, brand, accountId]);
-    
-    console.log(`✅ Saved payment method for account ${accountId}`);
-    
-    res.json({ success: true, message: 'Payment method saved' });
-  } catch (error) {
-    console.error('Save payment method error:', error.message);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// Get account billing status
-app.get('/api/billing/account/:accountId/status', async (req, res) => {
-  try {
-    const { accountId } = req.params;
-    
-    // Get customer info
-    const customer = await pool.query('SELECT * FROM airwallex_customers WHERE account_id = $1', [accountId]);
-    
-    // Get current usage
-    const currentPeriod = new Date().toISOString().slice(0, 7) + '-01';
-    const usage = await pool.query(
-      'SELECT * FROM billing_usage WHERE account_id = $1 AND billing_period = $2',
-      [accountId, currentPeriod]
-    );
-    
-    // Get room count
-    const rooms = await pool.query(`
-      SELECT COUNT(*) as count FROM bookable_units bu
-      JOIN properties p ON bu.property_id = p.id
-      WHERE p.account_id = $1
-    `, [accountId]);
-    
-    // Get active websites/plugins - check if table has account_id column
-    let websiteCount = 0;
-    try {
-      const websites = await pool.query(
-        'SELECT COUNT(*) as count FROM wordpress_sites WHERE account_id = $1',
-        [accountId]
-      );
-      websiteCount = parseInt(websites.rows[0]?.count || 0);
-    } catch (e) {
-      // wordpress_sites might not exist or have different structure
-      websiteCount = 0;
-    }
-    
-    const roomCount = parseInt(rooms.rows[0]?.count || 0);
-    
-    // Calculate estimated bill
-    let estimatedBill = 0;
-    if (websiteCount > 0 || roomCount > 0) {
-      estimatedBill = BILLING_CONFIG.base_monthly;
-      if (roomCount > BILLING_CONFIG.included_rooms) {
-        estimatedBill += (roomCount - BILLING_CONFIG.included_rooms) * BILLING_CONFIG.per_room_overage;
-      }
-    }
-    
-    res.json({
-      success: true,
-      hasPaymentMethod: !!customer.rows[0]?.payment_consent_id,
-      paymentMethodLast4: customer.rows[0]?.payment_method_last4,
-      paymentMethodBrand: customer.rows[0]?.payment_method_brand,
-      usage: {
-        roomCount,
-        websiteCount,
-        blogPostsGenerated: usage.rows[0]?.blog_posts_generated || 0,
-        attractionsGenerated: usage.rows[0]?.attractions_generated || 0
-      },
-      estimatedBill,
-      currency: BILLING_CONFIG.currency
-    });
-  } catch (error) {
-    console.error('Billing status error:', error.message);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// Track usage (call this when blogs/attractions are generated)
-app.post('/api/billing/track-usage', async (req, res) => {
-  try {
-    const { accountId, type, count = 1 } = req.body;
-    
-    const currentPeriod = new Date().toISOString().slice(0, 7) + '-01';
-    
-    // Upsert usage record
-    let updateField;
-    switch (type) {
-      case 'blog': updateField = 'blog_posts_generated'; break;
-      case 'attraction': updateField = 'attractions_generated'; break;
-      case 'review': updateField = 'reviews_synced'; break;
-      default: return res.status(400).json({ success: false, error: 'Invalid usage type' });
-    }
-    
-    await pool.query(`
-      INSERT INTO billing_usage (account_id, billing_period, ${updateField})
-      VALUES ($1, $2, $3)
-      ON CONFLICT (account_id, billing_period)
-      DO UPDATE SET ${updateField} = billing_usage.${updateField} + $3, updated_at = NOW()
-    `, [accountId, currentPeriod, count]);
-    
-    res.json({ success: true, message: 'Usage tracked' });
-  } catch (error) {
-    console.error('Track usage error:', error.message);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// Generate invoice for account
-app.post('/api/billing/generate-invoice', async (req, res) => {
-  try {
-    const { accountId, billingPeriod } = req.body;
-    
-    const period = billingPeriod || new Date().toISOString().slice(0, 7) + '-01';
-    
-    // Get room count
-    const rooms = await pool.query(`
-      SELECT COUNT(*) as count FROM bookable_units bu
-      JOIN properties p ON bu.property_id = p.id
-      WHERE p.account_id = $1
-    `, [accountId]);
-    const roomCount = parseInt(rooms.rows[0]?.count || 0);
-    
-    // Get usage
-    const usage = await pool.query(
-      'SELECT * FROM billing_usage WHERE account_id = $1 AND billing_period = $2',
-      [accountId, period]
-    );
-    const usageData = usage.rows[0] || {};
-    
-    // Get active features
-    const websites = await pool.query(
-      'SELECT COUNT(*) as count FROM websites WHERE account_id = $1 AND status = $2',
-      [accountId, 'active']
-    );
-    const websiteCount = parseInt(websites.rows[0]?.count || 0);
-    
-    // Calculate line items
-    const lineItems = [];
-    let total = 0;
-    
-    // Base fee (if has active website/plugin)
-    if (websiteCount > 0) {
-      lineItems.push({
-        description: `GAS Platform (includes ${BILLING_CONFIG.included_rooms} rooms)`,
-        quantity: 1,
-        unit_price: BILLING_CONFIG.base_monthly,
-        amount: BILLING_CONFIG.base_monthly
-      });
-      total += BILLING_CONFIG.base_monthly;
-      
-      // Room overage
-      if (roomCount > BILLING_CONFIG.included_rooms) {
-        const overageRooms = roomCount - BILLING_CONFIG.included_rooms;
-        const overageAmount = overageRooms * BILLING_CONFIG.per_room_overage;
-        lineItems.push({
-          description: `Additional rooms (${overageRooms} rooms @ $${BILLING_CONFIG.per_room_overage}/room)`,
-          quantity: overageRooms,
-          unit_price: BILLING_CONFIG.per_room_overage,
-          amount: overageAmount
-        });
-        total += overageAmount;
-      }
-    }
-    
-    // Blog module (if used)
-    if (usageData.blog_posts_generated > 0) {
-      lineItems.push({
-        description: `Blog Module (${usageData.blog_posts_generated} posts generated)`,
-        quantity: 1,
-        unit_price: BILLING_CONFIG.blog_module,
-        amount: BILLING_CONFIG.blog_module
-      });
-      total += BILLING_CONFIG.blog_module;
-    }
-    
-    // Attractions module (if used)
-    if (usageData.attractions_generated > 0) {
-      lineItems.push({
-        description: `Attractions Module (${usageData.attractions_generated} items generated)`,
-        quantity: 1,
-        unit_price: BILLING_CONFIG.attractions_module,
-        amount: BILLING_CONFIG.attractions_module
-      });
-      total += BILLING_CONFIG.attractions_module;
-    }
-    
-    // Create or update invoice
-    const existingInvoice = await pool.query(
-      'SELECT id FROM billing_invoices WHERE account_id = $1 AND billing_period = $2',
-      [accountId, period]
-    );
-    
-    let invoiceId;
-    if (existingInvoice.rows.length > 0) {
-      invoiceId = existingInvoice.rows[0].id;
-      await pool.query(`
-        UPDATE billing_invoices SET
-          base_amount = $1,
-          room_overage_amount = $2,
-          blog_amount = $3,
-          attractions_amount = $4,
-          total_amount = $5,
-          line_items = $6,
-          updated_at = NOW()
-        WHERE id = $7
-      `, [
-        websiteCount > 0 ? BILLING_CONFIG.base_monthly : 0,
-        roomCount > BILLING_CONFIG.included_rooms ? (roomCount - BILLING_CONFIG.included_rooms) * BILLING_CONFIG.per_room_overage : 0,
-        usageData.blog_posts_generated > 0 ? BILLING_CONFIG.blog_module : 0,
-        usageData.attractions_generated > 0 ? BILLING_CONFIG.attractions_module : 0,
-        total,
-        JSON.stringify(lineItems),
-        invoiceId
-      ]);
-    } else {
-      const result = await pool.query(`
-        INSERT INTO billing_invoices (account_id, billing_period, base_amount, room_overage_amount, blog_amount, attractions_amount, total_amount, line_items, currency)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-        RETURNING id
-      `, [
-        accountId,
-        period,
-        websiteCount > 0 ? BILLING_CONFIG.base_monthly : 0,
-        roomCount > BILLING_CONFIG.included_rooms ? (roomCount - BILLING_CONFIG.included_rooms) * BILLING_CONFIG.per_room_overage : 0,
-        usageData.blog_posts_generated > 0 ? BILLING_CONFIG.blog_module : 0,
-        usageData.attractions_generated > 0 ? BILLING_CONFIG.attractions_module : 0,
-        total,
-        JSON.stringify(lineItems),
-        BILLING_CONFIG.currency
-      ]);
-      invoiceId = result.rows[0].id;
-    }
-    
-    res.json({
-      success: true,
-      invoiceId,
-      lineItems,
-      total,
-      currency: BILLING_CONFIG.currency
-    });
-  } catch (error) {
-    console.error('Generate invoice error:', error.message);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// Charge invoice using stored payment method
-app.post('/api/billing/charge-invoice', async (req, res) => {
-  try {
-    const { invoiceId } = req.body;
-    
-    // Get invoice
-    const invoice = await pool.query('SELECT * FROM billing_invoices WHERE id = $1', [invoiceId]);
-    if (invoice.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Invoice not found' });
-    }
-    
-    const inv = invoice.rows[0];
-    
-    if (inv.status === 'paid') {
-      return res.json({ success: true, message: 'Invoice already paid' });
-    }
-    
-    if (parseFloat(inv.total_amount) === 0) {
-      // Mark as paid if zero amount
-      await pool.query(`
-        UPDATE billing_invoices SET status = 'paid', paid_at = NOW() WHERE id = $1
-      `, [invoiceId]);
-      return res.json({ success: true, message: 'No charge needed (zero amount)' });
-    }
-    
-    // Get payment method
-    const customer = await pool.query('SELECT * FROM airwallex_customers WHERE account_id = $1', [inv.account_id]);
-    if (customer.rows.length === 0 || !customer.rows[0].payment_consent_id) {
-      return res.status(400).json({ success: false, error: 'No payment method on file' });
-    }
-    
-    const cust = customer.rows[0];
-    
-    // Create payment intent with saved payment method
-    const intent = await airwallexRequest('POST', '/pa/payment_intents/create', {
-      amount: parseFloat(inv.total_amount),
-      currency: inv.currency.toLowerCase(),
-      customer_id: cust.airwallex_customer_id,
-      payment_consent_reference: {
-        id: cust.payment_consent_id
-      },
-      merchant_order_id: `invoice_${invoiceId}_${Date.now()}`,
-      metadata: {
-        invoice_id: String(invoiceId),
-        gas_account_id: String(inv.account_id),
-        billing_period: inv.billing_period
-      },
-      request_id: `charge_${invoiceId}_${Date.now()}`
-    });
-    
-    // Confirm the payment
-    const confirmed = await airwallexRequest('POST', `/pa/payment_intents/${intent.id}/confirm`, {
-      payment_consent_id: cust.payment_consent_id
-    });
-    
-    // Update invoice
-    await pool.query(`
-      UPDATE billing_invoices SET
-        status = $1,
-        airwallex_payment_intent_id = $2,
-        paid_at = CASE WHEN $1 = 'paid' THEN NOW() ELSE paid_at END,
-        updated_at = NOW()
-      WHERE id = $3
-    `, [
-      confirmed.status === 'SUCCEEDED' ? 'paid' : 'pending',
-      intent.id,
-      invoiceId
-    ]);
-    
-    // Record payment
-    if (confirmed.status === 'SUCCEEDED') {
-      await pool.query(`
-        INSERT INTO billing_payments (account_id, amount, currency, type, status, description, metadata)
-        VALUES ($1, $2, $3, 'subscription', 'completed', $4, $5)
-      `, [
-        inv.account_id,
-        inv.total_amount,
-        inv.currency,
-        `Invoice for ${inv.billing_period}`,
-        JSON.stringify({ invoice_id: invoiceId, airwallex_intent_id: intent.id })
-      ]);
-    }
-    
-    console.log(`✅ Charged invoice ${invoiceId}: $${inv.total_amount} - ${confirmed.status}`);
-    
-    res.json({
-      success: true,
-      status: confirmed.status,
-      intentId: intent.id,
-      amount: inv.total_amount,
-      currency: inv.currency
-    });
-  } catch (error) {
-    console.error('Charge invoice error:', error.response?.data || error.message);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// Get invoices for account
-app.get('/api/billing/account/:accountId/invoices', async (req, res) => {
-  try {
-    const { accountId } = req.params;
-    
-    const invoices = await pool.query(`
-      SELECT * FROM billing_invoices 
-      WHERE account_id = $1 
-      ORDER BY billing_period DESC
-      LIMIT 12
-    `, [accountId]);
-    
-    res.json({ success: true, invoices: invoices.rows });
-  } catch (error) {
-    console.error('Get invoices error:', error.message);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// Test Airwallex connection
-app.get('/api/billing/airwallex/test', async (req, res) => {
-  try {
-    const token = await getAirwallexToken();
-    res.json({ 
-      success: true, 
-      message: 'Airwallex connection successful',
-      environment: AIRWALLEX_ENV,
-      tokenPreview: token.substring(0, 20) + '...'
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// ============================================
-// END AIRWALLEX BILLING ENDPOINTS
-// ============================================
-
-// ============================================
-// GOCARDLESS BILLING ENDPOINTS
-// ============================================
-
-// Test GoCardless connection
-app.get('/api/billing/gocardless/test', async (req, res) => {
-  try {
-    const result = await gocardlessRequest('GET', '/creditors');
-    res.json({ 
-      success: true, 
-      message: 'GoCardless connection successful',
-      creditorId: result.creditors?.[0]?.id
-    });
-  } catch (error) {
-    console.error('GoCardless test error:', error.response?.data || error.message);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// Link existing GoCardless customer to GAS account
-app.post('/api/billing/gocardless/link-customer', async (req, res) => {
-  try {
-    const { accountId, gocardlessCustomerId } = req.body;
-    
-    if (!accountId || !gocardlessCustomerId) {
-      return res.status(400).json({ success: false, error: 'accountId and gocardlessCustomerId required' });
-    }
-    
-    // Verify customer exists in GoCardless
-    const gcCustomer = await gocardlessRequest('GET', `/customers/${gocardlessCustomerId}`);
-    
-    if (!gcCustomer.customers) {
-      return res.status(404).json({ success: false, error: 'GoCardless customer not found' });
-    }
-    
-    const customer = gcCustomer.customers;
-    
-    // Get their active mandate
-    const mandates = await gocardlessRequest('GET', `/mandates?customer=${gocardlessCustomerId}&status=active`);
-    const activeMandate = mandates.mandates?.[0];
-    
-    // Save to database
-    await pool.query(`
-      INSERT INTO gocardless_customers (account_id, gocardless_customer_id, gocardless_mandate_id, email, company_name)
-      VALUES ($1, $2, $3, $4, $5)
-      ON CONFLICT (account_id) DO UPDATE SET
-        gocardless_customer_id = $2,
-        gocardless_mandate_id = $3,
-        email = $4,
-        company_name = $5,
-        updated_at = NOW()
-    `, [accountId, gocardlessCustomerId, activeMandate?.id, customer.email, customer.company_name]);
-    
-    console.log(`✅ Linked GoCardless customer ${gocardlessCustomerId} to account ${accountId}`);
-    
-    res.json({ 
-      success: true, 
-      message: 'Customer linked successfully',
-      customer: {
-        email: customer.email,
-        companyName: customer.company_name,
-        mandateId: activeMandate?.id,
-        mandateStatus: activeMandate?.status
-      }
-    });
-  } catch (error) {
-    console.error('GoCardless link error:', error.response?.data || error.message);
-    res.status(500).json({ success: false, error: error.response?.data?.error?.message || error.message });
-  }
-});
-
-// List all GoCardless customers (for mapping)
-app.get('/api/billing/gocardless/customers', async (req, res) => {
-  try {
-    const result = await gocardlessRequest('GET', '/customers?limit=100');
-    
-    // Get already linked customers
-    const linked = await pool.query('SELECT gocardless_customer_id FROM gocardless_customers');
-    const linkedIds = linked.rows.map(r => r.gocardless_customer_id);
-    
-    const customers = result.customers.map(c => ({
-      id: c.id,
-      email: c.email,
-      companyName: c.company_name,
-      givenName: c.given_name,
-      familyName: c.family_name,
-      createdAt: c.created_at,
-      isLinked: linkedIds.includes(c.id)
-    }));
-    
-    res.json({ success: true, customers });
-  } catch (error) {
-    console.error('GoCardless list error:', error.response?.data || error.message);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// Get GoCardless billing status for account
-app.get('/api/billing/gocardless/account/:accountId/status', async (req, res) => {
-  try {
-    const { accountId } = req.params;
-    
-    const customer = await pool.query('SELECT * FROM gocardless_customers WHERE account_id = $1', [accountId]);
-    
-    if (customer.rows.length === 0) {
-      return res.json({ 
-        success: true, 
-        linked: false,
-        message: 'No GoCardless customer linked'
-      });
-    }
-    
-    const gc = customer.rows[0];
-    
-    // Get mandate status from GoCardless
-    let mandateStatus = 'unknown';
-    if (gc.gocardless_mandate_id) {
-      try {
-        const mandate = await gocardlessRequest('GET', `/mandates/${gc.gocardless_mandate_id}`);
-        mandateStatus = mandate.mandates?.status || 'unknown';
-      } catch (e) {
-        mandateStatus = 'error';
-      }
-    }
-    
-    res.json({
-      success: true,
-      linked: true,
-      customerId: gc.gocardless_customer_id,
-      mandateId: gc.gocardless_mandate_id,
-      mandateStatus,
-      email: gc.email,
-      companyName: gc.company_name
-    });
-  } catch (error) {
-    console.error('GoCardless status error:', error.message);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// Create payment for invoice via GoCardless
-app.post('/api/billing/gocardless/charge-invoice', async (req, res) => {
-  try {
-    const { invoiceId } = req.body;
-    
-    // Get invoice
-    const invoice = await pool.query('SELECT * FROM billing_invoices WHERE id = $1', [invoiceId]);
-    if (invoice.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Invoice not found' });
-    }
-    
-    const inv = invoice.rows[0];
-    
-    if (inv.status === 'paid') {
-      return res.json({ success: true, message: 'Invoice already paid' });
-    }
-    
-    if (parseFloat(inv.total_amount) === 0) {
-      await pool.query('UPDATE billing_invoices SET status = $1, paid_at = NOW() WHERE id = $2', ['paid', invoiceId]);
-      return res.json({ success: true, message: 'No charge needed (zero amount)' });
-    }
-    
-    // Get GoCardless customer
-    const customer = await pool.query('SELECT * FROM gocardless_customers WHERE account_id = $1', [inv.account_id]);
-    if (customer.rows.length === 0 || !customer.rows[0].gocardless_mandate_id) {
-      return res.status(400).json({ success: false, error: 'No GoCardless mandate on file' });
-    }
-    
-    const gc = customer.rows[0];
-    
-    // Create payment in GoCardless (amount in pence/cents)
-    const amountInCents = Math.round(parseFloat(inv.total_amount) * 100);
-    
-    const payment = await gocardlessRequest('POST', '/payments', {
-      payments: {
-        amount: amountInCents,
-        currency: inv.currency || 'GBP',
-        description: `GAS Invoice ${invoiceId} - ${inv.billing_period}`,
-        metadata: {
-          invoice_id: String(invoiceId),
-          account_id: String(inv.account_id),
-          billing_period: inv.billing_period
-        },
-        links: {
-          mandate: gc.gocardless_mandate_id
-        }
-      }
-    });
-    
-    const paymentId = payment.payments?.id;
-    
-    // Update invoice with payment ID (status will update via webhook)
-    await pool.query(`
-      UPDATE billing_invoices SET
-        gocardless_payment_id = $1,
-        status = 'pending',
-        updated_at = NOW()
-      WHERE id = $2
-    `, [paymentId, invoiceId]);
-    
-    console.log(`✅ Created GoCardless payment ${paymentId} for invoice ${invoiceId}`);
-    
-    res.json({
-      success: true,
-      paymentId,
-      amount: inv.total_amount,
-      currency: inv.currency,
-      status: payment.payments?.status
-    });
-  } catch (error) {
-    console.error('GoCardless charge error:', error.response?.data || error.message);
-    res.status(500).json({ success: false, error: error.response?.data?.error?.message || error.message });
-  }
-});
-
-// GoCardless webhook handler
-app.post('/api/billing/gocardless/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
-  try {
-    const signature = req.headers['webhook-signature'];
-    const body = req.body.toString();
-    
-    // Verify webhook signature
-    const crypto = require('crypto');
-    const expectedSignature = crypto
-      .createHmac('sha256', GOCARDLESS_WEBHOOK_SECRET)
-      .update(body)
-      .digest('hex');
-    
-    if (signature !== expectedSignature) {
-      console.error('GoCardless webhook signature mismatch');
-      return res.status(401).json({ error: 'Invalid signature' });
-    }
-    
-    const payload = JSON.parse(body);
-    const events = payload.events || [];
-    
-    for (const event of events) {
-      console.log(`📬 GoCardless webhook: ${event.resource_type} - ${event.action}`);
-      
-      if (event.resource_type === 'payments') {
-        const paymentId = event.links?.payment;
-        
-        if (event.action === 'confirmed' || event.action === 'paid_out') {
-          // Payment successful
-          await pool.query(`
-            UPDATE billing_invoices SET status = 'paid', paid_at = NOW(), updated_at = NOW()
-            WHERE gocardless_payment_id = $1
-          `, [paymentId]);
-          
-          // Record in billing_payments
-          const invoice = await pool.query('SELECT * FROM billing_invoices WHERE gocardless_payment_id = $1', [paymentId]);
-          if (invoice.rows.length > 0) {
-            const inv = invoice.rows[0];
-            await pool.query(`
-              INSERT INTO billing_payments (account_id, amount, currency, type, status, description, metadata)
-              VALUES ($1, $2, $3, 'subscription', 'completed', $4, $5)
-            `, [
-              inv.account_id,
-              inv.total_amount,
-              inv.currency,
-              `Invoice for ${inv.billing_period}`,
-              JSON.stringify({ invoice_id: inv.id, gocardless_payment_id: paymentId })
-            ]);
-          }
-          
-          console.log(`✅ GoCardless payment ${paymentId} confirmed`);
-        } else if (event.action === 'failed' || event.action === 'cancelled') {
-          // Payment failed
-          await pool.query(`
-            UPDATE billing_invoices SET status = 'failed', updated_at = NOW()
-            WHERE gocardless_payment_id = $1
-          `, [paymentId]);
-          
-          console.log(`❌ GoCardless payment ${paymentId} failed`);
-        }
-      }
-    }
-    
-    res.json({ success: true });
-  } catch (error) {
-    console.error('GoCardless webhook error:', error.message);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Run monthly billing for all accounts with GoCardless
-app.post('/api/billing/gocardless/run-monthly-billing', async (req, res) => {
-  try {
-    const billingPeriod = new Date().toISOString().slice(0, 7) + '-01';
-    
-    // Get all accounts with GoCardless linked
-    const accounts = await pool.query(`
-      SELECT gc.account_id, gc.gocardless_customer_id, gc.gocardless_mandate_id, a.company_name
-      FROM gocardless_customers gc
-      JOIN accounts a ON gc.account_id = a.id
-      WHERE gc.gocardless_mandate_id IS NOT NULL
-    `);
-    
-    const results = {
-      processed: 0,
-      charged: 0,
-      skipped: 0,
-      errors: []
-    };
-    
-    for (const acc of accounts.rows) {
-      try {
-        // Generate invoice
-        const invoiceRes = await pool.query(`
-          SELECT * FROM billing_invoices 
-          WHERE account_id = $1 AND billing_period = $2
-        `, [acc.account_id, billingPeriod]);
-        
-        let invoiceId;
-        if (invoiceRes.rows.length === 0) {
-          // Need to generate invoice first - call internal logic
-          // (simplified - in production, extract invoice generation to a function)
-          results.skipped++;
-          continue;
-        } else {
-          invoiceId = invoiceRes.rows[0].id;
-        }
-        
-        const invoice = invoiceRes.rows[0];
-        
-        if (invoice.status === 'paid') {
-          results.skipped++;
-          continue;
-        }
-        
-        if (parseFloat(invoice.total_amount) === 0) {
-          await pool.query('UPDATE billing_invoices SET status = $1 WHERE id = $2', ['paid', invoiceId]);
-          results.skipped++;
-          continue;
-        }
-        
-        // Create GoCardless payment
-        const amountInCents = Math.round(parseFloat(invoice.total_amount) * 100);
-        
-        const payment = await gocardlessRequest('POST', '/payments', {
-          payments: {
-            amount: amountInCents,
-            currency: invoice.currency || 'GBP',
-            description: `GAS Invoice - ${billingPeriod}`,
-            metadata: {
-              invoice_id: String(invoiceId),
-              account_id: String(acc.account_id)
-            },
-            links: {
-              mandate: acc.gocardless_mandate_id
-            }
-          }
-        });
-        
-        await pool.query(`
-          UPDATE billing_invoices SET gocardless_payment_id = $1, status = 'pending' WHERE id = $2
-        `, [payment.payments?.id, invoiceId]);
-        
-        results.charged++;
-        results.processed++;
-        
-      } catch (err) {
-        results.errors.push({ accountId: acc.account_id, error: err.message });
-        results.processed++;
-      }
-    }
-    
-    console.log(`💳 Monthly billing complete:`, results);
-    res.json({ success: true, results });
-  } catch (error) {
-    console.error('Monthly billing error:', error.message);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// ============================================
-// END GOCARDLESS BILLING ENDPOINTS
-// ============================================
-
 app.listen(PORT, '0.0.0.0', async () => {
   console.log('🚀 Server running on port ' + PORT);
   console.log('🔄 Auto-sync scheduled: Prices every 15min, Beds24 bookings every 15min, Inventory every 6hrs');
@@ -44513,6 +43035,430 @@ app.get('/api/public/client/:clientId/app-settings/:app', async (req, res) => {
 // ============================================
 // END PLUGIN API ENDPOINTS
 // ============================================
+
+// ============================================
+// ELEVATE WEBHOOK ENDPOINTS
+// ============================================
+// These endpoints allow Elevate PMS to push property data to GAS
+
+// Ensure Elevate-related columns exist on properties table
+async function ensureElevateColumns() {
+  try {
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS external_id VARCHAR(255)`);
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS external_source VARCHAR(50)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_properties_external_id ON properties(account_id, external_id)`);
+    console.log('✅ Elevate columns ensured on properties table');
+  } catch (error) {
+    console.error('Error ensuring Elevate columns:', error.message);
+  }
+}
+
+// Call on startup (will be called after pool is ready)
+setTimeout(ensureElevateColumns, 5000);
+
+// Middleware to validate Elevate webhook requests
+async function validateElevateWebhook(req, res, next) {
+  const { accountId, apiKey } = req.params;
+  
+  try {
+    const result = await pool.query(
+      'SELECT id, name, email FROM accounts WHERE id = $1 AND api_key = $2',
+      [accountId, apiKey]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(401).json({ success: false, error: 'Invalid account ID or API key' });
+    }
+    
+    req.elevateAccount = result.rows[0];
+    next();
+  } catch (error) {
+    console.error('Elevate webhook auth error:', error);
+    res.status(500).json({ success: false, error: 'Authentication failed' });
+  }
+}
+
+// POST /webhooks/elevate/:accountId/:apiKey/property/create
+app.post('/webhooks/elevate/:accountId/:apiKey/property/create', validateElevateWebhook, async (req, res) => {
+  const account = req.elevateAccount;
+  const { external_id, name, address, phone, email } = req.body;
+  
+  console.log(`[Elevate Webhook] Create property for account ${account.id}:`, { external_id, name });
+  
+  try {
+    // Validate required fields
+    if (!external_id || !name) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'external_id and name are required' 
+      });
+    }
+    
+    if (!address?.city || !address?.country) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'address.city and address.country are required' 
+      });
+    }
+    
+    // Ensure columns exist
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS external_id VARCHAR(255)`);
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS external_source VARCHAR(50)`);
+    
+    // Check if property with this external_id already exists for this account
+    const existing = await pool.query(
+      'SELECT id FROM properties WHERE account_id = $1 AND external_id = $2',
+      [account.id, external_id]
+    );
+    
+    if (existing.rows.length > 0) {
+      return res.status(409).json({ 
+        success: false, 
+        error: 'Property with this external_id already exists',
+        existing_id: existing.rows[0].id
+      });
+    }
+    
+    // Create the property
+    const result = await pool.query(`
+      INSERT INTO properties (
+        account_id, 
+        external_id,
+        external_source,
+        name, 
+        address,
+        city,
+        region,
+        country,
+        zip_code,
+        phone,
+        email,
+        status,
+        created_at,
+        updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), NOW())
+      RETURNING id, external_id, name
+    `, [
+      account.id,
+      external_id,
+      'elevate',
+      name,
+      address?.street || null,
+      address?.city,
+      address?.region || null,
+      address?.country,
+      address?.postcode || null,
+      phone || null,
+      email || null,
+      'active'
+    ]);
+    
+    const property = result.rows[0];
+    
+    console.log(`[Elevate Webhook] Property created: ${property.id} (${property.name})`);
+    
+    res.json({ 
+      success: true, 
+      message: 'Property created successfully',
+      id: property.id,
+      external_id: property.external_id,
+      name: property.name
+    });
+    
+  } catch (error) {
+    console.error('[Elevate Webhook] Create property error:', error);
+    res.status(500).json({ success: false, error: 'Failed to create property: ' + error.message });
+  }
+});
+
+// POST /webhooks/elevate/:accountId/:apiKey/property/update
+app.post('/webhooks/elevate/:accountId/:apiKey/property/update', validateElevateWebhook, async (req, res) => {
+  const account = req.elevateAccount;
+  const { external_id, name, address, phone, email } = req.body;
+  
+  console.log(`[Elevate Webhook] Update property for account ${account.id}:`, { external_id, name });
+  
+  try {
+    if (!external_id) {
+      return res.status(400).json({ success: false, error: 'external_id is required' });
+    }
+    
+    // Find the property
+    const existing = await pool.query(
+      'SELECT id FROM properties WHERE account_id = $1 AND external_id = $2',
+      [account.id, external_id]
+    );
+    
+    if (existing.rows.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Property not found with this external_id' 
+      });
+    }
+    
+    const propertyId = existing.rows[0].id;
+    
+    // Build update query dynamically
+    const updates = [];
+    const values = [];
+    let paramIndex = 1;
+    
+    if (name) {
+      updates.push(`name = $${paramIndex++}`);
+      values.push(name);
+    }
+    if (address?.street !== undefined) {
+      updates.push(`address = $${paramIndex++}`);
+      values.push(address.street);
+    }
+    if (address?.city !== undefined) {
+      updates.push(`city = $${paramIndex++}`);
+      values.push(address.city);
+    }
+    if (address?.region !== undefined) {
+      updates.push(`region = $${paramIndex++}`);
+      values.push(address.region);
+    }
+    if (address?.country !== undefined) {
+      updates.push(`country = $${paramIndex++}`);
+      values.push(address.country);
+    }
+    if (address?.postcode !== undefined) {
+      updates.push(`zip_code = $${paramIndex++}`);
+      values.push(address.postcode);
+    }
+    if (phone !== undefined) {
+      updates.push(`phone = $${paramIndex++}`);
+      values.push(phone);
+    }
+    if (email !== undefined) {
+      updates.push(`email = $${paramIndex++}`);
+      values.push(email);
+    }
+    
+    if (updates.length === 0) {
+      return res.status(400).json({ success: false, error: 'No fields to update' });
+    }
+    
+    updates.push(`updated_at = NOW()`);
+    values.push(propertyId);
+    
+    const result = await pool.query(`
+      UPDATE properties 
+      SET ${updates.join(', ')}
+      WHERE id = $${paramIndex}
+      RETURNING id, external_id, name
+    `, values);
+    
+    const property = result.rows[0];
+    
+    console.log(`[Elevate Webhook] Property updated: ${property.id}`);
+    
+    res.json({ 
+      success: true, 
+      message: 'Property updated successfully',
+      id: property.id,
+      external_id: property.external_id,
+      name: property.name
+    });
+    
+  } catch (error) {
+    console.error('[Elevate Webhook] Update property error:', error);
+    res.status(500).json({ success: false, error: 'Failed to update property: ' + error.message });
+  }
+});
+
+// POST /webhooks/elevate/:accountId/:apiKey/property/delete
+app.post('/webhooks/elevate/:accountId/:apiKey/property/delete', validateElevateWebhook, async (req, res) => {
+  const account = req.elevateAccount;
+  const { external_id } = req.body;
+  
+  console.log(`[Elevate Webhook] Delete property for account ${account.id}:`, { external_id });
+  
+  try {
+    if (!external_id) {
+      return res.status(400).json({ success: false, error: 'external_id is required' });
+    }
+    
+    // Find and delete the property
+    const result = await pool.query(
+      'DELETE FROM properties WHERE account_id = $1 AND external_id = $2 RETURNING id, name',
+      [account.id, external_id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Property not found with this external_id' 
+      });
+    }
+    
+    console.log(`[Elevate Webhook] Property deleted: ${result.rows[0].id}`);
+    
+    res.json({ 
+      success: true, 
+      message: 'Property deleted successfully',
+      id: result.rows[0].id,
+      name: result.rows[0].name
+    });
+    
+  } catch (error) {
+    console.error('[Elevate Webhook] Delete property error:', error);
+    res.status(500).json({ success: false, error: 'Failed to delete property: ' + error.message });
+  }
+});
+
+// POST /webhooks/elevate/:accountId/:apiKey/pricing/update
+app.post('/webhooks/elevate/:accountId/:apiKey/pricing/update', validateElevateWebhook, async (req, res) => {
+  const account = req.elevateAccount;
+  const { external_id, rates } = req.body;
+  
+  console.log(`[Elevate Webhook] Update pricing for account ${account.id}:`, { external_id, rateCount: rates?.length });
+  
+  try {
+    if (!external_id) {
+      return res.status(400).json({ success: false, error: 'external_id is required' });
+    }
+    
+    if (!rates || !Array.isArray(rates) || rates.length === 0) {
+      return res.status(400).json({ success: false, error: 'rates array is required' });
+    }
+    
+    // Find the property
+    const property = await pool.query(
+      'SELECT id FROM properties WHERE account_id = $1 AND external_id = $2',
+      [account.id, external_id]
+    );
+    
+    if (property.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Property not found' });
+    }
+    
+    const propertyId = property.rows[0].id;
+    
+    // Ensure pricing table exists
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS property_pricing (
+        id SERIAL PRIMARY KEY,
+        property_id INTEGER NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
+        date DATE NOT NULL,
+        price DECIMAL(10,2) NOT NULL,
+        currency VARCHAR(3) DEFAULT 'USD',
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(property_id, date)
+      )
+    `);
+    
+    // Upsert rates
+    let updated = 0;
+    for (const rate of rates) {
+      if (!rate.date || rate.price === undefined) {
+        continue;
+      }
+      
+      await pool.query(`
+        INSERT INTO property_pricing (property_id, date, price, currency, updated_at)
+        VALUES ($1, $2, $3, $4, NOW())
+        ON CONFLICT (property_id, date) 
+        DO UPDATE SET price = $3, currency = $4, updated_at = NOW()
+      `, [propertyId, rate.date, rate.price, rate.currency || 'USD']);
+      
+      updated++;
+    }
+    
+    console.log(`[Elevate Webhook] Pricing updated: ${updated} rates for property ${propertyId}`);
+    
+    res.json({ 
+      success: true, 
+      message: `Pricing updated: ${updated} rates`,
+      property_id: propertyId,
+      rates_updated: updated
+    });
+    
+  } catch (error) {
+    console.error('[Elevate Webhook] Update pricing error:', error);
+    res.status(500).json({ success: false, error: 'Failed to update pricing: ' + error.message });
+  }
+});
+
+// POST /webhooks/elevate/:accountId/:apiKey/availability/update
+app.post('/webhooks/elevate/:accountId/:apiKey/availability/update', validateElevateWebhook, async (req, res) => {
+  const account = req.elevateAccount;
+  const { external_id, availability } = req.body;
+  
+  console.log(`[Elevate Webhook] Update availability for account ${account.id}:`, { external_id, count: availability?.length });
+  
+  try {
+    if (!external_id) {
+      return res.status(400).json({ success: false, error: 'external_id is required' });
+    }
+    
+    if (!availability || !Array.isArray(availability) || availability.length === 0) {
+      return res.status(400).json({ success: false, error: 'availability array is required' });
+    }
+    
+    // Find the property
+    const property = await pool.query(
+      'SELECT id FROM properties WHERE account_id = $1 AND external_id = $2',
+      [account.id, external_id]
+    );
+    
+    if (property.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Property not found' });
+    }
+    
+    const propertyId = property.rows[0].id;
+    
+    // Ensure availability table exists
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS property_availability (
+        id SERIAL PRIMARY KEY,
+        property_id INTEGER NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
+        date DATE NOT NULL,
+        available BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(property_id, date)
+      )
+    `);
+    
+    // Upsert availability
+    let updated = 0;
+    for (const avail of availability) {
+      if (!avail.date || avail.available === undefined) {
+        continue;
+      }
+      
+      await pool.query(`
+        INSERT INTO property_availability (property_id, date, available, updated_at)
+        VALUES ($1, $2, $3, NOW())
+        ON CONFLICT (property_id, date) 
+        DO UPDATE SET available = $3, updated_at = NOW()
+      `, [propertyId, avail.date, avail.available]);
+      
+      updated++;
+    }
+    
+    console.log(`[Elevate Webhook] Availability updated: ${updated} dates for property ${propertyId}`);
+    
+    res.json({ 
+      success: true, 
+      message: `Availability updated: ${updated} dates`,
+      property_id: propertyId,
+      dates_updated: updated
+    });
+    
+  } catch (error) {
+    console.error('[Elevate Webhook] Update availability error:', error);
+    res.status(500).json({ success: false, error: 'Failed to update availability: ' + error.message });
+  }
+});
+
+// ============================================
+// END ELEVATE WEBHOOK ENDPOINTS
+// ============================================
+
 
 // ============================================
 // CATCH-ALL HANDLER (must be last route)
