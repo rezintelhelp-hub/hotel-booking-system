@@ -27437,6 +27437,334 @@ app.get('/api/webhooks/beds24', (req, res) => {
 });
 
 // =========================================================
+// ELEVATE PMS WEBHOOKS
+// =========================================================
+
+// Validate Elevate API key
+async function validateElevateApiKey(accountId, apiKey) {
+  const result = await pool.query(`
+    SELECT id FROM gas_sync_connections 
+    WHERE account_id = $1 
+    AND adapter_code = 'elevate' 
+    AND credentials->>'apiKey' = $2
+  `, [accountId, apiKey]);
+  return result.rows.length > 0;
+}
+
+// Elevate Pricing Update Webhook
+// POST /webhooks/elevate/:accountId/:apiKey/pricing/update
+app.post('/webhooks/elevate/:accountId/:apiKey/pricing/update', async (req, res) => {
+  console.log('=== ELEVATE PRICING WEBHOOK ===');
+  console.log('Account:', req.params.accountId);
+  console.log('Body:', JSON.stringify(req.body));
+  
+  try {
+    const { accountId, apiKey } = req.params;
+    const { external_id, rates } = req.body;
+    
+    // Validate API key
+    const isValid = await validateElevateApiKey(accountId, apiKey);
+    if (!isValid) {
+      console.log('Elevate webhook: Invalid API key');
+      return res.status(401).json({ success: false, error: 'Invalid API key' });
+    }
+    
+    if (!external_id || !rates || !Array.isArray(rates)) {
+      return res.status(400).json({ success: false, error: 'external_id and rates array required' });
+    }
+    
+    // Find the room by GAS room ID (external_id from Elevate's perspective)
+    const roomResult = await pool.query(
+      'SELECT id FROM bookable_units WHERE id = $1',
+      [external_id]
+    );
+    
+    if (roomResult.rows.length === 0) {
+      console.log('Elevate webhook: Room not found:', external_id);
+      return res.status(404).json({ success: false, error: 'Room not found' });
+    }
+    
+    const roomId = roomResult.rows[0].id;
+    let updated = 0;
+    
+    // Update pricing for each date
+    for (const rate of rates) {
+      const { date, price, currency } = rate;
+      if (!date || price === undefined) continue;
+      
+      await pool.query(`
+        INSERT INTO room_availability (room_id, date, price, currency, source, updated_at)
+        VALUES ($1, $2, $3, $4, 'elevate', NOW())
+        ON CONFLICT (room_id, date) DO UPDATE SET
+          price = EXCLUDED.price,
+          currency = COALESCE(EXCLUDED.currency, room_availability.currency),
+          source = 'elevate',
+          updated_at = NOW()
+      `, [roomId, date, price, currency || 'CHF']);
+      updated++;
+    }
+    
+    console.log(`Elevate pricing webhook: Updated ${updated} rates for room ${roomId}`);
+    res.json({ success: true, updated });
+    
+  } catch (error) {
+    console.error('Elevate pricing webhook error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Elevate Availability Update Webhook
+// POST /webhooks/elevate/:accountId/:apiKey/availability/update
+app.post('/webhooks/elevate/:accountId/:apiKey/availability/update', async (req, res) => {
+  console.log('=== ELEVATE AVAILABILITY WEBHOOK ===');
+  console.log('Account:', req.params.accountId);
+  console.log('Body:', JSON.stringify(req.body));
+  
+  try {
+    const { accountId, apiKey } = req.params;
+    const { external_id, rates } = req.body;
+    
+    // Validate API key
+    const isValid = await validateElevateApiKey(accountId, apiKey);
+    if (!isValid) {
+      console.log('Elevate webhook: Invalid API key');
+      return res.status(401).json({ success: false, error: 'Invalid API key' });
+    }
+    
+    if (!external_id || !rates || !Array.isArray(rates)) {
+      return res.status(400).json({ success: false, error: 'external_id and rates array required' });
+    }
+    
+    // Find the room by GAS room ID
+    const roomResult = await pool.query(
+      'SELECT id FROM bookable_units WHERE id = $1',
+      [external_id]
+    );
+    
+    if (roomResult.rows.length === 0) {
+      console.log('Elevate webhook: Room not found:', external_id);
+      return res.status(404).json({ success: false, error: 'Room not found' });
+    }
+    
+    const roomId = roomResult.rows[0].id;
+    let updated = 0;
+    
+    // Update availability for each date
+    for (const rate of rates) {
+      const { date, available } = rate;
+      if (!date || available === undefined) continue;
+      
+      // available = number of rooms available (0 = blocked, >0 = available)
+      const isAvailable = available > 0;
+      
+      await pool.query(`
+        INSERT INTO room_availability (room_id, date, available, status, source, updated_at)
+        VALUES ($1, $2, $3, $4, 'elevate', NOW())
+        ON CONFLICT (room_id, date) DO UPDATE SET
+          available = EXCLUDED.available,
+          status = EXCLUDED.status,
+          source = 'elevate',
+          updated_at = NOW()
+      `, [roomId, date, available, isAvailable ? 'available' : 'blocked']);
+      updated++;
+    }
+    
+    console.log(`Elevate availability webhook: Updated ${updated} dates for room ${roomId}`);
+    res.json({ success: true, updated });
+    
+  } catch (error) {
+    console.error('Elevate availability webhook error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Elevate Property CRUD Webhooks
+// POST /webhooks/elevate/:accountId/:apiKey/property/create
+app.post('/webhooks/elevate/:accountId/:apiKey/property/create', async (req, res) => {
+  console.log('=== ELEVATE PROPERTY CREATE WEBHOOK ===');
+  console.log('Body:', JSON.stringify(req.body));
+  
+  try {
+    const { accountId, apiKey } = req.params;
+    const isValid = await validateElevateApiKey(accountId, apiKey);
+    if (!isValid) {
+      return res.status(401).json({ success: false, error: 'Invalid API key' });
+    }
+    
+    const { name, address, city, country, currency } = req.body;
+    
+    const result = await pool.query(`
+      INSERT INTO properties (account_id, name, address, city, country, currency, cm_source, status, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6, 'elevate', 'active', NOW())
+      RETURNING id
+    `, [accountId, name, address || '', city || '', country || '', currency || 'CHF']);
+    
+    console.log('Elevate: Created property', result.rows[0].id);
+    res.json({ success: true, property_id: result.rows[0].id });
+    
+  } catch (error) {
+    console.error('Elevate property create error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /webhooks/elevate/:accountId/:apiKey/property/update
+app.post('/webhooks/elevate/:accountId/:apiKey/property/update', async (req, res) => {
+  console.log('=== ELEVATE PROPERTY UPDATE WEBHOOK ===');
+  
+  try {
+    const { accountId, apiKey } = req.params;
+    const isValid = await validateElevateApiKey(accountId, apiKey);
+    if (!isValid) {
+      return res.status(401).json({ success: false, error: 'Invalid API key' });
+    }
+    
+    const { external_id, name, address, city, country } = req.body;
+    
+    await pool.query(`
+      UPDATE properties SET name = COALESCE($2, name), address = COALESCE($3, address),
+        city = COALESCE($4, city), country = COALESCE($5, country), updated_at = NOW()
+      WHERE id = $1 AND account_id = $6
+    `, [external_id, name, address, city, country, accountId]);
+    
+    res.json({ success: true });
+    
+  } catch (error) {
+    console.error('Elevate property update error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /webhooks/elevate/:accountId/:apiKey/property/delete
+app.post('/webhooks/elevate/:accountId/:apiKey/property/delete', async (req, res) => {
+  console.log('=== ELEVATE PROPERTY DELETE WEBHOOK ===');
+  
+  try {
+    const { accountId, apiKey } = req.params;
+    const isValid = await validateElevateApiKey(accountId, apiKey);
+    if (!isValid) {
+      return res.status(401).json({ success: false, error: 'Invalid API key' });
+    }
+    
+    const { external_id } = req.body;
+    
+    await pool.query(`
+      UPDATE properties SET status = 'deleted', updated_at = NOW()
+      WHERE id = $1 AND account_id = $2
+    `, [external_id, accountId]);
+    
+    res.json({ success: true });
+    
+  } catch (error) {
+    console.error('Elevate property delete error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Room CRUD Webhooks
+// POST /webhooks/elevate/:accountId/:apiKey/room/create
+app.post('/webhooks/elevate/:accountId/:apiKey/room/create', async (req, res) => {
+  console.log('=== ELEVATE ROOM CREATE WEBHOOK ===');
+  
+  try {
+    const { accountId, apiKey } = req.params;
+    const isValid = await validateElevateApiKey(accountId, apiKey);
+    if (!isValid) {
+      return res.status(401).json({ success: false, error: 'Invalid API key' });
+    }
+    
+    const { property_id, name, max_guests, base_price } = req.body;
+    
+    // Verify property belongs to account
+    const propCheck = await pool.query(
+      'SELECT id FROM properties WHERE id = $1 AND account_id = $2',
+      [property_id, accountId]
+    );
+    if (propCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Property not found' });
+    }
+    
+    const result = await pool.query(`
+      INSERT INTO bookable_units (property_id, name, max_guests, base_price, status, created_at)
+      VALUES ($1, $2, $3, $4, 'available', NOW())
+      RETURNING id
+    `, [property_id, name, max_guests || 2, base_price]);
+    
+    console.log('Elevate: Created room', result.rows[0].id);
+    res.json({ success: true, room_id: result.rows[0].id });
+    
+  } catch (error) {
+    console.error('Elevate room create error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /webhooks/elevate/:accountId/:apiKey/room/update
+app.post('/webhooks/elevate/:accountId/:apiKey/room/update', async (req, res) => {
+  console.log('=== ELEVATE ROOM UPDATE WEBHOOK ===');
+  
+  try {
+    const { accountId, apiKey } = req.params;
+    const isValid = await validateElevateApiKey(accountId, apiKey);
+    if (!isValid) {
+      return res.status(401).json({ success: false, error: 'Invalid API key' });
+    }
+    
+    const { external_id, name, max_guests, base_price } = req.body;
+    
+    await pool.query(`
+      UPDATE bookable_units SET 
+        name = COALESCE($2, name), 
+        max_guests = COALESCE($3, max_guests),
+        base_price = COALESCE($4, base_price),
+        updated_at = NOW()
+      WHERE id = $1
+    `, [external_id, name, max_guests, base_price]);
+    
+    res.json({ success: true });
+    
+  } catch (error) {
+    console.error('Elevate room update error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /webhooks/elevate/:accountId/:apiKey/room/delete
+app.post('/webhooks/elevate/:accountId/:apiKey/room/delete', async (req, res) => {
+  console.log('=== ELEVATE ROOM DELETE WEBHOOK ===');
+  
+  try {
+    const { accountId, apiKey } = req.params;
+    const isValid = await validateElevateApiKey(accountId, apiKey);
+    if (!isValid) {
+      return res.status(401).json({ success: false, error: 'Invalid API key' });
+    }
+    
+    const { external_id } = req.body;
+    
+    await pool.query(`
+      UPDATE bookable_units SET status = 'deleted', updated_at = NOW()
+      WHERE id = $1
+    `, [external_id]);
+    
+    res.json({ success: true });
+    
+  } catch (error) {
+    console.error('Elevate room delete error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Elevate webhook verification (GET)
+app.get('/webhooks/elevate/:accountId/:apiKey/:type/:action', async (req, res) => {
+  res.json({ 
+    status: 'active',
+    message: 'Elevate webhook endpoint ready',
+    endpoint: `${req.params.type}/${req.params.action}`
+  });
+});
+
+// =========================================================
 // SYNC PAYMENT TO BEDS24
 // =========================================================
 app.post('/api/admin/sync-payment-to-beds24', async (req, res) => {
