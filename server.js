@@ -3459,6 +3459,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         }
         
         // Parse bathroom codes for bathroom creation
+        const codes = featureCodes ? featureCodes.split(',').map(c => c.trim().toUpperCase()).filter(c => c) : [];
         const bathroomTypeCodes = codes.filter(c => c.startsWith('BATHROOM_'));
         const bathFeatureCodes = codes.filter(c => c.startsWith('BATH_') && !c.startsWith('BATHROOM_'));
         
