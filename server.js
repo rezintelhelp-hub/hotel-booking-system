@@ -43384,10 +43384,9 @@ app.post('/webhooks/elevate/:accountId/:apiKey/room/create', validateElevateWebh
         cleaning_fee,
         room_type,
         short_description,
-        amenities,
         status,
         created_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'available', NOW())
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'available', NOW())
       RETURNING id, cm_room_id, name
     `, [
       propertyId,
@@ -43400,9 +43399,16 @@ app.post('/webhooks/elevate/:accountId/:apiKey/room/create', validateElevateWebh
       base_price || 0,
       cleaning_fee || 0,
       room_type || 'room',
-      description || '',
-      amenities ? JSON.stringify(amenities) : null
+      description || ''
     ]);
+    
+    // Update amenities separately if provided
+    if (amenities && Array.isArray(amenities)) {
+      await pool.query(
+        'UPDATE bookable_units SET amenities = $1 WHERE id = $2',
+        [JSON.stringify(amenities), result.rows[0].id]
+      ).catch(e => console.log('[Elevate Webhook] amenities update failed:', e.message));
+    }
     
     const room = result.rows[0];
     
