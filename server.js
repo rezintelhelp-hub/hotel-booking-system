@@ -43383,10 +43383,9 @@ app.post('/webhooks/elevate/:accountId/:apiKey/room/create', validateElevateWebh
         base_price,
         cleaning_fee,
         room_type,
-        short_description,
         status,
         created_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'available', NOW())
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'available', NOW())
       RETURNING id, cm_room_id, name
     `, [
       propertyId,
@@ -43398,15 +43397,35 @@ app.post('/webhooks/elevate/:accountId/:apiKey/room/create', validateElevateWebh
       bathrooms || 1,
       base_price || 0,
       cleaning_fee || 0,
-      room_type || 'room',
-      description || ''
+      room_type || 'room'
     ]);
+    
+    const roomId = result.rows[0].id;
+    
+    // Update description separately if provided (handle both TEXT and JSONB column types)
+    if (description) {
+      // Try as plain text first, then as JSON if that fails
+      await pool.query(
+        'UPDATE bookable_units SET short_description = $1 WHERE id = $2',
+        [description, roomId]
+      ).catch(async (e) => {
+        // If it's a JSONB column, try wrapping in JSON
+        if (e.message.includes('json')) {
+          await pool.query(
+            'UPDATE bookable_units SET short_description = $1::jsonb WHERE id = $2',
+            [JSON.stringify(description), roomId]
+          ).catch(e2 => console.log('[Elevate Webhook] description update failed:', e2.message));
+        } else {
+          console.log('[Elevate Webhook] description update failed:', e.message);
+        }
+      });
+    }
     
     // Update amenities separately if provided
     if (amenities && Array.isArray(amenities)) {
       await pool.query(
         'UPDATE bookable_units SET amenities = $1 WHERE id = $2',
-        [JSON.stringify(amenities), result.rows[0].id]
+        [JSON.stringify(amenities), roomId]
       ).catch(e => console.log('[Elevate Webhook] amenities update failed:', e.message));
     }
     
