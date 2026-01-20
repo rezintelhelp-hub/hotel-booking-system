@@ -43119,11 +43119,11 @@ app.post('/webhooks/elevate/:accountId/:apiKey/property/create', validateElevate
       });
     }
     
-    // Create the property
+    // Create the property (matching Beds24 pattern)
     const result = await pool.query(`
       INSERT INTO properties (
-        user_id,
         account_id, 
+        user_id,
         external_id,
         external_source,
         name, 
@@ -43131,23 +43131,26 @@ app.post('/webhooks/elevate/:accountId/:apiKey/property/create', validateElevate
         city,
         state,
         country,
-        zip_code,
-        phone,
-        email
-      ) VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        postal_code,
+        contact_phone,
+        contact_email,
+        cm_source,
+        status,
+        created_at
+      ) VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'elevate', 'active', NOW())
       RETURNING id, external_id, name
     `, [
       account.id,
       external_id,
       'elevate',
       name,
-      address?.street || null,
-      address?.city,
-      address?.region || null,
-      address?.country,
-      address?.postcode || null,
-      phone || null,
-      email || null
+      address?.street || '',
+      address?.city || '',
+      address?.region || '',
+      address?.country || '',
+      address?.postcode || '',
+      phone || '',
+      email || ''
     ]);
     
     const property = result.rows[0];
