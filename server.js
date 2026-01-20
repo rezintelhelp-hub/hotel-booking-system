@@ -3258,6 +3258,166 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
           }
         }
       }
+      
+      // =========================================================
+      // AUTO-CREATE BEDROOMS AND BATHROOMS FROM FEATURE CODES
+      // =========================================================
+      if (featureCodes && gasRoomId && gasPropertyId) {
+        const codes = featureCodes.split(',').map(c => c.trim().toUpperCase()).filter(c => c);
+        
+        // Parse bedroom codes: BEDROOM, BED_KING, BED_QUEEN, BED_SOFA, etc.
+        const bedroomCodes = codes.filter(c => c === 'BEDROOM' || c.startsWith('BEDROOM'));
+        const bedCodes = codes.filter(c => c.startsWith('BED_'));
+        
+        // Parse bathroom codes: BATHROOM_FULL, BATHROOM_HALF, BATH_*, etc.
+        const bathroomTypeCodes = codes.filter(c => c.startsWith('BATHROOM_'));
+        const bathFeatureCodes = codes.filter(c => c.startsWith('BATH_') && !c.startsWith('BATHROOM_'));
+        
+        // Count bedrooms (each BEDROOM code = 1 bedroom)
+        const numBedrooms = bedroomCodes.length || (bedCodes.length > 0 ? 1 : 0);
+        
+        // Count bed types
+        const bedCounts = {};
+        for (const code of bedCodes) {
+          bedCounts[code] = (bedCounts[code] || 0) + 1;
+        }
+        
+        // Map bed codes to friendly names
+        const bedNames = {
+          'BED_KING': 'King Bed', 'BED_QUEEN': 'Queen Bed', 'BED_DOUBLE': 'Double Bed',
+          'BED_SINGLE': 'Single Bed', 'BED_TWIN': 'Twin Bed', 'BED_SOFA': 'Sofa Bed',
+          'BED_BUNK': 'Bunk Bed', 'BED_MURPHY': 'Murphy Bed', 'BED_FUTON': 'Futon',
+          'BED_CHILD': 'Child Bed', 'BED_CRIB': 'Crib', 'BED_TODDLER': 'Toddler Bed',
+          'BED_AIRMATTRESS': 'Air Mattress', 'BED_FLOORMATTRESS': 'Floor Mattress',
+          'BED_COUCH': 'Couch', 'BED_HAMMOCK': 'Hammock'
+        };
+        
+        // Create bed_config array
+        const bedConfig = Object.entries(bedCounts).map(([code, qty]) => ({
+          type: code,
+          name: bedNames[code] || code.replace('BED_', '').replace(/_/g, ' '),
+          quantity: qty
+        }));
+        
+        // Only create bedrooms if we have bed codes and no existing bedrooms
+        if (numBedrooms > 0 || bedConfig.length > 0) {
+          const existingBedrooms = await pool.query(
+            'SELECT COUNT(*) as count FROM property_bedrooms WHERE property_id = $1 AND room_id = $2',
+            [gasPropertyId, gasRoomId]
+          );
+          
+          if (parseInt(existingBedrooms.rows[0].count) === 0) {
+            console.log(`link-to-gas: Auto-creating ${numBedrooms || 1} bedroom(s) with ${bedConfig.length} bed type(s)`);
+            
+            // If we have specific BEDROOM codes, create that many bedrooms
+            // Otherwise create 1 bedroom with all beds
+            const bedroomsToCreate = numBedrooms || 1;
+            
+            // Distribute beds across bedrooms (simple: put all in first bedroom for now)
+            for (let i = 0; i < bedroomsToCreate; i++) {
+              const bedroomName = bedroomsToCreate === 1 ? 'Bedroom' : `Bedroom ${i + 1}`;
+              const bedsForThisBedroom = i === 0 ? bedConfig : []; // All beds in first bedroom
+              
+              await pool.query(`
+                INSERT INTO property_bedrooms (property_id, room_id, name, bed_config, display_order)
+                VALUES ($1, $2, $3, $4, $5)
+              `, [
+                gasPropertyId,
+                gasRoomId,
+                bedroomName,
+                JSON.stringify(bedsForThisBedroom),
+                i
+              ]).catch(e => console.log('link-to-gas: bedroom create failed:', e.message));
+            }
+          }
+        }
+        
+        // Parse bathroom types and features
+        const bathroomTypes = {
+          'BATHROOM_FULL': 'full',
+          'BATHROOM_HALF': 'half',
+          'BATHROOM_PRIVATE': 'full',
+          'BATHROOM_SHARED': 'shared',
+          'BATHROOM_ENSUITE': 'ensuite'
+        };
+        
+        const bathroomFeatureMap = {
+          'BATH_TUB': 'tub',
+          'BATH_SHOWER': 'shower',
+          'BATH_COMBO_TUB_SHOWER': 'combo_tub_shower',
+          'BATH_TOILET': 'toilet',
+          'BATH_BIDET': 'bidet',
+          'BATH_JACUZZI': 'jacuzzi',
+          'BATH_OUTDOOR_SHOWER': 'outdoor_shower'
+        };
+        
+        // Count bathroom types
+        const bathroomCounts = {};
+        for (const code of bathroomTypeCodes) {
+          const type = bathroomTypes[code] || 'full';
+          bathroomCounts[type] = (bathroomCounts[type] || 0) + 1;
+        }
+        
+        // Build features object
+        const features = {};
+        for (const code of bathFeatureCodes) {
+          const feature = bathroomFeatureMap[code];
+          if (feature) {
+            features[feature] = true;
+          }
+        }
+        
+        // Only create bathrooms if we have bathroom codes and no existing bathrooms
+        const numBathrooms = Object.values(bathroomCounts).reduce((a, b) => a + b, 0);
+        if (numBathrooms > 0 || Object.keys(features).length > 0) {
+          const existingBathrooms = await pool.query(
+            'SELECT COUNT(*) as count FROM property_bathrooms WHERE property_id = $1 AND room_id = $2',
+            [gasPropertyId, gasRoomId]
+          );
+          
+          if (parseInt(existingBathrooms.rows[0].count) === 0) {
+            console.log(`link-to-gas: Auto-creating ${numBathrooms || 1} bathroom(s) with features:`, Object.keys(features).join(', ') || 'none');
+            
+            // Create bathrooms based on type codes
+            let displayOrder = 0;
+            if (numBathrooms > 0) {
+              for (const [type, count] of Object.entries(bathroomCounts)) {
+                for (let i = 0; i < count; i++) {
+                  const bathroomName = count === 1 && numBathrooms === 1 ? 'Bathroom' : 
+                    `${type.charAt(0).toUpperCase() + type.slice(1)} Bathroom ${displayOrder + 1}`;
+                  
+                  await pool.query(`
+                    INSERT INTO property_bathrooms (property_id, room_id, name, bathroom_type, features, quantity, display_order)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7)
+                  `, [
+                    gasPropertyId,
+                    gasRoomId,
+                    bathroomName,
+                    type,
+                    JSON.stringify(features),
+                    1,
+                    displayOrder++
+                  ]).catch(e => console.log('link-to-gas: bathroom create failed:', e.message));
+                }
+              }
+            } else if (Object.keys(features).length > 0) {
+              // We have features but no explicit bathroom type - create one full bathroom
+              await pool.query(`
+                INSERT INTO property_bathrooms (property_id, room_id, name, bathroom_type, features, quantity, display_order)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
+              `, [
+                gasPropertyId,
+                gasRoomId,
+                'Bathroom',
+                'full',
+                JSON.stringify(features),
+                1,
+                0
+              ]).catch(e => console.log('link-to-gas: bathroom create failed:', e.message));
+            }
+          }
+        }
+      }
     }
     
     // 4. Sync images to room_images
