@@ -4797,14 +4797,27 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
         console.log(`[Content Sync] Room ${roomId}: displayName=${displayName ? 'YES' : 'NO'}, roomDesc=${roomDescription ? 'YES' : 'NO'}, auxiliary=${auxiliaryText ? 'YES' : 'NO'}`);
       }
       
-      // Update gas_sync_room_types with texts in expected format
-      if (displayName || roomDescription || auxiliaryText) {
-        const textsToStore = {
+      // Extract featureCodes from room
+      let roomFeatureCodes = '';
+      if (room.featureCodes) {
+        if (Array.isArray(room.featureCodes)) {
+          // Can be array of strings or array of arrays
+          roomFeatureCodes = room.featureCodes.flat().join(',');
+        } else if (typeof room.featureCodes === 'string') {
+          roomFeatureCodes = room.featureCodes;
+        }
+        console.log(`[Content Sync] Room ${roomId} featureCodes:`, roomFeatureCodes.substring(0, 100));
+      }
+      
+      // Update gas_sync_room_types with texts and featureCodes in expected format
+      if (displayName || roomDescription || auxiliaryText || roomFeatureCodes) {
+        const dataToStore = {
           texts: {
             displayName: { EN: displayName },
             roomDescription1: { EN: roomDescription },
             auxiliaryText: { EN: auxiliaryText }
-          }
+          },
+          featureCodes: roomFeatureCodes
         };
         
         await pool.query(`
@@ -4813,12 +4826,12 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
             synced_at = NOW()
           WHERE sync_property_id = $2 AND external_id = $3
         `, [
-          JSON.stringify(textsToStore),
+          JSON.stringify(dataToStore),
           prop.id,
           String(roomId)
         ]);
         roomsUpdatedFromV2++;
-        console.log(`[Content Sync] Updated room ${roomId} with texts`);
+        console.log(`[Content Sync] Updated room ${roomId} with texts${roomFeatureCodes ? ' and featureCodes' : ''}`);
       }
     }
     
