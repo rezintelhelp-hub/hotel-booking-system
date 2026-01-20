@@ -27507,18 +27507,18 @@ app.post('/webhooks/elevate/:accountId/:apiKey/pricing/update', async (req, res)
     
     // Update pricing for each date
     for (const rate of rates) {
-      const { date, price, currency } = rate;
+      const { date, price } = rate;
       if (!date || price === undefined) continue;
       
       await pool.query(`
-        INSERT INTO room_availability (room_id, date, price, currency, source, updated_at)
-        VALUES ($1, $2, $3, $4, 'elevate', NOW())
+        INSERT INTO room_availability (room_id, date, cm_price, direct_price, source, updated_at)
+        VALUES ($1, $2, $3, $3, 'elevate', NOW())
         ON CONFLICT (room_id, date) DO UPDATE SET
-          price = EXCLUDED.price,
-          currency = COALESCE(EXCLUDED.currency, room_availability.currency),
+          cm_price = EXCLUDED.cm_price,
+          direct_price = EXCLUDED.direct_price,
           source = 'elevate',
           updated_at = NOW()
-      `, [roomId, date, price, currency || 'CHF']);
+      `, [roomId, date, price]);
       updated++;
     }
     
@@ -27574,16 +27574,17 @@ app.post('/webhooks/elevate/:accountId/:apiKey/availability/update', async (req,
       
       // available = number of rooms available (0 = blocked, >0 = available)
       const isAvailable = available > 0;
+      const isBlocked = available === 0;
       
       await pool.query(`
-        INSERT INTO room_availability (room_id, date, available, status, source, updated_at)
+        INSERT INTO room_availability (room_id, date, is_available, is_blocked, source, updated_at)
         VALUES ($1, $2, $3, $4, 'elevate', NOW())
         ON CONFLICT (room_id, date) DO UPDATE SET
-          available = EXCLUDED.available,
-          status = EXCLUDED.status,
+          is_available = EXCLUDED.is_available,
+          is_blocked = EXCLUDED.is_blocked,
           source = 'elevate',
           updated_at = NOW()
-      `, [roomId, date, available, isAvailable ? 'available' : 'blocked']);
+      `, [roomId, date, isAvailable, isBlocked]);
       updated++;
     }
     
