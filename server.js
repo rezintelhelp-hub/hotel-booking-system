@@ -43308,6 +43308,301 @@ app.post('/webhooks/elevate/:accountId/:apiKey/property/delete', validateElevate
   }
 });
 
+// ============================================
+// ROOM WEBHOOKS
+// ============================================
+
+// POST /webhooks/elevate/:accountId/:apiKey/room/create
+app.post('/webhooks/elevate/:accountId/:apiKey/room/create', validateElevateWebhook, async (req, res) => {
+  const account = req.elevateAccount;
+  const { 
+    property_external_id, 
+    external_id, 
+    name, 
+    max_guests,
+    bedrooms,
+    beds,
+    bathrooms,
+    base_price,
+    cleaning_fee,
+    room_type,
+    description,
+    amenities
+  } = req.body;
+  
+  console.log(`[Elevate Webhook] Create room for account ${account.id}:`, { property_external_id, external_id, name });
+  
+  try {
+    // Validate required fields
+    if (!property_external_id || !external_id || !name) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'property_external_id, external_id, and name are required' 
+      });
+    }
+    
+    // Find the property
+    const property = await pool.query(
+      'SELECT id FROM properties WHERE account_id = $1 AND external_id = $2',
+      [account.id, property_external_id]
+    );
+    
+    if (property.rows.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Property not found with this property_external_id' 
+      });
+    }
+    
+    const propertyId = property.rows[0].id;
+    
+    // Check if room with this external_id already exists for this property
+    const existing = await pool.query(
+      'SELECT id FROM bookable_units WHERE property_id = $1 AND cm_room_id = $2',
+      [propertyId, external_id]
+    );
+    
+    if (existing.rows.length > 0) {
+      return res.status(409).json({ 
+        success: false, 
+        error: 'Room with this external_id already exists for this property',
+        existing_id: existing.rows[0].id
+      });
+    }
+    
+    // Create the room
+    const result = await pool.query(`
+      INSERT INTO bookable_units (
+        property_id,
+        cm_room_id,
+        name,
+        max_guests,
+        bedrooms,
+        beds,
+        bathrooms,
+        base_price,
+        cleaning_fee,
+        room_type,
+        short_description,
+        amenities,
+        status,
+        created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'available', NOW())
+      RETURNING id, cm_room_id, name
+    `, [
+      propertyId,
+      external_id,
+      name,
+      max_guests || 2,
+      bedrooms || 1,
+      beds || 1,
+      bathrooms || 1,
+      base_price || 0,
+      cleaning_fee || 0,
+      room_type || 'room',
+      description || '',
+      amenities ? JSON.stringify(amenities) : null
+    ]);
+    
+    const room = result.rows[0];
+    
+    console.log(`[Elevate Webhook] Room created: ${room.id} (${room.name})`);
+    
+    res.json({ 
+      success: true, 
+      message: 'Room created successfully',
+      id: room.id,
+      external_id: room.cm_room_id,
+      name: room.name,
+      property_id: propertyId
+    });
+    
+  } catch (error) {
+    console.error('[Elevate Webhook] Create room error:', error);
+    res.status(500).json({ success: false, error: 'Failed to create room: ' + error.message });
+  }
+});
+
+// POST /webhooks/elevate/:accountId/:apiKey/room/update
+app.post('/webhooks/elevate/:accountId/:apiKey/room/update', validateElevateWebhook, async (req, res) => {
+  const account = req.elevateAccount;
+  const { 
+    property_external_id, 
+    external_id, 
+    name, 
+    max_guests,
+    bedrooms,
+    beds,
+    bathrooms,
+    base_price,
+    cleaning_fee,
+    room_type,
+    description,
+    amenities
+  } = req.body;
+  
+  console.log(`[Elevate Webhook] Update room for account ${account.id}:`, { property_external_id, external_id, name });
+  
+  try {
+    if (!property_external_id || !external_id) {
+      return res.status(400).json({ success: false, error: 'property_external_id and external_id are required' });
+    }
+    
+    // Find the property
+    const property = await pool.query(
+      'SELECT id FROM properties WHERE account_id = $1 AND external_id = $2',
+      [account.id, property_external_id]
+    );
+    
+    if (property.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Property not found' });
+    }
+    
+    const propertyId = property.rows[0].id;
+    
+    // Find the room
+    const existing = await pool.query(
+      'SELECT id FROM bookable_units WHERE property_id = $1 AND cm_room_id = $2',
+      [propertyId, external_id]
+    );
+    
+    if (existing.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Room not found with this external_id' });
+    }
+    
+    const roomId = existing.rows[0].id;
+    
+    // Build update query dynamically
+    const updates = [];
+    const values = [];
+    let paramIndex = 1;
+    
+    if (name !== undefined) {
+      updates.push(`name = $${paramIndex++}`);
+      values.push(name);
+    }
+    if (max_guests !== undefined) {
+      updates.push(`max_guests = $${paramIndex++}`);
+      values.push(max_guests);
+    }
+    if (bedrooms !== undefined) {
+      updates.push(`bedrooms = $${paramIndex++}`);
+      values.push(bedrooms);
+    }
+    if (beds !== undefined) {
+      updates.push(`beds = $${paramIndex++}`);
+      values.push(beds);
+    }
+    if (bathrooms !== undefined) {
+      updates.push(`bathrooms = $${paramIndex++}`);
+      values.push(bathrooms);
+    }
+    if (base_price !== undefined) {
+      updates.push(`base_price = $${paramIndex++}`);
+      values.push(base_price);
+    }
+    if (cleaning_fee !== undefined) {
+      updates.push(`cleaning_fee = $${paramIndex++}`);
+      values.push(cleaning_fee);
+    }
+    if (room_type !== undefined) {
+      updates.push(`room_type = $${paramIndex++}`);
+      values.push(room_type);
+    }
+    if (description !== undefined) {
+      updates.push(`short_description = $${paramIndex++}`);
+      values.push(description);
+    }
+    if (amenities !== undefined) {
+      updates.push(`amenities = $${paramIndex++}`);
+      values.push(JSON.stringify(amenities));
+    }
+    
+    if (updates.length === 0) {
+      return res.status(400).json({ success: false, error: 'No fields to update' });
+    }
+    
+    updates.push(`updated_at = NOW()`);
+    values.push(roomId);
+    
+    const result = await pool.query(`
+      UPDATE bookable_units 
+      SET ${updates.join(', ')}
+      WHERE id = $${paramIndex}
+      RETURNING id, cm_room_id, name
+    `, values);
+    
+    const room = result.rows[0];
+    
+    console.log(`[Elevate Webhook] Room updated: ${room.id}`);
+    
+    res.json({ 
+      success: true, 
+      message: 'Room updated successfully',
+      id: room.id,
+      external_id: room.cm_room_id,
+      name: room.name
+    });
+    
+  } catch (error) {
+    console.error('[Elevate Webhook] Update room error:', error);
+    res.status(500).json({ success: false, error: 'Failed to update room: ' + error.message });
+  }
+});
+
+// POST /webhooks/elevate/:accountId/:apiKey/room/delete
+app.post('/webhooks/elevate/:accountId/:apiKey/room/delete', validateElevateWebhook, async (req, res) => {
+  const account = req.elevateAccount;
+  const { property_external_id, external_id } = req.body;
+  
+  console.log(`[Elevate Webhook] Delete room for account ${account.id}:`, { property_external_id, external_id });
+  
+  try {
+    if (!property_external_id || !external_id) {
+      return res.status(400).json({ success: false, error: 'property_external_id and external_id are required' });
+    }
+    
+    // Find the property
+    const property = await pool.query(
+      'SELECT id FROM properties WHERE account_id = $1 AND external_id = $2',
+      [account.id, property_external_id]
+    );
+    
+    if (property.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Property not found' });
+    }
+    
+    const propertyId = property.rows[0].id;
+    
+    // Delete the room
+    const result = await pool.query(
+      'DELETE FROM bookable_units WHERE property_id = $1 AND cm_room_id = $2 RETURNING id, name',
+      [propertyId, external_id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Room not found with this external_id' });
+    }
+    
+    console.log(`[Elevate Webhook] Room deleted: ${result.rows[0].id}`);
+    
+    res.json({ 
+      success: true, 
+      message: 'Room deleted successfully',
+      id: result.rows[0].id,
+      name: result.rows[0].name
+    });
+    
+  } catch (error) {
+    console.error('[Elevate Webhook] Delete room error:', error);
+    res.status(500).json({ success: false, error: 'Failed to delete room: ' + error.message });
+  }
+});
+
+// ============================================
+// END ROOM WEBHOOKS
+// ============================================
+
 // POST /webhooks/elevate/:accountId/:apiKey/pricing/update
 app.post('/webhooks/elevate/:accountId/:apiKey/pricing/update', validateElevateWebhook, async (req, res) => {
   const account = req.elevateAccount;
