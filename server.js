@@ -2990,6 +2990,9 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     for (const room of syncRooms.rows) {
       const roomRawData = typeof room.raw_data === 'string' ? JSON.parse(room.raw_data) : (room.raw_data || {});
       
+      // Debug: log all raw_data keys
+      console.log('link-to-gas: raw_data keys:', Object.keys(roomRawData).join(', '));
+      
       // Beds24 texts is an OBJECT with nested language keys: texts.displayName.EN
       const texts = roomRawData.texts || {};
       
@@ -3073,6 +3076,9 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
           featureCodes = roomRawData.featureCodes.join(',');
         }
       }
+      
+      // Log featureCodes for debugging
+      console.log('link-to-gas: featureCodes:', featureCodes ? featureCodes.substring(0, 100) : '(none)');
       
       // Count bedrooms and bathrooms from feature codes if not already set
       if (featureCodes) {
@@ -3241,17 +3247,19 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
             
             if (masterMatch.rows.length > 0) {
               const ma = masterMatch.rows[0];
-              // Check if already linked
+              // Check if already linked - UI reads from room_amenity_selections
               const existing = await pool.query(
-                'SELECT id FROM bookable_unit_amenities WHERE bookable_unit_id = $1 AND amenity_id = $2',
+                'SELECT id FROM room_amenity_selections WHERE room_id = $1 AND amenity_id = $2',
                 [gasRoomId, ma.id]
               );
               
               if (existing.rows.length === 0) {
                 await pool.query(`
-                  INSERT INTO bookable_unit_amenities (bookable_unit_id, amenity_id, amenity_code, amenity_name, category)
-                  VALUES ($1, $2, $3, $4, $5)
-                `, [gasRoomId, ma.id, ma.amenity_code, ma.amenity_name, ma.category]);
+                  INSERT INTO room_amenity_selections (room_id, amenity_id, display_order)
+                  VALUES ($1, $2, $3)
+                  ON CONFLICT (room_id, amenity_id) DO NOTHING
+                `, [gasRoomId, ma.id, 0]);
+                console.log(`link-to-gas: Mapped amenity ${code} -> ${ma.amenity_name}`);
               }
             }
             // If no match, the feature code is stored in feature_codes column for manual mapping later
