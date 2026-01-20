@@ -2484,14 +2484,14 @@ function formatAmenities(amenities) {
 }
 
 // Helper to extract text from nested Beds24 structures like texts.roomDescription1.EN
-function extractText(obj, ...paths) {
+function extractText(...args) {
   try {
-    for (const path of paths) {
-      if (!path) continue;
-      if (typeof path === 'string' && path.trim()) return path;
-      if (typeof path === 'object' && !Array.isArray(path)) {
+    for (const val of args) {
+      if (!val) continue;
+      if (typeof val === 'string' && val.trim()) return val;
+      if (typeof val === 'object' && !Array.isArray(val)) {
         // Try common language keys
-        const text = path.EN || path.en || path.DE || path.de || path.FR || path.fr || Object.values(path).find(v => typeof v === 'string' && v);
+        const text = val.EN || val.en || val.DE || val.de || val.FR || val.fr || Object.values(val).find(v => typeof v === 'string' && v);
         if (text && typeof text === 'string') return text;
       }
     }
