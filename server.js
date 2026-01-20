@@ -4579,6 +4579,39 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
     
     console.log(`[Content Sync] ${prop.name}: Found ${features.length} features`);
     
+    // NEW: Update room texts from V2 API response
+    let roomsUpdatedFromV2 = 0;
+    const rooms = propData.rooms || [];
+    console.log(`[Content Sync] ${prop.name}: Found ${rooms.length} rooms in V2 response`);
+    
+    for (const room of rooms) {
+      const roomTexts = room.texts || {};
+      const roomId = room.id;
+      
+      // Log what texts we found
+      const textKeys = Object.keys(roomTexts);
+      if (textKeys.length > 0) {
+        console.log(`[Content Sync] Room ${roomId} texts:`, textKeys.join(', '));
+      }
+      
+      // Update gas_sync_room_types with texts
+      if (textKeys.length > 0) {
+        await pool.query(`
+          UPDATE gas_sync_room_types SET
+            raw_data = COALESCE(raw_data, '{}'::jsonb) || $1,
+            synced_at = NOW()
+          WHERE sync_property_id = $2 AND external_id = $3
+        `, [
+          JSON.stringify({ texts: roomTexts }),
+          prop.id,
+          String(roomId)
+        ]);
+        roomsUpdatedFromV2++;
+      }
+    }
+    
+    console.log(`[Content Sync] ${prop.name}: Updated ${roomsUpdatedFromV2} rooms with V2 texts`);
+    
     // Map Beds24 features to GAS amenities
     if (features.length > 0) {
       // Get master amenities to match against
@@ -4627,8 +4660,11 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
       : (prop.credentials || {});
     const v1ApiKey = credentials.v1ApiKey || credentials.apiKey;
     
+    console.log(`[Content Sync] V1 credentials check - v1ApiKey: ${v1ApiKey ? 'YES' : 'NO'}, prop_key: ${prop.prop_key || 'NO'}`);
+    
     if (v1ApiKey && prop.prop_key) {
       try {
+        console.log(`[Content Sync] Calling V1 API getPropertyContent for prop_key: ${prop.prop_key}`);
         const v1Response = await axios.post('https://api.beds24.com/json/getPropertyContent', {
           authentication: { apiKey: v1ApiKey, propKey: prop.prop_key },
           texts: true,
@@ -4636,8 +4672,10 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
         });
         
         const content = v1Response.data?.getPropertyContent?.[0];
+        console.log(`[Content Sync] V1 response - has content: ${!!content}, has texts: ${!!content?.texts}`);
         if (content?.texts) {
           const roomTexts = content.texts;
+          console.log(`[Content Sync] Text keys found:`, Object.keys(roomTexts).filter(k => k.includes('room') || k.includes('display')).join(', '));
           const rooms = await pool.query(
             'SELECT id, external_id FROM gas_sync_room_types WHERE sync_property_id = $1',
             [prop.id]
@@ -4646,6 +4684,8 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
           for (const room of rooms.rows) {
             const displayName = roomTexts[`displayName_${room.external_id}`] || roomTexts.displayName;
             const roomDesc = roomTexts[`roomDescription1_${room.external_id}`] || roomTexts.roomDescription1;
+            
+            console.log(`[Content Sync] Room ${room.external_id}: displayName=${displayName ? 'YES' : 'NO'}, roomDesc=${roomDesc ? 'YES' : 'NO'}`);
             
             if (displayName || roomDesc) {
               await pool.query(`
@@ -4664,8 +4704,10 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
           }
         }
       } catch (v1Error) {
-        console.log('  V1 content sync skipped:', v1Error.message);
+        console.log('  V1 content sync error:', v1Error.message);
       }
+    } else {
+      console.log(`[Content Sync] Skipping V1 API - missing credentials`);
     }
     
     // Update last sync time
@@ -43035,750 +43077,6 @@ app.get('/api/public/client/:clientId/app-settings/:app', async (req, res) => {
 // ============================================
 // END PLUGIN API ENDPOINTS
 // ============================================
-
-// ============================================
-// ELEVATE WEBHOOK ENDPOINTS
-// ============================================
-// These endpoints allow Elevate PMS to push property data to GAS
-
-// Ensure Elevate-related columns exist on properties table
-async function ensureElevateColumns() {
-  try {
-    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS external_id VARCHAR(255)`);
-    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS external_source VARCHAR(50)`);
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_properties_external_id ON properties(account_id, external_id)`);
-    console.log('✅ Elevate columns ensured on properties table');
-  } catch (error) {
-    console.error('Error ensuring Elevate columns:', error.message);
-  }
-}
-
-// Call on startup (will be called after pool is ready)
-setTimeout(ensureElevateColumns, 5000);
-
-// Middleware to validate Elevate webhook requests
-async function validateElevateWebhook(req, res, next) {
-  const { accountId, apiKey } = req.params;
-  
-  try {
-    const result = await pool.query(
-      'SELECT id, name, email FROM accounts WHERE id = $1 AND api_key = $2',
-      [accountId, apiKey]
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(401).json({ success: false, error: 'Invalid account ID or API key' });
-    }
-    
-    req.elevateAccount = result.rows[0];
-    next();
-  } catch (error) {
-    console.error('Elevate webhook auth error:', error);
-    res.status(500).json({ success: false, error: 'Authentication failed' });
-  }
-}
-
-// POST /webhooks/elevate/:accountId/:apiKey/property/create
-app.post('/webhooks/elevate/:accountId/:apiKey/property/create', validateElevateWebhook, async (req, res) => {
-  const account = req.elevateAccount;
-  const { external_id, name, address, phone, email } = req.body;
-  
-  console.log(`[Elevate Webhook] Create property for account ${account.id}:`, { external_id, name });
-  
-  try {
-    // Validate required fields
-    if (!external_id || !name) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'external_id and name are required' 
-      });
-    }
-    
-    if (!address?.city || !address?.country) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'address.city and address.country are required' 
-      });
-    }
-    
-    // Ensure columns exist
-    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS external_id VARCHAR(255)`);
-    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS external_source VARCHAR(50)`);
-    
-    // Check if property with this external_id already exists for this account
-    const existing = await pool.query(
-      'SELECT id FROM properties WHERE account_id = $1 AND external_id = $2',
-      [account.id, external_id]
-    );
-    
-    if (existing.rows.length > 0) {
-      return res.status(409).json({ 
-        success: false, 
-        error: 'Property with this external_id already exists',
-        existing_id: existing.rows[0].id
-      });
-    }
-    
-    // Create the property (matching Beds24 pattern)
-    const result = await pool.query(`
-      INSERT INTO properties (
-        account_id, 
-        user_id,
-        external_id,
-        external_source,
-        name, 
-        address,
-        city,
-        state,
-        country,
-        postal_code,
-        contact_phone,
-        contact_email,
-        cm_source,
-        status,
-        created_at
-      ) VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'elevate', 'active', NOW())
-      RETURNING id, external_id, name
-    `, [
-      account.id,
-      external_id,
-      'elevate',
-      name,
-      address?.street || '',
-      address?.city || '',
-      address?.region || '',
-      address?.country || '',
-      address?.postcode || '',
-      phone || '',
-      email || ''
-    ]);
-    
-    const property = result.rows[0];
-    
-    console.log(`[Elevate Webhook] Property created: ${property.id} (${property.name})`);
-    
-    res.json({ 
-      success: true, 
-      message: 'Property created successfully',
-      id: property.id,
-      external_id: property.external_id,
-      name: property.name
-    });
-    
-  } catch (error) {
-    console.error('[Elevate Webhook] Create property error:', error);
-    res.status(500).json({ success: false, error: 'Failed to create property: ' + error.message });
-  }
-});
-
-// POST /webhooks/elevate/:accountId/:apiKey/property/update
-app.post('/webhooks/elevate/:accountId/:apiKey/property/update', validateElevateWebhook, async (req, res) => {
-  const account = req.elevateAccount;
-  const { external_id, name, address, phone, email } = req.body;
-  
-  console.log(`[Elevate Webhook] Update property for account ${account.id}:`, { external_id, name });
-  
-  try {
-    if (!external_id) {
-      return res.status(400).json({ success: false, error: 'external_id is required' });
-    }
-    
-    // Find the property
-    const existing = await pool.query(
-      'SELECT id FROM properties WHERE account_id = $1 AND external_id = $2',
-      [account.id, external_id]
-    );
-    
-    if (existing.rows.length === 0) {
-      return res.status(404).json({ 
-        success: false, 
-        error: 'Property not found with this external_id' 
-      });
-    }
-    
-    const propertyId = existing.rows[0].id;
-    
-    // Build update query dynamically
-    const updates = [];
-    const values = [];
-    let paramIndex = 1;
-    
-    if (name) {
-      updates.push(`name = $${paramIndex++}`);
-      values.push(name);
-    }
-    if (address?.street !== undefined) {
-      updates.push(`address = $${paramIndex++}`);
-      values.push(address.street);
-    }
-    if (address?.city !== undefined) {
-      updates.push(`city = $${paramIndex++}`);
-      values.push(address.city);
-    }
-    if (address?.region !== undefined) {
-      updates.push(`state = $${paramIndex++}`);
-      values.push(address.region);
-    }
-    if (address?.country !== undefined) {
-      updates.push(`country = $${paramIndex++}`);
-      values.push(address.country);
-    }
-    if (address?.postcode !== undefined) {
-      updates.push(`zip_code = $${paramIndex++}`);
-      values.push(address.postcode);
-    }
-    if (phone !== undefined) {
-      updates.push(`phone = $${paramIndex++}`);
-      values.push(phone);
-    }
-    if (email !== undefined) {
-      updates.push(`email = $${paramIndex++}`);
-      values.push(email);
-    }
-    
-    if (updates.length === 0) {
-      return res.status(400).json({ success: false, error: 'No fields to update' });
-    }
-    
-    updates.push(`updated_at = NOW()`);
-    values.push(propertyId);
-    
-    const result = await pool.query(`
-      UPDATE properties 
-      SET ${updates.join(', ')}
-      WHERE id = $${paramIndex}
-      RETURNING id, external_id, name
-    `, values);
-    
-    const property = result.rows[0];
-    
-    console.log(`[Elevate Webhook] Property updated: ${property.id}`);
-    
-    res.json({ 
-      success: true, 
-      message: 'Property updated successfully',
-      id: property.id,
-      external_id: property.external_id,
-      name: property.name
-    });
-    
-  } catch (error) {
-    console.error('[Elevate Webhook] Update property error:', error);
-    res.status(500).json({ success: false, error: 'Failed to update property: ' + error.message });
-  }
-});
-
-// POST /webhooks/elevate/:accountId/:apiKey/property/delete
-app.post('/webhooks/elevate/:accountId/:apiKey/property/delete', validateElevateWebhook, async (req, res) => {
-  const account = req.elevateAccount;
-  const { external_id } = req.body;
-  
-  console.log(`[Elevate Webhook] Delete property for account ${account.id}:`, { external_id });
-  
-  try {
-    if (!external_id) {
-      return res.status(400).json({ success: false, error: 'external_id is required' });
-    }
-    
-    // Find and delete the property
-    const result = await pool.query(
-      'DELETE FROM properties WHERE account_id = $1 AND external_id = $2 RETURNING id, name',
-      [account.id, external_id]
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ 
-        success: false, 
-        error: 'Property not found with this external_id' 
-      });
-    }
-    
-    console.log(`[Elevate Webhook] Property deleted: ${result.rows[0].id}`);
-    
-    res.json({ 
-      success: true, 
-      message: 'Property deleted successfully',
-      id: result.rows[0].id,
-      name: result.rows[0].name
-    });
-    
-  } catch (error) {
-    console.error('[Elevate Webhook] Delete property error:', error);
-    res.status(500).json({ success: false, error: 'Failed to delete property: ' + error.message });
-  }
-});
-
-// ============================================
-// ROOM WEBHOOKS
-// ============================================
-
-// POST /webhooks/elevate/:accountId/:apiKey/room/create
-app.post('/webhooks/elevate/:accountId/:apiKey/room/create', validateElevateWebhook, async (req, res) => {
-  const account = req.elevateAccount;
-  const { 
-    property_external_id, 
-    external_id, 
-    name, 
-    max_guests,
-    bedrooms,
-    beds,
-    bathrooms,
-    base_price,
-    cleaning_fee,
-    room_type,
-    description,
-    amenities
-  } = req.body;
-  
-  console.log(`[Elevate Webhook] Create room for account ${account.id}:`, { property_external_id, external_id, name });
-  
-  try {
-    // Validate required fields
-    if (!property_external_id || !external_id || !name) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'property_external_id, external_id, and name are required' 
-      });
-    }
-    
-    // Find the property
-    const property = await pool.query(
-      'SELECT id FROM properties WHERE account_id = $1 AND external_id = $2',
-      [account.id, property_external_id]
-    );
-    
-    if (property.rows.length === 0) {
-      return res.status(404).json({ 
-        success: false, 
-        error: 'Property not found with this property_external_id' 
-      });
-    }
-    
-    const propertyId = property.rows[0].id;
-    
-    // Check if room with this external_id already exists for this property
-    const existing = await pool.query(
-      'SELECT id FROM bookable_units WHERE property_id = $1 AND cm_room_id = $2',
-      [propertyId, external_id]
-    );
-    
-    if (existing.rows.length > 0) {
-      return res.status(409).json({ 
-        success: false, 
-        error: 'Room with this external_id already exists for this property',
-        existing_id: existing.rows[0].id
-      });
-    }
-    
-    // Create the room
-    const result = await pool.query(`
-      INSERT INTO bookable_units (
-        property_id,
-        cm_room_id,
-        name,
-        max_guests,
-        bedrooms,
-        beds,
-        bathrooms,
-        base_price,
-        cleaning_fee,
-        room_type,
-        status,
-        created_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'available', NOW())
-      RETURNING id, cm_room_id, name
-    `, [
-      propertyId,
-      external_id,
-      name,
-      max_guests || 2,
-      bedrooms || 1,
-      beds || 1,
-      bathrooms || 1,
-      base_price || 0,
-      cleaning_fee || 0,
-      room_type || 'room'
-    ]);
-    
-    const roomId = result.rows[0].id;
-    
-    // Update description separately if provided (handle both TEXT and JSONB column types)
-    if (description) {
-      // Try as plain text first, then as JSON if that fails
-      await pool.query(
-        'UPDATE bookable_units SET short_description = $1 WHERE id = $2',
-        [description, roomId]
-      ).catch(async (e) => {
-        // If it's a JSONB column, try wrapping in JSON
-        if (e.message.includes('json')) {
-          await pool.query(
-            'UPDATE bookable_units SET short_description = $1::jsonb WHERE id = $2',
-            [JSON.stringify(description), roomId]
-          ).catch(e2 => console.log('[Elevate Webhook] description update failed:', e2.message));
-        } else {
-          console.log('[Elevate Webhook] description update failed:', e.message);
-        }
-      });
-    }
-    
-    // Update amenities separately if provided
-    if (amenities && Array.isArray(amenities)) {
-      await pool.query(
-        'UPDATE bookable_units SET amenities = $1 WHERE id = $2',
-        [JSON.stringify(amenities), roomId]
-      ).catch(e => console.log('[Elevate Webhook] amenities update failed:', e.message));
-    }
-    
-    const room = result.rows[0];
-    
-    console.log(`[Elevate Webhook] Room created: ${room.id} (${room.name})`);
-    
-    res.json({ 
-      success: true, 
-      message: 'Room created successfully',
-      id: room.id,
-      external_id: room.cm_room_id,
-      name: room.name,
-      property_id: propertyId
-    });
-    
-  } catch (error) {
-    console.error('[Elevate Webhook] Create room error:', error);
-    res.status(500).json({ success: false, error: 'Failed to create room: ' + error.message });
-  }
-});
-
-// POST /webhooks/elevate/:accountId/:apiKey/room/update
-app.post('/webhooks/elevate/:accountId/:apiKey/room/update', validateElevateWebhook, async (req, res) => {
-  const account = req.elevateAccount;
-  const { 
-    property_external_id, 
-    external_id, 
-    name, 
-    max_guests,
-    bedrooms,
-    beds,
-    bathrooms,
-    base_price,
-    cleaning_fee,
-    room_type,
-    description,
-    amenities
-  } = req.body;
-  
-  console.log(`[Elevate Webhook] Update room for account ${account.id}:`, { property_external_id, external_id, name });
-  
-  try {
-    if (!property_external_id || !external_id) {
-      return res.status(400).json({ success: false, error: 'property_external_id and external_id are required' });
-    }
-    
-    // Find the property
-    const property = await pool.query(
-      'SELECT id FROM properties WHERE account_id = $1 AND external_id = $2',
-      [account.id, property_external_id]
-    );
-    
-    if (property.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Property not found' });
-    }
-    
-    const propertyId = property.rows[0].id;
-    
-    // Find the room
-    const existing = await pool.query(
-      'SELECT id FROM bookable_units WHERE property_id = $1 AND cm_room_id = $2',
-      [propertyId, external_id]
-    );
-    
-    if (existing.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Room not found with this external_id' });
-    }
-    
-    const roomId = existing.rows[0].id;
-    
-    // Build update query dynamically
-    const updates = [];
-    const values = [];
-    let paramIndex = 1;
-    
-    if (name !== undefined) {
-      updates.push(`name = $${paramIndex++}`);
-      values.push(name);
-    }
-    if (max_guests !== undefined) {
-      updates.push(`max_guests = $${paramIndex++}`);
-      values.push(max_guests);
-    }
-    if (bedrooms !== undefined) {
-      updates.push(`bedrooms = $${paramIndex++}`);
-      values.push(bedrooms);
-    }
-    if (beds !== undefined) {
-      updates.push(`beds = $${paramIndex++}`);
-      values.push(beds);
-    }
-    if (bathrooms !== undefined) {
-      updates.push(`bathrooms = $${paramIndex++}`);
-      values.push(bathrooms);
-    }
-    if (base_price !== undefined) {
-      updates.push(`base_price = $${paramIndex++}`);
-      values.push(base_price);
-    }
-    if (cleaning_fee !== undefined) {
-      updates.push(`cleaning_fee = $${paramIndex++}`);
-      values.push(cleaning_fee);
-    }
-    if (room_type !== undefined) {
-      updates.push(`room_type = $${paramIndex++}`);
-      values.push(room_type);
-    }
-    if (description !== undefined) {
-      updates.push(`short_description = $${paramIndex++}`);
-      values.push(description);
-    }
-    if (amenities !== undefined) {
-      updates.push(`amenities = $${paramIndex++}`);
-      values.push(JSON.stringify(amenities));
-    }
-    
-    if (updates.length === 0) {
-      return res.status(400).json({ success: false, error: 'No fields to update' });
-    }
-    
-    updates.push(`updated_at = NOW()`);
-    values.push(roomId);
-    
-    const result = await pool.query(`
-      UPDATE bookable_units 
-      SET ${updates.join(', ')}
-      WHERE id = $${paramIndex}
-      RETURNING id, cm_room_id, name
-    `, values);
-    
-    const room = result.rows[0];
-    
-    console.log(`[Elevate Webhook] Room updated: ${room.id}`);
-    
-    res.json({ 
-      success: true, 
-      message: 'Room updated successfully',
-      id: room.id,
-      external_id: room.cm_room_id,
-      name: room.name
-    });
-    
-  } catch (error) {
-    console.error('[Elevate Webhook] Update room error:', error);
-    res.status(500).json({ success: false, error: 'Failed to update room: ' + error.message });
-  }
-});
-
-// POST /webhooks/elevate/:accountId/:apiKey/room/delete
-app.post('/webhooks/elevate/:accountId/:apiKey/room/delete', validateElevateWebhook, async (req, res) => {
-  const account = req.elevateAccount;
-  const { property_external_id, external_id } = req.body;
-  
-  console.log(`[Elevate Webhook] Delete room for account ${account.id}:`, { property_external_id, external_id });
-  
-  try {
-    if (!property_external_id || !external_id) {
-      return res.status(400).json({ success: false, error: 'property_external_id and external_id are required' });
-    }
-    
-    // Find the property
-    const property = await pool.query(
-      'SELECT id FROM properties WHERE account_id = $1 AND external_id = $2',
-      [account.id, property_external_id]
-    );
-    
-    if (property.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Property not found' });
-    }
-    
-    const propertyId = property.rows[0].id;
-    
-    // Delete the room
-    const result = await pool.query(
-      'DELETE FROM bookable_units WHERE property_id = $1 AND cm_room_id = $2 RETURNING id, name',
-      [propertyId, external_id]
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Room not found with this external_id' });
-    }
-    
-    console.log(`[Elevate Webhook] Room deleted: ${result.rows[0].id}`);
-    
-    res.json({ 
-      success: true, 
-      message: 'Room deleted successfully',
-      id: result.rows[0].id,
-      name: result.rows[0].name
-    });
-    
-  } catch (error) {
-    console.error('[Elevate Webhook] Delete room error:', error);
-    res.status(500).json({ success: false, error: 'Failed to delete room: ' + error.message });
-  }
-});
-
-// ============================================
-// END ROOM WEBHOOKS
-// ============================================
-
-// POST /webhooks/elevate/:accountId/:apiKey/pricing/update
-app.post('/webhooks/elevate/:accountId/:apiKey/pricing/update', validateElevateWebhook, async (req, res) => {
-  const account = req.elevateAccount;
-  const { external_id, rates } = req.body;
-  
-  console.log(`[Elevate Webhook] Update pricing for account ${account.id}:`, { external_id, rateCount: rates?.length });
-  
-  try {
-    if (!external_id) {
-      return res.status(400).json({ success: false, error: 'external_id is required' });
-    }
-    
-    if (!rates || !Array.isArray(rates) || rates.length === 0) {
-      return res.status(400).json({ success: false, error: 'rates array is required' });
-    }
-    
-    // Find the property
-    const property = await pool.query(
-      'SELECT id FROM properties WHERE account_id = $1 AND external_id = $2',
-      [account.id, external_id]
-    );
-    
-    if (property.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Property not found' });
-    }
-    
-    const propertyId = property.rows[0].id;
-    
-    // Ensure pricing table exists
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS property_pricing (
-        id SERIAL PRIMARY KEY,
-        property_id INTEGER NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
-        date DATE NOT NULL,
-        price DECIMAL(10,2) NOT NULL,
-        currency VARCHAR(3) DEFAULT 'USD',
-        created_at TIMESTAMP DEFAULT NOW(),
-        updated_at TIMESTAMP DEFAULT NOW(),
-        UNIQUE(property_id, date)
-      )
-    `);
-    
-    // Upsert rates
-    let updated = 0;
-    for (const rate of rates) {
-      if (!rate.date || rate.price === undefined) {
-        continue;
-      }
-      
-      await pool.query(`
-        INSERT INTO property_pricing (property_id, date, price, currency, updated_at)
-        VALUES ($1, $2, $3, $4, NOW())
-        ON CONFLICT (property_id, date) 
-        DO UPDATE SET price = $3, currency = $4, updated_at = NOW()
-      `, [propertyId, rate.date, rate.price, rate.currency || 'USD']);
-      
-      updated++;
-    }
-    
-    console.log(`[Elevate Webhook] Pricing updated: ${updated} rates for property ${propertyId}`);
-    
-    res.json({ 
-      success: true, 
-      message: `Pricing updated: ${updated} rates`,
-      property_id: propertyId,
-      rates_updated: updated
-    });
-    
-  } catch (error) {
-    console.error('[Elevate Webhook] Update pricing error:', error);
-    res.status(500).json({ success: false, error: 'Failed to update pricing: ' + error.message });
-  }
-});
-
-// POST /webhooks/elevate/:accountId/:apiKey/availability/update
-app.post('/webhooks/elevate/:accountId/:apiKey/availability/update', validateElevateWebhook, async (req, res) => {
-  const account = req.elevateAccount;
-  const { external_id, availability } = req.body;
-  
-  console.log(`[Elevate Webhook] Update availability for account ${account.id}:`, { external_id, count: availability?.length });
-  
-  try {
-    if (!external_id) {
-      return res.status(400).json({ success: false, error: 'external_id is required' });
-    }
-    
-    if (!availability || !Array.isArray(availability) || availability.length === 0) {
-      return res.status(400).json({ success: false, error: 'availability array is required' });
-    }
-    
-    // Find the property
-    const property = await pool.query(
-      'SELECT id FROM properties WHERE account_id = $1 AND external_id = $2',
-      [account.id, external_id]
-    );
-    
-    if (property.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Property not found' });
-    }
-    
-    const propertyId = property.rows[0].id;
-    
-    // Ensure availability table exists
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS property_availability (
-        id SERIAL PRIMARY KEY,
-        property_id INTEGER NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
-        date DATE NOT NULL,
-        available BOOLEAN DEFAULT true,
-        created_at TIMESTAMP DEFAULT NOW(),
-        updated_at TIMESTAMP DEFAULT NOW(),
-        UNIQUE(property_id, date)
-      )
-    `);
-    
-    // Upsert availability
-    let updated = 0;
-    for (const avail of availability) {
-      if (!avail.date || avail.available === undefined) {
-        continue;
-      }
-      
-      await pool.query(`
-        INSERT INTO property_availability (property_id, date, available, updated_at)
-        VALUES ($1, $2, $3, NOW())
-        ON CONFLICT (property_id, date) 
-        DO UPDATE SET available = $3, updated_at = NOW()
-      `, [propertyId, avail.date, avail.available]);
-      
-      updated++;
-    }
-    
-    console.log(`[Elevate Webhook] Availability updated: ${updated} dates for property ${propertyId}`);
-    
-    res.json({ 
-      success: true, 
-      message: `Availability updated: ${updated} dates`,
-      property_id: propertyId,
-      dates_updated: updated
-    });
-    
-  } catch (error) {
-    console.error('[Elevate Webhook] Update availability error:', error);
-    res.status(500).json({ success: false, error: 'Failed to update availability: ' + error.message });
-  }
-});
-
-// ============================================
-// END ELEVATE WEBHOOK ENDPOINTS
-// ============================================
-
 
 // ============================================
 // CATCH-ALL HANDLER (must be last route)
