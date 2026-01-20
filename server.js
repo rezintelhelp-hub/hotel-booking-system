@@ -2643,6 +2643,8 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     
     // Extract propertyDescription1 and propertyDescription2 for room-level fallbacks
     // These are commonly used in Beds24 Booking Engine > Property Page
+    console.log('link-to-gas: texts.propertyDescription1 type:', typeof texts.propertyDescription1, 'value:', JSON.stringify(texts.propertyDescription1)?.substring(0, 100));
+    console.log('link-to-gas: texts.propertyDescription2 type:', typeof texts.propertyDescription2, 'value:', JSON.stringify(texts.propertyDescription2)?.substring(0, 100));
     const propDescription1 = extractText(texts.propertyDescription1, rawData.propertyDescription1);
     const propDescription2 = extractText(texts.propertyDescription2, rawData.propertyDescription2);
     console.log('link-to-gas: Property fallback texts - propDesc1:', propDescription1?.substring(0,50) || '(empty)', 'propDesc2:', propDescription2?.substring(0,50) || '(empty)');
