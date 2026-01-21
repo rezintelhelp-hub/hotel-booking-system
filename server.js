@@ -3149,6 +3149,8 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
             security_deposit = COALESCE($10, security_deposit),
             feature_codes = COALESCE(NULLIF($11, ''), feature_codes),
             beds24_room_id = COALESCE($13, beds24_room_id),
+            num_bedrooms = COALESCE($5, num_bedrooms),
+            num_bathrooms = COALESCE($7, num_bathrooms),
             updated_at = NOW()
           WHERE id = $12
         `, [
@@ -27695,35 +27697,55 @@ app.get('/api/elevate/cleanup-test-data-xK9mP2nL', async (req, res) => {
     
     // Fix bedroom/bathroom counts on bookable_units from existing records
     if (fixCounts) {
-      // Update num_bedrooms from property_bedrooms table
+      // Copy bedrooms -> num_bedrooms and bathrooms -> num_bathrooms for ALL rooms
       const bedroomFix = await pool.query(`
-        UPDATE bookable_units bu
-        SET num_bedrooms = COALESCE((
-          SELECT COUNT(*) FROM property_bedrooms pb 
-          WHERE pb.room_id = bu.id
-        ), 0)
-        WHERE EXISTS (SELECT 1 FROM property_bedrooms pb WHERE pb.room_id = bu.id)
-        RETURNING id, name, num_bedrooms
+        UPDATE bookable_units 
+        SET num_bedrooms = COALESCE(bedrooms, num_bedrooms, 0)
+        WHERE bedrooms IS NOT NULL AND bedrooms > 0
+        RETURNING id, name, bedrooms, num_bedrooms
       `);
-      results.push(`Updated num_bedrooms on ${bedroomFix.rowCount} rooms`);
+      results.push(`Updated num_bedrooms on ${bedroomFix.rowCount} rooms from bedrooms column`);
       
-      // Update num_bathrooms from property_bathrooms table
       const bathroomFix = await pool.query(`
-        UPDATE bookable_units bu
-        SET num_bathrooms = COALESCE((
-          SELECT COUNT(*) FROM property_bathrooms pb 
-          WHERE pb.room_id = bu.id
-        ), 0)
-        WHERE EXISTS (SELECT 1 FROM property_bathrooms pb WHERE pb.room_id = bu.id)
-        RETURNING id, name, num_bathrooms
+        UPDATE bookable_units 
+        SET num_bathrooms = COALESCE(bathrooms, num_bathrooms, 0)
+        WHERE bathrooms IS NOT NULL AND bathrooms > 0
+        RETURNING id, name, bathrooms, num_bathrooms
       `);
-      results.push(`Updated num_bathrooms on ${bathroomFix.rowCount} rooms`);
+      results.push(`Updated num_bathrooms on ${bathroomFix.rowCount} rooms from bathrooms column`);
+      
+      // Also update from property_bedrooms/bathrooms tables if they exist
+      const bedroomTableFix = await pool.query(`
+        UPDATE bookable_units bu
+        SET num_bedrooms = sub.cnt
+        FROM (
+          SELECT room_id, COUNT(*) as cnt 
+          FROM property_bedrooms 
+          GROUP BY room_id
+        ) sub
+        WHERE bu.id = sub.room_id AND (bu.num_bedrooms IS NULL OR bu.num_bedrooms = 0)
+        RETURNING bu.id, bu.name, bu.num_bedrooms
+      `);
+      results.push(`Updated num_bedrooms on ${bedroomTableFix.rowCount} rooms from property_bedrooms table`);
+      
+      const bathroomTableFix = await pool.query(`
+        UPDATE bookable_units bu
+        SET num_bathrooms = sub.cnt
+        FROM (
+          SELECT room_id, COUNT(*) as cnt 
+          FROM property_bathrooms 
+          GROUP BY room_id
+        ) sub
+        WHERE bu.id = sub.room_id AND (bu.num_bathrooms IS NULL OR bu.num_bathrooms = 0)
+        RETURNING bu.id, bu.name, bu.num_bathrooms
+      `);
+      results.push(`Updated num_bathrooms on ${bathroomTableFix.rowCount} rooms from property_bathrooms table`);
       
       return res.json({
         success: true,
         results,
-        bedrooms_updated: bedroomFix.rows,
-        bathrooms_updated: bathroomFix.rows
+        bedrooms_from_column: bedroomFix.rows.slice(0, 10),
+        bathrooms_from_column: bathroomFix.rows.slice(0, 10)
       });
     }
     
