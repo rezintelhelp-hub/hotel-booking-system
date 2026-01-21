@@ -131,7 +131,7 @@ app.get('/:slug', async (req, res) => {
              bu.id as room_id, bu.name as room_name,
              bu.display_name as display_name_raw,
              bu.short_description as room_short_desc, bu.full_description as room_full_desc,
-             bu.bedroom_count, bu.bathroom_count, bu.max_guests, bu.base_price,
+             bu.num_bedrooms as bedroom_count, bu.num_bathrooms as bathroom_count, bu.max_guests, bu.base_price,
              bu.unit_type as room_type,
              COALESCE(a.id, pa.id) as account_id,
              COALESCE(a.business_name, a.name, pa.business_name, pa.name) as business_name,
@@ -270,7 +270,7 @@ app.get('/:slug/card', async (req, res) => {
       SELECT l.*, p.name, p.city, p.country, p.currency, p.short_description,
              p.average_rating, p.pets_allowed, p.children_allowed,
              bu.name as room_name, bu.display_name as display_name_raw,
-             bu.bedroom_count, bu.max_guests, bu.base_price,
+             bu.num_bedrooms as bedroom_count, bu.num_bathrooms as bathroom_count, bu.max_guests, bu.base_price,
              COALESCE(a.business_name, a.name, pa.business_name, pa.name) as account_display_name
       FROM gas_lites l
       JOIN properties p ON l.property_id = p.id
