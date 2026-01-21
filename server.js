@@ -18559,7 +18559,7 @@ app.post('/api/calry/import-property', async (req, res) => {
         INSERT INTO properties (
           account_id, user_id, name, address, city, country, postal_code,
           latitude, longitude, currency, cm_property_id, cm_source, status, created_at
-        ) VALUES ($1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'calry', 'active', NOW())
+        ) VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'calry', 'active', NOW())
         RETURNING id
       `, [
         gasAccountId,
@@ -28500,6 +28500,7 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
     
     let clientAccountId;
     let clientApiKey;
+    let clientUserId;
     let clientCreated = false;
     
     // =========================================================
@@ -28530,7 +28531,7 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
         }
       }
       
-      // Check if email already exists under Elevate
+      // Check if email already exists under Elevate accounts
       const emailCheck = await pool.query(
         'SELECT id FROM accounts WHERE parent_id = $1 AND email = $2',
         [ELEVATE_MASTER_ACCOUNT_ID, client.email]
@@ -28547,16 +28548,51 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
       clientApiKey = generateApiKey();
       const accountType = client.account_type || 'individual';
       
+      // First, check if user with this email already exists
+      let userId;
+      const existingUser = await pool.query(
+        'SELECT id FROM users WHERE email = $1',
+        [client.email]
+      );
+      
+      if (existingUser.rows.length > 0) {
+        // Use existing user
+        userId = existingUser.rows[0].id;
+        console.log(`[Elevate] Using existing user ${userId} for client`);
+      } else {
+        // Create new user record so they can log in to GAS
+        const tempPassword = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+        const passwordHash = Buffer.from(tempPassword).toString('base64');
+        
+        const newUser = await pool.query(`
+          INSERT INTO users (name, email, password_hash, company, account_type, api_key, created_at)
+          VALUES ($1, $2, $3, $4, $5, $6, NOW())
+          RETURNING id
+        `, [
+          client.name,
+          client.email,
+          passwordHash,
+          client.business_name || client.name,
+          accountType,
+          clientApiKey
+        ]);
+        
+        userId = newUser.rows[0].id;
+        console.log(`[Elevate] Created new user ${userId} for client`);
+      }
+      
+      // Now create the account linked to this user
       const newAccount = await pool.query(`
         INSERT INTO accounts (
-          parent_id, name, email, contact_name, phone, business_name,
+          parent_id, user_id, name, email, contact_name, phone, business_name,
           currency, timezone, api_key, api_key_created_at, status, settings, created_at
         ) VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), 'active', $10, NOW()
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), 'active', $11, NOW()
         )
         RETURNING id, public_id, api_key
       `, [
         ELEVATE_MASTER_ACCOUNT_ID,
+        userId,
         client.name,
         client.email,
         client.contact_name || null,
@@ -28568,15 +28604,17 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
         JSON.stringify({
           account_type: accountType,
           external_id: client.external_id || null,
-          created_by: 'elevate_api'
+          created_by: 'elevate_api',
+          user_id: userId
         })
       ]);
       
       clientAccountId = newAccount.rows[0].id;
       clientApiKey = newAccount.rows[0].api_key;
+      clientUserId = userId;
       clientCreated = true;
       
-      console.log(`[Elevate] Created new ${accountType} client account ${clientAccountId}`);
+      console.log(`[Elevate] Created new ${accountType} client account ${clientAccountId} with user_id ${userId}`);
       
     } else if (client.action === 'existing') {
       // Find existing client by account_id or external_id
@@ -28589,7 +28627,7 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
       }
       
       const existingClient = await pool.query(`
-        SELECT id, api_key FROM accounts 
+        SELECT id, api_key, user_id FROM accounts 
         WHERE parent_id = $1 
         AND (id::text = $2 OR settings->>'external_id' = $2)
       `, [ELEVATE_MASTER_ACCOUNT_ID, String(identifier)]);
@@ -28603,8 +28641,36 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
       
       clientAccountId = existingClient.rows[0].id;
       clientApiKey = existingClient.rows[0].api_key;
+      clientUserId = existingClient.rows[0].user_id;
       
-      console.log(`[Elevate] Using existing client account ${clientAccountId}`);
+      // If existing account doesn't have user_id, try to find or create one
+      if (!clientUserId) {
+        const accountEmail = await pool.query('SELECT email FROM accounts WHERE id = $1', [clientAccountId]);
+        const email = accountEmail.rows[0]?.email;
+        
+        if (email) {
+          const existingUser = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+          if (existingUser.rows.length > 0) {
+            clientUserId = existingUser.rows[0].id;
+          } else {
+            // Create user for this existing account
+            const tempPassword = Math.random().toString(36).substring(2, 15);
+            const passwordHash = Buffer.from(tempPassword).toString('base64');
+            const newUser = await pool.query(`
+              INSERT INTO users (name, email, password_hash, company, account_type, api_key, created_at)
+              VALUES ($1, $2, $3, $4, 'owner', $5, NOW())
+              RETURNING id
+            `, [client.name || 'Elevate Client', email, passwordHash, client.business_name || '', clientApiKey]);
+            clientUserId = newUser.rows[0].id;
+          }
+          
+          // Update account with user_id
+          await pool.query('UPDATE accounts SET user_id = $1 WHERE id = $2', [clientUserId, clientAccountId]);
+          console.log(`[Elevate] Linked user ${clientUserId} to existing account ${clientAccountId}`);
+        }
+      }
+      
+      console.log(`[Elevate] Using existing client account ${clientAccountId} with user_id ${clientUserId}`);
       
     } else {
       return res.status(400).json({ 
@@ -28636,17 +28702,26 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
       }
     }
     
+    // Ensure we have a valid user_id
+    if (!clientUserId) {
+      return res.status(500).json({
+        success: false,
+        error: 'Could not determine user_id for this client. Please contact support.'
+      });
+    }
+    
     const newProperty = await pool.query(`
       INSERT INTO properties (
         user_id, account_id, name, address, city, country,
         latitude, longitude, phone, email, currency,
         cm_source, cm_property_id, status, created_at
       ) VALUES (
-        $1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-        'elevate', $11, 'active', NOW()
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
+        'elevate', $12, 'active', NOW()
       )
       RETURNING id
     `, [
+      clientUserId,
       clientAccountId,
       property.name,
       property.address || null,
@@ -28661,7 +28736,7 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
     ]);
     
     const propertyId = newProperty.rows[0].id;
-    console.log(`[Elevate] Created property ${propertyId} for client ${clientAccountId}`);
+    console.log(`[Elevate] Created property ${propertyId} for client ${clientAccountId} (user_id: ${clientUserId})`);
     
     // =========================================================
     // CREATE ROOMS (if provided)
@@ -29139,7 +29214,7 @@ app.post('/webhooks/elevate/:accountId/:apiKey/property/create', async (req, res
     
     const result = await pool.query(`
       INSERT INTO properties (account_id, user_id, name, address, city, country, currency, cm_source, status, created_at)
-      VALUES ($1, $1, $2, $3, $4, $5, $6, 'elevate', 'active', NOW())
+      VALUES ($1, 1, $2, $3, $4, $5, $6, 'elevate', 'active', NOW())
       RETURNING id
     `, [accountId, name, address || '', city || '', country || '', currency || 'CHF']);
     
