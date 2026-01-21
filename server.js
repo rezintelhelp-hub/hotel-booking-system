@@ -28148,7 +28148,7 @@ app.get('/api/elevate/:apiKey/clients/:clientId', async (req, res) => {
     
     const { clientId } = req.params;
     
-    // Find by GAS account_id or cm_account_id (external_id)
+    // Find by GAS account_id or partner_external_id (external_id)
     const result = await pool.query(`
       SELECT 
         a.id as account_id,
@@ -28161,13 +28161,13 @@ app.get('/api/elevate/:apiKey/clients/:clientId', async (req, res) => {
         a.currency,
         a.timezone,
         a.role as account_type,
-        a.cm_account_id as external_id,
+        a.partner_external_id as external_id,
         a.api_key,
         a.status,
         a.created_at
       FROM accounts a
       WHERE a.parent_id = $1 
-      AND (a.id::text = $2 OR a.cm_account_id = $2)
+      AND (a.id::text = $2 OR a.partner_external_id = $2 OR a.public_id = $2)
     `, [ELEVATE_MASTER_ACCOUNT_ID, clientId]);
     
     if (result.rows.length === 0) {
