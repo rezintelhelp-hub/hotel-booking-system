@@ -103,6 +103,11 @@ const MAILGUN_API_KEY = process.env.MAILGUN_API_KEY;
 const MAILGUN_DOMAIN = process.env.MAILGUN_DOMAIN || 'mg.gas.travel';
 const EMAIL_FROM = process.env.EMAIL_FROM || 'bookings@mg.gas.travel';
 
+// Calry API configuration
+const CALRY_API_TOKEN = process.env.CALRY_API_TOKEN;
+const CALRY_WORKSPACE_ID = process.env.CALRY_WORKSPACE_ID;
+const CALRY_API_BASE = 'https://dev.calry.app/api/v2/vrs';
+
 // Send email via Mailgun API
 async function sendEmail({ to, subject, html, from = EMAIL_FROM }) {
   if (!MAILGUN_API_KEY) {
@@ -18211,6 +18216,203 @@ app.get('/api/channel-connection/:id', async (req, res) => {
   } catch (error) {
     console.error('Error fetching channel connection:', error);
     res.json({ success: false, error: error.message });
+  }
+});
+
+// =========================================================
+// CALRY TEST ENDPOINTS - For testing Calry integration
+// =========================================================
+
+// Test Calry connection - just checks if credentials work
+app.get('/api/calry/test-connection', async (req, res) => {
+  console.log('=== CALRY: TEST CONNECTION ===');
+  
+  try {
+    if (!CALRY_API_TOKEN || !CALRY_WORKSPACE_ID) {
+      return res.json({ 
+        success: false, 
+        error: 'Calry credentials not configured. Set CALRY_API_TOKEN and CALRY_WORKSPACE_ID environment variables.',
+        configured: {
+          hasToken: !!CALRY_API_TOKEN,
+          hasWorkspaceId: !!CALRY_WORKSPACE_ID
+        }
+      });
+    }
+    
+    // Test by fetching properties with limit 1
+    const response = await axios.get(`${CALRY_API_BASE}/properties`, {
+      headers: {
+        'Authorization': `Bearer ${CALRY_API_TOKEN}`,
+        'workspaceId': CALRY_WORKSPACE_ID,
+        'Content-Type': 'application/json'
+      },
+      params: { limit: 1 }
+    });
+    
+    res.json({ 
+      success: true, 
+      message: 'Calry connection successful',
+      propertiesFound: response.data?.data?.length || 0
+    });
+    
+  } catch (error) {
+    console.error('Calry connection test failed:', error.response?.data || error.message);
+    res.json({ 
+      success: false, 
+      error: error.response?.data?.message || error.message,
+      status: error.response?.status
+    });
+  }
+});
+
+// Get properties from Calry via specific integration account (e.g., Smoobu)
+app.get('/api/calry/test-properties/:integrationAccountId', async (req, res) => {
+  console.log('=== CALRY: GET PROPERTIES ===');
+  
+  try {
+    const { integrationAccountId } = req.params;
+    
+    if (!CALRY_API_TOKEN || !CALRY_WORKSPACE_ID) {
+      return res.json({ 
+        success: false, 
+        error: 'Calry credentials not configured'
+      });
+    }
+    
+    console.log('Fetching properties for integration account:', integrationAccountId);
+    
+    const response = await axios.get(`${CALRY_API_BASE}/properties`, {
+      headers: {
+        'Authorization': `Bearer ${CALRY_API_TOKEN}`,
+        'workspaceId': CALRY_WORKSPACE_ID,
+        'integrationAccountId': integrationAccountId,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    const properties = response.data?.data || [];
+    
+    console.log(`Found ${properties.length} properties`);
+    
+    res.json({ 
+      success: true,
+      integrationAccountId,
+      count: properties.length,
+      properties: properties.map(p => ({
+        id: p.id,
+        name: p.name,
+        type: p.type,
+        status: p.status,
+        city: p.address?.city,
+        country: p.address?.country,
+        currency: p.currency,
+        roomTypes: p.roomTypes?.length || 0
+      })),
+      raw: properties // Include raw data for debugging
+    });
+    
+  } catch (error) {
+    console.error('Calry get properties failed:', error.response?.data || error.message);
+    res.json({ 
+      success: false, 
+      error: error.response?.data?.message || error.message,
+      status: error.response?.status,
+      details: error.response?.data
+    });
+  }
+});
+
+// Get room types for a specific property from Calry
+app.get('/api/calry/test-room-types/:integrationAccountId/:propertyId', async (req, res) => {
+  console.log('=== CALRY: GET ROOM TYPES ===');
+  
+  try {
+    const { integrationAccountId, propertyId } = req.params;
+    
+    if (!CALRY_API_TOKEN || !CALRY_WORKSPACE_ID) {
+      return res.json({ 
+        success: false, 
+        error: 'Calry credentials not configured'
+      });
+    }
+    
+    console.log('Fetching room types for property:', propertyId);
+    
+    const response = await axios.get(`${CALRY_API_BASE}/room-types/${propertyId}`, {
+      headers: {
+        'Authorization': `Bearer ${CALRY_API_TOKEN}`,
+        'workspaceId': CALRY_WORKSPACE_ID,
+        'integrationAccountId': integrationAccountId,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    const roomTypes = response.data?.data || [];
+    
+    console.log(`Found ${roomTypes.length} room types`);
+    
+    res.json({ 
+      success: true,
+      propertyId,
+      count: roomTypes.length,
+      roomTypes: roomTypes.map(rt => ({
+        id: rt.id,
+        name: rt.name,
+        description: rt.description?.substring(0, 100) + '...',
+        bedrooms: rt.bedRoom?.count,
+        bathrooms: rt.bathRoom?.count,
+        maxOccupancy: rt.maxOccupancy,
+        startPrice: rt.startPrice,
+        pictures: rt.pictures?.length || 0,
+        amenities: rt.amenities?.length || 0
+      })),
+      raw: roomTypes // Include raw data for debugging
+    });
+    
+  } catch (error) {
+    console.error('Calry get room types failed:', error.response?.data || error.message);
+    res.json({ 
+      success: false, 
+      error: error.response?.data?.message || error.message,
+      status: error.response?.status,
+      details: error.response?.data
+    });
+  }
+});
+
+// List all integration accounts in the workspace
+app.get('/api/calry/test-integration-accounts', async (req, res) => {
+  console.log('=== CALRY: LIST INTEGRATION ACCOUNTS ===');
+  
+  try {
+    if (!CALRY_API_TOKEN || !CALRY_WORKSPACE_ID) {
+      return res.json({ 
+        success: false, 
+        error: 'Calry credentials not configured'
+      });
+    }
+    
+    // Note: This endpoint might be different - checking Calry docs
+    const response = await axios.get('https://dev.calry.app/api/v1/integration-accounts', {
+      headers: {
+        'Authorization': `Bearer ${CALRY_API_TOKEN}`,
+        'workspaceId': CALRY_WORKSPACE_ID,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    res.json({ 
+      success: true,
+      accounts: response.data
+    });
+    
+  } catch (error) {
+    console.error('Calry list integration accounts failed:', error.response?.data || error.message);
+    res.json({ 
+      success: false, 
+      error: error.response?.data?.message || error.message,
+      status: error.response?.status
+    });
   }
 });
 
