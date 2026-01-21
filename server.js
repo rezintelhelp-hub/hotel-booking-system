@@ -16369,19 +16369,27 @@ app.get('/api/db/properties', async (req, res) => {
     let result;
     
     if (accountId) {
-      // Check if this account is an agency_admin
-      const accountCheck = await pool.query('SELECT role FROM accounts WHERE id = $1', [accountId]);
-      const isAgency = accountCheck.rows.length > 0 && accountCheck.rows[0].role === 'agency_admin';
+      // Check if this account is an agency_admin or has sub-accounts (parent account)
+      const accountCheck = await pool.query(`
+        SELECT a.role, 
+               (SELECT COUNT(*) FROM accounts WHERE parent_id = a.id) as sub_account_count
+        FROM accounts a WHERE a.id = $1
+      `, [accountId]);
       
-      if (isAgency) {
-        // For agencies, get BOTH:
+      const isAgency = accountCheck.rows.length > 0 && accountCheck.rows[0].role === 'agency_admin';
+      const hasSubAccounts = accountCheck.rows.length > 0 && parseInt(accountCheck.rows[0].sub_account_count) > 0;
+      
+      if (isAgency || hasSubAccounts) {
+        // For agencies or parent accounts, get:
         // 1. Their own properties
-        // 2. Properties from accounts they manage
+        // 2. Properties from accounts they manage (managed_by_id)
+        // 3. Properties from sub-accounts (parent_id)
         result = await pool.query(`
           SELECT p.*, a.name as owner_account_name FROM properties p
           LEFT JOIN accounts a ON p.account_id = a.id
           WHERE p.account_id = $1 
              OR a.managed_by_id = $1
+             OR a.parent_id = $1
           ORDER BY p.created_at DESC
         `, [accountId]);
       } else {
@@ -23499,20 +23507,49 @@ app.get('/api/admin/stats', async (req, res) => {
     let propertiesCount, unitsCount, bookingsCount, connectionsCount;
     
     if (accountId) {
-      // Account-specific stats (new system)
-      console.log('Filtering by account_id:', accountId);
-      propertiesCount = await pool.query('SELECT COUNT(*) FROM properties WHERE account_id = $1', [accountId]);
+      // Check if this account has sub-accounts
+      const subAccountCheck = await pool.query(
+        'SELECT COUNT(*) FROM accounts WHERE parent_id = $1',
+        [accountId]
+      );
+      const hasSubAccounts = parseInt(subAccountCheck.rows[0].count) > 0;
+      
+      if (hasSubAccounts) {
+        // For parent accounts, include sub-account properties
+        console.log('Filtering by account_id with sub-accounts:', accountId);
+        propertiesCount = await pool.query(`
+          SELECT COUNT(*) FROM properties p
+          JOIN accounts a ON p.account_id = a.id
+          WHERE p.account_id = $1 OR a.parent_id = $1
+        `, [accountId]);
+        unitsCount = await pool.query(`
+          SELECT COUNT(*) FROM bookable_units bu 
+          JOIN properties p ON bu.property_id = p.id 
+          JOIN accounts a ON p.account_id = a.id
+          WHERE p.account_id = $1 OR a.parent_id = $1
+        `, [accountId]);
+        bookingsCount = await pool.query(`
+          SELECT COUNT(*) FROM bookings b
+          JOIN properties p ON b.property_id = p.id
+          JOIN accounts a ON p.account_id = a.id
+          WHERE p.account_id = $1 OR a.parent_id = $1
+        `, [accountId]);
+      } else {
+        // Account-specific stats (no sub-accounts)
+        console.log('Filtering by account_id:', accountId);
+        propertiesCount = await pool.query('SELECT COUNT(*) FROM properties WHERE account_id = $1', [accountId]);
+        unitsCount = await pool.query(`
+          SELECT COUNT(*) FROM bookable_units bu 
+          JOIN properties p ON bu.property_id = p.id 
+          WHERE p.account_id = $1
+        `, [accountId]);
+        bookingsCount = await pool.query(`
+          SELECT COUNT(*) FROM bookings b
+          JOIN properties p ON b.property_id = p.id
+          WHERE p.account_id = $1
+        `, [accountId]);
+      }
       console.log('Properties count:', propertiesCount.rows[0].count);
-      unitsCount = await pool.query(`
-        SELECT COUNT(*) FROM bookable_units bu 
-        JOIN properties p ON bu.property_id = p.id 
-        WHERE p.account_id = $1
-      `, [accountId]);
-      bookingsCount = await pool.query(`
-        SELECT COUNT(*) FROM bookings b
-        JOIN properties p ON b.property_id = p.id
-        WHERE p.account_id = $1
-      `, [accountId]);
       // Check both gas_account_id (INTEGER) and account_id (VARCHAR) columns
       connectionsCount = await pool.query(`
         SELECT COUNT(*) FROM channel_connections 
