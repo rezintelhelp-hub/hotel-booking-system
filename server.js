@@ -18467,10 +18467,24 @@ app.post('/api/calry/import-property', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Property not found in Calry' });
     }
     
-    // 3. Fetch room types using adapter
-    console.log('Fetching room types using Calry adapter');
-    const roomTypesResult = await adapter.getRoomTypes(propertyId);
-    const roomTypes = roomTypesResult.success ? roomTypesResult.data : [];
+    // 3. Fetch room types directly from Calry API (not through adapter - more reliable)
+    console.log('Fetching room types from Calry');
+    let roomTypes = [];
+    try {
+      const roomResponse = await axios.get(`${CALRY_API_BASE}/room-types/${propertyId}`, {
+        headers: {
+          'Authorization': `Bearer ${CALRY_API_TOKEN}`,
+          'workspaceId': CALRY_WORKSPACE_ID,
+          'integrationAccountId': integrationAccountId,
+          'Content-Type': 'application/json'
+        }
+      });
+      roomTypes = roomResponse.data?.data || [];
+      console.log(`Found ${roomTypes.length} room types`);
+    } catch (roomError) {
+      console.error('Error fetching room types:', roomError.message);
+      // Continue without rooms - we can still create the property
+    }
     
     // 4. Create or use existing GAS account
     let gasAccountId = accountId;
@@ -18593,12 +18607,21 @@ app.post('/api/calry/import-property', async (req, res) => {
     const importedRooms = [];
     
     for (const room of roomTypes) {
+      const roomExternalId = String(room.id);
       const existingRoom = await pool.query(
         "SELECT id FROM bookable_units WHERE cm_room_id = $1 AND property_id = $2",
-        [String(room.externalId), gasPropertyId]
+        [roomExternalId, gasPropertyId]
       );
       
       let gasRoomId;
+      
+      // Map Calry raw data to GAS fields
+      const roomName = room.name || calryProperty.name;
+      const maxGuests = room.maxOccupancy || 2;
+      const numBedrooms = room.bedRoom?.count || 1;
+      const numBathrooms = room.bathRoom?.count || 1;
+      const basePrice = parseFloat(room.startPrice) || 0;
+      const description = room.description || '';
       
       if (existingRoom.rows.length > 0) {
         gasRoomId = existingRoom.rows[0].id;
@@ -18609,13 +18632,13 @@ app.post('/api/calry/import-property', async (req, res) => {
             base_price = $5, currency = $6, full_description = $7, updated_at = NOW()
           WHERE id = $8
         `, [
-          room.name,
-          room.maxGuests || 2,
-          room.bedrooms || 1,
-          room.bathrooms || 1,
-          room.basePrice || 0,
-          calryProperty.currency || 'USD',
-          room.description || '',
+          roomName,
+          maxGuests,
+          numBedrooms,
+          numBathrooms,
+          basePrice,
+          calryProperty.currency || 'EUR',
+          description,
           gasRoomId
         ]);
         
@@ -18629,21 +18652,21 @@ app.post('/api/calry/import-property', async (req, res) => {
           RETURNING id
         `, [
           gasPropertyId,
-          room.name,
-          room.maxGuests || 2,
-          room.bedrooms || 1,
-          room.bathrooms || 1,
-          room.basePrice || 0,
-          calryProperty.currency || 'USD',
-          room.description || '',
-          String(room.externalId)
+          roomName,
+          maxGuests,
+          numBedrooms,
+          numBathrooms,
+          basePrice,
+          calryProperty.currency || 'EUR',
+          description,
+          roomExternalId
         ]);
         
         gasRoomId = roomResult.rows[0].id;
         console.log('Created room:', gasRoomId);
       }
       
-      // Import amenities from adapter's mapped data
+      // Import amenities from raw Calry data
       const amenities = room.amenities || [];
       for (const amenity of amenities) {
         const amenityName = typeof amenity === 'string' ? amenity : (amenity.name || amenity);
@@ -18673,7 +18696,7 @@ app.post('/api/calry/import-property', async (req, res) => {
       }
       
       importedRooms.push({
-        calry_id: room.externalId,
+        calry_id: room.id,
         gas_id: gasRoomId,
         name: room.name
       });
