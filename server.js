@@ -30928,7 +30928,7 @@ app.get('/api/public/availability/:unitId', async (req, res) => {
     
     // Get unit info for base price fallback
     const unit = await pool.query(`
-      SELECT base_price, currency FROM bookable_units bu
+      SELECT bu.base_price, COALESCE(bu.currency, p.currency) as currency FROM bookable_units bu
       LEFT JOIN properties p ON bu.property_id = p.id
       WHERE bu.id = $1
     `, [unitId]);
