@@ -18,6 +18,16 @@ try {
   console.error('   Stack:', e.stack);
 }
 
+// Try to load Smoobu adapter
+let SmoobuAdapter = null;
+try {
+  const smoobuModule = require('./smoobu-adapter');
+  SmoobuAdapter = smoobuModule.SmoobuAdapter;
+  console.log('✅ Smoobu adapter loaded successfully');
+} catch (e) {
+  console.log('Smoobu adapter not available:', e.message);
+}
+
 // Try to load Calry adapter (optional)
 let CalryAdapter = null;
 let CALRY_SUPPORTED_PMS = [];
@@ -46,13 +56,19 @@ if (HostawayAdapter) {
   console.error('❌ Hostaway adapter NOT registered - check error above');
 }
 
+// Add Smoobu if available
+if (SmoobuAdapter) {
+  adapters.smoobu = SmoobuAdapter;
+  console.log('✅ Smoobu adapter registered');
+}
+
 // Add Calry if available
 if (CalryAdapter) {
   adapters.calry = CalryAdapter;
 }
 
-// PMS types that should route through Calry
-const calryRoutedPMS = CALRY_SUPPORTED_PMS;
+// PMS types that should route through Calry (excluding those with direct adapters)
+const calryRoutedPMS = CALRY_SUPPORTED_PMS.filter(pms => !adapters[pms]);
 
 // =====================================================
 // FACTORY FUNCTION
@@ -347,5 +363,6 @@ module.exports = {
   // Re-export individual adapters
   Beds24Adapter,
   ...(HostawayAdapter ? { HostawayAdapter } : {}),
+  ...(SmoobuAdapter ? { SmoobuAdapter } : {}),
   ...(CalryAdapter ? { CalryAdapter, CALRY_SUPPORTED_PMS } : {})
 };
