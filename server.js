@@ -27751,12 +27751,12 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
     
     const newProperty = await pool.query(`
       INSERT INTO properties (
-        account_id, name, address, city, region, postcode, country,
-        latitude, longitude, phone, email, currency, timezone,
+        account_id, name, address, city, country,
+        latitude, longitude, phone, email, currency,
         cm_source, cm_property_id, status, created_at
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
-        'elevate', $14, 'active', NOW()
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+        'elevate', $11, 'active', NOW()
       )
       RETURNING id
     `, [
@@ -27764,15 +27764,12 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
       property.name,
       property.address || null,
       property.city || null,
-      property.region || null,
-      property.postcode || null,
       property.country || 'CH',
       property.latitude || null,
       property.longitude || null,
       property.phone || null,
       property.email || null,
       property.currency || 'CHF',
-      property.timezone || 'Europe/Zurich',
       property.external_id || null
     ]);
     
