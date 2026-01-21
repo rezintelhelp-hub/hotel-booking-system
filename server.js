@@ -651,6 +651,8 @@ async function runMigrations() {
       await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS website_url VARCHAR(500)`);
       await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS district VARCHAR(255)`);
       await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS zip_code VARCHAR(50)`);
+      await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS cm_property_id VARCHAR(100)`);
+      await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS cm_source VARCHAR(50)`);
       console.log('✅ Property Stripe keys columns ensured');
     } catch (stripeError) {
       console.log('ℹ️  Stripe columns:', stripeError.message);
