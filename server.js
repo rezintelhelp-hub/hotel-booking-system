@@ -18726,6 +18726,274 @@ app.post('/api/calry/import-property', async (req, res) => {
   }
 });
 
+// =========================================================
+// CALRY LINK WIZARD - Connect PMS via Calry
+// =========================================================
+
+// Step 1: Start the Calry Link flow - returns the URL to redirect user to
+app.get('/api/calry/link/start', async (req, res) => {
+  console.log('=== CALRY LINK: START ===');
+  
+  try {
+    const { account_id } = req.query;
+    
+    if (!CALRY_API_TOKEN || !CALRY_WORKSPACE_ID) {
+      return res.status(500).json({ 
+        success: false, 
+        error: 'Calry credentials not configured' 
+      });
+    }
+    
+    // Generate a state token to verify the callback
+    const stateToken = crypto.randomBytes(32).toString('hex');
+    
+    // Build the Calry Link URL
+    const redirectUri = encodeURIComponent('https://api.gas.travel/api/calry/link/callback');
+    const calryLinkUrl = `https://link.calry.app?token=${CALRY_API_TOKEN}&redirect_uri=${redirectUri}&state=${stateToken}`;
+    
+    res.json({
+      success: true,
+      link_url: calryLinkUrl,
+      state: stateToken,
+      expires_in: 600 // 10 minutes
+    });
+    
+  } catch (error) {
+    console.error('Calry Link start error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Step 2: Callback from Calry Link after user connects their PMS
+app.get('/api/calry/link/callback', async (req, res) => {
+  console.log('=== CALRY LINK: CALLBACK ===');
+  console.log('Query params:', req.query);
+  
+  try {
+    const { integration_account_id, integrationAccountId, state, error: calryError } = req.query;
+    const intAccountId = integration_account_id || integrationAccountId;
+    
+    // Check for errors from Calry
+    if (calryError) {
+      return res.redirect(`https://admin.gas.travel/connections?error=${encodeURIComponent(calryError)}`);
+    }
+    
+    if (!intAccountId) {
+      return res.redirect('https://admin.gas.travel/connections?error=No integration account received');
+    }
+    
+    // Fetch properties from the new integration
+    const propResponse = await axios.get(`${CALRY_API_BASE}/properties`, {
+      headers: {
+        'Authorization': `Bearer ${CALRY_API_TOKEN}`,
+        'workspaceId': CALRY_WORKSPACE_ID,
+        'integrationAccountId': intAccountId,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    const properties = propResponse.data?.data || [];
+    console.log(`Found ${properties.length} properties from Calry integration`);
+    
+    // Import all properties
+    let successCount = 0;
+    let gasAccountId = null;
+    
+    for (const prop of properties) {
+      try {
+        const importResult = await importCalryPropertyHelper(intAccountId, String(prop.id), gasAccountId);
+        gasAccountId = importResult.gas_account_id; // Use same account for all properties
+        successCount++;
+        console.log(`Imported property: ${prop.name} (GAS ID: ${importResult.gas_property_id})`);
+      } catch (importError) {
+        console.error(`Failed to import property ${prop.name}:`, importError.message);
+      }
+    }
+    
+    // Redirect to success page
+    res.redirect(`https://admin.gas.travel/connections?calry_connected=true&properties_imported=${successCount}&integration_id=${intAccountId}`);
+    
+  } catch (error) {
+    console.error('Calry Link callback error:', error);
+    res.redirect(`https://admin.gas.travel/connections?error=${encodeURIComponent(error.message)}`);
+  }
+});
+
+// Helper function to import a single Calry property
+async function importCalryPropertyHelper(integrationAccountId, propertyId, existingAccountId = null) {
+  // Fetch property from Calry
+  const propResponse = await axios.get(`${CALRY_API_BASE}/properties`, {
+    headers: {
+      'Authorization': `Bearer ${CALRY_API_TOKEN}`,
+      'workspaceId': CALRY_WORKSPACE_ID,
+      'integrationAccountId': integrationAccountId,
+      'Content-Type': 'application/json'
+    }
+  });
+  
+  const properties = propResponse.data?.data || [];
+  const calryProperty = properties.find(p => String(p.id) === String(propertyId));
+  
+  if (!calryProperty) {
+    throw new Error('Property not found in Calry');
+  }
+  
+  // Fetch room types
+  let roomTypes = [];
+  try {
+    const roomResponse = await axios.get(`${CALRY_API_BASE}/room-types/${propertyId}`, {
+      headers: {
+        'Authorization': `Bearer ${CALRY_API_TOKEN}`,
+        'workspaceId': CALRY_WORKSPACE_ID,
+        'integrationAccountId': integrationAccountId,
+        'Content-Type': 'application/json'
+      }
+    });
+    roomTypes = roomResponse.data?.data || [];
+  } catch (e) {
+    console.log('Could not fetch room types:', e.message);
+  }
+  
+  // Create or find GAS account
+  let gasAccountId = existingAccountId;
+  
+  if (!gasAccountId) {
+    const existingAccount = await pool.query(
+      "SELECT id FROM accounts WHERE settings->>'calry_integration_id' = $1",
+      [integrationAccountId]
+    );
+    
+    if (existingAccount.rows.length > 0) {
+      gasAccountId = existingAccount.rows[0].id;
+    } else {
+      const accountResult = await pool.query(`
+        INSERT INTO accounts (name, email, role, status, settings, created_at)
+        VALUES ($1, $2, 'admin', 'active', $3, NOW())
+        RETURNING id
+      `, [
+        calryProperty.name || 'Calry Import',
+        `calry-${integrationAccountId}-${Date.now()}@gas.travel`,
+        JSON.stringify({ calry_integration_id: integrationAccountId, cm_source: 'calry' })
+      ]);
+      gasAccountId = accountResult.rows[0].id;
+    }
+  }
+  
+  // Create connection record
+  let connectionId;
+  const existingConnection = await pool.query(
+    "SELECT id FROM gas_sync_connections WHERE account_id = $1 AND adapter_code = 'calry' AND external_account_id = $2",
+    [gasAccountId, integrationAccountId]
+  );
+  
+  if (existingConnection.rows.length > 0) {
+    connectionId = existingConnection.rows[0].id;
+  } else {
+    const connResult = await pool.query(`
+      INSERT INTO gas_sync_connections (
+        account_id, adapter_code, external_account_id, external_account_name,
+        credentials, access_token, status, sync_enabled, created_at
+      ) VALUES ($1, 'calry', $2, $3, $4, $5, 'connected', true, NOW())
+      RETURNING id
+    `, [
+      gasAccountId,
+      integrationAccountId,
+      'PMS via Calry',
+      JSON.stringify({ workspaceId: CALRY_WORKSPACE_ID, integrationAccountId }),
+      CALRY_API_TOKEN
+    ]);
+    connectionId = connResult.rows[0].id;
+  }
+  
+  // Check if property exists
+  const existingProp = await pool.query(
+    "SELECT id FROM properties WHERE cm_property_id = $1 AND account_id = $2",
+    [String(propertyId), gasAccountId]
+  );
+  
+  let gasPropertyId;
+  
+  if (existingProp.rows.length > 0) {
+    gasPropertyId = existingProp.rows[0].id;
+    await pool.query(`
+      UPDATE properties SET
+        name = $1, address = $2, city = $3, country = $4,
+        latitude = $5, longitude = $6, currency = $7, updated_at = NOW()
+      WHERE id = $8
+    `, [
+      calryProperty.name,
+      calryProperty.address?.line1 || '',
+      calryProperty.address?.city || '',
+      calryProperty.address?.country || '',
+      calryProperty.geoLocation?.latitude || null,
+      calryProperty.geoLocation?.longitude || null,
+      calryProperty.currency || 'EUR',
+      gasPropertyId
+    ]);
+  } else {
+    const propResult = await pool.query(`
+      INSERT INTO properties (
+        account_id, user_id, name, address, city, country, postal_code,
+        latitude, longitude, currency, cm_property_id, cm_source, status, created_at
+      ) VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'calry', 'active', NOW())
+      RETURNING id
+    `, [
+      gasAccountId,
+      calryProperty.name,
+      calryProperty.address?.line1 || '',
+      calryProperty.address?.city || '',
+      calryProperty.address?.country || '',
+      calryProperty.address?.postal_code || '',
+      calryProperty.geoLocation?.latitude || null,
+      calryProperty.geoLocation?.longitude || null,
+      calryProperty.currency || 'EUR',
+      String(propertyId)
+    ]);
+    gasPropertyId = propResult.rows[0].id;
+  }
+  
+  // Import rooms
+  for (const room of roomTypes) {
+    const roomExternalId = String(room.id);
+    const existingRoom = await pool.query(
+      "SELECT id FROM bookable_units WHERE cm_room_id = $1 AND property_id = $2",
+      [roomExternalId, gasPropertyId]
+    );
+    
+    if (existingRoom.rows.length === 0) {
+      await pool.query(`
+        INSERT INTO bookable_units (
+          property_id, name, max_guests, num_bedrooms, num_bathrooms,
+          base_price, currency, cm_room_id, cm_source, status, created_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'calry', 'active', NOW())
+      `, [
+        gasPropertyId,
+        room.name || calryProperty.name,
+        room.maxOccupancy || 2,
+        room.bedRoom?.count || 1,
+        room.bathRoom?.count || 1,
+        parseFloat(room.startPrice) || 0,
+        calryProperty.currency || 'EUR',
+        roomExternalId
+      ]);
+    }
+  }
+  
+  // Track in gas_sync_properties
+  await pool.query(`
+    INSERT INTO gas_sync_properties (connection_id, gas_property_id, external_id, name, created_at)
+    VALUES ($1, $2, $3, $4, NOW())
+    ON CONFLICT (connection_id, external_id) DO UPDATE SET
+      gas_property_id = $2, name = $4, updated_at = NOW()
+  `, [connectionId, gasPropertyId, String(propertyId), calryProperty.name]);
+  
+  return {
+    gas_account_id: gasAccountId,
+    gas_property_id: gasPropertyId,
+    gas_connection_id: connectionId
+  };
+}
+
 // GET version for easy browser testing
 app.get('/api/calry/import-property/:integrationAccountId/:propertyId', async (req, res) => {
   // Redirect to POST handler with params as body
