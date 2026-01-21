@@ -18762,118 +18762,58 @@ app.get('/api/calry/link/status/:linkId', async (req, res) => {
 });
 
 // =========================================================
-// SMOOBU DIRECT API ENDPOINTS
+// UNIFIED CHANNEL MANAGER WIZARD - Routes through Calry
 // =========================================================
 
-const SMOOBU_BASE_URL = 'https://login.smoobu.com/api';
-
-// Test Smoobu connection with API key
-app.get('/api/smoobu/test-connection', async (req, res) => {
-  console.log('=== SMOOBU: TEST CONNECTION ===');
-  
-  try {
-    const { api_key } = req.query;
-    
-    if (!api_key) {
-      return res.status(400).json({ success: false, error: 'api_key is required' });
-    }
-    
-    const response = await axios.get(`${SMOOBU_BASE_URL}/apartments`, {
-      headers: {
-        'Api-Key': api_key,
-        'Cache-Control': 'no-cache'
-      }
-    });
-    
-    const apartments = response.data.apartments || [];
-    
-    res.json({
-      success: true,
-      message: `Connected successfully. Found ${apartments.length} properties.`,
-      propertyCount: apartments.length,
-      properties: apartments.map(a => ({ id: a.id, name: a.name }))
-    });
-    
-  } catch (error) {
-    console.error('Smoobu test connection error:', error.response?.data || error.message);
-    res.status(error.response?.status || 500).json({
-      success: false,
-      error: error.response?.data?.detail || error.message
-    });
-  }
+// List all supported channel managers
+app.get('/api/cm/list', async (req, res) => {
+  res.json({
+    success: true,
+    channel_managers: [
+      { code: 'smoobu', name: 'Smoobu', auth_type: 'api_key', auth_label: 'API Key' },
+      { code: 'beds24', name: 'Beds24', auth_type: 'api_key', auth_label: 'API Key' },
+      { code: 'hostaway', name: 'Hostaway', auth_type: 'oauth', auth_label: 'OAuth' },
+      { code: 'guesty', name: 'Guesty', auth_type: 'api_key', auth_label: 'API Key' },
+      { code: 'hostfully', name: 'Hostfully', auth_type: 'api_key', auth_label: 'API Key' },
+      { code: 'lodgify', name: 'Lodgify', auth_type: 'api_key', auth_label: 'API Key' },
+      { code: 'ownerrez', name: 'OwnerRez', auth_type: 'api_key', auth_label: 'API Key' },
+      { code: 'hospitable', name: 'Hospitable', auth_type: 'api_key', auth_label: 'API Key' },
+      { code: 'cloudbeds', name: 'Cloudbeds', auth_type: 'oauth', auth_label: 'OAuth' },
+      { code: 'tokeet', name: 'Tokeet', auth_type: 'api_key', auth_label: 'API Key' },
+      { code: 'uplisting', name: 'Uplisting', auth_type: 'api_key', auth_label: 'API Key' },
+      { code: 'hostify', name: 'Hostify', auth_type: 'api_key', auth_label: 'API Key' },
+      { code: 'bookingsync', name: 'BookingSync', auth_type: 'oauth', auth_label: 'OAuth' },
+      { code: 'avantio', name: 'Avantio', auth_type: 'api_key', auth_label: 'API Key' },
+      { code: 'streamline', name: 'Streamline', auth_type: 'api_key', auth_label: 'API Key' },
+      { code: 'track', name: 'Track', auth_type: 'api_key', auth_label: 'API Key' },
+      { code: 'mews', name: 'Mews', auth_type: 'api_key', auth_label: 'API Key' },
+      { code: 'apaleo', name: 'Apaleo', auth_type: 'oauth', auth_label: 'OAuth' },
+      { code: 'resly', name: 'Resly', auth_type: 'api_key', auth_label: 'API Key' },
+      { code: 'escapia', name: 'Escapia', auth_type: 'api_key', auth_label: 'API Key' },
+      { code: 'zeevou', name: 'Zeevou', auth_type: 'api_key', auth_label: 'API Key' },
+      { code: 'elina', name: 'Elina', auth_type: 'api_key', auth_label: 'API Key' },
+      { code: 'fantasticstay', name: 'FantasticStay', auth_type: 'api_key', auth_label: 'API Key' }
+    ]
+  });
 });
 
-// Get Smoobu properties with full details
-app.get('/api/smoobu/properties', async (req, res) => {
-  console.log('=== SMOOBU: GET PROPERTIES ===');
+// Unified connect endpoint - creates account and routes to Calry Link
+app.post('/api/cm/connect', async (req, res) => {
+  console.log('=== UNIFIED CM WIZARD: CONNECT ===');
   
   try {
-    const { api_key } = req.query;
-    
-    if (!api_key) {
-      return res.status(400).json({ success: false, error: 'api_key is required' });
-    }
-    
-    // Get basic list
-    const listResponse = await axios.get(`${SMOOBU_BASE_URL}/apartments`, {
-      headers: { 'Api-Key': api_key, 'Cache-Control': 'no-cache' }
-    });
-    
-    const apartments = listResponse.data.apartments || [];
-    
-    // Get full details for each
-    const fullProperties = [];
-    for (const apt of apartments) {
-      try {
-        const detailResponse = await axios.get(`${SMOOBU_BASE_URL}/apartments/${apt.id}`, {
-          headers: { 'Api-Key': api_key, 'Cache-Control': 'no-cache' }
-        });
-        fullProperties.push(detailResponse.data);
-      } catch (e) {
-        fullProperties.push(apt); // Use basic info if details fail
-      }
-    }
-    
-    res.json({
-      success: true,
-      count: fullProperties.length,
-      properties: fullProperties
-    });
-    
-  } catch (error) {
-    console.error('Smoobu get properties error:', error.response?.data || error.message);
-    res.status(error.response?.status || 500).json({
-      success: false,
-      error: error.response?.data?.detail || error.message
-    });
-  }
-});
-
-// Connect Smoobu and import properties (wizard endpoint)
-app.post('/api/smoobu/connect', async (req, res) => {
-  console.log('=== SMOOBU: CONNECT AND IMPORT ===');
-  
-  try {
-    const { 
-      api_key,
+    const {
+      cm_type,        // e.g., 'smoobu', 'beds24', 'guesty'
       name,
       email,
       phone,
       business_name,
-      account_id  // Optional - if provided, use existing account
+      account_id      // Optional - use existing account
     } = req.body;
     
-    if (!api_key) {
-      return res.status(400).json({ success: false, error: 'api_key is required' });
+    if (!cm_type) {
+      return res.status(400).json({ success: false, error: 'cm_type is required' });
     }
-    
-    // Test the API key first
-    const testResponse = await axios.get(`${SMOOBU_BASE_URL}/apartments`, {
-      headers: { 'Api-Key': api_key, 'Cache-Control': 'no-cache' }
-    });
-    
-    const apartments = testResponse.data.apartments || [];
-    console.log(`Smoobu connection valid: ${apartments.length} properties found`);
     
     let userId, accountId;
     
@@ -18885,13 +18825,12 @@ app.post('/api/smoobu/connect', async (req, res) => {
         return res.status(404).json({ success: false, error: 'Account not found' });
       }
       
-      // Get user for account
       const userCheck = await pool.query('SELECT id FROM users WHERE account_id = $1 OR email = $2', 
         [accountId, accountCheck.rows[0].email]);
       userId = userCheck.rows[0]?.id || 1;
       
     } else {
-      // Create new account
+      // Need email for new accounts
       if (!email) {
         return res.status(400).json({ success: false, error: 'email is required for new accounts' });
       }
@@ -18904,7 +18843,6 @@ app.post('/api/smoobu/connect', async (req, res) => {
         accountId = existingUser.rows[0].account_id;
         
         if (!accountId) {
-          // User exists but no account - check accounts table
           const existingAccount = await pool.query('SELECT id FROM accounts WHERE email = $1', [email]);
           if (existingAccount.rows.length > 0) {
             accountId = existingAccount.rows[0].id;
@@ -18917,7 +18855,7 @@ app.post('/api/smoobu/connect', async (req, res) => {
       if (!userId) {
         const tempPassword = Math.random().toString(36).substring(2, 15);
         const passwordHash = Buffer.from(tempPassword).toString('base64');
-        const nameParts = (name || 'Smoobu User').split(' ');
+        const nameParts = (name || 'User').split(' ');
         
         const newUser = await pool.query(`
           INSERT INTO users (email, password_hash, first_name, last_name, user_type, account_status, company_name, created_at)
@@ -18926,191 +18864,122 @@ app.post('/api/smoobu/connect', async (req, res) => {
         `, [email, passwordHash, nameParts[0], nameParts.slice(1).join(' ') || '', business_name || '']);
         
         userId = newUser.rows[0].id;
-        console.log(`Created user ${userId}`);
+        console.log(`[CM Wizard] Created user ${userId}`);
       }
       
       // Create account if needed
       if (!accountId) {
-        const accountApiKey = 'gas_' + crypto.randomBytes(28).toString('hex'); // 60 chars total
+        const accountApiKey = 'gas_' + crypto.randomBytes(28).toString('hex');
         
         const newAccount = await pool.query(`
           INSERT INTO accounts (name, email, contact_name, phone, business_name, api_key, api_key_created_at, status, settings, created_at)
           VALUES ($1, $2, $3, $4, $5, $6, NOW(), 'active', $7, NOW())
           RETURNING id
         `, [
-          business_name || name || 'Smoobu Account',
+          business_name || name || 'New Account',
           email,
           name || null,
           phone || null,
           business_name || name || '',
           accountApiKey,
-          JSON.stringify({ cm_source: 'smoobu', user_id: userId, smoobu_api_key: api_key })
+          JSON.stringify({ cm_source: cm_type, user_id: userId, created_by: 'cm_wizard' })
         ]);
         
         accountId = newAccount.rows[0].id;
         await pool.query('UPDATE users SET account_id = $1 WHERE id = $2', [accountId, userId]);
-        console.log(`Created account ${accountId}`);
-      } else {
-        // Update existing account with Smoobu API key
-        await pool.query(`
-          UPDATE accounts SET settings = COALESCE(settings, '{}')::jsonb || $1::jsonb WHERE id = $2
-        `, [JSON.stringify({ smoobu_api_key: api_key, cm_source: 'smoobu' }), accountId]);
+        console.log(`[CM Wizard] Created account ${accountId}`);
       }
     }
     
-    // Create GasSync connection
-    let connectionId;
-    const existingConnection = await pool.query(
-      'SELECT id FROM gas_sync_connections WHERE account_id = $1 AND adapter_code = $2',
-      [accountId, 'smoobu']
-    );
+    // Generate Calry Link for this CM
+    const accountIdentifier = `gas-${accountId}-${Date.now()}`;
+    const redirectUrl = `https://api.gas.travel/api/calry/link/callback?account=${accountIdentifier}&gas_account_id=${accountId}`;
     
-    if (existingConnection.rows.length > 0) {
-      connectionId = existingConnection.rows[0].id;
-      await pool.query(`
-        UPDATE gas_sync_connections SET credentials = $1, status = 'connected', updated_at = NOW()
-        WHERE id = $2
-      `, [JSON.stringify({ apiKey: api_key }), connectionId]);
-    } else {
-      const newConnection = await pool.query(`
-        INSERT INTO gas_sync_connections (account_id, adapter_code, credentials, status, created_at)
-        VALUES ($1, 'smoobu', $2, 'connected', NOW())
-        RETURNING id
-      `, [accountId, JSON.stringify({ apiKey: api_key })]);
-      connectionId = newConnection.rows[0].id;
-    }
+    // Create link via Calry API
+    const linkResponse = await axios.post('https://prod.calry.app/api/v1/link', {
+      integrationDefinitionKey: cm_type,
+      expiresIn: 3600,
+      linkName: `GAS ${cm_type} Link ${accountIdentifier}`,
+      workspaceId: CALRY_WORKSPACE_ID,
+      accountIdentifier: accountIdentifier,
+      redirectUrl: redirectUrl
+    }, {
+      headers: {
+        'Authorization': `Bearer ${CALRY_API_TOKEN}`,
+        'Content-Type': 'application/json'
+      }
+    });
     
-    // Ensure smoobu_id column exists
+    const linkData = linkResponse.data;
+    console.log(`[CM Wizard] Created Calry Link: ${linkData.linkId}`);
+    
+    // Store link session
     try {
-      await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS smoobu_id VARCHAR(50)');
-      await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS smoobu_id VARCHAR(50)');
-    } catch (e) {
-      console.log('Column check:', e.message);
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS calry_link_sessions (
+          link_id VARCHAR(255) PRIMARY KEY,
+          account_identifier VARCHAR(255) NOT NULL,
+          gas_account_id INTEGER,
+          created_at TIMESTAMP DEFAULT NOW()
+        )
+      `);
+      await pool.query(
+        'INSERT INTO calry_link_sessions (link_id, account_identifier, gas_account_id) VALUES ($1, $2, $3) ON CONFLICT (link_id) DO UPDATE SET gas_account_id = $3',
+        [linkData.linkId, accountIdentifier, accountId]
+      );
+    } catch (dbError) {
+      console.log('Could not store link session:', dbError.message);
     }
     
-    // Import properties
-    const importedProperties = [];
-    console.log(`Starting import of ${apartments.length} apartments...`);
-    
-    for (const apt of apartments) {
-      console.log(`Importing apartment: ${apt.id} - ${apt.name}`);
-      try {
-        // Get full property details
-        let fullApt = apt;
-        try {
-          const detailResponse = await axios.get(`${SMOOBU_BASE_URL}/apartments/${apt.id}`, {
-            headers: { 'Api-Key': api_key, 'Cache-Control': 'no-cache' }
-          });
-          fullApt = detailResponse.data;
-        } catch (e) {}
-        
-        // Check if property already exists
-        const existingProp = await pool.query(
-          'SELECT id FROM properties WHERE account_id = $1 AND smoobu_id = $2',
-          [accountId, String(apt.id)]
-        );
-        
-        let propertyId;
-        
-        if (existingProp.rows.length > 0) {
-          propertyId = existingProp.rows[0].id;
-          // Update property
-          await pool.query(`
-            UPDATE properties SET name = $1, updated_at = NOW() WHERE id = $2
-          `, [apt.name, propertyId]);
-        } else {
-          // Create property
-          const location = fullApt.location || {};
-          const newProp = await pool.query(`
-            INSERT INTO properties (
-              account_id, user_id, name, smoobu_id, channel_manager,
-              address, city, region, country, postcode,
-              latitude, longitude, currency, timezone,
-              created_at
-            ) VALUES ($1, $2, $3, $4, 'smoobu', $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW())
-            RETURNING id
-          `, [
-            accountId, userId, apt.name, String(apt.id),
-            location.street || '',
-            location.city || '',
-            location.state || '',
-            location.country || '',
-            location.postalCode || location.zip || '',
-            location.latitude || null,
-            location.longitude || null,
-            fullApt.currency || 'EUR',
-            fullApt.timeZone || 'Europe/Berlin'
-          ]);
-          propertyId = newProp.rows[0].id;
-        }
-        
-        // Create/update bookable unit
-        const existingUnit = await pool.query(
-          'SELECT id FROM bookable_units WHERE property_id = $1 AND smoobu_id = $2',
-          [propertyId, String(apt.id)]
-        );
-        
-        let unitId;
-        const rooms = fullApt.rooms || {};
-        
-        if (existingUnit.rows.length > 0) {
-          unitId = existingUnit.rows[0].id;
-          await pool.query(`
-            UPDATE bookable_units SET 
-              name = $1, max_guests = $2, num_bedrooms = $3, num_bathrooms = $4,
-              base_price = $5, currency = $6, updated_at = NOW()
-            WHERE id = $7
-          `, [
-            apt.name,
-            rooms.maxOccupancy || fullApt.maxOccupancy || 2,
-            rooms.bedrooms || 1,
-            rooms.bathrooms || 1,
-            parseFloat(fullApt.price?.minimal) || 100,
-            fullApt.currency || 'EUR',
-            unitId
-          ]);
-        } else {
-          const newUnit = await pool.query(`
-            INSERT INTO bookable_units (
-              property_id, name, smoobu_id, max_guests, num_bedrooms, num_bathrooms,
-              base_price, currency, created_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
-            RETURNING id
-          `, [
-            propertyId, apt.name, String(apt.id),
-            rooms.maxOccupancy || fullApt.maxOccupancy || 2,
-            rooms.bedrooms || 1,
-            rooms.bathrooms || 1,
-            parseFloat(fullApt.price?.minimal) || 100,
-            fullApt.currency || 'EUR'
-          ]);
-          unitId = newUnit.rows[0].id;
-        }
-        
-        importedProperties.push({
-          smoobu_id: apt.id,
-          name: apt.name,
-          gas_property_id: propertyId,
-          gas_unit_id: unitId
-        });
-        
-      } catch (propError) {
-        console.error(`Error importing property ${apt.name}:`, propError.message);
-      }
-    }
+    const calryLinkUrl = `https://prod.calry.app/link/${linkData.linkId}`;
     
     res.json({
       success: true,
-      message: `Connected to Smoobu and imported ${importedProperties.length} properties`,
       account_id: accountId,
       user_id: userId,
-      connection_id: connectionId,
-      properties_imported: importedProperties.length,
-      properties: importedProperties
+      cm_type: cm_type,
+      link_url: calryLinkUrl,
+      link_id: linkData.linkId,
+      message: `Account created. Redirect user to link_url to connect ${cm_type}.`
     });
     
   } catch (error) {
-    console.error('Smoobu connect error:', error);
+    console.error('CM Wizard connect error:', error.response?.data || error.message);
+    res.status(500).json({ 
+      success: false, 
+      error: error.response?.data?.message || error.message 
+    });
+  }
+});
+
+// Check connection status
+app.get('/api/cm/status/:accountId', async (req, res) => {
+  try {
+    const { accountId } = req.params;
+    
+    // Check for Calry connections
+    const connections = await pool.query(`
+      SELECT id, adapter_code, status, created_at, last_sync_at,
+             credentials->>'integrationAccountId' as integration_account_id
+      FROM gas_sync_connections 
+      WHERE account_id = $1
+      ORDER BY created_at DESC
+    `, [accountId]);
+    
+    // Get property count
+    const properties = await pool.query(
+      'SELECT COUNT(*) as count FROM properties WHERE account_id = $1',
+      [accountId]
+    );
+    
+    res.json({
+      success: true,
+      account_id: parseInt(accountId),
+      connections: connections.rows,
+      property_count: parseInt(properties.rows[0].count)
+    });
+    
+  } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -19302,7 +19171,7 @@ app.get('/api/calry/link/callback', async (req, res) => {
   console.log('Query params:', req.query);
   
   try {
-    const { account } = req.query;
+    const { account, gas_account_id } = req.query;
     
     if (!account) {
       return res.send(`
@@ -19321,14 +19190,19 @@ app.get('/api/calry/link/callback', async (req, res) => {
     
     // Look up linkId from our stored session
     let linkId = null;
+    let gasAccountId = gas_account_id ? parseInt(gas_account_id) : null;
+    
     try {
       const sessionResult = await pool.query(
-        'SELECT link_id FROM calry_link_sessions WHERE account_identifier = $1',
+        'SELECT link_id, gas_account_id FROM calry_link_sessions WHERE account_identifier = $1',
         [account]
       );
       if (sessionResult.rows.length > 0) {
         linkId = sessionResult.rows[0].link_id;
-        console.log('Found linkId from session:', linkId);
+        if (!gasAccountId) {
+          gasAccountId = sessionResult.rows[0].gas_account_id;
+        }
+        console.log('Found linkId from session:', linkId, 'gas_account_id:', gasAccountId);
       }
     } catch (dbError) {
       console.log('Could not look up link session:', dbError.message);
@@ -19361,6 +19235,7 @@ app.get('/api/calry/link/callback', async (req, res) => {
     
     const intAccountId = integrationAccount.integrationAccountId;
     const pmsName = integrationAccount.integrationDefinitionName || 'PMS';
+    const pmsKey = integrationAccount.integrationDefinitionKey || 'unknown';
     console.log(`Integration account: ${intAccountId} (${pmsName})`);
     
     // Fetch properties from the new integration
@@ -19376,14 +19251,14 @@ app.get('/api/calry/link/callback', async (req, res) => {
     const properties = propResponse.data?.data || [];
     console.log(`Found ${properties.length} properties from ${pmsName}`);
     
-    // Import all properties
+    // Import all properties - use gasAccountId if we have it
     let successCount = 0;
-    let gasAccountId = null;
+    let finalAccountId = gasAccountId;
     
     for (const prop of properties) {
       try {
-        const importResult = await importCalryPropertyHelper(intAccountId, String(prop.id), gasAccountId);
-        gasAccountId = importResult.gas_account_id;
+        const importResult = await importCalryPropertyHelper(intAccountId, String(prop.id), finalAccountId);
+        finalAccountId = importResult.gas_account_id;
         successCount++;
         console.log(`Imported property: ${prop.name} (GAS ID: ${importResult.gas_property_id})`);
       } catch (importError) {
@@ -19397,7 +19272,7 @@ app.get('/api/calry/link/callback', async (req, res) => {
     } catch (e) {}
     
     // Redirect to success page
-    res.redirect(`https://admin.gas.travel/connections?calry_connected=true&pms=${encodeURIComponent(pmsName)}&properties_imported=${successCount}&integration_id=${intAccountId}`);
+    res.redirect(`https://admin.gas.travel/connections?calry_connected=true&pms=${encodeURIComponent(pmsName)}&properties_imported=${successCount}&integration_id=${intAccountId}&account_id=${finalAccountId}`);
     
   } catch (error) {
     console.error('Calry Link callback error:', error.response?.data || error.message);
