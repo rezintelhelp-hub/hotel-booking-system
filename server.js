@@ -18980,10 +18980,20 @@ app.post('/api/smoobu/connect', async (req, res) => {
       connectionId = newConnection.rows[0].id;
     }
     
+    // Ensure smoobu_id column exists
+    try {
+      await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS smoobu_id VARCHAR(50)');
+      await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS smoobu_id VARCHAR(50)');
+    } catch (e) {
+      console.log('Column check:', e.message);
+    }
+    
     // Import properties
     const importedProperties = [];
+    console.log(`Starting import of ${apartments.length} apartments...`);
     
     for (const apt of apartments) {
+      console.log(`Importing apartment: ${apt.id} - ${apt.name}`);
       try {
         // Get full property details
         let fullApt = apt;
