@@ -27735,7 +27735,7 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
     // Check if property with this external_id already exists for this client
     if (property.external_id) {
       const existingProp = await pool.query(
-        "SELECT id FROM properties WHERE account_id = $1 AND settings->>'external_id' = $2",
+        "SELECT id FROM properties WHERE account_id = $1 AND cm_property_id = $2",
         [clientAccountId, property.external_id]
       );
       if (existingProp.rows.length > 0) {
@@ -27749,19 +27749,18 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
     
     const newProperty = await pool.query(`
       INSERT INTO properties (
-        account_id, name, address, address_line2, city, region, postcode, country,
+        account_id, name, address, city, region, postcode, country,
         latitude, longitude, phone, email, currency, timezone,
-        cm_source, status, settings, created_at
+        cm_source, cm_property_id, status, created_at
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
-        'elevate', 'active', $15, NOW()
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
+        'elevate', $14, 'active', NOW()
       )
       RETURNING id
     `, [
       clientAccountId,
       property.name,
       property.address || null,
-      property.address_line2 || null,
       property.city || null,
       property.region || null,
       property.postcode || null,
@@ -27772,10 +27771,7 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
       property.email || null,
       property.currency || 'CHF',
       property.timezone || 'Europe/Zurich',
-      JSON.stringify({
-        external_id: property.external_id || null,
-        created_by: 'elevate_api'
-      })
+      property.external_id || null
     ]);
     
     const propertyId = newProperty.rows[0].id;
@@ -27794,9 +27790,9 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
         const newRoom = await pool.query(`
           INSERT INTO bookable_units (
             property_id, name, room_type, max_occupancy, base_rate,
-            currency, status, settings, created_at
+            currency, cm_room_id, cm_source, status, created_at
           ) VALUES (
-            $1, $2, $3, $4, $5, $6, 'active', $7, NOW()
+            $1, $2, $3, $4, $5, $6, $7, 'elevate', 'active', NOW()
           )
           RETURNING id
         `, [
@@ -27806,10 +27802,7 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
           room.max_occupancy || 2,
           room.base_rate || null,
           room.currency || property.currency || 'CHF',
-          JSON.stringify({
-            external_id: room.external_id || null,
-            created_by: 'elevate_api'
-          })
+          room.external_id || null
         ]);
         
         createdRooms.push({
@@ -27860,7 +27853,7 @@ app.put('/api/elevate/:apiKey/property/:propertyId', async (req, res) => {
       FROM properties p
       JOIN accounts a ON a.id = p.account_id
       WHERE a.parent_id = $1 
-      AND (p.id::text = $2 OR p.settings->>'external_id' = $2)
+      AND (p.id::text = $2 OR p.cm_property_id = $2)
     `, [ELEVATE_MASTER_ACCOUNT_ID, propertyId]);
     
     if (propCheck.rows.length === 0) {
@@ -27924,7 +27917,7 @@ app.delete('/api/elevate/:apiKey/property/:propertyId', async (req, res) => {
       FROM properties p
       JOIN accounts a ON a.id = p.account_id
       WHERE a.parent_id = $1 
-      AND (p.id::text = $2 OR p.settings->>'external_id' = $2)
+      AND (p.id::text = $2 OR p.cm_property_id = $2)
     `, [ELEVATE_MASTER_ACCOUNT_ID, propertyId]);
     
     if (propCheck.rows.length === 0) {
@@ -27968,7 +27961,7 @@ app.post('/api/elevate/:apiKey/property/:propertyId/room', async (req, res) => {
       FROM properties p
       JOIN accounts a ON a.id = p.account_id
       WHERE a.parent_id = $1 
-      AND (p.id::text = $2 OR p.settings->>'external_id' = $2)
+      AND (p.id::text = $2 OR p.cm_property_id = $2)
     `, [ELEVATE_MASTER_ACCOUNT_ID, propertyId]);
     
     if (propCheck.rows.length === 0) {
@@ -27984,9 +27977,9 @@ app.post('/api/elevate/:apiKey/property/:propertyId/room', async (req, res) => {
     const newRoom = await pool.query(`
       INSERT INTO bookable_units (
         property_id, name, room_type, max_occupancy, base_rate,
-        currency, status, settings, created_at
+        currency, cm_room_id, cm_source, status, created_at
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, 'active', $7, NOW()
+        $1, $2, $3, $4, $5, $6, $7, 'elevate', 'active', NOW()
       )
       RETURNING id
     `, [
@@ -27996,10 +27989,7 @@ app.post('/api/elevate/:apiKey/property/:propertyId/room', async (req, res) => {
       room.max_occupancy || 2,
       room.base_rate || null,
       room.currency || propCheck.rows[0].currency || 'CHF',
-      JSON.stringify({
-        external_id: room.external_id || null,
-        created_by: 'elevate_api'
-      })
+      room.external_id || null
     ]);
     
     res.json({
@@ -28035,7 +28025,7 @@ app.put('/api/elevate/:apiKey/room/:roomId', async (req, res) => {
       JOIN properties p ON p.id = bu.property_id
       JOIN accounts a ON a.id = p.account_id
       WHERE a.parent_id = $1 
-      AND (bu.id::text = $2 OR bu.settings->>'external_id' = $2)
+      AND (bu.id::text = $2 OR bu.cm_room_id = $2)
     `, [ELEVATE_MASTER_ACCOUNT_ID, roomId]);
     
     if (roomCheck.rows.length === 0) {
