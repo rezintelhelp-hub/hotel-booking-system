@@ -1808,7 +1808,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
           <div class="room-meta">
             ${lite.max_guests ? `<span class="meta-item"><span class="meta-icon">👤</span> Guests: ${lite.max_guests}</span>` : ''}
             ${lite.bedroom_count ? `<span class="meta-item"><span class="meta-icon">🛏</span> Bedrooms: ${lite.bedroom_count}</span>` : ''}
-            ${lite.bathroom_count ? `<span class="meta-item"><span class="meta-icon">🚿</span> Bathrooms: ${lite.bathroom_count}</span>` : ''}
+            ${lite.bathroom_count ? `<span class="meta-item"><span class="meta-icon">🚿</span> Bathrooms: ${Math.floor(lite.bathroom_count)}</span>` : ''}
             ${lite.room_type ? `<span class="meta-item"><span class="meta-icon">🏠</span> ${lite.room_type}</span>` : ''}
           </div>
         </div>
@@ -3123,9 +3123,8 @@ function renderPromoCard({ lite, image, price, offer, qrCode, liteUrl, hasOffers
       ${shortDesc ? `<p class="tagline">${escapeForHTML(shortDesc)}</p>` : ''}
       <div class="features">
         ${lite.bedroom_count ? `<div class="feature">🛏️ ${lite.bedroom_count} Bed${lite.bedroom_count > 1 ? 's' : ''}</div>` : ''}
+        ${lite.bathroom_count ? `<div class="feature">🚿 ${Math.floor(lite.bathroom_count)} Bath${Math.floor(lite.bathroom_count) > 1 ? 's' : ''}</div>` : ''}
         ${lite.max_guests ? `<div class="feature">👥 Up to ${lite.max_guests}</div>` : ''}
-        ${lite.pets_allowed ? '<div class="feature">🐕 Pets OK</div>' : ''}
-        ${lite.children_allowed ? '<div class="feature">👶 Family</div>' : ''}
       </div>
       <div class="price-row">
         <div>${price ? `<span class="price">${currency}${Math.round(price).toLocaleString()}</span><span style="color:#64748b;font-size:14px;"> / night</span>` : '<span class="price">View rates</span>'}</div>
