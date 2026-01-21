@@ -18761,7 +18761,9 @@ app.get('/api/calry/link/start', async (req, res) => {
     
     // Generate a unique account identifier for this link
     const accountIdentifier = `gas-${account_id || 'new'}-${Date.now()}`;
-    const redirectUrl = 'https://api.gas.travel/api/calry/link/callback';
+    
+    // First create the link to get the linkId, then update with proper redirect URL
+    const initialRedirectUrl = 'https://api.gas.travel/api/calry/link/callback';
     
     // Create link via Calry API
     const linkResponse = await axios.post('https://prod.calry.app/api/v1/link', {
@@ -18770,7 +18772,7 @@ app.get('/api/calry/link/start', async (req, res) => {
       linkName: `GAS Link ${accountIdentifier}`,
       workspaceId: CALRY_WORKSPACE_ID,
       accountIdentifier: accountIdentifier,
-      redirectUrl: redirectUrl
+      redirectUrl: initialRedirectUrl
     }, {
       headers: {
         'Authorization': `Bearer ${CALRY_API_TOKEN}`,
@@ -18780,6 +18782,23 @@ app.get('/api/calry/link/start', async (req, res) => {
     
     const linkData = linkResponse.data;
     console.log('Calry Link created:', linkData);
+    
+    // Now update the link with the linkId in the redirect URL so we can look it up on callback
+    const finalRedirectUrl = `https://api.gas.travel/api/calry/link/callback?linkId=${linkData.linkId}&accountIdentifier=${accountIdentifier}`;
+    
+    try {
+      await axios.patch(`https://prod.calry.app/api/v1/link/${linkData.linkId}`, {
+        redirectUrl: finalRedirectUrl
+      }, {
+        headers: {
+          'Authorization': `Bearer ${CALRY_API_TOKEN}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      console.log('Updated link redirect URL with linkId');
+    } catch (updateError) {
+      console.log('Could not update redirect URL, will use accountIdentifier lookup:', updateError.message);
+    }
     
     // User visits the link page on prod
     const calryLinkUrl = `https://prod.calry.app/link/${linkData.linkId}`;
