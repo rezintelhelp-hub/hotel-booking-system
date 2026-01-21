@@ -1341,7 +1341,7 @@
             },
             {
                 message: "Perfect! Do you use a channel manager or property management system?",
-                quickReplies: ["Beds24", "Hostaway", "Smoobu", "Guesty", "Lodgify", "Other", "I don't use one"],
+                quickReplies: ["Beds24", "Hostaway", "Smoobu", "Guesty", "Lodgify", "Cloudbeds", "Other", "I don't use one"],
                 saveAs: 'channelManager'
             },
             {
@@ -1432,6 +1432,44 @@
             
             if (saveAs) {
                 userData[saveAs] = reply;
+            }
+
+            // Handle Channel Manager selection - redirect to appropriate wizard
+            if (saveAs === 'channelManager') {
+                // Store userData in localStorage for the wizard
+                localStorage.setItem('gas_onboarding_data', JSON.stringify(userData));
+                
+                // Build query params from collected data
+                const params = new URLSearchParams();
+                if (userData.propertyName) params.set('property', userData.propertyName);
+                if (userData.propertyType) params.set('type', userData.propertyType);
+                if (userData.location) params.set('location', userData.location);
+                const queryString = params.toString() ? '?' + params.toString() : '';
+                
+                // Map CM selections to wizard URLs
+                const cmWizards = {
+                    'Beds24': '/beds24-wizard' + queryString,
+                    'Hostaway': '/hostaway-wizard' + queryString,
+                    'Smoobu': '/cm-wizard?cm=smoobu' + (queryString ? '&' + params.toString() : ''),
+                    'Guesty': '/cm-wizard?cm=guesty' + (queryString ? '&' + params.toString() : ''),
+                    'Lodgify': '/cm-wizard?cm=lodgify' + (queryString ? '&' + params.toString() : ''),
+                    'Cloudbeds': '/cm-wizard?cm=cloudbeds' + (queryString ? '&' + params.toString() : ''),
+                    'Other': '/cm-wizard' + queryString,
+                    "I don't use one": '/manual-setup' + queryString
+                };
+                
+                const wizardUrl = cmWizards[reply];
+                if (wizardUrl) {
+                    addAIMessage({
+                        message: "Perfect! I'll take you to connect your " + (reply === "I don't use one" ? "property manually" : reply + " account") + ".\n\nRedirecting you now... 🚀",
+                        quickReplies: null
+                    });
+                    
+                    setTimeout(() => {
+                        window.location.href = wizardUrl;
+                    }, 1500);
+                    return;
+                }
             }
 
             // Handle final step redirects
