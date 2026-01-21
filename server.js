@@ -18764,7 +18764,7 @@ app.get('/api/calry/link/start', async (req, res) => {
     const redirectUrl = 'https://api.gas.travel/api/calry/link/callback';
     
     // Create link via Calry API
-    const linkResponse = await axios.post('https://dev.calry.app/api/v1/link', {
+    const linkResponse = await axios.post('https://prod.calry.app/api/v1/link', {
       integrationDefinitionKey: pms || 'smoobu', // Default to smoobu, can be passed as param
       expiresIn: 3600, // 1 hour
       linkName: `GAS Link ${accountIdentifier}`,
@@ -18781,8 +18781,8 @@ app.get('/api/calry/link/start', async (req, res) => {
     const linkData = linkResponse.data;
     console.log('Calry Link created:', linkData);
     
-    // User visits dev.calry.app/link/{linkId}
-    const calryLinkUrl = `https://dev.calry.app/link/${linkData.linkId}`;
+    // User visits the link page on prod
+    const calryLinkUrl = `https://prod.calry.app/link/${linkData.linkId}`;
     
     res.json({
       success: true,
