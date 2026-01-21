@@ -28167,7 +28167,7 @@ app.get('/api/elevate/:apiKey/clients/:clientId', async (req, res) => {
         a.created_at
       FROM accounts a
       WHERE a.parent_id = $1 
-      AND (a.id::text = $2 OR a.partner_external_id = $2 OR a.public_id = $2)
+      AND (a.id::text = $2 OR a.partner_external_id = $2 OR a.public_id::text = $2)
     `, [ELEVATE_MASTER_ACCOUNT_ID, clientId]);
     
     if (result.rows.length === 0) {
