@@ -3086,24 +3086,17 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
       const sizeSqm = roomRawData.size || roomRawData.sqm || null;
       
       // Extract feature codes for amenities
-      // Beds24 sends featureCodes as array where each element is a space-separated group
-      // e.g. ["BEDROOM_ENSUITE BED_KING BED_SOFA", "BEDROOM BED_QUEEN", "BATHROOM BATH_TUB"]
       let featureCodes = null;
-      let featureCodesArray = null; // Keep original array for structured parsing
       if (roomRawData.featureCodes) {
         if (typeof roomRawData.featureCodes === 'string') {
           featureCodes = roomRawData.featureCodes;
         } else if (Array.isArray(roomRawData.featureCodes)) {
-          featureCodesArray = roomRawData.featureCodes; // Preserve array structure
           featureCodes = roomRawData.featureCodes.join(',');
         }
       }
       
       // Log featureCodes for debugging
       console.log('link-to-gas: featureCodes:', featureCodes ? featureCodes.substring(0, 100) : '(none)');
-      if (featureCodesArray) {
-        console.log('link-to-gas: featureCodesArray (first 5):', JSON.stringify(featureCodesArray.slice(0, 5)));
-      }
       
       // Count bedrooms and bathrooms from feature codes if not already set
       if (featureCodes) {
@@ -3295,11 +3288,26 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
       // =========================================================
       // AUTO-CREATE BEDROOMS AND BATHROOMS FROM FEATURE CODES
       // =========================================================
-      // Beds24 sends featureCodes as array where each element is space-separated:
-      // ["BEDROOM_ENSUITE BED_KING BED_SOFA", "BEDROOM BED_QUEEN", "BATHROOM BATH_TUB BATH_SHOWER"]
-      // Each BEDROOM line defines one bedroom with its beds
-      
-      if (gasRoomId && gasPropertyId && (featureCodesArray || featureCodes)) {
+      if (featureCodes && gasRoomId && gasPropertyId) {
+        const codes = featureCodes.split(',').map(c => c.trim().toUpperCase()).filter(c => c);
+        
+        // Parse bedroom codes: BEDROOM, BED_KING, BED_QUEEN, BED_SOFA, etc.
+        const bedroomCodes = codes.filter(c => c === 'BEDROOM' || c.startsWith('BEDROOM'));
+        const bedCodes = codes.filter(c => c.startsWith('BED_'));
+        
+        // Parse bathroom codes: BATHROOM_FULL, BATHROOM_HALF, BATH_*, etc.
+        const bathroomTypeCodes = codes.filter(c => c.startsWith('BATHROOM_'));
+        const bathFeatureCodes = codes.filter(c => c.startsWith('BATH_') && !c.startsWith('BATHROOM_'));
+        
+        // Count bedrooms (each BEDROOM code = 1 bedroom)
+        const numBedrooms = bedroomCodes.length || (bedCodes.length > 0 ? 1 : 0);
+        
+        // Count bed types
+        const bedCounts = {};
+        for (const code of bedCodes) {
+          bedCounts[code] = (bedCounts[code] || 0) + 1;
+        }
+        
         // Map bed codes to friendly names
         const bedNames = {
           'BED_KING': 'King Bed', 'BED_QUEEN': 'Queen Bed', 'BED_DOUBLE': 'Double Bed',
@@ -3310,158 +3318,45 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
           'BED_COUCH': 'Couch', 'BED_HAMMOCK': 'Hammock'
         };
         
-        // Parse structured bedroom definitions from array
-        const bedroomDefinitions = [];
-        const bathroomDefinitions = [];
+        // Create bed_config array
+        const bedConfig = Object.entries(bedCounts).map(([code, qty]) => ({
+          type: code,
+          name: bedNames[code] || code.replace('BED_', '').replace(/_/g, ' '),
+          quantity: qty
+        }));
         
-        if (featureCodesArray && featureCodesArray.length > 0) {
-          // Use structured array - each element is a space-separated group
-          for (const line of featureCodesArray) {
-            const parts = line.trim().toUpperCase().split(/\s+/);
-            
-            // Check if this line defines a bedroom
-            if (parts.some(p => p.startsWith('BEDROOM'))) {
-              const bedroomType = parts.find(p => p.startsWith('BEDROOM')) || 'BEDROOM';
-              const isEnsuite = bedroomType.includes('ENSUITE');
-              const beds = parts.filter(p => p.startsWith('BED_'));
-              
-              // Normalize bed codes (handle single/twin combos)
-              const normalizedBeds = [];
-              for (const bed of beds) {
-                if (bed.toLowerCase().includes('/')) {
-                  const subParts = bed.split('/');
-                  for (const sp of subParts) {
-                    const norm = sp.toUpperCase().trim();
-                    normalizedBeds.push(norm.startsWith('BED_') ? norm : `BED_${norm}`);
-                  }
-                } else {
-                  normalizedBeds.push(bed);
-                }
-              }
-              
-              bedroomDefinitions.push({
-                type: bedroomType,
-                isEnsuite,
-                beds: normalizedBeds
-              });
-            }
-            
-            // Check if this line defines a bathroom
-            if (parts.some(p => p.startsWith('BATHROOM') || p === 'FULLBATH' || p === 'HALFBATH')) {
-              const bathroomType = parts.find(p => p.startsWith('BATHROOM')) || 'BATHROOM';
-              const features = parts.filter(p => p.startsWith('BATH_') && !p.startsWith('BATHROOM'));
-              
-              bathroomDefinitions.push({
-                type: bathroomType,
-                features
-              });
-            }
-          }
-          
-          console.log(`link-to-gas: Parsed ${bedroomDefinitions.length} bedroom(s) and ${bathroomDefinitions.length} bathroom(s) from structured featureCodes`);
-        }
-        
-        // Fallback: if no structured array or no bedrooms found, use flat parsing
-        if (bedroomDefinitions.length === 0 && featureCodes) {
-          const codes = featureCodes.split(',').map(c => c.trim().toUpperCase()).filter(c => c);
-          const bedroomCodes = codes.filter(c => c === 'BEDROOM' || c.startsWith('BEDROOM'));
-          const bedCodes = codes.filter(c => c.startsWith('BED_'));
-          
-          // Create one definition per BEDROOM code, distribute beds
-          const numBedrooms = bedroomCodes.length || (bedCodes.length > 0 ? 1 : 0);
-          
-          if (numBedrooms > 0) {
-            // Normalize bed codes
-            const normalizedBeds = [];
-            for (const code of bedCodes) {
-              if (code.toLowerCase().includes('/')) {
-                const parts = code.split('/');
-                for (const part of parts) {
-                  const normalized = part.toUpperCase().trim();
-                  normalizedBeds.push(normalized.startsWith('BED_') ? normalized : `BED_${normalized}`);
-                }
-              } else {
-                normalizedBeds.push(code);
-              }
-            }
-            
-            // Distribute beds across bedrooms
-            for (let i = 0; i < numBedrooms; i++) {
-              bedroomDefinitions.push({
-                type: bedroomCodes[i] || 'BEDROOM',
-                isEnsuite: (bedroomCodes[i] || '').includes('ENSUITE'),
-                beds: [] // Will be filled below
-              });
-            }
-            
-            // Distribute beds round-robin
-            normalizedBeds.forEach((bed, idx) => {
-              bedroomDefinitions[idx % numBedrooms].beds.push(bed);
-            });
-          }
-          
-          // Parse bathrooms from flat codes
-          const bathroomCodes = codes.filter(c => c.startsWith('BATHROOM'));
-          const bathFeatures = codes.filter(c => c.startsWith('BATH_') && !c.startsWith('BATHROOM'));
-          
-          for (const bc of bathroomCodes) {
-            bathroomDefinitions.push({
-              type: bc,
-              features: [] // Can't determine which features go with which bathroom in flat format
-            });
-          }
-          
-          console.log(`link-to-gas: Parsed ${bedroomDefinitions.length} bedroom(s) from flat featureCodes (fallback)`);
-        }
-        
-        // Create bedrooms if we have definitions and none exist
-        if (bedroomDefinitions.length > 0) {
+        // Only create bedrooms if we have bed codes and no existing bedrooms
+        if (numBedrooms > 0 || bedConfig.length > 0) {
           const existingBedrooms = await pool.query(
             'SELECT COUNT(*) as count FROM property_bedrooms WHERE property_id = $1 AND room_id = $2',
             [gasPropertyId, gasRoomId]
           );
           
           if (parseInt(existingBedrooms.rows[0].count) === 0) {
-            console.log(`link-to-gas: Auto-creating ${bedroomDefinitions.length} bedroom(s) with their specific beds`);
+            console.log(`link-to-gas: Auto-creating ${numBedrooms || 1} bedroom(s) with ${bedConfig.length} bed type(s)`);
             
-            for (let i = 0; i < bedroomDefinitions.length; i++) {
-              const def = bedroomDefinitions[i];
-              const bedroomName = bedroomDefinitions.length === 1 ? 'Bedroom' : `Bedroom ${i + 1}`;
-              
-              // Count bed types for this bedroom
-              const bedCounts = {};
-              for (const bed of def.beds) {
-                bedCounts[bed] = (bedCounts[bed] || 0) + 1;
-              }
-              
-              // Create bed_config array
-              const bedConfig = Object.entries(bedCounts).map(([type, qty]) => ({
-                type,
-                name: bedNames[type] || type.replace('BED_', '').replace(/_/g, ' '),
-                quantity: qty
-              }));
-              
-              console.log(`link-to-gas: ${bedroomName}${def.isEnsuite ? ' (ensuite)' : ''}: ${bedConfig.map(b => `${b.quantity}x ${b.name}`).join(', ') || 'no beds'}`);
+            // If we have specific BEDROOM codes, create that many bedrooms
+            // Otherwise create 1 bedroom with all beds
+            const bedroomsToCreate = numBedrooms || 1;
+            
+            // Distribute beds across bedrooms (simple: put all in first bedroom for now)
+            for (let i = 0; i < bedroomsToCreate; i++) {
+              const bedroomName = bedroomsToCreate === 1 ? 'Bedroom' : `Bedroom ${i + 1}`;
+              const bedsForThisBedroom = i === 0 ? bedConfig : []; // All beds in first bedroom
               
               await pool.query(`
-                INSERT INTO property_bedrooms (property_id, room_id, name, bed_config, has_ensuite, display_order)
-                VALUES ($1, $2, $3, $4, $5, $6)
+                INSERT INTO property_bedrooms (property_id, room_id, name, bed_config, display_order)
+                VALUES ($1, $2, $3, $4, $5)
               `, [
                 gasPropertyId,
                 gasRoomId,
                 bedroomName,
-                JSON.stringify(bedConfig),
-                def.isEnsuite,
+                JSON.stringify(bedsForThisBedroom),
                 i
               ]).catch(e => console.log('link-to-gas: bedroom create failed:', e.message));
             }
           }
         }
-        
-        // Parse bathroom codes for bathroom creation
-        const codes = featureCodes ? featureCodes.split(',').map(c => c.trim().toUpperCase()).filter(c => c) : [];
-        const bathroomTypeCodes = codes.filter(c => c.startsWith('BATHROOM_'));
-        const bathFeatureCodes = codes.filter(c => c.startsWith('BATH_') && !c.startsWith('BATHROOM_'));
         
         // Parse bathroom types and features
         const bathroomTypes = {
@@ -19351,46 +19246,15 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
       // 3. In featureCodes string: "BED_KING,BED_SINGLE,BED_SINGLE"
       let bedConfig = null;
       
-      // Helper to normalize bed codes (handle "single/twin" combos)
-      function normalizeBedCode(code) {
-        const result = [];
-        // Handle "single/twin" or similar combined codes
-        if (code.toLowerCase().includes('/')) {
-          const parts = code.split('/');
-          for (const part of parts) {
-            const normalized = part.toUpperCase().trim();
-            result.push(normalized.startsWith('BED_') ? normalized : `BED_${normalized}`);
-          }
-        } else if (code.includes('_') && code.split('_').length > 2) {
-          // Handle "BED_SINGLE_TWIN" format
-          const lowerCode = code.toLowerCase();
-          if (lowerCode.includes('single') && lowerCode.includes('twin')) {
-            result.push('BED_SINGLE');
-            result.push('BED_TWIN');
-          } else {
-            result.push(code);
-          }
-        } else {
-          result.push(code);
-        }
-        return result;
-      }
-      
       // Try structured bedTypes first
       if (room.bedTypes && Array.isArray(room.bedTypes) && room.bedTypes.length > 0) {
-        const normalizedBeds = [];
-        for (const b of room.bedTypes) {
-          const bedType = b.type || b.bedType || 'BED_DOUBLE';
-          const normalizedCodes = normalizeBedCode(bedType);
-          for (const code of normalizedCodes) {
-            normalizedBeds.push({
-              type: code,
-              quantity: b.quantity || b.count || 1,
-              name: getBedName(code)
-            });
-          }
-        }
-        bedConfig = { beds: normalizedBeds };
+        bedConfig = { 
+          beds: room.bedTypes.map(b => ({
+            type: b.type || b.bedType || 'BED_DOUBLE',
+            quantity: b.quantity || b.count || 1,
+            name: getBedName(b.type || b.bedType)
+          }))
+        };
       } 
       // Try bedConfiguration object
       else if (room.bedConfiguration && typeof room.bedConfiguration === 'object') {
@@ -19398,15 +19262,9 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
       }
       // Extract from featureCodes if present
       else if (room.featureCodes && typeof room.featureCodes === 'string') {
-        const rawBedCodes = room.featureCodes.split(',')
+        const bedCodes = room.featureCodes.split(',')
           .map(c => c.trim())
-          .filter(c => c.startsWith('BED_') || c.toLowerCase().includes('bed'));
-        
-        // Normalize all bed codes
-        const bedCodes = [];
-        for (const code of rawBedCodes) {
-          bedCodes.push(...normalizeBedCode(code));
-        }
+          .filter(c => c.startsWith('BED_'));
         
         if (bedCodes.length > 0) {
           // Count occurrences of each bed type
@@ -19431,9 +19289,8 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
           'BED_BUNK': 'Bunkbed', 'BED_CHILD': 'Child Bed', 'BED_CRIB': 'Cot',
           'BED_DOUBLE': 'Double Bed', 'BED_KING': 'King Bed', 'BED_MURPHY': 'Murphy Bed',
           'BED_QUEEN': 'Queen Bed', 'BED_SOFA': 'Sofa Bed', 'BED_SINGLE': 'Single Bed',
-          'BED_TWIN': 'Twin Bed', 'BED_FUTON': 'Futon', 'BED_FLOORMATTRESS': 'Floor Mattress', 
-          'BED_TODDLER': 'Toddler Bed', 'BED_HAMMOCK': 'Hammock', 'BED_AIRMATTRESS': 'Air Mattress', 
-          'BED_COUCH': 'Couch'
+          'BED_FUTON': 'Futon', 'BED_FLOORMATTRESS': 'Floor Mattress', 'BED_TODDLER': 'Toddler Bed',
+          'BED_HAMMOCK': 'Hammock', 'BED_AIRMATTRESS': 'Air Mattress', 'BED_COUCH': 'Couch'
         };
         return names[code] || code;
       }
@@ -27580,10 +27437,652 @@ app.get('/api/webhooks/beds24', (req, res) => {
 });
 
 // =========================================================
-// ELEVATE PMS WEBHOOKS
+// ELEVATE PMS PARTNER API
+// =========================================================
+// Elevate is a partner (account 92) who manages multiple client sub-accounts
+// All partner API calls use: /api/elevate/:apiKey/...
+
+const ELEVATE_MASTER_ACCOUNT_ID = 92;
+
+// Validate Elevate Partner API key (master account level)
+async function validateElevatePartnerKey(apiKey) {
+  // Check if this API key belongs to the Elevate master account
+  const result = await pool.query(
+    'SELECT id, api_key FROM accounts WHERE id = $1 AND api_key = $2 AND status = $3',
+    [ELEVATE_MASTER_ACCOUNT_ID, apiKey, 'active']
+  );
+  
+  if (result.rows.length > 0) {
+    return { valid: true, accountId: ELEVATE_MASTER_ACCOUNT_ID };
+  }
+  
+  // Fallback format check
+  if (apiKey && apiKey.startsWith('gas_') && apiKey.length > 20) {
+    const accountCheck = await pool.query(
+      'SELECT id FROM accounts WHERE id = $1 AND api_key = $2',
+      [ELEVATE_MASTER_ACCOUNT_ID, apiKey]
+    );
+    if (accountCheck.rows.length > 0) {
+      return { valid: true, accountId: ELEVATE_MASTER_ACCOUNT_ID };
+    }
+  }
+  
+  console.log('[Elevate Partner] API key validation failed');
+  return { valid: false };
+}
+
+// Helper to generate API key for new sub-accounts
+function generateApiKey() {
+  const crypto = require('crypto');
+  return 'gas_' + crypto.randomBytes(32).toString('hex');
+}
+
+// =========================================================
+// ELEVATE PARTNER API - CLIENT MANAGEMENT
 // =========================================================
 
-// Validate Elevate API key
+// List all Elevate sub-accounts (clients)
+app.get('/api/elevate/:apiKey/clients', async (req, res) => {
+  console.log('=== ELEVATE: LIST CLIENTS ===');
+  
+  try {
+    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: 'Invalid API key' });
+    }
+    
+    const result = await pool.query(`
+      SELECT 
+        a.id as account_id,
+        a.public_id,
+        a.name,
+        a.email,
+        a.contact_name,
+        a.phone,
+        a.business_name,
+        a.currency,
+        a.timezone,
+        a.settings->>'account_type' as account_type,
+        a.settings->>'external_id' as external_id,
+        a.api_key,
+        a.status,
+        a.created_at,
+        COUNT(DISTINCT p.id) as property_count
+      FROM accounts a
+      LEFT JOIN properties p ON p.account_id = a.id AND p.status = 'active'
+      WHERE a.parent_id = $1
+      GROUP BY a.id
+      ORDER BY a.created_at DESC
+    `, [ELEVATE_MASTER_ACCOUNT_ID]);
+    
+    res.json({ 
+      success: true, 
+      clients: result.rows,
+      total: result.rows.length
+    });
+    
+  } catch (error) {
+    console.error('Elevate list clients error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get single client details
+app.get('/api/elevate/:apiKey/clients/:clientId', async (req, res) => {
+  console.log('=== ELEVATE: GET CLIENT ===');
+  
+  try {
+    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: 'Invalid API key' });
+    }
+    
+    const { clientId } = req.params;
+    
+    // Find by GAS account_id or external_id
+    const result = await pool.query(`
+      SELECT 
+        a.id as account_id,
+        a.public_id,
+        a.name,
+        a.email,
+        a.contact_name,
+        a.phone,
+        a.business_name,
+        a.currency,
+        a.timezone,
+        a.settings->>'account_type' as account_type,
+        a.settings->>'external_id' as external_id,
+        a.api_key,
+        a.status,
+        a.created_at
+      FROM accounts a
+      WHERE a.parent_id = $1 
+      AND (a.id::text = $2 OR a.settings->>'external_id' = $2)
+    `, [ELEVATE_MASTER_ACCOUNT_ID, clientId]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Client not found' });
+    }
+    
+    // Get client's properties
+    const properties = await pool.query(`
+      SELECT id, name, address, city, country, currency, status, 
+             settings->>'external_id' as external_id
+      FROM properties 
+      WHERE account_id = $1 AND status = 'active'
+    `, [result.rows[0].account_id]);
+    
+    res.json({ 
+      success: true, 
+      client: result.rows[0],
+      properties: properties.rows
+    });
+    
+  } catch (error) {
+    console.error('Elevate get client error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// =========================================================
+// ELEVATE PARTNER API - PROPERTY WITH CLIENT HANDLING
+// =========================================================
+
+// Create property (with client create or assign to existing)
+app.post('/api/elevate/:apiKey/property', async (req, res) => {
+  console.log('=== ELEVATE: CREATE PROPERTY ===');
+  console.log('Body:', JSON.stringify(req.body, null, 2));
+  
+  try {
+    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: 'Invalid API key' });
+    }
+    
+    const { client, property, rooms } = req.body;
+    
+    if (!client || !property) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Both "client" and "property" objects are required' 
+      });
+    }
+    
+    let clientAccountId;
+    let clientApiKey;
+    let clientCreated = false;
+    
+    // =========================================================
+    // HANDLE CLIENT - CREATE NEW OR USE EXISTING
+    // =========================================================
+    
+    if (client.action === 'create') {
+      // Validate required fields for new client
+      if (!client.name || !client.email) {
+        return res.status(400).json({ 
+          success: false, 
+          error: 'client.name and client.email are required for new clients' 
+        });
+      }
+      
+      // Check if external_id already exists
+      if (client.external_id) {
+        const existing = await pool.query(
+          "SELECT id FROM accounts WHERE parent_id = $1 AND settings->>'external_id' = $2",
+          [ELEVATE_MASTER_ACCOUNT_ID, client.external_id]
+        );
+        if (existing.rows.length > 0) {
+          return res.status(400).json({ 
+            success: false, 
+            error: `Client with external_id "${client.external_id}" already exists. Use action: "existing" to add properties to it.`,
+            existing_account_id: existing.rows[0].id
+          });
+        }
+      }
+      
+      // Check if email already exists under Elevate
+      const emailCheck = await pool.query(
+        'SELECT id FROM accounts WHERE parent_id = $1 AND email = $2',
+        [ELEVATE_MASTER_ACCOUNT_ID, client.email]
+      );
+      if (emailCheck.rows.length > 0) {
+        return res.status(400).json({ 
+          success: false, 
+          error: `Client with email "${client.email}" already exists.`,
+          existing_account_id: emailCheck.rows[0].id
+        });
+      }
+      
+      // Create new sub-account
+      clientApiKey = generateApiKey();
+      const accountType = client.account_type || 'individual';
+      
+      const newAccount = await pool.query(`
+        INSERT INTO accounts (
+          parent_id, name, email, contact_name, phone, business_name,
+          currency, timezone, api_key, api_key_created_at, status, settings, created_at
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), 'active', $10, NOW()
+        )
+        RETURNING id, public_id, api_key
+      `, [
+        ELEVATE_MASTER_ACCOUNT_ID,
+        client.name,
+        client.email,
+        client.contact_name || null,
+        client.phone || null,
+        client.business_name || client.name,
+        client.currency || 'CHF',
+        client.timezone || 'Europe/Zurich',
+        clientApiKey,
+        JSON.stringify({
+          account_type: accountType,
+          external_id: client.external_id || null,
+          created_by: 'elevate_api'
+        })
+      ]);
+      
+      clientAccountId = newAccount.rows[0].id;
+      clientApiKey = newAccount.rows[0].api_key;
+      clientCreated = true;
+      
+      console.log(`[Elevate] Created new ${accountType} client account ${clientAccountId}`);
+      
+    } else if (client.action === 'existing') {
+      // Find existing client by account_id or external_id
+      const identifier = client.account_id || client.external_id;
+      if (!identifier) {
+        return res.status(400).json({ 
+          success: false, 
+          error: 'client.account_id or client.external_id required for existing clients' 
+        });
+      }
+      
+      const existingClient = await pool.query(`
+        SELECT id, api_key FROM accounts 
+        WHERE parent_id = $1 
+        AND (id::text = $2 OR settings->>'external_id' = $2)
+      `, [ELEVATE_MASTER_ACCOUNT_ID, String(identifier)]);
+      
+      if (existingClient.rows.length === 0) {
+        return res.status(404).json({ 
+          success: false, 
+          error: `Client "${identifier}" not found` 
+        });
+      }
+      
+      clientAccountId = existingClient.rows[0].id;
+      clientApiKey = existingClient.rows[0].api_key;
+      
+      console.log(`[Elevate] Using existing client account ${clientAccountId}`);
+      
+    } else {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'client.action must be "create" or "existing"' 
+      });
+    }
+    
+    // =========================================================
+    // CREATE PROPERTY
+    // =========================================================
+    
+    if (!property.name) {
+      return res.status(400).json({ success: false, error: 'property.name is required' });
+    }
+    
+    // Check if property with this external_id already exists for this client
+    if (property.external_id) {
+      const existingProp = await pool.query(
+        "SELECT id FROM properties WHERE account_id = $1 AND settings->>'external_id' = $2",
+        [clientAccountId, property.external_id]
+      );
+      if (existingProp.rows.length > 0) {
+        return res.status(400).json({ 
+          success: false, 
+          error: `Property with external_id "${property.external_id}" already exists for this client`,
+          existing_property_id: existingProp.rows[0].id
+        });
+      }
+    }
+    
+    const newProperty = await pool.query(`
+      INSERT INTO properties (
+        account_id, name, address, address_line2, city, region, postcode, country,
+        latitude, longitude, phone, email, currency, timezone,
+        cm_source, status, settings, created_at
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
+        'elevate', 'active', $15, NOW()
+      )
+      RETURNING id
+    `, [
+      clientAccountId,
+      property.name,
+      property.address || null,
+      property.address_line2 || null,
+      property.city || null,
+      property.region || null,
+      property.postcode || null,
+      property.country || 'CH',
+      property.latitude || null,
+      property.longitude || null,
+      property.phone || null,
+      property.email || null,
+      property.currency || 'CHF',
+      property.timezone || 'Europe/Zurich',
+      JSON.stringify({
+        external_id: property.external_id || null,
+        created_by: 'elevate_api'
+      })
+    ]);
+    
+    const propertyId = newProperty.rows[0].id;
+    console.log(`[Elevate] Created property ${propertyId} for client ${clientAccountId}`);
+    
+    // =========================================================
+    // CREATE ROOMS (if provided)
+    // =========================================================
+    
+    const createdRooms = [];
+    
+    if (rooms && Array.isArray(rooms) && rooms.length > 0) {
+      for (const room of rooms) {
+        if (!room.name) continue;
+        
+        const newRoom = await pool.query(`
+          INSERT INTO bookable_units (
+            property_id, name, room_type, max_occupancy, base_rate,
+            currency, status, settings, created_at
+          ) VALUES (
+            $1, $2, $3, $4, $5, $6, 'active', $7, NOW()
+          )
+          RETURNING id
+        `, [
+          propertyId,
+          room.name,
+          room.room_type || 'room',
+          room.max_occupancy || 2,
+          room.base_rate || null,
+          room.currency || property.currency || 'CHF',
+          JSON.stringify({
+            external_id: room.external_id || null,
+            created_by: 'elevate_api'
+          })
+        ]);
+        
+        createdRooms.push({
+          external_id: room.external_id || null,
+          gas_room_id: newRoom.rows[0].id,
+          name: room.name
+        });
+        
+        console.log(`[Elevate] Created room ${newRoom.rows[0].id}: ${room.name}`);
+      }
+    }
+    
+    // =========================================================
+    // RESPONSE
+    // =========================================================
+    
+    res.json({
+      success: true,
+      client_created: clientCreated,
+      account_id: clientAccountId,
+      account_api_key: clientApiKey,
+      property_id: propertyId,
+      rooms: createdRooms
+    });
+    
+  } catch (error) {
+    console.error('Elevate create property error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Update property
+app.put('/api/elevate/:apiKey/property/:propertyId', async (req, res) => {
+  console.log('=== ELEVATE: UPDATE PROPERTY ===');
+  
+  try {
+    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: 'Invalid API key' });
+    }
+    
+    const { propertyId } = req.params;
+    const updates = req.body;
+    
+    // Find property (by GAS ID or external_id) that belongs to an Elevate sub-account
+    const propCheck = await pool.query(`
+      SELECT p.id, p.account_id 
+      FROM properties p
+      JOIN accounts a ON a.id = p.account_id
+      WHERE a.parent_id = $1 
+      AND (p.id::text = $2 OR p.settings->>'external_id' = $2)
+    `, [ELEVATE_MASTER_ACCOUNT_ID, propertyId]);
+    
+    if (propCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Property not found' });
+    }
+    
+    const gasPropertyId = propCheck.rows[0].id;
+    
+    // Build update query dynamically
+    const updateFields = [];
+    const values = [];
+    let paramIndex = 1;
+    
+    const allowedFields = ['name', 'address', 'address_line2', 'city', 'region', 
+                          'postcode', 'country', 'latitude', 'longitude', 
+                          'phone', 'email', 'currency', 'timezone'];
+    
+    for (const field of allowedFields) {
+      if (updates[field] !== undefined) {
+        updateFields.push(`${field} = $${paramIndex}`);
+        values.push(updates[field]);
+        paramIndex++;
+      }
+    }
+    
+    if (updateFields.length === 0) {
+      return res.status(400).json({ success: false, error: 'No valid fields to update' });
+    }
+    
+    updateFields.push(`updated_at = NOW()`);
+    values.push(gasPropertyId);
+    
+    await pool.query(
+      `UPDATE properties SET ${updateFields.join(', ')} WHERE id = $${paramIndex}`,
+      values
+    );
+    
+    res.json({ success: true, property_id: gasPropertyId });
+    
+  } catch (error) {
+    console.error('Elevate update property error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Delete/deactivate property
+app.delete('/api/elevate/:apiKey/property/:propertyId', async (req, res) => {
+  console.log('=== ELEVATE: DELETE PROPERTY ===');
+  
+  try {
+    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: 'Invalid API key' });
+    }
+    
+    const { propertyId } = req.params;
+    
+    // Find property that belongs to an Elevate sub-account
+    const propCheck = await pool.query(`
+      SELECT p.id 
+      FROM properties p
+      JOIN accounts a ON a.id = p.account_id
+      WHERE a.parent_id = $1 
+      AND (p.id::text = $2 OR p.settings->>'external_id' = $2)
+    `, [ELEVATE_MASTER_ACCOUNT_ID, propertyId]);
+    
+    if (propCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Property not found' });
+    }
+    
+    // Soft delete - set status to inactive
+    await pool.query(
+      "UPDATE properties SET status = 'inactive', updated_at = NOW() WHERE id = $1",
+      [propCheck.rows[0].id]
+    );
+    
+    res.json({ success: true, property_id: propCheck.rows[0].id, status: 'inactive' });
+    
+  } catch (error) {
+    console.error('Elevate delete property error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// =========================================================
+// ELEVATE PARTNER API - ROOM MANAGEMENT
+// =========================================================
+
+// Add room to property
+app.post('/api/elevate/:apiKey/property/:propertyId/room', async (req, res) => {
+  console.log('=== ELEVATE: ADD ROOM ===');
+  
+  try {
+    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: 'Invalid API key' });
+    }
+    
+    const { propertyId } = req.params;
+    const room = req.body;
+    
+    // Find property
+    const propCheck = await pool.query(`
+      SELECT p.id, p.currency
+      FROM properties p
+      JOIN accounts a ON a.id = p.account_id
+      WHERE a.parent_id = $1 
+      AND (p.id::text = $2 OR p.settings->>'external_id' = $2)
+    `, [ELEVATE_MASTER_ACCOUNT_ID, propertyId]);
+    
+    if (propCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Property not found' });
+    }
+    
+    const gasPropertyId = propCheck.rows[0].id;
+    
+    if (!room.name) {
+      return res.status(400).json({ success: false, error: 'room.name is required' });
+    }
+    
+    const newRoom = await pool.query(`
+      INSERT INTO bookable_units (
+        property_id, name, room_type, max_occupancy, base_rate,
+        currency, status, settings, created_at
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, 'active', $7, NOW()
+      )
+      RETURNING id
+    `, [
+      gasPropertyId,
+      room.name,
+      room.room_type || 'room',
+      room.max_occupancy || 2,
+      room.base_rate || null,
+      room.currency || propCheck.rows[0].currency || 'CHF',
+      JSON.stringify({
+        external_id: room.external_id || null,
+        created_by: 'elevate_api'
+      })
+    ]);
+    
+    res.json({
+      success: true,
+      property_id: gasPropertyId,
+      room_id: newRoom.rows[0].id,
+      external_id: room.external_id || null
+    });
+    
+  } catch (error) {
+    console.error('Elevate add room error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Update room
+app.put('/api/elevate/:apiKey/room/:roomId', async (req, res) => {
+  console.log('=== ELEVATE: UPDATE ROOM ===');
+  
+  try {
+    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: 'Invalid API key' });
+    }
+    
+    const { roomId } = req.params;
+    const updates = req.body;
+    
+    // Find room that belongs to an Elevate property
+    const roomCheck = await pool.query(`
+      SELECT bu.id 
+      FROM bookable_units bu
+      JOIN properties p ON p.id = bu.property_id
+      JOIN accounts a ON a.id = p.account_id
+      WHERE a.parent_id = $1 
+      AND (bu.id::text = $2 OR bu.settings->>'external_id' = $2)
+    `, [ELEVATE_MASTER_ACCOUNT_ID, roomId]);
+    
+    if (roomCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Room not found' });
+    }
+    
+    const gasRoomId = roomCheck.rows[0].id;
+    
+    const updateFields = [];
+    const values = [];
+    let paramIndex = 1;
+    
+    const allowedFields = ['name', 'room_type', 'max_occupancy', 'base_rate', 'currency'];
+    
+    for (const field of allowedFields) {
+      if (updates[field] !== undefined) {
+        updateFields.push(`${field} = $${paramIndex}`);
+        values.push(updates[field]);
+        paramIndex++;
+      }
+    }
+    
+    if (updateFields.length === 0) {
+      return res.status(400).json({ success: false, error: 'No valid fields to update' });
+    }
+    
+    updateFields.push(`updated_at = NOW()`);
+    values.push(gasRoomId);
+    
+    await pool.query(
+      `UPDATE bookable_units SET ${updateFields.join(', ')} WHERE id = $${paramIndex}`,
+      values
+    );
+    
+    res.json({ success: true, room_id: gasRoomId });
+    
+  } catch (error) {
+    console.error('Elevate update room error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// =========================================================
+// ELEVATE LEGACY WEBHOOKS (for backwards compatibility)
+// =========================================================
+
+// Validate Elevate API key (legacy - per account)
 async function validateElevateApiKey(accountId, apiKey) {
   // For Elevate, API keys are generated with format: gas_[hash]
   // First try database lookup
