@@ -27617,6 +27617,57 @@ async function validateElevatePartnerKey(apiKey) {
   return { valid: false };
 }
 
+// =====================================================
+// TEMPORARY CLEANUP ENDPOINT - REMOVE AFTER USE
+// =====================================================
+app.get('/api/elevate/cleanup-test-data-xK9mP2nL', async (req, res) => {
+  try {
+    const results = [];
+    
+    // Delete test rooms from account 108 properties
+    const rooms = await pool.query(
+      'DELETE FROM bookable_units WHERE property_id IN (SELECT id FROM properties WHERE account_id = 108) RETURNING id'
+    );
+    results.push(`Deleted ${rooms.rowCount} rooms`);
+    
+    // Delete test properties from account 108
+    const props = await pool.query(
+      'DELETE FROM properties WHERE account_id = 108 RETURNING id'
+    );
+    results.push(`Deleted ${props.rowCount} properties`);
+    
+    // Delete test sub-account 108
+    const acct = await pool.query(
+      'DELETE FROM accounts WHERE id = 108 RETURNING id'
+    );
+    results.push(`Deleted ${acct.rowCount} accounts`);
+    
+    // Remove Beds24 connections from Elevate (account 92)
+    const cc = await pool.query(
+      'DELETE FROM channel_connections WHERE gas_account_id = 92 RETURNING id'
+    );
+    results.push(`Deleted ${cc.rowCount} channel_connections`);
+    
+    const gsc = await pool.query(
+      'DELETE FROM gas_sync_connections WHERE account_id = 92 RETURNING id'
+    );
+    results.push(`Deleted ${gsc.rowCount} gas_sync_connections`);
+    
+    // Check remaining properties on account 92
+    const remaining = await pool.query(
+      'SELECT id, name, beds24_property_id FROM properties WHERE account_id = 92'
+    );
+    
+    res.json({
+      success: true,
+      cleanup_results: results,
+      remaining_properties_on_92: remaining.rows
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Helper to generate API key for new sub-accounts
 function generateApiKey() {
   const crypto = require('crypto');
