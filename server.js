@@ -18666,33 +18666,37 @@ app.post('/api/calry/import-property', async (req, res) => {
         console.log('Created room:', gasRoomId);
       }
       
-      // Import amenities from raw Calry data
-      const amenities = room.amenities || [];
-      for (const amenity of amenities) {
-        const amenityName = typeof amenity === 'string' ? amenity : (amenity.name || amenity);
-        if (!amenityName) continue;
-        
-        let amenityResult = await pool.query(
-          "SELECT id FROM amenities WHERE LOWER(name) = LOWER($1)",
-          [amenityName]
-        );
-        
-        let amenityId;
-        if (amenityResult.rows.length > 0) {
-          amenityId = amenityResult.rows[0].id;
-        } else {
-          const newAmenity = await pool.query(
-            "INSERT INTO amenities (name, created_at) VALUES ($1, NOW()) RETURNING id",
+      // Import amenities from raw Calry data (skip if amenities table doesn't exist)
+      try {
+        const amenities = room.amenities || [];
+        for (const amenity of amenities) {
+          const amenityName = typeof amenity === 'string' ? amenity : (amenity.name || amenity);
+          if (!amenityName) continue;
+          
+          let amenityResult = await pool.query(
+            "SELECT id FROM amenities WHERE LOWER(name) = LOWER($1)",
             [amenityName]
           );
-          amenityId = newAmenity.rows[0].id;
+          
+          let amenityId;
+          if (amenityResult.rows.length > 0) {
+            amenityId = amenityResult.rows[0].id;
+          } else {
+            const newAmenity = await pool.query(
+              "INSERT INTO amenities (name, created_at) VALUES ($1, NOW()) RETURNING id",
+              [amenityName]
+            );
+            amenityId = newAmenity.rows[0].id;
+          }
+          
+          await pool.query(`
+            INSERT INTO room_amenities (room_id, amenity_id)
+            VALUES ($1, $2)
+            ON CONFLICT DO NOTHING
+          `, [gasRoomId, amenityId]);
         }
-        
-        await pool.query(`
-          INSERT INTO room_amenities (room_id, amenity_id)
-          VALUES ($1, $2)
-          ON CONFLICT DO NOTHING
-        `, [gasRoomId, amenityId]);
+      } catch (amenityError) {
+        console.log('Skipping amenities import (table may not exist):', amenityError.message);
       }
       
       importedRooms.push({
