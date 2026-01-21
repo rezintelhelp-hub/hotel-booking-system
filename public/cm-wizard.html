@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Connect Channel Manager - GAS</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background: linear-gradient(135deg, #a8b5f7 0%, #c9b8ea 50%, #e8d0e0 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .wizard-container {
+      background: #fff;
+      border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+      width: 100%;
+      max-width: 650px;
+      overflow: hidden;
+    }
+    .wizard-header {
+      background: linear-gradient(135deg, var(--cm-color-1, #667eea) 0%, var(--cm-color-2, #764ba2) 100%);
+      color: #fff;
+      padding: 30px;
+      text-align: center;
+    }
+    .wizard-header h1 {
+      font-size: 1.8rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+    }
+    .wizard-header p {
+      opacity: 0.9;
+      font-size: 0.95rem;
+    }
+    .version-tag {
+      font-size: 0.75rem;
+      opacity: 0.7;
+    }
+    .step-dots {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      padding: 20px;
+      background: #f8f9fa;
+      border-bottom: 1px solid #eee;
+    }
+    .step-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #ddd;
+      transition: all 0.3s;
+    }
+    .step-dot.active {
+      background: var(--cm-color-1, #667eea);
+    }
+    .step-dot.completed {
+      background: #27ae60;
+    }
+    .wizard-content {
+      padding: 30px 40px;
+    }
+    .step {
+      display: none;
+    }
+    .step.active {
+      display: block;
+    }
+    .step-title {
+      font-size: 1.4rem;
+      font-weight: 600;
+      color: #2c3e50;
+      margin-bottom: 8px;
+    }
+    .step-subtitle {
+      color: #7f8c8d;
+      margin-bottom: 25px;
+      font-size: 0.95rem;
+    }
+    .tab-buttons {
+      display: flex;
+      gap: 0;
+      margin-bottom: 25px;
+    }
+    .tab-btn {
+      flex: 1;
+      padding: 14px 20px;
+      border: 2px solid #e0e0e0;
+      background: #fff;
+      font-size: 1rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      color: #666;
+    }
+    .tab-btn:first-child {
+      border-radius: 8px 0 0 8px;
+      border-right: 1px solid #e0e0e0;
+    }
+    .tab-btn:last-child {
+      border-radius: 0 8px 8px 0;
+      border-left: 1px solid #e0e0e0;
+    }
+    .tab-btn.active {
+      background: #f0f7ff;
+      border-color: var(--cm-color-1, #667eea);
+      color: #2c3e50;
+    }
+    .form-group {
+      margin-bottom: 20px;
+    }
+    .form-group label {
+      display: block;
+      font-weight: 500;
+      color: #2c3e50;
+      margin-bottom: 8px;
+      font-size: 0.95rem;
+    }
+    .form-group input, .form-group select {
+      width: 100%;
+      padding: 14px 16px;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 1rem;
+      transition: all 0.2s;
+      background: #f8fafc;
+    }
+    .form-group input:focus, .form-group select:focus {
+      outline: none;
+      border-color: var(--cm-color-1, #667eea);
+      background: #fff;
+    }
+    .form-group input::placeholder {
+      color: #aaa;
+    }
+    .help-text {
+      font-size: 0.85rem;
+      color: #95a5a6;
+      margin-top: 6px;
+    }
+    .wizard-footer {
+      padding: 20px 40px 30px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-top: 1px solid #eee;
+    }
+    .btn {
+      padding: 14px 28px;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--cm-color-1, #667eea) 0%, var(--cm-color-2, #764ba2) 100%);
+      color: #fff;
+    }
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(102,126,234,0.4);
+    }
+    .btn-primary:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+    .btn-link {
+      background: none;
+      color: var(--cm-color-1, #667eea);
+      padding: 14px 0;
+    }
+    .btn-link:hover {
+      text-decoration: underline;
+    }
+    .status-message {
+      padding: 12px 16px;
+      border-radius: 8px;
+      margin-top: 15px;
+      font-size: 0.9rem;
+      display: none;
+    }
+    .status-message.show {
+      display: block;
+    }
+    .status-message.success {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+    .status-message.error {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+    .status-message.info {
+      background: #e7f3ff;
+      color: #004085;
+      border: 1px solid #b8daff;
+    }
+    .instructions-box {
+      background: #f8f9fa;
+      border: 1px solid #e9ecef;
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 25px;
+    }
+    .instructions-box h3 {
+      font-size: 1rem;
+      color: #2c3e50;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .instructions-box ol {
+      margin: 0;
+      padding-left: 20px;
+      color: #5a6c7d;
+      font-size: 0.9rem;
+      line-height: 1.7;
+    }
+    .instructions-box a {
+      color: var(--cm-color-1, #667eea);
+      text-decoration: none;
+    }
+    .instructions-box a:hover {
+      text-decoration: underline;
+    }
+    .loading-spinner {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 15px;
+      padding: 60px 40px;
+      color: #7f8c8d;
+    }
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 4px solid #e0e0e0;
+      border-top-color: var(--cm-color-1, #667eea);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .success-box {
+      text-align: center;
+      padding: 20px;
+    }
+    .success-icon {
+      width: 80px;
+      height: 80px;
+      background: #d4edda;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 20px;
+      font-size: 2.5rem;
+    }
+    .summary-table {
+      background: #f8f9fa;
+      border-radius: 10px;
+      padding: 20px;
+      margin: 20px 0;
+      text-align: left;
+    }
+    .summary-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid #e9ecef;
+    }
+    .summary-row:last-child {
+      border-bottom: none;
+    }
+    .summary-label {
+      color: #7f8c8d;
+    }
+    .summary-value {
+      font-weight: 600;
+      color: #2c3e50;
+    }
+    .hidden {
+      display: none !important;
+    }
+    .cm-logo {
+      width: 40px;
+      height: 40px;
+      background: #fff;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+    }
+    .cm-selector {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 25px;
+    }
+    .cm-option {
+      padding: 15px;
+      border: 2px solid #e0e0e0;
+      border-radius: 10px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .cm-option:hover {
+      border-color: #b0b0b0;
+      background: #f8f9fa;
+    }
+    .cm-option.selected {
+      border-color: var(--cm-color-1, #667eea);
+      background: #f0f7ff;
+    }
+    .cm-option .cm-name {
+      font-weight: 600;
+      font-size: 0.9rem;
+      color: #2c3e50;
+    }
+    @media (max-width: 480px) {
+      .cm-selector {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wizard-container">
+    <div class="wizard-header">
+      <h1><span class="cm-logo" id="cm-logo">🔗</span> <span id="header-title">Connect Channel Manager</span></h1>
+      <p id="header-subtitle">Set up your channel manager integration in minutes <span class="version-tag">(v1)</span></p>
+    </div>
+    
+    <div class="step-dots">
+      <div class="step-dot active" data-step="1"></div>
+      <div class="step-dot" data-step="2"></div>
+      <div class="step-dot" data-step="3"></div>
+      <div class="step-dot" data-step="4"></div>
+      <div class="step-dot" data-step="5"></div>
+    </div>
+    
+    <div class="wizard-content">
+      <!-- Step 1: Select CM (if not specified in URL) -->
+      <div class="step" data-step="1" id="step-select-cm">
+        <h2 class="step-title">Select Your Channel Manager</h2>
+        <p class="step-subtitle">Choose which system you use to manage your properties</p>
+        
+        <div class="cm-selector" id="cm-selector"></div>
+        
+        <div id="step1-cm-status" class="status-message"></div>
+      </div>
+      
+      <!-- Step 2: Login/Register -->
+      <div class="step" data-step="2">
+        <h2 class="step-title">Welcome to GAS</h2>
+        <p class="step-subtitle">Login or create an account to get started</p>
+        
+        <div class="tab-buttons">
+          <button class="tab-btn active" onclick="showTab('login')">Login</button>
+          <button class="tab-btn" onclick="showTab('register')">Register</button>
+        </div>
+        
+        <div id="login-form">
+          <div class="form-group">
+            <label>Email</label>
+            <input type="email" id="login-email" placeholder="your@email.com">
+          </div>
+          <div class="form-group">
+            <label>Password</label>
+            <input type="password" id="login-password" placeholder="Your password">
+          </div>
+        </div>
+        
+        <div id="register-form" class="hidden">
+          <div class="form-group">
+            <label>Your Name</label>
+            <input type="text" id="register-name" placeholder="John Smith">
+          </div>
+          <div class="form-group">
+            <label>Email</label>
+            <input type="email" id="register-email" placeholder="your@email.com">
+          </div>
+          <div class="form-group">
+            <label>Password</label>
+            <input type="password" id="register-password" placeholder="Choose a password">
+          </div>
+          <div class="form-group">
+            <label>Business Name (optional)</label>
+            <input type="text" id="register-business" placeholder="Your property or company name">
+          </div>
+        </div>
+        
+        <div id="step2-status" class="status-message"></div>
+      </div>
+      
+      <!-- Step 3: Instructions -->
+      <div class="step" data-step="3">
+        <h2 class="step-title" id="instructions-title">Get Your API Credentials</h2>
+        <p class="step-subtitle">Follow these steps to get your API credentials</p>
+        
+        <div class="instructions-box" id="instructions-box">
+          <h3>📋 How to get your credentials:</h3>
+          <ol id="instructions-list">
+            <li>Log in to your channel manager dashboard</li>
+            <li>Navigate to Settings → API</li>
+            <li>Generate or copy your API key</li>
+            <li>Click "Next" when ready</li>
+          </ol>
+        </div>
+        
+        <div id="step3-status" class="status-message"></div>
+      </div>
+      
+      <!-- Step 4: Connect -->
+      <div class="step" data-step="4">
+        <h2 class="step-title">Connect Your Account</h2>
+        <p class="step-subtitle" id="connect-subtitle">Enter your credentials to connect</p>
+        
+        <div id="connect-loading" class="loading-spinner hidden">
+          <div class="spinner"></div>
+          <span>Preparing connection...</span>
+        </div>
+        
+        <div id="connect-content">
+          <p style="margin-bottom: 20px; color: #666;">
+            Click the button below to open the secure connection page where you'll enter your API credentials.
+          </p>
+          
+          <button class="btn btn-primary" onclick="openCalryLink()" style="width: 100%; justify-content: center; padding: 18px;" id="connect-btn">
+            🔗 Connect Now
+          </button>
+          
+          <p style="margin-top: 15px; font-size: 0.85rem; color: #95a5a6; text-align: center;">
+            A secure authentication window will open
+          </p>
+        </div>
+        
+        <div id="step4-status" class="status-message"></div>
+      </div>
+      
+      <!-- Step 5: Complete -->
+      <div class="step" data-step="5">
+        <div class="success-box">
+          <div class="success-icon">✓</div>
+          <h2 class="step-title">Connection Complete!</h2>
+          <p class="step-subtitle">Your properties have been imported</p>
+        </div>
+        
+        <div class="summary-table" id="final-summary">
+          <div class="summary-row">
+            <span class="summary-label">Properties Imported</span>
+            <span class="summary-value" id="summary-properties">-</span>
+          </div>
+          <div class="summary-row">
+            <span class="summary-label">Channel Manager</span>
+            <span class="summary-value" id="summary-cm">-</span>
+          </div>
+          <div class="summary-row">
+            <span class="summary-label">Sync Status</span>
+            <span class="summary-value" style="color: #27ae60;">✓ Connected</span>
+          </div>
+        </div>
+        
+        <div id="step5-status" class="status-message"></div>
+      </div>
+    </div>
+    
+    <div class="wizard-footer">
+      <button class="btn btn-link hidden" id="btn-back" onclick="prevStep()">← Back</button>
+      <div></div>
+      <button class="btn btn-primary" id="btn-next" onclick="nextStep()">Next →</button>
+    </div>
+  </div>
+
+  <script>
+    // Channel Manager configurations
+    const CM_CONFIG = {
+      smoobu: {
+        name: 'Smoobu',
+        icon: '🏠',
+        color1: '#ff6b35',
+        color2: '#f7931e',
+        instructions: [
+          'Log in to your <a href="https://login.smoobu.com" target="_blank"><strong>Smoobu Dashboard</strong></a>',
+          'Go to <strong>Advanced → API Keys</strong>',
+          'Click <strong>"Generate API Key"</strong> if you don\'t have one',
+          'Copy your <strong>API Key</strong>',
+          'Click "Next" when ready'
+        ]
+      },
+      guesty: {
+        name: 'Guesty',
+        icon: '🏘️',
+        color1: '#00b4d8',
+        color2: '#0077b6',
+        instructions: [
+          'Log in to your <a href="https://app.guesty.com" target="_blank"><strong>Guesty Dashboard</strong></a>',
+          'Go to <strong>Marketplace → Open API</strong>',
+          'Generate a new API token',
+          'Copy your <strong>API Token</strong>',
+          'Click "Next" when ready'
+        ]
+      },
+      hostfully: {
+        name: 'Hostfully',
+        icon: '🏡',
+        color1: '#6366f1',
+        color2: '#4f46e5',
+        instructions: [
+          'Log in to your <a href="https://platform.hostfully.com" target="_blank"><strong>Hostfully Dashboard</strong></a>',
+          'Go to <strong>Settings → API</strong>',
+          'Copy your <strong>API Key</strong>',
+          'Click "Next" when ready'
+        ]
+      },
+      lodgify: {
+        name: 'Lodgify',
+        icon: '🛏️',
+        color1: '#10b981',
+        color2: '#059669',
+        instructions: [
+          'Log in to your <a href="https://app.lodgify.com" target="_blank"><strong>Lodgify Dashboard</strong></a>',
+          'Go to <strong>Settings → Account → API</strong>',
+          'Copy your <strong>API Key</strong>',
+          'Click "Next" when ready'
+        ]
+      },
+      ownerrez: {
+        name: 'OwnerRez',
+        icon: '🏠',
+        color1: '#8b5cf6',
+        color2: '#7c3aed',
+        instructions: [
+          'Log in to your <a href="https://app.ownerrez.com" target="_blank"><strong>OwnerRez Dashboard</strong></a>',
+          'Go to <strong>Settings → API</strong>',
+          'Generate and copy your <strong>API Key</strong>',
+          'Click "Next" when ready'
+        ]
+      },
+      hospitable: {
+        name: 'Hospitable',
+        icon: '🏨',
+        color1: '#f59e0b',
+        color2: '#d97706',
+        instructions: [
+          'Log in to your <a href="https://app.hospitable.com" target="_blank"><strong>Hospitable Dashboard</strong></a>',
+          'Go to <strong>Settings → Integrations → API</strong>',
+          'Copy your <strong>API Key</strong>',
+          'Click "Next" when ready'
+        ]
+      },
+      tokeet: {
+        name: 'Tokeet',
+        icon: '🔑',
+        color1: '#3b82f6',
+        color2: '#2563eb',
+        instructions: [
+          'Log in to your <a href="https://app.tokeet.com" target="_blank"><strong>Tokeet Dashboard</strong></a>',
+          'Go to <strong>Settings → API Keys</strong>',
+          'Generate and copy your <strong>API Key</strong>',
+          'Click "Next" when ready'
+        ]
+      },
+      uplisting: {
+        name: 'Uplisting',
+        icon: '📊',
+        color1: '#ec4899',
+        color2: '#db2777',
+        instructions: [
+          'Log in to your <a href="https://app.uplisting.io" target="_blank"><strong>Uplisting Dashboard</strong></a>',
+          'Go to <strong>Settings → API</strong>',
+          'Copy your <strong>API Key</strong>',
+          'Click "Next" when ready'
+        ]
+      },
+      hostify: {
+        name: 'Hostify',
+        icon: '🏠',
+        color1: '#14b8a6',
+        color2: '#0d9488',
+        instructions: [
+          'Log in to your <a href="https://app.hostify.com" target="_blank"><strong>Hostify Dashboard</strong></a>',
+          'Go to <strong>Settings → API</strong>',
+          'Copy your <strong>API Key</strong>',
+          'Click "Next" when ready'
+        ]
+      },
+      avantio: {
+        name: 'Avantio',
+        icon: '🏖️',
+        color1: '#f97316',
+        color2: '#ea580c',
+        instructions: [
+          'Log in to your <strong>Avantio Dashboard</strong>',
+          'Contact Avantio support for API credentials',
+          'Have your <strong>API credentials</strong> ready',
+          'Click "Next" when ready'
+        ]
+      },
+      mews: {
+        name: 'Mews',
+        icon: '🏨',
+        color1: '#06b6d4',
+        color2: '#0891b2',
+        instructions: [
+          'Log in to your <a href="https://app.mews.com" target="_blank"><strong>Mews Dashboard</strong></a>',
+          'Go to <strong>Settings → Integrations → Connector API</strong>',
+          'Copy your <strong>Client Token</strong> and <strong>Access Token</strong>',
+          'Click "Next" when ready'
+        ]
+      },
+      cloudbeds: {
+        name: 'Cloudbeds',
+        icon: '☁️',
+        color1: '#6366f1',
+        color2: '#4f46e5',
+        instructions: [
+          'Log in to your <a href="https://hotels.cloudbeds.com" target="_blank"><strong>Cloudbeds Dashboard</strong></a>',
+          'This connection uses OAuth - you\'ll log in to Cloudbeds directly',
+          'Click "Next" to proceed'
+        ]
+      },
+      bookingsync: {
+        name: 'BookingSync',
+        icon: '🔄',
+        color1: '#84cc16',
+        color2: '#65a30d',
+        instructions: [
+          'This connection uses OAuth',
+          'You\'ll be redirected to BookingSync to authorize',
+          'Click "Next" to proceed'
+        ]
+      }
+    };
+
+    // State
+    let currentStep = 1;
+    let selectedCM = null;
+    let gasAccountId = null;
+    let gasAccountName = null;
+    let calryLinkUrl = null;
+    let calryLinkId = null;
+    let isLoginMode = true;
+    let skipCMSelection = false;
+
+    // Check URL params
+    const urlParams = new URLSearchParams(window.location.search);
+    const cmFromUrl = urlParams.get('cm');
+    
+    // Handle callback from Calry
+    if (urlParams.get('calry_connected') === 'true') {
+      const propertiesImported = urlParams.get('properties_imported') || '0';
+      const pmsName = urlParams.get('pms') || 'Channel Manager';
+      const accountId = urlParams.get('account_id');
+      
+      gasAccountId = accountId;
+      selectedCM = pmsName.toLowerCase();
+      currentStep = 5;
+      
+      document.addEventListener('DOMContentLoaded', () => {
+        if (CM_CONFIG[selectedCM]) {
+          applyTheme(selectedCM);
+        }
+        showStep(5);
+        document.getElementById('summary-properties').textContent = propertiesImported;
+        document.getElementById('summary-cm').textContent = pmsName;
+      });
+    } else if (cmFromUrl && CM_CONFIG[cmFromUrl]) {
+      // CM specified in URL - skip selection
+      selectedCM = cmFromUrl;
+      skipCMSelection = true;
+      currentStep = 2;
+      
+      document.addEventListener('DOMContentLoaded', () => {
+        applyTheme(selectedCM);
+        showStep(2);
+      });
+    }
+
+    // Initialize CM selector
+    document.addEventListener('DOMContentLoaded', () => {
+      const selector = document.getElementById('cm-selector');
+      Object.entries(CM_CONFIG).forEach(([code, config]) => {
+        const option = document.createElement('div');
+        option.className = 'cm-option';
+        option.dataset.cm = code;
+        option.innerHTML = `
+          <div style="font-size: 1.5rem; margin-bottom: 5px;">${config.icon}</div>
+          <div class="cm-name">${config.name}</div>
+        `;
+        option.onclick = () => selectCM(code);
+        selector.appendChild(option);
+      });
+      
+      if (!skipCMSelection && currentStep === 1) {
+        showStep(1);
+      }
+    });
+
+    function selectCM(code) {
+      selectedCM = code;
+      document.querySelectorAll('.cm-option').forEach(opt => {
+        opt.classList.toggle('selected', opt.dataset.cm === code);
+      });
+      applyTheme(code);
+    }
+
+    function applyTheme(code) {
+      const config = CM_CONFIG[code];
+      if (!config) return;
+      
+      document.documentElement.style.setProperty('--cm-color-1', config.color1);
+      document.documentElement.style.setProperty('--cm-color-2', config.color2);
+      document.getElementById('header-title').textContent = `Connect to ${config.name}`;
+      document.getElementById('cm-logo').textContent = config.icon;
+      document.getElementById('connect-btn').textContent = `🔗 Connect to ${config.name}`;
+      document.getElementById('instructions-title').textContent = `Get Your ${config.name} API Key`;
+      
+      // Update instructions
+      const list = document.getElementById('instructions-list');
+      list.innerHTML = config.instructions.map(i => `<li>${i}</li>`).join('');
+    }
+
+    // Tab switching
+    function showTab(tab) {
+      isLoginMode = tab === 'login';
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      event.target.classList.add('active');
+      document.getElementById('login-form').classList.toggle('hidden', !isLoginMode);
+      document.getElementById('register-form').classList.toggle('hidden', isLoginMode);
+    }
+
+    // Navigation
+    function updateStepDots() {
+      const offset = skipCMSelection ? 1 : 0;
+      document.querySelectorAll('.step-dot').forEach((dot, idx) => {
+        dot.classList.remove('active', 'completed');
+        const adjustedCurrent = currentStep - offset;
+        const adjustedIdx = idx + 1;
+        if (adjustedIdx === adjustedCurrent) {
+          dot.classList.add('active');
+        } else if (adjustedIdx < adjustedCurrent) {
+          dot.classList.add('completed');
+        }
+      });
+    }
+
+    function showStep(step) {
+      document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+      document.querySelector(`.step[data-step="${step}"]`).classList.add('active');
+      
+      // Update buttons
+      const isFirstStep = (skipCMSelection && step === 2) || (!skipCMSelection && step === 1);
+      document.getElementById('btn-back').classList.toggle('hidden', isFirstStep || step === 5);
+      
+      if (step === 4) {
+        document.getElementById('btn-next').classList.add('hidden');
+      } else if (step === 5) {
+        document.getElementById('btn-next').textContent = 'Go to Dashboard';
+        document.getElementById('btn-next').classList.remove('hidden');
+      } else {
+        document.getElementById('btn-next').textContent = 'Next →';
+        document.getElementById('btn-next').classList.remove('hidden');
+      }
+      
+      updateStepDots();
+    }
+
+    async function nextStep() {
+      clearStatus();
+      
+      if (currentStep === 1) {
+        if (!selectedCM) {
+          showStatus('step1-cm-status', 'Please select a channel manager', 'error');
+          return;
+        }
+        currentStep = 2;
+        showStep(currentStep);
+      } else if (currentStep === 2) {
+        if (await handleAuth()) {
+          currentStep = 3;
+          showStep(currentStep);
+        }
+      } else if (currentStep === 3) {
+        await createCalryLink();
+        currentStep = 4;
+        showStep(currentStep);
+      } else if (currentStep === 5) {
+        window.location.href = '/connections';
+      }
+    }
+
+    function prevStep() {
+      if (currentStep > 1 && currentStep < 5) {
+        if (skipCMSelection && currentStep === 2) return;
+        currentStep--;
+        showStep(currentStep);
+      }
+    }
+
+    // Authentication
+    async function handleAuth() {
+      if (isLoginMode) {
+        return await login();
+      } else {
+        return await register();
+      }
+    }
+
+    async function login() {
+      const email = document.getElementById('login-email').value.trim();
+      const password = document.getElementById('login-password').value;
+      
+      if (!email || !password) {
+        showStatus('step2-status', 'Please enter email and password', 'error');
+        return false;
+      }
+      
+      showStatus('step2-status', 'Logging in...', 'info');
+      
+      try {
+        const response = await fetch('/api/accounts/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          gasAccountId = data.accountId;
+          gasAccountName = data.accountName || email;
+          showStatus('step2-status', '✓ Logged in successfully', 'success');
+          return true;
+        } else {
+          showStatus('step2-status', data.error || 'Login failed', 'error');
+          return false;
+        }
+      } catch (error) {
+        showStatus('step2-status', 'Connection error: ' + error.message, 'error');
+        return false;
+      }
+    }
+
+    async function register() {
+      const name = document.getElementById('register-name').value.trim();
+      const email = document.getElementById('register-email').value.trim();
+      const password = document.getElementById('register-password').value;
+      const business = document.getElementById('register-business').value.trim();
+      
+      if (!name || !email || !password) {
+        showStatus('step2-status', 'Please fill in all required fields', 'error');
+        return false;
+      }
+      
+      showStatus('step2-status', 'Creating account...', 'info');
+      
+      try {
+        const response = await fetch('/api/accounts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, email, password, business_name: business })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          gasAccountId = data.account?.id;
+          gasAccountName = business || name;
+          showStatus('step2-status', '✓ Account created successfully', 'success');
+          return true;
+        } else {
+          showStatus('step2-status', data.error || 'Registration failed', 'error');
+          return false;
+        }
+      } catch (error) {
+        showStatus('step2-status', 'Connection error: ' + error.message, 'error');
+        return false;
+      }
+    }
+
+    // Create Calry Link
+    async function createCalryLink() {
+      try {
+        const response = await fetch('/api/cm/connect', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            cm_type: selectedCM,
+            account_id: gasAccountId
+          })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          calryLinkUrl = data.link_url;
+          calryLinkId = data.link_id;
+          gasAccountId = data.account_id;
+        } else {
+          showStatus('step3-status', data.error || 'Failed to create connection', 'error');
+        }
+      } catch (error) {
+        showStatus('step3-status', 'Connection error: ' + error.message, 'error');
+      }
+    }
+
+    function openCalryLink() {
+      if (calryLinkUrl) {
+        window.location.href = calryLinkUrl;
+      } else {
+        showStatus('step4-status', 'Connection not ready. Please go back and try again.', 'error');
+      }
+    }
+
+    // Utilities
+    function showStatus(elementId, message, type) {
+      const el = document.getElementById(elementId);
+      if (el) {
+        el.textContent = message;
+        el.className = `status-message show ${type}`;
+      }
+    }
+
+    function clearStatus() {
+      document.querySelectorAll('.status-message').forEach(el => {
+        el.classList.remove('show');
+      });
+    }
+
+    document.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter' && currentStep !== 4) {
+        nextStep();
+      }
+    });
+    
+    console.log('🔗 Universal CM Wizard loaded');
+  </script>
+</body>
+</html>
