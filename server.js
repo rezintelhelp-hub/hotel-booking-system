@@ -106,7 +106,7 @@ const EMAIL_FROM = process.env.EMAIL_FROM || 'bookings@mg.gas.travel';
 // Calry API configuration
 const CALRY_API_TOKEN = process.env.CALRY_API_TOKEN;
 const CALRY_WORKSPACE_ID = process.env.CALRY_WORKSPACE_ID;
-const CALRY_API_BASE = 'https://dev.calry.app/api/v2/vrs';
+const CALRY_API_BASE = 'https://prod.calry.app/api/v2/vrs';
 
 // Send email via Mailgun API
 async function sendEmail({ to, subject, html, from = EMAIL_FROM }) {
@@ -18393,7 +18393,7 @@ app.get('/api/calry/test-integration-accounts', async (req, res) => {
     }
     
     // Note: This endpoint might be different - checking Calry docs
-    const response = await axios.get('https://dev.calry.app/api/v1/integration-accounts', {
+    const response = await axios.get('https://prod.calry.app/api/v1/integration-accounts', {
       headers: {
         'Authorization': `Bearer ${CALRY_API_TOKEN}`,
         'workspaceId': CALRY_WORKSPACE_ID,
