@@ -29081,18 +29081,17 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
         console.log(`[Elevate] Created new user ${userId} for client`);
       }
       
-      // Now create the account linked to this user
+      // Now create the account (store user_id in settings since column doesn't exist)
       const newAccount = await pool.query(`
         INSERT INTO accounts (
-          parent_id, user_id, name, email, contact_name, phone, business_name,
+          parent_id, name, email, contact_name, phone, business_name,
           currency, timezone, api_key, api_key_created_at, status, settings, created_at
         ) VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), 'active', $11, NOW()
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), 'active', $10, NOW()
         )
         RETURNING id, public_id, api_key
       `, [
         ELEVATE_MASTER_ACCOUNT_ID,
-        userId,
         client.name,
         client.email,
         client.contact_name || null,
@@ -29127,7 +29126,7 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
       }
       
       const existingClient = await pool.query(`
-        SELECT id, api_key, user_id FROM accounts 
+        SELECT id, api_key, email, settings FROM accounts 
         WHERE parent_id = $1 
         AND (id::text = $2 OR settings->>'external_id' = $2)
       `, [ELEVATE_MASTER_ACCOUNT_ID, String(identifier)]);
@@ -29141,12 +29140,14 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
       
       clientAccountId = existingClient.rows[0].id;
       clientApiKey = existingClient.rows[0].api_key;
-      clientUserId = existingClient.rows[0].user_id;
+      
+      // Get user_id from settings JSON
+      const settings = existingClient.rows[0].settings || {};
+      clientUserId = settings.user_id;
       
       // If existing account doesn't have user_id, try to find or create one
       if (!clientUserId) {
-        const accountEmail = await pool.query('SELECT email FROM accounts WHERE id = $1', [clientAccountId]);
-        const email = accountEmail.rows[0]?.email;
+        const email = existingClient.rows[0].email;
         
         if (email) {
           const existingUser = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
@@ -29164,8 +29165,9 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
             clientUserId = newUser.rows[0].id;
           }
           
-          // Update account with user_id
-          await pool.query('UPDATE accounts SET user_id = $1 WHERE id = $2', [clientUserId, clientAccountId]);
+          // Update account settings with user_id
+          const updatedSettings = { ...settings, user_id: clientUserId };
+          await pool.query('UPDATE accounts SET settings = $1 WHERE id = $2', [JSON.stringify(updatedSettings), clientAccountId]);
           console.log(`[Elevate] Linked user ${clientUserId} to existing account ${clientAccountId}`);
         }
       }
