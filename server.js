@@ -27624,6 +27624,7 @@ app.get('/api/elevate/cleanup-test-data-xK9mP2nL', async (req, res) => {
   try {
     const results = [];
     const deleteAccount92Props = req.query.delete92 === 'true';
+    const updateRole = req.query.role === 'agency_admin';
     
     // Delete test rooms from account 108 properties
     const rooms = await pool.query(
@@ -27667,16 +27668,33 @@ app.get('/api/elevate/cleanup-test-data-xK9mP2nL', async (req, res) => {
       results.push(`Deleted ${props92.rowCount} properties from account 92`);
     }
     
+    // Optionally update Elevate role to agency_admin
+    if (updateRole) {
+      await pool.query(
+        "UPDATE accounts SET role = 'agency_admin', updated_at = NOW() WHERE id = 92"
+      );
+      results.push('Updated account 92 role to agency_admin');
+    }
+    
     // Check remaining properties on account 92
     const remaining = await pool.query(
       'SELECT id, name, beds24_property_id FROM properties WHERE account_id = 92'
     );
     
+    // Check current role
+    const accountInfo = await pool.query(
+      'SELECT id, name, role FROM accounts WHERE id = 92'
+    );
+    
     res.json({
       success: true,
       cleanup_results: results,
+      account_92: accountInfo.rows[0],
       remaining_properties_on_92: remaining.rows,
-      tip: remaining.rows.length > 0 ? 'Add ?delete92=true to also delete account 92 properties' : 'All clean!'
+      tips: [
+        remaining.rows.length > 0 ? 'Add ?delete92=true to delete account 92 properties' : null,
+        accountInfo.rows[0]?.role !== 'agency_admin' ? 'Add ?role=agency_admin to update role' : null
+      ].filter(Boolean)
     });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
