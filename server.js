@@ -18745,6 +18745,22 @@ app.get('/api/admin/schema/users', async (req, res) => {
   }
 });
 
+// Debug: Check Calry link status
+app.get('/api/calry/link/status/:linkId', async (req, res) => {
+  try {
+    const { linkId } = req.params;
+    const linkResponse = await axios.get(`https://prod.calry.app/api/v1/link/${linkId}`, {
+      headers: {
+        'Authorization': `Bearer ${CALRY_API_TOKEN}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    res.json({ success: true, data: linkResponse.data });
+  } catch (error) {
+    res.json({ success: false, error: error.response?.data || error.message });
+  }
+});
+
 // Step 1: Start the Calry Link flow - creates a link and returns URL
 app.get('/api/calry/link/start', async (req, res) => {
   console.log('=== CALRY LINK: START ===');
