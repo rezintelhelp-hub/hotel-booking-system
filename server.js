@@ -27623,24 +27623,25 @@ async function validateElevatePartnerKey(apiKey) {
 app.get('/api/elevate/cleanup-test-data-xK9mP2nL', async (req, res) => {
   try {
     const results = [];
+    const deleteAccount92Props = req.query.delete92 === 'true';
     
     // Delete test rooms from account 108 properties
     const rooms = await pool.query(
       'DELETE FROM bookable_units WHERE property_id IN (SELECT id FROM properties WHERE account_id = 108) RETURNING id'
     );
-    results.push(`Deleted ${rooms.rowCount} rooms`);
+    results.push(`Deleted ${rooms.rowCount} rooms from account 108`);
     
     // Delete test properties from account 108
     const props = await pool.query(
       'DELETE FROM properties WHERE account_id = 108 RETURNING id'
     );
-    results.push(`Deleted ${props.rowCount} properties`);
+    results.push(`Deleted ${props.rowCount} properties from account 108`);
     
     // Delete test sub-account 108
     const acct = await pool.query(
       'DELETE FROM accounts WHERE id = 108 RETURNING id'
     );
-    results.push(`Deleted ${acct.rowCount} accounts`);
+    results.push(`Deleted ${acct.rowCount} sub-accounts`);
     
     // Remove Beds24 connections from Elevate (account 92)
     const cc = await pool.query(
@@ -27653,6 +27654,19 @@ app.get('/api/elevate/cleanup-test-data-xK9mP2nL', async (req, res) => {
     );
     results.push(`Deleted ${gsc.rowCount} gas_sync_connections`);
     
+    // Optionally delete properties directly on account 92
+    if (deleteAccount92Props) {
+      const rooms92 = await pool.query(
+        'DELETE FROM bookable_units WHERE property_id IN (SELECT id FROM properties WHERE account_id = 92) RETURNING id'
+      );
+      results.push(`Deleted ${rooms92.rowCount} rooms from account 92`);
+      
+      const props92 = await pool.query(
+        'DELETE FROM properties WHERE account_id = 92 RETURNING id'
+      );
+      results.push(`Deleted ${props92.rowCount} properties from account 92`);
+    }
+    
     // Check remaining properties on account 92
     const remaining = await pool.query(
       'SELECT id, name, beds24_property_id FROM properties WHERE account_id = 92'
@@ -27661,7 +27675,8 @@ app.get('/api/elevate/cleanup-test-data-xK9mP2nL', async (req, res) => {
     res.json({
       success: true,
       cleanup_results: results,
-      remaining_properties_on_92: remaining.rows
+      remaining_properties_on_92: remaining.rows,
+      tip: remaining.rows.length > 0 ? 'Add ?delete92=true to also delete account 92 properties' : 'All clean!'
     });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
