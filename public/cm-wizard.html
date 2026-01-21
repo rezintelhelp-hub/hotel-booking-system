@@ -501,164 +501,73 @@
   </div>
 
   <script>
-    // Channel Manager configurations
+    // Channel Manager configurations - ALL Calry-supported PMS
     const CM_CONFIG = {
-      smoobu: {
-        name: 'Smoobu',
-        icon: '🏠',
-        color1: '#ff6b35',
-        color2: '#f7931e',
-        instructions: [
-          'Log in to your <a href="https://login.smoobu.com" target="_blank"><strong>Smoobu Dashboard</strong></a>',
-          'Go to <strong>Advanced → API Keys</strong>',
-          'Click <strong>"Generate API Key"</strong> if you don\'t have one',
-          'Copy your <strong>API Key</strong>',
-          'Click "Next" when ready'
-        ]
-      },
-      guesty: {
-        name: 'Guesty',
-        icon: '🏘️',
-        color1: '#00b4d8',
-        color2: '#0077b6',
-        instructions: [
-          'Log in to your <a href="https://app.guesty.com" target="_blank"><strong>Guesty Dashboard</strong></a>',
-          'Go to <strong>Marketplace → Open API</strong>',
-          'Generate a new API token',
-          'Copy your <strong>API Token</strong>',
-          'Click "Next" when ready'
-        ]
-      },
-      hostfully: {
-        name: 'Hostfully',
-        icon: '🏡',
-        color1: '#6366f1',
-        color2: '#4f46e5',
-        instructions: [
-          'Log in to your <a href="https://platform.hostfully.com" target="_blank"><strong>Hostfully Dashboard</strong></a>',
-          'Go to <strong>Settings → API</strong>',
-          'Copy your <strong>API Key</strong>',
-          'Click "Next" when ready'
-        ]
-      },
-      lodgify: {
-        name: 'Lodgify',
-        icon: '🛏️',
-        color1: '#10b981',
-        color2: '#059669',
-        instructions: [
-          'Log in to your <a href="https://app.lodgify.com" target="_blank"><strong>Lodgify Dashboard</strong></a>',
-          'Go to <strong>Settings → Account → API</strong>',
-          'Copy your <strong>API Key</strong>',
-          'Click "Next" when ready'
-        ]
-      },
-      ownerrez: {
-        name: 'OwnerRez',
-        icon: '🏠',
-        color1: '#8b5cf6',
-        color2: '#7c3aed',
-        instructions: [
-          'Log in to your <a href="https://app.ownerrez.com" target="_blank"><strong>OwnerRez Dashboard</strong></a>',
-          'Go to <strong>Settings → API</strong>',
-          'Generate and copy your <strong>API Key</strong>',
-          'Click "Next" when ready'
-        ]
-      },
-      hospitable: {
-        name: 'Hospitable',
-        icon: '🏨',
-        color1: '#f59e0b',
-        color2: '#d97706',
-        instructions: [
-          'Log in to your <a href="https://app.hospitable.com" target="_blank"><strong>Hospitable Dashboard</strong></a>',
-          'Go to <strong>Settings → Integrations → API</strong>',
-          'Copy your <strong>API Key</strong>',
-          'Click "Next" when ready'
-        ]
-      },
-      tokeet: {
-        name: 'Tokeet',
-        icon: '🔑',
-        color1: '#3b82f6',
-        color2: '#2563eb',
-        instructions: [
-          'Log in to your <a href="https://app.tokeet.com" target="_blank"><strong>Tokeet Dashboard</strong></a>',
-          'Go to <strong>Settings → API Keys</strong>',
-          'Generate and copy your <strong>API Key</strong>',
-          'Click "Next" when ready'
-        ]
-      },
-      uplisting: {
-        name: 'Uplisting',
-        icon: '📊',
-        color1: '#ec4899',
-        color2: '#db2777',
-        instructions: [
-          'Log in to your <a href="https://app.uplisting.io" target="_blank"><strong>Uplisting Dashboard</strong></a>',
-          'Go to <strong>Settings → API</strong>',
-          'Copy your <strong>API Key</strong>',
-          'Click "Next" when ready'
-        ]
-      },
-      hostify: {
-        name: 'Hostify',
-        icon: '🏠',
-        color1: '#14b8a6',
-        color2: '#0d9488',
-        instructions: [
-          'Log in to your <a href="https://app.hostify.com" target="_blank"><strong>Hostify Dashboard</strong></a>',
-          'Go to <strong>Settings → API</strong>',
-          'Copy your <strong>API Key</strong>',
-          'Click "Next" when ready'
-        ]
-      },
-      avantio: {
-        name: 'Avantio',
-        icon: '🏖️',
-        color1: '#f97316',
-        color2: '#ea580c',
-        instructions: [
-          'Log in to your <strong>Avantio Dashboard</strong>',
-          'Contact Avantio support for API credentials',
-          'Have your <strong>API credentials</strong> ready',
-          'Click "Next" when ready'
-        ]
-      },
-      mews: {
-        name: 'Mews',
-        icon: '🏨',
-        color1: '#06b6d4',
-        color2: '#0891b2',
-        instructions: [
-          'Log in to your <a href="https://app.mews.com" target="_blank"><strong>Mews Dashboard</strong></a>',
-          'Go to <strong>Settings → Integrations → Connector API</strong>',
-          'Copy your <strong>Client Token</strong> and <strong>Access Token</strong>',
-          'Click "Next" when ready'
-        ]
-      },
-      cloudbeds: {
-        name: 'Cloudbeds',
-        icon: '☁️',
-        color1: '#6366f1',
-        color2: '#4f46e5',
-        instructions: [
-          'Log in to your <a href="https://hotels.cloudbeds.com" target="_blank"><strong>Cloudbeds Dashboard</strong></a>',
-          'This connection uses OAuth - you\'ll log in to Cloudbeds directly',
-          'Click "Next" to proceed'
-        ]
-      },
-      bookingsync: {
-        name: 'BookingSync',
-        icon: '🔄',
-        color1: '#84cc16',
-        color2: '#65a30d',
-        instructions: [
-          'This connection uses OAuth',
-          'You\'ll be redirected to BookingSync to authorize',
-          'Click "Next" to proceed'
-        ]
-      }
+      // A
+      apaleo: { name: 'Apaleo', icon: '🏨', color1: '#6366f1', color2: '#4f46e5', instructions: ['You\'ll be redirected to <strong>Apaleo</strong> to authorize', 'Log in to your Apaleo account when prompted', 'Click <strong>Authorize</strong> to connect', 'You\'ll be redirected back automatically'] },
+      avaibook: { name: 'AvaiBook', icon: '📅', color1: '#10b981', color2: '#059669', instructions: ['Log in to your <strong>AvaiBook Dashboard</strong>', 'Go to <strong>Settings → API</strong>', 'Copy your <strong>API Key</strong>', 'Click "Next" when ready'] },
+      avantio: { name: 'Avantio', icon: '🏖️', color1: '#f97316', color2: '#ea580c', instructions: ['Log in to your <strong>Avantio Dashboard</strong>', 'Contact Avantio support for API credentials', 'Have your <strong>API credentials</strong> ready', 'Click "Next" when ready'] },
+      
+      // B
+      bed24: { name: 'Bed24', icon: '🛏️', color1: '#3b82f6', color2: '#2563eb', instructions: ['Log in to your <a href="https://beds24.com" target="_blank"><strong>Beds24 Dashboard</strong></a>', 'Go to <strong>Settings → Account → API</strong>', 'Copy your <strong>API Key</strong>', 'Click "Next" when ready'] },
+      beds24marketplace: { name: 'Beds24 Marketplace', icon: '🛒', color1: '#8b5cf6', color2: '#7c3aed', instructions: ['Log in to your <strong>Beds24 Marketplace</strong>', 'Go to <strong>Settings → API</strong>', 'Copy your <strong>API Key</strong>', 'Click "Next" when ready'] },
+      bookingsync: { name: 'BookingSync (Smily)', icon: '🔄', color1: '#84cc16', color2: '#65a30d', instructions: ['You\'ll be redirected to <strong>BookingSync</strong> to authorize', 'Log in to your BookingSync account when prompted', 'Click <strong>Authorize</strong> to connect', 'You\'ll be redirected back automatically'] },
+      
+      // C
+      cloudbeds: { name: 'Cloudbeds', icon: '☁️', color1: '#6366f1', color2: '#4f46e5', instructions: ['You\'ll be redirected to <strong>Cloudbeds</strong> to authorize', 'Log in to your Cloudbeds account when prompted', 'Click <strong>Authorize</strong> to connect', 'You\'ll be redirected back automatically'] },
+      
+      // D
+      directsoftware: { name: 'Direct Software', icon: '💻', color1: '#64748b', color2: '#475569', instructions: ['Log in to your <strong>Direct Software Dashboard</strong>', 'Go to <strong>Settings → API</strong>', 'Copy your <strong>API credentials</strong>', 'Click "Next" when ready'] },
+      
+      // E
+      elina: { name: 'Elina', icon: '🏠', color1: '#14b8a6', color2: '#0d9488', instructions: ['Log in to your <strong>Elina Dashboard</strong>', 'Go to <strong>Settings → API</strong>', 'Copy your <strong>API Key</strong>', 'Click "Next" when ready'] },
+      escapia: { name: 'Escapia', icon: '🌴', color1: '#f59e0b', color2: '#d97706', instructions: ['Log in to your <strong>Escapia Dashboard</strong>', 'Go to <strong>Settings → API</strong>', 'Copy your <strong>API credentials</strong>', 'Click "Next" when ready'] },
+      
+      // F
+      fantasticstay: { name: 'FantasticStay', icon: '✨', color1: '#ec4899', color2: '#db2777', instructions: ['Open your <a href="https://app.fantasticstay.com" target="_blank"><strong>FantasticStay Account</strong></a> in a new tab', 'Go to <strong>Settings → API Key</strong>', 'Copy your <strong>API Key</strong>', 'You\'ll enter it on the next screen'] },
+      
+      // G
+      guesty: { name: 'Guesty', icon: '🏘️', color1: '#00b4d8', color2: '#0077b6', instructions: ['Open your <a href="https://app.guesty.com" target="_blank"><strong>Guesty Account</strong></a> in a new tab', 'Go to <strong>Marketplace → Open API</strong>', 'Generate a new API token if needed', 'Copy your <strong>API Token</strong>', 'You\'ll enter it on the next screen'] },
+      guestwisely: { name: 'GuestWisely', icon: '🧠', color1: '#8b5cf6', color2: '#7c3aed', instructions: ['Log in to your <strong>GuestWisely Dashboard</strong>', 'Go to <strong>Settings → API</strong>', 'Copy your <strong>API Key</strong>', 'Click "Next" when ready'] },
+      
+      // H
+      hospitable: { name: 'Hospitable', icon: '🏨', color1: '#f59e0b', color2: '#d97706', instructions: ['Log in to your <a href="https://app.hospitable.com" target="_blank"><strong>Hospitable Dashboard</strong></a>', 'Go to <strong>Settings → Integrations → API</strong>', 'Copy your <strong>API Key</strong>', 'Click "Next" when ready'] },
+      hostaway: { name: 'Hostaway', icon: '🏠', color1: '#2c3e50', color2: '#3498db', instructions: ['Open your <a href="https://dashboard.hostaway.com" target="_blank"><strong>Hostaway Account</strong></a> in a new tab', 'Go to <strong>Settings → API</strong>', 'Copy your <strong>Account ID</strong> and <strong>API Key</strong>', 'You\'ll enter them on the next screen'] },
+      hostex: { name: 'Hostex', icon: '🏡', color1: '#10b981', color2: '#059669', instructions: ['Log in to your <strong>Hostex Dashboard</strong>', 'Go to <strong>Settings → API</strong>', 'Copy your <strong>API Key</strong>', 'Click "Next" when ready'] },
+      hostfully: { name: 'Hostfully', icon: '🏡', color1: '#6366f1', color2: '#4f46e5', instructions: ['Log in to your <a href="https://platform.hostfully.com" target="_blank"><strong>Hostfully Dashboard</strong></a>', 'Go to <strong>Settings → API</strong>', 'Copy your <strong>API Key</strong>', 'Click "Next" when ready'] },
+      hostify: { name: 'Hostify', icon: '🏠', color1: '#14b8a6', color2: '#0d9488', instructions: ['Log in to your <a href="https://app.hostify.com" target="_blank"><strong>Hostify Dashboard</strong></a>', 'Go to <strong>Settings → API</strong>', 'Copy your <strong>API Key</strong>', 'Click "Next" when ready'] },
+      hosttools: { name: 'Host Tools', icon: '🔧', color1: '#64748b', color2: '#475569', instructions: ['Log in to your <strong>Host Tools Dashboard</strong>', 'Go to <strong>Settings → API</strong>', 'Copy your <strong>API Key</strong>', 'Click "Next" when ready'] },
+      
+      // L
+      lodgify: { name: 'Lodgify', icon: '🛏️', color1: '#10b981', color2: '#059669', instructions: ['Open your <a href="https://app.lodgify.com" target="_blank"><strong>Lodgify Account</strong></a> in a new tab', 'Go to <strong>Settings → Public API</strong>', 'Copy your <strong>API Key</strong>', 'You\'ll enter it on the next screen'] },
+      
+      // M
+      mews: { name: 'Mews', icon: '🏨', color1: '#06b6d4', color2: '#0891b2', instructions: ['Log in to your <a href="https://app.mews.com" target="_blank"><strong>Mews Dashboard</strong></a>', 'Go to <strong>Settings → Integrations → Connector API</strong>', 'Copy your <strong>Client Token</strong> and <strong>Access Token</strong>', 'Click "Next" when ready'] },
+      
+      // O
+      ownerrez: { name: 'OwnerRez', icon: '🏠', color1: '#8b5cf6', color2: '#7c3aed', instructions: ['Log in to your <a href="https://app.ownerrez.com" target="_blank"><strong>OwnerRez Dashboard</strong></a>', 'Go to <strong>Settings → API</strong>', 'Generate and copy your <strong>API Key</strong>', 'Click "Next" when ready'] },
+      
+      // R
+      rentalwise: { name: 'RentalWise', icon: '📊', color1: '#3b82f6', color2: '#2563eb', instructions: ['Log in to your <strong>RentalWise Dashboard</strong>', 'Go to <strong>Settings → API</strong>', 'Copy your <strong>API Key</strong>', 'Click "Next" when ready'] },
+      resly: { name: 'Resly', icon: '🏨', color1: '#ec4899', color2: '#db2777', instructions: ['Log in to your <strong>Resly Dashboard</strong>', 'Go to <strong>Settings → API</strong>', 'Copy your <strong>API Key</strong>', 'Click "Next" when ready'] },
+      rmscloud: { name: 'RMS Cloud', icon: '☁️', color1: '#0ea5e9', color2: '#0284c7', instructions: ['Log in to your <strong>RMS Cloud Dashboard</strong>', 'Go to <strong>Settings → API</strong>', 'Copy your <strong>API credentials</strong>', 'Click "Next" when ready'] },
+      
+      // S
+      smoobu: { name: 'Smoobu', icon: '🏠', color1: '#ff6b35', color2: '#f7931e', instructions: ['Open your <a href="https://login.smoobu.com" target="_blank"><strong>Smoobu Account</strong></a> in a new tab', 'Go to <strong>Settings → API & Marketplace</strong>', 'Click <strong>"Generate API Key"</strong> if you don\'t have one', 'Copy your <strong>API Key</strong>', 'You\'ll enter it on the next screen'] },
+      streamline: { name: 'Streamline', icon: '🌊', color1: '#0ea5e9', color2: '#0284c7', instructions: ['Log in to your <strong>Streamline Dashboard</strong>', 'Go to <strong>Settings → API</strong>', 'Copy your <strong>API Key</strong>', 'Click "Next" when ready'] },
+      
+      // T
+      tokeet: { name: 'Tokeet', icon: '🔑', color1: '#3b82f6', color2: '#2563eb', instructions: ['Log in to your <a href="https://app.tokeet.com" target="_blank"><strong>Tokeet Dashboard</strong></a>', 'Go to <strong>Settings → API Keys</strong>', 'Generate and copy your <strong>API Key</strong>', 'Click "Next" when ready'] },
+      track: { name: 'Track', icon: '📍', color1: '#64748b', color2: '#475569', instructions: ['Log in to your <strong>Track Dashboard</strong>', 'Go to <strong>Settings → API</strong>', 'Copy your <strong>API Key</strong>', 'Click "Next" when ready'] },
+      
+      // U
+      uplisting: { name: 'Uplisting', icon: '📊', color1: '#ec4899', color2: '#db2777', instructions: ['Log in to your <a href="https://app.uplisting.io" target="_blank"><strong>Uplisting Dashboard</strong></a>', 'Go to <strong>Settings → API</strong>', 'Copy your <strong>API Key</strong>', 'Click "Next" when ready'] },
+      
+      // Y
+      yourrentals: { name: 'Your.Rentals', icon: '🏡', color1: '#10b981', color2: '#059669', instructions: ['Log in to your <strong>Your.Rentals Dashboard</strong>', 'Go to <strong>Settings → API</strong>', 'Copy your <strong>API Key</strong>', 'Click "Next" when ready'] },
+      
+      // Z
+      zeevou: { name: 'Zeevou', icon: '🌟', color1: '#f59e0b', color2: '#d97706', instructions: ['Log in to your <a href="https://app.zeevou.com" target="_blank"><strong>Zeevou Dashboard</strong></a>', 'Go to <strong>Settings → API</strong>', 'Copy your <strong>API Key</strong>', 'Click "Next" when ready'] }
     };
 
     // State
