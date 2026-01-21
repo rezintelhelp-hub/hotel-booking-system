@@ -18965,25 +18965,42 @@ app.get('/api/calry/link/callback', async (req, res) => {
       `);
     }
     
-    // Look up link by accountIdentifier using Calry's Get All Links endpoint
-    const linksResponse = await axios.get('https://prod.calry.app/api/v1/link', {
+    // Look up linkId from our stored session
+    let linkId = null;
+    try {
+      const sessionResult = await pool.query(
+        'SELECT link_id FROM calry_link_sessions WHERE account_identifier = $1',
+        [account]
+      );
+      if (sessionResult.rows.length > 0) {
+        linkId = sessionResult.rows[0].link_id;
+        console.log('Found linkId from session:', linkId);
+      }
+    } catch (dbError) {
+      console.log('Could not look up link session:', dbError.message);
+    }
+    
+    if (!linkId) {
+      return res.redirect(`https://admin.gas.travel/connections?error=Link session not found for ${account}`);
+    }
+    
+    // Fetch the link details to get integrationAccountId
+    const linkResponse = await axios.get(`https://prod.calry.app/api/v1/link/${linkId}`, {
       headers: {
         'Authorization': `Bearer ${CALRY_API_TOKEN}`,
         'Content-Type': 'application/json'
       }
     });
     
-    const links = linksResponse.data || [];
-    const matchingLink = links.find(l => l.accountIdentifier === account && l.status === 'SUCCEEDED');
+    const linkData = linkResponse.data;
+    console.log('Link status:', linkData.status);
     
-    if (!matchingLink) {
-      return res.redirect(`https://admin.gas.travel/connections?error=Link not found or not completed for ${account}`);
+    if (linkData.status !== 'SUCCEEDED') {
+      return res.redirect(`https://admin.gas.travel/connections?error=Connection not completed (status: ${linkData.status})`);
     }
     
-    console.log('Found matching link:', matchingLink.linkId);
-    
     // Get the integrationAccountId from the link
-    const integrationAccount = matchingLink.integrationAccounts?.[0];
+    const integrationAccount = linkData.integrationAccounts?.[0];
     if (!integrationAccount?.integrationAccountId) {
       return res.redirect('https://admin.gas.travel/connections?error=No integration account found in link');
     }
@@ -19020,12 +19037,17 @@ app.get('/api/calry/link/callback', async (req, res) => {
       }
     }
     
+    // Clean up session
+    try {
+      await pool.query('DELETE FROM calry_link_sessions WHERE link_id = $1', [linkId]);
+    } catch (e) {}
+    
     // Redirect to success page
     res.redirect(`https://admin.gas.travel/connections?calry_connected=true&pms=${encodeURIComponent(pmsName)}&properties_imported=${successCount}&integration_id=${intAccountId}`);
     
   } catch (error) {
     console.error('Calry Link callback error:', error.response?.data || error.message);
-    res.redirect(`https://admin.gas.travel/connections?error=${encodeURIComponent(error.message)}`);
+    res.redirect(`https://admin.gas.travel/connections?error=${encodeURIComponent(error.response?.data?.message || error.message)}`);
   }
 });
 
