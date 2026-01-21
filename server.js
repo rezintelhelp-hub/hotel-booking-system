@@ -3459,6 +3459,13 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
                 i
               ]).catch(e => console.log('link-to-gas: bedroom create failed:', e.message));
             }
+            
+            // Update num_bedrooms count on bookable_unit
+            await pool.query(
+              'UPDATE bookable_units SET num_bedrooms = $1 WHERE id = $2',
+              [bedroomDefinitions.length, gasRoomId]
+            ).catch(e => console.log('link-to-gas: num_bedrooms update failed:', e.message));
+            console.log(`link-to-gas: Updated num_bedrooms = ${bedroomDefinitions.length} on room ${gasRoomId}`);
           }
         }
         
@@ -3549,6 +3556,21 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
                 1,
                 0
               ]).catch(e => console.log('link-to-gas: bathroom create failed:', e.message));
+              
+              // Update num_bathrooms
+              await pool.query(
+                'UPDATE bookable_units SET num_bathrooms = 1 WHERE id = $1',
+                [gasRoomId]
+              ).catch(e => console.log('link-to-gas: num_bathrooms update failed:', e.message));
+            }
+            
+            // Update num_bathrooms count based on total created
+            if (numBathrooms > 0) {
+              await pool.query(
+                'UPDATE bookable_units SET num_bathrooms = $1 WHERE id = $2',
+                [numBathrooms, gasRoomId]
+              ).catch(e => console.log('link-to-gas: num_bathrooms update failed:', e.message));
+              console.log(`link-to-gas: Updated num_bathrooms = ${numBathrooms} on room ${gasRoomId}`);
             }
           }
         }
@@ -27625,6 +27647,85 @@ app.get('/api/elevate/cleanup-test-data-xK9mP2nL', async (req, res) => {
     const results = [];
     const deleteAccount92Props = req.query.delete92 === 'true';
     const updateRole = req.query.role === 'agency_admin';
+    const fixCounts = req.query.fixcounts === 'true';
+    const checkRooms = req.query.checkrooms === 'true';
+    
+    // Check which accounts have rooms and their bedroom/bathroom counts
+    if (checkRooms) {
+      const roomsByAccount = await pool.query(`
+        SELECT 
+          p.account_id,
+          a.name as account_name,
+          COUNT(bu.id) as room_count,
+          SUM(CASE WHEN bu.num_bedrooms > 0 THEN 1 ELSE 0 END) as rooms_with_bedrooms,
+          SUM(CASE WHEN bu.num_bathrooms > 0 THEN 1 ELSE 0 END) as rooms_with_bathrooms
+        FROM bookable_units bu
+        JOIN properties p ON bu.property_id = p.id
+        LEFT JOIN accounts a ON p.account_id = a.id
+        GROUP BY p.account_id, a.name
+        ORDER BY room_count DESC
+        LIMIT 20
+      `);
+      
+      // Check property_bedrooms table
+      const bedroomRecords = await pool.query(`
+        SELECT COUNT(*) as total_bedroom_records FROM property_bedrooms
+      `);
+      
+      const bathroomRecords = await pool.query(`
+        SELECT COUNT(*) as total_bathroom_records FROM property_bathrooms
+      `);
+      
+      const sampleBedrooms = await pool.query(`
+        SELECT pb.*, bu.name as room_name, p.name as property_name
+        FROM property_bedrooms pb
+        JOIN bookable_units bu ON pb.room_id = bu.id
+        JOIN properties p ON pb.property_id = p.id
+        LIMIT 5
+      `);
+      
+      return res.json({
+        success: true,
+        accounts_with_rooms: roomsByAccount.rows,
+        bedroom_records_total: bedroomRecords.rows[0].total_bedroom_records,
+        bathroom_records_total: bathroomRecords.rows[0].total_bathroom_records,
+        sample_bedroom_records: sampleBedrooms.rows
+      });
+    }
+    
+    // Fix bedroom/bathroom counts on bookable_units from existing records
+    if (fixCounts) {
+      // Update num_bedrooms from property_bedrooms table
+      const bedroomFix = await pool.query(`
+        UPDATE bookable_units bu
+        SET num_bedrooms = COALESCE((
+          SELECT COUNT(*) FROM property_bedrooms pb 
+          WHERE pb.room_id = bu.id
+        ), 0)
+        WHERE EXISTS (SELECT 1 FROM property_bedrooms pb WHERE pb.room_id = bu.id)
+        RETURNING id, name, num_bedrooms
+      `);
+      results.push(`Updated num_bedrooms on ${bedroomFix.rowCount} rooms`);
+      
+      // Update num_bathrooms from property_bathrooms table
+      const bathroomFix = await pool.query(`
+        UPDATE bookable_units bu
+        SET num_bathrooms = COALESCE((
+          SELECT COUNT(*) FROM property_bathrooms pb 
+          WHERE pb.room_id = bu.id
+        ), 0)
+        WHERE EXISTS (SELECT 1 FROM property_bathrooms pb WHERE pb.room_id = bu.id)
+        RETURNING id, name, num_bathrooms
+      `);
+      results.push(`Updated num_bathrooms on ${bathroomFix.rowCount} rooms`);
+      
+      return res.json({
+        success: true,
+        results,
+        bedrooms_updated: bedroomFix.rows,
+        bathrooms_updated: bathroomFix.rows
+      });
+    }
     
     // Delete test rooms from account 108 properties
     const rooms = await pool.query(
