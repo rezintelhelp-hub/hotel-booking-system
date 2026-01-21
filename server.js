@@ -3111,14 +3111,20 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
       }
       
       // Count bedrooms and bathrooms from feature codes if not already set
+      // IMPORTANT: Only count actual BEDROOM codes, not BED_ types (those are bed types within bedrooms)
+      // Only count actual BATHROOM codes, not BATH_ features (those are bathroom features)
       if (featureCodes) {
         const codes = featureCodes.split(',').map(c => c.trim().toUpperCase());
         if (!bedrooms) {
-          const bedroomCodes = codes.filter(c => c.startsWith('BEDROOM') || c.includes('BED_'));
+          // Count only codes that START with BEDROOM (e.g., BEDROOM, BEDROOM_ENSUITE, BEDROOM_MASTER)
+          // Do NOT count BED_KING, BED_QUEEN etc - those are bed types, not bedrooms
+          const bedroomCodes = codes.filter(c => c.startsWith('BEDROOM'));
           bedrooms = bedroomCodes.length || null;
         }
         if (!bathrooms) {
-          const bathroomCodes = codes.filter(c => c.startsWith('BATHROOM') || c.includes('BATH_') || c === 'FULLBATH' || c === 'HALFBATH');
+          // Count only codes that START with BATHROOM (e.g., BATHROOM, BATHROOM_FULL, BATHROOM_HALF)
+          // Do NOT count BATH_TUB, BATH_SHOWER etc - those are bathroom features, not bathrooms
+          const bathroomCodes = codes.filter(c => c.startsWith('BATHROOM') || c === 'FULLBATH' || c === 'HALFBATH');
           bathrooms = bathroomCodes.length || null;
         }
       }
@@ -27697,6 +27703,54 @@ app.get('/api/elevate/cleanup-test-data-xK9mP2nL', async (req, res) => {
     
     // Fix bedroom/bathroom counts on bookable_units from existing records
     if (fixCounts) {
+      const recalculate = req.query.recalc === 'true';
+      
+      if (recalculate) {
+        // Recalculate from feature_codes - count only BEDROOM and BATHROOM codes
+        const rooms = await pool.query(`
+          SELECT id, name, feature_codes FROM bookable_units WHERE feature_codes IS NOT NULL
+        `);
+        
+        let bedroomUpdates = 0;
+        let bathroomUpdates = 0;
+        const samples = [];
+        
+        for (const room of rooms.rows) {
+          const codes = room.feature_codes.split(',').map(c => c.trim().toUpperCase());
+          
+          // Count BEDROOM codes only (not BED_KING etc)
+          const bedroomCount = codes.filter(c => c.startsWith('BEDROOM')).length;
+          
+          // Count BATHROOM codes only (not BATH_TUB etc)
+          const bathroomCount = codes.filter(c => c.startsWith('BATHROOM') || c === 'FULLBATH' || c === 'HALFBATH').length;
+          
+          if (bedroomCount > 0 || bathroomCount > 0) {
+            await pool.query(`
+              UPDATE bookable_units SET 
+                bedrooms = $1, num_bedrooms = $1,
+                bathrooms = $2, num_bathrooms = $2
+              WHERE id = $3
+            `, [bedroomCount || null, bathroomCount || null, room.id]);
+            
+            if (bedroomCount > 0) bedroomUpdates++;
+            if (bathroomCount > 0) bathroomUpdates++;
+            
+            if (samples.length < 10) {
+              samples.push({ id: room.id, name: room.name, bedrooms: bedroomCount, bathrooms: bathroomCount });
+            }
+          }
+        }
+        
+        return res.json({
+          success: true,
+          message: 'Recalculated bedroom/bathroom counts from feature_codes',
+          rooms_checked: rooms.rows.length,
+          bedrooms_updated: bedroomUpdates,
+          bathrooms_updated: bathroomUpdates,
+          samples
+        });
+      }
+      
       // Copy bedrooms -> num_bedrooms and bathrooms -> num_bathrooms for ALL rooms
       const bedroomFix = await pool.query(`
         UPDATE bookable_units 
