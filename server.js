@@ -2972,6 +2972,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS display_name TEXT');
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS max_guests INTEGER');
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS base_price DECIMAL(10,2)');
+    await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS currency VARCHAR(3)');
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS short_description TEXT');
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS full_description TEXT');
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS bedrooms INTEGER');
