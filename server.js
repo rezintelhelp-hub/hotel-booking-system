@@ -27751,11 +27751,11 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
     
     const newProperty = await pool.query(`
       INSERT INTO properties (
-        account_id, name, address, city, country,
+        user_id, account_id, name, address, city, country,
         latitude, longitude, phone, email, currency,
         cm_source, cm_property_id, status, created_at
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+        1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
         'elevate', $11, 'active', NOW()
       )
       RETURNING id
