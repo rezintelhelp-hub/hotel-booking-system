@@ -18931,7 +18931,7 @@ app.post('/api/smoobu/connect', async (req, res) => {
       
       // Create account if needed
       if (!accountId) {
-        const accountApiKey = 'gas_' + crypto.randomBytes(32).toString('hex');
+        const accountApiKey = 'gas_' + crypto.randomBytes(28).toString('hex'); // 60 chars total
         
         const newAccount = await pool.query(`
           INSERT INTO accounts (name, email, contact_name, phone, business_name, api_key, api_key_created_at, status, settings, created_at)
