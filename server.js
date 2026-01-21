@@ -18749,7 +18749,7 @@ app.get('/api/calry/link/start', async (req, res) => {
     
     // Build the Calry Link URL
     const redirectUri = encodeURIComponent('https://api.gas.travel/api/calry/link/callback');
-    const calryLinkUrl = `https://link.calry.app?token=${CALRY_API_TOKEN}&redirect_uri=${redirectUri}&state=${stateToken}`;
+    const calryLinkUrl = `https://dev.calry.app/link?token=${CALRY_API_TOKEN}&redirect_uri=${redirectUri}&state=${stateToken}`;
     
     res.json({
       success: true,
