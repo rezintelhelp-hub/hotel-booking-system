@@ -28362,7 +28362,7 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
         latitude, longitude, phone, email, currency,
         cm_source, cm_property_id, status, created_at
       ) VALUES (
-        1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+        $1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
         'elevate', $11, 'active', NOW()
       )
       RETURNING id
@@ -28858,8 +28858,8 @@ app.post('/webhooks/elevate/:accountId/:apiKey/property/create', async (req, res
     const { name, address, city, country, currency } = req.body;
     
     const result = await pool.query(`
-      INSERT INTO properties (account_id, name, address, city, country, currency, cm_source, status, created_at)
-      VALUES ($1, $2, $3, $4, $5, $6, 'elevate', 'active', NOW())
+      INSERT INTO properties (account_id, user_id, name, address, city, country, currency, cm_source, status, created_at)
+      VALUES ($1, $1, $2, $3, $4, $5, $6, 'elevate', 'active', NOW())
       RETURNING id
     `, [accountId, name, address || '', city || '', country || '', currency || 'CHF']);
     
