@@ -27892,7 +27892,7 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
         
         const newRoom = await pool.query(`
           INSERT INTO bookable_units (
-            property_id, name, room_type, max_occupancy, base_rate,
+            property_id, name, room_type, max_guests, base_rate,
             currency, cm_room_id, cm_source, status, created_at
           ) VALUES (
             $1, $2, $3, $4, $5, $6, $7, 'elevate', 'active', NOW()
@@ -28079,7 +28079,7 @@ app.post('/api/elevate/:apiKey/property/:propertyId/room', async (req, res) => {
     
     const newRoom = await pool.query(`
       INSERT INTO bookable_units (
-        property_id, name, room_type, max_occupancy, base_rate,
+        property_id, name, room_type, max_guests, base_rate,
         currency, cm_room_id, cm_source, status, created_at
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7, 'elevate', 'active', NOW()
@@ -28141,12 +28141,19 @@ app.put('/api/elevate/:apiKey/room/:roomId', async (req, res) => {
     const values = [];
     let paramIndex = 1;
     
-    const allowedFields = ['name', 'room_type', 'max_occupancy', 'base_rate', 'currency'];
+    // Map API field names to database column names
+    const fieldMap = {
+      'name': 'name',
+      'room_type': 'room_type', 
+      'max_occupancy': 'max_guests',
+      'base_rate': 'base_rate',
+      'currency': 'currency'
+    };
     
-    for (const field of allowedFields) {
-      if (updates[field] !== undefined) {
-        updateFields.push(`${field} = $${paramIndex}`);
-        values.push(updates[field]);
+    for (const [apiField, dbField] of Object.entries(fieldMap)) {
+      if (updates[apiField] !== undefined) {
+        updateFields.push(`${dbField} = $${paramIndex}`);
+        values.push(updates[apiField]);
         paramIndex++;
       }
     }
