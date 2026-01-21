@@ -672,6 +672,7 @@ async function runMigrations() {
       await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS is_hidden BOOLEAN DEFAULT false`);
       await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS num_bedrooms INTEGER DEFAULT 1`);
       await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS num_bathrooms DECIMAL(3,1) DEFAULT 1`);
+      await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS currency VARCHAR(3) DEFAULT 'CHF'`);
       console.log('✅ Occupancy pricing columns ensured on bookable_units');
     } catch (occError) {
       console.log('ℹ️  Occupancy columns:', occError.message);
