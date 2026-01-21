@@ -18730,6 +18730,21 @@ app.post('/api/calry/import-property', async (req, res) => {
 // CALRY LINK WIZARD - Connect PMS via Calry
 // =========================================================
 
+// TEMPORARY: Check users table schema
+app.get('/api/admin/schema/users', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT column_name, data_type 
+      FROM information_schema.columns 
+      WHERE table_name = 'users'
+      ORDER BY ordinal_position
+    `);
+    res.json({ success: true, columns: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Step 1: Start the Calry Link flow - returns the URL to redirect user to
 app.get('/api/calry/link/start', async (req, res) => {
   console.log('=== CALRY LINK: START ===');
@@ -18747,9 +18762,22 @@ app.get('/api/calry/link/start', async (req, res) => {
     // Generate a state token to verify the callback
     const stateToken = crypto.randomBytes(32).toString('hex');
     
-    // Build the Calry Link URL
-    const redirectUri = encodeURIComponent('https://api.gas.travel/api/calry/link/callback');
-    const calryLinkUrl = `https://prod.calry.app/api/link?token=${CALRY_API_TOKEN}&redirect_uri=${redirectUri}&state=${stateToken}`;
+    // Build the Calry Link URL - need to create link first via API
+    const redirectUri = 'https://api.gas.travel/api/calry/link/callback';
+    
+    // Create a link via Calry API
+    const linkResponse = await axios.post('https://prod.calry.app/api/v1/link', {
+      redirectUri: redirectUri,
+      state: stateToken
+    }, {
+      headers: {
+        'Authorization': `Bearer ${CALRY_API_TOKEN}`,
+        'workspaceId': CALRY_WORKSPACE_ID,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    const calryLinkUrl = linkResponse.data?.url || linkResponse.data?.link_url || linkResponse.data;
     
     res.json({
       success: true,
