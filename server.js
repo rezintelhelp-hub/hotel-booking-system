@@ -18762,17 +18762,15 @@ app.get('/api/calry/link/start', async (req, res) => {
     // Generate a unique account identifier for this link
     const accountIdentifier = `gas-${account_id || 'new'}-${Date.now()}`;
     
-    // First create the link to get the linkId, then update with proper redirect URL
-    const initialRedirectUrl = 'https://api.gas.travel/api/calry/link/callback';
-    
-    // Create link via Calry API
+    // Create link via Calry API - include linkId in redirect URL path
+    // We'll create the link first, then we know the linkId to include in redirect
     const linkResponse = await axios.post('https://prod.calry.app/api/v1/link', {
-      integrationDefinitionKey: pms || 'smoobu', // Default to smoobu, can be passed as param
-      expiresIn: 3600, // 1 hour
+      integrationDefinitionKey: pms || 'smoobu',
+      expiresIn: 3600,
       linkName: `GAS Link ${accountIdentifier}`,
       workspaceId: CALRY_WORKSPACE_ID,
       accountIdentifier: accountIdentifier,
-      redirectUrl: initialRedirectUrl
+      redirectUrl: 'https://api.gas.travel/api/calry/link/callback/PLACEHOLDER'
     }, {
       headers: {
         'Authorization': `Bearer ${CALRY_API_TOKEN}`,
@@ -18783,8 +18781,8 @@ app.get('/api/calry/link/start', async (req, res) => {
     const linkData = linkResponse.data;
     console.log('Calry Link created:', linkData);
     
-    // Now update the link with the linkId in the redirect URL so we can look it up on callback
-    const finalRedirectUrl = `https://api.gas.travel/api/calry/link/callback?linkId=${linkData.linkId}&accountIdentifier=${accountIdentifier}`;
+    // Now update the redirect URL to include the actual linkId
+    const finalRedirectUrl = `https://api.gas.travel/api/calry/link/callback/${linkData.linkId}`;
     
     try {
       await axios.patch(`https://prod.calry.app/api/v1/link/${linkData.linkId}`, {
@@ -18795,9 +18793,9 @@ app.get('/api/calry/link/start', async (req, res) => {
           'Content-Type': 'application/json'
         }
       });
-      console.log('Updated link redirect URL with linkId');
+      console.log('Updated link redirect URL to:', finalRedirectUrl);
     } catch (updateError) {
-      console.log('Could not update redirect URL, will use accountIdentifier lookup:', updateError.message);
+      console.log('Could not update redirect URL:', updateError.response?.data || updateError.message);
     }
     
     // User visits the link page on prod
@@ -18853,7 +18851,77 @@ app.get('/api/calry/integrations', async (req, res) => {
   });
 });
 
-// Step 2: Callback from Calry Link after user connects their PMS
+// Step 2: Callback from Calry Link after user connects their PMS (linkId in path)
+app.get('/api/calry/link/callback/:linkId', async (req, res) => {
+  console.log('=== CALRY LINK: CALLBACK WITH LINK ID ===');
+  const { linkId } = req.params;
+  console.log('Link ID from path:', linkId);
+  
+  try {
+    // Fetch the link to get the integrationAccountId
+    const linkResponse = await axios.get(`https://prod.calry.app/api/v1/link/${linkId}`, {
+      headers: {
+        'Authorization': `Bearer ${CALRY_API_TOKEN}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    const linkData = linkResponse.data;
+    console.log('Link status:', linkData.status);
+    console.log('Integration accounts:', linkData.integrationAccounts);
+    
+    if (linkData.status !== 'SUCCEEDED') {
+      return res.redirect(`https://admin.gas.travel/connections?error=Connection not completed (status: ${linkData.status})`);
+    }
+    
+    // Get the integrationAccountId from the link
+    const integrationAccount = linkData.integrationAccounts?.[0];
+    if (!integrationAccount?.integrationAccountId) {
+      return res.redirect('https://admin.gas.travel/connections?error=No integration account found');
+    }
+    
+    const intAccountId = integrationAccount.integrationAccountId;
+    const pmsName = integrationAccount.integrationDefinitionName || 'PMS';
+    console.log(`Integration account: ${intAccountId} (${pmsName})`);
+    
+    // Fetch properties from the new integration
+    const propResponse = await axios.get(`${CALRY_API_BASE}/properties`, {
+      headers: {
+        'Authorization': `Bearer ${CALRY_API_TOKEN}`,
+        'workspaceId': CALRY_WORKSPACE_ID,
+        'integrationAccountId': intAccountId,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    const properties = propResponse.data?.data || [];
+    console.log(`Found ${properties.length} properties from ${pmsName}`);
+    
+    // Import all properties
+    let successCount = 0;
+    let gasAccountId = null;
+    
+    for (const prop of properties) {
+      try {
+        const importResult = await importCalryPropertyHelper(intAccountId, String(prop.id), gasAccountId);
+        gasAccountId = importResult.gas_account_id;
+        successCount++;
+        console.log(`Imported property: ${prop.name} (GAS ID: ${importResult.gas_property_id})`);
+      } catch (importError) {
+        console.error(`Failed to import property ${prop.name}:`, importError.message);
+      }
+    }
+    
+    // Redirect to success page
+    res.redirect(`https://admin.gas.travel/connections?calry_connected=true&pms=${encodeURIComponent(pmsName)}&properties_imported=${successCount}&integration_id=${intAccountId}`);
+    
+  } catch (error) {
+    console.error('Calry Link callback error:', error.response?.data || error.message);
+    res.redirect(`https://admin.gas.travel/connections?error=${encodeURIComponent(error.message)}`);
+  }
+});
+
+// Step 2 (fallback): Callback without linkId in path
 app.get('/api/calry/link/callback', async (req, res) => {
   console.log('=== CALRY LINK: CALLBACK ===');
   console.log('Query params:', req.query);
