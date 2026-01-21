@@ -18745,12 +18745,12 @@ app.get('/api/admin/schema/users', async (req, res) => {
   }
 });
 
-// Step 1: Start the Calry Link flow - returns the URL to redirect user to
+// Step 1: Start the Calry Link flow - creates a link and returns URL
 app.get('/api/calry/link/start', async (req, res) => {
   console.log('=== CALRY LINK: START ===');
   
   try {
-    const { account_id } = req.query;
+    const { account_id, pms } = req.query;
     
     if (!CALRY_API_TOKEN || !CALRY_WORKSPACE_ID) {
       return res.status(500).json({ 
@@ -18759,37 +18759,80 @@ app.get('/api/calry/link/start', async (req, res) => {
       });
     }
     
-    // Generate a state token to verify the callback
-    const stateToken = crypto.randomBytes(32).toString('hex');
+    // Generate a unique account identifier for this link
+    const accountIdentifier = `gas-${account_id || 'new'}-${Date.now()}`;
+    const redirectUrl = 'https://api.gas.travel/api/calry/link/callback';
     
-    // Build the Calry Link URL - need to create link first via API
-    const redirectUri = 'https://api.gas.travel/api/calry/link/callback';
-    
-    // Create a link via Calry API
+    // Create link via Calry API
     const linkResponse = await axios.post('https://prod.calry.app/api/v1/link', {
-      redirectUri: redirectUri,
-      state: stateToken
+      integrationDefinitionKey: pms || 'smoobu', // Default to smoobu, can be passed as param
+      expiresIn: 3600, // 1 hour
+      linkName: `GAS Link ${accountIdentifier}`,
+      workspaceId: CALRY_WORKSPACE_ID,
+      accountIdentifier: accountIdentifier,
+      redirectUrl: redirectUrl
     }, {
       headers: {
         'Authorization': `Bearer ${CALRY_API_TOKEN}`,
-        'workspaceId': CALRY_WORKSPACE_ID,
         'Content-Type': 'application/json'
       }
     });
     
-    const calryLinkUrl = linkResponse.data?.url || linkResponse.data?.link_url || linkResponse.data;
+    const linkData = linkResponse.data;
+    console.log('Calry Link created:', linkData);
+    
+    // The user needs to go to Calry's link page
+    // Based on the docs, this is likely: https://prod.calry.app/link/{linkId}
+    const calryLinkUrl = `https://prod.calry.app/link/${linkData.linkId}`;
     
     res.json({
       success: true,
       link_url: calryLinkUrl,
-      state: stateToken,
-      expires_in: 600 // 10 minutes
+      link_id: linkData.linkId,
+      account_identifier: accountIdentifier,
+      status: linkData.status,
+      expires_in: linkData.expiresIn
     });
     
   } catch (error) {
-    console.error('Calry Link start error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    console.error('Calry Link start error:', error.response?.data || error.message);
+    res.status(500).json({ 
+      success: false, 
+      error: error.response?.data?.message || error.message 
+    });
   }
+});
+
+// List available PMS integrations
+app.get('/api/calry/integrations', async (req, res) => {
+  res.json({
+    success: true,
+    integrations: [
+      { key: 'smoobu', name: 'Smoobu' },
+      { key: 'beds24', name: 'Beds24' },
+      { key: 'hostaway', name: 'Hostaway' },
+      { key: 'guesty', name: 'Guesty' },
+      { key: 'hostfully', name: 'Hostfully' },
+      { key: 'lodgify', name: 'Lodgify' },
+      { key: 'ownerrez', name: 'OwnerRez' },
+      { key: 'hospitable', name: 'Hospitable' },
+      { key: 'cloudbeds', name: 'Cloudbeds' },
+      { key: 'tokeet', name: 'Tokeet' },
+      { key: 'uplisting', name: 'Uplisting' },
+      { key: 'hostify', name: 'Hostify' },
+      { key: 'bookingsync', name: 'BookingSync' },
+      { key: 'avantio', name: 'Avantio' },
+      { key: 'streamline', name: 'Streamline' },
+      { key: 'track', name: 'Track' },
+      { key: 'mews', name: 'Mews' },
+      { key: 'apaleo', name: 'Apaleo' },
+      { key: 'elina', name: 'Elina' },
+      { key: 'resly', name: 'Resly' },
+      { key: 'fantasticstay', name: 'FantasticStay' },
+      { key: 'escapia', name: 'Escapia' },
+      { key: 'zeevou', name: 'Zeevou' }
+    ]
+  });
 });
 
 // Step 2: Callback from Calry Link after user connects their PMS
@@ -18798,16 +18841,53 @@ app.get('/api/calry/link/callback', async (req, res) => {
   console.log('Query params:', req.query);
   
   try {
-    const { integration_account_id, integrationAccountId, state, error: calryError } = req.query;
-    const intAccountId = integration_account_id || integrationAccountId;
+    // Calry may send different parameter names
+    const { 
+      integration_account_id, 
+      integrationAccountId, 
+      linkId,
+      accountIdentifier,
+      status,
+      error: calryError 
+    } = req.query;
+    
+    let intAccountId = integration_account_id || integrationAccountId;
     
     // Check for errors from Calry
     if (calryError) {
       return res.redirect(`https://admin.gas.travel/connections?error=${encodeURIComponent(calryError)}`);
     }
     
+    // If we got a linkId, we need to fetch the integration account from the link
+    if (linkId && !intAccountId) {
+      try {
+        const linkResponse = await axios.get(`https://prod.calry.app/api/v1/link/${linkId}`, {
+          headers: {
+            'Authorization': `Bearer ${CALRY_API_TOKEN}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        console.log('Link data:', linkResponse.data);
+        intAccountId = linkResponse.data?.integrationAccountId;
+      } catch (linkError) {
+        console.error('Error fetching link:', linkError.message);
+      }
+    }
+    
     if (!intAccountId) {
-      return res.redirect('https://admin.gas.travel/connections?error=No integration account received');
+      // Show a page with debug info instead of just redirecting
+      return res.send(`
+        <html>
+          <head><title>Calry Connection</title></head>
+          <body>
+            <h1>Connection Received</h1>
+            <p>Parameters received:</p>
+            <pre>${JSON.stringify(req.query, null, 2)}</pre>
+            <p>We need the integration_account_id to import properties.</p>
+            <p><a href="https://admin.gas.travel/connections">Return to GAS Admin</a></p>
+          </body>
+        </html>
+      `);
     }
     
     // Fetch properties from the new integration
