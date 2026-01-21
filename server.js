@@ -29077,58 +29077,44 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
       const accountType = client.account_type || 'individual';
       
       // First, check if user with this email already exists
-      let userId = 1; // Default fallback
-      try {
-        const existingUser = await pool.query(
-          'SELECT id FROM users WHERE email = $1',
-          [client.email]
-        );
+      let userId;
+      const existingUser = await pool.query(
+        'SELECT id FROM users WHERE email = $1',
+        [client.email]
+      );
+      
+      if (existingUser.rows.length > 0) {
+        // Use existing user
+        userId = existingUser.rows[0].id;
+        console.log(`[Elevate] Using existing user ${userId} for client`);
+      } else {
+        // Create new user record so they can log in to GAS
+        const tempPassword = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+        const passwordHash = Buffer.from(tempPassword).toString('base64');
         
-        if (existingUser.rows.length > 0) {
-          // Use existing user
-          userId = existingUser.rows[0].id;
-          console.log(`[Elevate] Using existing user ${userId} for client`);
-        } else {
-          // Try to create new user - columns may vary by database
-          const tempPassword = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-          const passwordHash = Buffer.from(tempPassword).toString('base64');
-          
-          try {
-            // Try with 'name' column first
-            const newUser = await pool.query(`
-              INSERT INTO users (name, email, password_hash, company, account_type, api_key, created_at)
-              VALUES ($1, $2, $3, $4, $5, $6, NOW())
-              RETURNING id
-            `, [
-              client.name,
-              client.email,
-              passwordHash,
-              client.business_name || client.name,
-              accountType,
-              clientApiKey
-            ]);
-            userId = newUser.rows[0].id;
-            console.log(`[Elevate] Created new user ${userId} for client`);
-          } catch (userCreateError) {
-            // Try minimal insert without 'name' column
-            console.log(`[Elevate] First user create failed, trying minimal: ${userCreateError.message}`);
-            try {
-              const newUser = await pool.query(`
-                INSERT INTO users (email, password_hash, api_key, created_at)
-                VALUES ($1, $2, $3, NOW())
-                RETURNING id
-              `, [client.email, passwordHash, clientApiKey]);
-              userId = newUser.rows[0].id;
-              console.log(`[Elevate] Created new user ${userId} (minimal) for client`);
-            } catch (minimalError) {
-              console.log(`[Elevate] Could not create user, using fallback user_id=1: ${minimalError.message}`);
-              userId = 1;
-            }
-          }
-        }
-      } catch (userError) {
-        console.log(`[Elevate] User lookup failed, using fallback user_id=1: ${userError.message}`);
-        userId = 1;
+        // Split client name into first/last
+        const nameParts = (client.name || 'Elevate Client').split(' ');
+        const firstName = nameParts[0] || 'Elevate';
+        const lastName = nameParts.slice(1).join(' ') || 'Client';
+        
+        const newUser = await pool.query(`
+          INSERT INTO users (
+            email, password_hash, first_name, last_name, 
+            user_type, account_status, company_name, created_at
+          )
+          VALUES ($1, $2, $3, $4, $5, 'active', $6, NOW())
+          RETURNING id
+        `, [
+          client.email,
+          passwordHash,
+          firstName,
+          lastName,
+          accountType === 'group' ? 'property_owner' : 'property_owner',
+          client.business_name || client.name || ''
+        ]);
+        
+        userId = newUser.rows[0].id;
+        console.log(`[Elevate] Created new user ${userId} for client`);
       }
       
       // Now create the account (store user_id in settings since column doesn't exist)
@@ -29163,6 +29149,9 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
       clientUserId = userId;
       clientCreated = true;
       
+      // Link user back to account
+      await pool.query('UPDATE users SET account_id = $1 WHERE id = $2', [clientAccountId, userId]);
+      
       console.log(`[Elevate] Created new ${accountType} client account ${clientAccountId} with user_id ${userId}`);
       
     } else if (client.action === 'existing') {
@@ -29193,44 +29182,44 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
       
       // Get user_id from settings JSON
       const settings = existingClient.rows[0].settings || {};
-      clientUserId = settings.user_id || 1; // Default fallback
+      clientUserId = settings.user_id;
       
       // If existing account doesn't have user_id, try to find or create one
-      if (!settings.user_id) {
+      if (!clientUserId) {
         const email = existingClient.rows[0].email;
         
         if (email) {
-          try {
-            const existingUser = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
-            if (existingUser.rows.length > 0) {
-              clientUserId = existingUser.rows[0].id;
-            } else {
-              // Try to create user for this existing account
-              const tempPassword = Math.random().toString(36).substring(2, 15);
-              const passwordHash = Buffer.from(tempPassword).toString('base64');
-              try {
-                const newUser = await pool.query(`
-                  INSERT INTO users (email, password_hash, api_key, created_at)
-                  VALUES ($1, $2, $3, NOW())
-                  RETURNING id
-                `, [email, passwordHash, clientApiKey]);
-                clientUserId = newUser.rows[0].id;
-              } catch (createErr) {
-                console.log(`[Elevate] Could not create user for existing client: ${createErr.message}`);
-                clientUserId = 1;
-              }
-            }
+          const existingUser = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+          if (existingUser.rows.length > 0) {
+            clientUserId = existingUser.rows[0].id;
+          } else {
+            // Create user for this existing account with correct schema
+            const tempPassword = Math.random().toString(36).substring(2, 15);
+            const passwordHash = Buffer.from(tempPassword).toString('base64');
             
-            // Update account settings with user_id
-            const updatedSettings = { ...settings, user_id: clientUserId };
-            await pool.query('UPDATE accounts SET settings = $1 WHERE id = $2', [JSON.stringify(updatedSettings), clientAccountId]);
-            console.log(`[Elevate] Linked user ${clientUserId} to existing account ${clientAccountId}`);
-          } catch (userErr) {
-            console.log(`[Elevate] User lookup failed for existing client: ${userErr.message}`);
-            clientUserId = 1;
+            const nameParts = (client.name || 'Elevate Client').split(' ');
+            const firstName = nameParts[0] || 'Elevate';
+            const lastName = nameParts.slice(1).join(' ') || 'Client';
+            
+            const newUser = await pool.query(`
+              INSERT INTO users (
+                email, password_hash, first_name, last_name,
+                user_type, account_status, company_name, created_at
+              )
+              VALUES ($1, $2, $3, $4, 'property_owner', 'active', $5, NOW())
+              RETURNING id
+            `, [email, passwordHash, firstName, lastName, client.business_name || '']);
+            clientUserId = newUser.rows[0].id;
           }
+          
+          // Update account settings with user_id
+          const updatedSettings = { ...settings, user_id: clientUserId };
+          await pool.query('UPDATE accounts SET settings = $1 WHERE id = $2', [JSON.stringify(updatedSettings), clientAccountId]);
+          console.log(`[Elevate] Linked user ${clientUserId} to existing account ${clientAccountId}`);
         }
       }
+      
+      console.log(`[Elevate] Using existing client account ${clientAccountId} with user_id ${clientUserId}`);
       
       console.log(`[Elevate] Using existing client account ${clientAccountId} with user_id ${clientUserId}`);
       
