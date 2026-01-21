@@ -18583,8 +18583,8 @@ app.post('/api/calry/import-property', async (req, res) => {
     
     // 7. Also track in gas_sync_properties
     await pool.query(`
-      INSERT INTO gas_sync_properties (connection_id, gas_property_id, external_id, name, sync_enabled, created_at)
-      VALUES ($1, $2, $3, $4, true, NOW())
+      INSERT INTO gas_sync_properties (connection_id, gas_property_id, external_id, name, created_at)
+      VALUES ($1, $2, $3, $4, NOW())
       ON CONFLICT (connection_id, external_id) DO UPDATE SET
         gas_property_id = $2, name = $4, updated_at = NOW()
     `, [connectionId, gasPropertyId, String(propertyId), calryProperty.name]);
