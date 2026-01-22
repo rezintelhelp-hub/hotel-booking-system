@@ -810,10 +810,13 @@ async function runMigrations() {
           created_at TIMESTAMP DEFAULT NOW()
         )
       `);
+      await pool.query(`ALTER TABLE property_images ADD COLUMN IF NOT EXISTS url TEXT`);
       await pool.query(`ALTER TABLE property_images ADD COLUMN IF NOT EXISTS external_id VARCHAR(255)`);
       await pool.query(`ALTER TABLE property_images ADD COLUMN IF NOT EXISTS room_id INTEGER REFERENCES bookable_units(id) ON DELETE CASCADE`);
       await pool.query(`ALTER TABLE property_images ADD COLUMN IF NOT EXISTS is_primary BOOLEAN DEFAULT false`);
       await pool.query(`ALTER TABLE property_images ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0`);
+      await pool.query(`ALTER TABLE property_images ADD COLUMN IF NOT EXISTS caption VARCHAR(500)`);
+      await pool.query(`ALTER TABLE property_images ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()`);
       console.log('✅ property_images table and columns ensured');
     } catch (propImgError) {
       console.log('ℹ️  property_images:', propImgError.message);
