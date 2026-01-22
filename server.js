@@ -19774,14 +19774,29 @@ async function importCalryPropertiesViaAdapter(integrationAccountId, pmsName, ex
         
         let roomsForProperty = 0;
         const roomTypesResult = await adapter.getRoomTypes(property.externalId);
+        console.log(`  getRoomTypes result: success=${roomTypesResult.success}, count=${roomTypesResult.data?.length || 0}`);
         if (roomTypesResult.success && roomTypesResult.data?.length > 0) {
+          // Ensure gas_sync_room_types has all required columns
+          await pool.query('ALTER TABLE gas_sync_room_types ADD COLUMN IF NOT EXISTS bedrooms INTEGER').catch(() => {});
+          await pool.query('ALTER TABLE gas_sync_room_types ADD COLUMN IF NOT EXISTS bathrooms INTEGER').catch(() => {});
+          await pool.query('ALTER TABLE gas_sync_room_types ADD COLUMN IF NOT EXISTS raw_data JSONB').catch(() => {});
+          await pool.query('ALTER TABLE gas_sync_room_types ADD COLUMN IF NOT EXISTS max_guests INTEGER').catch(() => {});
+          await pool.query('ALTER TABLE gas_sync_room_types ADD COLUMN IF NOT EXISTS base_price DECIMAL(10,2)').catch(() => {});
+          await pool.query('ALTER TABLE gas_sync_room_types ADD COLUMN IF NOT EXISTS currency VARCHAR(3)').catch(() => {});
+          
           for (const roomType of roomTypesResult.data) {
             try {
-              await adapter.syncRoomTypeToDatabase(roomType, property.externalId);
+              console.log(`  Syncing room type: ${roomType.name} (${roomType.externalId})`);
+              const roomSyncId = await adapter.syncRoomTypeToDatabase(roomType, property.externalId);
+              console.log(`  Room synced to staging: ${roomSyncId}`);
               roomsForProperty++;
-            } catch (e) { console.log(`  Room error: ${e.message}`); }
+            } catch (e) { 
+              console.log(`  Room sync error: ${e.message}`); 
+            }
           }
           console.log(`  Synced ${roomsForProperty} rooms`);
+        } else {
+          console.log(`  No room types found or fetch failed`);
         }
         
         const linkResult = await linkSyncPropertyToGasInternal(syncPropertyId, gasAccountId, fullProperty);
