@@ -44089,20 +44089,64 @@ app.post('/api/admin/fix-property-ownership', async (req, res) => {
     
     console.log(`Moving property ${property_id} from account ${fromAccountId} to ${to_account_id}`);
     
+    const updates = {};
+    
     // Update property
     await pool.query('UPDATE properties SET account_id = $1, updated_at = NOW() WHERE id = $2', [to_account_id, property_id]);
+    updates.property = true;
     
-    // Update room_types
-    const roomResult = await pool.query('UPDATE room_types SET account_id = $1 WHERE property_id = $2 RETURNING id', [to_account_id, property_id]);
-    
-    // Find and update related connection
-    let connectionUpdated = false;
-    if (property.cm_property_id) {
-      const connResult = await pool.query(
-        'UPDATE gas_sync_connections SET account_id = $1 WHERE account_id = $2 AND adapter_code = $3 RETURNING id',
-        [to_account_id, fromAccountId, property.cm_source || 'calry']
+    // Update bookable_units (rooms) - these are linked by property_id, but may have account_id
+    try {
+      const roomResult = await pool.query(
+        'UPDATE bookable_units SET account_id = $1 WHERE property_id = $2 RETURNING id', 
+        [to_account_id, property_id]
       );
-      connectionUpdated = connResult.rowCount > 0;
+      updates.bookable_units = roomResult.rowCount;
+    } catch (e) {
+      // Column might not exist, that's ok - rooms are linked by property_id anyway
+      updates.bookable_units = 'skipped (no account_id column or error)';
+    }
+    
+    // Update rooms table if it exists and has account_id
+    try {
+      const roomResult = await pool.query(
+        'UPDATE rooms SET account_id = $1 WHERE property_id = $2 RETURNING id', 
+        [to_account_id, property_id]
+      );
+      updates.rooms = roomResult.rowCount;
+    } catch (e) {
+      updates.rooms = 'skipped';
+    }
+    
+    // Handle connections - check for duplicates
+    updates.connections = {};
+    if (fromAccountId) {
+      // Get connections from the OLD account
+      const oldConns = await pool.query(
+        'SELECT id, external_account_id, adapter_code FROM gas_sync_connections WHERE account_id = $1',
+        [fromAccountId]
+      );
+      
+      for (const oldConn of oldConns.rows) {
+        // Check if target account already has a connection with the same external_account_id
+        const existingConn = await pool.query(
+          'SELECT id FROM gas_sync_connections WHERE account_id = $1 AND external_account_id = $2 AND adapter_code = $3',
+          [to_account_id, oldConn.external_account_id, oldConn.adapter_code]
+        );
+        
+        if (existingConn.rows.length > 0) {
+          // Duplicate - delete the old one, keep the one on target account
+          await pool.query('DELETE FROM gas_sync_connections WHERE id = $1', [oldConn.id]);
+          updates.connections[`conn_${oldConn.id}`] = `deleted (duplicate of ${existingConn.rows[0].id} on target account)`;
+        } else {
+          // No duplicate - move connection to target account
+          await pool.query(
+            'UPDATE gas_sync_connections SET account_id = $1 WHERE id = $2',
+            [to_account_id, oldConn.id]
+          );
+          updates.connections[`conn_${oldConn.id}`] = `moved to account ${to_account_id}`;
+        }
+      }
     }
     
     // Check if old account is now orphaned (no properties, no connections)
@@ -44127,8 +44171,7 @@ app.post('/api/admin/fix-property-ownership', async (req, res) => {
         from_account_id: fromAccountId,
         to_account_id,
         to_account_name: targetAccount.rows[0].name,
-        rooms_updated: roomResult.rowCount,
-        connection_updated: connectionUpdated,
+        updates,
         orphan_account_deleted: orphanDeleted ? fromAccountId : null
       }
     });
