@@ -3802,6 +3802,9 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         
         let gasRoomId;
         
+        // Prepare description as JSONB if not empty
+        const descriptionJson = roomDesc ? JSON.stringify({ en: roomDesc }) : null;
+        
         if (existingRoom.rows.length > 0) {
           gasRoomId = existingRoom.rows[0].id;
           console.log('link-to-gas: Updating Calry room', gasRoomId, roomName);
@@ -3809,17 +3812,15 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
           await pool.query(`
             UPDATE bookable_units SET
               name = $1,
-              description = $2,
-              max_guests = $3,
-              num_bedrooms = $4,
-              num_bathrooms = $5,
-              base_price = $6,
-              amenities = $7,
+              max_guests = $2,
+              num_bedrooms = $3,
+              num_bathrooms = $4,
+              base_price = $5,
+              amenities = $6,
               updated_at = NOW()
-            WHERE id = $8
+            WHERE id = $7
           `, [
             roomName,
-            roomDesc,
             maxGuests,
             bedrooms,
             bathrooms,
@@ -3827,22 +3828,30 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
             JSON.stringify({ amenities: roomAmenities, calry_id: room.id }),
             gasRoomId
           ]);
+          
+          // Update description separately if we have one (it's JSONB)
+          if (descriptionJson) {
+            await pool.query(
+              'UPDATE bookable_units SET description = $1::jsonb WHERE id = $2',
+              [descriptionJson, gasRoomId]
+            ).catch(e => console.log('link-to-gas: description update skipped:', e.message));
+          }
+          
           roomsUpdated++;
         } else {
           console.log('link-to-gas: Creating Calry room', roomName);
           
           const roomResult = await pool.query(`
             INSERT INTO bookable_units (
-              property_id, cm_room_id, cm_source, name, description,
+              property_id, cm_room_id, cm_source, name,
               max_guests, num_bedrooms, num_bathrooms, base_price, currency,
               amenities, status, created_at
-            ) VALUES ($1, $2, 'calry', $3, $4, $5, $6, $7, $8, $9, $10, 'active', NOW())
+            ) VALUES ($1, $2, 'calry', $3, $4, $5, $6, $7, $8, $9, 'active', NOW())
             RETURNING id
           `, [
             gasPropertyId,
             roomExternalId,
             roomName,
-            roomDesc,
             maxGuests,
             bedrooms,
             bathrooms,
@@ -3851,6 +3860,15 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
             JSON.stringify({ amenities: roomAmenities, calry_id: room.id })
           ]);
           gasRoomId = roomResult.rows[0].id;
+          
+          // Update description separately if we have one (it's JSONB)
+          if (descriptionJson) {
+            await pool.query(
+              'UPDATE bookable_units SET description = $1::jsonb WHERE id = $2',
+              [descriptionJson, gasRoomId]
+            ).catch(e => console.log('link-to-gas: description update skipped:', e.message));
+          }
+          
           roomsCreated++;
         }
         
