@@ -440,9 +440,18 @@
         function selectCM(id) {
             const cm = channelManagers.find(c => c.id === id);
             if (cm) {
-                // Store selection and go to wizard
-                localStorage.setItem('gas_selected_cm', JSON.stringify(cm));
-                window.location.href = `/connect-cm-wizard?cm=${id}`;
+                // Route to appropriate wizard
+                if (id === 'beds24') {
+                    window.location.href = '/beds24-wizard.html';
+                } else if (id === 'hostaway') {
+                    window.location.href = '/hostaway-wizard.html';
+                } else if (id === 'bookingautomation') {
+                    window.location.href = '/booking-automation-wizard.html';
+                } else {
+                    // All others go to Calry wizard
+                    localStorage.setItem('gas_selected_cm', JSON.stringify(cm));
+                    window.location.href = `/connect-cm-wizard.html?cm=${id}`;
+                }
             }
         }
 

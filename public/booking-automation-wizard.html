@@ -1,0 +1,1150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connect to Booking Automation - GAS</title>
+    <!-- Booking Automation Wizard - Based on Beds24 API -->
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 2rem;
+        }
+        
+        .wizard-container {
+            max-width: 700px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        
+        .wizard-header {
+            background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
+            color: white;
+            padding: 2rem;
+            text-align: center;
+        }
+        
+        .wizard-header h1 {
+            font-size: 1.75rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .wizard-header p {
+            opacity: 0.9;
+            font-size: 0.95rem;
+        }
+        
+        .steps-indicator {
+            display: flex;
+            justify-content: center;
+            padding: 1.5rem;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+            gap: 0.5rem;
+        }
+        
+        .step-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #dee2e6;
+            transition: all 0.3s;
+        }
+        
+        .step-dot.active {
+            background: #667eea;
+            transform: scale(1.3);
+        }
+        
+        .step-dot.completed {
+            background: #28a745;
+        }
+        
+        .wizard-content {
+            padding: 2rem;
+            min-height: 400px;
+        }
+        
+        .step {
+            display: none;
+        }
+        
+        .step.active {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .step h2 {
+            color: #1e3a5f;
+            margin-bottom: 0.5rem;
+            font-size: 1.4rem;
+        }
+        
+        .step-description {
+            color: #6c757d;
+            margin-bottom: 1.5rem;
+            font-size: 0.95rem;
+        }
+        
+        .form-group {
+            margin-bottom: 1.25rem;
+        }
+        
+        .form-group label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: #495057;
+        }
+        
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+        
+        .form-group input:focus, .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .form-hint {
+            font-size: 0.8rem;
+            color: #6c757d;
+            margin-top: 0.25rem;
+        }
+        
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .btn-secondary {
+            background: #e9ecef;
+            color: #495057;
+        }
+        
+        .btn-secondary:hover {
+            background: #dee2e6;
+        }
+        
+        .btn-skip {
+            background: transparent;
+            color: #6c757d;
+            text-decoration: underline;
+        }
+        
+        .btn-skip:hover {
+            color: #495057;
+        }
+        
+        .wizard-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.5rem 2rem;
+            background: #f8f9fa;
+            border-top: 1px solid #e9ecef;
+        }
+        
+        .alert {
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+        
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .alert-info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        
+        .alert-warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 2rem;
+        }
+        
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #e9ecef;
+            border-top-color: #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .success-screen {
+            text-align: center;
+            padding: 2rem;
+        }
+        
+        .success-screen .icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+        }
+        
+        .success-screen h2 {
+            color: #28a745;
+            margin-bottom: 0.5rem;
+        }
+        
+        .tab-buttons {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .tab-btn {
+            flex: 1;
+            padding: 1rem;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            background: white;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.2s;
+        }
+        
+        .tab-btn.active {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .role-cards {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        @media (max-width: 600px) {
+            .role-cards {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .role-card {
+            border: 2px solid #e9ecef;
+            border-radius: 12px;
+            padding: 1.25rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+        }
+        
+        .role-card:hover {
+            border-color: #667eea;
+        }
+        
+        .role-card.selected {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+        
+        .role-card .icon {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .role-card h3 {
+            color: #1e3a5f;
+            font-size: 1rem;
+            margin-bottom: 0.25rem;
+        }
+        
+        .role-card p {
+            font-size: 0.8rem;
+            color: #6c757d;
+        }
+        
+        /* Property cards for Step 3 */
+        .property-setup-card {
+            border: 2px solid #e9ecef;
+            border-radius: 12px;
+            padding: 1.25rem;
+            margin-bottom: 1rem;
+            background: #fafbfc;
+        }
+        
+        .property-setup-card h4 {
+            color: #1e3a5f;
+            margin-bottom: 1rem;
+            font-size: 1.1rem;
+        }
+        
+        .property-setup-card .form-group {
+            margin-bottom: 1rem;
+        }
+        
+        .property-setup-card .form-group:last-child {
+            margin-bottom: 0;
+        }
+        
+        .webhook-url-box {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+        
+        .webhook-url-box input {
+            flex: 1;
+            background: #e9ecef;
+            font-family: monospace;
+            font-size: 0.85rem;
+        }
+        
+        .btn-copy {
+            padding: 0.75rem 1rem;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            white-space: nowrap;
+        }
+        
+        .btn-copy:hover {
+            background: #5a6fd6;
+        }
+        
+        .btn-copy.copied {
+            background: #28a745;
+        }
+        
+        .help-box {
+            background: #e7f1ff;
+            border: 1px solid #b6d4fe;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .help-box h4 {
+            color: #0c5460;
+            font-size: 0.95rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .help-box p, .help-box ol {
+            color: #0c5460;
+            font-size: 0.85rem;
+            margin: 0;
+        }
+        
+        .help-box ol {
+            margin-left: 1.25rem;
+            margin-top: 0.5rem;
+        }
+        
+        .help-box li {
+            margin-bottom: 0.25rem;
+        }
+        
+        .properties-found {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+        
+        .properties-found .count {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #155724;
+        }
+        
+        .properties-found .label {
+            color: #155724;
+            font-size: 0.9rem;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+            margin: 1.5rem 0;
+        }
+        
+        .stat-box {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 1.25rem;
+            text-align: center;
+        }
+        
+        .stat-box .number {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .stat-box .label {
+            color: #6c757d;
+            font-size: 0.85rem;
+        }
+        
+        .optional-badge {
+            display: inline-block;
+            background: #ffc107;
+            color: #212529;
+            font-size: 0.7rem;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            margin-left: 0.5rem;
+            font-weight: normal;
+        }
+    </style>
+</head>
+<body>
+    <div class="wizard-container">
+        <div class="wizard-header">
+            <h1>🏨 Connect to Booking Automation</h1>
+            <p>Set up your channel manager integration in minutes <small style="opacity:0.6">(v6)</small></p>
+        </div>
+        
+        <div class="steps-indicator">
+            <div class="step-dot active"></div>
+            <div class="step-dot"></div>
+            <div class="step-dot"></div>
+            <div class="step-dot"></div>
+            <div class="step-dot"></div>
+        </div>
+        
+        <div class="wizard-content">
+            <!-- Step 1: Login/Register -->
+            <div class="step active" id="step1">
+                <h2>Welcome to GAS</h2>
+                <p class="step-description">Login or create an account to get started</p>
+                
+                <div id="step1-error"></div>
+                
+                <div class="tab-buttons">
+                    <button class="tab-btn active" onclick="showAuthTab('login')">Login</button>
+                    <button class="tab-btn" onclick="showAuthTab('register')">Register</button>
+                </div>
+                
+                <div id="login-tab" class="tab-content active">
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="email" id="login-email" placeholder="you@example.com">
+                    </div>
+                    <div class="form-group">
+                        <label>Password</label>
+                        <input type="password" id="login-password" placeholder="Your password">
+                    </div>
+                </div>
+                
+                <div id="register-tab" class="tab-content">
+                    <div class="form-group">
+                        <label>Business Name</label>
+                        <input type="text" id="reg-name" placeholder="Your hotel or property name">
+                    </div>
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="email" id="reg-email" placeholder="you@example.com">
+                    </div>
+                    <div class="form-group">
+                        <label>Password</label>
+                        <input type="password" id="reg-password" placeholder="Choose a password">
+                    </div>
+                    
+                    <div class="role-cards">
+                        <div class="role-card selected" data-role="admin" onclick="selectRole('admin')">
+                            <div class="icon">🏠</div>
+                            <h3>Single Property Owner</h3>
+                            <p>I own one property</p>
+                        </div>
+                        <div class="role-card" data-role="submaster_admin" onclick="selectRole('submaster_admin')">
+                            <div class="icon">🏢</div>
+                            <h3>Property Group Owner</h3>
+                            <p>I own multiple properties</p>
+                        </div>
+                        <div class="role-card" data-role="agency_admin" onclick="selectRole('agency_admin')">
+                            <div class="icon">🌐</div>
+                            <h3>Agency</h3>
+                            <p>I manage properties for myself/others</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Step 2: Invite Code -->
+            <div class="step" id="step2">
+                <h2>Connect to Booking Automation</h2>
+                <p class="step-description">Enter your Booking Automation API invite code to fetch your properties</p>
+                
+                <div id="step2-error"></div>
+                
+                <div class="help-box">
+                    <h4>📍 Where to find your Invite Code</h4>
+                    <ol>
+                        <li>Log into Booking Automation</li>
+                        <li>Go to <strong>Settings → Marketplace</strong></li>
+                        <li>Click <strong>API</strong></li>
+                        <li>In the Scope section, click <strong>"select all"</strong> for Read, Write, and Delete columns</li>
+                        <li>In the Property dropdown, select <strong>"All owned by account"</strong></li>
+                        <li>Click <strong>"Generate invite code"</strong></li>
+                        <li>Copy the invite code</li>
+                    </ol>
+                </div>
+                
+                <div class="form-group">
+                    <label>Invite Code</label>
+                    <input type="text" id="inviteCode" placeholder="Paste your invite code here">
+                    <p class="form-hint">This connects us to your Booking Automation account securely</p>
+                </div>
+                
+                <div id="connect-loading" class="loading" style="display: none;">
+                    <div class="spinner"></div>
+                    <p id="connect-status">Connecting to Booking Automation and fetching properties...</p>
+                </div>
+            </div>
+            
+            <!-- Step 3: V1 Credentials (Optional) -->
+            <div class="step" id="step3">
+                <h2>Property Setup <span class="optional-badge">Optional</span></h2>
+                <p class="step-description">Additional credentials required for images and direct booking updates</p>
+                
+                <div id="step3-error"></div>
+                
+                <div class="alert alert-info">
+                    <strong>Skip this step?</strong> You can set this up later, but images won't sync and bookings won't update in real-time.
+                </div>
+                
+                <div class="help-box">
+                    <h4>📍 Additional API code required for Images</h4>
+                    <ol>
+                        <li>In Booking Automation, go to <strong>Settings → Accounts → Account Access</strong></li>
+                        <li>Set IP Access to <strong>"Allow any IP"</strong></li>
+                        <li>Set Allow writes to <strong>"Yes"</strong></li>
+                        <li>Set Property access to <strong>"Owned or linked to this account"</strong></li>
+                        <li>Copy the <strong>API Key</strong></li>
+                    </ol>
+                </div>
+                
+                <div class="form-group">
+                    <label>Enter API key here</label>
+                    <input type="text" id="v1ApiKey" placeholder="Paste your V1 API key here">
+                </div>
+                
+                <div id="setup-loading" class="loading" style="display: none;">
+                    <div class="spinner"></div>
+                    <p id="setup-status">Saving credentials...</p>
+                </div>
+            </div>
+            
+            <!-- Step 4: Webhook Setup -->
+            <div class="step" id="step4">
+                <h2>Webhook Setup</h2>
+                <p class="step-description">Enable real-time booking updates from Booking Automation</p>
+                
+                <div class="alert alert-info">
+                    <strong>Why webhooks?</strong> When a booking is made, modified, or cancelled in Booking Automation, GAS will be notified instantly - no delays!
+                </div>
+                
+                <div class="help-box">
+                    <h4>📍 How to set up webhooks</h4>
+                    <p style="margin-bottom: 1rem;">For <strong>each property</strong> in Booking Automation:</p>
+                    <ol>
+                        <li>Go to <strong>Settings → Properties → Access</strong></li>
+                        <li>Select the property from the dropdown</li>
+                        <li>Find the <strong>Booking Webhook</strong> section</li>
+                        <li>Set Webhook Version to <strong>2</strong> (with personal data)</li>
+                        <li>Paste the webhook URL below into the URL field</li>
+                        <li>Click <strong>Save</strong></li>
+                        <li>Repeat for each property</li>
+                    </ol>
+                </div>
+                
+                <div class="form-group">
+                    <label>Your Webhook URL <span style="color: #6c757d; font-weight: normal;">(copy this)</span></label>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <input type="text" id="webhookUrl" readonly style="flex: 1; background: #f8f9fa; font-family: monospace; font-size: 0.85rem;">
+                        <button class="btn btn-secondary" onclick="copyWebhookUrl()" style="white-space: nowrap;">
+                            📋 Copy
+                        </button>
+                    </div>
+                    <small style="color: #6c757d; display: block; margin-top: 0.5rem;">
+                        The <code>[PROPERTYID]</code> part will be automatically filled by Booking Automation
+                    </small>
+                </div>
+                
+                <div id="webhook-copy-success" style="display: none; color: #28a745; margin-top: 0.5rem;">
+                    ✓ Copied to clipboard!
+                </div>
+                
+                <div class="properties-list" style="margin-top: 1.5rem;">
+                    <h4 style="margin-bottom: 0.75rem; color: #1e3a5f;">Properties to configure:</h4>
+                    <div id="webhook-properties-list">
+                        <!-- Property list will be inserted here -->
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Step 5: Success -->
+            <div class="step" id="step5">
+                <div class="success-screen">
+                    <div class="icon">🎉</div>
+                    <h2>You're All Set!</h2>
+                    <p class="step-description">Your Booking Automation connection is ready</p>
+                    
+                    <div class="stats-grid">
+                        <div class="stat-box">
+                            <div class="number" id="final-prop-count">0</div>
+                            <div class="label">Properties</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="number" id="final-room-count">0</div>
+                            <div class="label">Room Types</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="number" id="final-image-count">0</div>
+                            <div class="label">Images</div>
+                        </div>
+                    </div>
+                    
+                    <p style="color: #6c757d; margin-top: 1rem;">
+                        Click "Finish" to go to Connections and set up each property
+                    </p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="wizard-footer">
+            <button class="btn btn-secondary" id="prevBtn" onclick="prevStep()" style="visibility: hidden;">← Back</button>
+            <div>
+                <button class="btn btn-skip" id="skipBtn" onclick="skipStep()" style="display: none;">Skip for now</button>
+                <button class="btn btn-primary" id="nextBtn" onclick="nextStep()">Next →</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let currentStep = 1;
+        const totalSteps = 5;
+        
+        let wizardData = {
+            authMode: 'login',
+            selectedRole: 'admin',
+            account: null,
+            connectionId: null,
+            properties: [],
+            propertyCount: 0,
+            roomCount: 0,
+            imageCount: 0
+        };
+        
+        function showAuthTab(tab) {
+            wizardData.authMode = tab;
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            if (tab === 'login') {
+                document.querySelector('.tab-btn:first-child').classList.add('active');
+                document.getElementById('login-tab').classList.add('active');
+            } else {
+                document.querySelector('.tab-btn:last-child').classList.add('active');
+                document.getElementById('register-tab').classList.add('active');
+            }
+        }
+        
+        function selectRole(role) {
+            wizardData.selectedRole = role;
+            document.querySelectorAll('.role-card').forEach(card => card.classList.remove('selected'));
+            document.querySelector(`.role-card[data-role="${role}"]`).classList.add('selected');
+        }
+        
+        function updateStepIndicators() {
+            document.querySelectorAll('.step-dot').forEach((dot, index) => {
+                dot.classList.remove('active', 'completed');
+                if (index + 1 === currentStep) {
+                    dot.classList.add('active');
+                } else if (index + 1 < currentStep) {
+                    dot.classList.add('completed');
+                }
+            });
+        }
+        
+        function showStep(step) {
+            document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+            document.getElementById(`step${step}`).classList.add('active');
+            
+            // Hide back button on step 1, step 2 (after account created), and step 5
+            const hideBack = step === 1 || (step === 2 && wizardData.account) || step === 5;
+            document.getElementById('prevBtn').style.visibility = hideBack ? 'hidden' : 'visible';
+            document.getElementById('skipBtn').style.display = (step === 3 || step === 4) ? 'inline-block' : 'none';
+            
+            if (step === 5) {
+                document.getElementById('nextBtn').textContent = 'Go to Connections →';
+            } else {
+                document.getElementById('nextBtn').textContent = 'Next →';
+            }
+            
+            updateStepIndicators();
+        }
+        
+        function showError(containerId, message) {
+            document.getElementById(containerId).innerHTML = `<div class="alert alert-error">${message}</div>`;
+        }
+        
+        function clearErrors() {
+            document.getElementById('step1-error').innerHTML = '';
+            document.getElementById('step2-error').innerHTML = '';
+            document.getElementById('step3-error').innerHTML = '';
+        }
+        
+        function copyPropWebhookUrl(btn, url) {
+            navigator.clipboard.writeText(url).then(() => {
+                btn.textContent = '✓ Copied';
+                btn.classList.add('copied');
+                setTimeout(() => {
+                    btn.textContent = 'Copy';
+                    btn.classList.remove('copied');
+                }, 2000);
+            });
+        }
+        
+        function renderPropertySetupCards() {
+            const container = document.getElementById('properties-setup-list');
+            const baseUrl = window.location.origin;
+            
+            container.innerHTML = wizardData.properties.map(prop => `
+                <div class="property-setup-card" data-property-id="${prop.id}" data-external-id="${prop.external_id}">
+                    <h4>🏨 ${prop.name}</h4>
+                    
+                    <div class="form-group">
+                        <label>PropKey</label>
+                        <input type="text" class="prop-key-input" placeholder="Paste propKey for this property">
+                        <p class="form-hint">Find in Booking Automation: Settings → Properties → select "${prop.name}" → Access → Api Access (V1 Only)</p>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Webhook URL (copy this to Booking Automation)</label>
+                        <div class="webhook-url-box">
+                            <input type="text" value="${baseUrl}/api/webhooks/bookingautomation?propertyId=${prop.id}" readonly>
+                            <button class="btn-copy" onclick="copyPropWebhookUrl(this, '${baseUrl}/api/webhooks/bookingautomation?propertyId=${prop.id}')">Copy</button>
+                        </div>
+                        <p class="form-hint">Paste in Booking Automation: Settings → Properties → Access → Booking Webhook → URL</p>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        async function nextStep() {
+            clearErrors();
+            
+            if (currentStep === 1) {
+                if (wizardData.authMode === 'login') {
+                    await doLogin();
+                } else {
+                    await doRegister();
+                }
+            } else if (currentStep === 2) {
+                await connectBooking Automation();
+            } else if (currentStep === 3) {
+                await saveV1Credentials();
+            } else if (currentStep === 4) {
+                // Webhook setup - just move to success
+                currentStep = 5;
+                showStep(currentStep);
+                updateFinalCounts();
+            } else if (currentStep === 5) {
+                // Store connection ID in sessionStorage for gas-admin to pick up
+                if (wizardData.connectionId) {
+                    sessionStorage.setItem('openConnectionId', wizardData.connectionId);
+                }
+                window.location.href = '/gas-admin.html#gas-sync-connections';
+            }
+        }
+        
+        function prevStep() {
+            if (currentStep > 1) {
+                currentStep--;
+                showStep(currentStep);
+            }
+        }
+        
+        async function skipStep() {
+            if (currentStep === 3) {
+                // Skip V1 setup, go to webhook setup
+                currentStep = 4;
+                showStep(currentStep);
+                populateWebhookStep();
+            } else if (currentStep === 4) {
+                // Skip webhook setup, go to success
+                currentStep = 5;
+                showStep(currentStep);
+                updateFinalCounts();
+            }
+        }
+        
+        function populateWebhookStep() {
+            const baseUrl = window.location.origin;
+            const webhookUrl = `${baseUrl}/api/webhooks/bookingautomation?connectionId=${wizardData.connectionId}&propertyId=[PROPERTYID]`;
+            document.getElementById('webhookUrl').value = webhookUrl;
+            
+            // Populate properties list
+            const container = document.getElementById('webhook-properties-list');
+            if (wizardData.properties && wizardData.properties.length > 0) {
+                container.innerHTML = wizardData.properties.map(prop => `
+                    <div style="padding: 0.5rem; background: #f8f9fa; border-radius: 6px; margin-bottom: 0.5rem;">
+                        🏨 <strong>${prop.name}</strong> <span style="color: #6c757d;">(ID: ${prop.external_id})</span>
+                    </div>
+                `).join('');
+            } else {
+                container.innerHTML = '<p style="color: #6c757d;">Properties will appear here after sync</p>';
+            }
+        }
+        
+        function copyWebhookUrl() {
+            const urlInput = document.getElementById('webhookUrl');
+            navigator.clipboard.writeText(urlInput.value).then(() => {
+                const successMsg = document.getElementById('webhook-copy-success');
+                successMsg.style.display = 'block';
+                setTimeout(() => {
+                    successMsg.style.display = 'none';
+                }, 2000);
+            });
+        }
+        
+        async function doLogin() {
+            const email = document.getElementById('login-email').value.trim();
+            const password = document.getElementById('login-password').value;
+            
+            if (!email || !password) {
+                showError('step1-error', 'Please enter email and password');
+                return;
+            }
+            
+            document.getElementById('nextBtn').disabled = true;
+            
+            try {
+                const response = await fetch('/api/accounts/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || 'Login failed');
+                }
+                
+                // Save auth token for auto-login to gas-admin
+                if (data.token) {
+                    localStorage.setItem('gas_token', data.token);
+                }
+                
+                wizardData.account = data.account;
+                currentStep++;
+                showStep(currentStep);
+                
+            } catch (error) {
+                showError('step1-error', error.message);
+            } finally {
+                document.getElementById('nextBtn').disabled = false;
+            }
+        }
+        
+        async function doRegister() {
+            const name = document.getElementById('reg-name').value.trim();
+            const email = document.getElementById('reg-email').value.trim();
+            const password = document.getElementById('reg-password').value;
+            
+            if (!name || !email || !password) {
+                showError('step1-error', 'Please fill in all fields');
+                return;
+            }
+            
+            document.getElementById('nextBtn').disabled = true;
+            
+            try {
+                const response = await fetch('/api/accounts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name,
+                        email,
+                        password,
+                        role: wizardData.selectedRole,
+                        business_name: name
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    // Check for duplicate email error
+                    if (data.error && (data.error.includes('duplicate') || data.error.includes('unique') || data.error.includes('already exists'))) {
+                        // Switch to login tab with message
+                        showAuthTab('login');
+                        document.getElementById('login-email').value = email;
+                        showError('step1-error', 'An account with this email already exists. Please login instead.');
+                        return;
+                    }
+                    throw new Error(data.error || 'Registration failed');
+                }
+                
+                // Save auth token for auto-login to gas-admin
+                if (data.token) {
+                    localStorage.setItem('gas_token', data.token);
+                }
+                
+                wizardData.account = data.account;
+                currentStep++;
+                showStep(currentStep);
+                
+            } catch (error) {
+                showError('step1-error', error.message);
+            } finally {
+                document.getElementById('nextBtn').disabled = false;
+            }
+        }
+        
+        async function connectBooking Automation() {
+            const inviteCode = document.getElementById('inviteCode').value.trim();
+            
+            if (!inviteCode) {
+                showError('step2-error', 'Please enter your Invite Code');
+                return;
+            }
+            
+            document.getElementById('connect-loading').style.display = 'block';
+            document.getElementById('nextBtn').disabled = true;
+            
+            try {
+                // First check if connection already exists for this account
+                const existingResponse = await fetch(`/api/gas-sync/connections?account_id=${wizardData.account.id}`);
+                const existingData = await existingResponse.json();
+                
+                let connectionId = null;
+                
+                if (existingData.success && existingData.connections && existingData.connections.length > 0) {
+                    // Use existing connection
+                    const bookingautomationConn = existingData.connections.find(c => c.adapter_code === 'beds24');
+                    if (bookingautomationConn) {
+                        console.log('Found existing Booking Automation connection:', bookingautomationConn.id);
+                        connectionId = bookingautomationConn.id;
+                    }
+                }
+                
+                if (!connectionId) {
+                    // Create new connection
+                    const response = await fetch('/api/gas-sync/connections', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            account_id: wizardData.account.id,
+                            adapter_code: 'beds24',
+                            credentials: { inviteCode }
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    console.log('Create connection response:', data);
+                    
+                    if (!data.success) {
+                        // If connection already exists error, try to extract existing_id
+                        if (data.existing_id) {
+                            connectionId = data.existing_id;
+                        } else {
+                            throw new Error(data.error || 'Connection failed');
+                        }
+                    } else {
+                        // Server returns connection_id, not connection.id
+                        connectionId = data.connection_id || data.connection?.id;
+                    }
+                }
+                
+                wizardData.connectionId = connectionId;
+                
+                console.log('Connection ID:', connectionId);
+                
+                // Trigger sync
+                if (wizardData.connectionId) {
+                    document.getElementById('connect-status').textContent = `Starting sync for connection ${wizardData.connectionId}...`;
+                    
+                    await fetch(`/api/gas-sync/connections/${wizardData.connectionId}/sync`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                    
+                    // Poll for properties (sync runs in background)
+                    let attempts = 0;
+                    const maxAttempts = 10;
+                    
+                    while (attempts < maxAttempts) {
+                        document.getElementById('connect-status').textContent = `Waiting for sync... (${attempts + 1}/${maxAttempts}) [conn: ${wizardData.connectionId}]`;
+                        await new Promise(r => setTimeout(r, 2000)); // Wait 2 seconds between checks
+                        
+                        const propsResponse = await fetch(`/api/gas-sync/connections/${wizardData.connectionId}/properties`);
+                        const propsData = await propsResponse.json();
+                        
+                        console.log(`Poll ${attempts + 1}:`, propsData);
+                        
+                        if (propsData.success && propsData.properties && propsData.properties.length > 0) {
+                            wizardData.properties = propsData.properties;
+                            wizardData.propertyCount = propsData.properties.length;
+                            wizardData.roomCount = propsData.properties.reduce((sum, p) => sum + parseInt(p.room_type_count || 0), 0);
+                            document.getElementById('connect-status').textContent = `Found ${wizardData.propertyCount} properties!`;
+                            break;
+                        }
+                        
+                        attempts++;
+                    }
+                } else {
+                    console.error('No connection ID!');
+                    throw new Error('Failed to create connection');
+                }
+                
+                if (wizardData.propertyCount === 0) {
+                    throw new Error('No properties found. Please check your invite code and try again.');
+                }
+                
+                // Properties will be configured in GAS Connections page
+                currentStep++;
+                showStep(currentStep);
+                
+            } catch (error) {
+                showStep2Error(error.message);
+            } finally {
+                document.getElementById('connect-loading').style.display = 'none';
+                document.getElementById('nextBtn').disabled = false;
+            }
+        }
+        
+        function showStep2Error(message) {
+            document.getElementById('step2-error').innerHTML = `
+                <div class="alert alert-error">
+                    <strong>Connection failed:</strong> ${message}
+                </div>
+                <div class="alert alert-warning" style="margin-top: 0.5rem;">
+                    <strong>💡 To try again:</strong>
+                    <ol style="margin: 0.5rem 0 0 1.25rem; padding: 0;">
+                        <li>Go back to Booking Automation</li>
+                        <li>Generate a <strong>fresh</strong> invite code</li>
+                        <li>Paste it below and click Next</li>
+                    </ol>
+                </div>
+            `;
+            document.getElementById('inviteCode').value = '';
+            document.getElementById('inviteCode').focus();
+        }
+        
+        async function saveV1Credentials() {
+            const v1ApiKey = document.getElementById('v1ApiKey').value.trim();
+            
+            document.getElementById('setup-loading').style.display = 'block';
+            document.getElementById('nextBtn').disabled = true;
+            
+            try {
+                // Save V1 API key to connection using the dedicated endpoint
+                if (v1ApiKey) {
+                    await fetch(`/api/gas-sync/connections/${wizardData.connectionId}/set-v1-api-key`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            v1ApiKey: v1ApiKey
+                        })
+                    });
+                }
+                
+                // Skip to success - property setup (propKeys, webhooks, import) will be done in GAS Connections
+                currentStep = 5;
+                showStep(currentStep);
+                updateFinalCounts();
+                
+            } catch (error) {
+                showError('step3-error', `Setup failed: ${error.message}`);
+            } finally {
+                document.getElementById('setup-loading').style.display = 'none';
+                document.getElementById('nextBtn').disabled = false;
+            }
+        }
+        
+        function updateFinalCounts() {
+            document.getElementById('final-prop-count').textContent = wizardData.propertyCount;
+            document.getElementById('final-room-count').textContent = wizardData.roomCount;
+            document.getElementById('final-image-count').textContent = wizardData.imageCount;
+        }
+        
+        showStep(1);
+    </script>
+</body>
+</html>
