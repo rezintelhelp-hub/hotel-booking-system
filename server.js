@@ -3019,6 +3019,9 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS security_deposit DECIMAL(10,2)');
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS status VARCHAR(50)');
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS feature_codes TEXT');
+    await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS quantity INTEGER DEFAULT 1');
+    await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS max_adults INTEGER');
+    await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS max_children INTEGER DEFAULT 0');
     
     // Drop FK constraint on gas_room_id if it exists (we'll manage this ourselves)
     await pool.query('ALTER TABLE gas_sync_room_types ADD COLUMN IF NOT EXISTS gas_room_id INTEGER');
@@ -29444,16 +29447,34 @@ app.get('/api/elevate/:apiKey/clients/:clientId', async (req, res) => {
     
     // Get client's properties
     const properties = await pool.query(`
-      SELECT id, name, address, city, country, currency, status, 
-             cm_property_id as external_id
+      SELECT id, name, display_name, short_description, address, city, country, 
+             currency, status, cm_property_id as external_id
       FROM properties 
       WHERE account_id = $1 AND status = 'active'
     `, [result.rows[0].account_id]);
     
+    // Get rooms for each property
+    const propertiesWithRooms = await Promise.all(properties.rows.map(async (prop) => {
+      const rooms = await pool.query(`
+        SELECT id, name, display_name, short_description, room_type, status,
+               max_guests, max_adults, max_children, quantity,
+               base_price, currency, cm_room_id as external_id,
+               num_bedrooms, num_bathrooms
+        FROM bookable_units 
+        WHERE property_id = $1 AND (status IS NULL OR status = 'active')
+        ORDER BY name
+      `, [prop.id]);
+      
+      return {
+        ...prop,
+        rooms: rooms.rows
+      };
+    }));
+    
     res.json({ 
       success: true, 
       client: result.rows[0],
-      properties: properties.rows
+      properties: propertiesWithRooms
     });
     
   } catch (error) {
@@ -29959,10 +29980,10 @@ app.post('/api/elevate/:apiKey/property/:propertyId/room', async (req, res) => {
     const newRoom = await pool.query(`
       INSERT INTO bookable_units (
         property_id, name, display_name, short_description, full_description,
-        room_type, max_guests, base_price,
-        currency, cm_room_id, cm_source, status, created_at
+        room_type, max_guests, max_adults, max_children, quantity,
+        base_price, currency, cm_room_id, cm_source, status, created_at
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'elevate', 'active', NOW()
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'elevate', $14, NOW()
       )
       RETURNING id
     `, [
@@ -29972,10 +29993,14 @@ app.post('/api/elevate/:apiKey/property/:propertyId/room', async (req, res) => {
       room.short_description || null,
       room.long_description || room.full_description || null,
       room.room_type || 'room',
-      room.max_occupancy || 2,
-      room.base_rate || null,
+      room.max_guests || room.max_occupancy || 2,
+      room.max_adults || room.max_guests || room.max_occupancy || 2,
+      room.max_children || 0,
+      room.quantity || room.qty || 1,
+      room.base_rate || room.base_price || null,
       room.currency || propCheck.rows[0].currency || 'CHF',
-      room.external_id || null
+      room.external_id || null,
+      room.status || 'active'
     ]);
     
     res.json({
@@ -29987,6 +30012,57 @@ app.post('/api/elevate/:apiKey/property/:propertyId/room', async (req, res) => {
     
   } catch (error) {
     console.error('Elevate add room error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get rooms for a property
+app.get('/api/elevate/:apiKey/property/:propertyId/rooms', async (req, res) => {
+  console.log('=== ELEVATE: GET PROPERTY ROOMS ===');
+  
+  try {
+    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: 'Invalid API key' });
+    }
+    
+    const { propertyId } = req.params;
+    
+    // Find property
+    const propCheck = await pool.query(`
+      SELECT p.id
+      FROM properties p
+      JOIN accounts a ON a.id = p.account_id
+      WHERE a.parent_id = $1 
+      AND (p.id::text = $2 OR p.cm_property_id = $2)
+    `, [ELEVATE_MASTER_ACCOUNT_ID, propertyId]);
+    
+    if (propCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Property not found' });
+    }
+    
+    const gasPropertyId = propCheck.rows[0].id;
+    
+    // Get rooms
+    const rooms = await pool.query(`
+      SELECT id, name, display_name, short_description, full_description,
+             room_type, status, max_guests, max_adults, max_children, 
+             quantity, base_price, currency, cm_room_id as external_id,
+             num_bedrooms, num_bathrooms, created_at
+      FROM bookable_units 
+      WHERE property_id = $1 AND (status IS NULL OR status != 'deleted')
+      ORDER BY name
+    `, [gasPropertyId]);
+    
+    res.json({
+      success: true,
+      property_id: gasPropertyId,
+      room_count: rooms.rows.length,
+      rooms: rooms.rows
+    });
+    
+  } catch (error) {
+    console.error('Elevate get property rooms error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -30031,13 +30107,22 @@ app.put('/api/elevate/:apiKey/room/:roomId', async (req, res) => {
       'short_description': 'short_description',
       'long_description': 'full_description',
       'full_description': 'full_description',
-      'room_type': 'room_type', 
+      'description': 'full_description',
+      'room_type': 'room_type',
+      'status': 'status',
+      'max_guests': 'max_guests',
       'max_occupancy': 'max_guests',
+      'max_adults': 'max_adults',
+      'max_children': 'max_children',
+      'quantity': 'quantity',
+      'qty': 'quantity',
       'num_bedrooms': 'num_bedrooms',
+      'bedrooms': 'num_bedrooms',
       'num_bathrooms': 'num_bathrooms',
+      'bathrooms': 'num_bathrooms',
       'base_rate': 'base_price',
-      'currency': 'currency',
-      'description': 'full_description'
+      'base_price': 'base_price',
+      'currency': 'currency'
     };
     
     for (const [apiField, dbField] of Object.entries(fieldMap)) {
@@ -30588,6 +30673,7 @@ app.get('/api/elevate/:apiKey/room/:roomId/images', async (req, res) => {
 // Add images to a room
 app.post('/api/elevate/:apiKey/room/:roomId/images', async (req, res) => {
   console.log('=== ELEVATE: ADD ROOM IMAGES ===');
+  console.log('Room ID param:', req.params.roomId);
   
   try {
     const auth = await validateElevatePartnerKey(req.params.apiKey);
@@ -30602,9 +30688,9 @@ app.post('/api/elevate/:apiKey/room/:roomId/images', async (req, res) => {
       return res.status(400).json({ success: false, error: 'images must be an array' });
     }
     
-    // Find room
+    // Find room by GAS ID or external_id (cm_room_id)
     const roomCheck = await pool.query(`
-      SELECT bu.id, bu.property_id
+      SELECT bu.id, bu.property_id, bu.name, bu.cm_room_id
       FROM bookable_units bu
       JOIN properties p ON p.id = bu.property_id
       JOIN accounts a ON a.id = p.account_id
@@ -30612,8 +30698,15 @@ app.post('/api/elevate/:apiKey/room/:roomId/images', async (req, res) => {
       AND (bu.id::text = $2 OR bu.cm_room_id = $2)
     `, [ELEVATE_MASTER_ACCOUNT_ID, roomId]);
     
+    console.log('Room lookup result:', roomCheck.rows);
+    
     if (roomCheck.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Room not found' });
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Room not found',
+        hint: 'Use the GAS room ID (from property creation response) or your external_id',
+        searched_for: roomId
+      });
     }
     
     const gasRoomId = roomCheck.rows[0].id;
