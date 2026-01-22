@@ -20373,6 +20373,61 @@ async function handlePricingWebhook(connectionId, data) {
   console.log(`Pricing updated for room ${roomTypeId}`);
 }
 
+// Debug endpoint to check Calry import results
+app.get('/api/debug/calry-import/:propertyId', async (req, res) => {
+  try {
+    const { propertyId } = req.params;
+    
+    // Get property data
+    const propResult = await pool.query(`
+      SELECT id, name, description, city, country, address, latitude, longitude, 
+             currency, cm_property_id, cm_source, settings
+      FROM properties 
+      WHERE id = $1 OR cm_property_id = $1
+    `, [propertyId]);
+    
+    // Get room data
+    const roomResult = await pool.query(`
+      SELECT id, name, description, max_guests, num_bedrooms, num_bathrooms, 
+             base_price, currency, amenities, cm_room_id, cm_source
+      FROM bookable_units 
+      WHERE property_id = $1
+    `, [propResult.rows[0]?.id || propertyId]);
+    
+    // Get images
+    const imageResult = await pool.query(`
+      SELECT id, room_id, image_key, image_url, caption, display_order, is_primary
+      FROM property_images 
+      WHERE property_id = $1
+      ORDER BY display_order
+    `, [propResult.rows[0]?.id || propertyId]);
+    
+    // Get sync property raw data
+    const syncResult = await pool.query(`
+      SELECT name, raw_data, created_at, updated_at
+      FROM gas_sync_properties 
+      WHERE gas_property_id = $1
+    `, [propResult.rows[0]?.id || propertyId]);
+    
+    res.json({
+      success: true,
+      property: propResult.rows[0] || null,
+      rooms: roomResult.rows,
+      images: imageResult.rows,
+      sync_data: syncResult.rows[0] ? {
+        name: syncResult.rows[0].name,
+        raw_data_keys: syncResult.rows[0].raw_data ? Object.keys(syncResult.rows[0].raw_data) : [],
+        raw_data_sample: syncResult.rows[0].raw_data ? JSON.stringify(syncResult.rows[0].raw_data).substring(0, 500) : null,
+        created_at: syncResult.rows[0].created_at,
+        updated_at: syncResult.rows[0].updated_at
+      } : null
+    });
+    
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // GET version for easy browser testing
 app.get('/api/calry/import-property/:integrationAccountId/:propertyId', async (req, res) => {
   // Redirect to POST handler with params as body
