@@ -447,8 +447,10 @@
                     window.location.href = '/hostaway-wizard.html';
                 } else if (id === 'bookingautomation') {
                     window.location.href = '/booking-automation-wizard.html';
+                } else if (id === 'smoobu') {
+                    window.location.href = '/smoobu-wizard.html';
                 } else {
-                    // All others go to Calry wizard
+                    // All others go to generic Calry wizard
                     localStorage.setItem('gas_selected_cm', JSON.stringify(cm));
                     window.location.href = `/connect-cm-wizard.html?cm=${id}`;
                 }
