@@ -19757,7 +19757,19 @@ async function importCalryPropertiesViaAdapter(integrationAccountId, pmsName, ex
       try {
         console.log(`\nProcessing: ${property.name} (${property.externalId})`);
         
-        const syncPropertyId = await adapter.syncPropertyToDatabase(property);
+        // Fetch FULL property details (includes images, amenities, etc.)
+        let fullProperty = property;
+        try {
+          const fullPropResult = await adapter.getProperty(property.externalId);
+          if (fullPropResult.success && fullPropResult.data) {
+            fullProperty = fullPropResult.data;
+            console.log(`  Fetched full details: ${fullProperty.images?.length || 0} images, ${fullProperty.amenities?.length || 0} amenities`);
+          }
+        } catch (detailErr) {
+          console.log(`  Could not fetch full details: ${detailErr.message}`);
+        }
+        
+        const syncPropertyId = await adapter.syncPropertyToDatabase(fullProperty);
         console.log(`  Synced to staging: ${syncPropertyId}`);
         
         let roomsForProperty = 0;
@@ -19772,7 +19784,7 @@ async function importCalryPropertiesViaAdapter(integrationAccountId, pmsName, ex
           console.log(`  Synced ${roomsForProperty} rooms`);
         }
         
-        const linkResult = await linkSyncPropertyToGasInternal(syncPropertyId, gasAccountId, property);
+        const linkResult = await linkSyncPropertyToGasInternal(syncPropertyId, gasAccountId, fullProperty);
         
         if (linkResult.success) {
           results.properties_imported++;
