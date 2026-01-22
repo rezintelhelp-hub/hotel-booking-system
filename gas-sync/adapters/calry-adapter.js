@@ -243,27 +243,66 @@ class CalryAdapter {
   }
   
   mapProperty(raw) {
+    // Extract amenities - handle different formats
+    let amenities = [];
+    if (raw.amenities && Array.isArray(raw.amenities)) {
+      raw.amenities.forEach(a => {
+        if (typeof a === 'string') amenities.push(a);
+        else if (a.name) amenities.push(a.name);
+        else if (a.amenity) amenities.push(a.amenity);
+      });
+    }
+    
+    // Extract images - handle different formats
+    let images = [];
+    const rawImages = raw.pictures || raw.images || raw.photos || [];
+    rawImages.forEach((pic, idx) => {
+      const url = typeof pic === 'string' ? pic : (pic.url || pic.original || pic.large || pic.medium);
+      if (url) {
+        images.push({
+          url,
+          caption: typeof pic === 'object' ? (pic.caption || pic.description || pic.title || '') : '',
+          order: idx,
+          isPrimary: idx === 0
+        });
+      }
+    });
+    // Add thumbnail as image if no other images
+    if (images.length === 0 && raw.thumbnailUrl) {
+      images.push({ url: raw.thumbnailUrl, caption: '', order: 0, isPrimary: true });
+    }
+    
     return {
       externalId: String(raw.id),
       name: raw.name,
-      description: raw.description || '',
+      description: raw.description || raw.summary || '',
+      shortDescription: raw.shortDescription || '',
       propertyType: raw.type || raw.propertyType || 'vacation_rental',
       address: {
-        street: raw.address?.street || raw.street || '',
+        street: raw.address?.street || raw.address?.line1 || raw.street || '',
         city: raw.address?.city || raw.city || '',
-        state: raw.address?.state || raw.region || '',
-        country: raw.address?.country || raw.country || '',
-        postalCode: raw.address?.postalCode || raw.zipCode || '',
+        state: raw.address?.state || raw.address?.region || raw.region || '',
+        country: raw.address?.country || raw.address?.countryCode || raw.country || '',
+        postalCode: raw.address?.postalCode || raw.address?.postal_code || raw.address?.zipCode || raw.zipCode || '',
         coordinates: {
-          lat: parseFloat(raw.latitude || raw.address?.latitude) || null,
-          lng: parseFloat(raw.longitude || raw.address?.longitude) || null
+          lat: parseFloat(raw.latitude || raw.geoLocation?.latitude || raw.address?.latitude || raw.coordinates?.lat) || null,
+          lng: parseFloat(raw.longitude || raw.geoLocation?.longitude || raw.address?.longitude || raw.coordinates?.lng) || null
         }
       },
       timezone: raw.timezone || 'UTC',
       currency: raw.currency || 'USD',
-      checkInTime: raw.checkInTime || raw.defaultCheckIn || '15:00',
-      checkOutTime: raw.checkOutTime || raw.defaultCheckOut || '11:00',
-      amenities: raw.amenities || [],
+      checkInTime: raw.checkInTime || raw.checkinTime || raw.defaultCheckIn || '15:00',
+      checkOutTime: raw.checkOutTime || raw.checkoutTime || raw.defaultCheckOut || '11:00',
+      houseRules: raw.houseRules || raw.rules || '',
+      cancellationPolicy: raw.cancellationPolicy || '',
+      minNights: raw.minNights || raw.minimumStay || null,
+      maxNights: raw.maxNights || raw.maximumStay || null,
+      amenities: amenities,
+      images: images,
+      thumbnailUrl: raw.thumbnailUrl || raw.thumbnail || (images[0]?.url || null),
+      contactEmail: raw.email || raw.contactEmail || null,
+      contactPhone: raw.phone || raw.contactPhone || null,
+      website: raw.websiteUrl || raw.website || null,
       roomTypes: (raw.roomTypes || []).map(rt => this.mapRoomType(rt)),
       metadata: {
         calryId: raw.id,
@@ -309,21 +348,57 @@ class CalryAdapter {
   }
   
   mapRoomType(raw, propertyId = null) {
+    // Extract amenities - handle different formats
+    let amenities = [];
+    if (raw.amenities && Array.isArray(raw.amenities)) {
+      raw.amenities.forEach(a => {
+        if (typeof a === 'string') amenities.push(a);
+        else if (a.name) amenities.push(a.name);
+        else if (a.amenity) amenities.push(a.amenity);
+      });
+    }
+    
+    // Extract images
+    let images = [];
+    const rawImages = raw.pictures || raw.images || raw.photos || [];
+    rawImages.forEach((pic, idx) => {
+      const url = typeof pic === 'string' ? pic : (pic.url || pic.original || pic.large);
+      if (url) {
+        images.push({
+          url,
+          caption: typeof pic === 'object' ? (pic.caption || pic.description || '') : '',
+          order: idx,
+          isPrimary: idx === 0
+        });
+      }
+    });
+    
+    // Extract bed configuration
+    let beds = raw.beds || raw.bedTypes || raw.bedConfiguration || [];
+    if (!Array.isArray(beds)) beds = [];
+    
     return {
       externalId: String(raw.id),
       propertyExternalId: propertyId || String(raw.propertyId),
       name: raw.name,
-      description: raw.description || '',
-      maxGuests: raw.maxOccupancy || raw.maxGuests || 2,
-      bedrooms: raw.bedrooms || 1,
-      beds: raw.beds || 1,
-      bathrooms: raw.bathrooms || 1,
-      size: raw.size || raw.squareFeet || null,
-      sizeUnit: raw.sizeUnit || 'sqft',
-      basePrice: parseFloat(raw.basePrice || raw.price) || 0,
+      description: raw.description || raw.summary || '',
+      maxGuests: raw.maxOccupancy || raw.maxGuests || raw.capacity || 2,
+      maxAdults: raw.maxAdults || raw.maxOccupancy || null,
+      maxChildren: raw.maxChildren || 0,
+      bedrooms: raw.bedRoom?.count || raw.bedrooms || raw.numberOfBedrooms || 1,
+      beds: beds.length || raw.beds || 1,
+      bedTypes: beds,
+      bathrooms: raw.bathRoom?.count || raw.bathrooms || raw.numberOfBathrooms || 1,
+      size: raw.size || raw.area || raw.squareMeters || raw.squareFeet || null,
+      sizeUnit: raw.sizeUnit || (raw.squareMeters ? 'sqm' : 'sqft'),
+      floor: raw.floor || null,
+      view: raw.view || null,
+      roomType: raw.roomType || raw.type || null,
+      basePrice: parseFloat(raw.startPrice || raw.basePrice || raw.price) || 0,
       currency: raw.currency || 'USD',
-      amenities: raw.amenities || [],
-      unitCount: raw.units?.length || 1,
+      amenities: amenities,
+      images: images,
+      unitCount: raw.units?.length || raw.quantity || 1,
       units: (raw.units || []).map(u => ({
         externalId: String(u.id),
         name: u.name,
@@ -925,20 +1000,316 @@ class CalryAdapter {
     }
   }
   
-  // Database sync helpers (same pattern as Beds24 adapter)
+  // Database sync helpers - Map Calry data to GAS tables
   async syncPropertyToDatabase(property) {
-    if (!this.pool) return;
-    // Implementation same as Beds24 adapter
+    if (!this.pool || !this.connectionId) return;
+    
+    try {
+      // Extract address fields with fallbacks
+      const address = property.address || {};
+      const street = address.street || address.line1 || '';
+      const city = address.city || '';
+      const country = address.country || address.countryCode || '';
+      const postalCode = address.postalCode || address.postal_code || address.zipCode || '';
+      const lat = address.coordinates?.lat || null;
+      const lng = address.coordinates?.lng || null;
+      
+      // Build settings JSON with all extra Calry data
+      const settings = {
+        calry_id: property.metadata?.calryId || property.externalId,
+        calry_external_id: property.metadata?.externalPropertyId,
+        pms_type: this.pmsType,
+        check_in_time: property.checkInTime || null,
+        check_out_time: property.checkOutTime || null,
+        timezone: property.timezone || null,
+        property_type: property.propertyType || null,
+        amenities: property.amenities || []
+      };
+      
+      // Upsert to gas_sync_properties
+      const result = await this.pool.query(`
+        INSERT INTO gas_sync_properties (
+          connection_id, external_id, name, 
+          address, city, country, postal_code,
+          latitude, longitude, currency, description,
+          raw_data, created_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
+        ON CONFLICT (connection_id, external_id) DO UPDATE SET
+          name = EXCLUDED.name,
+          address = EXCLUDED.address,
+          city = EXCLUDED.city,
+          country = EXCLUDED.country,
+          postal_code = EXCLUDED.postal_code,
+          latitude = EXCLUDED.latitude,
+          longitude = EXCLUDED.longitude,
+          currency = EXCLUDED.currency,
+          description = EXCLUDED.description,
+          raw_data = EXCLUDED.raw_data,
+          updated_at = NOW()
+        RETURNING id
+      `, [
+        this.connectionId,
+        property.externalId,
+        property.name,
+        street,
+        city,
+        country,
+        postalCode,
+        lat,
+        lng,
+        property.currency || 'EUR',
+        property.description || '',
+        JSON.stringify({ ...property.raw, _settings: settings })
+      ]);
+      
+      return result.rows[0]?.id;
+    } catch (error) {
+      console.error('Calry syncPropertyToDatabase error:', error.message);
+      throw error;
+    }
   }
   
   async syncRoomTypeToDatabase(roomType, propertyExternalId) {
-    if (!this.pool) return;
-    // Implementation same as Beds24 adapter
+    if (!this.pool || !this.connectionId) return;
+    
+    try {
+      // Get the sync property ID
+      const propResult = await this.pool.query(
+        'SELECT id FROM gas_sync_properties WHERE connection_id = $1 AND external_id = $2',
+        [this.connectionId, propertyExternalId]
+      );
+      
+      if (propResult.rows.length === 0) {
+        console.log('Property not found for room type:', propertyExternalId);
+        return;
+      }
+      
+      const syncPropertyId = propResult.rows[0].id;
+      
+      // Build amenities JSON with extra data
+      const amenitiesData = {
+        amenities: roomType.amenities || [],
+        calry_id: roomType.metadata?.calryRoomTypeId || roomType.externalId,
+        calry_external_id: roomType.metadata?.externalRoomTypeId,
+        bed_types: roomType.beds || [],
+        room_type: roomType.roomType || null,
+        size: roomType.size || null,
+        size_unit: roomType.sizeUnit || 'sqm',
+        unit_count: roomType.unitCount || 1
+      };
+      
+      // Upsert to gas_sync_room_types
+      const result = await this.pool.query(`
+        INSERT INTO gas_sync_room_types (
+          sync_property_id, external_id, name,
+          max_guests, base_price, currency,
+          bedrooms, bathrooms,
+          raw_data, created_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+        ON CONFLICT (sync_property_id, external_id) DO UPDATE SET
+          name = EXCLUDED.name,
+          max_guests = EXCLUDED.max_guests,
+          base_price = EXCLUDED.base_price,
+          currency = EXCLUDED.currency,
+          bedrooms = EXCLUDED.bedrooms,
+          bathrooms = EXCLUDED.bathrooms,
+          raw_data = EXCLUDED.raw_data,
+          updated_at = NOW()
+        RETURNING id
+      `, [
+        syncPropertyId,
+        roomType.externalId,
+        roomType.name,
+        roomType.maxGuests || 2,
+        roomType.basePrice || 0,
+        roomType.currency || 'EUR',
+        roomType.bedrooms || 1,
+        roomType.bathrooms || 1,
+        JSON.stringify({ ...roomType.raw, _amenities: amenitiesData })
+      ]);
+      
+      return result.rows[0]?.id;
+    } catch (error) {
+      console.error('Calry syncRoomTypeToDatabase error:', error.message);
+      throw error;
+    }
   }
   
   async syncReservationToDatabase(reservation) {
-    if (!this.pool) return;
-    // Implementation same as Beds24 adapter
+    if (!this.pool || !this.connectionId) return;
+    
+    try {
+      // Guest name handling
+      const guestName = reservation.guest 
+        ? `${reservation.guest.firstName || ''} ${reservation.guest.lastName || ''}`.trim()
+        : 'Guest';
+      
+      // Upsert to gas_sync_reservations
+      const result = await this.pool.query(`
+        INSERT INTO gas_sync_reservations (
+          connection_id, external_id, property_external_id, room_type_external_id,
+          channel, channel_reservation_id,
+          check_in, check_out, status,
+          guest_name, guest_email, guest_phone,
+          adults, children, infants,
+          total_price, currency,
+          source, notes,
+          raw_data, created_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, NOW())
+        ON CONFLICT (connection_id, external_id) DO UPDATE SET
+          status = EXCLUDED.status,
+          check_in = EXCLUDED.check_in,
+          check_out = EXCLUDED.check_out,
+          guest_name = EXCLUDED.guest_name,
+          guest_email = EXCLUDED.guest_email,
+          guest_phone = EXCLUDED.guest_phone,
+          adults = EXCLUDED.adults,
+          children = EXCLUDED.children,
+          infants = EXCLUDED.infants,
+          total_price = EXCLUDED.total_price,
+          raw_data = EXCLUDED.raw_data,
+          updated_at = NOW()
+        RETURNING id
+      `, [
+        this.connectionId,
+        reservation.externalId,
+        reservation.propertyId,
+        reservation.roomTypeId,
+        reservation.channel || 'DIRECT',
+        reservation.channelReservationId,
+        reservation.checkIn,
+        reservation.checkOut,
+        reservation.status || 'confirmed',
+        guestName,
+        reservation.guest?.email || null,
+        reservation.guest?.phone || null,
+        reservation.guests?.adults || 1,
+        reservation.guests?.children || 0,
+        reservation.guests?.infants || 0,
+        reservation.pricing?.total || 0,
+        reservation.pricing?.currency || 'EUR',
+        reservation.source || 'calry',
+        reservation.notes || null,
+        JSON.stringify(reservation.raw || reservation)
+      ]);
+      
+      return result.rows[0]?.id;
+    } catch (error) {
+      console.error('Calry syncReservationToDatabase error:', error.message);
+      throw error;
+    }
+  }
+  
+  // Sync availability to room_calendar table
+  async syncAvailabilityToDatabase(roomTypeExternalId, availabilityData) {
+    if (!this.pool || !this.connectionId) return;
+    
+    try {
+      // Find the GAS room ID
+      const roomResult = await this.pool.query(`
+        SELECT bu.id as gas_room_id
+        FROM gas_sync_room_types srt
+        JOIN gas_sync_properties sp ON srt.sync_property_id = sp.id
+        JOIN bookable_units bu ON bu.cm_room_id = srt.external_id AND bu.property_id = sp.gas_property_id
+        WHERE sp.connection_id = $1 AND srt.external_id = $2
+      `, [this.connectionId, roomTypeExternalId]);
+      
+      if (roomResult.rows.length === 0) {
+        console.log('Room not linked to GAS for availability sync:', roomTypeExternalId);
+        return;
+      }
+      
+      const gasRoomId = roomResult.rows[0].gas_room_id;
+      
+      // Upsert each day's availability
+      for (const day of availabilityData) {
+        await this.pool.query(`
+          INSERT INTO room_calendar (
+            room_id, date, price, currency,
+            available, min_stay, max_stay,
+            closed_to_arrival, closed_to_departure,
+            updated_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+          ON CONFLICT (room_id, date) DO UPDATE SET
+            price = COALESCE(EXCLUDED.price, room_calendar.price),
+            available = EXCLUDED.available,
+            min_stay = COALESCE(EXCLUDED.min_stay, room_calendar.min_stay),
+            max_stay = COALESCE(EXCLUDED.max_stay, room_calendar.max_stay),
+            closed_to_arrival = EXCLUDED.closed_to_arrival,
+            closed_to_departure = EXCLUDED.closed_to_departure,
+            updated_at = NOW()
+        `, [
+          gasRoomId,
+          day.date,
+          day.price || null,
+          day.currency || 'EUR',
+          day.isAvailable !== false,
+          day.minStay || 1,
+          day.maxStay || null,
+          day.checkInAllowed === false,
+          day.checkOutAllowed === false
+        ]);
+      }
+      
+      return availabilityData.length;
+    } catch (error) {
+      console.error('Calry syncAvailabilityToDatabase error:', error.message);
+      throw error;
+    }
+  }
+  
+  // Sync rates to room_calendar table
+  async syncRatesToDatabase(roomTypeExternalId, ratesData) {
+    if (!this.pool || !this.connectionId) return;
+    
+    try {
+      // Find the GAS room ID
+      const roomResult = await this.pool.query(`
+        SELECT bu.id as gas_room_id
+        FROM gas_sync_room_types srt
+        JOIN gas_sync_properties sp ON srt.sync_property_id = sp.id
+        JOIN bookable_units bu ON bu.cm_room_id = srt.external_id AND bu.property_id = sp.gas_property_id
+        WHERE sp.connection_id = $1 AND srt.external_id = $2
+      `, [this.connectionId, roomTypeExternalId]);
+      
+      if (roomResult.rows.length === 0) {
+        console.log('Room not linked to GAS for rates sync:', roomTypeExternalId);
+        return;
+      }
+      
+      const gasRoomId = roomResult.rows[0].gas_room_id;
+      
+      // Upsert each day's rate
+      for (const day of ratesData) {
+        await this.pool.query(`
+          INSERT INTO room_calendar (
+            room_id, date, price, currency,
+            extra_guest_fee, weekly_discount, monthly_discount,
+            updated_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+          ON CONFLICT (room_id, date) DO UPDATE SET
+            price = EXCLUDED.price,
+            currency = EXCLUDED.currency,
+            extra_guest_fee = COALESCE(EXCLUDED.extra_guest_fee, room_calendar.extra_guest_fee),
+            weekly_discount = COALESCE(EXCLUDED.weekly_discount, room_calendar.weekly_discount),
+            monthly_discount = COALESCE(EXCLUDED.monthly_discount, room_calendar.monthly_discount),
+            updated_at = NOW()
+        `, [
+          gasRoomId,
+          day.date,
+          day.price,
+          day.currency || 'EUR',
+          day.extraGuestFee || null,
+          day.weeklyDiscountPercent || null,
+          day.monthlyDiscountPercent || null
+        ]);
+      }
+      
+      return ratesData.length;
+    } catch (error) {
+      console.error('Calry syncRatesToDatabase error:', error.message);
+      throw error;
+    }
   }
 }
 
