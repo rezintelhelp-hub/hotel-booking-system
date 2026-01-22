@@ -5169,7 +5169,7 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
     
     // Get property and connection info
     const propResult = await pool.query(`
-      SELECT sp.*, c.access_token, c.refresh_token, c.credentials, c.id as connection_id
+      SELECT sp.*, c.access_token, c.refresh_token, c.credentials, c.id as connection_id, c.adapter_code
       FROM gas_sync_properties sp
       JOIN gas_sync_connections c ON c.id = sp.connection_id
       WHERE sp.id = $1 OR sp.external_id = $2
@@ -5180,6 +5180,16 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
     }
     
     const prop = propResult.rows[0];
+    
+    // Skip content sync for Calry - it doesn't have a separate content endpoint
+    // Calry content comes with the property data during initial import
+    if (prop.adapter_code === 'calry') {
+      return res.json({ 
+        success: true, 
+        message: 'Calry properties sync content during import. Use resync to refresh.',
+        adapter: 'calry'
+      });
+    }
     
     // Check rate limit
     if (!force && prop.last_content_sync) {
