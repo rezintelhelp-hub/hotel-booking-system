@@ -31417,10 +31417,20 @@ app.put('/api/elevate/:apiKey/room/:roomId', async (req, res) => {
       'currency': 'currency'
     };
     
+    // Fields that are JSONB in the database (multilingual support with {"en": "..."} format)
+    const jsonbFields = ['display_name', 'short_description', 'full_description'];
+    
     for (const [apiField, dbField] of Object.entries(fieldMap)) {
       if (updates[apiField] !== undefined) {
-        updateFields.push(`${dbField} = $${paramIndex}`);
-        values.push(updates[apiField]);
+        // For JSONB text fields, wrap in {"en": "..."} format
+        if (jsonbFields.includes(dbField)) {
+          const jsonVal = JSON.stringify({ en: updates[apiField] });
+          updateFields.push(`${dbField} = $${paramIndex}::jsonb`);
+          values.push(jsonVal);
+        } else {
+          updateFields.push(`${dbField} = $${paramIndex}`);
+          values.push(updates[apiField]);
+        }
         paramIndex++;
       }
     }
@@ -31432,10 +31442,10 @@ app.put('/api/elevate/:apiKey/room/:roomId', async (req, res) => {
     updateFields.push(`updated_at = NOW()`);
     values.push(gasRoomId);
     
-    await pool.query(
-      `UPDATE bookable_units SET ${updateFields.join(', ')} WHERE id = $${paramIndex}`,
-      values
-    );
+    const updateQuery = `UPDATE bookable_units SET ${updateFields.join(', ')} WHERE id = $${paramIndex}`;
+    console.log('Elevate update room query:', updateQuery);
+    
+    await pool.query(updateQuery, values);
     
     res.json({ success: true, room_id: gasRoomId });
     
