@@ -2493,6 +2493,16 @@ app.get('/api/gas-sync/connections/:id/properties-with-keys', async (req, res) =
     await pool.query('ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS gas_property_id INTEGER');
     await pool.query('ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS prop_key_tested BOOLEAN DEFAULT FALSE');
     await pool.query('ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS webhook_tested BOOLEAN DEFAULT FALSE');
+    // Add columns required by Calry adapter
+    await pool.query('ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS address TEXT');
+    await pool.query('ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS city TEXT');
+    await pool.query('ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS country TEXT');
+    await pool.query('ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS postal_code TEXT');
+    await pool.query('ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS latitude DECIMAL(10,7)');
+    await pool.query('ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS longitude DECIMAL(10,7)');
+    await pool.query('ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS currency VARCHAR(3)');
+    await pool.query('ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS description TEXT');
+    await pool.query('ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS raw_data JSONB');
     
     const result = await pool.query(`
       SELECT p.id, p.external_id, p.name, p.prop_key, p.gas_property_id, p.city, p.country,
@@ -19927,6 +19937,17 @@ app.post('/api/admin/calry/sync-connection/:connectionId', async (req, res) => {
   const { connectionId } = req.params;
   
   try {
+    // Ensure gas_sync_properties has all required columns
+    await pool.query('ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS address TEXT').catch(() => {});
+    await pool.query('ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS city TEXT').catch(() => {});
+    await pool.query('ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS country TEXT').catch(() => {});
+    await pool.query('ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS postal_code TEXT').catch(() => {});
+    await pool.query('ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS latitude DECIMAL(10,7)').catch(() => {});
+    await pool.query('ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS longitude DECIMAL(10,7)').catch(() => {});
+    await pool.query('ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS currency VARCHAR(3)').catch(() => {});
+    await pool.query('ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS description TEXT').catch(() => {});
+    await pool.query('ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS raw_data JSONB').catch(() => {});
+    
     // Get connection details
     const connResult = await pool.query(
       'SELECT id, account_id, external_account_id, external_account_name FROM gas_sync_connections WHERE id = $1',
