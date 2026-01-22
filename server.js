@@ -795,6 +795,30 @@ async function runMigrations() {
       console.log('ℹ️  blog_posts enhanced columns:', blogEnhanceError.message);
     }
     
+    // Property images table and columns
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS property_images (
+          id SERIAL PRIMARY KEY,
+          property_id INTEGER REFERENCES properties(id) ON DELETE CASCADE,
+          room_id INTEGER REFERENCES bookable_units(id) ON DELETE CASCADE,
+          url TEXT NOT NULL,
+          caption VARCHAR(500),
+          sort_order INTEGER DEFAULT 0,
+          is_primary BOOLEAN DEFAULT false,
+          external_id VARCHAR(255),
+          created_at TIMESTAMP DEFAULT NOW()
+        )
+      `);
+      await pool.query(`ALTER TABLE property_images ADD COLUMN IF NOT EXISTS external_id VARCHAR(255)`);
+      await pool.query(`ALTER TABLE property_images ADD COLUMN IF NOT EXISTS room_id INTEGER REFERENCES bookable_units(id) ON DELETE CASCADE`);
+      await pool.query(`ALTER TABLE property_images ADD COLUMN IF NOT EXISTS is_primary BOOLEAN DEFAULT false`);
+      await pool.query(`ALTER TABLE property_images ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0`);
+      console.log('✅ property_images table and columns ensured');
+    } catch (propImgError) {
+      console.log('ℹ️  property_images:', propImgError.message);
+    }
+    
     // Blog schedules table for recurring auto-generation
     try {
       await pool.query(`
