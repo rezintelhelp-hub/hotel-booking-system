@@ -19913,18 +19913,6 @@ async function importCalryPropertyHelper(integrationAccountId, propertyId, exist
     
     let gasRoomId;
     
-    // Merge room settings into amenities JSON for storage
-    const roomDataJson = {
-      amenities: roomAmenities,
-      calry_id: room.id,
-      calry_external_id: room.externalId,
-      bed_types: room.beds || room.bedTypes || room.bedConfiguration || [],
-      room_type: room.roomType || room.type || null,
-      floor: room.floor || null,
-      size_sqm: room.size || room.area || room.squareMeters || null,
-      view: room.view || null
-    };
-    
     if (existingRoom.rows.length > 0) {
       gasRoomId = existingRoom.rows[0].id;
       await pool.query(`
@@ -19936,9 +19924,8 @@ async function importCalryPropertyHelper(integrationAccountId, propertyId, exist
           num_bathrooms = $5,
           base_price = $6,
           currency = $7,
-          amenities = $8,
           updated_at = NOW()
-        WHERE id = $9
+        WHERE id = $8
       `, [
         room.name || calryProperty.name,
         room.description || room.summary || '',
@@ -19947,15 +19934,18 @@ async function importCalryPropertyHelper(integrationAccountId, propertyId, exist
         room.bathRoom?.count || room.bathrooms || room.numberOfBathrooms || 1,
         parseFloat(room.startPrice || room.basePrice || room.price || 0),
         calryProperty.currency || 'EUR',
-        JSON.stringify(roomDataJson),
         gasRoomId
       ]);
+      // Try to update amenities separately (may fail if column type mismatches)
+      try {
+        await pool.query('UPDATE bookable_units SET amenities = $1 WHERE id = $2', [JSON.stringify(roomAmenities), gasRoomId]);
+      } catch (e) { console.log('Could not update room amenities:', e.message); }
     } else {
       const roomResult = await pool.query(`
         INSERT INTO bookable_units (
           property_id, name, description, max_guests, num_bedrooms, num_bathrooms,
-          base_price, currency, amenities, cm_room_id, cm_source, status, created_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'calry', 'active', NOW())
+          base_price, currency, cm_room_id, cm_source, status, created_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'calry', 'active', NOW())
         RETURNING id
       `, [
         gasPropertyId,
@@ -19966,10 +19956,13 @@ async function importCalryPropertyHelper(integrationAccountId, propertyId, exist
         room.bathRoom?.count || room.bathrooms || room.numberOfBathrooms || 1,
         parseFloat(room.startPrice || room.basePrice || room.price || 0),
         calryProperty.currency || 'EUR',
-        JSON.stringify(roomDataJson),
         roomExternalId
       ]);
       gasRoomId = roomResult.rows[0].id;
+      // Try to update amenities separately (may fail if column type mismatches)
+      try {
+        await pool.query('UPDATE bookable_units SET amenities = $1 WHERE id = $2', [JSON.stringify(roomAmenities), gasRoomId]);
+      } catch (e) { console.log('Could not update room amenities:', e.message); }
     }
     
     // Import room images
