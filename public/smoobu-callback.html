@@ -234,6 +234,15 @@
                         <div class="stat-number" id="roomCount">0</div>
                         <div class="stat-label">Rooms</div>
                     </div>
+                    <div class="stat" id="imageStat" style="display:none;">
+                        <div class="stat-number" id="imageCount">0</div>
+                        <div class="stat-label">Images</div>
+                    </div>
+                </div>
+                
+                <div id="webhookStatus" class="webhook-status" style="display:none; margin: 1rem 0; padding: 0.75rem; border-radius: 8px; font-size: 0.9rem;">
+                    <span id="webhookStatusIcon"></span>
+                    <span id="webhookStatusText"></span>
                 </div>
                 
                 <a href="/gas-admin.html" class="btn">Go to Dashboard</a>
@@ -273,6 +282,7 @@
             if (calryConnected === 'true') {
                 const roomsImported = params.get('rooms_imported') || '0';
                 const imagesImported = params.get('images_imported') || '0';
+                const webhooksStatus = params.get('webhooks') || 'pending';
                 
                 connectionData = {
                     propertyCount: parseInt(propertiesImported) || 0,
@@ -280,7 +290,8 @@
                     imageCount: parseInt(imagesImported) || 0,
                     pms: pms || 'Smoobu',
                     integrationId: integrationId,
-                    accountId: accountId
+                    accountId: accountId,
+                    webhooks: webhooksStatus
                 };
                 
                 // Skip webhook step, go straight to success
@@ -289,13 +300,27 @@
                 
                 // Add images info if available
                 if (connectionData.imageCount > 0) {
-                    const statsDiv = document.querySelector('.success-stats');
-                    if (statsDiv) {
-                        const imagesStat = document.createElement('div');
-                        imagesStat.className = 'stat';
-                        imagesStat.innerHTML = `<span class="stat-value">${connectionData.imageCount}</span><span class="stat-label">Images</span>`;
-                        statsDiv.appendChild(imagesStat);
-                    }
+                    document.getElementById('imageCount').textContent = connectionData.imageCount;
+                    document.getElementById('imageStat').style.display = 'block';
+                }
+                
+                // Show webhook status
+                const webhookStatusDiv = document.getElementById('webhookStatus');
+                const webhookStatusIcon = document.getElementById('webhookStatusIcon');
+                const webhookStatusText = document.getElementById('webhookStatusText');
+                
+                if (webhooksStatus === 'registered') {
+                    webhookStatusDiv.style.display = 'block';
+                    webhookStatusDiv.style.background = '#d4edda';
+                    webhookStatusDiv.style.color = '#155724';
+                    webhookStatusIcon.textContent = '✓';
+                    webhookStatusText.textContent = ' Webhooks registered - Real-time sync enabled';
+                } else {
+                    webhookStatusDiv.style.display = 'block';
+                    webhookStatusDiv.style.background = '#fff3cd';
+                    webhookStatusDiv.style.color = '#856404';
+                    webhookStatusIcon.textContent = '⚠';
+                    webhookStatusText.innerHTML = ' Webhooks pending - <a href="#" onclick="retryWebhooks(\'' + integrationId + '\'); return false;" style="color: inherit; text-decoration: underline;">Retry setup</a>';
                 }
                 
                 document.getElementById('loadingState').classList.add('hidden');
@@ -393,6 +418,43 @@
         function showError(message) {
             document.getElementById('loadingState').classList.add('hidden');
             document.getElementById('errorState').classList.remove('hidden');
+            document.getElementById('errorMessage').textContent = message;
+        }
+        
+        async function retryWebhooks(integrationId) {
+            const webhookStatusDiv = document.getElementById('webhookStatus');
+            const webhookStatusIcon = document.getElementById('webhookStatusIcon');
+            const webhookStatusText = document.getElementById('webhookStatusText');
+            
+            webhookStatusIcon.textContent = '⏳';
+            webhookStatusText.textContent = ' Registering webhooks...';
+            webhookStatusDiv.style.background = '#e9ecef';
+            webhookStatusDiv.style.color = '#495057';
+            
+            try {
+                const response = await fetch(`/api/calry/webhooks/register/${integrationId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ gas_account_id: connectionData.accountId })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    webhookStatusDiv.style.background = '#d4edda';
+                    webhookStatusDiv.style.color = '#155724';
+                    webhookStatusIcon.textContent = '✓';
+                    webhookStatusText.textContent = ' Webhooks registered - Real-time sync enabled';
+                } else {
+                    throw new Error(data.error || 'Failed to register webhooks');
+                }
+            } catch (err) {
+                webhookStatusDiv.style.background = '#f8d7da';
+                webhookStatusDiv.style.color = '#721c24';
+                webhookStatusIcon.textContent = '✗';
+                webhookStatusText.innerHTML = ' Webhook setup failed - <a href="#" onclick="retryWebhooks(\'' + integrationId + '\'); return false;" style="color: inherit; text-decoration: underline;">Try again</a>';
+            }
+        }
             document.getElementById('errorMessage').textContent = message;
         }
         
