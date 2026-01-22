@@ -20448,10 +20448,32 @@ app.get('/api/debug/calry-import/:propertyId', async (req, res) => {
       `, [gasPropertyId]);
     }
     
-    // Get pricing/calendar data
+    // Get pricing/calendar data - create table if needed
     let calendarResult = { rows: [] };
     if (gasPropertyId && roomResult.rows.length > 0) {
       const roomId = roomResult.rows[0].id;
+      
+      // Ensure room_calendar table exists
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS room_calendar (
+          id SERIAL PRIMARY KEY,
+          room_id INTEGER NOT NULL,
+          date DATE NOT NULL,
+          price DECIMAL(10,2),
+          currency VARCHAR(3) DEFAULT 'EUR',
+          available BOOLEAN DEFAULT true,
+          min_stay INTEGER,
+          max_stay INTEGER,
+          closed_to_arrival BOOLEAN DEFAULT false,
+          closed_to_departure BOOLEAN DEFAULT false,
+          status VARCHAR(50),
+          notes TEXT,
+          created_at TIMESTAMP DEFAULT NOW(),
+          updated_at TIMESTAMP DEFAULT NOW(),
+          UNIQUE(room_id, date)
+        )
+      `);
+      
       calendarResult = await pool.query(`
         SELECT date, price, available, min_stay, status
         FROM room_calendar 
@@ -20522,6 +20544,27 @@ app.post('/api/calry/sync-pricing/:propertyId', async (req, res) => {
     if (roomsResult.rows.length === 0) {
       return res.json({ success: false, error: 'No rooms found for property' });
     }
+    
+    // Ensure room_calendar table exists
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS room_calendar (
+        id SERIAL PRIMARY KEY,
+        room_id INTEGER NOT NULL,
+        date DATE NOT NULL,
+        price DECIMAL(10,2),
+        currency VARCHAR(3) DEFAULT 'EUR',
+        available BOOLEAN DEFAULT true,
+        min_stay INTEGER,
+        max_stay INTEGER,
+        closed_to_arrival BOOLEAN DEFAULT false,
+        closed_to_departure BOOLEAN DEFAULT false,
+        status VARCHAR(50),
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(room_id, date)
+      )
+    `);
     
     const startDate = new Date().toISOString().split('T')[0];
     const endDate = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
