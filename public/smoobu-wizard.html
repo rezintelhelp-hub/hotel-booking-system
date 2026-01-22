@@ -391,6 +391,55 @@
         .back-link:hover {
             color: white;
         }
+        
+        .role-cards {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin-top: 1.5rem;
+        }
+        
+        @media (max-width: 600px) {
+            .role-cards {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .role-card {
+            border: 2px solid #e9ecef;
+            border-radius: 12px;
+            padding: 1.25rem 1rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .role-card:hover {
+            border-color: #1a7f64;
+        }
+        
+        .role-card.selected {
+            border-color: #1a7f64;
+            background: linear-gradient(135deg, #e8f5f1 0%, #d4edda 100%);
+        }
+        
+        .role-card .icon {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .role-card h3 {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #1a5c4b;
+            margin-bottom: 0.25rem;
+        }
+        
+        .role-card p {
+            font-size: 0.75rem;
+            color: #6c757d;
+            margin: 0;
+        }
     </style>
 </head>
 <body>
@@ -455,6 +504,24 @@
                     <div class="form-group">
                         <label>Password</label>
                         <input type="password" id="reg-password" placeholder="Choose a password">
+                    </div>
+                    
+                    <div class="role-cards">
+                        <div class="role-card selected" data-role="admin" onclick="selectRole('admin')">
+                            <div class="icon">🏠</div>
+                            <h3>Single Property Owner</h3>
+                            <p>I own one property</p>
+                        </div>
+                        <div class="role-card" data-role="submaster_admin" onclick="selectRole('submaster_admin')">
+                            <div class="icon">🏨</div>
+                            <h3>Property Group Owner</h3>
+                            <p>I own multiple properties</p>
+                        </div>
+                        <div class="role-card" data-role="agency_admin" onclick="selectRole('agency_admin')">
+                            <div class="icon">🌐</div>
+                            <h3>Agency</h3>
+                            <p>I manage properties for myself/others</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -565,8 +632,15 @@
             apiKey: null,
             webhookUrl: null,
             propertyCount: 0,
-            roomCount: 0
+            roomCount: 0,
+            selectedRole: 'admin'
         };
+        
+        function selectRole(role) {
+            wizardData.selectedRole = role;
+            document.querySelectorAll('.role-card').forEach(card => card.classList.remove('selected'));
+            document.querySelector(`.role-card[data-role="${role}"]`).classList.add('selected');
+        }
         
         function showStep(step) {
             document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
@@ -703,7 +777,7 @@
                         name,
                         email,
                         password,
-                        role: 'owner',
+                        role: wizardData.selectedRole,
                         business_name: name
                     })
                 });
