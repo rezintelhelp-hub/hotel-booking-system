@@ -2657,40 +2657,168 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     
     const rawData = typeof prop.raw_data === 'string' ? JSON.parse(prop.raw_data) : (prop.raw_data || {});
     
-    // Extract nested data - Beds24 uses texts array with language objects
-    let texts = {};
-    if (rawData.texts && Array.isArray(rawData.texts) && rawData.texts.length > 0) {
-      texts = rawData.texts[0]; // First = default language (usually EN)
-    } else if (rawData.texts && typeof rawData.texts === 'object') {
-      texts = rawData.texts;
+    // Log raw data keys for debugging
+    console.log('link-to-gas: rawData keys:', Object.keys(rawData).join(', '));
+    
+    // Initialize variables for extracted data
+    let propDescription = '';
+    let propShortDesc = '';
+    let propHouseRules = '';
+    let propCancellation = '';
+    let propTerms = '';
+    let propDirections = '';
+    let propCheckInInstr = '';
+    let propCheckOutInstr = '';
+    let propAreaInfo = '';
+    let propDamagePolicy = '';
+    let propDescription1 = '';
+    let propDescription2 = '';
+    let propDisplayName = '';
+    let propAmenities = [];
+    let propImages = [];
+    let propCheckInTime = '';
+    let propCheckOutTime = '';
+    let propTimezone = '';
+    
+    // Handle different adapters
+    if (prop.adapter_code === 'calry') {
+      // CALRY: Fetch fresh data from Calry API
+      console.log('link-to-gas: Processing Calry data - fetching fresh from API');
+      
+      // Get connection to find integrationAccountId
+      const connResult = await pool.query(
+        'SELECT credentials, external_account_id FROM gas_sync_connections WHERE id = $1',
+        [prop.connection_id]
+      );
+      
+      if (connResult.rows.length > 0 && CALRY_API_TOKEN && CALRY_WORKSPACE_ID) {
+        const integrationAccountId = connResult.rows[0].external_account_id;
+        console.log('link-to-gas: Fetching from Calry integrationAccountId:', integrationAccountId);
+        
+        try {
+          // Fetch properties from Calry
+          const propResponse = await axios.get(`${CALRY_API_BASE}/properties`, {
+            headers: {
+              'Authorization': `Bearer ${CALRY_API_TOKEN}`,
+              'workspaceId': CALRY_WORKSPACE_ID,
+              'integrationAccountId': integrationAccountId,
+              'Content-Type': 'application/json'
+            }
+          });
+          
+          const calryProperties = propResponse.data?.data || [];
+          const calryProp = calryProperties.find(p => String(p.id) === String(prop.external_id));
+          
+          if (calryProp) {
+            console.log('link-to-gas: Found Calry property:', calryProp.name);
+            console.log('link-to-gas: Calry property keys:', Object.keys(calryProp).join(', '));
+            
+            // Extract data from fresh Calry response
+            propDescription = calryProp.description || calryProp.summary || '';
+            propShortDesc = calryProp.shortDescription || calryProp.summary || '';
+            propHouseRules = calryProp.houseRules || calryProp.rules || '';
+            propCancellation = calryProp.cancellationPolicy || '';
+            propCheckInTime = calryProp.checkInTime || calryProp.checkinTime || '';
+            propCheckOutTime = calryProp.checkOutTime || calryProp.checkoutTime || '';
+            propTimezone = calryProp.timezone || '';
+            propDisplayName = calryProp.name || prop.name || '';
+            
+            // Calry amenities
+            if (calryProp.amenities && Array.isArray(calryProp.amenities)) {
+              calryProp.amenities.forEach(a => {
+                if (typeof a === 'string') propAmenities.push(a);
+                else if (a.name) propAmenities.push(a.name);
+                else if (a.amenity) propAmenities.push(a.amenity);
+              });
+            }
+            
+            // Calry images
+            propImages = calryProp.pictures || calryProp.images || calryProp.photos || [];
+            if (calryProp.thumbnailUrl && propImages.length === 0) {
+              propImages = [{ url: calryProp.thumbnailUrl }];
+            }
+            
+            // Also fetch room types
+            try {
+              const roomResponse = await axios.get(`${CALRY_API_BASE}/room-types/${prop.external_id}`, {
+                headers: {
+                  'Authorization': `Bearer ${CALRY_API_TOKEN}`,
+                  'workspaceId': CALRY_WORKSPACE_ID,
+                  'integrationAccountId': integrationAccountId,
+                  'Content-Type': 'application/json'
+                }
+              });
+              const calryRooms = roomResponse.data?.data || [];
+              console.log('link-to-gas: Fetched', calryRooms.length, 'rooms from Calry');
+              
+              // Store rooms for later processing
+              rawData._calryRooms = calryRooms;
+              rawData._calryProperty = calryProp;
+            } catch (roomErr) {
+              console.log('link-to-gas: Could not fetch Calry rooms:', roomErr.message);
+            }
+            
+            console.log('link-to-gas: Calry extracted - desc:', propDescription?.substring(0, 50), 'amenities:', propAmenities.length, 'images:', propImages.length);
+          } else {
+            console.log('link-to-gas: Property not found in Calry response');
+          }
+        } catch (calryErr) {
+          console.log('link-to-gas: Calry API error:', calryErr.message);
+        }
+      } else {
+        // Fallback to raw_data if no API access
+        propDescription = rawData.description || rawData.summary || '';
+        propShortDesc = rawData.shortDescription || rawData.summary || '';
+        propHouseRules = rawData.houseRules || rawData.rules || '';
+        propCancellation = rawData.cancellationPolicy || '';
+        propDisplayName = rawData.name || prop.name || '';
+        
+        if (rawData.amenities && Array.isArray(rawData.amenities)) {
+          rawData.amenities.forEach(a => {
+            if (typeof a === 'string') propAmenities.push(a);
+            else if (a.name) propAmenities.push(a.name);
+          });
+        }
+        
+        propImages = rawData.pictures || rawData.images || rawData.photos || [];
+      }
+      
+    } else {
+      // BEDS24 / HOSTAWAY data structure
+      // Extract nested data - Beds24 uses texts array with language objects
+      let texts = {};
+      if (rawData.texts && Array.isArray(rawData.texts) && rawData.texts.length > 0) {
+        texts = rawData.texts[0]; // First = default language (usually EN)
+      } else if (rawData.texts && typeof rawData.texts === 'object') {
+        texts = rawData.texts;
+      }
+      
+      // Extract all text fields from Beds24
+      propDescription = extractText(texts.propertyDescription, texts.description, rawData.description);
+      propShortDesc = extractText(texts.propertyShortDescription, texts.shortDescription, rawData.shortDescription);
+      propHouseRules = extractText(texts.houseRules, texts.propertyHouseRules, rawData.houseRules);
+      propCancellation = extractText(texts.cancellationPolicy, texts.cancellation, rawData.cancellationPolicy);
+      propTerms = extractText(texts.termsConditions, texts.terms, rawData.termsConditions);
+      propDirections = extractText(texts.directions, texts.howToGetThere, rawData.directions);
+      propCheckInInstr = extractText(texts.checkInInstructions, rawData.checkInInstructions);
+      propCheckOutInstr = extractText(texts.checkOutInstructions, rawData.checkOutInstructions);
+      propAreaInfo = extractText(texts.areaInfo, texts.areaDescription, rawData.areaInfo);
+      propDamagePolicy = extractText(texts.damagePolicy, rawData.damagePolicy);
+      
+      // Extract propertyDescription1 and propertyDescription2 for room-level fallbacks
+      console.log('link-to-gas: texts.propertyDescription1 type:', typeof texts.propertyDescription1, 'value:', JSON.stringify(texts.propertyDescription1)?.substring(0, 100));
+      console.log('link-to-gas: texts.propertyDescription2 type:', typeof texts.propertyDescription2, 'value:', JSON.stringify(texts.propertyDescription2)?.substring(0, 100));
+      propDescription1 = extractText(texts.propertyDescription1, rawData.propertyDescription1);
+      propDescription2 = extractText(texts.propertyDescription2, rawData.propertyDescription2);
+      console.log('link-to-gas: Property fallback texts - propDesc1:', propDescription1?.substring(0,50) || '(empty)', 'propDesc2:', propDescription2?.substring(0,50) || '(empty)');
+      
+      // Extract property-level display name (Hostaway uses externalListingName)
+      propDisplayName = prop.adapter_code === 'hostaway' 
+        ? (rawData.externalListingName || '') 
+        : '';
     }
     
-    // Extract all text fields from Beds24
-    const propDescription = extractText(texts.propertyDescription, texts.description, rawData.description);
-    const propShortDesc = extractText(texts.propertyShortDescription, texts.shortDescription, rawData.shortDescription);
-    const propHouseRules = extractText(texts.houseRules, texts.propertyHouseRules, rawData.houseRules);
-    const propCancellation = extractText(texts.cancellationPolicy, texts.cancellation, rawData.cancellationPolicy);
-    const propTerms = extractText(texts.termsConditions, texts.terms, rawData.termsConditions);
-    const propDirections = extractText(texts.directions, texts.howToGetThere, rawData.directions);
-    const propCheckInInstr = extractText(texts.checkInInstructions, rawData.checkInInstructions);
-    const propCheckOutInstr = extractText(texts.checkOutInstructions, rawData.checkOutInstructions);
-    const propAreaInfo = extractText(texts.areaInfo, texts.areaDescription, rawData.areaInfo);
-    const propDamagePolicy = extractText(texts.damagePolicy, rawData.damagePolicy);
-    
-    // Extract propertyDescription1 and propertyDescription2 for room-level fallbacks
-    // These are commonly used in Beds24 Booking Engine > Property Page
-    console.log('link-to-gas: texts.propertyDescription1 type:', typeof texts.propertyDescription1, 'value:', JSON.stringify(texts.propertyDescription1)?.substring(0, 100));
-    console.log('link-to-gas: texts.propertyDescription2 type:', typeof texts.propertyDescription2, 'value:', JSON.stringify(texts.propertyDescription2)?.substring(0, 100));
-    const propDescription1 = extractText(texts.propertyDescription1, rawData.propertyDescription1);
-    const propDescription2 = extractText(texts.propertyDescription2, rawData.propertyDescription2);
-    console.log('link-to-gas: Property fallback texts - propDesc1:', propDescription1?.substring(0,50) || '(empty)', 'propDesc2:', propDescription2?.substring(0,50) || '(empty)');
-    
     console.log('link-to-gas: Extracted texts - desc:', propDescription?.substring(0,50), 'houseRules:', propHouseRules?.substring(0,30));
-    
-    // Extract property-level display name (Hostaway uses externalListingName)
-    const propDisplayName = prop.adapter_code === 'hostaway' 
-      ? (rawData.externalListingName || '') 
-      : '';
     console.log('link-to-gas: propDisplayName:', propDisplayName || '(empty)');
     
     // 2. Check if already linked
@@ -3642,7 +3770,143 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     let imagesCreated = 0;
     let syncImages = { rows: [] };
     
-    if (!skipImages) {
+    // Handle Calry rooms and images directly (not from gas_sync_room_types/gas_sync_images)
+    if (prop.adapter_code === 'calry' && rawData._calryRooms && rawData._calryRooms.length > 0) {
+      console.log('link-to-gas: Processing Calry rooms directly:', rawData._calryRooms.length);
+      
+      for (const room of rawData._calryRooms) {
+        const roomExternalId = String(room.id);
+        
+        // Extract room data
+        const roomName = room.name || rawData._calryProperty?.name || 'Room';
+        const roomDesc = room.description || room.summary || '';
+        const maxGuests = room.maxOccupancy || room.maxGuests || room.capacity || 2;
+        const bedrooms = room.bedRoom?.count || room.bedrooms || room.numberOfBedrooms || 1;
+        const bathrooms = room.bathRoom?.count || room.bathrooms || room.numberOfBathrooms || 1;
+        const basePrice = parseFloat(room.startPrice || room.basePrice || room.price || 0);
+        
+        // Room amenities
+        const roomAmenities = [];
+        if (room.amenities && Array.isArray(room.amenities)) {
+          room.amenities.forEach(a => {
+            if (typeof a === 'string') roomAmenities.push(a);
+            else if (a.name) roomAmenities.push(a.name);
+          });
+        }
+        
+        // Check if room exists
+        const existingRoom = await pool.query(
+          'SELECT id FROM bookable_units WHERE property_id = $1 AND cm_room_id = $2',
+          [gasPropertyId, roomExternalId]
+        );
+        
+        let gasRoomId;
+        
+        if (existingRoom.rows.length > 0) {
+          gasRoomId = existingRoom.rows[0].id;
+          console.log('link-to-gas: Updating Calry room', gasRoomId, roomName);
+          
+          await pool.query(`
+            UPDATE bookable_units SET
+              name = $1,
+              description = $2,
+              max_guests = $3,
+              num_bedrooms = $4,
+              num_bathrooms = $5,
+              base_price = $6,
+              amenities = $7,
+              updated_at = NOW()
+            WHERE id = $8
+          `, [
+            roomName,
+            roomDesc,
+            maxGuests,
+            bedrooms,
+            bathrooms,
+            basePrice,
+            JSON.stringify({ amenities: roomAmenities, calry_id: room.id }),
+            gasRoomId
+          ]);
+          roomsUpdated++;
+        } else {
+          console.log('link-to-gas: Creating Calry room', roomName);
+          
+          const roomResult = await pool.query(`
+            INSERT INTO bookable_units (
+              property_id, cm_room_id, cm_source, name, description,
+              max_guests, num_bedrooms, num_bathrooms, base_price, currency,
+              amenities, status, created_at
+            ) VALUES ($1, $2, 'calry', $3, $4, $5, $6, $7, $8, $9, $10, 'active', NOW())
+            RETURNING id
+          `, [
+            gasPropertyId,
+            roomExternalId,
+            roomName,
+            roomDesc,
+            maxGuests,
+            bedrooms,
+            bathrooms,
+            basePrice,
+            rawData._calryProperty?.currency || 'EUR',
+            JSON.stringify({ amenities: roomAmenities, calry_id: room.id })
+          ]);
+          gasRoomId = roomResult.rows[0].id;
+          roomsCreated++;
+        }
+        
+        roomIdMap[roomExternalId] = gasRoomId;
+        
+        // Import room images
+        const roomPictures = room.pictures || room.images || room.photos || [];
+        for (let i = 0; i < roomPictures.length; i++) {
+          const pic = roomPictures[i];
+          const imageUrl = typeof pic === 'string' ? pic : (pic.url || pic.original || pic.large);
+          if (!imageUrl) continue;
+          
+          const imageKey = `calry_room_${gasRoomId}_${i}`;
+          const caption = typeof pic === 'object' ? (pic.caption || pic.description || '') : '';
+          
+          try {
+            await pool.query(`
+              INSERT INTO property_images (property_id, room_id, image_key, image_url, url, caption, display_order, is_primary, is_active, created_at)
+              VALUES ($1, $2, $3, $4, $4, $5, $6, $7, true, NOW())
+              ON CONFLICT (property_id, image_key) DO UPDATE SET
+                room_id = $2, image_url = $4, url = $4, caption = $5, display_order = $6
+            `, [gasPropertyId, gasRoomId, imageKey, imageUrl, caption, i, i === 0]);
+            imagesCreated++;
+          } catch (e) {
+            console.log('link-to-gas: Room image insert error:', e.message);
+          }
+        }
+      }
+      
+      // Also import property-level images
+      if (propImages.length > 0) {
+        console.log('link-to-gas: Importing', propImages.length, 'Calry property images');
+        for (let i = 0; i < propImages.length; i++) {
+          const pic = propImages[i];
+          const imageUrl = typeof pic === 'string' ? pic : (pic.url || pic.original || pic.large || pic.medium);
+          if (!imageUrl) continue;
+          
+          const imageKey = `calry_prop_${gasPropertyId}_${i}`;
+          const caption = typeof pic === 'object' ? (pic.caption || pic.description || '') : '';
+          
+          try {
+            await pool.query(`
+              INSERT INTO property_images (property_id, image_key, image_url, url, caption, display_order, is_primary, is_active, created_at)
+              VALUES ($1, $2, $3, $3, $4, $5, $6, true, NOW())
+              ON CONFLICT (property_id, image_key) DO UPDATE SET
+                image_url = $3, url = $3, caption = $4, display_order = $5
+            `, [gasPropertyId, imageKey, imageUrl, caption, i, i === 0]);
+            imagesCreated++;
+          } catch (e) {
+            console.log('link-to-gas: Property image insert error:', e.message);
+          }
+        }
+      }
+    }
+    
+    if (!skipImages && prop.adapter_code !== 'calry') {
       console.log('link-to-gas: Starting image sync');
       syncImages = await pool.query(`
         SELECT * FROM gas_sync_images WHERE sync_property_id = $1
@@ -3679,7 +3943,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
           imagesCreated++;
         }
       }
-    } else {
+    } else if (prop.adapter_code !== 'calry') {
       console.log('link-to-gas: Skipping image sync (skipImages=true)');
     }
     
