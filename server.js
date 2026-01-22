@@ -19587,8 +19587,18 @@ app.get('/api/calry/link/callback', async (req, res) => {
       await pool.query('DELETE FROM calry_link_sessions WHERE link_id = $1', [linkId]);
     } catch (e) {}
     
+    // Register webhooks for this integration account
+    let webhookRegistered = false;
+    try {
+      const webhookResult = await registerCalryWebhooks(intAccountId, finalAccountId);
+      webhookRegistered = webhookResult.success;
+      console.log('Webhook registration:', webhookResult.success ? 'SUCCESS' : webhookResult.error);
+    } catch (webhookError) {
+      console.error('Webhook registration failed:', webhookError.message);
+    }
+    
     // Build redirect URL with results
-    const resultParams = `calry_connected=true&pms=${encodeURIComponent(pmsName)}&properties_imported=${successCount}&rooms_imported=${totalRooms}&images_imported=${totalImages}&integration_id=${intAccountId}&account_id=${finalAccountId}`;
+    const resultParams = `calry_connected=true&pms=${encodeURIComponent(pmsName)}&properties_imported=${successCount}&rooms_imported=${totalRooms}&images_imported=${totalImages}&integration_id=${intAccountId}&account_id=${finalAccountId}&webhooks=${webhookRegistered ? 'registered' : 'pending'}`;
     
     // Use custom final_redirect if provided, otherwise default to admin
     let redirectTo;
@@ -19979,6 +19989,388 @@ async function importCalryPropertyHelper(integrationAccountId, propertyId, exist
     rooms_imported: roomsImported,
     images_imported: pictures.length
   };
+}
+
+// =====================================================
+// CALRY WEBHOOKS
+// =====================================================
+
+// Webhook events we want to receive
+const CALRY_WEBHOOK_EVENTS = [
+  'reservation.created',
+  'reservation.updated', 
+  'reservation.cancelled',
+  'availability.updated',
+  'pricing.updated'
+];
+
+// Register webhooks for a Calry integration account
+async function registerCalryWebhooks(integrationAccountId, gasAccountId) {
+  if (!CALRY_API_TOKEN || !CALRY_WORKSPACE_ID) {
+    return { success: false, error: 'Calry credentials not configured' };
+  }
+  
+  const webhookUrl = `https://api.gas.travel/api/calry/webhooks/${integrationAccountId}`;
+  
+  try {
+    // First check if webhook already exists
+    const existingResponse = await axios.get('https://prod.calry.app/api/v1/webhooks', {
+      headers: {
+        'Authorization': `Bearer ${CALRY_API_TOKEN}`,
+        'workspaceId': CALRY_WORKSPACE_ID,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    const existingWebhooks = existingResponse.data?.data || existingResponse.data || [];
+    const existingForIntegration = existingWebhooks.find(w => 
+      w.url === webhookUrl || w.integrationAccountId === integrationAccountId
+    );
+    
+    if (existingForIntegration) {
+      console.log('Webhook already registered:', existingForIntegration.id);
+      
+      // Update webhook in database
+      await pool.query(`
+        INSERT INTO calry_webhooks (integration_account_id, gas_account_id, webhook_id, webhook_url, events, status, created_at)
+        VALUES ($1, $2, $3, $4, $5, 'active', NOW())
+        ON CONFLICT (integration_account_id) DO UPDATE SET
+          webhook_id = $3, webhook_url = $4, events = $5, status = 'active', updated_at = NOW()
+      `, [integrationAccountId, gasAccountId, existingForIntegration.id, webhookUrl, JSON.stringify(CALRY_WEBHOOK_EVENTS)]);
+      
+      return { success: true, webhookId: existingForIntegration.id, existed: true };
+    }
+    
+    // Register new webhook
+    const response = await axios.post('https://prod.calry.app/api/v1/webhooks', {
+      url: webhookUrl,
+      events: CALRY_WEBHOOK_EVENTS,
+      integrationAccountId: integrationAccountId
+    }, {
+      headers: {
+        'Authorization': `Bearer ${CALRY_API_TOKEN}`,
+        'workspaceId': CALRY_WORKSPACE_ID,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    const webhookId = response.data?.id || response.data?.webhookId;
+    console.log('Webhook registered:', webhookId);
+    
+    // Store webhook in database
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS calry_webhooks (
+        id SERIAL PRIMARY KEY,
+        integration_account_id VARCHAR(100) UNIQUE,
+        gas_account_id INTEGER,
+        webhook_id VARCHAR(100),
+        webhook_url TEXT,
+        events JSONB,
+        status VARCHAR(50) DEFAULT 'active',
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP
+      )
+    `);
+    
+    await pool.query(`
+      INSERT INTO calry_webhooks (integration_account_id, gas_account_id, webhook_id, webhook_url, events, status, created_at)
+      VALUES ($1, $2, $3, $4, $5, 'active', NOW())
+      ON CONFLICT (integration_account_id) DO UPDATE SET
+        webhook_id = $3, webhook_url = $4, events = $5, status = 'active', updated_at = NOW()
+    `, [integrationAccountId, gasAccountId, webhookId, webhookUrl, JSON.stringify(CALRY_WEBHOOK_EVENTS)]);
+    
+    return { success: true, webhookId: webhookId };
+    
+  } catch (error) {
+    console.error('Webhook registration error:', error.response?.data || error.message);
+    return { success: false, error: error.response?.data?.message || error.message };
+  }
+}
+
+// Manual webhook setup endpoint (for retry from UI)
+app.post('/api/calry/webhooks/register/:integrationAccountId', async (req, res) => {
+  try {
+    const { integrationAccountId } = req.params;
+    const { gas_account_id } = req.body;
+    
+    // Find the GAS account ID if not provided
+    let gasAccountId = gas_account_id;
+    if (!gasAccountId) {
+      const connResult = await pool.query(
+        "SELECT account_id FROM gas_sync_connections WHERE external_account_id = $1 AND adapter_code = 'calry'",
+        [integrationAccountId]
+      );
+      gasAccountId = connResult.rows[0]?.account_id;
+    }
+    
+    const result = await registerCalryWebhooks(integrationAccountId, gasAccountId);
+    res.json(result);
+    
+  } catch (error) {
+    console.error('Manual webhook registration error:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Webhook receiver endpoint - Calry sends events here
+app.post('/api/calry/webhooks/:integrationAccountId', async (req, res) => {
+  try {
+    const { integrationAccountId } = req.params;
+    const payload = req.body;
+    const headers = req.headers;
+    
+    console.log(`📥 Calry webhook received for ${integrationAccountId}:`, payload.event || payload.type);
+    
+    // Log the webhook event
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS calry_webhook_events (
+        id SERIAL PRIMARY KEY,
+        integration_account_id VARCHAR(100),
+        event_type VARCHAR(100),
+        event_id VARCHAR(100),
+        resource_id VARCHAR(100),
+        payload JSONB,
+        processed BOOLEAN DEFAULT false,
+        processed_at TIMESTAMP,
+        error TEXT,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    
+    const eventId = payload.id || payload.eventId || `evt_${Date.now()}`;
+    const eventType = payload.event || payload.type;
+    const resourceId = payload.data?.id || payload.resourceId;
+    
+    // Store the event
+    const eventResult = await pool.query(`
+      INSERT INTO calry_webhook_events (integration_account_id, event_type, event_id, resource_id, payload, created_at)
+      VALUES ($1, $2, $3, $4, $5, NOW())
+      ON CONFLICT DO NOTHING
+      RETURNING id
+    `, [integrationAccountId, eventType, eventId, resourceId, JSON.stringify(payload)]);
+    
+    // Process the event
+    try {
+      await processCalryWebhookEvent(integrationAccountId, eventType, payload.data || payload);
+      
+      // Mark as processed
+      if (eventResult.rows[0]?.id) {
+        await pool.query(
+          'UPDATE calry_webhook_events SET processed = true, processed_at = NOW() WHERE id = $1',
+          [eventResult.rows[0].id]
+        );
+      }
+    } catch (processError) {
+      console.error('Webhook processing error:', processError.message);
+      if (eventResult.rows[0]?.id) {
+        await pool.query(
+          'UPDATE calry_webhook_events SET error = $1 WHERE id = $2',
+          [processError.message, eventResult.rows[0].id]
+        );
+      }
+    }
+    
+    // Always return 200 to acknowledge receipt
+    res.json({ success: true, received: eventType });
+    
+  } catch (error) {
+    console.error('Webhook receiver error:', error.message);
+    // Still return 200 to prevent retries for our errors
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Process webhook events
+async function processCalryWebhookEvent(integrationAccountId, eventType, data) {
+  console.log(`Processing ${eventType} for integration ${integrationAccountId}`);
+  
+  // Find the GAS connection
+  const connResult = await pool.query(
+    "SELECT id, account_id FROM gas_sync_connections WHERE external_account_id = $1 AND adapter_code = 'calry'",
+    [integrationAccountId]
+  );
+  
+  if (connResult.rows.length === 0) {
+    console.log('No GAS connection found for integration:', integrationAccountId);
+    return;
+  }
+  
+  const connectionId = connResult.rows[0].id;
+  const accountId = connResult.rows[0].account_id;
+  
+  switch (eventType) {
+    case 'reservation.created':
+    case 'reservation.updated':
+      await handleReservationWebhook(connectionId, accountId, data, eventType);
+      break;
+      
+    case 'reservation.cancelled':
+      await handleReservationCancellation(connectionId, data);
+      break;
+      
+    case 'availability.updated':
+      await handleAvailabilityWebhook(connectionId, data);
+      break;
+      
+    case 'pricing.updated':
+      await handlePricingWebhook(connectionId, data);
+      break;
+      
+    default:
+      console.log('Unhandled webhook event:', eventType);
+  }
+}
+
+// Handle reservation created/updated
+async function handleReservationWebhook(connectionId, accountId, data, eventType) {
+  const reservationId = data.id || data.reservationId;
+  const propertyId = data.propertyId;
+  const roomTypeId = data.roomTypeId;
+  
+  console.log(`${eventType}: Reservation ${reservationId} for property ${propertyId}`);
+  
+  // Find the GAS property and room
+  const propResult = await pool.query(`
+    SELECT p.id as gas_property_id, bu.id as gas_room_id
+    FROM properties p
+    LEFT JOIN bookable_units bu ON bu.property_id = p.id AND bu.cm_room_id = $3
+    WHERE p.cm_property_id = $2 AND p.account_id = $1
+  `, [accountId, String(propertyId), String(roomTypeId)]);
+  
+  if (propResult.rows.length === 0) {
+    console.log('Property not found in GAS');
+    return;
+  }
+  
+  const gasPropertyId = propResult.rows[0].gas_property_id;
+  const gasRoomId = propResult.rows[0].gas_room_id;
+  
+  // Guest info
+  const guestName = data.guest 
+    ? `${data.guest.firstName || ''} ${data.guest.lastName || ''}`.trim()
+    : data.guestName || 'Guest';
+  
+  // Upsert booking
+  await pool.query(`
+    INSERT INTO bookings (
+      account_id, property_id, room_id, external_booking_id, cm_source,
+      check_in, check_out, status,
+      guest_name, guest_email, guest_phone,
+      adults, children, infants,
+      total_price, currency, channel,
+      created_at
+    ) VALUES ($1, $2, $3, $4, 'calry', $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW())
+    ON CONFLICT (account_id, external_booking_id) DO UPDATE SET
+      status = EXCLUDED.status,
+      check_in = EXCLUDED.check_in,
+      check_out = EXCLUDED.check_out,
+      guest_name = EXCLUDED.guest_name,
+      guest_email = EXCLUDED.guest_email,
+      guest_phone = EXCLUDED.guest_phone,
+      adults = EXCLUDED.adults,
+      children = EXCLUDED.children,
+      total_price = EXCLUDED.total_price,
+      updated_at = NOW()
+  `, [
+    accountId,
+    gasPropertyId,
+    gasRoomId,
+    String(reservationId),
+    data.checkIn || data.arrivalDate,
+    data.checkOut || data.departureDate,
+    data.status || 'confirmed',
+    guestName,
+    data.guest?.email || null,
+    data.guest?.phone || null,
+    data.adults || data.guests?.adults || 1,
+    data.children || data.guests?.children || 0,
+    data.infants || data.guests?.infants || 0,
+    data.totalPrice || data.pricing?.total || 0,
+    data.currency || data.pricing?.currency || 'EUR',
+    data.channel || data.source || 'DIRECT'
+  ]);
+  
+  console.log(`Booking ${reservationId} synced to GAS`);
+}
+
+// Handle reservation cancellation
+async function handleReservationCancellation(connectionId, data) {
+  const reservationId = data.id || data.reservationId;
+  
+  await pool.query(`
+    UPDATE bookings SET status = 'cancelled', updated_at = NOW()
+    WHERE external_booking_id = $1 AND cm_source = 'calry'
+  `, [String(reservationId)]);
+  
+  console.log(`Booking ${reservationId} cancelled`);
+}
+
+// Handle availability update
+async function handleAvailabilityWebhook(connectionId, data) {
+  const roomTypeId = data.roomTypeId;
+  const dates = data.dates || [data]; // Could be single or array
+  
+  // Find GAS room
+  const roomResult = await pool.query(`
+    SELECT bu.id FROM bookable_units bu
+    JOIN properties p ON bu.property_id = p.id
+    JOIN gas_sync_connections c ON c.account_id = p.account_id
+    WHERE bu.cm_room_id = $1 AND c.id = $2
+  `, [String(roomTypeId), connectionId]);
+  
+  if (roomResult.rows.length === 0) {
+    console.log('Room not found for availability update');
+    return;
+  }
+  
+  const gasRoomId = roomResult.rows[0].id;
+  
+  for (const day of Array.isArray(dates) ? dates : [dates]) {
+    await pool.query(`
+      INSERT INTO room_calendar (room_id, date, available, min_stay, updated_at)
+      VALUES ($1, $2, $3, $4, NOW())
+      ON CONFLICT (room_id, date) DO UPDATE SET
+        available = EXCLUDED.available,
+        min_stay = COALESCE(EXCLUDED.min_stay, room_calendar.min_stay),
+        updated_at = NOW()
+    `, [gasRoomId, day.date, day.available !== false, day.minStay || null]);
+  }
+  
+  console.log(`Availability updated for room ${roomTypeId}`);
+}
+
+// Handle pricing update
+async function handlePricingWebhook(connectionId, data) {
+  const roomTypeId = data.roomTypeId;
+  const dates = data.dates || data.rates || [data];
+  
+  // Find GAS room
+  const roomResult = await pool.query(`
+    SELECT bu.id FROM bookable_units bu
+    JOIN properties p ON bu.property_id = p.id
+    JOIN gas_sync_connections c ON c.account_id = p.account_id
+    WHERE bu.cm_room_id = $1 AND c.id = $2
+  `, [String(roomTypeId), connectionId]);
+  
+  if (roomResult.rows.length === 0) {
+    console.log('Room not found for pricing update');
+    return;
+  }
+  
+  const gasRoomId = roomResult.rows[0].id;
+  
+  for (const day of Array.isArray(dates) ? dates : [dates]) {
+    await pool.query(`
+      INSERT INTO room_calendar (room_id, date, price, currency, updated_at)
+      VALUES ($1, $2, $3, $4, NOW())
+      ON CONFLICT (room_id, date) DO UPDATE SET
+        price = EXCLUDED.price,
+        currency = COALESCE(EXCLUDED.currency, room_calendar.currency),
+        updated_at = NOW()
+    `, [gasRoomId, day.date, parseFloat(day.price || day.rate) || null, day.currency || 'EUR']);
+  }
+  
+  console.log(`Pricing updated for room ${roomTypeId}`);
 }
 
 // GET version for easy browser testing
