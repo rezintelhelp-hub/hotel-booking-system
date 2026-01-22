@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Travellers - GAS</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #f8fafc;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+        .container {
+            max-width: 600px;
+            background: white;
+            border-radius: 20px;
+            padding: 3rem;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        }
+        .back { 
+            color: #64748b; 
+            text-decoration: none; 
+            font-size: 0.9rem;
+            display: inline-block;
+            margin-bottom: 2rem;
+        }
+        .back:hover { color: #1e293b; }
+        h1 { 
+            font-size: 1.75rem; 
+            font-weight: 600; 
+            margin-bottom: 1rem;
+            color: #1e293b;
+        }
+        p { 
+            color: #475569; 
+            line-height: 1.7; 
+            margin-bottom: 1rem;
+        }
+        .divider {
+            width: 40px;
+            height: 2px;
+            background: #e2e8f0;
+            margin: 2rem 0;
+        }
+        ul {
+            list-style: none;
+            margin: 1.5rem 0;
+        }
+        ul li {
+            padding: 0.75rem 0;
+            color: #475569;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        ul li:last-child { border-bottom: none; }
+        .cta {
+            display: inline-block;
+            margin-top: 1.5rem;
+            padding: 1rem 2rem;
+            background: #1e293b;
+            color: white;
+            text-decoration: none;
+            border-radius: 10px;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+        .cta:hover { background: #334155; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/" class="back">← Back to GAS</a>
+        <h1>Travellers</h1>
+        <p>GAS provides a secure identity and booking layer for trusted participation in the accommodation ecosystem.</p>
+        
+        <div class="divider"></div>
+        
+        <p><strong>The GAS Vault:</strong></p>
+        <ul>
+            <li>Secure storage of your details</li>
+            <li>Faster booking with verified identity</li>
+            <li>Trusted participation across the network</li>
+            <li>Control over your travel data</li>
+        </ul>
+        
+        <p>GAS is not a booking platform. You book directly with properties — the Vault simply makes it faster and more secure.</p>
+        
+        <a href="/?open=bot&persona=traveller" class="cta">Create Vault Account</a>
+    </div>
+</body>
+</html>

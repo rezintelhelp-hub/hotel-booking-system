@@ -3,11 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GAS - Global Accommodation System | Join the Network</title>
-    <meta name="description" content="Join thousands of independent hotels, hostels and vacation rental owners. List for free. Pay less commission. Take back control.">
+    <title>GAS - Global Accommodation System</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <style>
         * {
             margin: 0;
@@ -16,30 +15,50 @@
         }
 
         :root {
-            --primary: #6366f1;
-            --primary-dark: #4f46e5;
-            --primary-light: #a5b4fc;
-            --accent: #8b5cf6;
             --text-primary: #1e293b;
-            --text-secondary: #64748b;
-            --text-muted: #94a3b8;
-            --bg-white: #ffffff;
-            --bg-light: #f8fafc;
-            --bg-subtle: #f1f5f9;
-            --border: #e2e8f0;
-            --success: #10b981;
-            --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
-            --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1);
-            --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1);
-            --shadow-xl: 0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1);
+            --text-secondary: #475569;
+            --text-muted: #64748b;
+            --glass-bg: rgba(255, 255, 255, 0.75);
+            --glass-border: rgba(255, 255, 255, 0.3);
+            --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+
+        html {
+            scroll-behavior: smooth;
         }
 
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            background: var(--bg-white);
             color: var(--text-primary);
             line-height: 1.6;
             overflow-x: hidden;
+        }
+
+        /* Video Background */
+        .video-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -2;
+            overflow: hidden;
+        }
+
+        .video-bg video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .video-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, rgba(241, 245, 249, 0.85) 0%, rgba(226, 232, 240, 0.8) 100%);
+            z-index: -1;
         }
 
         /* Navigation */
@@ -49,604 +68,216 @@
             left: 0;
             right: 0;
             z-index: 100;
-            background: rgba(255,255,255,0.9);
-            backdrop-filter: blur(20px);
-            border-bottom: 1px solid var(--border);
-            padding: 1rem 2rem;
-            transition: all 0.3s;
-        }
-
-        .nav-container {
-            max-width: 1200px;
-            margin: 0 auto;
+            padding: 1.5rem 3rem;
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
 
-        .logo {
-            font-size: 1.5rem;
-            font-weight: 800;
-            background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            letter-spacing: -0.5px;
-        }
-
-        .logo span {
-            font-weight: 400;
-            font-size: 0.9rem;
-            color: var(--text-secondary);
-            -webkit-text-fill-color: var(--text-secondary);
-            margin-left: 0.5rem;
-        }
-
-        .nav-links {
-            display: flex;
-            gap: 2rem;
-            align-items: center;
-        }
-        
-        .hamburger {
-            display: none;
-        }
-        
-        .mobile-menu {
-            display: none;
-        }
-
-        .nav-links a {
-            color: var(--text-secondary);
-            text-decoration: none;
-            font-weight: 500;
-            font-size: 0.95rem;
-            transition: color 0.2s;
-        }
-
-        .nav-links a:hover {
-            color: var(--primary);
-        }
-
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.5rem;
-            padding: 0.75rem 1.5rem;
-            border-radius: 8px;
-            font-weight: 600;
-            font-size: 0.95rem;
-            cursor: pointer;
-            transition: all 0.2s;
-            border: none;
-            text-decoration: none;
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
-            color: white;
-            box-shadow: var(--shadow-md), 0 0 0 0 rgba(99, 102, 241, 0.3);
-        }
-
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: var(--shadow-lg), 0 0 0 4px rgba(99, 102, 241, 0.15);
-        }
-
-        .btn-secondary {
-            background: var(--bg-light);
-            color: var(--text-primary);
-            border: 1px solid var(--border);
-        }
-
-        .btn-secondary:hover {
-            background: var(--bg-subtle);
-            border-color: var(--primary);
-        }
-
-        .btn-large {
-            padding: 1rem 2.5rem;
+        .nav-logo {
             font-size: 1.1rem;
-            border-radius: 12px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            color: var(--text-primary);
         }
 
-        /* Hero Section */
-        .hero {
+        .nav-logo span {
+            font-weight: 300;
+            color: var(--text-muted);
+            margin-left: 0.75rem;
+            font-size: 0.85rem;
+        }
+
+        .nav-enter {
+            padding: 0.6rem 1.5rem;
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+        }
+
+        .nav-enter:hover {
+            background: rgba(255, 255, 255, 0.9);
+        }
+
+        /* Section Container */
+        .section {
             min-height: 100vh;
             display: flex;
             align-items: center;
-            padding: 8rem 2rem 4rem;
-            position: relative;
+            justify-content: center;
+            padding: 6rem 2rem;
+        }
+
+        /* Glass Card */
+        .glass-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            box-shadow: var(--glass-shadow);
+            padding: 3.5rem 4rem;
+            max-width: 680px;
+            width: 100%;
+            opacity: 0;
+            transform: translateY(40px);
+            transition: opacity 0.8s ease, transform 0.8s ease;
+        }
+
+        .glass-card.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .glass-card h1 {
+            font-size: 2.2rem;
+            font-weight: 600;
+            letter-spacing: -0.5px;
+            margin-bottom: 1rem;
+            line-height: 1.2;
+        }
+
+        .glass-card h2 {
+            font-size: 1.5rem;
+            font-weight: 500;
+            margin-bottom: 1.5rem;
+            color: var(--text-primary);
+        }
+
+        .glass-card p {
+            font-size: 1.1rem;
+            color: var(--text-secondary);
+            margin-bottom: 1rem;
+            font-weight: 400;
+        }
+
+        .glass-card .tagline {
+            font-size: 0.95rem;
+            color: var(--text-muted);
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            margin-top: 1.5rem;
+        }
+
+        .glass-card ul {
+            list-style: none;
+            margin: 1.5rem 0;
+        }
+
+        .glass-card ul li {
+            font-size: 1.05rem;
+            color: var(--text-secondary);
+            padding: 0.5rem 0;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+        }
+
+        .glass-card ul li:last-child {
+            border-bottom: none;
+        }
+
+        .glass-card .divider {
+            width: 40px;
+            height: 1px;
+            background: var(--text-muted);
+            margin: 2rem 0;
+        }
+
+        .glass-card .highlight {
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .glass-card .small-heading {
+            font-size: 0.85rem;
+            font-weight: 600;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 1rem;
+        }
+
+        /* Entry Points Grid */
+        .entry-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .entry-btn {
+            padding: 1.25rem 1.5rem;
+            background: rgba(255, 255, 255, 0.6);
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            border-radius: 12px;
+            text-align: center;
+            font-size: 0.95rem;
+            font-weight: 500;
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: block;
+        }
+
+        .entry-btn:hover {
+            background: rgba(255, 255, 255, 0.9);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        }
+
+        /* Welcome Bot */
+        .bot-trigger {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            width: 60px;
+            height: 60px;
+            background: var(--text-primary);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+            transition: transform 0.3s ease;
+            z-index: 1000;
+        }
+
+        .bot-trigger:hover {
+            transform: scale(1.05);
+        }
+
+        .bot-trigger svg {
+            width: 28px;
+            height: 28px;
+            fill: white;
+        }
+
+        .bot-modal {
+            position: fixed;
+            bottom: 6rem;
+            right: 2rem;
+            width: 380px;
+            max-height: 70vh;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+            z-index: 1001;
+            display: none;
+            flex-direction: column;
             overflow: hidden;
         }
 
-        .hero-video-bg {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            z-index: 0;
-        }
-
-        .hero-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(135deg, rgba(30, 41, 59, 0.6) 0%, rgba(51, 65, 85, 0.5) 50%, rgba(30, 41, 59, 0.6) 100%);
-            z-index: 1;
-        }
-
-        .hero::before {
-            content: '';
-            position: absolute;
-            top: -50%;
-            right: -20%;
-            width: 80%;
-            height: 150%;
-            background: radial-gradient(ellipse, rgba(99, 102, 241, 0.15) 0%, transparent 70%);
-            pointer-events: none;
-            z-index: 2;
-        }
-
-        .hero-container {
-            max-width: 1200px;
-            margin: 0 auto;
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 4rem;
-            align-items: center;
-            position: relative;
-            z-index: 3;
-        }
-
-        .hero-content {
-            position: relative;
-            z-index: 3;
-        }
-
-        .hero-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            background: rgba(255, 255, 255, 0.15);
-            color: white;
-            padding: 0.5rem 1rem;
-            border-radius: 100px;
-            font-size: 0.85rem;
-            font-weight: 600;
-            margin-bottom: 1.5rem;
-            border: 1px solid rgba(255, 255, 255, 0.25);
-            backdrop-filter: blur(10px);
-        }
-
-        .hero-badge::before {
-            content: '';
-            width: 8px;
-            height: 8px;
-            background: var(--success);
-            border-radius: 50%;
-            animation: pulse 2s infinite;
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.5; transform: scale(1.2); }
-        }
-
-        .hero h1 {
-            font-size: 3.5rem;
-            font-weight: 800;
-            line-height: 1.1;
-            letter-spacing: -1.5px;
-            margin-bottom: 1.5rem;
-            color: white;
-        }
-
-        .hero h1 .highlight {
-            background: linear-gradient(135deg, var(--primary-light) 0%, #c4b5fd 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-
-        .hero p {
-            font-size: 1.25rem;
-            color: rgba(255, 255, 255, 0.85);
-            margin-bottom: 2rem;
-            max-width: 500px;
-            line-height: 1.7;
-        }
-
-        .hero-buttons {
+        .bot-modal.active {
             display: flex;
-            gap: 1rem;
-            flex-wrap: wrap;
-        }
-
-        .hero-stats {
-            display: flex;
-            gap: 2.5rem;
-            margin-top: 3rem;
-            padding-top: 2rem;
-            border-top: 1px solid rgba(255, 255, 255, 0.2);
-        }
-
-        .hero-stat {
-            text-align: left;
-        }
-
-        .hero-stat-value {
-            font-size: 2rem;
-            font-weight: 700;
-            color: white;
-        }
-
-        .hero-stat-label {
-            font-size: 0.9rem;
-            color: rgba(255, 255, 255, 0.7);
-        }
-
-        /* Chat Preview Card */
-        .chat-preview {
-            background: var(--bg-white);
-            border-radius: 24px;
-            box-shadow: var(--shadow-xl);
-            padding: 2rem;
-            border: 1px solid var(--border);
-            position: relative;
-        }
-
-        .chat-preview-header {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-            margin-bottom: 1.5rem;
-            padding-bottom: 1rem;
-            border-bottom: 1px solid var(--border);
-        }
-
-        .chat-avatar {
-            width: 48px;
-            height: 48px;
-            background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.5rem;
-        }
-
-        .chat-preview-title {
-            font-weight: 600;
-            color: var(--text-primary);
-        }
-
-        .chat-preview-subtitle {
-            font-size: 0.85rem;
-            color: var(--text-muted);
-        }
-
-        .chat-messages {
-            display: flex;
-            flex-direction: column;
-            gap: 1rem;
-        }
-
-        .chat-message {
-            max-width: 85%;
-            padding: 1rem 1.25rem;
-            border-radius: 16px;
-            font-size: 0.95rem;
-            line-height: 1.5;
-            animation: fadeInUp 0.5s ease-out;
-        }
-
-        @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .chat-message.ai {
-            background: var(--bg-light);
-            color: var(--text-primary);
-            border-bottom-left-radius: 4px;
-        }
-
-        .chat-message.user {
-            background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
-            color: white;
-            margin-left: auto;
-            border-bottom-right-radius: 4px;
-        }
-
-        .chat-typing {
-            display: flex;
-            gap: 4px;
-            padding: 1rem;
-        }
-
-        .chat-typing span {
-            width: 8px;
-            height: 8px;
-            background: var(--text-muted);
-            border-radius: 50%;
-            animation: typing 1.4s infinite;
-        }
-
-        .chat-typing span:nth-child(2) { animation-delay: 0.2s; }
-        .chat-typing span:nth-child(3) { animation-delay: 0.4s; }
-
-        @keyframes typing {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-5px); }
-        }
-
-        /* Why GAS Section */
-        .section {
-            padding: 6rem 2rem;
-        }
-
-        .section-dark {
-            background: var(--bg-light);
-        }
-
-        .section-container {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-
-        .section-header {
-            text-align: center;
-            max-width: 700px;
-            margin: 0 auto 4rem;
-        }
-
-        .section-header h2 {
-            font-size: 2.5rem;
-            font-weight: 700;
-            margin-bottom: 1rem;
-            letter-spacing: -0.5px;
-        }
-
-        .section-header p {
-            font-size: 1.15rem;
-            color: var(--text-secondary);
-        }
-
-        /* Features Grid */
-        .features-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 2rem;
-        }
-
-        .feature-card {
-            background: var(--bg-white);
-            border-radius: 16px;
-            padding: 2rem;
-            border: 1px solid var(--border);
-            transition: all 0.3s;
-        }
-
-        .feature-card:hover {
-            transform: translateY(-4px);
-            box-shadow: var(--shadow-lg);
-            border-color: var(--primary-light);
-        }
-
-        .feature-icon {
-            width: 56px;
-            height: 56px;
-            background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.5rem;
-            margin-bottom: 1.25rem;
-        }
-
-        .feature-card h3 {
-            font-size: 1.25rem;
-            font-weight: 600;
-            margin-bottom: 0.75rem;
-        }
-
-        .feature-card p {
-            color: var(--text-secondary);
-            font-size: 0.95rem;
-            line-height: 1.6;
-        }
-
-        /* How It Works */
-        .steps {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 2rem;
-            position: relative;
-        }
-
-        .steps::before {
-            content: '';
-            position: absolute;
-            top: 40px;
-            left: 12.5%;
-            right: 12.5%;
-            height: 2px;
-            background: linear-gradient(90deg, var(--primary), var(--accent));
-            z-index: 0;
-        }
-
-        .step {
-            text-align: center;
-            position: relative;
-            z-index: 1;
-        }
-
-        .step-number {
-            width: 80px;
-            height: 80px;
-            background: var(--bg-white);
-            border: 3px solid var(--primary);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.75rem;
-            font-weight: 700;
-            color: var(--primary);
-            margin: 0 auto 1.5rem;
-        }
-
-        .step h3 {
-            font-size: 1.1rem;
-            font-weight: 600;
-            margin-bottom: 0.5rem;
-        }
-
-        .step p {
-            font-size: 0.9rem;
-            color: var(--text-secondary);
-        }
-
-        /* CTA Section */
-        .cta {
-            background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
-            color: white;
-            padding: 6rem 2rem;
-            text-align: center;
-        }
-
-        .cta h2 {
-            font-size: 2.5rem;
-            font-weight: 700;
-            margin-bottom: 1rem;
-        }
-
-        .cta p {
-            font-size: 1.25rem;
-            opacity: 0.9;
-            margin-bottom: 2rem;
-            max-width: 600px;
-            margin-left: auto;
-            margin-right: auto;
-        }
-
-        .cta .btn {
-            background: white;
-            color: var(--primary);
-            font-size: 1.1rem;
-            padding: 1rem 2.5rem;
-        }
-
-        .cta .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: var(--shadow-xl);
-        }
-
-        /* Footer */
-        .footer {
-            background: var(--text-primary);
-            color: white;
-            padding: 4rem 2rem 2rem;
-        }
-
-        .footer-container {
-            max-width: 1200px;
-            margin: 0 auto;
-            display: grid;
-            grid-template-columns: 2fr 1fr 1fr 1fr;
-            gap: 3rem;
-        }
-
-        .footer-brand {
-            font-size: 1.5rem;
-            font-weight: 800;
-            margin-bottom: 1rem;
-        }
-
-        .footer-tagline {
-            color: var(--text-muted);
-            font-size: 0.95rem;
-            line-height: 1.6;
-        }
-
-        .footer-column h4 {
-            font-size: 0.9rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 1rem;
-            color: var(--text-muted);
-        }
-
-        .footer-column a {
-            display: block;
-            color: white;
-            text-decoration: none;
-            font-size: 0.95rem;
-            margin-bottom: 0.75rem;
-            opacity: 0.8;
-            transition: opacity 0.2s;
-        }
-
-        .footer-column a:hover {
-            opacity: 1;
-        }
-
-        .footer-bottom {
-            max-width: 1200px;
-            margin: 3rem auto 0;
-            padding-top: 2rem;
-            border-top: 1px solid rgba(255,255,255,0.1);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-size: 0.85rem;
-            color: var(--text-muted);
-        }
-
-        /* Chat Modal */
-        .chat-modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0,0,0,0.5);
-            backdrop-filter: blur(4px);
-            z-index: 1000;
-            align-items: center;
-            justify-content: center;
-            padding: 1rem;
-        }
-
-        .chat-modal.active {
-            display: flex;
-        }
-
-        .chat-modal-content {
-            background: var(--bg-white);
-            border-radius: 24px;
-            width: 100%;
-            max-width: 600px;
-            max-height: 80vh;
-            display: flex;
-            flex-direction: column;
-            box-shadow: var(--shadow-xl);
-            animation: slideUp 0.3s ease-out;
+            animation: slideUp 0.3s ease;
         }
 
         @keyframes slideUp {
@@ -660,39 +291,34 @@
             }
         }
 
-        .chat-modal-header {
+        .bot-header {
+            padding: 1.25rem 1.5rem;
+            border-bottom: 1px solid #f1f5f9;
             display: flex;
-            align-items: center;
             justify-content: space-between;
-            padding: 1.5rem;
-            border-bottom: 1px solid var(--border);
-        }
-
-        .chat-modal-header h3 {
-            display: flex;
             align-items: center;
-            gap: 0.75rem;
-            font-size: 1.1rem;
         }
 
-        .chat-close {
-            width: 36px;
-            height: 36px;
+        .bot-header h3 {
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        .bot-header span {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .bot-close {
+            background: none;
             border: none;
-            background: var(--bg-light);
-            border-radius: 8px;
+            font-size: 1.5rem;
             cursor: pointer;
-            font-size: 1.25rem;
-            color: var(--text-secondary);
-            transition: all 0.2s;
+            color: var(--text-muted);
+            line-height: 1;
         }
 
-        .chat-close:hover {
-            background: var(--bg-subtle);
-            color: var(--text-primary);
-        }
-
-        .chat-modal-body {
+        .bot-messages {
             flex: 1;
             overflow-y: auto;
             padding: 1.5rem;
@@ -701,892 +327,632 @@
             gap: 1rem;
         }
 
-        .chat-modal-footer {
+        .bot-message {
+            max-width: 85%;
+            padding: 1rem 1.25rem;
+            border-radius: 16px;
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+
+        .bot-message.bot {
+            background: #f1f5f9;
+            color: var(--text-primary);
+            align-self: flex-start;
+            border-bottom-left-radius: 4px;
+        }
+
+        .bot-message.user {
+            background: var(--text-primary);
+            color: white;
+            align-self: flex-end;
+            border-bottom-right-radius: 4px;
+        }
+
+        .bot-options {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+        }
+
+        .bot-option {
+            padding: 0.6rem 1rem;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .bot-option:hover {
+            background: var(--text-primary);
+            color: white;
+            border-color: var(--text-primary);
+        }
+
+        .bot-input-area {
             padding: 1rem 1.5rem;
-            border-top: 1px solid var(--border);
+            border-top: 1px solid #f1f5f9;
             display: flex;
             gap: 0.75rem;
         }
 
-        .chat-input {
+        .bot-input {
             flex: 1;
-            padding: 0.875rem 1rem;
-            border: 1px solid var(--border);
+            padding: 0.75rem 1rem;
+            border: 1px solid #e2e8f0;
             border-radius: 12px;
-            font-size: 0.95rem;
-            font-family: inherit;
+            font-size: 0.9rem;
             outline: none;
-            transition: border-color 0.2s;
         }
 
-        .chat-input:focus {
-            border-color: var(--primary);
+        .bot-input:focus {
+            border-color: var(--text-primary);
         }
 
-        .chat-send {
-            padding: 0.875rem 1.5rem;
-            background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+        .bot-send {
+            padding: 0.75rem 1rem;
+            background: var(--text-primary);
             color: white;
             border: none;
             border-radius: 12px;
-            font-weight: 600;
             cursor: pointer;
-            transition: all 0.2s;
+            font-size: 0.9rem;
         }
 
-        .chat-send:hover {
-            transform: scale(1.02);
-        }
-
-        /* Quick Replies */
-        .quick-replies {
+        /* Scroll indicator */
+        .scroll-indicator {
+            position: fixed;
+            bottom: 2rem;
+            left: 50%;
+            transform: translateX(-50%);
             display: flex;
-            flex-wrap: wrap;
+            flex-direction: column;
+            align-items: center;
             gap: 0.5rem;
-            margin-top: 0.5rem;
+            opacity: 0.5;
+            transition: opacity 0.3s;
         }
 
-        .quick-reply {
-            padding: 0.5rem 1rem;
-            background: var(--bg-light);
-            border: 1px solid var(--border);
-            border-radius: 100px;
-            font-size: 0.85rem;
-            cursor: pointer;
-            transition: all 0.2s;
+        .scroll-indicator span {
+            font-size: 0.75rem;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: var(--text-muted);
         }
 
-        .quick-reply:hover {
-            background: var(--primary);
-            color: white;
-            border-color: var(--primary);
+        .scroll-indicator .arrow {
+            width: 20px;
+            height: 20px;
+            border-right: 2px solid var(--text-muted);
+            border-bottom: 2px solid var(--text-muted);
+            transform: rotate(45deg);
+            animation: scrollBounce 2s infinite;
         }
 
-        /* Progress Bar */
-        .chat-progress {
-            display: flex;
-            gap: 0.5rem;
-            padding: 0 1.5rem 1rem;
+        @keyframes scrollBounce {
+            0%, 100% { transform: rotate(45deg) translate(0, 0); }
+            50% { transform: rotate(45deg) translate(5px, 5px); }
         }
 
-        .chat-progress-step {
-            flex: 1;
-            height: 4px;
-            background: var(--border);
-            border-radius: 2px;
-            transition: background 0.3s;
-        }
-
-        .chat-progress-step.active {
-            background: var(--primary);
-        }
-
-        .chat-progress-step.complete {
-            background: var(--success);
+        .scroll-indicator.hidden {
+            opacity: 0;
+            pointer-events: none;
         }
 
         /* Responsive */
-        @media (max-width: 1024px) {
-            .hero-container {
-                grid-template-columns: 1fr;
-                text-align: center;
-            }
-
-            .hero-content {
-                order: 1;
-            }
-
-            .chat-preview {
-                order: 2;
-                max-width: 500px;
-                margin: 0 auto;
-            }
-
-            .hero p {
-                margin-left: auto;
-                margin-right: auto;
-            }
-
-            .hero-buttons {
-                justify-content: center;
-            }
-
-            .hero-stats {
-                justify-content: center;
-            }
-
-            .features-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .steps {
-                grid-template-columns: 1fr 1fr;
-            }
-
-            .steps::before {
-                display: none;
-            }
-
-            .footer-container {
-                grid-template-columns: 1fr 1fr;
-            }
-        }
-
-        @media (max-width: 640px) {
+        @media (max-width: 768px) {
             .nav {
-                padding: 1rem;
+                padding: 1rem 1.5rem;
             }
 
-            .nav-links {
-                display: none;
-            }
-            
-            .hamburger {
-                display: flex;
-                flex-direction: column;
-                gap: 5px;
-                background: none;
-                border: none;
-                cursor: pointer;
-                padding: 8px;
-            }
-            
-            .hamburger span {
-                width: 24px;
-                height: 2px;
-                background: var(--text-primary);
-                border-radius: 2px;
-                transition: all 0.3s;
-            }
-            
-            .mobile-menu {
-                display: none;
-                position: fixed;
-                top: 0;
-                left: 0;
-                right: 0;
-                bottom: 0;
-                background: white;
-                z-index: 1001;
-                flex-direction: column;
-                padding: 1.5rem;
-            }
-            
-            .mobile-menu.active {
-                display: flex;
-            }
-            
-            .mobile-menu-header {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                margin-bottom: 2rem;
-                padding-bottom: 1rem;
-                border-bottom: 1px solid var(--border);
-            }
-            
-            .mobile-menu-close {
-                background: none;
-                border: none;
-                font-size: 1.5rem;
-                cursor: pointer;
-                color: var(--text-secondary);
-            }
-            
-            .mobile-menu-links {
-                display: flex;
-                flex-direction: column;
-                gap: 1rem;
-            }
-            
-            .mobile-menu-links a {
-                font-size: 1.1rem;
-                color: var(--text-primary);
-                text-decoration: none;
-                padding: 0.75rem 0;
-                border-bottom: 1px solid var(--border);
+            .section {
+                padding: 4rem 1.5rem;
             }
 
-            .hero h1 {
-                font-size: 2.5rem;
+            .glass-card {
+                padding: 2.5rem 2rem;
             }
 
-            .hero-stats {
-                flex-direction: column;
-                gap: 1.5rem;
-                align-items: center;
+            .glass-card h1 {
+                font-size: 1.75rem;
             }
 
-            .steps {
+            .glass-card h2 {
+                font-size: 1.25rem;
+            }
+
+            .entry-grid {
                 grid-template-columns: 1fr;
             }
 
-            .section-header h2 {
-                font-size: 2rem;
-            }
-
-            .cta h2 {
-                font-size: 2rem;
-            }
-
-            .footer-container {
-                grid-template-columns: 1fr;
-            }
-
-            .footer-bottom {
-                flex-direction: column;
-                gap: 1rem;
-                text-align: center;
+            .bot-modal {
+                width: calc(100% - 2rem);
+                right: 1rem;
+                bottom: 5rem;
+                max-height: 75vh;
             }
         }
     </style>
 </head>
 <body>
-    <!-- Navigation -->
-    <nav class="nav">
-        <div class="nav-container">
-            <div class="logo">GAS<span>Global Accommodation System</span></div>
-            <div class="nav-links">
-                <a href="#how-it-works">How it Works</a>
-                <a href="#why-gas">Why GAS</a>
-                <a href="#" onclick="openChat(); return false;">Contact</a>
-                <a href="/login.html" class="btn btn-secondary">Sign In</a>
-                <button class="btn btn-primary" onclick="openChat()">Join Now</button>
-            </div>
-            <button class="hamburger" onclick="toggleMobileMenu()" aria-label="Menu">
-                <span></span>
-                <span></span>
-                <span></span>
-            </button>
-        </div>
-    </nav>
-    
-    <!-- Mobile Menu Overlay -->
-    <div class="mobile-menu" id="mobileMenu">
-        <div class="mobile-menu-header">
-            <div class="logo">GAS</div>
-            <button class="mobile-menu-close" onclick="toggleMobileMenu()">✕</button>
-        </div>
-        <div class="mobile-menu-links">
-            <a href="#how-it-works" onclick="toggleMobileMenu()">How it Works</a>
-            <a href="#why-gas" onclick="toggleMobileMenu()">Why GAS</a>
-            <a href="#" onclick="openChat(); toggleMobileMenu(); return false;">Contact</a>
-            <a href="/login.html" class="btn btn-secondary" style="width: 100%; text-align: center;">Sign In</a>
-            <button class="btn btn-primary" style="width: 100%;" onclick="openChat(); toggleMobileMenu();">Join Now</button>
-        </div>
-    </div>
-
-    <!-- Hero Section -->
-    <section class="hero">
-        <video class="hero-video-bg" autoplay muted loop playsinline>
+    <!-- Video Background -->
+    <div class="video-bg">
+        <video autoplay muted loop playsinline>
             <source src="/hero-bg.mp4" type="video/mp4">
         </video>
-        <div class="hero-overlay"></div>
-        <div class="hero-container">
-            <div class="hero-content">
-                <div class="hero-badge">
-                    <span></span>
-                    Become a GAS Certified Member
-                </div>
-                <h1>
-                    Take Back<br>
-                    <span class="highlight">Control</span>
-                </h1>
-                <h2 style="font-size: 1.75rem; font-weight: 600; color: rgba(255, 255, 255, 0.9); margin-bottom: 1.5rem; letter-spacing: -0.5px;">
-                    Pay Less. Keep More.
-                </h2>
-                <p>
-                    Join the network of independent hotels, hostels and vacation rental owners who are taking back control. List for free. Let independent travel agents, tour operators and local tourist groups find you. Your rooms. Your terms.
-                </p>
-                <div class="hero-buttons">
-                    <a href="#how-it-works" class="btn btn-secondary btn-large">
-                        Learn More
-                    </a>
-                </div>
-                <div class="hero-stats" style="flex-direction: column; gap: 1rem;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; max-width: 400px;">
-                        <div class="hero-stat" style="text-align: left;">
-                            <div class="hero-stat-value">Free</div>
-                            <div class="hero-stat-label">To List</div>
-                        </div>
-                        <div class="hero-stat" style="text-align: right;">
-                            <div class="hero-stat-value">You Decide</div>
-                            <div class="hero-stat-label">Commission</div>
-                        </div>
-                    </div>
-                    <div style="width: 100%; max-width: 400px;">
-                        <div style="display: flex; justify-content: space-between; font-size: 0.85rem; color: rgba(255, 255, 255, 0.7); margin-bottom: 0.5rem;">
-                            <span>OTAs charge</span>
-                            <span>You could pay</span>
-                        </div>
-                        <div style="position: relative; height: 8px; background: linear-gradient(90deg, #ef4444 0%, #f59e0b 50%, #10b981 100%); border-radius: 4px;">
-                            <div id="commission-thumb" style="position: absolute; top: 50%; transform: translate(-50%, -50%); width: 24px; height: 24px; background: white; border: 3px solid var(--primary); border-radius: 50%; cursor: pointer; box-shadow: var(--shadow-md); left: 80%;"></div>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; font-size: 0.9rem; font-weight: 600; margin-top: 0.5rem;">
-                            <span style="color: #ef4444;">15%</span>
-                            <span style="color: #f59e0b;">10%</span>
-                            <span style="color: #10b981;">5%</span>
-                            <span style="color: #059669;">0%</span>
-                        </div>
-                        <p style="text-align: center; font-size: 0.85rem; color: rgba(255, 255, 255, 0.7); margin-top: 0.75rem;">
-                            Negotiate directly with agents. Your property, your rates.
-                        </p>
-                    </div>
-                </div>
-            </div>
+    </div>
+    <div class="video-overlay"></div>
 
-            <div class="chat-preview">
-                <div class="chat-preview-header">
-                    <div class="chat-avatar">🤖</div>
-                    <div>
-                        <div class="chat-preview-title">GAS Assistant</div>
-                        <div class="chat-preview-subtitle">Online now</div>
-                    </div>
-                </div>
-                <div class="chat-messages">
-                    <div class="chat-message ai">
-                        👋 How much did you pay in OTA commissions last year?
-                    </div>
-                    <div class="chat-message user">
-                        Too much! Around 15-20%
-                    </div>
-                    <div class="chat-message ai">
-                        That's thousands going to platforms that don't really care about your property. Want to hear about a different way?
-                    </div>
-                </div>
-                <div style="margin-top: 1rem;">
-                    <button class="btn btn-primary" style="width: 100%;" onclick="openChat()">
-                        Continue this conversation →
-                    </button>
-                </div>
+    <!-- Navigation -->
+    <nav class="nav">
+        <div class="nav-logo">GAS <span>Global Accommodation System</span></div>
+        <button class="nav-enter" onclick="openBot()">Enter GAS</button>
+    </nav>
+
+    <!-- Card 1: Hero -->
+    <section class="section" id="hero">
+        <div class="glass-card" data-reveal>
+            <h1>Global Accommodation System</h1>
+            <p>A neutral platform for the global accommodation ecosystem.</p>
+            <p class="tagline">Infrastructure · Network · Participation · Identity</p>
+        </div>
+    </section>
+
+    <!-- Card 2: Core Principle -->
+    <section class="section" id="principle">
+        <div class="glass-card" data-reveal>
+            <p class="small-heading">Core Principle</p>
+            <h2>The Structural Challenge is Dependency</h2>
+            <p>Reducing dependency lowers commission exposure and increases long-term security.</p>
+            <div class="divider"></div>
+            <p>GAS exists to enable a diversified accommodation ecosystem built on neutral infrastructure.</p>
+        </div>
+    </section>
+
+    <!-- Card 3: What GAS Provides -->
+    <section class="section" id="provides">
+        <div class="glass-card" data-reveal>
+            <h2>What GAS Provides</h2>
+            <ul>
+                <li>A global accommodation network</li>
+                <li>A participation framework</li>
+                <li>A professional quality system</li>
+                <li>A trust and identity layer</li>
+                <li>A platform others build on</li>
+            </ul>
+        </div>
+    </section>
+
+    <!-- Card 4: Who Participates -->
+    <section class="section" id="participants">
+        <div class="glass-card" data-reveal>
+            <h2>Who Participates in GAS</h2>
+            <ul>
+                <li>Accommodation owners</li>
+                <li>Travel agents</li>
+                <li>Travellers</li>
+                <li>Suppliers</li>
+                <li>Developers</li>
+                <li>Marketing agencies</li>
+                <li>Technology partners</li>
+            </ul>
+            <p class="tagline" style="margin-top: 1.5rem;">All connected through one neutral system.</p>
+        </div>
+    </section>
+
+    <!-- Card 5: Quality & Trust -->
+    <section class="section" id="quality">
+        <div class="glass-card" data-reveal>
+            <p class="small-heading">Quality & Trust</p>
+            <h2>The GAS Review & Quality Framework</h2>
+            <ul>
+                <li>Verified stays</li>
+                <li>Private professional feedback</li>
+                <li>Improvement, not public scoring</li>
+            </ul>
+            <div class="divider"></div>
+            <h2>The GAS Vault</h2>
+            <p>A secure identity and booking layer for trusted participation.</p>
+        </div>
+    </section>
+
+    <!-- Card 6: Platform Components -->
+    <section class="section" id="components">
+        <div class="glass-card" data-reveal>
+            <p class="small-heading">The GAS Network in Use</p>
+            <ul>
+                <li><span class="highlight">GAS Board</span> — public participation surface</li>
+                <li><span class="highlight">GAS Lites</span> — universal access & booking references</li>
+                <li><span class="highlight">GAS Generators</span> — marketing utilities operating on GAS</li>
+                <li><span class="highlight">GAS Turbine</span> — social & campaign activation engine</li>
+            </ul>
+        </div>
+    </section>
+
+    <!-- Card 7: Platform Message -->
+    <section class="section" id="platform">
+        <div class="glass-card" data-reveal>
+            <h2>GAS is a Platform</h2>
+            <ul>
+                <li>Owners <span class="highlight">operate</span> on GAS</li>
+                <li>Agents <span class="highlight">distribute</span> through GAS</li>
+                <li>Developers <span class="highlight">build</span> on GAS</li>
+                <li>Agencies <span class="highlight">grow</span> on GAS</li>
+            </ul>
+            <div class="divider"></div>
+            <p><strong>GAS enables. Others create.</strong></p>
+        </div>
+    </section>
+
+    <!-- Card 8: Entry Points -->
+    <section class="section" id="enter">
+        <div class="glass-card" data-reveal>
+            <p>GAS is not a booking platform.</p>
+            <p>It is the system accommodation participates in.</p>
+            <div class="divider"></div>
+            <p class="small-heading">Enter GAS as</p>
+            <div class="entry-grid">
+                <a href="/owners" class="entry-btn">Property Owner</a>
+                <a href="/agents" class="entry-btn">Travel Agent</a>
+                <a href="/build" class="entry-btn">Builder / Agency</a>
+                <a href="/travellers" class="entry-btn">Traveller</a>
             </div>
         </div>
     </section>
 
-    <!-- How It Works Section -->
-    <section class="section section-dark" id="how-it-works">
-        <div class="section-container">
-            <div class="section-header">
-                <h2>How It Works</h2>
-                <p>Four simple steps to join the network and start getting discovered by travel agents worldwide</p>
-            </div>
+    <!-- Scroll Indicator -->
+    <div class="scroll-indicator" id="scrollIndicator">
+        <span>Scroll</span>
+        <div class="arrow"></div>
+    </div>
 
-            <div class="steps">
-                <div class="step">
-                    <div class="step-number">1</div>
-                    <h3>Chat With Us</h3>
-                    <p>Tell us about your property. Our AI assistant guides you through setup in minutes.</p>
-                </div>
-                <div class="step">
-                    <div class="step-number">2</div>
-                    <h3>Add Your Inventory</h3>
-                    <p>Connect your channel manager or add rooms manually. We sync with Beds24, Hostaway & more.</p>
-                </div>
-                <div class="step">
-                    <div class="step-number">3</div>
-                    <h3>Tell Your Story</h3>
-                    <p>What makes you special? Dog-friendly? Great for walkers? Romantic escapes? Let agents find you.</p>
-                </div>
-                <div class="step">
-                    <div class="step-number">4</div>
-                    <h3>Get Discovered</h3>
-                    <p>Independent travel agents worldwide can now find and book your property. You set the terms.</p>
-                </div>
-            </div>
-        </div>
-    </section>
+    <!-- Bot Trigger -->
+    <div class="bot-trigger" onclick="toggleBot()">
+        <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>
+    </div>
 
-    <!-- Why GAS Section -->
-    <section class="section" id="why-gas">
-        <div class="section-container">
-            <div class="section-header">
-                <h2>Why Independent Owners Choose GAS</h2>
-                <p>Built by property owners, for property owners. We've been where you are.</p>
-            </div>
-
-            <div class="features-grid">
-                <div class="feature-card">
-                    <div class="feature-icon">💰</div>
-                    <h3>Zero Listing Fees</h3>
-                    <p>No subscription. No percentage. List your property completely free. We're building this together.</p>
-                </div>
-                <div class="feature-card">
-                    <div class="feature-icon">🔄</div>
-                    <h3>They Come To You</h3>
-                    <p>Independent travel agents, tour operators and local tourist groups actively search for properties like yours. They approach you.</p>
-                </div>
-                <div class="feature-card">
-                    <div class="feature-icon">🤝</div>
-                    <h3>You Set The Terms</h3>
-                    <p>Negotiate commissions directly with agents. Form local groups. Build relationships that work for you.</p>
-                </div>
-                <div class="feature-card">
-                    <div class="feature-icon">🌍</div>
-                    <h3>Global Network</h3>
-                    <p>Independent travel agents, tour operators and tourist organisations worldwide, looking for quality accommodation for their clients.</p>
-                </div>
-                <div class="feature-card">
-                    <div class="feature-icon">🏠</div>
-                    <h3>Your Own Website Too</h3>
-                    <p>Use our tools to build your own booking website. WordPress, Wix, Squarespace – your brand, your bookings.</p>
-                </div>
-                <div class="feature-card">
-                    <div class="feature-icon">🚀</div>
-                    <h3>Be Part of Something</h3>
-                    <p>This isn't another listing site. It's a movement. Independents uniting to take back control.</p>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- GAS Certified Badge Section -->
-    <section class="section section-dark" id="certified">
-        <div class="section-container">
-            <div class="section-header">
-                <h2>Display Your Badge</h2>
-                <p>Show guests you're part of something bigger</p>
-            </div>
-
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4rem; align-items: center; max-width: 1000px; margin: 0 auto;">
-                <!-- Badge Previews -->
-                <div style="display: flex; flex-direction: column; gap: 2rem; align-items: center;">
-                    <!-- Light badge -->
-                    <div style="background: white; border-radius: 16px; padding: 2.5rem 3rem; box-shadow: var(--shadow-lg);">
-                        <div style="display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.6rem 1rem; background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%); border-radius: 6px; color: white; font-family: 'Inter', sans-serif;">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-                                <polyline points="22 4 12 14.01 9 11.01"/>
-                            </svg>
-                            <span style="font-weight: 600; font-size: 0.9rem; letter-spacing: 0.3px;">Powered by</span>
-                            <span style="font-weight: 800; font-size: 1rem;">GAS</span>
-                        </div>
-                        <p style="margin: 1rem 0 0; color: var(--text-muted); font-size: 0.8rem;">Light background</p>
-                    </div>
-                    
-                    <!-- Dark badge -->
-                    <div style="background: #1e293b; border-radius: 16px; padding: 2.5rem 3rem; box-shadow: var(--shadow-lg);">
-                        <div style="display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.6rem 1rem; background: white; border-radius: 6px; color: var(--primary); font-family: 'Inter', sans-serif;">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-                                <polyline points="22 4 12 14.01 9 11.01"/>
-                            </svg>
-                            <span style="font-weight: 600; font-size: 0.9rem; letter-spacing: 0.3px;">Powered by</span>
-                            <span style="font-weight: 800; font-size: 1rem;">GAS</span>
-                        </div>
-                        <p style="margin: 1rem 0 0; color: #94a3b8; font-size: 0.8rem;">Dark background</p>
-                    </div>
-                </div>
-
-                <!-- Benefits -->
-                <div>
-                    <div style="display: flex; flex-direction: column; gap: 1.5rem;">
-                        <div style="display: flex; gap: 1rem; align-items: flex-start;">
-                            <div style="width: 40px; height: 40px; background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.1)); border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">✓</div>
-                            <div>
-                                <h4 style="margin: 0 0 0.25rem; font-weight: 600;">Build Trust</h4>
-                                <p style="margin: 0; color: var(--text-secondary); font-size: 0.95rem;">Show visitors you're part of a verified network of quality independents</p>
-                            </div>
-                        </div>
-                        <div style="display: flex; gap: 1rem; align-items: flex-start;">
-                            <div style="width: 40px; height: 40px; background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.1)); border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">🔗</div>
-                            <div>
-                                <h4 style="margin: 0 0 0.25rem; font-weight: 600;">Direct Link</h4>
-                                <p style="margin: 0; color: var(--text-secondary); font-size: 0.95rem;">Badge links to your GAS profile for instant verification</p>
-                            </div>
-                        </div>
-                        <div style="display: flex; gap: 1rem; align-items: flex-start;">
-                            <div style="width: 40px; height: 40px; background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.1)); border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">📈</div>
-                            <div>
-                                <h4 style="margin: 0 0 0.25rem; font-weight: 600;">Grow Together</h4>
-                                <p style="margin: 0; color: var(--text-secondary); font-size: 0.95rem;">Every badge spreads the word - help other independents find GAS</p>
-                            </div>
-                        </div>
-                        <div style="display: flex; gap: 1rem; align-items: flex-start;">
-                            <div style="width: 40px; height: 40px; background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.1)); border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">⚡</div>
-                            <div>
-                                <h4 style="margin: 0 0 0.25rem; font-weight: 600;">One Click Add</h4>
-                                <p style="margin: 0; color: var(--text-secondary); font-size: 0.95rem;">Simple embed code for WordPress, Wix, Squarespace, or any site</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- CTA Section -->
-    <section class="cta">
-        <div class="section-container">
-            <h2>Ready to Take Back Control?</h2>
-            <p>Join independent hotels, hostels and vacation rental owners who are doing things differently.</p>
-            <button class="btn" onclick="openChat()">
-                Become GAS Certified →
-            </button>
-        </div>
-    </section>
-
-    <!-- Footer -->
-    <footer class="footer">
-        <div class="footer-container">
+    <!-- Bot Modal -->
+    <div class="bot-modal" id="botModal">
+        <div class="bot-header">
             <div>
-                <div class="footer-brand">GAS</div>
-                <p class="footer-tagline">
-                    Global Accommodation System.<br>
-                    Built by independents, for independents.<br>
-                    Join the movement.
-                </p>
+                <h3>GAS</h3>
+                <span>Global Accommodation System</span>
             </div>
-            <div class="footer-column">
-                <h4>Platform</h4>
-                <a href="#how-it-works">How it Works</a>
-                <a href="#why-gas">Why GAS</a>
-                <a href="#">For Travel Agents</a>
-                <a href="/vendor-login.html">Vendor Login</a>
-            </div>
-            <div class="footer-column">
-                <h4>Resources</h4>
-                <a href="#">Help Centre</a>
-                <a href="#">API Docs</a>
-                <a href="#">WordPress Plugin</a>
-            </div>
-            <div class="footer-column">
-                <h4>Company</h4>
-                <a href="#">About</a>
-                <a href="#">Contact</a>
-                <a href="#">Privacy Policy</a>
-            </div>
+            <button class="bot-close" onclick="toggleBot()">×</button>
         </div>
-        <div class="footer-bottom">
-            <div>© 2025 Global Accommodation System. All rights reserved.</div>
-            <div>
-                <a href="https://gas.travel" style="color: var(--text-muted);">gas.travel</a>
-            </div>
-        </div>
-    </footer>
-
-    <!-- Chat Modal -->
-    <div class="chat-modal" id="chatModal">
-        <div class="chat-modal-content">
-            <div class="chat-modal-header">
-                <h3>
-                    <div class="chat-avatar" style="width: 36px; height: 36px; font-size: 1rem;">🤖</div>
-                    GAS Assistant
-                </h3>
-                <button class="chat-close" onclick="closeChat()">×</button>
-            </div>
-            <div class="chat-progress">
-                <div class="chat-progress-step active" id="progress-1"></div>
-                <div class="chat-progress-step" id="progress-2"></div>
-                <div class="chat-progress-step" id="progress-3"></div>
-                <div class="chat-progress-step" id="progress-4"></div>
-                <div class="chat-progress-step" id="progress-5"></div>
-            </div>
-            <div class="chat-modal-body" id="chatBody">
-                <!-- Messages will be added here -->
-            </div>
-            <div class="chat-modal-footer">
-                <input type="text" class="chat-input" id="chatInput" placeholder="Type your message..." onkeypress="handleKeyPress(event)">
-                <button class="chat-send" onclick="sendMessage()">Send</button>
-            </div>
+        <div class="bot-messages" id="botMessages"></div>
+        <div class="bot-input-area" id="botInputArea" style="display: none;">
+            <input type="text" class="bot-input" id="botInput" placeholder="Type here..." onkeypress="handleBotKeypress(event)">
+            <button class="bot-send" onclick="sendBotInput()">Send</button>
         </div>
     </div>
 
     <script>
         // =====================================================
-        // MOBILE MENU
+        // SCROLL REVEAL
         // =====================================================
+        const cards = document.querySelectorAll('[data-reveal]');
+        const scrollIndicator = document.getElementById('scrollIndicator');
         
-        function toggleMobileMenu() {
-            const menu = document.getElementById('mobileMenu');
-            menu.classList.toggle('active');
-            document.body.style.overflow = menu.classList.contains('active') ? 'hidden' : '';
-        }
-        
-        // =====================================================
-        // CHAT LOGIC
-        // =====================================================
-        
-        let currentStep = 0;
-        let userData = {
-            propertyName: '',
-            propertyType: '',
-            location: '',
-            channelManager: '',
-            email: ''
+        const observerOptions = {
+            threshold: 0.3,
+            rootMargin: '0px'
         };
 
-        const chatFlow = [
-            {
-                message: "Hey! 👋 Quick question – how much did you pay in OTA commissions last year?",
-                quickReplies: ["Too much!", "Around 15-20%", "I'd rather not say"]
-            },
-            {
-                message: "Yeah, thought so. Here's the thing – GAS is completely free to list. No subscription. No percentage.\n\nWe're building a global network where travel agents find YOU. Not the other way around.\n\nWant in?",
-                quickReplies: ["Tell me more", "I'm interested!", "How does it work?"]
-            },
-            {
-                message: "Brilliant! Let's get you set up. It takes about 5 minutes.\n\nFirst – what's your property or business called?",
-                quickReplies: null,
-                saveAs: 'propertyName'
-            },
-            {
-                message: "Love it! And what type of accommodation is {propertyName}?",
-                quickReplies: ["Hotel", "B&B / Guesthouse", "Hostel", "Vacation Rental", "Self-Catering", "Other"],
-                saveAs: 'propertyType'
-            },
-            {
-                message: "Great! Where are you located? Just the town/city and country is fine for now.",
-                quickReplies: null,
-                saveAs: 'location'
-            },
-            {
-                message: "Perfect! Do you use a channel manager or property management system?",
-                quickReplies: ["Beds24", "Hostaway", "Smoobu", "Guesty", "Lodgify", "Cloudbeds", "Other", "I don't use one"],
-                saveAs: 'channelManager'
-            },
-            {
-                message: "Nearly there! What's the best email to reach you on?\n\nWe'll send your login details and next steps.",
-                quickReplies: null,
-                saveAs: 'email'
-            },
-            {
-                message: "🎉 You're in!\n\nWe've created your account. Check your email for login details.\n\nYou're now part of a growing network of {propertyCount}+ independent properties. Welcome to the movement!",
-                quickReplies: ["Take me to my dashboard", "I have questions"],
-                final: true
-            }
-        ];
-
-        function openChat() {
-            document.getElementById('chatModal').classList.add('active');
-            if (currentStep === 0) {
-                setTimeout(() => addAIMessage(chatFlow[0]), 500);
-            }
-        }
-
-        function closeChat() {
-            document.getElementById('chatModal').classList.remove('active');
-        }
-
-        function addAIMessage(step) {
-            const chatBody = document.getElementById('chatBody');
-            
-            // Add typing indicator
-            const typing = document.createElement('div');
-            typing.className = 'chat-typing';
-            typing.innerHTML = '<span></span><span></span><span></span>';
-            chatBody.appendChild(typing);
-            chatBody.scrollTop = chatBody.scrollHeight;
-
-            setTimeout(() => {
-                // Remove typing
-                typing.remove();
-
-                // Add message
-                let message = step.message;
-                
-                // Replace placeholders
-                message = message.replace('{propertyName}', userData.propertyName || 'your property');
-                message = message.replace('{propertyCount}', 'a growing number of');
-
-                const msgDiv = document.createElement('div');
-                msgDiv.className = 'chat-message ai';
-                msgDiv.innerHTML = message.replace(/\n/g, '<br>');
-                chatBody.appendChild(msgDiv);
-
-                // Add quick replies if any
-                if (step.quickReplies) {
-                    const repliesDiv = document.createElement('div');
-                    repliesDiv.className = 'quick-replies';
-                    step.quickReplies.forEach(reply => {
-                        const btn = document.createElement('button');
-                        btn.className = 'quick-reply';
-                        btn.textContent = reply;
-                        btn.onclick = () => handleQuickReply(reply, step.saveAs);
-                        repliesDiv.appendChild(btn);
-                    });
-                    chatBody.appendChild(repliesDiv);
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
                 }
+            });
+        }, observerOptions);
 
-                chatBody.scrollTop = chatBody.scrollHeight;
+        cards.forEach(card => observer.observe(card));
 
-                // Update progress
-                updateProgress();
-            }, 1000 + Math.random() * 500);
+        // Hide scroll indicator after scrolling
+        window.addEventListener('scroll', () => {
+            if (window.scrollY > 200) {
+                scrollIndicator.classList.add('hidden');
+            } else {
+                scrollIndicator.classList.remove('hidden');
+            }
+        });
+
+        // Show first card immediately
+        setTimeout(() => {
+            document.querySelector('[data-reveal]').classList.add('visible');
+        }, 300);
+
+        // =====================================================
+        // WELCOME BOT
+        // =====================================================
+        let botOpen = false;
+        let userData = {};
+        let currentPersona = null;
+        let currentStep = 0;
+        let currentFlow = null;
+
+        const botFlows = {
+            owner: [
+                { 
+                    message: "Do you currently use a channel manager?",
+                    options: ["Yes", "No", "Not sure"],
+                    saveAs: "hasChannelManager"
+                },
+                {
+                    message: "Which channel manager do you use?",
+                    input: true,
+                    placeholder: "e.g., Beds24, Smoobu, Hostaway...",
+                    saveAs: "channelManager",
+                    condition: (data) => data.hasChannelManager === "Yes"
+                },
+                {
+                    message: "How many rooms or units do you have?",
+                    options: ["1", "2–5", "6–20", "21–100", "100+"],
+                    saveAs: "roomCount"
+                },
+                {
+                    message: "What would you like to start with?",
+                    options: ["GAS Lite", "Website", "Not sure yet"],
+                    saveAs: "startWith"
+                },
+                {
+                    message: "Which country or region are you in?",
+                    input: true,
+                    placeholder: "Country or region",
+                    saveAs: "location"
+                },
+                {
+                    message: "Enter your email to create your GAS account:",
+                    input: true,
+                    placeholder: "your@email.com",
+                    saveAs: "email",
+                    final: true
+                }
+            ],
+            agent: [
+                {
+                    message: "How many properties do you book or manage?",
+                    options: ["1–10", "11–25", "26–100", "100+"],
+                    saveAs: "propertyCount"
+                },
+                {
+                    message: "Are you interested in the Agent plan? It includes 25 GAS Lites.",
+                    options: ["Yes", "Not sure"],
+                    saveAs: "agentPlan"
+                },
+                {
+                    message: "Which country or region do you sell?",
+                    input: true,
+                    placeholder: "Country or region",
+                    saveAs: "location"
+                },
+                {
+                    message: "Enter your email to create your GAS account:",
+                    input: true,
+                    placeholder: "your@email.com",
+                    saveAs: "email",
+                    final: true
+                }
+            ],
+            builder: [
+                {
+                    message: "What type of work do you do?",
+                    options: ["Developer", "Designer", "Marketing Agency", "Integrator"],
+                    saveAs: "builderType"
+                },
+                {
+                    message: "Which services do you offer?",
+                    options: ["Web Development", "Design", "SEO & Marketing", "Integrations", "All of these"],
+                    saveAs: "services"
+                },
+                {
+                    message: "Implementations must use the GAS plugin/connector. Confirm?",
+                    options: ["Yes, understood"],
+                    saveAs: "confirmed"
+                },
+                {
+                    message: "Enter your email to create your GAS account:",
+                    input: true,
+                    placeholder: "your@email.com",
+                    saveAs: "email",
+                    final: true
+                }
+            ],
+            traveller: [
+                {
+                    message: "Would you like a GAS Vault account for faster booking and secure details?",
+                    options: ["Yes", "Not sure"],
+                    saveAs: "wantsVault"
+                },
+                {
+                    message: "Which country are you in?",
+                    input: true,
+                    placeholder: "Country",
+                    saveAs: "location"
+                },
+                {
+                    message: "Enter your email to create your GAS account:",
+                    input: true,
+                    placeholder: "your@email.com",
+                    saveAs: "email",
+                    final: true
+                }
+            ]
+        };
+
+        function toggleBot() {
+            botOpen = !botOpen;
+            document.getElementById('botModal').classList.toggle('active', botOpen);
+            
+            if (botOpen && document.getElementById('botMessages').children.length === 0) {
+                startBot();
+            }
+        }
+
+        function openBot() {
+            if (!botOpen) toggleBot();
+        }
+
+        function startBot() {
+            addBotMessage("Welcome to the Global Accommodation System (GAS).", []);
+            setTimeout(() => {
+                addBotMessage("Which best describes you?", [
+                    { label: "Property Owner", value: "owner" },
+                    { label: "Travel Agent", value: "agent" },
+                    { label: "Developer or Agency", value: "builder" },
+                    { label: "Traveller", value: "traveller" }
+                ]);
+            }, 500);
+        }
+
+        function addBotMessage(text, options = []) {
+            const container = document.getElementById('botMessages');
+            const msgDiv = document.createElement('div');
+            msgDiv.className = 'bot-message bot';
+            msgDiv.textContent = text;
+            
+            if (options.length > 0) {
+                const optionsDiv = document.createElement('div');
+                optionsDiv.className = 'bot-options';
+                options.forEach(opt => {
+                    const btn = document.createElement('button');
+                    btn.className = 'bot-option';
+                    btn.textContent = typeof opt === 'string' ? opt : opt.label;
+                    btn.onclick = () => handleOption(typeof opt === 'string' ? opt : opt.value, typeof opt === 'string' ? opt : opt.label);
+                    optionsDiv.appendChild(btn);
+                });
+                msgDiv.appendChild(optionsDiv);
+            }
+            
+            container.appendChild(msgDiv);
+            container.scrollTop = container.scrollHeight;
         }
 
         function addUserMessage(text) {
-            const chatBody = document.getElementById('chatBody');
+            const container = document.getElementById('botMessages');
             const msgDiv = document.createElement('div');
-            msgDiv.className = 'chat-message user';
+            msgDiv.className = 'bot-message user';
             msgDiv.textContent = text;
-            chatBody.appendChild(msgDiv);
-            chatBody.scrollTop = chatBody.scrollHeight;
-
-            // Remove quick replies
-            const replies = chatBody.querySelectorAll('.quick-replies');
-            replies.forEach(r => r.remove());
+            container.appendChild(msgDiv);
+            container.scrollTop = container.scrollHeight;
+            
+            // Remove previous options
+            const allOptions = container.querySelectorAll('.bot-options');
+            allOptions.forEach(o => o.remove());
         }
 
-        function handleQuickReply(reply, saveAs) {
-            addUserMessage(reply);
+        function handleOption(value, label) {
+            addUserMessage(label);
             
-            if (saveAs) {
-                userData[saveAs] = reply;
+            // Initial persona selection
+            if (!currentPersona) {
+                currentPersona = value;
+                currentFlow = botFlows[value];
+                currentStep = 0;
+                userData.persona = value;
+                
+                setTimeout(() => {
+                    processStep();
+                }, 400);
+                return;
             }
+            
+            // Save answer
+            const step = currentFlow[currentStep];
+            userData[step.saveAs] = value;
+            
+            currentStep++;
+            setTimeout(() => processStep(), 400);
+        }
 
-            // Handle Channel Manager selection - redirect to appropriate wizard
-            if (saveAs === 'channelManager') {
-                // Store userData in localStorage for the wizard
-                localStorage.setItem('gas_onboarding_data', JSON.stringify(userData));
-                
-                // Build query params from collected data
-                const params = new URLSearchParams();
-                if (userData.propertyName) params.set('property', userData.propertyName);
-                if (userData.propertyType) params.set('type', userData.propertyType);
-                if (userData.location) params.set('location', userData.location);
-                const queryString = params.toString() ? '?' + params.toString() : '';
-                
-                // Map CM selections to wizard URLs
-                const cmWizards = {
-                    'Beds24': '/beds24-wizard' + queryString,
-                    'Hostaway': '/hostaway-wizard' + queryString,
-                    'Smoobu': '/cm-wizard?cm=smoobu' + (queryString ? '&' + params.toString() : ''),
-                    'Guesty': '/cm-wizard?cm=guesty' + (queryString ? '&' + params.toString() : ''),
-                    'Lodgify': '/cm-wizard?cm=lodgify' + (queryString ? '&' + params.toString() : ''),
-                    'Cloudbeds': '/cm-wizard?cm=cloudbeds' + (queryString ? '&' + params.toString() : ''),
-                    'Other': '/cm-wizard' + queryString,
-                    "I don't use one": '/manual-setup' + queryString
+        function processStep() {
+            // Skip steps with failed conditions
+            while (currentStep < currentFlow.length) {
+                const step = currentFlow[currentStep];
+                if (step.condition && !step.condition(userData)) {
+                    currentStep++;
+                    continue;
+                }
+                break;
+            }
+            
+            if (currentStep >= currentFlow.length) {
+                completeBot();
+                return;
+            }
+            
+            const step = currentFlow[currentStep];
+            
+            if (step.input) {
+                addBotMessage(step.message);
+                showInput(step.placeholder, step.saveAs, step.final);
+            } else {
+                addBotMessage(step.message, step.options);
+            }
+        }
+
+        function showInput(placeholder, saveAs, isFinal) {
+            const inputArea = document.getElementById('botInputArea');
+            const input = document.getElementById('botInput');
+            inputArea.style.display = 'flex';
+            input.placeholder = placeholder;
+            input.dataset.saveAs = saveAs;
+            input.dataset.final = isFinal ? 'true' : 'false';
+            input.focus();
+        }
+
+        function handleBotKeypress(e) {
+            if (e.key === 'Enter') sendBotInput();
+        }
+
+        function sendBotInput() {
+            const input = document.getElementById('botInput');
+            const value = input.value.trim();
+            if (!value) return;
+            
+            addUserMessage(value);
+            userData[input.dataset.saveAs] = value;
+            
+            input.value = '';
+            document.getElementById('botInputArea').style.display = 'none';
+            
+            if (input.dataset.final === 'true') {
+                setTimeout(() => completeBot(), 400);
+            } else {
+                currentStep++;
+                setTimeout(() => processStep(), 400);
+            }
+        }
+
+        function completeBot() {
+            console.log('User data:', userData);
+            
+            addBotMessage("Creating your GAS account...");
+            
+            setTimeout(() => {
+                // Here you would call your API to create the account
+                // For now, redirect based on persona
+                const redirects = {
+                    owner: '/owners/setup',
+                    agent: '/agents/setup',
+                    builder: '/build/setup',
+                    traveller: '/travellers/setup'
                 };
                 
-                const wizardUrl = cmWizards[reply];
-                if (wizardUrl) {
-                    addAIMessage({
-                        message: "Perfect! I'll take you to connect your " + (reply === "I don't use one" ? "property manually" : reply + " account") + ".\n\nRedirecting you now... 🚀",
-                        quickReplies: null
-                    });
-                    
-                    setTimeout(() => {
-                        window.location.href = wizardUrl;
-                    }, 1500);
-                    return;
-                }
-            }
-
-            // Handle final step redirects
-            if (reply === "Take me to my dashboard") {
-                // Store userData in localStorage for the next page
-                localStorage.setItem('gas_onboarding_data', JSON.stringify(userData));
+                addBotMessage("Your account is ready. Redirecting you now...");
                 
-                // Redirect to index.html (the main onboarding dashboard)
+                // Store data and redirect
+                localStorage.setItem('gas_onboarding', JSON.stringify(userData));
+                
                 setTimeout(() => {
-                    window.location.href = '/index.html';
-                }, 1000);
-                return;
-            }
-            
-            if (reply === "I have questions") {
-                // Show contact info or open support
-                addAIMessage({
-                    message: "No problem! You can reach us at hello@gas.travel or just reply here with your question. We're here to help! 💬",
-                    quickReplies: ["Take me to my dashboard", "I'll email you"]
-                });
-                return;
-            }
-
-            currentStep++;
-            if (currentStep < chatFlow.length) {
-                setTimeout(() => addAIMessage(chatFlow[currentStep]), 500);
-            }
+                    window.location.href = redirects[currentPersona] || '/dashboard';
+                }, 1500);
+            }, 1000);
         }
-
-        function sendMessage() {
-            const input = document.getElementById('chatInput');
-            const text = input.value.trim();
-            if (!text) return;
-
-            addUserMessage(text);
-            input.value = '';
-
-            // Save data based on current step
-            const step = chatFlow[currentStep];
-            if (step && step.saveAs) {
-                userData[step.saveAs] = text;
-                // Always store latest userData
-                localStorage.setItem('gas_onboarding_data', JSON.stringify(userData));
-            }
-
-            currentStep++;
-            if (currentStep < chatFlow.length) {
-                setTimeout(() => addAIMessage(chatFlow[currentStep]), 500);
-            }
-        }
-
-        function handleKeyPress(event) {
-            if (event.key === 'Enter') {
-                sendMessage();
-            }
-        }
-
-        function updateProgress() {
-            for (let i = 1; i <= 5; i++) {
-                const step = document.getElementById('progress-' + i);
-                if (i < Math.ceil((currentStep + 1) / (chatFlow.length / 5))) {
-                    step.classList.add('complete');
-                    step.classList.remove('active');
-                } else if (i === Math.ceil((currentStep + 1) / (chatFlow.length / 5))) {
-                    step.classList.add('active');
-                    step.classList.remove('complete');
-                } else {
-                    step.classList.remove('active', 'complete');
-                }
-            }
-        }
-
-        // =====================================================
-        // STATS ANIMATION
-        // =====================================================
-        
-        function animateStats() {
-            // These would come from your API in production
-            animateValue('stat-properties', 0, 247, 2000);
-            animateValue('stat-countries', 0, 12, 2000);
-        }
-
-        function animateValue(id, start, end, duration) {
-            const element = document.getElementById(id);
-            const range = end - start;
-            const startTime = performance.now();
-
-            function update(currentTime) {
-                const elapsed = currentTime - startTime;
-                const progress = Math.min(elapsed / duration, 1);
-                const easeProgress = 1 - Math.pow(1 - progress, 3); // Ease out cubic
-                const current = Math.floor(start + range * easeProgress);
-                element.textContent = current.toLocaleString();
-
-                if (progress < 1) {
-                    requestAnimationFrame(update);
-                }
-            }
-
-            requestAnimationFrame(update);
-        }
-
-        // Run on page load
-        document.addEventListener('DOMContentLoaded', () => {
-            // Page ready
-        });
-
-        // Smooth scroll for anchor links
-        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-            anchor.addEventListener('click', function(e) {
-                e.preventDefault();
-                const target = document.querySelector(this.getAttribute('href'));
-                if (target) {
-                    target.scrollIntoView({ behavior: 'smooth' });
-                }
-            });
-        });
     </script>
 </body>
 </html>
