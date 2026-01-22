@@ -1,0 +1,961 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connect to Lodgify - GAS</title>
+    <!-- Lodgify Wizard - Via Calry Integration -->
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #ff6b6b 0%, #ff8e8e 50%, #ffa5a5 100%);
+            min-height: 100vh;
+            padding: 2rem;
+        }
+        
+        .wizard-container {
+            max-width: 700px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        
+        .wizard-header {
+            background: linear-gradient(135deg, #e85555 0%, #ff6b6b 100%);
+            color: white;
+            padding: 2rem;
+            text-align: center;
+        }
+        
+        .wizard-header h1 {
+            font-size: 1.75rem;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+        }
+        
+        .wizard-header h1 img {
+            height: 32px;
+        }
+        
+        .wizard-header p {
+            opacity: 0.9;
+            font-size: 0.95rem;
+        }
+        
+        .steps-indicator {
+            display: flex;
+            justify-content: center;
+            padding: 1.5rem;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+            gap: 0.5rem;
+        }
+        
+        .step-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #dee2e6;
+            transition: all 0.3s;
+        }
+        
+        .step-dot.active {
+            background: #ff6b6b;
+            transform: scale(1.3);
+        }
+        
+        .step-dot.completed {
+            background: #28a745;
+        }
+        
+        .wizard-content {
+            padding: 2rem;
+            min-height: 400px;
+        }
+        
+        .step {
+            display: none;
+        }
+        
+        .step.active {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .step h2 {
+            color: #e85555;
+            margin-bottom: 0.5rem;
+            font-size: 1.4rem;
+        }
+        
+        .step-description {
+            color: #6c757d;
+            margin-bottom: 1.5rem;
+            font-size: 0.95rem;
+        }
+        
+        .form-group {
+            margin-bottom: 1.25rem;
+        }
+        
+        .form-group label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: #495057;
+        }
+        
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+        
+        .form-group input:focus, .form-group select:focus {
+            outline: none;
+            border-color: #ff6b6b;
+        }
+        
+        .form-hint {
+            font-size: 0.8rem;
+            color: #6c757d;
+            margin-top: 0.25rem;
+        }
+        
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ff8e8e 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(255, 107, 107, 0.4);
+        }
+        
+        .btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .btn-secondary {
+            background: #e9ecef;
+            color: #495057;
+        }
+        
+        .btn-secondary:hover {
+            background: #dee2e6;
+        }
+        
+        .wizard-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.5rem 2rem;
+            background: #f8f9fa;
+            border-top: 1px solid #e9ecef;
+        }
+        
+        .alert {
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+        
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .alert-info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        
+        .alert-warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 2rem;
+        }
+        
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #e9ecef;
+            border-top-color: #ff6b6b;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .auth-tabs {
+            display: flex;
+            margin-bottom: 1.5rem;
+            border-bottom: 2px solid #e9ecef;
+        }
+        
+        .auth-tab {
+            flex: 1;
+            padding: 0.75rem;
+            background: none;
+            border: none;
+            font-size: 1rem;
+            font-weight: 600;
+            color: #6c757d;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .auth-tab.active {
+            color: #ff6b6b;
+            border-bottom: 2px solid #ff6b6b;
+            margin-bottom: -2px;
+        }
+        
+        .auth-form {
+            display: none;
+        }
+        
+        .auth-form.active {
+            display: block;
+        }
+        
+        .info-box {
+            background: linear-gradient(135deg, #fff5f5 0%, #ffe8e8 100%);
+            border: 1px solid #ffd0d0;
+            border-radius: 12px;
+            padding: 1.25rem;
+            margin: 1rem 0;
+        }
+        
+        .info-box h4 {
+            color: #e85555;
+            margin-bottom: 0.5rem;
+            font-size: 1rem;
+        }
+        
+        .info-box p, .info-box ol, .info-box li {
+            color: #666;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+        
+        .info-box ol {
+            padding-left: 1.25rem;
+            margin-top: 0.5rem;
+        }
+        
+        .info-box li {
+            margin-bottom: 0.35rem;
+        }
+        
+        .webhook-box {
+            margin: 1.5rem 0;
+        }
+        
+        .webhook-box label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: #495057;
+        }
+        
+        .webhook-url {
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        .webhook-url input {
+            flex: 1;
+            padding: 0.75rem 1rem;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 0.85rem;
+            background: #f8f9fa;
+        }
+        
+        .webhook-url button {
+            padding: 0.75rem 1.25rem;
+            background: #ff6b6b;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .webhook-url button:hover {
+            background: #e85555;
+        }
+        
+        .success-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+        }
+        
+        .success-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin: 2rem 0;
+        }
+        
+        .stat-box {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 1.5rem;
+            text-align: center;
+        }
+        
+        .stat-box .number {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #ff6b6b;
+        }
+        
+        .stat-box .label {
+            color: #6c757d;
+            font-size: 0.9rem;
+            margin-top: 0.25rem;
+        }
+        
+        .back-link {
+            display: inline-block;
+            color: white;
+            text-decoration: none;
+            margin-bottom: 1rem;
+            opacity: 0.9;
+            font-size: 0.9rem;
+        }
+        
+        .back-link:hover {
+            opacity: 1;
+        }
+        
+        .role-cards {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.75rem;
+            margin-top: 1rem;
+        }
+        
+        @media (max-width: 600px) {
+            .role-cards {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .role-card {
+            border: 2px solid #e9ecef;
+            border-radius: 12px;
+            padding: 1.25rem 1rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .role-card:hover {
+            border-color: #ff6b6b;
+        }
+        
+        .role-card.selected {
+            border-color: #ff6b6b;
+            background: linear-gradient(135deg, #fff5f5 0%, #ffe8e8 100%);
+        }
+        
+        .role-card .icon {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .role-card h3 {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #e85555;
+            margin-bottom: 0.25rem;
+        }
+        
+        .role-card p {
+            font-size: 0.75rem;
+            color: #6c757d;
+            margin: 0;
+        }
+        
+        .instruction-image {
+            max-width: 100%;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+            margin: 1rem 0;
+        }
+        
+        .step-number {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 24px;
+            height: 24px;
+            background: #ff6b6b;
+            color: white;
+            border-radius: 50%;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-right: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <div style="max-width: 700px; margin: 0 auto;">
+        <a href="/connect-cm.html" class="back-link">
+            ← Back to Channel Managers
+        </a>
+    </div>
+    
+    <div class="wizard-container">
+        <div class="wizard-header">
+            <h1>
+                <!-- Lodgify Logo -->
+                <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect width="32" height="32" rx="6" fill="#FF6B6B"/>
+                    <rect x="6" y="8" width="8" height="16" rx="2" fill="white"/>
+                    <rect x="18" y="8" width="8" height="8" rx="2" fill="#00D4AA"/>
+                </svg>
+                Connect to Lodgify
+            </h1>
+            <p>Set up your channel manager integration in minutes</p>
+        </div>
+        
+        <div class="steps-indicator">
+            <div class="step-dot active" id="dot1"></div>
+            <div class="step-dot" id="dot2"></div>
+            <div class="step-dot" id="dot3"></div>
+            <div class="step-dot" id="dot4"></div>
+        </div>
+        
+        <div class="wizard-content">
+            <!-- Step 1: Login/Register -->
+            <div class="step active" id="step1">
+                <h2>Welcome to GAS</h2>
+                <p class="step-description">Login or create an account to get started</p>
+                
+                <div id="step1-error"></div>
+                
+                <div class="auth-tabs">
+                    <button class="auth-tab active" onclick="showAuthTab('login')">Login</button>
+                    <button class="auth-tab" onclick="showAuthTab('register')">Register</button>
+                </div>
+                
+                <div class="auth-form active" id="loginForm">
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="email" id="login-email" placeholder="your@email.com">
+                    </div>
+                    <div class="form-group">
+                        <label>Password</label>
+                        <input type="password" id="login-password" placeholder="••••••••">
+                    </div>
+                </div>
+                
+                <div class="auth-form" id="registerForm">
+                    <div class="form-group">
+                        <label>Business Name</label>
+                        <input type="text" id="reg-name" placeholder="Your Property or Business Name">
+                    </div>
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="email" id="reg-email" placeholder="your@email.com">
+                    </div>
+                    <div class="form-group">
+                        <label>Password</label>
+                        <input type="password" id="reg-password" placeholder="Choose a password">
+                    </div>
+                    
+                    <div class="role-cards">
+                        <div class="role-card selected" data-role="admin" onclick="selectRole('admin')">
+                            <div class="icon">🏠</div>
+                            <h3>Single Property Owner</h3>
+                            <p>I own one property</p>
+                        </div>
+                        <div class="role-card" data-role="submaster_admin" onclick="selectRole('submaster_admin')">
+                            <div class="icon">🏨</div>
+                            <h3>Property Group Owner</h3>
+                            <p>I own multiple properties</p>
+                        </div>
+                        <div class="role-card" data-role="agency_admin" onclick="selectRole('agency_admin')">
+                            <div class="icon">🌐</div>
+                            <h3>Agency</h3>
+                            <p>I manage properties for myself/others</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Step 2: Connect Lodgify API -->
+            <div class="step" id="step2">
+                <h2>Connect Your Lodgify Account</h2>
+                <p class="step-description">Enter your Lodgify API key to connect your properties</p>
+                
+                <div id="step2-error"></div>
+                
+                <div class="info-box">
+                    <h4>📍 How to find your Lodgify API Key:</h4>
+                    <ol>
+                        <li><span class="step-number">1</span> Open your <strong>Lodgify</strong> account in a new tab</li>
+                        <li><span class="step-number">2</span> Go to <strong>Main Menu → Settings → Public API</strong></li>
+                        <li><span class="step-number">3</span> Copy your API key from the page</li>
+                        <li><span class="step-number">4</span> Paste it below and click <strong>Connect</strong></li>
+                    </ol>
+                </div>
+                
+                <div class="form-group" style="margin-top: 1.5rem;">
+                    <label>Lodgify API Key</label>
+                    <input type="text" id="lodgify-api-key" placeholder="Paste your Lodgify API key here...">
+                    <p class="form-hint">Your API key looks like: m1ghh8RDi0egFFa8GN4tH+xso5Qgc7UHCn...</p>
+                </div>
+                
+                <div class="alert alert-info" style="margin-top: 1rem;">
+                    🔒 <strong>Secure Connection:</strong> Your API key is encrypted and securely transmitted. We never store your raw credentials.
+                </div>
+                
+                <div class="loading" id="connect-loading" style="display: none;">
+                    <div class="spinner"></div>
+                    <p id="connect-status">Connecting to Lodgify...</p>
+                </div>
+            </div>
+            
+            <!-- Step 3: Webhook Setup (Optional for Lodgify) -->
+            <div class="step" id="step3">
+                <h2>Set Up Real-Time Sync</h2>
+                <p class="step-description">Add this webhook URL to Lodgify for instant booking updates</p>
+                
+                <div id="step3-error"></div>
+                
+                <div class="alert alert-success">
+                    ✅ Connected successfully! <span id="propertyCountMsg"></span>
+                </div>
+                
+                <div class="info-box">
+                    <h4>📍 Add the webhook URL to Lodgify:</h4>
+                    <ol>
+                        <li>In Lodgify, go to <strong>Settings → Integrations</strong></li>
+                        <li>Find the <strong>Webhooks</strong> section</li>
+                        <li>Add a new webhook with the URL below</li>
+                        <li>Select events: <strong>Booking Created, Booking Updated, Booking Cancelled</strong></li>
+                    </ol>
+                </div>
+                
+                <div class="webhook-box">
+                    <label>Your Webhook URL</label>
+                    <div class="webhook-url">
+                        <input type="text" id="webhookUrl" readonly>
+                        <button onclick="copyWebhook()">Copy</button>
+                    </div>
+                </div>
+                
+                <p style="font-size: 0.85rem; color: #6c757d; margin-top: 1rem;">
+                    <strong>Note:</strong> If Lodgify doesn't support custom webhooks, you can skip this step. 
+                    Your bookings will still sync periodically.
+                </p>
+                
+                <div class="loading" id="setup-loading" style="display: none;">
+                    <div class="spinner"></div>
+                    <p>Finalizing setup...</p>
+                </div>
+            </div>
+            
+            <!-- Step 4: Success -->
+            <div class="step" id="step4">
+                <div style="text-align: center;">
+                    <div class="success-icon">🎉</div>
+                    <h2>You're All Set!</h2>
+                    <p class="step-description">Your Lodgify account is now connected to GAS</p>
+                    
+                    <div class="success-stats">
+                        <div class="stat-box">
+                            <div class="number" id="final-prop-count">0</div>
+                            <div class="label">Properties Imported</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="number" id="final-room-count">0</div>
+                            <div class="label">Rooms/Units</div>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-info" style="text-align: left;">
+                        <strong>What's next?</strong>
+                        <ul style="margin: 0.5rem 0 0 1rem; padding: 0;">
+                            <li>Your properties are now synced with GAS</li>
+                            <li>Bookings will automatically update</li>
+                            <li>You can create websites for your properties</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="wizard-footer">
+            <button class="btn btn-secondary" id="backBtn" onclick="goBack()" style="visibility: hidden;">
+                ← Back
+            </button>
+            <button class="btn btn-primary" id="nextBtn" onclick="goNext()">
+                Next →
+            </button>
+        </div>
+    </div>
+    
+    <script>
+        let currentStep = 1;
+        const totalSteps = 4;
+        
+        let wizardData = {
+            account: null,
+            connectionId: null,
+            apiKey: null,
+            propertyCount: 0,
+            roomCount: 0,
+            selectedRole: 'admin'
+        };
+        
+        function selectRole(role) {
+            wizardData.selectedRole = role;
+            document.querySelectorAll('.role-card').forEach(card => {
+                card.classList.toggle('selected', card.dataset.role === role);
+            });
+        }
+        
+        function showStep(step) {
+            // Hide all steps
+            document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+            document.querySelectorAll('.step-dot').forEach(d => d.classList.remove('active', 'completed'));
+            
+            // Show current step
+            document.getElementById(`step${step}`).classList.add('active');
+            
+            // Update dots
+            for (let i = 1; i <= totalSteps; i++) {
+                const dot = document.getElementById(`dot${i}`);
+                if (i < step) dot.classList.add('completed');
+                if (i === step) dot.classList.add('active');
+            }
+            
+            // Update step 3 webhook URL if we're on that step
+            if (step === 3) {
+                const webhookUrl = `${window.location.origin}/api/webhook/lodgify/${wizardData.account?.id || 'ACCOUNT_ID'}`;
+                document.getElementById('webhookUrl').value = webhookUrl;
+            }
+            
+            // Update buttons
+            document.getElementById('backBtn').style.visibility = step > 1 ? 'visible' : 'hidden';
+            
+            if (step === 4) {
+                document.getElementById('nextBtn').textContent = 'Go to Dashboard';
+            } else if (step === 3) {
+                document.getElementById('nextBtn').textContent = 'Complete Setup';
+            } else if (step === 2) {
+                document.getElementById('nextBtn').textContent = 'Connect to Lodgify →';
+            } else {
+                document.getElementById('nextBtn').textContent = 'Next →';
+            }
+        }
+        
+        function showAuthTab(tab) {
+            document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.auth-form').forEach(f => f.classList.remove('active'));
+            
+            if (tab === 'login') {
+                document.querySelector('.auth-tab:first-child').classList.add('active');
+                document.getElementById('loginForm').classList.add('active');
+            } else {
+                document.querySelector('.auth-tab:last-child').classList.add('active');
+                document.getElementById('registerForm').classList.add('active');
+            }
+        }
+        
+        function showError(containerId, message) {
+            document.getElementById(containerId).innerHTML = `
+                <div class="alert alert-error">${message}</div>
+            `;
+        }
+        
+        function clearError(containerId) {
+            document.getElementById(containerId).innerHTML = '';
+        }
+        
+        function goBack() {
+            if (currentStep > 1) {
+                currentStep--;
+                showStep(currentStep);
+            }
+        }
+        
+        async function goNext() {
+            clearError(`step${currentStep}-error`);
+            
+            if (currentStep === 1) {
+                await handleAuth();
+            } else if (currentStep === 2) {
+                await connectLodgify();
+            } else if (currentStep === 3) {
+                await completeSetup();
+            } else if (currentStep === 4) {
+                window.location.href = '/gas-admin.html';
+            }
+        }
+        
+        async function handleAuth() {
+            const isLogin = document.getElementById('loginForm').classList.contains('active');
+            
+            if (isLogin) {
+                await doLogin();
+            } else {
+                await doRegister();
+            }
+        }
+        
+        async function doLogin() {
+            const email = document.getElementById('login-email').value.trim();
+            const password = document.getElementById('login-password').value;
+            
+            if (!email || !password) {
+                showError('step1-error', 'Please enter your email and password');
+                return;
+            }
+            
+            document.getElementById('nextBtn').disabled = true;
+            
+            try {
+                const response = await fetch('/api/accounts/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || 'Login failed');
+                }
+                
+                if (data.token) {
+                    localStorage.setItem('gas_token', data.token);
+                }
+                
+                wizardData.account = data.account;
+                currentStep++;
+                showStep(currentStep);
+                
+            } catch (error) {
+                showError('step1-error', error.message);
+            } finally {
+                document.getElementById('nextBtn').disabled = false;
+            }
+        }
+        
+        async function doRegister() {
+            const name = document.getElementById('reg-name').value.trim();
+            const email = document.getElementById('reg-email').value.trim();
+            const password = document.getElementById('reg-password').value;
+            
+            if (!name || !email || !password) {
+                showError('step1-error', 'Please fill in all fields');
+                return;
+            }
+            
+            document.getElementById('nextBtn').disabled = true;
+            
+            try {
+                const response = await fetch('/api/accounts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name,
+                        email,
+                        password,
+                        role: wizardData.selectedRole,
+                        business_name: name
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    if (data.error && data.error.includes('duplicate')) {
+                        showAuthTab('login');
+                        document.getElementById('login-email').value = email;
+                        showError('step1-error', 'An account with this email already exists. Please login instead.');
+                        return;
+                    }
+                    throw new Error(data.error || 'Registration failed');
+                }
+                
+                if (data.token) {
+                    localStorage.setItem('gas_token', data.token);
+                }
+                
+                wizardData.account = data.account;
+                currentStep++;
+                showStep(currentStep);
+                
+            } catch (error) {
+                showError('step1-error', error.message);
+            } finally {
+                document.getElementById('nextBtn').disabled = false;
+            }
+        }
+        
+        async function connectLodgify() {
+            const apiKey = document.getElementById('lodgify-api-key').value.trim();
+            
+            if (!apiKey) {
+                showError('step2-error', 'Please enter your Lodgify API key');
+                return;
+            }
+            
+            // Basic validation - Lodgify API keys are typically long base64-ish strings
+            if (apiKey.length < 20) {
+                showError('step2-error', 'This doesn\'t look like a valid Lodgify API key. Please check and try again.');
+                return;
+            }
+            
+            document.getElementById('connect-loading').style.display = 'block';
+            document.getElementById('nextBtn').disabled = true;
+            
+            try {
+                // Store the API key
+                wizardData.apiKey = apiKey;
+                
+                // Call the Calry link API with Lodgify
+                const response = await fetch('/api/calry/connect-direct', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        pms: 'lodgify',
+                        account_id: wizardData.account?.id,
+                        api_key: apiKey
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || 'Failed to connect to Lodgify');
+                }
+                
+                wizardData.connectionId = data.connection_id;
+                wizardData.propertyCount = data.property_count || 0;
+                wizardData.roomCount = data.room_count || 0;
+                
+                // Update the property count message
+                document.getElementById('propertyCountMsg').textContent = 
+                    `Found ${wizardData.propertyCount} properties with ${wizardData.roomCount} rooms.`;
+                
+                currentStep++;
+                showStep(currentStep);
+                
+            } catch (error) {
+                console.error('Lodgify connection error:', error);
+                showError('step2-error', error.message);
+            } finally {
+                document.getElementById('connect-loading').style.display = 'none';
+                document.getElementById('nextBtn').disabled = false;
+            }
+        }
+        
+        function copyWebhook() {
+            const input = document.getElementById('webhookUrl');
+            input.select();
+            document.execCommand('copy');
+            
+            const btn = event.target;
+            btn.textContent = 'Copied!';
+            setTimeout(() => btn.textContent = 'Copy', 2000);
+        }
+        
+        async function completeSetup() {
+            document.getElementById('setup-loading').style.display = 'block';
+            document.getElementById('nextBtn').disabled = true;
+            
+            try {
+                // Notify backend that setup is complete
+                await fetch('/api/calry/complete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        pms: 'lodgify',
+                        connection_id: wizardData.connectionId,
+                        account_id: wizardData.account?.id
+                    })
+                });
+                
+                // Update final counts
+                document.getElementById('final-prop-count').textContent = wizardData.propertyCount;
+                document.getElementById('final-room-count').textContent = wizardData.roomCount;
+                
+                currentStep++;
+                showStep(currentStep);
+                
+            } catch (error) {
+                // Continue anyway
+                document.getElementById('final-prop-count').textContent = wizardData.propertyCount;
+                document.getElementById('final-room-count').textContent = wizardData.roomCount;
+                
+                currentStep++;
+                showStep(currentStep);
+            } finally {
+                document.getElementById('setup-loading').style.display = 'none';
+                document.getElementById('nextBtn').disabled = false;
+            }
+        }
+        
+        // Initialize
+        showStep(1);
+    </script>
+</body>
+</html>

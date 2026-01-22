@@ -327,10 +327,10 @@
             { id: 'hostaway', name: 'Hostaway', type: 'direct', ready: true, desc: 'Vacation Rental Software' },
             
             // Calry integrations (Ready)
-            { id: 'smoobu', name: 'Smoobu', type: 'calry', ready: true, desc: 'Channel Manager' },
+            { id: 'smoobu', name: 'Smoobu', type: 'direct', ready: true, desc: 'Channel Manager' },
+            { id: 'lodgify', name: 'Lodgify', type: 'direct', ready: true, desc: 'Vacation Rental' },
             { id: 'guesty', name: 'Guesty', type: 'calry', ready: true, desc: 'Property Management' },
             { id: 'cloudbeds', name: 'Cloudbeds', type: 'calry', ready: true, desc: 'Hotel PMS' },
-            { id: 'lodgify', name: 'Lodgify', type: 'calry', ready: true, desc: 'Vacation Rental' },
             { id: 'ownerrez', name: 'OwnerRez', type: 'calry', ready: true, desc: 'Vacation Rental' },
             { id: 'hostfully', name: 'Hostfully', type: 'calry', ready: true, desc: 'Property Management' },
             
@@ -449,6 +449,8 @@
                     window.location.href = '/booking-automation-wizard.html';
                 } else if (id === 'smoobu') {
                     window.location.href = '/smoobu-wizard.html';
+                } else if (id === 'lodgify') {
+                    window.location.href = '/lodgify-wizard.html';
                 } else {
                     // All others go to generic Calry wizard
                     localStorage.setItem('gas_selected_cm', JSON.stringify(cm));
