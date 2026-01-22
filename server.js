@@ -20698,7 +20698,13 @@ app.post('/api/calry/sync-pricing/:propertyId', async (req, res) => {
         }
         
         totalDaysSynced += daysArray.length;
-        roomResults.push({ room: room.name, days: daysArray.length });
+        roomResults.push({ 
+          room: room.name, 
+          days: daysArray.length,
+          availDataCount: availData.length || 0,
+          ratesDataCount: ratesData.length || 0,
+          sample: daysArray.length > 0 ? daysArray[0] : null
+        });
         
       } catch (roomErr) {
         console.error(`[Calry Pricing] Error for room ${room.name}:`, roomErr.message);
@@ -20717,7 +20723,12 @@ app.post('/api/calry/sync-pricing/:propertyId', async (req, res) => {
       success: true,
       property: prop.name,
       totalDaysSynced,
-      rooms: roomResults
+      rooms: roomResults,
+      debug: {
+        calryPropertyId,
+        integrationAccountId,
+        dateRange: { startDate, endDate }
+      }
     });
     
   } catch (error) {
