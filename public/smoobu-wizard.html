@@ -535,15 +535,16 @@
                 
                 <div class="info-box">
                     <h4>🔒 Secure Connection</h4>
-                    <p>Your credentials are handled securely by our integration partner and never stored on our servers.</p>
+                    <p>You'll be redirected to enter your Smoobu API key securely. Your credentials are never stored on our servers.</p>
                 </div>
                 
                 <div style="background: #f8f9fa; border-radius: 12px; padding: 1.5rem; margin: 1.5rem 0;">
                     <p style="font-size: 0.95rem; color: #495057; margin-bottom: 1rem;"><strong>What happens next:</strong></p>
                     <ol style="font-size: 0.9rem; color: #6c757d; padding-left: 1.25rem; margin: 0;">
-                        <li style="margin-bottom: 0.5rem;">You'll be redirected to enter your Smoobu API key</li>
-                        <li style="margin-bottom: 0.5rem;">Your properties will be imported automatically</li>
-                        <li>You'll return here to complete setup</li>
+                        <li style="margin-bottom: 0.5rem;">Click "Connect to Smoobu" below</li>
+                        <li style="margin-bottom: 0.5rem;">Enter your Smoobu API key on the secure page</li>
+                        <li style="margin-bottom: 0.5rem;">You'll be redirected back here automatically</li>
+                        <li>Your properties will be imported!</li>
                     </ol>
                 </div>
                 
@@ -817,31 +818,27 @@
                 // Store account info for when we return from Calry
                 localStorage.setItem('gas_smoobu_account', JSON.stringify(wizardData.account));
                 
-                // Get Calry redirect URL from our API
-                const response = await fetch('/api/calry/initiate', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        pms: 'smoobu',
-                        account_id: wizardData.account.id,
-                        callback_url: window.location.origin + '/smoobu-callback.html'
-                    })
-                });
+                // Build the final redirect URL (where user ends up after Calry callback)
+                const finalRedirect = encodeURIComponent(window.location.origin + '/smoobu-callback.html');
+                
+                // Get Calry Link URL from our API
+                const response = await fetch(`/api/calry/link/start?pms=smoobu&account_id=${wizardData.account?.id || ''}&final_redirect=${finalRedirect}`);
                 
                 const data = await response.json();
                 
-                if (data.success && data.redirect_url) {
-                    // Redirect to Calry
-                    window.location.href = data.redirect_url;
+                if (data.success && data.link_url) {
+                    // Redirect to Calry's hosted UI
+                    console.log('Redirecting to Calry Link:', data.link_url);
+                    window.location.href = data.link_url;
                 } else {
-                    throw new Error(data.error || 'Could not initiate connection');
+                    throw new Error(data.error || 'Could not create connection link');
                 }
                 
             } catch (error) {
-                console.log('Calry initiation error, using fallback:', error);
-                // Fallback - redirect to Calry dev environment
-                const calryUrl = `https://link.calry.app/smoobu?callback=${encodeURIComponent(window.location.origin + '/smoobu-callback.html')}&account_id=${wizardData.account?.id || ''}`;
-                window.location.href = calryUrl;
+                console.error('Calry Link error:', error);
+                showError('step2-error', 'Could not connect to Smoobu. Please try again. Error: ' + error.message);
+                document.getElementById('connect-loading').style.display = 'none';
+                document.getElementById('nextBtn').disabled = false;
             }
         }
         

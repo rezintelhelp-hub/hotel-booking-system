@@ -254,8 +254,45 @@
         
         async function processCallback() {
             const params = new URLSearchParams(window.location.search);
-            const status = params.get('status');
+            
+            // Check if this is a redirect from Calry (via our backend)
+            const calryConnected = params.get('calry_connected');
+            const pms = params.get('pms');
+            const propertiesImported = params.get('properties_imported');
+            const integrationId = params.get('integration_id');
+            const accountId = params.get('account_id');
             const error = params.get('error');
+            
+            // Check for error
+            if (error) {
+                showError(decodeURIComponent(error));
+                return;
+            }
+            
+            // If we have calry_connected=true, show success directly
+            if (calryConnected === 'true') {
+                connectionData = {
+                    propertyCount: parseInt(propertiesImported) || 0,
+                    roomCount: 0,
+                    pms: pms || 'Smoobu',
+                    integrationId: integrationId,
+                    accountId: accountId
+                };
+                
+                // Skip webhook step, go straight to success
+                document.getElementById('propCount').textContent = connectionData.propertyCount;
+                document.getElementById('roomCount').textContent = connectionData.roomCount;
+                
+                document.getElementById('loadingState').classList.add('hidden');
+                document.getElementById('successState').classList.remove('hidden');
+                
+                // Clear stored data
+                localStorage.removeItem('gas_smoobu_account');
+                return;
+            }
+            
+            // Legacy callback handling (status, connection_id params)
+            const status = params.get('status');
             const connectionId = params.get('connection_id') || params.get('connectionId');
             const listenerUrl = params.get('listener_url') || params.get('listenerUrl');
             
@@ -266,9 +303,9 @@
                 account = storedAccount ? JSON.parse(storedAccount) : null;
             } catch (e) {}
             
-            // Check for error
-            if (error || status === 'error' || status === 'cancelled') {
-                showError(error || 'Connection was cancelled');
+            // If no useful params, show error
+            if (!calryConnected && !connectionId && !status) {
+                showError('No connection data received. Please try again.');
                 return;
             }
             
