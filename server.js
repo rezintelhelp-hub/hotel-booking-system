@@ -19778,25 +19778,6 @@ async function importCalryPropertyHelper(integrationAccountId, propertyId, exist
     });
   }
   
-  // Build settings JSON with all extra Calry data
-  const propertySettings = {
-    calry_id: calryProperty.id,
-    calry_external_id: calryProperty.externalId,
-    check_in_time: calryProperty.checkInTime || calryProperty.checkinTime || null,
-    check_out_time: calryProperty.checkOutTime || calryProperty.checkoutTime || null,
-    timezone: calryProperty.timezone || null,
-    house_rules: calryProperty.houseRules || calryProperty.rules || null,
-    cancellation_policy: calryProperty.cancellationPolicy || null,
-    min_nights: calryProperty.minNights || calryProperty.minimumStay || null,
-    max_nights: calryProperty.maxNights || calryProperty.maximumStay || null,
-    property_type: calryProperty.propertyType || calryProperty.type || null,
-    amenities_raw: calryProperty.amenities || [],
-    thumbnail_url: calryProperty.thumbnailUrl || calryProperty.thumbnail || null,
-    website_url: calryProperty.websiteUrl || calryProperty.website || null,
-    contact_email: calryProperty.email || calryProperty.contactEmail || null,
-    contact_phone: calryProperty.phone || calryProperty.contactPhone || null
-  };
-  
   if (existingProp.rows.length > 0) {
     gasPropertyId = existingProp.rows[0].id;
     await pool.query(`
@@ -19810,9 +19791,8 @@ async function importCalryPropertyHelper(integrationAccountId, propertyId, exist
         longitude = $7, 
         currency = $8,
         description = $9,
-        settings = COALESCE(settings, '{}'::jsonb) || $10::jsonb,
         updated_at = NOW()
-      WHERE id = $11
+      WHERE id = $10
     `, [
       calryProperty.name,
       calryProperty.address?.line1 || calryProperty.address?.street || '',
@@ -19823,16 +19803,29 @@ async function importCalryPropertyHelper(integrationAccountId, propertyId, exist
       calryProperty.geoLocation?.longitude || calryProperty.coordinates?.lng || calryProperty.longitude || null,
       calryProperty.currency || 'EUR',
       calryProperty.description || calryProperty.summary || '',
-      JSON.stringify({ ...propertySettings, amenities: amenitiesList }),
       gasPropertyId
     ]);
+    
+    // Update additional fields if they exist (fail silently if columns don't exist)
+    try { await pool.query('UPDATE properties SET check_in_time = $1 WHERE id = $2', [calryProperty.checkInTime || calryProperty.checkinTime || null, gasPropertyId]); } catch(e) {}
+    try { await pool.query('UPDATE properties SET check_out_time = $1 WHERE id = $2', [calryProperty.checkOutTime || calryProperty.checkoutTime || null, gasPropertyId]); } catch(e) {}
+    try { await pool.query('UPDATE properties SET house_rules = $1 WHERE id = $2', [calryProperty.houseRules || calryProperty.rules || null, gasPropertyId]); } catch(e) {}
+    try { await pool.query('UPDATE properties SET cancellation_policy = $1 WHERE id = $2', [calryProperty.cancellationPolicy || null, gasPropertyId]); } catch(e) {}
+    try { await pool.query('UPDATE properties SET min_nights = $1 WHERE id = $2', [calryProperty.minNights || calryProperty.minimumStay || null, gasPropertyId]); } catch(e) {}
+    try { await pool.query('UPDATE properties SET max_nights = $1 WHERE id = $2', [calryProperty.maxNights || calryProperty.maximumStay || null, gasPropertyId]); } catch(e) {}
+    try { await pool.query('UPDATE properties SET property_type = $1 WHERE id = $2', [calryProperty.propertyType || calryProperty.type || null, gasPropertyId]); } catch(e) {}
+    try { await pool.query('UPDATE properties SET thumbnail_url = $1 WHERE id = $2', [calryProperty.thumbnailUrl || calryProperty.thumbnail || null, gasPropertyId]); } catch(e) {}
+    try { await pool.query('UPDATE properties SET max_guests = $1 WHERE id = $2', [calryProperty.maxOccupancy || calryProperty.maxGuests || null, gasPropertyId]); } catch(e) {}
+    try { await pool.query('UPDATE properties SET bedrooms = $1 WHERE id = $2', [calryProperty.rooms?.bedroom?.count || null, gasPropertyId]); } catch(e) {}
+    try { await pool.query('UPDATE properties SET bathrooms = $1 WHERE id = $2', [calryProperty.rooms?.bathroom?.count || null, gasPropertyId]); } catch(e) {}
+    try { await pool.query('UPDATE properties SET region = $1 WHERE id = $2', [calryProperty.address?.state || calryProperty.address?.region || null, gasPropertyId]); } catch(e) {}
   } else {
     const propResult = await pool.query(`
       INSERT INTO properties (
         account_id, user_id, name, address, city, country, postal_code,
         latitude, longitude, currency, description,
-        cm_property_id, cm_source, settings, status, created_at
-      ) VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'calry', $12, 'active', NOW())
+        cm_property_id, cm_source, status, created_at
+      ) VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'calry', 'active', NOW())
       RETURNING id
     `, [
       gasAccountId,
@@ -19845,10 +19838,23 @@ async function importCalryPropertyHelper(integrationAccountId, propertyId, exist
       calryProperty.geoLocation?.longitude || calryProperty.coordinates?.lng || calryProperty.longitude || null,
       calryProperty.currency || 'EUR',
       calryProperty.description || calryProperty.summary || '',
-      String(propertyId),
-      JSON.stringify({ ...propertySettings, amenities: amenitiesList })
+      String(propertyId)
     ]);
     gasPropertyId = propResult.rows[0].id;
+    
+    // Update additional fields if they exist (fail silently if columns don't exist)
+    try { await pool.query('UPDATE properties SET check_in_time = $1 WHERE id = $2', [calryProperty.checkInTime || calryProperty.checkinTime || null, gasPropertyId]); } catch(e) {}
+    try { await pool.query('UPDATE properties SET check_out_time = $1 WHERE id = $2', [calryProperty.checkOutTime || calryProperty.checkoutTime || null, gasPropertyId]); } catch(e) {}
+    try { await pool.query('UPDATE properties SET house_rules = $1 WHERE id = $2', [calryProperty.houseRules || calryProperty.rules || null, gasPropertyId]); } catch(e) {}
+    try { await pool.query('UPDATE properties SET cancellation_policy = $1 WHERE id = $2', [calryProperty.cancellationPolicy || null, gasPropertyId]); } catch(e) {}
+    try { await pool.query('UPDATE properties SET min_nights = $1 WHERE id = $2', [calryProperty.minNights || calryProperty.minimumStay || null, gasPropertyId]); } catch(e) {}
+    try { await pool.query('UPDATE properties SET max_nights = $1 WHERE id = $2', [calryProperty.maxNights || calryProperty.maximumStay || null, gasPropertyId]); } catch(e) {}
+    try { await pool.query('UPDATE properties SET property_type = $1 WHERE id = $2', [calryProperty.propertyType || calryProperty.type || null, gasPropertyId]); } catch(e) {}
+    try { await pool.query('UPDATE properties SET thumbnail_url = $1 WHERE id = $2', [calryProperty.thumbnailUrl || calryProperty.thumbnail || null, gasPropertyId]); } catch(e) {}
+    try { await pool.query('UPDATE properties SET max_guests = $1 WHERE id = $2', [calryProperty.maxOccupancy || calryProperty.maxGuests || null, gasPropertyId]); } catch(e) {}
+    try { await pool.query('UPDATE properties SET bedrooms = $1 WHERE id = $2', [calryProperty.rooms?.bedroom?.count || null, gasPropertyId]); } catch(e) {}
+    try { await pool.query('UPDATE properties SET bathrooms = $1 WHERE id = $2', [calryProperty.rooms?.bathroom?.count || null, gasPropertyId]); } catch(e) {}
+    try { await pool.query('UPDATE properties SET region = $1 WHERE id = $2', [calryProperty.address?.state || calryProperty.address?.region || null, gasPropertyId]); } catch(e) {}
   }
   
   // Import property images
