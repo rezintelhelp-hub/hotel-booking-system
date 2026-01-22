@@ -20023,13 +20023,17 @@ async function importCalryPropertyHelper(integrationAccountId, propertyId, exist
     }
   }
   
-  // Track in gas_sync_properties
-  await pool.query(`
-    INSERT INTO gas_sync_properties (connection_id, gas_property_id, external_id, name, created_at)
-    VALUES ($1, $2, $3, $4, NOW())
-    ON CONFLICT (connection_id, external_id) DO UPDATE SET
-      gas_property_id = $2, name = $4, updated_at = NOW()
-  `, [connectionId, gasPropertyId, String(propertyId), calryProperty.name]);
+  // Track in gas_sync_properties (fail silently if table structure differs)
+  try {
+    await pool.query(`
+      INSERT INTO gas_sync_properties (connection_id, gas_property_id, external_id, name, created_at)
+      VALUES ($1, $2, $3, $4, NOW())
+      ON CONFLICT (connection_id, external_id) DO UPDATE SET
+        gas_property_id = $2, name = $4, updated_at = NOW()
+    `, [connectionId, gasPropertyId, String(propertyId), calryProperty.name]);
+  } catch (syncPropError) {
+    console.log('Could not track in gas_sync_properties:', syncPropError.message);
+  }
   
   console.log(`Imported property ${calryProperty.name}: ${roomsImported} rooms, ${pictures.length} images`);
   
@@ -44242,6 +44246,7 @@ app.post('/api/admin/calry/sync-connection/:connectionId', async (req, res) => {
         console.log(`Imported property: ${prop.name} (GAS ID: ${importResult.gas_property_id})`);
       } catch (importError) {
         console.error(`Failed to import property ${prop.name}:`, importError.message);
+        console.error('Full error:', importError);
         imported.push({
           calry_id: prop.id,
           name: prop.name,
@@ -44263,6 +44268,131 @@ app.post('/api/admin/calry/sync-connection/:connectionId', async (req, res) => {
   } catch (error) {
     console.error('Calry sync error:', error);
     res.json({ success: false, error: error.message });
+  }
+});
+
+// Debug endpoint to test property import step by step
+app.post('/api/admin/calry/debug-import/:connectionId', async (req, res) => {
+  const { connectionId } = req.params;
+  const debugLog = [];
+  
+  try {
+    debugLog.push('Step 1: Getting connection...');
+    const connResult = await pool.query(
+      'SELECT id, account_id, external_account_id FROM gas_sync_connections WHERE id = $1',
+      [connectionId]
+    );
+    
+    if (connResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Connection not found', debug: debugLog });
+    }
+    
+    const connection = connResult.rows[0];
+    const integrationAccountId = connection.external_account_id;
+    const gasAccountId = connection.account_id;
+    debugLog.push(`Connection found: account=${gasAccountId}, integration=${integrationAccountId}`);
+    
+    debugLog.push('Step 2: Fetching properties from Calry...');
+    const propResponse = await axios.get(`${CALRY_API_BASE}/properties`, {
+      headers: {
+        'Authorization': `Bearer ${CALRY_API_TOKEN}`,
+        'workspaceId': CALRY_WORKSPACE_ID,
+        'integrationAccountId': integrationAccountId,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    const properties = propResponse.data?.data || [];
+    debugLog.push(`Found ${properties.length} properties`);
+    
+    if (properties.length === 0) {
+      return res.json({ success: false, error: 'No properties found', debug: debugLog });
+    }
+    
+    const calryProperty = properties[0];
+    debugLog.push(`First property: ${calryProperty.name} (ID: ${calryProperty.id})`);
+    
+    debugLog.push('Step 3: Checking if property exists...');
+    const existingProp = await pool.query(
+      "SELECT id FROM properties WHERE cm_property_id = $1 AND account_id = $2",
+      [String(calryProperty.id), gasAccountId]
+    );
+    debugLog.push(`Existing property: ${existingProp.rows.length > 0 ? existingProp.rows[0].id : 'none'}`);
+    
+    debugLog.push('Step 4: Testing property INSERT...');
+    try {
+      const testInsert = await pool.query(`
+        INSERT INTO properties (
+          account_id, user_id, name, address, city, country, postal_code,
+          latitude, longitude, currency, description,
+          cm_property_id, cm_source, status, created_at
+        ) VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'calry', 'active', NOW())
+        RETURNING id
+      `, [
+        gasAccountId,
+        calryProperty.name || 'Test Property',
+        calryProperty.address?.line1 || '',
+        calryProperty.address?.city || '',
+        calryProperty.address?.country || '',
+        calryProperty.address?.postal_code || '',
+        calryProperty.geoLocation?.latitude || null,
+        calryProperty.geoLocation?.longitude || null,
+        calryProperty.currency || 'AUD',
+        'Test description',
+        `test_${Date.now()}`
+      ]);
+      debugLog.push(`INSERT successful! Property ID: ${testInsert.rows[0].id}`);
+      
+      // Clean up test
+      await pool.query('DELETE FROM properties WHERE id = $1', [testInsert.rows[0].id]);
+      debugLog.push('Cleaned up test property');
+    } catch (insertError) {
+      debugLog.push(`INSERT failed: ${insertError.message}`);
+      return res.json({ success: false, error: insertError.message, debug: debugLog });
+    }
+    
+    debugLog.push('Step 5: Testing bookable_units INSERT...');
+    try {
+      // First create a temp property
+      const tempProp = await pool.query(`
+        INSERT INTO properties (account_id, user_id, name, cm_property_id, cm_source, status, created_at)
+        VALUES ($1, 1, 'Temp Test', $2, 'calry', 'active', NOW()) RETURNING id
+      `, [gasAccountId, `temp_${Date.now()}`]);
+      
+      const tempPropId = tempProp.rows[0].id;
+      debugLog.push(`Created temp property: ${tempPropId}`);
+      
+      const testRoom = await pool.query(`
+        INSERT INTO bookable_units (
+          property_id, name, description, max_guests, num_bedrooms, num_bathrooms,
+          base_price, currency, cm_room_id, cm_source, status, created_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'calry', 'active', NOW())
+        RETURNING id
+      `, [
+        tempPropId,
+        'Test Room',
+        'Test description',
+        4,
+        2,
+        1,
+        100.00,
+        'AUD',
+        `test_room_${Date.now()}`
+      ]);
+      debugLog.push(`Room INSERT successful! Room ID: ${testRoom.rows[0].id}`);
+      
+      // Clean up
+      await pool.query('DELETE FROM bookable_units WHERE id = $1', [testRoom.rows[0].id]);
+      await pool.query('DELETE FROM properties WHERE id = $1', [tempPropId]);
+      debugLog.push('Cleaned up test data');
+    } catch (roomError) {
+      debugLog.push(`Room INSERT failed: ${roomError.message}`);
+    }
+    
+    res.json({ success: true, debug: debugLog, calry_property_sample: calryProperty });
+  } catch (error) {
+    debugLog.push(`Error: ${error.message}`);
+    res.json({ success: false, error: error.message, debug: debugLog });
   }
 });
 app.get('/api/admin/debug/connection-creds/:id', async (req, res) => {
