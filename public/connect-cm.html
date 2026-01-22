@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connect Channel Manager - GAS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --text-primary: #1e293b;
+            --text-secondary: #475569;
+            --text-muted: #94a3b8;
+            --bg-light: #f8fafc;
+            --bg-white: #ffffff;
+            --border: #e2e8f0;
+            --success: #10b981;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-light);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        /* Header */
+        .header {
+            background: var(--bg-white);
+            border-bottom: 1px solid var(--border);
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .back-link {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .back-link:hover {
+            color: var(--text-primary);
+        }
+
+        /* Main */
+        .main {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 3rem 2rem;
+        }
+
+        .page-title {
+            text-align: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .page-title h1 {
+            font-size: 1.75rem;
+            font-weight: 600;
+        }
+
+        .page-subtitle {
+            text-align: center;
+            color: var(--text-secondary);
+            margin-bottom: 2rem;
+        }
+
+        /* Search */
+        .search-container {
+            max-width: 500px;
+            margin: 0 auto 2rem;
+        }
+
+        .search-box {
+            position: relative;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 1rem 1rem 1rem 3rem;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            background: var(--bg-white);
+        }
+
+        .search-box input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+
+        .search-box svg {
+            position: absolute;
+            left: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 20px;
+            height: 20px;
+            color: var(--text-muted);
+        }
+
+        /* Section Headers */
+        .section-header {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 1rem;
+            padding-left: 0.5rem;
+        }
+
+        /* CM Grid */
+        .cm-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2.5rem;
+        }
+
+        .cm-card {
+            background: var(--bg-white);
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+            text-align: center;
+        }
+
+        .cm-card:hover {
+            border-color: var(--primary);
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15);
+            transform: translateY(-2px);
+        }
+
+        .cm-card.ready {
+            border-color: #d1fae5;
+        }
+
+        .cm-card.ready:hover {
+            border-color: var(--success);
+        }
+
+        .ready-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: var(--success);
+            color: white;
+            font-size: 0.65rem;
+            font-weight: 600;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+        }
+
+        .cm-logo {
+            width: 48px;
+            height: 48px;
+            margin: 0 auto 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg-light);
+            border-radius: 10px;
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .cm-card img {
+            max-width: 48px;
+            max-height: 48px;
+            object-fit: contain;
+        }
+
+        .cm-name {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 0.25rem;
+        }
+
+        .cm-desc {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        /* Not Listed */
+        .not-listed {
+            text-align: center;
+            padding: 2rem;
+            background: var(--bg-white);
+            border-radius: 12px;
+            border: 2px dashed var(--border);
+        }
+
+        .not-listed h3 {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .not-listed p {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+        }
+
+        .not-listed button {
+            background: var(--bg-light);
+            border: 1px solid var(--border);
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .not-listed button:hover {
+            background: var(--border);
+        }
+
+        /* No Results */
+        .no-results {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-muted);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .main {
+                padding: 2rem 1rem;
+            }
+
+            .cm-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 480px) {
+            .cm-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="logo">GAS</div>
+        <a href="/dashboard" class="back-link">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            Back to Dashboard
+        </a>
+    </header>
+
+    <main class="main">
+        <div class="page-title">
+            <h1>Connect Your Channel Manager</h1>
+        </div>
+        <p class="page-subtitle">Select your property management system to sync your properties with GAS</p>
+
+        <div class="search-container">
+            <div class="search-box">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input type="text" id="searchInput" placeholder="Search channel managers...">
+            </div>
+        </div>
+
+        <!-- Ready Integrations -->
+        <div id="readySection">
+            <div class="section-header">Ready to Connect</div>
+            <div class="cm-grid" id="readyGrid"></div>
+        </div>
+
+        <!-- Other Integrations -->
+        <div id="otherSection">
+            <div class="section-header">Other Integrations</div>
+            <div class="cm-grid" id="otherGrid"></div>
+        </div>
+
+        <!-- No Results -->
+        <div class="no-results" id="noResults" style="display: none;">
+            <p>No channel managers found matching your search.</p>
+        </div>
+
+        <!-- Not Listed -->
+        <div class="not-listed">
+            <h3>Don't see your channel manager?</h3>
+            <p>We're adding new integrations all the time. Let us know what you need.</p>
+            <button onclick="requestCM()">Request Integration</button>
+        </div>
+    </main>
+
+    <script>
+        // Channel Manager Data
+        const channelManagers = [
+            // Direct integrations (Ready)
+            { id: 'beds24', name: 'Beds24', type: 'direct', ready: true, desc: 'PMS + Channel Manager' },
+            { id: 'hostaway', name: 'Hostaway', type: 'direct', ready: true, desc: 'Vacation Rental Software' },
+            
+            // Calry integrations (Ready)
+            { id: 'smoobu', name: 'Smoobu', type: 'calry', ready: true, desc: 'Channel Manager' },
+            { id: 'guesty', name: 'Guesty', type: 'calry', ready: true, desc: 'Property Management' },
+            { id: 'cloudbeds', name: 'Cloudbeds', type: 'calry', ready: true, desc: 'Hotel PMS' },
+            { id: 'lodgify', name: 'Lodgify', type: 'calry', ready: true, desc: 'Vacation Rental' },
+            { id: 'ownerrez', name: 'OwnerRez', type: 'calry', ready: true, desc: 'Vacation Rental' },
+            { id: 'hostfully', name: 'Hostfully', type: 'calry', ready: true, desc: 'Property Management' },
+            
+            // Other Calry integrations
+            { id: '365villas', name: '365Villas', type: 'calry', desc: 'Villa Management' },
+            { id: 'amenitiz', name: 'Amenitiz', type: 'calry', desc: 'Hotel Software' },
+            { id: 'apaleo', name: 'Apaleo', type: 'calry', desc: 'Hotel PMS' },
+            { id: 'avantio', name: 'Avantio', type: 'calry', desc: 'Vacation Rental' },
+            { id: 'bookingautomation', name: 'Booking Automation', type: 'calry', desc: 'Channel Manager' },
+            { id: 'bookinglayer', name: 'Bookinglayer', type: 'calry', desc: 'Activity Booking' },
+            { id: 'bookingsync', name: 'BookingSync', type: 'calry', desc: 'Vacation Rental' },
+            { id: 'bookster', name: 'Bookster', type: 'calry', desc: 'Holiday Rental' },
+            { id: 'channex', name: 'Channex', type: 'calry', desc: 'Channel Manager' },
+            { id: 'ciirus', name: 'Ciirus', type: 'calry', desc: 'Vacation Rental' },
+            { id: 'clock', name: 'Clock PMS', type: 'calry', desc: 'Hotel PMS' },
+            { id: 'escapia', name: 'Escapia', type: 'calry', desc: 'Vacation Rental' },
+            { id: 'eviivo', name: 'Eviivo', type: 'calry', desc: 'Hotel Booking' },
+            { id: 'fantasticstay', name: 'FantasticStay', type: 'calry', desc: 'Property Management' },
+            { id: 'freetobook', name: 'Freetobook', type: 'calry', desc: 'Hotel Booking' },
+            { id: 'guestline', name: 'Guestline', type: 'calry', desc: 'Hotel PMS' },
+            { id: 'hirum', name: 'HiRUM', type: 'calry', desc: 'Hotel Software' },
+            { id: 'hospitable', name: 'Hospitable', type: 'calry', desc: 'Automation Platform' },
+            { id: 'hostify', name: 'Hostify', type: 'calry', desc: 'Property Management' },
+            { id: 'hotelrunner', name: 'HotelRunner', type: 'calry', desc: 'Hotel Platform' },
+            { id: 'hotelogix', name: 'Hotelogix', type: 'calry', desc: 'Hotel PMS' },
+            { id: 'impala', name: 'Impala', type: 'calry', desc: 'Hotel API' },
+            { id: 'krossbooking', name: 'Kross Booking', type: 'calry', desc: 'Hotel Software' },
+            { id: 'littlehotelier', name: 'Little Hotelier', type: 'calry', desc: 'Small Hotel PMS' },
+            { id: 'lodgable', name: 'Lodgable', type: 'calry', desc: 'Vacation Rental' },
+            { id: 'mews', name: 'Mews', type: 'calry', desc: 'Hotel PMS' },
+            { id: 'newbook', name: 'NewBook', type: 'calry', desc: 'Property Management' },
+            { id: 'octorate', name: 'Octorate', type: 'calry', desc: 'Channel Manager' },
+            { id: 'opengds', name: 'Open GDS', type: 'calry', desc: 'Distribution' },
+            { id: 'optimapms', name: 'Optima PMS', type: 'calry', desc: 'Hotel PMS' },
+            { id: 'rentalsunited', name: 'Rentals United', type: 'calry', desc: 'Channel Manager' },
+            { id: 'resharmonics', name: 'Resharmonics', type: 'calry', desc: 'Serviced Apartments' },
+            { id: 'resnexus', name: 'ResNexus', type: 'calry', desc: 'B&B Software' },
+            { id: 'rms', name: 'RMS Cloud', type: 'calry', desc: 'Property Management' },
+            { id: 'sabeeapp', name: 'SabeeApp', type: 'calry', desc: 'Hotel PMS' },
+            { id: 'sirvoy', name: 'Sirvoy', type: 'calry', desc: 'Hotel Booking' },
+            { id: 'stayntouch', name: 'Stayntouch', type: 'calry', desc: 'Hotel PMS' },
+            { id: 'thinkreservations', name: 'ThinkReservations', type: 'calry', desc: 'B&B Software' },
+            { id: 'uplisting', name: 'Uplisting', type: 'calry', desc: 'Channel Manager' },
+            { id: 'webrezpro', name: 'WebRezPro', type: 'calry', desc: 'Hotel PMS' },
+            { id: 'zeevou', name: 'Zeevou', type: 'calry', desc: 'Property Management' },
+        ];
+
+        // Get initials for logo placeholder
+        function getInitials(name) {
+            return name.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase();
+        }
+
+        // Render CM card
+        function renderCard(cm) {
+            return `
+                <div class="cm-card ${cm.ready ? 'ready' : ''}" onclick="selectCM('${cm.id}')">
+                    ${cm.ready ? '<span class="ready-badge">✓ Ready</span>' : ''}
+                    <div class="cm-logo">${getInitials(cm.name)}</div>
+                    <div class="cm-name">${cm.name}</div>
+                    <div class="cm-desc">${cm.desc}</div>
+                </div>
+            `;
+        }
+
+        // Render grids
+        function renderGrids(filter = '') {
+            const searchTerm = filter.toLowerCase();
+            const filtered = channelManagers.filter(cm => 
+                cm.name.toLowerCase().includes(searchTerm) ||
+                cm.desc.toLowerCase().includes(searchTerm)
+            );
+
+            const ready = filtered.filter(cm => cm.ready);
+            const other = filtered.filter(cm => !cm.ready);
+
+            const readyGrid = document.getElementById('readyGrid');
+            const otherGrid = document.getElementById('otherGrid');
+            const readySection = document.getElementById('readySection');
+            const otherSection = document.getElementById('otherSection');
+            const noResults = document.getElementById('noResults');
+
+            if (filtered.length === 0) {
+                readySection.style.display = 'none';
+                otherSection.style.display = 'none';
+                noResults.style.display = 'block';
+                return;
+            }
+
+            noResults.style.display = 'none';
+
+            if (ready.length > 0) {
+                readySection.style.display = 'block';
+                readyGrid.innerHTML = ready.map(renderCard).join('');
+            } else {
+                readySection.style.display = 'none';
+            }
+
+            if (other.length > 0) {
+                otherSection.style.display = 'block';
+                otherGrid.innerHTML = other.map(renderCard).join('');
+            } else {
+                otherSection.style.display = 'none';
+            }
+        }
+
+        // Select CM - go to wizard
+        function selectCM(id) {
+            const cm = channelManagers.find(c => c.id === id);
+            if (cm) {
+                // Store selection and go to wizard
+                localStorage.setItem('gas_selected_cm', JSON.stringify(cm));
+                window.location.href = `/connect-cm-wizard?cm=${id}`;
+            }
+        }
+
+        // Request new CM
+        function requestCM() {
+            window.location.href = '/connect-cm-request';
+        }
+
+        // Search
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            renderGrids(e.target.value);
+        });
+
+        // Init
+        renderGrids();
+    </script>
+</body>
+</html>
