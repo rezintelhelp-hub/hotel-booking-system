@@ -19922,6 +19922,45 @@ async function importCalryPropertyHelper(integrationAccountId, propertyId, exist
   throw new Error(results.errors.join(', ') || 'No properties found');
 }
 
+// Admin endpoint to manually sync a Calry connection
+app.post('/api/admin/calry/sync-connection/:connectionId', async (req, res) => {
+  const { connectionId } = req.params;
+  
+  try {
+    // Get connection details
+    const connResult = await pool.query(
+      'SELECT id, account_id, external_account_id, external_account_name FROM gas_sync_connections WHERE id = $1',
+      [connectionId]
+    );
+    
+    if (connResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Connection not found' });
+    }
+    
+    const connection = connResult.rows[0];
+    const integrationAccountId = connection.external_account_id;
+    const gasAccountId = connection.account_id;
+    const pmsName = connection.external_account_name || 'PMS';
+    
+    console.log(`Admin sync: connection ${connectionId}, account ${gasAccountId}, integration ${integrationAccountId}`);
+    
+    // Use the adapter-based import
+    const results = await importCalryPropertiesViaAdapter(integrationAccountId, pmsName, gasAccountId);
+    
+    // Update last sync time
+    await pool.query('UPDATE gas_sync_connections SET last_sync_at = NOW() WHERE id = $1', [connectionId]);
+    
+    res.json({
+      success: true,
+      message: `Synced ${results.properties_imported} properties, ${results.rooms_imported} rooms`,
+      details: results
+    });
+  } catch (error) {
+    console.error('Admin calry sync error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // =====================================================
 // CALRY WEBHOOKS
 // =====================================================
