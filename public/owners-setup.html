@@ -183,9 +183,15 @@
         }
 
         .cm-option .cm-name {
-            font-size: 0.9rem;
-            font-weight: 500;
+            font-size: 0.95rem;
+            font-weight: 600;
             color: var(--text-primary);
+        }
+
+        .cm-option .cm-desc {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 0.25rem;
         }
 
         .cm-option .cm-type {
@@ -196,6 +202,22 @@
 
         .cm-option.direct .cm-type {
             color: var(--success);
+        }
+
+        .cm-option.ready {
+            position: relative;
+        }
+
+        .ready-badge {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: var(--success);
+            color: white;
+            font-size: 0.65rem;
+            font-weight: 600;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
         }
 
         /* Search */
@@ -708,61 +730,60 @@
     </div>
 
     <script>
-        // Channel Manager Data
+        // Channel Manager Data - Ready ones first, then alphabetical
         const channelManagers = [
-            // Direct integrations
-            { id: 'beds24', name: 'Beds24', type: 'direct', popular: true },
-            { id: 'hostaway', name: 'Hostaway', type: 'direct', popular: true },
+            // Ready/Live integrations
+            { id: 'beds24', name: 'Beds24', type: 'direct', ready: true, desc: 'PMS + Channel Manager' },
+            { id: 'hostaway', name: 'Hostaway', type: 'direct', ready: true, desc: 'Vacation Rental Software' },
+            { id: 'smoobu', name: 'Smoobu', type: 'calry', ready: true, desc: 'Channel Manager' },
+            { id: 'guesty', name: 'Guesty', type: 'calry', ready: true, desc: 'Property Management' },
+            { id: 'cloudbeds', name: 'Cloudbeds', type: 'calry', ready: true, desc: 'Hotel PMS' },
+            { id: 'lodgify', name: 'Lodgify', type: 'calry', ready: true, desc: 'Vacation Rental' },
+            { id: 'ownerrez', name: 'OwnerRez', type: 'calry', ready: true, desc: 'Vacation Rental' },
+            { id: 'hostfully', name: 'Hostfully', type: 'calry', ready: true, desc: 'Property Management' },
             
-            // Calry integrations (popular first)
-            { id: 'guesty', name: 'Guesty', type: 'calry', popular: true },
-            { id: 'lodgify', name: 'Lodgify', type: 'calry', popular: true },
-            { id: 'smoobu', name: 'Smoobu', type: 'calry', popular: true },
-            { id: 'ownerrez', name: 'OwnerRez', type: 'calry', popular: true },
-            { id: 'hospitable', name: 'Hospitable', type: 'calry', popular: true },
-            { id: 'uplisting', name: 'Uplisting', type: 'calry', popular: true },
-            { id: 'hostify', name: 'Hostify', type: 'calry', popular: true },
-            { id: 'lodgable', name: 'Lodgable', type: 'calry' },
-            { id: '365villas', name: '365Villas', type: 'calry' },
-            { id: 'bookinglayer', name: 'Bookinglayer', type: 'calry' },
-            { id: 'bookster', name: 'Bookster', type: 'calry' },
-            { id: 'ciirus', name: 'Ciirus', type: 'calry' },
-            { id: 'dack', name: 'Dack', type: 'calry' },
-            { id: 'direct', name: 'Direct', type: 'calry' },
-            { id: 'escapia', name: 'Escapia', type: 'calry' },
-            { id: 'avantio', name: 'Avantio', type: 'calry' },
-            { id: 'bookingautomation', name: 'Booking Automation', type: 'calry' },
-            { id: 'bookingsync', name: 'BookingSync', type: 'calry' },
-            { id: 'eviivo', name: 'Eviivo', type: 'calry' },
-            { id: 'fantasticstay', name: 'FantasticStay', type: 'calry' },
-            { id: 'guestline', name: 'Guestline', type: 'calry' },
-            { id: 'hirum', name: 'HiRUM', type: 'calry' },
-            { id: 'hotelogix', name: 'Hotelogix', type: 'calry' },
-            { id: 'impala', name: 'Impala', type: 'calry' },
-            { id: 'clock', name: 'Clock PMS', type: 'calry' },
-            { id: 'mews', name: 'Mews', type: 'calry' },
-            { id: 'newbook', name: 'NewBook', type: 'calry' },
-            { id: 'apaleo', name: 'Apaleo', type: 'calry' },
-            { id: 'opengds', name: 'Open GDS', type: 'calry' },
-            { id: 'optimapms', name: 'Optima PMS', type: 'calry' },
-            { id: 'resnexus', name: 'ResNexus', type: 'calry' },
-            { id: 'rms', name: 'RMS Cloud', type: 'calry' },
-            { id: 'sabeeapp', name: 'SabeeApp', type: 'calry' },
-            { id: 'sirvoy', name: 'Sirvoy', type: 'calry' },
-            { id: 'stayntouch', name: 'Stayntouch', type: 'calry' },
-            { id: 'thinkreservations', name: 'ThinkReservations', type: 'calry' },
-            { id: 'webrezpro', name: 'WebRezPro', type: 'calry' },
-            { id: 'zeevou', name: 'Zeevou', type: 'calry' },
-            { id: 'cloudbeds', name: 'Cloudbeds', type: 'calry' },
-            { id: 'little-hotelier', name: 'Little Hotelier', type: 'calry' },
-            { id: 'freetobook', name: 'Freetobook', type: 'calry' },
-            { id: 'rentals-united', name: 'Rentals United', type: 'calry' },
-            { id: 'kross-booking', name: 'Kross Booking', type: 'calry' },
-            { id: 'hotel-runner', name: 'HotelRunner', type: 'calry' },
-            { id: 'channex', name: 'Channex', type: 'calry' },
-            { id: 'amenitiz', name: 'Amenitiz', type: 'calry' },
-            { id: 'octorate', name: 'Octorate', type: 'calry' },
-            { id: 'resharmonics', name: 'Resharmonics', type: 'calry' },
+            // Other integrations (alphabetical)
+            { id: '365villas', name: '365Villas', type: 'calry', desc: 'Villa Management' },
+            { id: 'amenitiz', name: 'Amenitiz', type: 'calry', desc: 'Hotel Software' },
+            { id: 'apaleo', name: 'Apaleo', type: 'calry', desc: 'Hotel PMS' },
+            { id: 'avantio', name: 'Avantio', type: 'calry', desc: 'Vacation Rental' },
+            { id: 'bookingautomation', name: 'Booking Automation', type: 'calry', desc: 'Channel Manager' },
+            { id: 'bookinglayer', name: 'Bookinglayer', type: 'calry', desc: 'Activity Booking' },
+            { id: 'bookingsync', name: 'BookingSync', type: 'calry', desc: 'Vacation Rental' },
+            { id: 'bookster', name: 'Bookster', type: 'calry', desc: 'Holiday Rental' },
+            { id: 'channex', name: 'Channex', type: 'calry', desc: 'Channel Manager' },
+            { id: 'ciirus', name: 'Ciirus', type: 'calry', desc: 'Vacation Rental' },
+            { id: 'clock', name: 'Clock PMS', type: 'calry', desc: 'Hotel PMS' },
+            { id: 'escapia', name: 'Escapia', type: 'calry', desc: 'Vacation Rental' },
+            { id: 'eviivo', name: 'Eviivo', type: 'calry', desc: 'Hotel Booking' },
+            { id: 'fantasticstay', name: 'FantasticStay', type: 'calry', desc: 'Property Management' },
+            { id: 'freetobook', name: 'Freetobook', type: 'calry', desc: 'Hotel Booking' },
+            { id: 'guestline', name: 'Guestline', type: 'calry', desc: 'Hotel PMS' },
+            { id: 'hirum', name: 'HiRUM', type: 'calry', desc: 'Hotel Software' },
+            { id: 'hospitable', name: 'Hospitable', type: 'calry', desc: 'Automation Platform' },
+            { id: 'hostify', name: 'Hostify', type: 'calry', desc: 'Property Management' },
+            { id: 'hotel-runner', name: 'HotelRunner', type: 'calry', desc: 'Hotel Platform' },
+            { id: 'hotelogix', name: 'Hotelogix', type: 'calry', desc: 'Hotel PMS' },
+            { id: 'impala', name: 'Impala', type: 'calry', desc: 'Hotel API' },
+            { id: 'kross-booking', name: 'Kross Booking', type: 'calry', desc: 'Hotel Software' },
+            { id: 'little-hotelier', name: 'Little Hotelier', type: 'calry', desc: 'Small Hotel PMS' },
+            { id: 'lodgable', name: 'Lodgable', type: 'calry', desc: 'Vacation Rental' },
+            { id: 'mews', name: 'Mews', type: 'calry', desc: 'Hotel PMS' },
+            { id: 'newbook', name: 'NewBook', type: 'calry', desc: 'Property Management' },
+            { id: 'octorate', name: 'Octorate', type: 'calry', desc: 'Channel Manager' },
+            { id: 'opengds', name: 'Open GDS', type: 'calry', desc: 'Distribution' },
+            { id: 'optimapms', name: 'Optima PMS', type: 'calry', desc: 'Hotel PMS' },
+            { id: 'rentals-united', name: 'Rentals United', type: 'calry', desc: 'Channel Manager' },
+            { id: 'resharmonics', name: 'Resharmonics', type: 'calry', desc: 'Serviced Apartments' },
+            { id: 'resnexus', name: 'ResNexus', type: 'calry', desc: 'B&B Software' },
+            { id: 'rms', name: 'RMS Cloud', type: 'calry', desc: 'Property Management' },
+            { id: 'sabeeapp', name: 'SabeeApp', type: 'calry', desc: 'Hotel PMS' },
+            { id: 'sirvoy', name: 'Sirvoy', type: 'calry', desc: 'Hotel Booking' },
+            { id: 'stayntouch', name: 'Stayntouch', type: 'calry', desc: 'Hotel PMS' },
+            { id: 'thinkreservations', name: 'ThinkReservations', type: 'calry', desc: 'B&B Software' },
+            { id: 'uplisting', name: 'Uplisting', type: 'calry', desc: 'Channel Manager' },
+            { id: 'webrezpro', name: 'WebRezPro', type: 'calry', desc: 'Hotel PMS' },
+            { id: 'zeevou', name: 'Zeevou', type: 'calry', desc: 'Property Management' },
         ];
 
         let selectedCm = null;
@@ -804,18 +825,19 @@
                 cm.name.toLowerCase().includes(filter.toLowerCase())
             );
             
-            // Sort: popular first, then alphabetical
+            // Sort: ready first, then alphabetical
             filtered.sort((a, b) => {
-                if (a.popular && !b.popular) return -1;
-                if (!a.popular && b.popular) return 1;
+                if (a.ready && !b.ready) return -1;
+                if (!a.ready && b.ready) return 1;
                 return a.name.localeCompare(b.name);
             });
             
             grid.innerHTML = filtered.map(cm => `
-                <div class="cm-option ${cm.type === 'direct' ? 'direct' : ''} ${selectedCm?.id === cm.id ? 'selected' : ''}" 
+                <div class="cm-option ${cm.ready ? 'ready' : ''} ${selectedCm?.id === cm.id ? 'selected' : ''}" 
                      onclick="selectCm('${cm.id}')">
+                    ${cm.ready ? '<span class="ready-badge">✓ Ready</span>' : ''}
                     <div class="cm-name">${cm.name}</div>
-                    ${cm.type === 'direct' ? '<div class="cm-type">Direct</div>' : ''}
+                    <div class="cm-desc">${cm.desc || ''}</div>
                 </div>
             `).join('');
         }
