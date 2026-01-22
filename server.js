@@ -18769,6 +18769,7 @@ app.post('/api/calry/import-property', async (req, res) => {
       integrationAccountId, 
       propertyId, 
       accountId,  // GAS account to import into (optional - creates new if not provided)
+      gasAccountId: gasAccountIdParam,  // Also accept gasAccountId
       accountName,
       accountEmail 
     } = req.body;
@@ -18826,10 +18827,17 @@ app.post('/api/calry/import-property', async (req, res) => {
       // Continue without rooms - we can still create the property
     }
     
-    // 4. Create or use existing GAS account
-    let gasAccountId = accountId;
+    // 4. Create or use existing GAS account - accept both accountId and gasAccountId
+    let gasAccountId = accountId || gasAccountIdParam;
     
-    if (!gasAccountId) {
+    // If a specific account ID was provided, verify it exists
+    if (gasAccountId) {
+      const accountCheck = await pool.query('SELECT id FROM accounts WHERE id = $1', [gasAccountId]);
+      if (accountCheck.rows.length === 0) {
+        return res.status(400).json({ success: false, error: `Account ${gasAccountId} not found` });
+      }
+      console.log('Using specified GAS account:', gasAccountId);
+    } else {
       const newAccountName = accountName || calryProperty.name || 'Calry Import';
       const newAccountEmail = accountEmail || `calry-${integrationAccountId}@gas.travel`;
       
@@ -19648,6 +19656,7 @@ app.get('/api/calry/link/callback', async (req, res) => {
 // Helper function to import a single Calry property with FULL data
 async function importCalryPropertyHelper(integrationAccountId, propertyId, existingAccountId = null) {
   console.log(`=== IMPORTING CALRY PROPERTY ${propertyId} ===`);
+  console.log(`Existing account ID provided: ${existingAccountId}`);
   
   // Fetch property from Calry
   const propResponse = await axios.get(`${CALRY_API_BASE}/properties`, {
@@ -19685,10 +19694,22 @@ async function importCalryPropertyHelper(integrationAccountId, propertyId, exist
     console.log('Could not fetch room types:', e.message);
   }
   
-  // Create or find GAS account
+  // Create or find GAS account - PRIORITIZE existingAccountId if provided
   let gasAccountId = existingAccountId;
   
+  if (gasAccountId) {
+    // Verify the account exists
+    const accountCheck = await pool.query('SELECT id FROM accounts WHERE id = $1', [gasAccountId]);
+    if (accountCheck.rows.length === 0) {
+      console.log(`Warning: Provided account ${gasAccountId} not found, will create new`);
+      gasAccountId = null;
+    } else {
+      console.log(`Using provided GAS account: ${gasAccountId}`);
+    }
+  }
+  
   if (!gasAccountId) {
+    // Check if account already exists for this integration
     const existingAccount = await pool.query(
       "SELECT id FROM accounts WHERE settings->>'calry_integration_id' = $1",
       [integrationAccountId]
@@ -19696,7 +19717,9 @@ async function importCalryPropertyHelper(integrationAccountId, propertyId, exist
     
     if (existingAccount.rows.length > 0) {
       gasAccountId = existingAccount.rows[0].id;
+      console.log(`Found existing account by integration ID: ${gasAccountId}`);
     } else {
+      // Create new account
       const accountResult = await pool.query(`
         INSERT INTO accounts (name, email, role, status, settings, created_at)
         VALUES ($1, $2, 'admin', 'active', $3, NOW())
@@ -19707,6 +19730,7 @@ async function importCalryPropertyHelper(integrationAccountId, propertyId, exist
         JSON.stringify({ calry_integration_id: integrationAccountId, cm_source: 'calry' })
       ]);
       gasAccountId = accountResult.rows[0].id;
+      console.log(`Created new GAS account: ${gasAccountId}`);
     }
   }
   
@@ -44035,7 +44059,170 @@ app.post('/api/admin/properties/:id/set-account', async (req, res) => {
   }
 });
 
-// Debug: Check connection credentials (shows keys only, not values)
+// Comprehensive endpoint to reassign property, rooms, and connection to correct account
+app.post('/api/admin/fix-property-ownership', async (req, res) => {
+  const { property_id, to_account_id, delete_orphan_account } = req.body;
+  
+  if (!property_id || !to_account_id) {
+    return res.status(400).json({ success: false, error: 'property_id and to_account_id are required' });
+  }
+  
+  try {
+    // Get property info
+    const propResult = await pool.query('SELECT id, account_id, cm_property_id, cm_source FROM properties WHERE id = $1', [property_id]);
+    if (propResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Property not found' });
+    }
+    
+    const property = propResult.rows[0];
+    const fromAccountId = property.account_id;
+    
+    if (fromAccountId === to_account_id) {
+      return res.json({ success: true, message: 'Property already belongs to target account', no_change: true });
+    }
+    
+    // Verify target account exists
+    const targetAccount = await pool.query('SELECT id, name FROM accounts WHERE id = $1', [to_account_id]);
+    if (targetAccount.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Target account not found' });
+    }
+    
+    console.log(`Moving property ${property_id} from account ${fromAccountId} to ${to_account_id}`);
+    
+    // Update property
+    await pool.query('UPDATE properties SET account_id = $1, updated_at = NOW() WHERE id = $2', [to_account_id, property_id]);
+    
+    // Update room_types
+    const roomResult = await pool.query('UPDATE room_types SET account_id = $1 WHERE property_id = $2 RETURNING id', [to_account_id, property_id]);
+    
+    // Find and update related connection
+    let connectionUpdated = false;
+    if (property.cm_property_id) {
+      const connResult = await pool.query(
+        'UPDATE gas_sync_connections SET account_id = $1 WHERE account_id = $2 AND adapter_code = $3 RETURNING id',
+        [to_account_id, fromAccountId, property.cm_source || 'calry']
+      );
+      connectionUpdated = connResult.rowCount > 0;
+    }
+    
+    // Check if old account is now orphaned (no properties, no connections)
+    let orphanDeleted = false;
+    if (delete_orphan_account && fromAccountId) {
+      const remainingProps = await pool.query('SELECT COUNT(*) as count FROM properties WHERE account_id = $1', [fromAccountId]);
+      const remainingConns = await pool.query('SELECT COUNT(*) as count FROM gas_sync_connections WHERE account_id = $1', [fromAccountId]);
+      
+      if (parseInt(remainingProps.rows[0].count) === 0 && parseInt(remainingConns.rows[0].count) === 0) {
+        // Account is orphaned, safe to delete
+        await pool.query('DELETE FROM accounts WHERE id = $1', [fromAccountId]);
+        orphanDeleted = true;
+        console.log(`Deleted orphan account ${fromAccountId}`);
+      }
+    }
+    
+    res.json({
+      success: true,
+      message: `Property ${property_id} reassigned to account ${to_account_id}`,
+      details: {
+        property_id,
+        from_account_id: fromAccountId,
+        to_account_id,
+        to_account_name: targetAccount.rows[0].name,
+        rooms_updated: roomResult.rowCount,
+        connection_updated: connectionUpdated,
+        orphan_account_deleted: orphanDeleted ? fromAccountId : null
+      }
+    });
+  } catch (error) {
+    console.error('Fix property ownership error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Sync properties for an existing connection (manual trigger)
+app.post('/api/admin/calry/sync-connection/:connectionId', async (req, res) => {
+  const { connectionId } = req.params;
+  
+  try {
+    // Get connection details
+    const connResult = await pool.query(
+      'SELECT id, account_id, external_account_id, adapter_code FROM gas_sync_connections WHERE id = $1',
+      [connectionId]
+    );
+    
+    if (connResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Connection not found' });
+    }
+    
+    const connection = connResult.rows[0];
+    
+    if (connection.adapter_code !== 'calry') {
+      return res.status(400).json({ success: false, error: 'This endpoint only works for Calry connections' });
+    }
+    
+    const integrationAccountId = connection.external_account_id;
+    const gasAccountId = connection.account_id;
+    
+    console.log(`Syncing Calry connection ${connectionId} for account ${gasAccountId}`);
+    
+    // Fetch properties from Calry
+    const propResponse = await axios.get(`${CALRY_API_BASE}/properties`, {
+      headers: {
+        'Authorization': `Bearer ${CALRY_API_TOKEN}`,
+        'workspaceId': CALRY_WORKSPACE_ID,
+        'integrationAccountId': integrationAccountId,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    const properties = propResponse.data?.data || [];
+    console.log(`Found ${properties.length} properties from Calry`);
+    
+    if (properties.length === 0) {
+      return res.json({ success: true, message: 'No properties found in Calry', properties_imported: 0 });
+    }
+    
+    // Import all properties
+    let successCount = 0;
+    let totalRooms = 0;
+    const imported = [];
+    
+    for (const prop of properties) {
+      try {
+        const importResult = await importCalryPropertyHelper(integrationAccountId, String(prop.id), gasAccountId);
+        successCount++;
+        totalRooms += importResult.rooms_imported || 0;
+        imported.push({
+          calry_id: prop.id,
+          name: prop.name,
+          gas_property_id: importResult.gas_property_id,
+          rooms: importResult.rooms_imported
+        });
+        console.log(`Imported property: ${prop.name} (GAS ID: ${importResult.gas_property_id})`);
+      } catch (importError) {
+        console.error(`Failed to import property ${prop.name}:`, importError.message);
+        imported.push({
+          calry_id: prop.id,
+          name: prop.name,
+          error: importError.message
+        });
+      }
+    }
+    
+    // Update connection last_sync
+    await pool.query('UPDATE gas_sync_connections SET last_sync_at = NOW() WHERE id = $1', [connectionId]);
+    
+    res.json({
+      success: true,
+      message: `Synced ${successCount} of ${properties.length} properties`,
+      properties_imported: successCount,
+      rooms_imported: totalRooms,
+      details: imported
+    });
+  } catch (error) {
+    console.error('Calry sync error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
 app.get('/api/admin/debug/connection-creds/:id', async (req, res) => {
   try {
     const { id } = req.params;
