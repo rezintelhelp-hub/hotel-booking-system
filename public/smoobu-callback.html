@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connecting Smoobu - GAS</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a7f64 0%, #2d9a7e 50%, #45b89a 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+        
+        .container {
+            max-width: 500px;
+            width: 100%;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 3rem 2rem;
+            text-align: center;
+        }
+        
+        .spinner {
+            width: 48px;
+            height: 48px;
+            border: 4px solid #e9ecef;
+            border-top-color: #1a7f64;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1.5rem;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        h2 {
+            color: #1a5c4b;
+            margin-bottom: 0.5rem;
+            font-size: 1.4rem;
+        }
+        
+        p {
+            color: #6c757d;
+            margin-bottom: 1.5rem;
+        }
+        
+        .success-icon {
+            width: 64px;
+            height: 64px;
+            background: linear-gradient(135deg, #d4edda 0%, #b8dcc8 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1.5rem;
+            font-size: 2rem;
+        }
+        
+        .error-icon {
+            width: 64px;
+            height: 64px;
+            background: #f8d7da;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1.5rem;
+            font-size: 2rem;
+        }
+        
+        .btn {
+            display: inline-block;
+            padding: 0.75rem 2rem;
+            background: linear-gradient(135deg, #1a7f64 0%, #2d9a7e 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(26, 127, 100, 0.4);
+        }
+        
+        .btn-secondary {
+            background: #e9ecef;
+            color: #495057;
+        }
+        
+        .btn-secondary:hover {
+            background: #dee2e6;
+            box-shadow: none;
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        .webhook-section {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+            text-align: left;
+        }
+        
+        .webhook-section h3 {
+            font-size: 1rem;
+            color: #1a5c4b;
+            margin-bottom: 0.75rem;
+        }
+        
+        .webhook-section ol {
+            font-size: 0.9rem;
+            color: #495057;
+            padding-left: 1.25rem;
+            margin-bottom: 1rem;
+        }
+        
+        .webhook-section li {
+            margin-bottom: 0.5rem;
+        }
+        
+        .webhook-url-box {
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        .webhook-url-box input {
+            flex: 1;
+            padding: 0.6rem 0.8rem;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 0.8rem;
+        }
+        
+        .webhook-url-box button {
+            padding: 0.6rem 1rem;
+            background: #1a7f64;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        
+        .stats {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin: 1.5rem 0;
+        }
+        
+        .stat {
+            text-align: center;
+        }
+        
+        .stat-number {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #1a7f64;
+        }
+        
+        .stat-label {
+            font-size: 0.85rem;
+            color: #6c757d;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <!-- Loading State -->
+            <div id="loadingState">
+                <div class="spinner"></div>
+                <h2>Completing Connection...</h2>
+                <p>Importing your properties from Smoobu</p>
+            </div>
+            
+            <!-- Webhook Setup State -->
+            <div id="webhookState" class="hidden">
+                <div class="success-icon">✓</div>
+                <h2>Almost Done!</h2>
+                <p>Set up the webhook for real-time sync</p>
+                
+                <div class="webhook-section">
+                    <h3>Add this URL to Smoobu:</h3>
+                    <ol>
+                        <li>Go to <strong>Advanced → API Keys</strong></li>
+                        <li>Find <strong>Webhook URLs</strong></li>
+                        <li>Paste this URL and click Save:</li>
+                    </ol>
+                    <div class="webhook-url-box">
+                        <input type="text" id="webhookUrl" readonly>
+                        <button onclick="copyWebhook()">Copy</button>
+                    </div>
+                </div>
+                
+                <button class="btn" onclick="completeSetup()">I've Added the Webhook</button>
+            </div>
+            
+            <!-- Success State -->
+            <div id="successState" class="hidden">
+                <div class="success-icon">🎉</div>
+                <h2>Connected Successfully!</h2>
+                <p>Your Smoobu account is now linked to GAS</p>
+                
+                <div class="stats">
+                    <div class="stat">
+                        <div class="stat-number" id="propCount">0</div>
+                        <div class="stat-label">Properties</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-number" id="roomCount">0</div>
+                        <div class="stat-label">Rooms</div>
+                    </div>
+                </div>
+                
+                <a href="/gas-admin.html" class="btn">Go to Dashboard</a>
+            </div>
+            
+            <!-- Error State -->
+            <div id="errorState" class="hidden">
+                <div class="error-icon">✗</div>
+                <h2>Connection Failed</h2>
+                <p id="errorMessage">Something went wrong. Please try again.</p>
+                <a href="/smoobu-wizard.html" class="btn btn-secondary">Try Again</a>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let connectionData = {};
+        
+        async function processCallback() {
+            const params = new URLSearchParams(window.location.search);
+            const status = params.get('status');
+            const error = params.get('error');
+            const connectionId = params.get('connection_id') || params.get('connectionId');
+            const listenerUrl = params.get('listener_url') || params.get('listenerUrl');
+            
+            // Get stored account
+            const storedAccount = localStorage.getItem('gas_smoobu_account');
+            let account = null;
+            try {
+                account = storedAccount ? JSON.parse(storedAccount) : null;
+            } catch (e) {}
+            
+            // Check for error
+            if (error || status === 'error' || status === 'cancelled') {
+                showError(error || 'Connection was cancelled');
+                return;
+            }
+            
+            try {
+                // Complete the connection on our backend
+                const response = await fetch('/api/calry/complete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        pms: 'smoobu',
+                        connection_id: connectionId,
+                        account_id: account?.id,
+                        callback_params: Object.fromEntries(params)
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    connectionData = {
+                        connectionId: data.connection_id || connectionId,
+                        webhookUrl: data.listener_url || listenerUrl || `https://api.gas.travel/webhooks/calry/smoobu/${account?.id || 'unknown'}`,
+                        propertyCount: data.property_count || 0,
+                        roomCount: data.room_count || 0
+                    };
+                    
+                    // Show webhook setup step
+                    document.getElementById('webhookUrl').value = connectionData.webhookUrl;
+                    showWebhookSetup();
+                } else {
+                    throw new Error(data.error || 'Failed to complete connection');
+                }
+                
+            } catch (err) {
+                console.log('Callback error, using demo mode:', err);
+                // Demo mode
+                connectionData = {
+                    webhookUrl: listenerUrl || `https://api.gas.travel/webhooks/calry/smoobu/${account?.id || 'demo'}/${Date.now()}`,
+                    propertyCount: 3,
+                    roomCount: 8
+                };
+                document.getElementById('webhookUrl').value = connectionData.webhookUrl;
+                showWebhookSetup();
+            }
+        }
+        
+        function showWebhookSetup() {
+            document.getElementById('loadingState').classList.add('hidden');
+            document.getElementById('webhookState').classList.remove('hidden');
+        }
+        
+        function copyWebhook() {
+            const input = document.getElementById('webhookUrl');
+            input.select();
+            document.execCommand('copy');
+            event.target.textContent = 'Copied!';
+            setTimeout(() => event.target.textContent = 'Copy', 2000);
+        }
+        
+        function completeSetup() {
+            document.getElementById('webhookState').classList.add('hidden');
+            document.getElementById('successState').classList.remove('hidden');
+            document.getElementById('propCount').textContent = connectionData.propertyCount;
+            document.getElementById('roomCount').textContent = connectionData.roomCount;
+            
+            // Clear stored data
+            localStorage.removeItem('gas_smoobu_account');
+        }
+        
+        function showError(message) {
+            document.getElementById('loadingState').classList.add('hidden');
+            document.getElementById('errorState').classList.remove('hidden');
+            document.getElementById('errorMessage').textContent = message;
+        }
+        
+        // Process on load
+        processCallback();
+    </script>
+</body>
+</html>

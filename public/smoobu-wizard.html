@@ -526,32 +526,30 @@
                 </div>
             </div>
             
-            <!-- Step 2: Enter Smoobu API Key -->
+            <!-- Step 2: Redirect to Calry -->
             <div class="step" id="step2">
                 <h2>Connect Your Smoobu Account</h2>
-                <p class="step-description">Enter your Smoobu API key to sync your properties</p>
+                <p class="step-description">You'll be redirected to securely connect your account</p>
                 
                 <div id="step2-error"></div>
                 
                 <div class="info-box">
-                    <h4>📍 How to find your API Key:</h4>
-                    <ol>
-                        <li>Log in to your <a href="https://login.smoobu.com" target="_blank" style="color: #1a7f64;">Smoobu account</a></li>
-                        <li>Go to <strong>Advanced → API Keys</strong> in the left menu</li>
-                        <li>Click <strong>"Click here for API documentation"</strong> to reveal your key</li>
-                        <li>Copy the <strong>SettingsChannelId</strong> value</li>
-                    </ol>
+                    <h4>🔒 Secure Connection</h4>
+                    <p>Your credentials are handled securely by our integration partner and never stored on our servers.</p>
                 </div>
                 
-                <div class="form-group">
-                    <label>Smoobu API Key *</label>
-                    <input type="text" id="smoobuApiKey" placeholder="Enter your Smoobu API key">
-                    <p class="form-hint">This is the SettingsChannelId from your Smoobu API settings</p>
+                <div style="background: #f8f9fa; border-radius: 12px; padding: 1.5rem; margin: 1.5rem 0;">
+                    <p style="font-size: 0.95rem; color: #495057; margin-bottom: 1rem;"><strong>What happens next:</strong></p>
+                    <ol style="font-size: 0.9rem; color: #6c757d; padding-left: 1.25rem; margin: 0;">
+                        <li style="margin-bottom: 0.5rem;">You'll be redirected to enter your Smoobu API key</li>
+                        <li style="margin-bottom: 0.5rem;">Your properties will be imported automatically</li>
+                        <li>You'll return here to complete setup</li>
+                    </ol>
                 </div>
                 
                 <div class="loading" id="connect-loading" style="display: none;">
                     <div class="spinner"></div>
-                    <p id="connect-status">Connecting to Smoobu...</p>
+                    <p id="connect-status">Preparing secure connection...</p>
                 </div>
             </div>
             
@@ -659,6 +657,8 @@
                 document.getElementById('nextBtn').textContent = 'Go to Dashboard';
             } else if (step === 3) {
                 document.getElementById('nextBtn').textContent = 'I\'ve Added the Webhook';
+            } else if (step === 2) {
+                document.getElementById('nextBtn').textContent = 'Connect to Smoobu →';
             } else {
                 document.getElementById('nextBtn').textContent = 'Next →';
             }
@@ -810,62 +810,38 @@
         }
         
         async function connectSmoobu() {
-            const apiKey = document.getElementById('smoobuApiKey').value.trim();
-            
-            if (!apiKey) {
-                showError('step2-error', 'Please enter your Smoobu API Key');
-                return;
-            }
-            
             document.getElementById('connect-loading').style.display = 'block';
             document.getElementById('nextBtn').disabled = true;
             
             try {
-                // Create connection via Calry
-                const response = await fetch('/api/calry/authenticate', {
+                // Store account info for when we return from Calry
+                localStorage.setItem('gas_smoobu_account', JSON.stringify(wizardData.account));
+                
+                // Get Calry redirect URL from our API
+                const response = await fetch('/api/calry/initiate', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         pms: 'smoobu',
-                        api_key: apiKey,
-                        account_id: wizardData.account.id
+                        account_id: wizardData.account.id,
+                        callback_url: window.location.origin + '/smoobu-callback.html'
                     })
                 });
                 
                 const data = await response.json();
                 
-                if (!data.success) {
-                    throw new Error(data.error || 'Connection failed');
+                if (data.success && data.redirect_url) {
+                    // Redirect to Calry
+                    window.location.href = data.redirect_url;
+                } else {
+                    throw new Error(data.error || 'Could not initiate connection');
                 }
                 
-                wizardData.connectionId = data.connection_id;
-                wizardData.apiKey = apiKey;
-                wizardData.webhookUrl = data.listener_url || `https://api.gas.travel/webhooks/calry/smoobu/${wizardData.account.id}`;
-                wizardData.propertyCount = data.property_count || 0;
-                wizardData.roomCount = data.room_count || 0;
-                
-                // Update webhook URL display
-                document.getElementById('webhookUrl').value = wizardData.webhookUrl;
-                document.getElementById('propertyCountMsg').textContent = `Found ${wizardData.propertyCount} properties!`;
-                
-                currentStep++;
-                showStep(currentStep);
-                
             } catch (error) {
-                // Demo mode - simulate success
-                console.log('Demo mode - simulating Smoobu connection');
-                wizardData.webhookUrl = `https://api.gas.travel/webhooks/calry/smoobu/${wizardData.account?.id || 'demo'}/${Date.now()}`;
-                wizardData.propertyCount = 3;
-                wizardData.roomCount = 8;
-                
-                document.getElementById('webhookUrl').value = wizardData.webhookUrl;
-                document.getElementById('propertyCountMsg').textContent = `Found ${wizardData.propertyCount} properties!`;
-                
-                currentStep++;
-                showStep(currentStep);
-            } finally {
-                document.getElementById('connect-loading').style.display = 'none';
-                document.getElementById('nextBtn').disabled = false;
+                console.log('Calry initiation error, using fallback:', error);
+                // Fallback - redirect to Calry dev environment
+                const calryUrl = `https://link.calry.app/smoobu?callback=${encodeURIComponent(window.location.origin + '/smoobu-callback.html')}&account_id=${wizardData.account?.id || ''}`;
+                window.location.href = calryUrl;
             }
         }
         
