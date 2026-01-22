@@ -19283,6 +19283,8 @@ app.get('/api/calry/link/callback', async (req, res) => {
     
     // Import all properties - use gasAccountId if we have it
     let successCount = 0;
+    let totalRooms = 0;
+    let totalImages = 0;
     let finalAccountId = gasAccountId;
     
     for (const prop of properties) {
@@ -19290,7 +19292,9 @@ app.get('/api/calry/link/callback', async (req, res) => {
         const importResult = await importCalryPropertyHelper(intAccountId, String(prop.id), finalAccountId);
         finalAccountId = importResult.gas_account_id;
         successCount++;
-        console.log(`Imported property: ${prop.name} (GAS ID: ${importResult.gas_property_id})`);
+        totalRooms += importResult.rooms_imported || 0;
+        totalImages += importResult.images_imported || 0;
+        console.log(`Imported property: ${prop.name} (GAS ID: ${importResult.gas_property_id}, Rooms: ${importResult.rooms_imported})`);
       } catch (importError) {
         console.error(`Failed to import property ${prop.name}:`, importError.message);
       }
@@ -19302,7 +19306,7 @@ app.get('/api/calry/link/callback', async (req, res) => {
     } catch (e) {}
     
     // Build redirect URL with results
-    const resultParams = `calry_connected=true&pms=${encodeURIComponent(pmsName)}&properties_imported=${successCount}&integration_id=${intAccountId}&account_id=${finalAccountId}`;
+    const resultParams = `calry_connected=true&pms=${encodeURIComponent(pmsName)}&properties_imported=${successCount}&rooms_imported=${totalRooms}&images_imported=${totalImages}&integration_id=${intAccountId}&account_id=${finalAccountId}`;
     
     // Use custom final_redirect if provided, otherwise default to admin
     let redirectTo;
@@ -19321,8 +19325,10 @@ app.get('/api/calry/link/callback', async (req, res) => {
   }
 });
 
-// Helper function to import a single Calry property
+// Helper function to import a single Calry property with FULL data
 async function importCalryPropertyHelper(integrationAccountId, propertyId, existingAccountId = null) {
+  console.log(`=== IMPORTING CALRY PROPERTY ${propertyId} ===`);
+  
   // Fetch property from Calry
   const propResponse = await axios.get(`${CALRY_API_BASE}/properties`, {
     headers: {
@@ -19340,6 +19346,8 @@ async function importCalryPropertyHelper(integrationAccountId, propertyId, exist
     throw new Error('Property not found in Calry');
   }
   
+  console.log('Calry property data:', JSON.stringify(calryProperty, null, 2));
+  
   // Fetch room types
   let roomTypes = [];
   try {
@@ -19352,6 +19360,7 @@ async function importCalryPropertyHelper(integrationAccountId, propertyId, exist
       }
     });
     roomTypes = roomResponse.data?.data || [];
+    console.log(`Found ${roomTypes.length} room types`);
   } catch (e) {
     console.log('Could not fetch room types:', e.message);
   }
@@ -19415,46 +19424,127 @@ async function importCalryPropertyHelper(integrationAccountId, propertyId, exist
   
   let gasPropertyId;
   
+  // Extract amenities from Calry (they come as array of objects or strings)
+  const amenitiesList = [];
+  if (calryProperty.amenities && Array.isArray(calryProperty.amenities)) {
+    calryProperty.amenities.forEach(a => {
+      if (typeof a === 'string') amenitiesList.push(a);
+      else if (a.name) amenitiesList.push(a.name);
+      else if (a.amenity) amenitiesList.push(a.amenity);
+    });
+  }
+  
+  // Build settings JSON with all extra Calry data
+  const propertySettings = {
+    calry_id: calryProperty.id,
+    calry_external_id: calryProperty.externalId,
+    check_in_time: calryProperty.checkInTime || calryProperty.checkinTime || null,
+    check_out_time: calryProperty.checkOutTime || calryProperty.checkoutTime || null,
+    timezone: calryProperty.timezone || null,
+    house_rules: calryProperty.houseRules || calryProperty.rules || null,
+    cancellation_policy: calryProperty.cancellationPolicy || null,
+    min_nights: calryProperty.minNights || calryProperty.minimumStay || null,
+    max_nights: calryProperty.maxNights || calryProperty.maximumStay || null,
+    property_type: calryProperty.propertyType || calryProperty.type || null,
+    amenities_raw: calryProperty.amenities || [],
+    thumbnail_url: calryProperty.thumbnailUrl || calryProperty.thumbnail || null,
+    website_url: calryProperty.websiteUrl || calryProperty.website || null,
+    contact_email: calryProperty.email || calryProperty.contactEmail || null,
+    contact_phone: calryProperty.phone || calryProperty.contactPhone || null
+  };
+  
   if (existingProp.rows.length > 0) {
     gasPropertyId = existingProp.rows[0].id;
     await pool.query(`
       UPDATE properties SET
-        name = $1, address = $2, city = $3, country = $4,
-        latitude = $5, longitude = $6, currency = $7, updated_at = NOW()
-      WHERE id = $8
+        name = $1, 
+        address = $2, 
+        city = $3, 
+        country = $4,
+        postal_code = $5,
+        latitude = $6, 
+        longitude = $7, 
+        currency = $8,
+        description = $9,
+        settings = COALESCE(settings, '{}'::jsonb) || $10::jsonb,
+        updated_at = NOW()
+      WHERE id = $11
     `, [
       calryProperty.name,
-      calryProperty.address?.line1 || '',
+      calryProperty.address?.line1 || calryProperty.address?.street || '',
       calryProperty.address?.city || '',
-      calryProperty.address?.country || '',
-      calryProperty.geoLocation?.latitude || null,
-      calryProperty.geoLocation?.longitude || null,
+      calryProperty.address?.country || calryProperty.address?.countryCode || '',
+      calryProperty.address?.postalCode || calryProperty.address?.postal_code || calryProperty.address?.zipCode || '',
+      calryProperty.geoLocation?.latitude || calryProperty.coordinates?.lat || calryProperty.latitude || null,
+      calryProperty.geoLocation?.longitude || calryProperty.coordinates?.lng || calryProperty.longitude || null,
       calryProperty.currency || 'EUR',
+      calryProperty.description || calryProperty.summary || '',
+      JSON.stringify({ ...propertySettings, amenities: amenitiesList }),
       gasPropertyId
     ]);
   } else {
     const propResult = await pool.query(`
       INSERT INTO properties (
         account_id, user_id, name, address, city, country, postal_code,
-        latitude, longitude, currency, cm_property_id, cm_source, status, created_at
-      ) VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'calry', 'active', NOW())
+        latitude, longitude, currency, description,
+        cm_property_id, cm_source, settings, status, created_at
+      ) VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'calry', $12, 'active', NOW())
       RETURNING id
     `, [
       gasAccountId,
       calryProperty.name,
-      calryProperty.address?.line1 || '',
+      calryProperty.address?.line1 || calryProperty.address?.street || '',
       calryProperty.address?.city || '',
-      calryProperty.address?.country || '',
-      calryProperty.address?.postal_code || '',
-      calryProperty.geoLocation?.latitude || null,
-      calryProperty.geoLocation?.longitude || null,
+      calryProperty.address?.country || calryProperty.address?.countryCode || '',
+      calryProperty.address?.postalCode || calryProperty.address?.postal_code || calryProperty.address?.zipCode || '',
+      calryProperty.geoLocation?.latitude || calryProperty.coordinates?.lat || calryProperty.latitude || null,
+      calryProperty.geoLocation?.longitude || calryProperty.coordinates?.lng || calryProperty.longitude || null,
       calryProperty.currency || 'EUR',
-      String(propertyId)
+      calryProperty.description || calryProperty.summary || '',
+      String(propertyId),
+      JSON.stringify({ ...propertySettings, amenities: amenitiesList })
     ]);
     gasPropertyId = propResult.rows[0].id;
   }
   
-  // Import rooms
+  // Import property images
+  const pictures = calryProperty.pictures || calryProperty.images || calryProperty.photos || [];
+  if (pictures.length > 0) {
+    console.log(`Importing ${pictures.length} property images`);
+    for (let i = 0; i < pictures.length; i++) {
+      const pic = pictures[i];
+      const imageUrl = typeof pic === 'string' ? pic : (pic.url || pic.original || pic.large || pic.medium);
+      if (!imageUrl) continue;
+      
+      const imageKey = `calry_prop_${gasPropertyId}_${i}`;
+      const caption = typeof pic === 'object' ? (pic.caption || pic.description || pic.title || '') : '';
+      
+      try {
+        await pool.query(`
+          INSERT INTO property_images (property_id, image_key, image_url, url, caption, display_order, sort_order, is_primary, is_active, created_at)
+          VALUES ($1, $2, $3, $3, $4, $5, $5, $6, true, NOW())
+          ON CONFLICT (property_id, image_key) DO UPDATE SET
+            image_url = $3, url = $3, caption = $4, display_order = $5, sort_order = $5
+        `, [gasPropertyId, imageKey, imageUrl, caption, i, i === 0]);
+      } catch (imgErr) {
+        console.log('Image insert error:', imgErr.message);
+      }
+    }
+  }
+  
+  // Also try thumbnailUrl as primary image
+  if (calryProperty.thumbnailUrl && pictures.length === 0) {
+    try {
+      await pool.query(`
+        INSERT INTO property_images (property_id, image_key, image_url, url, display_order, is_primary, is_active, created_at)
+        VALUES ($1, $2, $3, $3, 0, true, true, NOW())
+        ON CONFLICT (property_id, image_key) DO UPDATE SET image_url = $3, url = $3
+      `, [gasPropertyId, `calry_thumb_${gasPropertyId}`, calryProperty.thumbnailUrl]);
+    } catch (e) {}
+  }
+  
+  // Import rooms with full details
+  let roomsImported = 0;
   for (const room of roomTypes) {
     const roomExternalId = String(room.id);
     const existingRoom = await pool.query(
@@ -19462,22 +19552,131 @@ async function importCalryPropertyHelper(integrationAccountId, propertyId, exist
       [roomExternalId, gasPropertyId]
     );
     
-    if (existingRoom.rows.length === 0) {
+    // Extract room amenities
+    const roomAmenities = [];
+    if (room.amenities && Array.isArray(room.amenities)) {
+      room.amenities.forEach(a => {
+        if (typeof a === 'string') roomAmenities.push(a);
+        else if (a.name) roomAmenities.push(a.name);
+      });
+    }
+    
+    let gasRoomId;
+    
+    // Merge room settings into amenities JSON for storage
+    const roomDataJson = {
+      amenities: roomAmenities,
+      calry_id: room.id,
+      calry_external_id: room.externalId,
+      bed_types: room.beds || room.bedTypes || room.bedConfiguration || [],
+      room_type: room.roomType || room.type || null,
+      floor: room.floor || null,
+      size_sqm: room.size || room.area || room.squareMeters || null,
+      view: room.view || null
+    };
+    
+    if (existingRoom.rows.length > 0) {
+      gasRoomId = existingRoom.rows[0].id;
       await pool.query(`
+        UPDATE bookable_units SET
+          name = $1,
+          description = $2,
+          max_guests = $3,
+          num_bedrooms = $4,
+          num_bathrooms = $5,
+          base_price = $6,
+          currency = $7,
+          amenities = $8,
+          updated_at = NOW()
+        WHERE id = $9
+      `, [
+        room.name || calryProperty.name,
+        room.description || room.summary || '',
+        room.maxOccupancy || room.maxGuests || room.capacity || 2,
+        room.bedRoom?.count || room.bedrooms || room.numberOfBedrooms || 1,
+        room.bathRoom?.count || room.bathrooms || room.numberOfBathrooms || 1,
+        parseFloat(room.startPrice || room.basePrice || room.price || 0),
+        calryProperty.currency || 'EUR',
+        JSON.stringify(roomDataJson),
+        gasRoomId
+      ]);
+    } else {
+      const roomResult = await pool.query(`
         INSERT INTO bookable_units (
-          property_id, name, max_guests, num_bedrooms, num_bathrooms,
-          base_price, currency, cm_room_id, cm_source, status, created_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'calry', 'active', NOW())
+          property_id, name, description, max_guests, num_bedrooms, num_bathrooms,
+          base_price, currency, amenities, cm_room_id, cm_source, status, created_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'calry', 'active', NOW())
+        RETURNING id
       `, [
         gasPropertyId,
         room.name || calryProperty.name,
-        room.maxOccupancy || 2,
-        room.bedRoom?.count || 1,
-        room.bathRoom?.count || 1,
-        parseFloat(room.startPrice) || 0,
+        room.description || room.summary || '',
+        room.maxOccupancy || room.maxGuests || room.capacity || 2,
+        room.bedRoom?.count || room.bedrooms || room.numberOfBedrooms || 1,
+        room.bathRoom?.count || room.bathrooms || room.numberOfBathrooms || 1,
+        parseFloat(room.startPrice || room.basePrice || room.price || 0),
         calryProperty.currency || 'EUR',
+        JSON.stringify(roomDataJson),
         roomExternalId
       ]);
+      gasRoomId = roomResult.rows[0].id;
+    }
+    
+    // Import room images
+    const roomPictures = room.pictures || room.images || room.photos || [];
+    for (let i = 0; i < roomPictures.length; i++) {
+      const pic = roomPictures[i];
+      const imageUrl = typeof pic === 'string' ? pic : (pic.url || pic.original || pic.large);
+      if (!imageUrl) continue;
+      
+      const imageKey = `calry_room_${gasRoomId}_${i}`;
+      const caption = typeof pic === 'object' ? (pic.caption || pic.description || '') : '';
+      
+      try {
+        await pool.query(`
+          INSERT INTO property_images (property_id, room_id, image_key, image_url, url, caption, display_order, is_primary, is_active, created_at)
+          VALUES ($1, $2, $3, $4, $4, $5, $6, $7, true, NOW())
+          ON CONFLICT (property_id, image_key) DO UPDATE SET
+            room_id = $2, image_url = $4, url = $4, caption = $5, display_order = $6
+        `, [gasPropertyId, gasRoomId, imageKey, imageUrl, caption, i, i === 0]);
+      } catch (e) {}
+    }
+    
+    roomsImported++;
+  }
+  
+  // If no room types, create a default one from property data
+  if (roomTypes.length === 0) {
+    const existingDefaultRoom = await pool.query(
+      "SELECT id FROM bookable_units WHERE property_id = $1 AND cm_room_id = $2",
+      [gasPropertyId, String(propertyId)]
+    );
+    
+    if (existingDefaultRoom.rows.length === 0) {
+      const defaultRoomData = {
+        amenities: amenitiesList,
+        calry_id: calryProperty.id,
+        property_type: calryProperty.propertyType || calryProperty.type || null
+      };
+      
+      await pool.query(`
+        INSERT INTO bookable_units (
+          property_id, name, description, max_guests, num_bedrooms, num_bathrooms,
+          base_price, currency, amenities, cm_room_id, cm_source, status, created_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'calry', 'active', NOW())
+      `, [
+        gasPropertyId,
+        calryProperty.name,
+        calryProperty.description || '',
+        calryProperty.maxGuests || calryProperty.maxOccupancy || 4,
+        calryProperty.bedrooms || calryProperty.numberOfBedrooms || 1,
+        calryProperty.bathrooms || calryProperty.numberOfBathrooms || 1,
+        parseFloat(calryProperty.basePrice || calryProperty.price || 0),
+        calryProperty.currency || 'EUR',
+        JSON.stringify(defaultRoomData),
+        String(propertyId)
+      ]);
+      roomsImported = 1;
     }
   }
   
@@ -19489,10 +19688,14 @@ async function importCalryPropertyHelper(integrationAccountId, propertyId, exist
       gas_property_id = $2, name = $4, updated_at = NOW()
   `, [connectionId, gasPropertyId, String(propertyId), calryProperty.name]);
   
+  console.log(`Imported property ${calryProperty.name}: ${roomsImported} rooms, ${pictures.length} images`);
+  
   return {
     gas_account_id: gasAccountId,
     gas_property_id: gasPropertyId,
-    gas_connection_id: connectionId
+    gas_connection_id: connectionId,
+    rooms_imported: roomsImported,
+    images_imported: pictures.length
   };
 }
 
