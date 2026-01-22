@@ -30740,7 +30740,7 @@ app.post('/api/elevate/:apiKey/room/:roomId/images', async (req, res) => {
         );
         if (existing.rows.length > 0) {
           await pool.query(`
-            UPDATE property_images SET url = $1, caption = $2, sort_order = $3, is_primary = $4
+            UPDATE property_images SET image_url = $1, url = $1, caption = $2, sort_order = $3, display_order = $3, is_primary = $4
             WHERE id = $5
           `, [img.url, img.caption || null, img.sort_order || 0, img.is_primary || false, existing.rows[0].id]);
           addedImages.push({ id: existing.rows[0].id, url: img.url, updated: true });
@@ -30748,11 +30748,14 @@ app.post('/api/elevate/:apiKey/room/:roomId/images', async (req, res) => {
         }
       }
       
+      // Generate image_key from external_id or create unique one
+      const imageKey = img.external_id || `elevate_room_${gasRoomId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
       const result = await pool.query(`
-        INSERT INTO property_images (property_id, room_id, url, caption, sort_order, is_primary, external_id)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        INSERT INTO property_images (property_id, room_id, image_key, image_url, url, caption, sort_order, display_order, is_primary, external_id, is_active)
+        VALUES ($1, $2, $3, $4, $4, $5, $6, $6, $7, $8, true)
         RETURNING id
-      `, [propertyId, gasRoomId, img.url, img.caption || null, img.sort_order || 0, img.is_primary || false, img.external_id || null]);
+      `, [propertyId, gasRoomId, imageKey, img.url, img.caption || null, img.sort_order || 0, img.is_primary || false, img.external_id || null]);
       
       addedImages.push({ id: result.rows[0].id, url: img.url });
     }
