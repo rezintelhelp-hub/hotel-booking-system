@@ -3320,11 +3320,27 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         }
       }
       
-      // Check if room exists (use cm_room_id which should always exist)
-      const existingRoom = await pool.query(`
+      // Check if room exists (check both cm_room_id and beds24_room_id)
+      const beds24RoomIdValue = prop.adapter_code === 'beds24' ? parseInt(room.external_id) : null;
+      let existingRoom = await pool.query(`
         SELECT id FROM bookable_units 
-        WHERE property_id = $1 AND cm_room_id::text = $2
-      `, [gasPropertyId, String(room.external_id)]);
+        WHERE property_id = $1 AND (cm_room_id::text = $2 OR beds24_room_id = $3)
+      `, [gasPropertyId, String(room.external_id), beds24RoomIdValue]);
+      
+      // If not found by property, check globally by beds24_room_id (unique constraint)
+      // This handles rooms that might have been created under wrong property
+      if (existingRoom.rows.length === 0 && beds24RoomIdValue) {
+        const globalCheck = await pool.query(
+          'SELECT id, property_id FROM bookable_units WHERE beds24_room_id = $1',
+          [beds24RoomIdValue]
+        );
+        if (globalCheck.rows.length > 0) {
+          console.log(`link-to-gas: Found room ${beds24RoomIdValue} under different property ${globalCheck.rows[0].property_id}, updating to property ${gasPropertyId}`);
+          // Move room to correct property and use it
+          await pool.query('UPDATE bookable_units SET property_id = $1 WHERE id = $2', [gasPropertyId, globalCheck.rows[0].id]);
+          existingRoom = globalCheck;
+        }
+      }
       
       let gasRoomId;
       
@@ -19625,6 +19641,22 @@ app.get('/api/calry/link/callback', async (req, res) => {
  */
 async function importCalryPropertiesViaAdapter(integrationAccountId, pmsName, existingAccountId = null) {
   console.log(`=== CALRY ADAPTER IMPORT: ${pmsName} (${integrationAccountId}) ===`);
+  
+  // Ensure gas_sync_properties has all required columns for adapter
+  try {
+    await pool.query('ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS address TEXT');
+    await pool.query('ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS city TEXT');
+    await pool.query('ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS country TEXT');
+    await pool.query('ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS postal_code TEXT');
+    await pool.query('ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS latitude DECIMAL(10,7)');
+    await pool.query('ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS longitude DECIMAL(10,7)');
+    await pool.query('ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS currency VARCHAR(3)');
+    await pool.query('ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS description TEXT');
+    await pool.query('ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS raw_data JSONB');
+    console.log('gas_sync_properties columns verified');
+  } catch (migErr) {
+    console.log('Column migration note:', migErr.message);
+  }
   
   const results = {
     gas_account_id: null,
