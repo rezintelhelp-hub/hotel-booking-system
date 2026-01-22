@@ -20448,11 +20448,25 @@ app.get('/api/debug/calry-import/:propertyId', async (req, res) => {
       `, [gasPropertyId]);
     }
     
+    // Get pricing/calendar data
+    let calendarResult = { rows: [] };
+    if (gasPropertyId && roomResult.rows.length > 0) {
+      const roomId = roomResult.rows[0].id;
+      calendarResult = await pool.query(`
+        SELECT date, price, available, min_stay, status
+        FROM room_calendar 
+        WHERE room_id = $1
+        ORDER BY date
+        LIMIT 30
+      `, [roomId]);
+    }
+    
     res.json({
       success: true,
       property: propResult.rows[0] || null,
       rooms: roomResult.rows,
       images: imageResult.rows,
+      calendar: calendarResult.rows,
       sync_data: syncResult.rows[0] ? {
         name: syncResult.rows[0].name,
         raw_data_keys: syncResult.rows[0].raw_data ? Object.keys(syncResult.rows[0].raw_data) : [],
@@ -20460,6 +20474,201 @@ app.get('/api/debug/calry-import/:propertyId', async (req, res) => {
         created_at: syncResult.rows[0].created_at,
         updated_at: syncResult.rows[0].updated_at
       } : null
+    });
+    
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
+// CALRY PRICING/AVAILABILITY SYNC
+// =====================================================
+
+// Fetch and sync pricing from Calry for a property
+app.post('/api/calry/sync-pricing/:propertyId', async (req, res) => {
+  try {
+    const { propertyId } = req.params;
+    const { days = 90 } = req.body;
+    
+    if (!CALRY_API_TOKEN || !CALRY_WORKSPACE_ID) {
+      return res.status(400).json({ success: false, error: 'Calry not configured' });
+    }
+    
+    // Get property and connection info
+    const propResult = await pool.query(`
+      SELECT p.id as gas_property_id, p.cm_property_id, p.name,
+             c.external_account_id as integration_account_id
+      FROM properties p
+      JOIN gas_sync_connections c ON c.account_id = p.account_id AND c.adapter_code = 'calry'
+      WHERE p.id = $1 OR p.cm_property_id = $1::text
+    `, [propertyId]);
+    
+    if (propResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Property not found or not a Calry property' });
+    }
+    
+    const prop = propResult.rows[0];
+    const integrationAccountId = prop.integration_account_id;
+    const calryPropertyId = prop.cm_property_id;
+    
+    console.log(`[Calry Pricing] Fetching for property ${prop.name} (${calryPropertyId})`);
+    
+    // Get rooms for this property
+    const roomsResult = await pool.query(`
+      SELECT id, cm_room_id, name FROM bookable_units WHERE property_id = $1
+    `, [prop.gas_property_id]);
+    
+    if (roomsResult.rows.length === 0) {
+      return res.json({ success: false, error: 'No rooms found for property' });
+    }
+    
+    const startDate = new Date().toISOString().split('T')[0];
+    const endDate = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    
+    let totalDaysSynced = 0;
+    const roomResults = [];
+    
+    for (const room of roomsResult.rows) {
+      try {
+        // Fetch availability from Calry
+        const availResponse = await axios.get(`${CALRY_API_BASE}/availability`, {
+          headers: {
+            'Authorization': `Bearer ${CALRY_API_TOKEN}`,
+            'workspaceId': CALRY_WORKSPACE_ID,
+            'integrationAccountId': integrationAccountId,
+            'Content-Type': 'application/json'
+          },
+          params: {
+            propertyId: calryPropertyId,
+            roomTypeId: room.cm_room_id,
+            startDate,
+            endDate
+          }
+        });
+        
+        const availData = availResponse.data?.data || availResponse.data || [];
+        console.log(`[Calry Pricing] Room ${room.name}: ${availData.length} days from availability`);
+        
+        // Also try to fetch rates separately
+        let ratesData = [];
+        try {
+          const ratesResponse = await axios.get(`${CALRY_API_BASE}/rates`, {
+            headers: {
+              'Authorization': `Bearer ${CALRY_API_TOKEN}`,
+              'workspaceId': CALRY_WORKSPACE_ID,
+              'integrationAccountId': integrationAccountId,
+              'Content-Type': 'application/json'
+            },
+            params: {
+              propertyId: calryPropertyId,
+              roomTypeId: room.cm_room_id,
+              startDate,
+              endDate
+            }
+          });
+          ratesData = ratesResponse.data?.data || ratesResponse.data || [];
+          console.log(`[Calry Pricing] Room ${room.name}: ${ratesData.length} days from rates`);
+        } catch (ratesErr) {
+          console.log(`[Calry Pricing] Rates endpoint not available:`, ratesErr.message);
+        }
+        
+        // Merge availability and rates data
+        const mergedData = {};
+        
+        // Process availability
+        for (const day of availData) {
+          const date = day.date;
+          mergedData[date] = {
+            date,
+            available: day.available !== false,
+            min_stay: day.minStay || day.minimumStay || null,
+            max_stay: day.maxStay || day.maximumStay || null,
+            price: day.price || day.rate || null
+          };
+        }
+        
+        // Overlay rates data
+        for (const day of ratesData) {
+          const date = day.date;
+          if (!mergedData[date]) {
+            mergedData[date] = { date, available: true };
+          }
+          mergedData[date].price = day.price || day.rate || mergedData[date].price;
+          mergedData[date].currency = day.currency || 'EUR';
+        }
+        
+        // Insert into room_calendar
+        const daysArray = Object.values(mergedData);
+        for (const day of daysArray) {
+          await pool.query(`
+            INSERT INTO room_calendar (room_id, date, price, available, min_stay, max_stay, currency, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+            ON CONFLICT (room_id, date) DO UPDATE SET
+              price = COALESCE(EXCLUDED.price, room_calendar.price),
+              available = EXCLUDED.available,
+              min_stay = COALESCE(EXCLUDED.min_stay, room_calendar.min_stay),
+              max_stay = COALESCE(EXCLUDED.max_stay, room_calendar.max_stay),
+              currency = COALESCE(EXCLUDED.currency, room_calendar.currency),
+              updated_at = NOW()
+          `, [room.id, day.date, day.price, day.available, day.min_stay, day.max_stay, day.currency || 'EUR']);
+        }
+        
+        totalDaysSynced += daysArray.length;
+        roomResults.push({ room: room.name, days: daysArray.length });
+        
+      } catch (roomErr) {
+        console.error(`[Calry Pricing] Error for room ${room.name}:`, roomErr.message);
+        roomResults.push({ room: room.name, error: roomErr.message });
+      }
+    }
+    
+    res.json({
+      success: true,
+      property: prop.name,
+      totalDaysSynced,
+      rooms: roomResults
+    });
+    
+  } catch (error) {
+    console.error('[Calry Pricing] Error:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET version for easy testing
+app.get('/api/calry/sync-pricing/:propertyId', async (req, res) => {
+  req.body = { days: 90 };
+  // Forward to POST handler
+  const { propertyId } = req.params;
+  
+  try {
+    if (!CALRY_API_TOKEN || !CALRY_WORKSPACE_ID) {
+      return res.status(400).json({ success: false, error: 'Calry not configured' });
+    }
+    
+    const propResult = await pool.query(`
+      SELECT p.id as gas_property_id, p.cm_property_id, p.name,
+             c.external_account_id as integration_account_id
+      FROM properties p
+      JOIN gas_sync_connections c ON c.account_id = p.account_id AND c.adapter_code = 'calry'
+      WHERE p.id = $1 OR p.cm_property_id = $1::text
+    `, [propertyId]);
+    
+    if (propResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Property not found or not a Calry property' });
+    }
+    
+    const prop = propResult.rows[0];
+    
+    // Redirect to a simple test response
+    res.json({
+      success: true,
+      message: 'Use POST to sync pricing',
+      property: prop.name,
+      calry_property_id: prop.cm_property_id,
+      integration_account_id: prop.integration_account_id,
+      test_url: `curl -X POST https://api.gas.travel/api/calry/sync-pricing/${propertyId}`
     });
     
   } catch (error) {
