@@ -20574,29 +20574,20 @@ app.post('/api/calry/sync-pricing/:propertyId', async (req, res) => {
     
     for (const room of roomsResult.rows) {
       try {
-        // Fetch availability from Calry
-        const availResponse = await axios.get(`${CALRY_API_BASE}/availability`, {
-          headers: {
-            'Authorization': `Bearer ${CALRY_API_TOKEN}`,
-            'workspaceId': CALRY_WORKSPACE_ID,
-            'integrationAccountId': integrationAccountId,
-            'Content-Type': 'application/json'
-          },
-          params: {
-            propertyId: calryPropertyId,
-            roomTypeId: room.cm_room_id,
-            startDate,
-            endDate
-          }
-        });
+        // Log what we're requesting
+        console.log(`[Calry Pricing] Requesting availability for room ${room.cm_room_id} property ${calryPropertyId}`);
+        console.log(`[Calry Pricing] Integration account: ${integrationAccountId}`);
+        console.log(`[Calry Pricing] Date range: ${startDate} to ${endDate}`);
         
-        const availData = availResponse.data?.data || availResponse.data || [];
-        console.log(`[Calry Pricing] Room ${room.name}: ${availData.length} days from availability`);
+        // Fetch availability from Calry - use v1 endpoint (v2 doesn't have availability in the same way)
+        let availData = [];
         
-        // Also try to fetch rates separately
-        let ratesData = [];
+        // Try v1 VRS availability endpoint with query params
+        const availUrl = `https://prod.calry.app/api/v1/vrs/availability`;
+        console.log(`[Calry Pricing] Calling: ${availUrl}`);
+        
         try {
-          const ratesResponse = await axios.get(`${CALRY_API_BASE}/rates`, {
+          const availResponse = await axios.get(availUrl, {
             headers: {
               'Authorization': `Bearer ${CALRY_API_TOKEN}`,
               'workspaceId': CALRY_WORKSPACE_ID,
@@ -20604,17 +20595,66 @@ app.post('/api/calry/sync-pricing/:propertyId', async (req, res) => {
               'Content-Type': 'application/json'
             },
             params: {
-              propertyId: calryPropertyId,
-              roomTypeId: room.cm_room_id,
+              startDate,
+              endDate
+            }
+          });
+          availData = availResponse.data?.data || availResponse.data || [];
+          console.log(`[Calry Pricing] v1 availability count:`, availData.length);
+          if (availData.length > 0) {
+            console.log(`[Calry Pricing] v1 availability sample:`, JSON.stringify(availData[0]).substring(0, 300));
+          }
+        } catch (availErr) {
+          console.log(`[Calry Pricing] v1 availability error:`, availErr.response?.status, JSON.stringify(availErr.response?.data || availErr.message).substring(0, 200));
+          
+          // Try v1 with property ID in path
+          try {
+            const availResponse2 = await axios.get(`https://prod.calry.app/api/v1/vrs/availability/${calryPropertyId}`, {
+              headers: {
+                'Authorization': `Bearer ${CALRY_API_TOKEN}`,
+                'workspaceId': CALRY_WORKSPACE_ID,
+                'integrationAccountId': integrationAccountId,
+                'Content-Type': 'application/json'
+              },
+              params: {
+                startDate,
+                endDate
+              }
+            });
+            availData = availResponse2.data?.data || availResponse2.data || [];
+            console.log(`[Calry Pricing] v1 availability/{propertyId} count:`, availData.length);
+          } catch (availErr2) {
+            console.log(`[Calry Pricing] v1 availability/{propertyId} error:`, availErr2.response?.status, JSON.stringify(availErr2.response?.data || availErr2.message).substring(0, 200));
+          }
+        }
+        
+        console.log(`[Calry Pricing] Room ${room.name}: ${availData.length} days from availability`);
+        
+        // Also try to fetch rates
+        let ratesData = [];
+        try {
+          const ratesResponse = await axios.get(`https://prod.calry.app/api/v1/vrs/rates`, {
+            headers: {
+              'Authorization': `Bearer ${CALRY_API_TOKEN}`,
+              'workspaceId': CALRY_WORKSPACE_ID,
+              'integrationAccountId': integrationAccountId,
+              'Content-Type': 'application/json'
+            },
+            params: {
               startDate,
               endDate
             }
           });
           ratesData = ratesResponse.data?.data || ratesResponse.data || [];
-          console.log(`[Calry Pricing] Room ${room.name}: ${ratesData.length} days from rates`);
+          console.log(`[Calry Pricing] v1 rates count:`, ratesData.length);
+          if (ratesData.length > 0) {
+            console.log(`[Calry Pricing] v1 rates sample:`, JSON.stringify(ratesData[0]).substring(0, 300));
+          }
         } catch (ratesErr) {
-          console.log(`[Calry Pricing] Rates endpoint not available:`, ratesErr.message);
+          console.log(`[Calry Pricing] v1 rates error:`, ratesErr.response?.status, JSON.stringify(ratesErr.response?.data || ratesErr.message).substring(0, 200));
         }
+        
+        console.log(`[Calry Pricing] Room ${room.name}: ${ratesData.length} days from rates`);
         
         // Merge availability and rates data
         const mergedData = {};
@@ -20662,7 +20702,14 @@ app.post('/api/calry/sync-pricing/:propertyId', async (req, res) => {
         
       } catch (roomErr) {
         console.error(`[Calry Pricing] Error for room ${room.name}:`, roomErr.message);
-        roomResults.push({ room: room.name, error: roomErr.message });
+        console.error(`[Calry Pricing] Full error:`, JSON.stringify({
+          status: roomErr.response?.status,
+          statusText: roomErr.response?.statusText,
+          data: roomErr.response?.data,
+          url: roomErr.config?.url,
+          params: roomErr.config?.params
+        }, null, 2));
+        roomResults.push({ room: room.name, error: roomErr.response?.data?.message || roomErr.message });
       }
     }
     
