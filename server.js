@@ -29723,18 +29723,22 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
     
     const newProperty = await pool.query(`
       INSERT INTO properties (
-        user_id, account_id, name, address, city, country,
+        user_id, account_id, name, display_name, short_description, full_description,
+        address, city, country,
         latitude, longitude, phone, email, currency,
         cm_source, cm_property_id, status, created_at
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
-        'elevate', $12, 'active', NOW()
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
+        'elevate', $15, 'active', NOW()
       )
       RETURNING id
     `, [
       clientUserId,
       clientAccountId,
       property.name,
+      property.display_name || property.name,
+      property.short_description || null,
+      property.long_description || property.full_description || null,
       property.address || null,
       property.city || null,
       property.country || 'CH',
@@ -29839,9 +29843,15 @@ app.put('/api/elevate/:apiKey/property/:propertyId', async (req, res) => {
     const values = [];
     let paramIndex = 1;
     
-    const allowedFields = ['name', 'address', 'address_line2', 'city', 'region', 
+    const allowedFields = ['name', 'display_name', 'short_description', 'full_description',
+                          'address', 'address_line2', 'city', 'region', 
                           'postcode', 'country', 'latitude', 'longitude', 
                           'phone', 'email', 'currency', 'timezone'];
+    
+    // Handle long_description as alias for full_description
+    if (updates.long_description !== undefined && updates.full_description === undefined) {
+      updates.full_description = updates.long_description;
+    }
     
     for (const field of allowedFields) {
       if (updates[field] !== undefined) {
@@ -29948,15 +29958,19 @@ app.post('/api/elevate/:apiKey/property/:propertyId/room', async (req, res) => {
     
     const newRoom = await pool.query(`
       INSERT INTO bookable_units (
-        property_id, name, room_type, max_guests, base_price,
+        property_id, name, display_name, short_description, full_description,
+        room_type, max_guests, base_price,
         currency, cm_room_id, cm_source, status, created_at
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, 'elevate', 'active', NOW()
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'elevate', 'active', NOW()
       )
       RETURNING id
     `, [
       gasPropertyId,
       room.name,
+      room.display_name || room.name,
+      room.short_description || null,
+      room.long_description || room.full_description || null,
       room.room_type || 'room',
       room.max_occupancy || 2,
       room.base_rate || null,
@@ -30013,6 +30027,10 @@ app.put('/api/elevate/:apiKey/room/:roomId', async (req, res) => {
     // Map API field names to database column names
     const fieldMap = {
       'name': 'name',
+      'display_name': 'display_name',
+      'short_description': 'short_description',
+      'long_description': 'full_description',
+      'full_description': 'full_description',
       'room_type': 'room_type', 
       'max_occupancy': 'max_guests',
       'num_bedrooms': 'num_bedrooms',
