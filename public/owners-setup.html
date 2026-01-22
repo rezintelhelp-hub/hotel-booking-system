@@ -608,14 +608,14 @@
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    <p>Connection via Calry. You'll be redirected to authorise access.</p>
+                    <p>You'll be redirected to authorise access securely.</p>
                 </div>
 
                 <div class="instruction-step">
                     <div class="instruction-number">1</div>
                     <div class="instruction-content">
                         <h4>Click Connect</h4>
-                        <p>You'll be redirected to Calry's secure connection page</p>
+                        <p>You'll be redirected to the secure connection page</p>
                     </div>
                 </div>
 
@@ -637,7 +637,7 @@
 
                 <div class="btn-group">
                     <button class="btn btn-secondary" onclick="goToStep1()">Back</button>
-                    <button class="btn btn-primary" onclick="connectCalry()">Connect via Calry</button>
+                    <button class="btn btn-primary" onclick="connectCalry()">Connect</button>
                 </div>
             </div>
         </div>
@@ -815,7 +815,7 @@
                 <div class="cm-option ${cm.type === 'direct' ? 'direct' : ''} ${selectedCm?.id === cm.id ? 'selected' : ''}" 
                      onclick="selectCm('${cm.id}')">
                     <div class="cm-name">${cm.name}</div>
-                    <div class="cm-type">${cm.type === 'direct' ? 'Direct' : 'via Calry'}</div>
+                    ${cm.type === 'direct' ? '<div class="cm-type">Direct</div>' : ''}
                 </div>
             `).join('');
         }

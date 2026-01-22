@@ -928,9 +928,9 @@
                     saveAs: "roomCount"
                 },
                 {
-                    message: "What would you like to start with?",
-                    options: ["GAS Lite", "Website", "Not sure yet"],
-                    saveAs: "startWith"
+                    message: "Would you like to register your properties on GAS for free?",
+                    options: ["Yes", "Not sure yet"],
+                    saveAs: "registerProperties"
                 },
                 {
                     message: "Which country or region are you in?",
@@ -1149,10 +1149,10 @@
             
             setTimeout(() => {
                 const redirects = {
-                    owner: '/owners/setup',
-                    agent: '/agents/setup',
-                    builder: '/build/setup',
-                    traveller: '/travellers/setup'
+                    owner: '/owners-setup',
+                    agent: '/agents-setup',
+                    builder: '/build-setup',
+                    traveller: '/travellers-setup'
                 };
                 
                 addChatMessage("Your account is ready. Redirecting you now...", 'bot');
