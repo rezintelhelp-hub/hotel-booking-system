@@ -18,20 +18,17 @@
             --text-primary: #1e293b;
             --text-secondary: #475569;
             --text-muted: #64748b;
-            --glass-bg: rgba(255, 255, 255, 0.75);
-            --glass-border: rgba(255, 255, 255, 0.3);
-            --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-        }
-
-        html {
-            scroll-behavior: smooth;
+            --glass-bg: rgba(255, 255, 255, 0.85);
+            --glass-border: rgba(255, 255, 255, 0.4);
+            --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
         }
 
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
             color: var(--text-primary);
             line-height: 1.6;
-            overflow-x: hidden;
+            overflow: hidden;
+            height: 100vh;
         }
 
         /* Video Background */
@@ -57,7 +54,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: linear-gradient(135deg, rgba(241, 245, 249, 0.85) 0%, rgba(226, 232, 240, 0.8) 100%);
+            background: linear-gradient(135deg, rgba(241, 245, 249, 0.82) 0%, rgba(226, 232, 240, 0.78) 100%);
             z-index: -1;
         }
 
@@ -103,41 +100,91 @@
         }
 
         .nav-enter:hover {
-            background: rgba(255, 255, 255, 0.9);
+            background: rgba(255, 255, 255, 0.95);
         }
 
-        /* Section Container */
-        .section {
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 6rem 2rem;
+        /* Card Stack Container */
+        .stack-container {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 100%;
+            max-width: 640px;
+            padding: 0 2rem;
         }
 
         /* Glass Card */
         .glass-card {
+            position: absolute;
+            top: 0;
+            left: 2rem;
+            right: 2rem;
             background: var(--glass-bg);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
             border: 1px solid var(--glass-border);
-            border-radius: 24px;
+            border-radius: 20px;
             box-shadow: var(--glass-shadow);
-            padding: 3.5rem 4rem;
-            max-width: 680px;
-            width: 100%;
+            padding: 3rem 3.5rem;
             opacity: 0;
-            transform: translateY(40px);
-            transition: opacity 0.8s ease, transform 0.8s ease;
+            transform: translateX(120%) rotate(3deg);
+            transition: all 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+            pointer-events: none;
         }
 
-        .glass-card.visible {
+        .glass-card.active {
             opacity: 1;
-            transform: translateY(0);
+            transform: translateX(0) rotate(0deg);
+            pointer-events: auto;
+            z-index: 10;
+        }
+
+        .glass-card.stacked {
+            opacity: 1;
+            pointer-events: none;
+        }
+
+        .glass-card.stacked-1 {
+            transform: translateX(-15px) rotate(-0.5deg);
+            z-index: 9;
+        }
+
+        .glass-card.stacked-2 {
+            transform: translateX(-30px) rotate(-1deg);
+            z-index: 8;
+        }
+
+        .glass-card.stacked-3 {
+            transform: translateX(-45px) rotate(-1.5deg);
+            z-index: 7;
+        }
+
+        .glass-card.stacked-4 {
+            transform: translateX(-60px) rotate(-2deg);
+            z-index: 6;
+            opacity: 0.7;
+        }
+
+        .glass-card.stacked-5 {
+            transform: translateX(-75px) rotate(-2.5deg);
+            z-index: 5;
+            opacity: 0.5;
+        }
+
+        .glass-card.hidden {
+            transform: translateX(-100px) rotate(-3deg);
+            opacity: 0;
+            z-index: 0;
+        }
+
+        .glass-card.waiting {
+            transform: translateX(120%) rotate(3deg);
+            opacity: 0;
         }
 
         .glass-card h1 {
-            font-size: 2.2rem;
+            font-size: 2rem;
             font-weight: 600;
             letter-spacing: -0.5px;
             margin-bottom: 1rem;
@@ -145,37 +192,37 @@
         }
 
         .glass-card h2 {
-            font-size: 1.5rem;
+            font-size: 1.35rem;
             font-weight: 500;
-            margin-bottom: 1.5rem;
+            margin-bottom: 1.25rem;
             color: var(--text-primary);
         }
 
         .glass-card p {
-            font-size: 1.1rem;
+            font-size: 1.05rem;
             color: var(--text-secondary);
-            margin-bottom: 1rem;
+            margin-bottom: 0.75rem;
             font-weight: 400;
         }
 
         .glass-card .tagline {
-            font-size: 0.95rem;
+            font-size: 0.85rem;
             color: var(--text-muted);
-            letter-spacing: 1px;
+            letter-spacing: 1.5px;
             text-transform: uppercase;
             margin-top: 1.5rem;
         }
 
         .glass-card ul {
             list-style: none;
-            margin: 1.5rem 0;
+            margin: 1.25rem 0;
         }
 
         .glass-card ul li {
-            font-size: 1.05rem;
+            font-size: 1rem;
             color: var(--text-secondary);
-            padding: 0.5rem 0;
-            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+            padding: 0.4rem 0;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.04);
         }
 
         .glass-card ul li:last-child {
@@ -186,7 +233,7 @@
             width: 40px;
             height: 1px;
             background: var(--text-muted);
-            margin: 2rem 0;
+            margin: 1.75rem 0;
         }
 
         .glass-card .highlight {
@@ -195,29 +242,29 @@
         }
 
         .glass-card .small-heading {
-            font-size: 0.85rem;
+            font-size: 0.75rem;
             font-weight: 600;
-            letter-spacing: 1px;
+            letter-spacing: 1.5px;
             text-transform: uppercase;
             color: var(--text-muted);
-            margin-bottom: 1rem;
+            margin-bottom: 0.75rem;
         }
 
         /* Entry Points Grid */
         .entry-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
-            gap: 1rem;
-            margin-top: 2rem;
+            gap: 0.75rem;
+            margin-top: 1.5rem;
         }
 
         .entry-btn {
-            padding: 1.25rem 1.5rem;
+            padding: 1rem 1.25rem;
             background: rgba(255, 255, 255, 0.6);
-            border: 1px solid rgba(0, 0, 0, 0.08);
-            border-radius: 12px;
+            border: 1px solid rgba(0, 0, 0, 0.06);
+            border-radius: 10px;
             text-align: center;
-            font-size: 0.95rem;
+            font-size: 0.9rem;
             font-weight: 500;
             color: var(--text-primary);
             cursor: pointer;
@@ -232,13 +279,121 @@
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
         }
 
+        /* Navigation Arrows */
+        .nav-arrows {
+            position: fixed;
+            bottom: 2.5rem;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            z-index: 100;
+        }
+
+        .nav-arrow {
+            width: 48px;
+            height: 48px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            color: var(--text-primary);
+        }
+
+        .nav-arrow:hover {
+            background: rgba(255, 255, 255, 0.95);
+            transform: scale(1.05);
+        }
+
+        .nav-arrow:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        .nav-arrow:disabled:hover {
+            transform: none;
+        }
+
+        .nav-arrow svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        /* Progress Dots */
+        .progress-dots {
+            display: flex;
+            gap: 8px;
+        }
+
+        .progress-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: rgba(0, 0, 0, 0.15);
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .progress-dot.active {
+            background: var(--text-primary);
+            transform: scale(1.2);
+        }
+
+        .progress-dot:hover {
+            background: var(--text-secondary);
+        }
+
+        /* Auto-advance indicator */
+        .auto-indicator {
+            position: fixed;
+            bottom: 6.5rem;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .auto-indicator button {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 0.75rem;
+            text-decoration: underline;
+        }
+
+        .auto-indicator button:hover {
+            color: var(--text-primary);
+        }
+
+        /* Progress bar for auto-advance */
+        .progress-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            height: 3px;
+            background: var(--text-primary);
+            opacity: 0.3;
+            transition: width 0.1s linear;
+            z-index: 100;
+        }
+
         /* Welcome Bot */
         .bot-trigger {
             position: fixed;
             bottom: 2rem;
             right: 2rem;
-            width: 60px;
-            height: 60px;
+            width: 56px;
+            height: 56px;
             background: var(--text-primary);
             border-radius: 50%;
             display: flex;
@@ -255,17 +410,17 @@
         }
 
         .bot-trigger svg {
-            width: 28px;
-            height: 28px;
+            width: 26px;
+            height: 26px;
             fill: white;
         }
 
         .bot-modal {
             position: fixed;
-            bottom: 6rem;
+            bottom: 5.5rem;
             right: 2rem;
-            width: 380px;
-            max-height: 70vh;
+            width: 360px;
+            max-height: 65vh;
             background: white;
             border-radius: 20px;
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
@@ -281,14 +436,8 @@
         }
 
         @keyframes slideUp {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
         .bot-header {
@@ -402,67 +551,39 @@
             font-size: 0.9rem;
         }
 
-        /* Scroll indicator */
-        .scroll-indicator {
-            position: fixed;
-            bottom: 2rem;
-            left: 50%;
-            transform: translateX(-50%);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 0.5rem;
-            opacity: 0.5;
-            transition: opacity 0.3s;
-        }
-
-        .scroll-indicator span {
-            font-size: 0.75rem;
-            letter-spacing: 1px;
-            text-transform: uppercase;
-            color: var(--text-muted);
-        }
-
-        .scroll-indicator .arrow {
-            width: 20px;
-            height: 20px;
-            border-right: 2px solid var(--text-muted);
-            border-bottom: 2px solid var(--text-muted);
-            transform: rotate(45deg);
-            animation: scrollBounce 2s infinite;
-        }
-
-        @keyframes scrollBounce {
-            0%, 100% { transform: rotate(45deg) translate(0, 0); }
-            50% { transform: rotate(45deg) translate(5px, 5px); }
-        }
-
-        .scroll-indicator.hidden {
-            opacity: 0;
-            pointer-events: none;
-        }
-
         /* Responsive */
         @media (max-width: 768px) {
             .nav {
                 padding: 1rem 1.5rem;
             }
 
-            .section {
-                padding: 4rem 1.5rem;
+            .nav-logo span {
+                display: none;
+            }
+
+            .stack-container {
+                padding: 0 1rem;
             }
 
             .glass-card {
-                padding: 2.5rem 2rem;
+                left: 1rem;
+                right: 1rem;
+                padding: 2rem 1.75rem;
             }
 
             .glass-card h1 {
-                font-size: 1.75rem;
+                font-size: 1.5rem;
             }
 
             .glass-card h2 {
-                font-size: 1.25rem;
+                font-size: 1.15rem;
             }
+
+            .glass-card.stacked-1 { transform: translateX(-8px) rotate(-0.5deg); }
+            .glass-card.stacked-2 { transform: translateX(-16px) rotate(-1deg); }
+            .glass-card.stacked-3 { transform: translateX(-24px) rotate(-1.5deg); }
+            .glass-card.stacked-4 { transform: translateX(-32px) rotate(-2deg); }
+            .glass-card.stacked-5 { transform: translateX(-40px) rotate(-2.5deg); }
 
             .entry-grid {
                 grid-template-columns: 1fr;
@@ -472,7 +593,14 @@
                 width: calc(100% - 2rem);
                 right: 1rem;
                 bottom: 5rem;
-                max-height: 75vh;
+            }
+
+            .nav-arrows {
+                bottom: 1.5rem;
+            }
+
+            .auto-indicator {
+                bottom: 5.5rem;
             }
         }
     </style>
@@ -492,29 +620,26 @@
         <button class="nav-enter" onclick="openBot()">Enter GAS</button>
     </nav>
 
-    <!-- Card 1: Hero -->
-    <section class="section" id="hero">
-        <div class="glass-card" data-reveal>
+    <!-- Card Stack -->
+    <div class="stack-container">
+        <!-- Card 1: Hero -->
+        <div class="glass-card" data-card="0">
             <h1>Global Accommodation System</h1>
             <p>A neutral platform for the global accommodation ecosystem.</p>
             <p class="tagline">Infrastructure · Network · Participation · Identity</p>
         </div>
-    </section>
 
-    <!-- Card 2: Core Principle -->
-    <section class="section" id="principle">
-        <div class="glass-card" data-reveal>
+        <!-- Card 2: Core Principle -->
+        <div class="glass-card" data-card="1">
             <p class="small-heading">Core Principle</p>
             <h2>The Structural Challenge is Dependency</h2>
             <p>Reducing dependency lowers commission exposure and increases long-term security.</p>
             <div class="divider"></div>
             <p>GAS exists to enable a diversified accommodation ecosystem built on neutral infrastructure.</p>
         </div>
-    </section>
 
-    <!-- Card 3: What GAS Provides -->
-    <section class="section" id="provides">
-        <div class="glass-card" data-reveal>
+        <!-- Card 3: What GAS Provides -->
+        <div class="glass-card" data-card="2">
             <h2>What GAS Provides</h2>
             <ul>
                 <li>A global accommodation network</li>
@@ -524,11 +649,9 @@
                 <li>A platform others build on</li>
             </ul>
         </div>
-    </section>
 
-    <!-- Card 4: Who Participates -->
-    <section class="section" id="participants">
-        <div class="glass-card" data-reveal>
+        <!-- Card 4: Who Participates -->
+        <div class="glass-card" data-card="3">
             <h2>Who Participates in GAS</h2>
             <ul>
                 <li>Accommodation owners</li>
@@ -539,13 +662,11 @@
                 <li>Marketing agencies</li>
                 <li>Technology partners</li>
             </ul>
-            <p class="tagline" style="margin-top: 1.5rem;">All connected through one neutral system.</p>
+            <p class="tagline">All connected through one neutral system.</p>
         </div>
-    </section>
 
-    <!-- Card 5: Quality & Trust -->
-    <section class="section" id="quality">
-        <div class="glass-card" data-reveal>
+        <!-- Card 5: Quality & Trust -->
+        <div class="glass-card" data-card="4">
             <p class="small-heading">Quality & Trust</p>
             <h2>The GAS Review & Quality Framework</h2>
             <ul>
@@ -557,11 +678,9 @@
             <h2>The GAS Vault</h2>
             <p>A secure identity and booking layer for trusted participation.</p>
         </div>
-    </section>
 
-    <!-- Card 6: Platform Components -->
-    <section class="section" id="components">
-        <div class="glass-card" data-reveal>
+        <!-- Card 6: Platform Components -->
+        <div class="glass-card" data-card="5">
             <p class="small-heading">The GAS Network in Use</p>
             <ul>
                 <li><span class="highlight">GAS Board</span> — public participation surface</li>
@@ -570,11 +689,9 @@
                 <li><span class="highlight">GAS Turbine</span> — social & campaign activation engine</li>
             </ul>
         </div>
-    </section>
 
-    <!-- Card 7: Platform Message -->
-    <section class="section" id="platform">
-        <div class="glass-card" data-reveal>
+        <!-- Card 7: Platform Message -->
+        <div class="glass-card" data-card="6">
             <h2>GAS is a Platform</h2>
             <ul>
                 <li>Owners <span class="highlight">operate</span> on GAS</li>
@@ -585,11 +702,9 @@
             <div class="divider"></div>
             <p><strong>GAS enables. Others create.</strong></p>
         </div>
-    </section>
 
-    <!-- Card 8: Entry Points -->
-    <section class="section" id="enter">
-        <div class="glass-card" data-reveal>
+        <!-- Card 8: Entry Points -->
+        <div class="glass-card" data-card="7">
             <p>GAS is not a booking platform.</p>
             <p>It is the system accommodation participates in.</p>
             <div class="divider"></div>
@@ -601,13 +716,31 @@
                 <a href="/travellers" class="entry-btn">Traveller</a>
             </div>
         </div>
-    </section>
-
-    <!-- Scroll Indicator -->
-    <div class="scroll-indicator" id="scrollIndicator">
-        <span>Scroll</span>
-        <div class="arrow"></div>
     </div>
+
+    <!-- Auto-advance indicator -->
+    <div class="auto-indicator" id="autoIndicator">
+        <span id="autoStatus">Auto-advancing</span>
+        <button onclick="toggleAuto()" id="autoToggle">Pause</button>
+    </div>
+
+    <!-- Navigation Arrows -->
+    <div class="nav-arrows">
+        <button class="nav-arrow" id="prevBtn" onclick="prevCard()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M15 18l-6-6 6-6"/>
+            </svg>
+        </button>
+        <div class="progress-dots" id="progressDots"></div>
+        <button class="nav-arrow" id="nextBtn" onclick="nextCard()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18l6-6-6-6"/>
+            </svg>
+        </button>
+    </div>
+
+    <!-- Progress Bar -->
+    <div class="progress-bar" id="progressBar"></div>
 
     <!-- Bot Trigger -->
     <div class="bot-trigger" onclick="toggleBot()">
@@ -632,39 +765,166 @@
 
     <script>
         // =====================================================
-        // SCROLL REVEAL
+        // CARD STACK NAVIGATION
         // =====================================================
-        const cards = document.querySelectorAll('[data-reveal]');
-        const scrollIndicator = document.getElementById('scrollIndicator');
-        
-        const observerOptions = {
-            threshold: 0.3,
-            rootMargin: '0px'
-        };
+        const cards = document.querySelectorAll('.glass-card');
+        const totalCards = cards.length;
+        let currentCard = 0;
+        let autoAdvance = true;
+        let autoTimer = null;
+        let progressTimer = null;
+        const AUTO_INTERVAL = 6000; // 6 seconds per card
 
-        const observer = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    entry.target.classList.add('visible');
+        // Initialize
+        function init() {
+            createProgressDots();
+            showCard(0);
+            if (autoAdvance) startAutoAdvance();
+        }
+
+        function createProgressDots() {
+            const container = document.getElementById('progressDots');
+            for (let i = 0; i < totalCards; i++) {
+                const dot = document.createElement('div');
+                dot.className = 'progress-dot';
+                dot.onclick = () => goToCard(i);
+                container.appendChild(dot);
+            }
+        }
+
+        function showCard(index) {
+            currentCard = index;
+
+            cards.forEach((card, i) => {
+                card.classList.remove('active', 'stacked', 'stacked-1', 'stacked-2', 'stacked-3', 'stacked-4', 'stacked-5', 'hidden', 'waiting');
+                
+                if (i === index) {
+                    card.classList.add('active');
+                } else if (i < index) {
+                    const stackPosition = index - i;
+                    if (stackPosition <= 5) {
+                        card.classList.add('stacked', `stacked-${stackPosition}`);
+                    } else {
+                        card.classList.add('hidden');
+                    }
+                } else {
+                    card.classList.add('waiting');
                 }
             });
-        }, observerOptions);
 
-        cards.forEach(card => observer.observe(card));
+            // Update progress dots
+            document.querySelectorAll('.progress-dot').forEach((dot, i) => {
+                dot.classList.toggle('active', i === index);
+            });
 
-        // Hide scroll indicator after scrolling
-        window.addEventListener('scroll', () => {
-            if (window.scrollY > 200) {
-                scrollIndicator.classList.add('hidden');
+            // Update arrow states
+            document.getElementById('prevBtn').disabled = index === 0;
+            document.getElementById('nextBtn').disabled = index === totalCards - 1;
+
+            // Reset progress bar
+            resetProgressBar();
+        }
+
+        function nextCard() {
+            if (currentCard < totalCards - 1) {
+                showCard(currentCard + 1);
+                if (autoAdvance) restartAutoAdvance();
+            } else if (autoAdvance) {
+                // Loop back to start
+                showCard(0);
+                restartAutoAdvance();
+            }
+        }
+
+        function prevCard() {
+            if (currentCard > 0) {
+                showCard(currentCard - 1);
+                if (autoAdvance) restartAutoAdvance();
+            }
+        }
+
+        function goToCard(index) {
+            showCard(index);
+            if (autoAdvance) restartAutoAdvance();
+        }
+
+        // Auto-advance
+        function startAutoAdvance() {
+            stopAutoAdvance();
+            animateProgressBar();
+            autoTimer = setTimeout(() => {
+                nextCard();
+            }, AUTO_INTERVAL);
+        }
+
+        function stopAutoAdvance() {
+            if (autoTimer) clearTimeout(autoTimer);
+            if (progressTimer) cancelAnimationFrame(progressTimer);
+        }
+
+        function restartAutoAdvance() {
+            if (autoAdvance) {
+                stopAutoAdvance();
+                startAutoAdvance();
+            }
+        }
+
+        function toggleAuto() {
+            autoAdvance = !autoAdvance;
+            document.getElementById('autoStatus').textContent = autoAdvance ? 'Auto-advancing' : 'Paused';
+            document.getElementById('autoToggle').textContent = autoAdvance ? 'Pause' : 'Resume';
+            
+            if (autoAdvance) {
+                startAutoAdvance();
             } else {
-                scrollIndicator.classList.remove('hidden');
+                stopAutoAdvance();
+                document.getElementById('progressBar').style.width = '0';
+            }
+        }
+
+        function animateProgressBar() {
+            const bar = document.getElementById('progressBar');
+            const startTime = Date.now();
+            
+            function update() {
+                const elapsed = Date.now() - startTime;
+                const progress = Math.min(elapsed / AUTO_INTERVAL, 1);
+                bar.style.width = `${progress * 100}%`;
+                
+                if (progress < 1 && autoAdvance) {
+                    progressTimer = requestAnimationFrame(update);
+                }
+            }
+            
+            update();
+        }
+
+        function resetProgressBar() {
+            document.getElementById('progressBar').style.width = '0';
+        }
+
+        // Keyboard navigation
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight' || e.key === ' ') {
+                e.preventDefault();
+                nextCard();
+            } else if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                prevCard();
             }
         });
 
-        // Show first card immediately
-        setTimeout(() => {
-            document.querySelector('[data-reveal]').classList.add('visible');
-        }, 300);
+        // Pause auto-advance on hover
+        document.querySelector('.stack-container').addEventListener('mouseenter', () => {
+            if (autoAdvance) stopAutoAdvance();
+        });
+
+        document.querySelector('.stack-container').addEventListener('mouseleave', () => {
+            if (autoAdvance) startAutoAdvance();
+        });
+
+        // Initialize on load
+        document.addEventListener('DOMContentLoaded', init);
 
         // =====================================================
         // WELCOME BOT
@@ -788,8 +1048,14 @@
             botOpen = !botOpen;
             document.getElementById('botModal').classList.toggle('active', botOpen);
             
-            if (botOpen && document.getElementById('botMessages').children.length === 0) {
-                startBot();
+            // Pause auto-advance when bot is open
+            if (botOpen) {
+                stopAutoAdvance();
+                if (document.getElementById('botMessages').children.length === 0) {
+                    startBot();
+                }
+            } else if (autoAdvance) {
+                startAutoAdvance();
             }
         }
 
@@ -798,7 +1064,7 @@
         }
 
         function startBot() {
-            addBotMessage("Welcome to the Global Accommodation System (GAS).", []);
+            addBotMessage("Welcome to the Global Accommodation System.", []);
             setTimeout(() => {
                 addBotMessage("Which best describes you?", [
                     { label: "Property Owner", value: "owner" },
@@ -840,7 +1106,6 @@
             container.appendChild(msgDiv);
             container.scrollTop = container.scrollHeight;
             
-            // Remove previous options
             const allOptions = container.querySelectorAll('.bot-options');
             allOptions.forEach(o => o.remove());
         }
@@ -848,20 +1113,16 @@
         function handleOption(value, label) {
             addUserMessage(label);
             
-            // Initial persona selection
             if (!currentPersona) {
                 currentPersona = value;
                 currentFlow = botFlows[value];
                 currentStep = 0;
                 userData.persona = value;
                 
-                setTimeout(() => {
-                    processStep();
-                }, 400);
+                setTimeout(() => processStep(), 400);
                 return;
             }
             
-            // Save answer
             const step = currentFlow[currentStep];
             userData[step.saveAs] = value;
             
@@ -870,7 +1131,6 @@
         }
 
         function processStep() {
-            // Skip steps with failed conditions
             while (currentStep < currentFlow.length) {
                 const step = currentFlow[currentStep];
                 if (step.condition && !step.condition(userData)) {
@@ -934,8 +1194,6 @@
             addBotMessage("Creating your GAS account...");
             
             setTimeout(() => {
-                // Here you would call your API to create the account
-                // For now, redirect based on persona
                 const redirects = {
                     owner: '/owners/setup',
                     agent: '/agents/setup',
@@ -945,7 +1203,6 @@
                 
                 addBotMessage("Your account is ready. Redirecting you now...");
                 
-                // Store data and redirect
                 localStorage.setItem('gas_onboarding', JSON.stringify(userData));
                 
                 setTimeout(() => {
