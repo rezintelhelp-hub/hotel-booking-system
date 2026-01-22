@@ -324,7 +324,8 @@ class CalryAdapter {
   // =====================================================
   
   async getRoomTypes(propertyExternalId) {
-    const response = await this.request(`/vrs/properties/${propertyExternalId}/room-types`);
+    // Correct URL is /vrs/room-types/{propertyId}, NOT /vrs/properties/{id}/room-types
+    const response = await this.request(`/vrs/room-types/${propertyExternalId}`);
     
     if (!response.success) {
       return response;
