@@ -18,9 +18,9 @@
             --text-primary: #1e293b;
             --text-secondary: #475569;
             --text-muted: #64748b;
-            --glass-bg: rgba(255, 255, 255, 0.85);
-            --glass-border: rgba(255, 255, 255, 0.4);
-            --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+            --glass-bg: rgba(255, 255, 255, 0.88);
+            --glass-border: rgba(255, 255, 255, 0.5);
+            --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
         }
 
         body {
@@ -65,7 +65,7 @@
             left: 0;
             right: 0;
             z-index: 100;
-            padding: 1.5rem 3rem;
+            padding: 1.25rem 2.5rem;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -85,51 +85,49 @@
             font-size: 0.85rem;
         }
 
-        .nav-enter {
-            padding: 0.6rem 1.5rem;
-            background: var(--glass-bg);
-            backdrop-filter: blur(20px);
-            border: 1px solid var(--glass-border);
-            border-radius: 8px;
-            color: var(--text-primary);
-            font-size: 0.9rem;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            text-decoration: none;
+        /* Main Layout: 60/40 Split */
+        .main-layout {
+            display: flex;
+            height: 100vh;
+            padding-top: 70px;
         }
 
-        .nav-enter:hover {
-            background: rgba(255, 255, 255, 0.95);
+        /* Left Side - Cards */
+        .cards-section {
+            width: 60%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            position: relative;
         }
 
         /* Card Stack Container */
         .stack-container {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
+            position: relative;
             width: 100%;
-            max-width: 640px;
-            padding: 0 2rem;
+            max-width: 520px;
+            height: 420px;
         }
 
         /* Glass Card */
         .glass-card {
             position: absolute;
             top: 0;
-            left: 2rem;
-            right: 2rem;
+            left: 0;
+            right: 0;
             background: var(--glass-bg);
             backdrop-filter: blur(24px);
             -webkit-backdrop-filter: blur(24px);
             border: 1px solid var(--glass-border);
             border-radius: 20px;
             box-shadow: var(--glass-shadow);
-            padding: 3rem 3.5rem;
+            padding: 2.5rem 3rem;
+            min-height: 320px;
             opacity: 0;
-            transform: translateX(120%) rotate(3deg);
-            transition: all 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+            transform: translateX(100%) rotate(2deg);
+            transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
             pointer-events: none;
         }
 
@@ -146,82 +144,77 @@
         }
 
         .glass-card.stacked-1 {
-            transform: translateX(-15px) rotate(-0.5deg);
+            transform: translateX(-12px) translateY(6px) rotate(-0.5deg);
             z-index: 9;
         }
 
         .glass-card.stacked-2 {
-            transform: translateX(-30px) rotate(-1deg);
+            transform: translateX(-24px) translateY(12px) rotate(-1deg);
             z-index: 8;
         }
 
         .glass-card.stacked-3 {
-            transform: translateX(-45px) rotate(-1.5deg);
+            transform: translateX(-36px) translateY(18px) rotate(-1.5deg);
             z-index: 7;
+            opacity: 0.8;
         }
 
         .glass-card.stacked-4 {
-            transform: translateX(-60px) rotate(-2deg);
+            transform: translateX(-48px) translateY(24px) rotate(-2deg);
             z-index: 6;
-            opacity: 0.7;
-        }
-
-        .glass-card.stacked-5 {
-            transform: translateX(-75px) rotate(-2.5deg);
-            z-index: 5;
             opacity: 0.5;
         }
 
         .glass-card.hidden {
-            transform: translateX(-100px) rotate(-3deg);
+            transform: translateX(-60px) translateY(30px) rotate(-2.5deg);
             opacity: 0;
             z-index: 0;
         }
 
         .glass-card.waiting {
-            transform: translateX(120%) rotate(3deg);
+            transform: translateX(100%) rotate(2deg);
             opacity: 0;
         }
 
         .glass-card h1 {
-            font-size: 2rem;
+            font-size: 1.85rem;
             font-weight: 600;
             letter-spacing: -0.5px;
-            margin-bottom: 1rem;
+            margin-bottom: 0.75rem;
             line-height: 1.2;
         }
 
         .glass-card h2 {
-            font-size: 1.35rem;
+            font-size: 1.2rem;
             font-weight: 500;
-            margin-bottom: 1.25rem;
+            margin-bottom: 1rem;
             color: var(--text-primary);
         }
 
         .glass-card p {
-            font-size: 1.05rem;
+            font-size: 1rem;
             color: var(--text-secondary);
-            margin-bottom: 0.75rem;
+            margin-bottom: 0.6rem;
             font-weight: 400;
         }
 
         .glass-card .tagline {
-            font-size: 0.85rem;
+            font-size: 0.75rem;
             color: var(--text-muted);
             letter-spacing: 1.5px;
             text-transform: uppercase;
-            margin-top: 1.5rem;
+            margin-top: 1.25rem;
         }
 
         .glass-card ul {
             list-style: none;
-            margin: 1.25rem 0;
+            margin: 1rem 0;
         }
 
         .glass-card ul li {
-            font-size: 1rem;
+            font-size: 0.95rem;
             color: var(--text-secondary);
-            padding: 0.4rem 0;
+            padding: 0.35rem 0;
             border-bottom: 1px solid rgba(0, 0, 0, 0.04);
         }
 
@@ -233,7 +226,7 @@
             width: 40px;
             height: 1px;
             background: var(--text-muted);
-            margin: 1.75rem 0;
+            margin: 1.5rem 0;
         }
 
         .glass-card .highlight {
@@ -242,29 +235,29 @@
         }
 
         .glass-card .small-heading {
-            font-size: 0.75rem;
+            font-size: 0.7rem;
             font-weight: 600;
             letter-spacing: 1.5px;
             text-transform: uppercase;
             color: var(--text-muted);
-            margin-bottom: 0.75rem;
+            margin-bottom: 0.6rem;
         }
 
         /* Entry Points Grid */
         .entry-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
-            gap: 0.75rem;
-            margin-top: 1.5rem;
+            gap: 0.6rem;
+            margin-top: 1.25rem;
         }
 
         .entry-btn {
-            padding: 1rem 1.25rem;
+            padding: 0.85rem 1rem;
             background: rgba(255, 255, 255, 0.6);
             border: 1px solid rgba(0, 0, 0, 0.06);
             border-radius: 10px;
             text-align: center;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             font-weight: 500;
             color: var(--text-primary);
             cursor: pointer;
@@ -279,21 +272,17 @@
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
         }
 
-        /* Navigation Arrows */
-        .nav-arrows {
-            position: fixed;
-            bottom: 2.5rem;
-            left: 50%;
-            transform: translateX(-50%);
+        /* Card Navigation */
+        .card-nav {
             display: flex;
             align-items: center;
-            gap: 1.5rem;
-            z-index: 100;
+            gap: 1.25rem;
+            margin-top: 2rem;
         }
 
         .nav-arrow {
-            width: 48px;
-            height: 48px;
+            width: 42px;
+            height: 42px;
             background: var(--glass-bg);
             backdrop-filter: blur(20px);
             border: 1px solid var(--glass-border);
@@ -321,14 +310,14 @@
         }
 
         .nav-arrow svg {
-            width: 20px;
-            height: 20px;
+            width: 18px;
+            height: 18px;
         }
 
         /* Progress Dots */
         .progress-dots {
             display: flex;
-            gap: 8px;
+            gap: 6px;
         }
 
         .progress-dot {
@@ -349,13 +338,13 @@
             background: var(--text-secondary);
         }
 
-        /* Auto-advance indicator */
+        /* Auto indicator */
         .auto-indicator {
-            position: fixed;
-            bottom: 6.5rem;
+            position: absolute;
+            bottom: 1.5rem;
             left: 50%;
             transform: translateX(-50%);
-            font-size: 0.75rem;
+            font-size: 0.7rem;
             color: var(--text-muted);
             display: flex;
             align-items: center;
@@ -367,7 +356,7 @@
             border: none;
             color: var(--text-muted);
             cursor: pointer;
-            font-size: 0.75rem;
+            font-size: 0.7rem;
             text-decoration: underline;
         }
 
@@ -375,99 +364,61 @@
             color: var(--text-primary);
         }
 
-        /* Progress bar for auto-advance */
-        .progress-bar {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            height: 3px;
-            background: var(--text-primary);
-            opacity: 0.3;
-            transition: width 0.1s linear;
-            z-index: 100;
-        }
-
-        /* Welcome Bot */
-        .bot-trigger {
-            position: fixed;
-            bottom: 2rem;
-            right: 2rem;
-            width: 56px;
-            height: 56px;
-            background: var(--text-primary);
-            border-radius: 50%;
+        /* Right Side - Chat */
+        .chat-section {
+            width: 40%;
             display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-            transition: transform 0.3s ease;
-            z-index: 1000;
+            flex-direction: column;
+            padding: 1.5rem 2.5rem 1.5rem 1rem;
         }
 
-        .bot-trigger:hover {
-            transform: scale(1.05);
-        }
-
-        .bot-trigger svg {
-            width: 26px;
-            height: 26px;
-            fill: white;
-        }
-
-        .bot-modal {
-            position: fixed;
-            bottom: 5.5rem;
-            right: 2rem;
-            width: 360px;
-            max-height: 65vh;
+        .chat-container {
+            flex: 1;
             background: white;
             border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
-            z-index: 1001;
-            display: none;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            display: flex;
             flex-direction: column;
             overflow: hidden;
+            max-height: calc(100vh - 110px);
         }
 
-        .bot-modal.active {
-            display: flex;
-            animation: slideUp 0.3s ease;
-        }
-
-        @keyframes slideUp {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .bot-header {
+        .chat-header {
             padding: 1.25rem 1.5rem;
             border-bottom: 1px solid #f1f5f9;
             display: flex;
-            justify-content: space-between;
             align-items: center;
+            gap: 1rem;
         }
 
-        .bot-header h3 {
+        .chat-header-icon {
+            width: 44px;
+            height: 44px;
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .chat-header-icon svg {
+            width: 24px;
+            height: 24px;
+            fill: white;
+        }
+
+        .chat-header-text h3 {
             font-size: 1rem;
             font-weight: 600;
+            color: var(--text-primary);
         }
 
-        .bot-header span {
+        .chat-header-text span {
             font-size: 0.8rem;
             color: var(--text-muted);
         }
 
-        .bot-close {
-            background: none;
-            border: none;
-            font-size: 1.5rem;
-            cursor: pointer;
-            color: var(--text-muted);
-            line-height: 1;
-        }
-
-        .bot-messages {
+        .chat-messages {
             flex: 1;
             overflow-y: auto;
             padding: 1.5rem;
@@ -476,7 +427,7 @@
             gap: 1rem;
         }
 
-        .bot-message {
+        .chat-message {
             max-width: 85%;
             padding: 1rem 1.25rem;
             border-radius: 16px;
@@ -484,28 +435,28 @@
             line-height: 1.5;
         }
 
-        .bot-message.bot {
+        .chat-message.bot {
             background: #f1f5f9;
             color: var(--text-primary);
             align-self: flex-start;
             border-bottom-left-radius: 4px;
         }
 
-        .bot-message.user {
+        .chat-message.user {
             background: var(--text-primary);
             color: white;
             align-self: flex-end;
             border-bottom-right-radius: 4px;
         }
 
-        .bot-options {
+        .chat-options {
             display: flex;
             flex-wrap: wrap;
             gap: 0.5rem;
             margin-top: 0.75rem;
         }
 
-        .bot-option {
+        .chat-option {
             padding: 0.6rem 1rem;
             background: white;
             border: 1px solid #e2e8f0;
@@ -515,60 +466,110 @@
             transition: all 0.2s ease;
         }
 
-        .bot-option:hover {
+        .chat-option:hover {
             background: var(--text-primary);
             color: white;
             border-color: var(--text-primary);
         }
 
-        .bot-input-area {
+        .chat-input-area {
             padding: 1rem 1.5rem;
             border-top: 1px solid #f1f5f9;
             display: flex;
             gap: 0.75rem;
         }
 
-        .bot-input {
+        .chat-input {
             flex: 1;
-            padding: 0.75rem 1rem;
+            padding: 0.85rem 1rem;
             border: 1px solid #e2e8f0;
             border-radius: 12px;
             font-size: 0.9rem;
             outline: none;
+            font-family: inherit;
         }
 
-        .bot-input:focus {
+        .chat-input:focus {
             border-color: var(--text-primary);
         }
 
-        .bot-send {
-            padding: 0.75rem 1rem;
+        .chat-send {
+            padding: 0.85rem 1.25rem;
             background: var(--text-primary);
             color: white;
             border: none;
             border-radius: 12px;
             cursor: pointer;
             font-size: 0.9rem;
+            transition: background 0.2s;
+        }
+
+        .chat-send:hover {
+            background: #334155;
+        }
+
+        /* Progress bar */
+        .progress-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 60%;
+            height: 3px;
+            background: transparent;
+            z-index: 100;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: var(--text-primary);
+            opacity: 0.2;
+            transition: width 0.1s linear;
         }
 
         /* Responsive */
-        @media (max-width: 768px) {
+        @media (max-width: 1024px) {
+            .main-layout {
+                flex-direction: column;
+            }
+
+            .cards-section {
+                width: 100%;
+                height: 60vh;
+                padding: 1rem;
+            }
+
+            .chat-section {
+                width: 100%;
+                height: 40vh;
+                padding: 0 1rem 1rem 1rem;
+            }
+
+            .stack-container {
+                max-width: 100%;
+                height: 300px;
+            }
+
+            .glass-card {
+                padding: 2rem;
+                min-height: 260px;
+            }
+
+            .chat-container {
+                max-height: 100%;
+            }
+
+            .progress-bar {
+                width: 100%;
+            }
+        }
+
+        @media (max-width: 640px) {
             .nav {
-                padding: 1rem 1.5rem;
+                padding: 1rem;
             }
 
             .nav-logo span {
                 display: none;
-            }
-
-            .stack-container {
-                padding: 0 1rem;
-            }
-
-            .glass-card {
-                left: 1rem;
-                right: 1rem;
-                padding: 2rem 1.75rem;
             }
 
             .glass-card h1 {
@@ -576,31 +577,11 @@
             }
 
             .glass-card h2 {
-                font-size: 1.15rem;
+                font-size: 1.1rem;
             }
-
-            .glass-card.stacked-1 { transform: translateX(-8px) rotate(-0.5deg); }
-            .glass-card.stacked-2 { transform: translateX(-16px) rotate(-1deg); }
-            .glass-card.stacked-3 { transform: translateX(-24px) rotate(-1.5deg); }
-            .glass-card.stacked-4 { transform: translateX(-32px) rotate(-2deg); }
-            .glass-card.stacked-5 { transform: translateX(-40px) rotate(-2.5deg); }
 
             .entry-grid {
                 grid-template-columns: 1fr;
-            }
-
-            .bot-modal {
-                width: calc(100% - 2rem);
-                right: 1rem;
-                bottom: 5rem;
-            }
-
-            .nav-arrows {
-                bottom: 1.5rem;
-            }
-
-            .auto-indicator {
-                bottom: 5.5rem;
             }
         }
     </style>
@@ -617,150 +598,153 @@
     <!-- Navigation -->
     <nav class="nav">
         <div class="nav-logo">GAS <span>Global Accommodation System</span></div>
-        <button class="nav-enter" onclick="openBot()">Enter GAS</button>
     </nav>
 
-    <!-- Card Stack -->
-    <div class="stack-container">
-        <!-- Card 1: Hero -->
-        <div class="glass-card" data-card="0">
-            <h1>Global Accommodation System</h1>
-            <p>A neutral platform for the global accommodation ecosystem.</p>
-            <p class="tagline">Infrastructure · Network · Participation · Identity</p>
-        </div>
+    <!-- Main Layout -->
+    <div class="main-layout">
+        <!-- Left Side - Cards -->
+        <div class="cards-section">
+            <div class="stack-container">
+                <!-- Card 1: Hero -->
+                <div class="glass-card" data-card="0">
+                    <h1>Global Accommodation System</h1>
+                    <p>A neutral platform for the global accommodation ecosystem.</p>
+                    <p class="tagline">Infrastructure · Network · Participation · Identity</p>
+                </div>
 
-        <!-- Card 2: Core Principle -->
-        <div class="glass-card" data-card="1">
-            <p class="small-heading">Core Principle</p>
-            <h2>The Structural Challenge is Dependency</h2>
-            <p>Reducing dependency lowers commission exposure and increases long-term security.</p>
-            <div class="divider"></div>
-            <p>GAS exists to enable a diversified accommodation ecosystem built on neutral infrastructure.</p>
-        </div>
+                <!-- Card 2: Core Principle -->
+                <div class="glass-card" data-card="1">
+                    <p class="small-heading">Core Principle</p>
+                    <h2>The Structural Challenge is Dependency</h2>
+                    <p>Reducing dependency lowers commission exposure and increases long-term security.</p>
+                    <div class="divider"></div>
+                    <p>GAS exists to enable a diversified accommodation ecosystem built on neutral infrastructure.</p>
+                </div>
 
-        <!-- Card 3: What GAS Provides -->
-        <div class="glass-card" data-card="2">
-            <h2>What GAS Provides</h2>
-            <ul>
-                <li>A global accommodation network</li>
-                <li>A participation framework</li>
-                <li>A professional quality system</li>
-                <li>A trust and identity layer</li>
-                <li>A platform others build on</li>
-            </ul>
-        </div>
+                <!-- Card 3: What GAS Provides -->
+                <div class="glass-card" data-card="2">
+                    <h2>What GAS Provides</h2>
+                    <ul>
+                        <li>A global accommodation network</li>
+                        <li>A participation framework</li>
+                        <li>A professional quality system</li>
+                        <li>A trust and identity layer</li>
+                        <li>A platform others build on</li>
+                    </ul>
+                </div>
 
-        <!-- Card 4: Who Participates -->
-        <div class="glass-card" data-card="3">
-            <h2>Who Participates in GAS</h2>
-            <ul>
-                <li>Accommodation owners</li>
-                <li>Travel agents</li>
-                <li>Travellers</li>
-                <li>Suppliers</li>
-                <li>Developers</li>
-                <li>Marketing agencies</li>
-                <li>Technology partners</li>
-            </ul>
-            <p class="tagline">All connected through one neutral system.</p>
-        </div>
+                <!-- Card 4: Who Participates -->
+                <div class="glass-card" data-card="3">
+                    <h2>Who Participates in GAS</h2>
+                    <ul>
+                        <li>Accommodation owners</li>
+                        <li>Travel agents</li>
+                        <li>Travellers</li>
+                        <li>Suppliers</li>
+                        <li>Developers</li>
+                        <li>Marketing agencies</li>
+                        <li>Technology partners</li>
+                    </ul>
+                    <p class="tagline">All connected through one neutral system.</p>
+                </div>
 
-        <!-- Card 5: Quality & Trust -->
-        <div class="glass-card" data-card="4">
-            <p class="small-heading">Quality & Trust</p>
-            <h2>The GAS Review & Quality Framework</h2>
-            <ul>
-                <li>Verified stays</li>
-                <li>Private professional feedback</li>
-                <li>Improvement, not public scoring</li>
-            </ul>
-            <div class="divider"></div>
-            <h2>The GAS Vault</h2>
-            <p>A secure identity and booking layer for trusted participation.</p>
-        </div>
+                <!-- Card 5: Quality & Trust -->
+                <div class="glass-card" data-card="4">
+                    <p class="small-heading">Quality & Trust</p>
+                    <h2>The GAS Review & Quality Framework</h2>
+                    <ul>
+                        <li>Verified stays</li>
+                        <li>Private professional feedback</li>
+                        <li>Improvement, not public scoring</li>
+                    </ul>
+                    <div class="divider"></div>
+                    <p><strong>The GAS Vault</strong> — A secure identity and booking layer for trusted participation.</p>
+                </div>
 
-        <!-- Card 6: Platform Components -->
-        <div class="glass-card" data-card="5">
-            <p class="small-heading">The GAS Network in Use</p>
-            <ul>
-                <li><span class="highlight">GAS Board</span> — public participation surface</li>
-                <li><span class="highlight">GAS Lites</span> — universal access & booking references</li>
-                <li><span class="highlight">GAS Generators</span> — marketing utilities operating on GAS</li>
-                <li><span class="highlight">GAS Turbine</span> — social & campaign activation engine</li>
-            </ul>
-        </div>
+                <!-- Card 6: Platform Components -->
+                <div class="glass-card" data-card="5">
+                    <p class="small-heading">The GAS Network in Use</p>
+                    <ul>
+                        <li><span class="highlight">GAS Board</span> — public participation surface</li>
+                        <li><span class="highlight">GAS Lites</span> — universal access & booking references</li>
+                        <li><span class="highlight">GAS Generators</span> — marketing utilities operating on GAS</li>
+                        <li><span class="highlight">GAS Turbine</span> — social & campaign activation engine</li>
+                    </ul>
+                </div>
 
-        <!-- Card 7: Platform Message -->
-        <div class="glass-card" data-card="6">
-            <h2>GAS is a Platform</h2>
-            <ul>
-                <li>Owners <span class="highlight">operate</span> on GAS</li>
-                <li>Agents <span class="highlight">distribute</span> through GAS</li>
-                <li>Developers <span class="highlight">build</span> on GAS</li>
-                <li>Agencies <span class="highlight">grow</span> on GAS</li>
-            </ul>
-            <div class="divider"></div>
-            <p><strong>GAS enables. Others create.</strong></p>
-        </div>
+                <!-- Card 7: Platform Message -->
+                <div class="glass-card" data-card="6">
+                    <h2>GAS is a Platform</h2>
+                    <ul>
+                        <li>Owners <span class="highlight">operate</span> on GAS</li>
+                        <li>Agents <span class="highlight">distribute</span> through GAS</li>
+                        <li>Developers <span class="highlight">build</span> on GAS</li>
+                        <li>Agencies <span class="highlight">grow</span> on GAS</li>
+                    </ul>
+                    <div class="divider"></div>
+                    <p><strong>GAS enables. Others create.</strong></p>
+                </div>
 
-        <!-- Card 8: Entry Points -->
-        <div class="glass-card" data-card="7">
-            <p>GAS is not a booking platform.</p>
-            <p>It is the system accommodation participates in.</p>
-            <div class="divider"></div>
-            <p class="small-heading">Enter GAS as</p>
-            <div class="entry-grid">
-                <a href="/owners" class="entry-btn">Property Owner</a>
-                <a href="/agents" class="entry-btn">Travel Agent</a>
-                <a href="/build" class="entry-btn">Builder / Agency</a>
-                <a href="/travellers" class="entry-btn">Traveller</a>
+                <!-- Card 8: Entry Points -->
+                <div class="glass-card" data-card="7">
+                    <p>GAS is not a booking platform.</p>
+                    <p>It is the system accommodation participates in.</p>
+                    <div class="divider"></div>
+                    <p class="small-heading">Enter GAS as</p>
+                    <div class="entry-grid">
+                        <a href="/owners" class="entry-btn">Property Owner</a>
+                        <a href="/agents" class="entry-btn">Travel Agent</a>
+                        <a href="/build" class="entry-btn">Builder / Agency</a>
+                        <a href="/travellers" class="entry-btn">Traveller</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Card Navigation -->
+            <div class="card-nav">
+                <button class="nav-arrow" id="prevBtn" onclick="prevCard()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M15 18l-6-6 6-6"/>
+                    </svg>
+                </button>
+                <div class="progress-dots" id="progressDots"></div>
+                <button class="nav-arrow" id="nextBtn" onclick="nextCard()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M9 18l6-6-6-6"/>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="auto-indicator">
+                <span id="autoStatus">Auto-advancing</span>
+                <button onclick="toggleAuto()" id="autoToggle">Pause</button>
             </div>
         </div>
-    </div>
 
-    <!-- Auto-advance indicator -->
-    <div class="auto-indicator" id="autoIndicator">
-        <span id="autoStatus">Auto-advancing</span>
-        <button onclick="toggleAuto()" id="autoToggle">Pause</button>
-    </div>
-
-    <!-- Navigation Arrows -->
-    <div class="nav-arrows">
-        <button class="nav-arrow" id="prevBtn" onclick="prevCard()">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M15 18l-6-6 6-6"/>
-            </svg>
-        </button>
-        <div class="progress-dots" id="progressDots"></div>
-        <button class="nav-arrow" id="nextBtn" onclick="nextCard()">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M9 18l6-6-6-6"/>
-            </svg>
-        </button>
+        <!-- Right Side - Chat -->
+        <div class="chat-section">
+            <div class="chat-container">
+                <div class="chat-header">
+                    <div class="chat-header-icon">
+                        <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>
+                    </div>
+                    <div class="chat-header-text">
+                        <h3>Enter GAS</h3>
+                        <span>Create your account</span>
+                    </div>
+                </div>
+                <div class="chat-messages" id="chatMessages"></div>
+                <div class="chat-input-area" id="chatInputArea" style="display: none;">
+                    <input type="text" class="chat-input" id="chatInput" placeholder="Type here..." onkeypress="handleChatKeypress(event)">
+                    <button class="chat-send" onclick="sendChatInput()">Send</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Progress Bar -->
-    <div class="progress-bar" id="progressBar"></div>
-
-    <!-- Bot Trigger -->
-    <div class="bot-trigger" onclick="toggleBot()">
-        <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>
-    </div>
-
-    <!-- Bot Modal -->
-    <div class="bot-modal" id="botModal">
-        <div class="bot-header">
-            <div>
-                <h3>GAS</h3>
-                <span>Global Accommodation System</span>
-            </div>
-            <button class="bot-close" onclick="toggleBot()">×</button>
-        </div>
-        <div class="bot-messages" id="botMessages"></div>
-        <div class="bot-input-area" id="botInputArea" style="display: none;">
-            <input type="text" class="bot-input" id="botInput" placeholder="Type here..." onkeypress="handleBotKeypress(event)">
-            <button class="bot-send" onclick="sendBotInput()">Send</button>
-        </div>
+    <div class="progress-bar">
+        <div class="progress-bar-fill" id="progressBar"></div>
     </div>
 
     <script>
@@ -773,13 +757,13 @@
         let autoAdvance = true;
         let autoTimer = null;
         let progressTimer = null;
-        const AUTO_INTERVAL = 6000; // 6 seconds per card
+        const AUTO_INTERVAL = 6000;
 
-        // Initialize
         function init() {
             createProgressDots();
             showCard(0);
             if (autoAdvance) startAutoAdvance();
+            startChat();
         }
 
         function createProgressDots() {
@@ -796,13 +780,13 @@
             currentCard = index;
 
             cards.forEach((card, i) => {
-                card.classList.remove('active', 'stacked', 'stacked-1', 'stacked-2', 'stacked-3', 'stacked-4', 'stacked-5', 'hidden', 'waiting');
+                card.classList.remove('active', 'stacked', 'stacked-1', 'stacked-2', 'stacked-3', 'stacked-4', 'hidden', 'waiting');
                 
                 if (i === index) {
                     card.classList.add('active');
                 } else if (i < index) {
                     const stackPosition = index - i;
-                    if (stackPosition <= 5) {
+                    if (stackPosition <= 4) {
                         card.classList.add('stacked', `stacked-${stackPosition}`);
                     } else {
                         card.classList.add('hidden');
@@ -812,16 +796,13 @@
                 }
             });
 
-            // Update progress dots
             document.querySelectorAll('.progress-dot').forEach((dot, i) => {
                 dot.classList.toggle('active', i === index);
             });
 
-            // Update arrow states
             document.getElementById('prevBtn').disabled = index === 0;
             document.getElementById('nextBtn').disabled = index === totalCards - 1;
 
-            // Reset progress bar
             resetProgressBar();
         }
 
@@ -830,7 +811,6 @@
                 showCard(currentCard + 1);
                 if (autoAdvance) restartAutoAdvance();
             } else if (autoAdvance) {
-                // Loop back to start
                 showCard(0);
                 restartAutoAdvance();
             }
@@ -848,7 +828,6 @@
             if (autoAdvance) restartAutoAdvance();
         }
 
-        // Auto-advance
         function startAutoAdvance() {
             stopAutoAdvance();
             animateProgressBar();
@@ -903,9 +882,8 @@
             document.getElementById('progressBar').style.width = '0';
         }
 
-        // Keyboard navigation
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'ArrowRight' || e.key === ' ') {
+            if (e.key === 'ArrowRight') {
                 e.preventDefault();
                 nextCard();
             } else if (e.key === 'ArrowLeft') {
@@ -914,7 +892,6 @@
             }
         });
 
-        // Pause auto-advance on hover
         document.querySelector('.stack-container').addEventListener('mouseenter', () => {
             if (autoAdvance) stopAutoAdvance();
         });
@@ -923,19 +900,15 @@
             if (autoAdvance) startAutoAdvance();
         });
 
-        // Initialize on load
-        document.addEventListener('DOMContentLoaded', init);
-
         // =====================================================
-        // WELCOME BOT
+        // CHAT BOT
         // =====================================================
-        let botOpen = false;
         let userData = {};
         let currentPersona = null;
         let currentStep = 0;
         let currentFlow = null;
 
-        const botFlows = {
+        const chatFlows = {
             owner: [
                 { 
                     message: "Do you currently use a channel manager?",
@@ -1044,49 +1017,30 @@
             ]
         };
 
-        function toggleBot() {
-            botOpen = !botOpen;
-            document.getElementById('botModal').classList.toggle('active', botOpen);
-            
-            // Pause auto-advance when bot is open
-            if (botOpen) {
-                stopAutoAdvance();
-                if (document.getElementById('botMessages').children.length === 0) {
-                    startBot();
-                }
-            } else if (autoAdvance) {
-                startAutoAdvance();
-            }
-        }
-
-        function openBot() {
-            if (!botOpen) toggleBot();
-        }
-
-        function startBot() {
-            addBotMessage("Welcome to the Global Accommodation System.", []);
+        function startChat() {
+            addChatMessage("Welcome to the Global Accommodation System.", 'bot', []);
             setTimeout(() => {
-                addBotMessage("Which best describes you?", [
+                addChatMessage("Which best describes you?", 'bot', [
                     { label: "Property Owner", value: "owner" },
                     { label: "Travel Agent", value: "agent" },
                     { label: "Developer or Agency", value: "builder" },
                     { label: "Traveller", value: "traveller" }
                 ]);
-            }, 500);
+            }, 600);
         }
 
-        function addBotMessage(text, options = []) {
-            const container = document.getElementById('botMessages');
+        function addChatMessage(text, type, options = []) {
+            const container = document.getElementById('chatMessages');
             const msgDiv = document.createElement('div');
-            msgDiv.className = 'bot-message bot';
+            msgDiv.className = `chat-message ${type}`;
             msgDiv.textContent = text;
             
             if (options.length > 0) {
                 const optionsDiv = document.createElement('div');
-                optionsDiv.className = 'bot-options';
+                optionsDiv.className = 'chat-options';
                 options.forEach(opt => {
                     const btn = document.createElement('button');
-                    btn.className = 'bot-option';
+                    btn.className = 'chat-option';
                     btn.textContent = typeof opt === 'string' ? opt : opt.label;
                     btn.onclick = () => handleOption(typeof opt === 'string' ? opt : opt.value, typeof opt === 'string' ? opt : opt.label);
                     optionsDiv.appendChild(btn);
@@ -1099,14 +1053,14 @@
         }
 
         function addUserMessage(text) {
-            const container = document.getElementById('botMessages');
+            const container = document.getElementById('chatMessages');
             const msgDiv = document.createElement('div');
-            msgDiv.className = 'bot-message user';
+            msgDiv.className = 'chat-message user';
             msgDiv.textContent = text;
             container.appendChild(msgDiv);
             container.scrollTop = container.scrollHeight;
             
-            const allOptions = container.querySelectorAll('.bot-options');
+            const allOptions = container.querySelectorAll('.chat-options');
             allOptions.forEach(o => o.remove());
         }
 
@@ -1115,7 +1069,7 @@
             
             if (!currentPersona) {
                 currentPersona = value;
-                currentFlow = botFlows[value];
+                currentFlow = chatFlows[value];
                 currentStep = 0;
                 userData.persona = value;
                 
@@ -1141,23 +1095,23 @@
             }
             
             if (currentStep >= currentFlow.length) {
-                completeBot();
+                completeChat();
                 return;
             }
             
             const step = currentFlow[currentStep];
             
             if (step.input) {
-                addBotMessage(step.message);
+                addChatMessage(step.message, 'bot');
                 showInput(step.placeholder, step.saveAs, step.final);
             } else {
-                addBotMessage(step.message, step.options);
+                addChatMessage(step.message, 'bot', step.options);
             }
         }
 
         function showInput(placeholder, saveAs, isFinal) {
-            const inputArea = document.getElementById('botInputArea');
-            const input = document.getElementById('botInput');
+            const inputArea = document.getElementById('chatInputArea');
+            const input = document.getElementById('chatInput');
             inputArea.style.display = 'flex';
             input.placeholder = placeholder;
             input.dataset.saveAs = saveAs;
@@ -1165,12 +1119,12 @@
             input.focus();
         }
 
-        function handleBotKeypress(e) {
-            if (e.key === 'Enter') sendBotInput();
+        function handleChatKeypress(e) {
+            if (e.key === 'Enter') sendChatInput();
         }
 
-        function sendBotInput() {
-            const input = document.getElementById('botInput');
+        function sendChatInput() {
+            const input = document.getElementById('chatInput');
             const value = input.value.trim();
             if (!value) return;
             
@@ -1178,20 +1132,20 @@
             userData[input.dataset.saveAs] = value;
             
             input.value = '';
-            document.getElementById('botInputArea').style.display = 'none';
+            document.getElementById('chatInputArea').style.display = 'none';
             
             if (input.dataset.final === 'true') {
-                setTimeout(() => completeBot(), 400);
+                setTimeout(() => completeChat(), 400);
             } else {
                 currentStep++;
                 setTimeout(() => processStep(), 400);
             }
         }
 
-        function completeBot() {
+        function completeChat() {
             console.log('User data:', userData);
             
-            addBotMessage("Creating your GAS account...");
+            addChatMessage("Creating your GAS account...", 'bot');
             
             setTimeout(() => {
                 const redirects = {
@@ -1201,7 +1155,7 @@
                     traveller: '/travellers/setup'
                 };
                 
-                addBotMessage("Your account is ready. Redirecting you now...");
+                addChatMessage("Your account is ready. Redirecting you now...", 'bot');
                 
                 localStorage.setItem('gas_onboarding', JSON.stringify(userData));
                 
@@ -1210,6 +1164,9 @@
                 }, 1500);
             }, 1000);
         }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', init);
     </script>
 </body>
 </html>
