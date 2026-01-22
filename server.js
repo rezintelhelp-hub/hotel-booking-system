@@ -19773,7 +19773,44 @@ async function importCalryPropertiesViaAdapter(integrationAccountId, pmsName, ex
         console.log(`  Synced to staging: ${syncPropertyId}`);
         
         let roomsForProperty = 0;
-        const roomTypesResult = await adapter.getRoomTypes(property.externalId);
+        // Use direct API call - adapter has wrong URL (/vrs/properties/id/room-types vs /room-types/id)
+        let roomTypesResult = { success: false, data: [] };
+        try {
+          const roomResponse = await axios.get(`${CALRY_API_BASE}/room-types/${property.externalId}`, {
+            headers: {
+              'Authorization': `Bearer ${CALRY_API_TOKEN}`,
+              'workspaceId': CALRY_WORKSPACE_ID,
+              'integrationAccountId': integrationAccountId,
+              'Content-Type': 'application/json'
+            }
+          });
+          const rawRoomTypes = roomResponse.data?.data || [];
+          roomTypesResult = {
+            success: true,
+            data: rawRoomTypes.map(rt => ({
+              externalId: String(rt.id),
+              name: rt.name,
+              description: rt.description || '',
+              maxGuests: rt.maxOccupancy || 2,
+              bedrooms: rt.bedRoom?.count || 1,
+              bathrooms: rt.bathRoom?.count || 1,
+              basePrice: rt.startPrice || 0,
+              currency: fullProperty.currency || 'EUR',
+              images: (rt.pictures || []).map((pic, idx) => ({
+                url: pic.url,
+                caption: pic.description || '',
+                order: idx,
+                isPrimary: idx === 0
+              })),
+              amenities: (rt.amenities || []).map(a => a.name || a),
+              raw: rt
+            }))
+          };
+          console.log(`  Fetched ${roomTypesResult.data.length} room types from Calry`);
+        } catch (rtErr) {
+          console.log(`  Room types fetch error: ${rtErr.message}`);
+        }
+        
         console.log(`  getRoomTypes result: success=${roomTypesResult.success}, count=${roomTypesResult.data?.length || 0}`);
         if (roomTypesResult.success && roomTypesResult.data?.length > 0) {
           // Ensure gas_sync_room_types has all required columns
@@ -19787,8 +19824,37 @@ async function importCalryPropertiesViaAdapter(integrationAccountId, pmsName, ex
           for (const roomType of roomTypesResult.data) {
             try {
               console.log(`  Syncing room type: ${roomType.name} (${roomType.externalId})`);
-              const roomSyncId = await adapter.syncRoomTypeToDatabase(roomType, property.externalId);
-              console.log(`  Room synced to staging: ${roomSyncId}`);
+              
+              // Direct insert to gas_sync_room_types (bypass adapter)
+              const roomSyncResult = await pool.query(`
+                INSERT INTO gas_sync_room_types (
+                  sync_property_id, external_id, name,
+                  max_guests, base_price, currency,
+                  bedrooms, bathrooms, raw_data, created_at
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+                ON CONFLICT (sync_property_id, external_id) DO UPDATE SET
+                  name = EXCLUDED.name,
+                  max_guests = EXCLUDED.max_guests,
+                  base_price = EXCLUDED.base_price,
+                  currency = EXCLUDED.currency,
+                  bedrooms = EXCLUDED.bedrooms,
+                  bathrooms = EXCLUDED.bathrooms,
+                  raw_data = EXCLUDED.raw_data,
+                  updated_at = NOW()
+                RETURNING id
+              `, [
+                syncPropertyId,
+                roomType.externalId,
+                roomType.name,
+                roomType.maxGuests || 2,
+                roomType.basePrice || 0,
+                roomType.currency || 'EUR',
+                roomType.bedrooms || 1,
+                roomType.bathrooms || 1,
+                JSON.stringify(roomType.raw || roomType)
+              ]);
+              
+              console.log(`  Room synced to staging: ${roomSyncResult.rows[0]?.id}`);
               roomsForProperty++;
             } catch (e) { 
               console.log(`  Room sync error: ${e.message}`); 
