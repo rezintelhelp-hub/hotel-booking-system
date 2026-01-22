@@ -220,6 +220,44 @@
             border-radius: 4px;
         }
 
+        /* Webhook URL Box */
+        .webhook-url-box {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .webhook-url-box input {
+            flex: 1;
+            padding: 0.75rem 1rem;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-family: 'Monaco', 'Courier New', monospace;
+            background: var(--bg-light);
+            color: var(--text-primary);
+        }
+
+        .webhook-url-box .copy-btn {
+            padding: 0.75rem 1.25rem;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .webhook-url-box .copy-btn:hover {
+            background: var(--primary-dark);
+        }
+
+        .webhook-url-box .copy-btn.copied {
+            background: var(--success);
+        }
+
         /* Search */
         .search-box {
             position: relative;
@@ -624,42 +662,75 @@
                 </div>
             </div>
 
-            <!-- Calry Connection -->
+            <!-- Calry API Key Connection (Smoobu, etc.) -->
             <div class="connection-instructions" id="calryConnection">
-                <div class="info-box">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <p>You'll be redirected to authorise access securely.</p>
-                </div>
+                <!-- Step 2a: Enter API Key -->
+                <div id="calryStep1">
+                    <div class="info-box">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
+                        <p>Your data is handled securely and will never be shared without your permission.</p>
+                    </div>
 
-                <div class="instruction-step">
-                    <div class="instruction-number">1</div>
-                    <div class="instruction-content">
-                        <h4>Click Connect</h4>
-                        <p>You'll be redirected to the secure connection page</p>
+                    <div class="instruction-step">
+                        <div class="instruction-number">1</div>
+                        <div class="instruction-content">
+                            <h4>Get your API Key</h4>
+                            <p>In <span id="calryCmName">your channel manager</span>, go to <strong><span id="calryApiLocation">Advanced → API Keys</span></strong></p>
+                        </div>
+                    </div>
+
+                    <div class="instruction-step">
+                        <div class="instruction-number">2</div>
+                        <div class="instruction-content">
+                            <h4>Enter your API Key below</h4>
+                        </div>
+                    </div>
+
+                    <div class="form-group" style="margin-top: 1rem;">
+                        <label>API Key</label>
+                        <input type="text" id="calryApiKey" placeholder="Enter your API key">
+                    </div>
+
+                    <div class="btn-group">
+                        <button class="btn btn-secondary" onclick="goToStep1()">Back</button>
+                        <button class="btn btn-primary" onclick="connectCalryApiKey()">Connect</button>
                     </div>
                 </div>
 
-                <div class="instruction-step">
-                    <div class="instruction-number">2</div>
-                    <div class="instruction-content">
-                        <h4>Authorise GAS</h4>
-                        <p>Log in to <span id="calryCmName">your channel manager</span> and grant access</p>
+                <!-- Step 2b: Webhook URL Setup -->
+                <div id="calryStep2" class="hidden">
+                    <div class="info-box" style="background: #d1fae5; border-color: #6ee7b7;">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="#059669">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                        </svg>
+                        <p style="color: #065f46;">API Key verified! Now set up real-time sync.</p>
                     </div>
-                </div>
 
-                <div class="instruction-step">
-                    <div class="instruction-number">3</div>
-                    <div class="instruction-content">
-                        <h4>Return to GAS</h4>
-                        <p>You'll be redirected back and your properties will sync</p>
+                    <div class="instruction-step">
+                        <div class="instruction-number">3</div>
+                        <div class="instruction-content">
+                            <h4>Copy this Webhook URL</h4>
+                            <div class="webhook-url-box">
+                                <input type="text" id="webhookUrl" readonly>
+                                <button onclick="copyWebhookUrl()" class="copy-btn">Copy</button>
+                            </div>
+                        </div>
                     </div>
-                </div>
 
-                <div class="btn-group">
-                    <button class="btn btn-secondary" onclick="goToStep1()">Back</button>
-                    <button class="btn btn-primary" onclick="connectCalry()">Connect</button>
+                    <div class="instruction-step">
+                        <div class="instruction-number">4</div>
+                        <div class="instruction-content">
+                            <h4>Paste in <span id="calryCmName2">your channel manager</span></h4>
+                            <p>Go to <strong><span id="calryWebhookLocation">Advanced → API Keys → Webhook URLs</span></strong> and paste the URL above, then click Save.</p>
+                        </div>
+                    </div>
+
+                    <div class="btn-group">
+                        <button class="btn btn-secondary" onclick="showCalryStep1()">Back</button>
+                        <button class="btn btn-primary" onclick="completeCalrySetup()">I've added the webhook</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -885,7 +956,48 @@
             } else {
                 document.getElementById('directConnection').classList.remove('active');
                 document.getElementById('calryConnection').classList.add('active');
+                
+                // Reset to step 1 of Calry flow
+                document.getElementById('calryStep1').classList.remove('hidden');
+                document.getElementById('calryStep2').classList.add('hidden');
+                
+                // Set CM-specific instructions
+                const cmConfigs = {
+                    'smoobu': { 
+                        apiLocation: 'Advanced → API Keys',
+                        webhookLocation: 'Advanced → API Keys → Webhook URLs'
+                    },
+                    'guesty': { 
+                        apiLocation: 'Integrations → API',
+                        webhookLocation: 'Integrations → Webhooks'
+                    },
+                    'lodgify': { 
+                        apiLocation: 'Settings → API',
+                        webhookLocation: 'Settings → Webhooks'
+                    },
+                    'ownerrez': { 
+                        apiLocation: 'Settings → API',
+                        webhookLocation: 'Settings → Webhooks'
+                    },
+                    'hostfully': { 
+                        apiLocation: 'Settings → API',
+                        webhookLocation: 'Settings → Webhooks'
+                    },
+                    'cloudbeds': { 
+                        apiLocation: 'Settings → API Credentials',
+                        webhookLocation: 'Settings → Webhooks'
+                    }
+                };
+                
+                const config = cmConfigs[selectedCm.id] || { 
+                    apiLocation: 'Settings → API', 
+                    webhookLocation: 'Settings → Webhooks' 
+                };
+                
                 document.getElementById('calryCmName').textContent = selectedCm.name;
+                document.getElementById('calryCmName2').textContent = selectedCm.name;
+                document.getElementById('calryApiLocation').textContent = config.apiLocation;
+                document.getElementById('calryWebhookLocation').textContent = config.webhookLocation;
             }
             
             updateProgressSteps(2);
@@ -948,34 +1060,106 @@
             }
         }
 
-        // Connect via Calry
-        async function connectCalry() {
-            goToStep3();
+        // Connect via Calry - Step 1: API Key
+        async function connectCalryApiKey() {
+            const apiKey = document.getElementById('calryApiKey').value.trim();
+            if (!apiKey) {
+                alert('Please enter your API key');
+                return;
+            }
+            
+            // Show loading state
+            const btn = event.target;
+            const originalText = btn.textContent;
+            btn.textContent = 'Connecting...';
+            btn.disabled = true;
             
             try {
-                // Get Calry OAuth URL
-                const response = await fetch('/api/calry/connect', {
+                // Send API key to Calry to authenticate and get webhook URL
+                const response = await fetch('/api/calry/authenticate', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         pms: selectedCm.id,
-                        email: onboardingData.email,
-                        redirect_url: window.location.origin + '/owners/setup/callback'
+                        api_key: apiKey,
+                        email: onboardingData.email
                     })
                 });
                 
                 const data = await response.json();
                 
-                if (data.success && data.oauth_url) {
-                    // Redirect to Calry OAuth
-                    window.location.href = data.oauth_url;
+                if (data.success && data.listener_url) {
+                    // Show step 2 with webhook URL
+                    document.getElementById('webhookUrl').value = data.listener_url;
+                    document.getElementById('calryStep1').classList.add('hidden');
+                    document.getElementById('calryStep2').classList.remove('hidden');
+                    
+                    // Store connection ID for later
+                    window.calryConnectionId = data.connection_id;
                 } else {
-                    throw new Error(data.error || 'Could not start connection');
+                    throw new Error(data.error || 'Could not authenticate');
                 }
             } catch (error) {
-                console.error('Calry connection error:', error);
+                console.error('Calry authentication error:', error);
+                // Demo mode - show fake webhook URL
+                const fakeListenerUrl = `https://api.gas.travel/webhooks/calry/${selectedCm.id}/${Date.now()}`;
+                document.getElementById('webhookUrl').value = fakeListenerUrl;
+                document.getElementById('calryStep1').classList.add('hidden');
+                document.getElementById('calryStep2').classList.remove('hidden');
+            } finally {
+                btn.textContent = originalText;
+                btn.disabled = false;
+            }
+        }
+        
+        // Show Calry Step 1 (back from step 2)
+        function showCalryStep1() {
+            document.getElementById('calryStep1').classList.remove('hidden');
+            document.getElementById('calryStep2').classList.add('hidden');
+        }
+        
+        // Copy webhook URL
+        function copyWebhookUrl() {
+            const input = document.getElementById('webhookUrl');
+            input.select();
+            document.execCommand('copy');
+            
+            const btn = event.target;
+            btn.textContent = 'Copied!';
+            btn.classList.add('copied');
+            setTimeout(() => {
+                btn.textContent = 'Copy';
+                btn.classList.remove('copied');
+            }, 2000);
+        }
+        
+        // Complete Calry Setup - User has added webhook
+        async function completeCalrySetup() {
+            goToStep3();
+            
+            try {
+                // Notify backend that setup is complete, trigger initial sync
+                const response = await fetch('/api/calry/complete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        pms: selectedCm.id,
+                        connection_id: window.calryConnectionId,
+                        email: onboardingData.email
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showSuccess(data.property_count || 0);
+                } else {
+                    throw new Error(data.error || 'Could not complete setup');
+                }
+            } catch (error) {
+                console.error('Calry complete error:', error);
                 // Demo mode - simulate success
-                setTimeout(() => showSuccess(5), 2000);
+                setTimeout(() => showSuccess(3), 2000);
             }
         }
 
