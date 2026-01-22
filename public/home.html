@@ -364,148 +364,90 @@
             color: var(--text-primary);
         }
 
-        /* Right Side - Chat */
+        /* Right Side - CTA */
         .chat-section {
             width: 40%;
             display: flex;
             flex-direction: column;
-            padding: 1.5rem 2.5rem 1.5rem 1rem;
+            justify-content: center;
+            padding: 2rem 3rem 2rem 1.5rem;
         }
 
-        .chat-container {
-            flex: 1;
+        .cta-container {
             background: white;
             border-radius: 20px;
             box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            max-height: calc(100vh - 110px);
+            padding: 3rem;
+            text-align: center;
         }
 
-        .chat-header {
-            padding: 1.25rem 1.5rem;
-            border-bottom: 1px solid #f1f5f9;
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-        }
-
-        .chat-header-icon {
-            width: 44px;
-            height: 44px;
+        .cta-icon {
+            width: 64px;
+            height: 64px;
             background: linear-gradient(135deg, #6366f1, #8b5cf6);
-            border-radius: 12px;
+            border-radius: 16px;
             display: flex;
             align-items: center;
             justify-content: center;
+            margin: 0 auto 1.5rem;
         }
 
-        .chat-header-icon svg {
-            width: 24px;
-            height: 24px;
-            fill: white;
+        .cta-icon svg {
+            width: 32px;
+            height: 32px;
+            stroke: white;
         }
 
-        .chat-header-text h3 {
-            font-size: 1rem;
+        .cta-container h2 {
+            font-size: 1.5rem;
             font-weight: 600;
+            margin-bottom: 0.75rem;
             color: var(--text-primary);
         }
 
-        .chat-header-text span {
-            font-size: 0.8rem;
-            color: var(--text-muted);
+        .cta-container > p {
+            font-size: 1rem;
+            color: var(--text-secondary);
+            margin-bottom: 2rem;
+            line-height: 1.6;
         }
 
-        .chat-messages {
-            flex: 1;
-            overflow-y: auto;
-            padding: 1.5rem;
-            display: flex;
-            flex-direction: column;
-            gap: 1rem;
-        }
-
-        .chat-message {
-            max-width: 85%;
-            padding: 1rem 1.25rem;
-            border-radius: 16px;
-            font-size: 0.95rem;
-            line-height: 1.5;
-        }
-
-        .chat-message.bot {
-            background: #f1f5f9;
-            color: var(--text-primary);
-            align-self: flex-start;
-            border-bottom-left-radius: 4px;
-        }
-
-        .chat-message.user {
+        .cta-button {
+            display: inline-block;
+            padding: 1rem 2rem;
             background: var(--text-primary);
             color: white;
-            align-self: flex-end;
-            border-bottom-right-radius: 4px;
+            text-decoration: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
         }
 
-        .chat-options {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.5rem;
-            margin-top: 0.75rem;
+        .cta-button:hover {
+            background: #334155;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         }
 
-        .chat-option {
-            padding: 0.6rem 1rem;
-            background: white;
-            border: 1px solid #e2e8f0;
-            border-radius: 20px;
-            font-size: 0.85rem;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-
-        .chat-option:hover {
-            background: var(--text-primary);
-            color: white;
-            border-color: var(--text-primary);
-        }
-
-        .chat-input-area {
-            padding: 1rem 1.5rem;
+        .cta-links {
+            margin-top: 2rem;
+            padding-top: 1.5rem;
             border-top: 1px solid #f1f5f9;
             display: flex;
-            gap: 0.75rem;
+            justify-content: center;
+            gap: 2rem;
         }
 
-        .chat-input {
-            flex: 1;
-            padding: 0.85rem 1rem;
-            border: 1px solid #e2e8f0;
-            border-radius: 12px;
+        .cta-links a {
             font-size: 0.9rem;
-            outline: none;
-            font-family: inherit;
+            color: var(--text-muted);
+            text-decoration: none;
+            transition: color 0.2s;
         }
 
-        .chat-input:focus {
-            border-color: var(--text-primary);
-        }
-
-        .chat-send {
-            padding: 0.85rem 1.25rem;
-            background: var(--text-primary);
-            color: white;
-            border: none;
-            border-radius: 12px;
-            cursor: pointer;
-            font-size: 0.9rem;
-            transition: background 0.2s;
-        }
-
-        .chat-send:hover {
-            background: #334155;
+        .cta-links a:hover {
+            color: var(--text-primary);
         }
 
         /* Progress bar */
@@ -721,22 +663,20 @@
             </div>
         </div>
 
-        <!-- Right Side - Chat -->
+        <!-- Right Side - CTA -->
         <div class="chat-section">
-            <div class="chat-container">
-                <div class="chat-header">
-                    <div class="chat-header-icon">
-                        <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>
-                    </div>
-                    <div class="chat-header-text">
-                        <h3>Enter GAS</h3>
-                        <span>Create your account</span>
-                    </div>
+            <div class="cta-container">
+                <div class="cta-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349m-16.5 11.65V9.35m0 0a3.001 3.001 0 003.75-.615A2.993 2.993 0 009.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 002.25 1.016c.896 0 1.7-.393 2.25-1.016a3.001 3.001 0 003.75.614m-16.5 0a3.004 3.004 0 01-.621-4.72L4.318 3.44A1.5 1.5 0 015.378 3h13.243a1.5 1.5 0 011.06.44l1.19 1.189a3 3 0 01-.621 4.72m-13.5 8.65h3.75a.75.75 0 00.75-.75V13.5a.75.75 0 00-.75-.75H6.75a.75.75 0 00-.75.75v3.75c0 .415.336.75.75.75z" />
+                    </svg>
                 </div>
-                <div class="chat-messages" id="chatMessages"></div>
-                <div class="chat-input-area" id="chatInputArea" style="display: none;">
-                    <input type="text" class="chat-input" id="chatInput" placeholder="Type here..." onkeypress="handleChatKeypress(event)">
-                    <button class="chat-send" onclick="sendChatInput()">Send</button>
+                <h2>Property Owner?</h2>
+                <p>Connect your channel manager to register your properties on GAS for free.</p>
+                <a href="/owners-setup" class="cta-button">Connect Channel Manager</a>
+                <div class="cta-links">
+                    <a href="/agents">I'm a Travel Agent</a>
+                    <a href="/build">I'm a Developer</a>
                 </div>
             </div>
         </div>
@@ -763,7 +703,6 @@
             createProgressDots();
             showCard(0);
             if (autoAdvance) startAutoAdvance();
-            startChat();
         }
 
         function createProgressDots() {
@@ -899,271 +838,6 @@
         document.querySelector('.stack-container').addEventListener('mouseleave', () => {
             if (autoAdvance) startAutoAdvance();
         });
-
-        // =====================================================
-        // CHAT BOT
-        // =====================================================
-        let userData = {};
-        let currentPersona = null;
-        let currentStep = 0;
-        let currentFlow = null;
-
-        const chatFlows = {
-            owner: [
-                { 
-                    message: "Do you currently use a channel manager?",
-                    options: ["Yes", "No", "Not sure"],
-                    saveAs: "hasChannelManager"
-                },
-                {
-                    message: "Which channel manager do you use?",
-                    input: true,
-                    placeholder: "e.g., Beds24, Smoobu, Hostaway...",
-                    saveAs: "channelManager",
-                    condition: (data) => data.hasChannelManager === "Yes"
-                },
-                {
-                    message: "How many rooms or units do you have?",
-                    options: ["1", "2–5", "6–20", "21–100", "100+"],
-                    saveAs: "roomCount"
-                },
-                {
-                    message: "Would you like to register your properties on GAS for free?",
-                    options: ["Yes", "Not sure yet"],
-                    saveAs: "registerProperties"
-                },
-                {
-                    message: "Which country or region are you in?",
-                    input: true,
-                    placeholder: "Country or region",
-                    saveAs: "location"
-                },
-                {
-                    message: "Enter your email to create your GAS account:",
-                    input: true,
-                    placeholder: "your@email.com",
-                    saveAs: "email",
-                    final: true
-                }
-            ],
-            agent: [
-                {
-                    message: "How many properties do you book or manage?",
-                    options: ["1–10", "11–25", "26–100", "100+"],
-                    saveAs: "propertyCount"
-                },
-                {
-                    message: "Are you interested in the Agent plan? It includes 25 GAS Lites.",
-                    options: ["Yes", "Not sure"],
-                    saveAs: "agentPlan"
-                },
-                {
-                    message: "Which country or region do you sell?",
-                    input: true,
-                    placeholder: "Country or region",
-                    saveAs: "location"
-                },
-                {
-                    message: "Enter your email to create your GAS account:",
-                    input: true,
-                    placeholder: "your@email.com",
-                    saveAs: "email",
-                    final: true
-                }
-            ],
-            builder: [
-                {
-                    message: "What type of work do you do?",
-                    options: ["Developer", "Designer", "Marketing Agency", "Integrator"],
-                    saveAs: "builderType"
-                },
-                {
-                    message: "Which services do you offer?",
-                    options: ["Web Development", "Design", "SEO & Marketing", "Integrations", "All of these"],
-                    saveAs: "services"
-                },
-                {
-                    message: "Implementations must use the GAS plugin/connector. Confirm?",
-                    options: ["Yes, understood"],
-                    saveAs: "confirmed"
-                },
-                {
-                    message: "Enter your email to create your GAS account:",
-                    input: true,
-                    placeholder: "your@email.com",
-                    saveAs: "email",
-                    final: true
-                }
-            ],
-            traveller: [
-                {
-                    message: "Would you like a GAS Vault account for faster booking and secure details?",
-                    options: ["Yes", "Not sure"],
-                    saveAs: "wantsVault"
-                },
-                {
-                    message: "Which country are you in?",
-                    input: true,
-                    placeholder: "Country",
-                    saveAs: "location"
-                },
-                {
-                    message: "Enter your email to create your GAS account:",
-                    input: true,
-                    placeholder: "your@email.com",
-                    saveAs: "email",
-                    final: true
-                }
-            ]
-        };
-
-        function startChat() {
-            addChatMessage("Welcome to the Global Accommodation System.", 'bot', []);
-            setTimeout(() => {
-                addChatMessage("Which best describes you?", 'bot', [
-                    { label: "Property Owner", value: "owner" },
-                    { label: "Travel Agent", value: "agent" },
-                    { label: "Developer or Agency", value: "builder" },
-                    { label: "Traveller", value: "traveller" }
-                ]);
-            }, 600);
-        }
-
-        function addChatMessage(text, type, options = []) {
-            const container = document.getElementById('chatMessages');
-            const msgDiv = document.createElement('div');
-            msgDiv.className = `chat-message ${type}`;
-            msgDiv.textContent = text;
-            
-            if (options.length > 0) {
-                const optionsDiv = document.createElement('div');
-                optionsDiv.className = 'chat-options';
-                options.forEach(opt => {
-                    const btn = document.createElement('button');
-                    btn.className = 'chat-option';
-                    btn.textContent = typeof opt === 'string' ? opt : opt.label;
-                    btn.onclick = () => handleOption(typeof opt === 'string' ? opt : opt.value, typeof opt === 'string' ? opt : opt.label);
-                    optionsDiv.appendChild(btn);
-                });
-                msgDiv.appendChild(optionsDiv);
-            }
-            
-            container.appendChild(msgDiv);
-            container.scrollTop = container.scrollHeight;
-        }
-
-        function addUserMessage(text) {
-            const container = document.getElementById('chatMessages');
-            const msgDiv = document.createElement('div');
-            msgDiv.className = 'chat-message user';
-            msgDiv.textContent = text;
-            container.appendChild(msgDiv);
-            container.scrollTop = container.scrollHeight;
-            
-            const allOptions = container.querySelectorAll('.chat-options');
-            allOptions.forEach(o => o.remove());
-        }
-
-        function handleOption(value, label) {
-            addUserMessage(label);
-            
-            if (!currentPersona) {
-                currentPersona = value;
-                currentFlow = chatFlows[value];
-                currentStep = 0;
-                userData.persona = value;
-                
-                setTimeout(() => processStep(), 400);
-                return;
-            }
-            
-            const step = currentFlow[currentStep];
-            userData[step.saveAs] = value;
-            
-            currentStep++;
-            setTimeout(() => processStep(), 400);
-        }
-
-        function processStep() {
-            while (currentStep < currentFlow.length) {
-                const step = currentFlow[currentStep];
-                if (step.condition && !step.condition(userData)) {
-                    currentStep++;
-                    continue;
-                }
-                break;
-            }
-            
-            if (currentStep >= currentFlow.length) {
-                completeChat();
-                return;
-            }
-            
-            const step = currentFlow[currentStep];
-            
-            if (step.input) {
-                addChatMessage(step.message, 'bot');
-                showInput(step.placeholder, step.saveAs, step.final);
-            } else {
-                addChatMessage(step.message, 'bot', step.options);
-            }
-        }
-
-        function showInput(placeholder, saveAs, isFinal) {
-            const inputArea = document.getElementById('chatInputArea');
-            const input = document.getElementById('chatInput');
-            inputArea.style.display = 'flex';
-            input.placeholder = placeholder;
-            input.dataset.saveAs = saveAs;
-            input.dataset.final = isFinal ? 'true' : 'false';
-            input.focus();
-        }
-
-        function handleChatKeypress(e) {
-            if (e.key === 'Enter') sendChatInput();
-        }
-
-        function sendChatInput() {
-            const input = document.getElementById('chatInput');
-            const value = input.value.trim();
-            if (!value) return;
-            
-            addUserMessage(value);
-            userData[input.dataset.saveAs] = value;
-            
-            input.value = '';
-            document.getElementById('chatInputArea').style.display = 'none';
-            
-            if (input.dataset.final === 'true') {
-                setTimeout(() => completeChat(), 400);
-            } else {
-                currentStep++;
-                setTimeout(() => processStep(), 400);
-            }
-        }
-
-        function completeChat() {
-            console.log('User data:', userData);
-            
-            addChatMessage("Creating your GAS account...", 'bot');
-            
-            setTimeout(() => {
-                const redirects = {
-                    owner: '/owners-setup',
-                    agent: '/agents-setup',
-                    builder: '/build-setup',
-                    traveller: '/travellers-setup'
-                };
-                
-                addChatMessage("Your account is ready. Redirecting you now...", 'bot');
-                
-                localStorage.setItem('gas_onboarding', JSON.stringify(userData));
-                
-                setTimeout(() => {
-                    window.location.href = redirects[currentPersona] || '/dashboard';
-                }, 1500);
-            }, 1000);
-        }
 
         // Initialize
         document.addEventListener('DOMContentLoaded', init);
