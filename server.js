@@ -20041,6 +20041,100 @@ app.post('/api/admin/calry/sync-connection/:connectionId', async (req, res) => {
   }
 });
 
+// Debug endpoint to test Calry room type sync
+app.get('/api/admin/calry/debug-room-sync/:connectionId', async (req, res) => {
+  const { connectionId } = req.params;
+  const debug = { steps: [] };
+  
+  try {
+    // Get connection
+    const connResult = await pool.query(
+      'SELECT id, account_id, external_account_id FROM gas_sync_connections WHERE id = $1',
+      [connectionId]
+    );
+    if (connResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Connection not found' });
+    }
+    const connection = connResult.rows[0];
+    debug.steps.push({ step: 'connection', data: connection });
+    
+    // Create adapter
+    const adapter = getAdapter('calry', {
+      token: CALRY_API_TOKEN,
+      workspaceId: CALRY_WORKSPACE_ID,
+      integrationAccountId: connection.external_account_id,
+      pool: pool,
+      connectionId: parseInt(connectionId),
+      useDev: false
+    });
+    debug.steps.push({ step: 'adapter_created', connectionId: adapter.connectionId, pool: !!adapter.pool });
+    
+    // Get properties
+    const propsResult = await adapter.getProperties();
+    debug.steps.push({ step: 'getProperties', success: propsResult.success, count: propsResult.data?.length });
+    
+    if (!propsResult.success || !propsResult.data?.length) {
+      return res.json({ success: false, debug });
+    }
+    
+    const property = propsResult.data[0];
+    debug.steps.push({ step: 'first_property', id: property.externalId, name: property.name });
+    
+    // Get room types
+    const roomTypesResult = await adapter.getRoomTypes(property.externalId);
+    debug.steps.push({ 
+      step: 'getRoomTypes', 
+      success: roomTypesResult.success, 
+      count: roomTypesResult.data?.length,
+      error: roomTypesResult.error,
+      firstRoom: roomTypesResult.data?.[0] ? {
+        id: roomTypesResult.data[0].externalId,
+        name: roomTypesResult.data[0].name,
+        bedrooms: roomTypesResult.data[0].bedrooms,
+        maxGuests: roomTypesResult.data[0].maxGuests
+      } : null
+    });
+    
+    // Check if property exists in gas_sync_properties
+    const syncPropResult = await pool.query(
+      'SELECT id FROM gas_sync_properties WHERE connection_id = $1 AND external_id = $2',
+      [connectionId, property.externalId]
+    );
+    debug.steps.push({ step: 'sync_property_check', found: syncPropResult.rows.length > 0, syncPropertyId: syncPropResult.rows[0]?.id });
+    
+    // Try to sync room type if we have one
+    if (roomTypesResult.success && roomTypesResult.data?.length > 0 && syncPropResult.rows.length > 0) {
+      const roomType = roomTypesResult.data[0];
+      try {
+        // Ensure columns exist
+        await pool.query('ALTER TABLE gas_sync_room_types ADD COLUMN IF NOT EXISTS bedrooms INTEGER').catch(() => {});
+        await pool.query('ALTER TABLE gas_sync_room_types ADD COLUMN IF NOT EXISTS bathrooms INTEGER').catch(() => {});
+        await pool.query('ALTER TABLE gas_sync_room_types ADD COLUMN IF NOT EXISTS raw_data JSONB').catch(() => {});
+        await pool.query('ALTER TABLE gas_sync_room_types ADD COLUMN IF NOT EXISTS max_guests INTEGER').catch(() => {});
+        await pool.query('ALTER TABLE gas_sync_room_types ADD COLUMN IF NOT EXISTS base_price DECIMAL(10,2)').catch(() => {});
+        await pool.query('ALTER TABLE gas_sync_room_types ADD COLUMN IF NOT EXISTS currency VARCHAR(3)').catch(() => {});
+        
+        const roomSyncId = await adapter.syncRoomTypeToDatabase(roomType, property.externalId);
+        debug.steps.push({ step: 'syncRoomTypeToDatabase', success: true, roomSyncId });
+      } catch (e) {
+        debug.steps.push({ step: 'syncRoomTypeToDatabase', success: false, error: e.message });
+      }
+    }
+    
+    // Check what's in gas_sync_room_types now
+    const roomTypesInDb = await pool.query(
+      'SELECT id, external_id, name, bedrooms, bathrooms, max_guests FROM gas_sync_room_types WHERE sync_property_id = $1',
+      [syncPropResult.rows[0]?.id || 0]
+    );
+    debug.steps.push({ step: 'room_types_in_db', count: roomTypesInDb.rows.length, rooms: roomTypesInDb.rows });
+    
+    res.json({ success: true, debug });
+  } catch (error) {
+    debug.steps.push({ step: 'error', message: error.message });
+    res.json({ success: false, error: error.message, debug });
+  }
+});
+
 // =====================================================
 // CALRY WEBHOOKS
 // =====================================================
