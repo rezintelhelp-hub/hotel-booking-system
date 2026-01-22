@@ -831,7 +831,7 @@
         <div class="section">
             <div class="section-title">Step 1: Connect Your Channel Manager</div>
             <div class="cards">
-                <div class="card active" id="cmCard" onclick="openCMModal()">
+                <div class="card active" id="cmCard" onclick="window.location.href='/connect-cm.html'">
                     <div class="card-icon">🔗</div>
                     <div class="card-title">Channel Manager</div>
                     <div class="card-desc">Connect your channel manager to sync rooms, availability and pricing automatically.</div>
@@ -943,7 +943,7 @@
                         <button class="chat-quick-btn" onclick="sendQuickMessage('I want to list my property')">🏨 List my property</button>
                         <button class="chat-quick-btn" onclick="sendQuickMessage('I am a travel agent')">✈️ I'm a travel agent</button>
                         <button class="chat-quick-btn" onclick="sendQuickMessage('What is GAS?')">❓ What is GAS?</button>
-                        <button class="chat-quick-btn" onclick="sendQuickMessage('I need help connecting my channel manager')">🔗 Connect channel manager</button>
+                        <button class="chat-quick-btn" onclick="window.location.href='/connect-cm.html'">🔗 Connect channel manager</button>
                     </div>
                 </div>
             </div>
@@ -1064,7 +1064,7 @@
                         👋 Welcome back, ${currentUser.name}!
                         <div class="chat-quick-actions">
                             <button class="chat-quick-btn" onclick="window.location.href='/gas-admin.html'">⚙️ Go to Dashboard</button>
-                            <button class="chat-quick-btn" onclick="openCMModal()">🔗 Connect another property</button>
+                            <button class="chat-quick-btn" onclick="window.location.href='/connect-cm.html'">🔗 Connect another property</button>
                             <button class="chat-quick-btn" onclick="sendQuickMessage('I need help')">❓ I need help</button>
                         </div>
                     </div>
