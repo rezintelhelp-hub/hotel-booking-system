@@ -502,7 +502,25 @@ const PORT = process.env.PORT || 3000;
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
+  ssl: { rejectUnauthorized: false },
+  // Connection pool settings for stability
+  max: 20,                          // Maximum number of clients
+  idleTimeoutMillis: 30000,         // Close idle clients after 30s
+  connectionTimeoutMillis: 10000,   // Return an error after 10s if can't connect
+  allowExitOnIdle: false            // Keep pool alive even when idle
+});
+
+// Handle pool errors gracefully to prevent crashes
+pool.on('error', (err, client) => {
+  console.error('⚠️ Unexpected PostgreSQL pool error:', err.message);
+  // Don't crash - the pool will create new connections as needed
+});
+
+// Handle individual client errors
+pool.on('connect', (client) => {
+  client.on('error', (err) => {
+    console.error('⚠️ PostgreSQL client error:', err.message);
+  });
 });
 
 // Initialize GasSync Manager
@@ -20388,36 +20406,47 @@ app.get('/api/debug/calry-import/:propertyId', async (req, res) => {
   try {
     const { propertyId } = req.params;
     
-    // Get property data
+    // Get property data - only select columns that exist
     const propResult = await pool.query(`
       SELECT id, name, description, city, country, address, latitude, longitude, 
-             currency, cm_property_id, cm_source, settings
+             currency, cm_property_id, cm_source
       FROM properties 
-      WHERE id = $1 OR cm_property_id = $1
+      WHERE id = $1 OR cm_property_id = $1::text
     `, [propertyId]);
     
+    const gasPropertyId = propResult.rows[0]?.id;
+    
     // Get room data
-    const roomResult = await pool.query(`
-      SELECT id, name, description, max_guests, num_bedrooms, num_bathrooms, 
-             base_price, currency, amenities, cm_room_id, cm_source
-      FROM bookable_units 
-      WHERE property_id = $1
-    `, [propResult.rows[0]?.id || propertyId]);
+    let roomResult = { rows: [] };
+    if (gasPropertyId) {
+      roomResult = await pool.query(`
+        SELECT id, name, description, max_guests, num_bedrooms, num_bathrooms, 
+               base_price, currency, amenities, cm_room_id, cm_source
+        FROM bookable_units 
+        WHERE property_id = $1
+      `, [gasPropertyId]);
+    }
     
     // Get images
-    const imageResult = await pool.query(`
-      SELECT id, room_id, image_key, image_url, caption, display_order, is_primary
-      FROM property_images 
-      WHERE property_id = $1
-      ORDER BY display_order
-    `, [propResult.rows[0]?.id || propertyId]);
+    let imageResult = { rows: [] };
+    if (gasPropertyId) {
+      imageResult = await pool.query(`
+        SELECT id, room_id, image_key, image_url, caption, display_order, is_primary
+        FROM property_images 
+        WHERE property_id = $1
+        ORDER BY display_order
+      `, [gasPropertyId]);
+    }
     
     // Get sync property raw data
-    const syncResult = await pool.query(`
-      SELECT name, raw_data, created_at, updated_at
-      FROM gas_sync_properties 
-      WHERE gas_property_id = $1
-    `, [propResult.rows[0]?.id || propertyId]);
+    let syncResult = { rows: [] };
+    if (gasPropertyId) {
+      syncResult = await pool.query(`
+        SELECT name, raw_data, created_at, updated_at
+        FROM gas_sync_properties 
+        WHERE gas_property_id = $1
+      `, [gasPropertyId]);
+    }
     
     res.json({
       success: true,
