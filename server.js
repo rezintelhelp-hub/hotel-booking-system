@@ -19019,7 +19019,7 @@ app.get('/api/calry/link/start', async (req, res) => {
   console.log('=== CALRY LINK: START ===');
   
   try {
-    const { account_id, pms } = req.query;
+    const { account_id, pms, final_redirect } = req.query;
     
     if (!CALRY_API_TOKEN || !CALRY_WORKSPACE_ID) {
       return res.status(500).json({ 
@@ -19033,7 +19033,7 @@ app.get('/api/calry/link/start', async (req, res) => {
     
     // We need the linkId in the redirect URL, but we don't have it until after creation.
     // Solution: Use accountIdentifier to look up the link on callback
-    const redirectUrl = `https://api.gas.travel/api/calry/link/callback?account=${accountIdentifier}`;
+    const redirectUrl = `https://api.gas.travel/api/calry/link/callback?account=${accountIdentifier}&gas_account_id=${account_id || ''}&final_redirect=${encodeURIComponent(final_redirect || '')}`;
     
     // Create link via Calry API
     const linkResponse = await axios.post('https://prod.calry.app/api/v1/link', {
@@ -19201,7 +19201,7 @@ app.get('/api/calry/link/callback', async (req, res) => {
   console.log('Query params:', req.query);
   
   try {
-    const { account, gas_account_id } = req.query;
+    const { account, gas_account_id, final_redirect } = req.query;
     
     if (!account) {
       return res.send(`
@@ -19301,8 +19301,19 @@ app.get('/api/calry/link/callback', async (req, res) => {
       await pool.query('DELETE FROM calry_link_sessions WHERE link_id = $1', [linkId]);
     } catch (e) {}
     
-    // Redirect to success page
-    res.redirect(`https://admin.gas.travel/connections?calry_connected=true&pms=${encodeURIComponent(pmsName)}&properties_imported=${successCount}&integration_id=${intAccountId}&account_id=${finalAccountId}`);
+    // Build redirect URL with results
+    const resultParams = `calry_connected=true&pms=${encodeURIComponent(pmsName)}&properties_imported=${successCount}&integration_id=${intAccountId}&account_id=${finalAccountId}`;
+    
+    // Use custom final_redirect if provided, otherwise default to admin
+    let redirectTo;
+    if (final_redirect) {
+      const separator = final_redirect.includes('?') ? '&' : '?';
+      redirectTo = `${decodeURIComponent(final_redirect)}${separator}${resultParams}`;
+    } else {
+      redirectTo = `https://admin.gas.travel/connections?${resultParams}`;
+    }
+    
+    res.redirect(redirectTo);
     
   } catch (error) {
     console.error('Calry Link callback error:', error.response?.data || error.message);
@@ -30449,10 +30460,10 @@ app.get('/api/elevate/:apiKey/property/:propertyId/images', async (req, res) => 
     // Get images
     try {
       const images = await pool.query(`
-        SELECT id, url, caption, sort_order, is_primary, room_id, external_id
+        SELECT id, COALESCE(image_url, url) as url, caption, COALESCE(display_order, sort_order, 0) as sort_order, is_primary, room_id, external_id
         FROM property_images
-        WHERE property_id = $1 AND room_id IS NULL
-        ORDER BY sort_order, id
+        WHERE property_id = $1 AND room_id IS NULL AND (is_active IS NULL OR is_active = true)
+        ORDER BY COALESCE(display_order, sort_order, 0), id
       `, [gasPropertyId]);
       
       res.json({ 
@@ -30644,10 +30655,10 @@ app.get('/api/elevate/:apiKey/room/:roomId/images', async (req, res) => {
     // Get images
     try {
       const images = await pool.query(`
-        SELECT id, url, caption, sort_order, is_primary, external_id
+        SELECT id, COALESCE(image_url, url) as url, caption, COALESCE(display_order, sort_order, 0) as sort_order, is_primary, external_id
         FROM property_images
-        WHERE property_id = $1 AND room_id = $2
-        ORDER BY sort_order, id
+        WHERE property_id = $1 AND room_id = $2 AND (is_active IS NULL OR is_active = true)
+        ORDER BY COALESCE(display_order, sort_order, 0), id
       `, [propertyId, gasRoomId]);
       
       res.json({ 
