@@ -2505,6 +2505,10 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
             });
             
             // Response can be { data: [...] } or just [...] directly
+            console.log(`[Calry Sync] Raw response type:`, typeof availResponse.data);
+            console.log(`[Calry Sync] Raw response keys:`, availResponse.data ? Object.keys(availResponse.data) : 'null');
+            console.log(`[Calry Sync] Raw response sample:`, JSON.stringify(availResponse.data).substring(0, 500));
+            
             const availData = availResponse.data?.data || availResponse.data || [];
             console.log(`[Calry Sync] Room type ${roomTypeId}: ${Array.isArray(availData) ? availData.length : 'non-array'} availability records`);
             
