@@ -14513,7 +14513,7 @@ Local honey and preserves"></textarea>
                 <!-- Stripe Payment Connection -->
                 <div style="margin-bottom: 1.5rem;">
                     <h4 style="margin: 0 0 1rem 0; color: var(--text-primary); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;">💳 Stripe Payment Connection</h4>
-                    <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 1rem;">Connect Stripe to receive payments. <a href="https://dashboard.stripe.com/apikeys" target="_blank" style="color: var(--accent);">Create a Restricted Key</a> with these permissions: <strong>Charges, Payment Intents, Customers, Refunds</strong> (all Write access).</p>
+                    <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 1rem;">Connect Stripe to receive payments. <a href="https://dashboard.stripe.com/apikeys" target="_blank" style="color: var(--accent);">Get your API Keys</a> - create a Restricted Key with: <strong>Charges, Payment Intents, Customers, Refunds</strong> (Write access).</p>
                     
                     <div id="property-stripe-status" style="padding: 0.75rem; border-radius: 8px; margin-bottom: 1rem; background: #f1f5f9;">
                         <span style="color: #64748b;">Checking Stripe status...</span>
@@ -14525,17 +14525,11 @@ Local honey and preserves"></textarea>
                         <small style="color: #64748b;">A friendly name to identify this Stripe account</small>
                     </div>
                     
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                        <div class="form-group">
-                            <label class="form-label">Restricted Publishable Key</label>
-                            <input type="text" class="form-input" id="edit-property-stripe-publishable" placeholder="pk_live_... or pk_test_...">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Restricted Secret Key</label>
-                            <input type="password" class="form-input" id="edit-property-stripe-secret" placeholder="rk_live_... or sk_test_...">
-                        </div>
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label class="form-label">Restricted Secret Key</label>
+                        <input type="password" class="form-input" id="edit-property-stripe-secret" placeholder="rk_live_... (from Stripe Dashboard → API Keys → Restricted Keys)">
+                        <small style="color: #64748b;">Create a Restricted Key in Stripe with the permissions listed above</small>
                     </div>
-                    <small style="color: #64748b;">Use test keys (pk_test/sk_test) for testing, live restricted keys (rk_live) for real payments.</small>
                 </div>
                 
                 <div style="display: flex; gap: 1rem; justify-content: space-between; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid #e2e8f0;">
@@ -14563,20 +14557,14 @@ Local honey and preserves"></textarea>
                 
                 <!-- Stripe Keys Input -->
                 <div style="background: #f8fafc; border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem; border: 1px solid #e2e8f0;">
-                    <h4 style="margin: 0 0 1rem 0; font-size: 0.9rem; color: #1e293b;">Stripe Restricted Keys</h4>
+                    <h4 style="margin: 0 0 1rem 0; font-size: 0.9rem; color: #1e293b;">Stripe Restricted Key</h4>
                     <div class="form-group" style="margin-bottom: 1rem;">
                         <label class="form-label">Stripe Account Name</label>
                         <input type="text" class="form-input" id="bulk-stripe-name" placeholder="e.g. Main Account, Beach Villas, etc.">
                     </div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                        <div class="form-group">
-                            <label class="form-label">Publishable Key</label>
-                            <input type="text" class="form-input" id="bulk-stripe-publishable" placeholder="pk_live_... or pk_test_...">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Restricted Secret Key</label>
-                            <input type="password" class="form-input" id="bulk-stripe-secret" placeholder="rk_live_... or sk_test_...">
-                        </div>
+                    <div class="form-group">
+                        <label class="form-label">Restricted Secret Key</label>
+                        <input type="password" class="form-input" id="bulk-stripe-secret" placeholder="rk_live_... (from Stripe Dashboard → API Keys → Restricted Keys)">
                     </div>
                 </div>
                 
@@ -21447,7 +21435,7 @@ Local honey and preserves"></textarea>
                                             <td>
                                                 <div style="display: flex; gap: 0.25rem;">
                                                     <button class="btn btn-secondary btn-small" onclick="editProperty(${prop.id})">✏️ Edit</button>
-                                                    <button class="btn btn-secondary btn-small" onclick="openPropertyStripeSettings(${prop.id}, '${(prop.name || '').replace(/'/g, "\\'")}')" title="Stripe Payment Settings" style="${prop.stripe_publishable_key ? 'color: #10b981;' : 'color: #f59e0b;'}">💳</button>
+                                                    <button class="btn btn-secondary btn-small" onclick="openPropertyStripeSettings(${prop.id}, '${(prop.name || '').replace(/'/g, "\\'")}')" title="Stripe Payment Settings" style="${prop.stripe_secret_key ? 'color: #10b981;' : 'color: #f59e0b;'}">💳</button>
                                                     <button class="btn btn-secondary btn-small" onclick="openPaymentSettings(${prop.id}, '${(prop.name || '').replace(/'/g, "\\'")}')" title="Payment Settings">⚙️</button>
                                                 </div>
                                             </td>
@@ -32931,18 +32919,15 @@ Local honey and preserves"></textarea>
                     
                     // Stripe fields
                     document.getElementById('edit-property-stripe-name').value = prop.stripe_name || '';
-                    document.getElementById('edit-property-stripe-publishable').value = prop.stripe_publishable_key || '';
                     document.getElementById('edit-property-stripe-secret').value = ''; // Don't show secret, just placeholder
                     
                     // Update Stripe status display
                     const stripeStatus = document.getElementById('property-stripe-status');
-                    if (prop.stripe_publishable_key) {
+                    if (prop.stripe_secret_key) {
                         const stripeName = prop.stripe_name ? ` (${prop.stripe_name})` : '';
                         stripeStatus.innerHTML = `<span style="color: #10b981;">✓ Stripe is connected${stripeName}</span>`;
                         stripeStatus.style.background = '#d1fae5';
-                        if (prop.stripe_secret_key) {
-                            document.getElementById('edit-property-stripe-secret').placeholder = '••••••••••••••••• (saved)';
-                        }
+                        document.getElementById('edit-property-stripe-secret').placeholder = '••••••••••••••••• (saved)';
                     } else {
                         stripeStatus.innerHTML = '<span style="color: #f59e0b;">⚠ Stripe not connected - payments disabled for this property</span>';
                         stripeStatus.style.background = '#fef3c7';
@@ -32995,8 +32980,7 @@ Local honey and preserves"></textarea>
                 longitude: document.getElementById('edit-property-longitude').value ? parseFloat(document.getElementById('edit-property-longitude').value) : null,
                 status: document.getElementById('edit-property-status').value,
                 // Stripe fields
-                stripe_name: document.getElementById('edit-property-stripe-name').value || null,
-                stripe_publishable_key: document.getElementById('edit-property-stripe-publishable').value || null
+                stripe_name: document.getElementById('edit-property-stripe-name').value || null
             };
             
             // Only include secret key if it was changed (not the placeholder)
@@ -39383,7 +39367,7 @@ Local honey and preserves"></textarea>
                                 <div style="font-size: 0.8rem; color: #64748b;">${prop.city || ''}${prop.city && prop.country ? ', ' : ''}${prop.country || ''}</div>
                             </div>
                             <div style="text-align: right;">
-                                ${prop.stripe_publishable_key 
+                                ${prop.stripe_secret_key 
                                     ? '<span style="color: #10b981; font-size: 0.8rem;">✓ Connected</span>' 
                                     : '<span style="color: #f59e0b; font-size: 0.8rem;">Not connected</span>'}
                             </div>
@@ -39393,7 +39377,6 @@ Local honey and preserves"></textarea>
                 
                 // Reset form
                 document.getElementById('bulk-stripe-name').value = '';
-                document.getElementById('bulk-stripe-publishable').value = '';
                 document.getElementById('bulk-stripe-secret').value = '';
                 updateBulkStripeCount();
                 
@@ -39416,11 +39399,10 @@ Local honey and preserves"></textarea>
         
         async function applyBulkStripe() {
             const stripeName = document.getElementById('bulk-stripe-name').value.trim();
-            const publishableKey = document.getElementById('bulk-stripe-publishable').value.trim();
             const secretKey = document.getElementById('bulk-stripe-secret').value.trim();
             
-            if (!publishableKey || !secretKey) {
-                showNotification('Please enter both Publishable and Secret keys', 'error');
+            if (!secretKey) {
+                showNotification('Please enter the Restricted Secret Key', 'error');
                 return;
             }
             
@@ -39431,12 +39413,12 @@ Local honey and preserves"></textarea>
                 return;
             }
             
-            if (!confirm(`Apply Stripe keys${stripeName ? ` (${stripeName})` : ''} to ${selectedIds.length} properties?`)) {
+            if (!confirm(`Apply Stripe key${stripeName ? ` (${stripeName})` : ''} to ${selectedIds.length} properties?`)) {
                 return;
             }
             
             try {
-                showNotification('Applying Stripe keys...', 'info');
+                showNotification('Applying Stripe key...', 'info');
                 
                 let successCount = 0;
                 let errorCount = 0;
@@ -39448,7 +39430,6 @@ Local honey and preserves"></textarea>
                             headers: { 'Content-Type': 'application/json', ...authHeaders() },
                             body: JSON.stringify({
                                 stripe_name: stripeName || null,
-                                stripe_publishable_key: publishableKey,
                                 stripe_secret_key: secretKey
                             })
                         });
