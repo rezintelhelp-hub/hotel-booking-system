@@ -415,14 +415,43 @@ class CalryAdapter {
    * In v2, availability is per roomTypeId (the bookable entity)
    */
   async getAvailability(roomTypeExternalId, startDate, endDate) {
-    // Try v2 endpoint first
-    let response = await this.request(`/vrs/room-types/${roomTypeExternalId}/availability`, 'GET', null, {
-      params: { startDate, endDate }
+    // Try prod v2 endpoint first: /vrs/availability/{roomTypeId}?rates=true
+    let response = await this.request(`/vrs/availability/${roomTypeExternalId}`, 'GET', null, {
+      params: { startDate, endDate, roomTypeId: roomTypeExternalId, rates: true }
     });
     
-    // Fall back to v1 if v2 fails
+    // If prod fails with 404, try dev environment
+    if (!response.success && (response.code === 'NOT_FOUND' || response.details?.status === 404)) {
+      console.log(`Calry: prod availability 404, trying dev environment for roomType ${roomTypeExternalId}`);
+      
+      // Temporarily switch to dev
+      const originalBaseUrl = this.baseUrl;
+      this.baseUrl = 'https://dev.calry.app/api/v2';
+      
+      response = await this.request(`/vrs/availability/${roomTypeExternalId}`, 'GET', null, {
+        params: { startDate, endDate, roomTypeId: roomTypeExternalId, rates: true }
+      });
+      
+      // Store that this connection uses dev environment
+      if (response.success) {
+        this._useDevEnvironment = true;
+        console.log(`Calry: dev environment works for this integration, will use dev going forward`);
+      } else {
+        // Restore original URL
+        this.baseUrl = originalBaseUrl;
+      }
+    }
+    
+    // Fall back to alternative endpoints if still failing
     if (!response.success) {
-      console.log(`Calry: v2 availability failed, trying v1 for roomType ${roomTypeExternalId}`);
+      console.log(`Calry: /vrs/availability failed, trying /vrs/room-types endpoint for roomType ${roomTypeExternalId}`);
+      response = await this.request(`/vrs/room-types/${roomTypeExternalId}/availability`, 'GET', null, {
+        params: { startDate, endDate }
+      });
+    }
+    
+    if (!response.success) {
+      console.log(`Calry: v2 endpoints failed, trying v1 for roomType ${roomTypeExternalId}`);
       response = await this.request(`/vrs/availability/${roomTypeExternalId}`, 'GET', null, {
         useV1: true,
         params: { startDate, endDate }
