@@ -483,7 +483,12 @@ class CalryAdapter {
       return response;
     }
     
-    const availability = (response.data?.data || response.data || []).map(day => this.mapAvailabilityDay(day, roomTypeExternalId));
+    // Response structure: { success: true, data: { propertyId, roomTypeId, dateWiseAvailability: [...] } }
+    // or older format: { data: [...] } or just [...]
+    const responseData = response.data?.data || response.data || {};
+    const availabilityArray = responseData.dateWiseAvailability || responseData.data || responseData || [];
+    
+    const availability = (Array.isArray(availabilityArray) ? availabilityArray : []).map(day => this.mapAvailabilityDay(day, roomTypeExternalId));
     
     console.log(`[Calry Availability] Success: ${availability.length} days fetched for roomType ${roomTypeExternalId}`);
     
