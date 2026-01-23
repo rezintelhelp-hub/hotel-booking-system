@@ -1206,7 +1206,22 @@ const upload = multer({
 });
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+
+// Handle JSON parse errors gracefully
+app.use((err, req, res, next) => {
+  if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+    console.error('JSON Parse Error:', err.message);
+    console.error('Request URL:', req.url);
+    console.error('Content-Type:', req.headers['content-type']);
+    return res.status(400).json({ 
+      success: false, 
+      error: 'Invalid JSON in request body',
+      details: err.message 
+    });
+  }
+  next(err);
+});
 
 // Root URL routing based on domain - MUST be before static middleware
 app.get('/', (req, res) => {
@@ -33057,7 +33072,9 @@ app.get('/api/elevate/:apiKey/room/:roomId/bedrooms', async (req, res) => {
 // Set bathroom configuration for a room (replaces existing)
 app.put('/api/elevate/:apiKey/room/:roomId/bathrooms', async (req, res) => {
   console.log('=== ELEVATE: SET ROOM BATHROOMS ===');
-  console.log('Request body:', JSON.stringify(req.body));
+  console.log('Content-Type:', req.headers['content-type']);
+  console.log('Raw body type:', typeof req.body);
+  console.log('Request body:', JSON.stringify(req.body, null, 2));
   
   try {
     const auth = await validateElevatePartnerKey(req.params.apiKey);
