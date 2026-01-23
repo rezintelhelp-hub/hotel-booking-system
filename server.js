@@ -7524,7 +7524,7 @@ app.post('/api/accounts/set-password', async (req, res) => {
   }
 });
 
-// Forgot password - clears password so user can set a new one
+// Forgot password - generates reset token and sends email
 app.post('/api/accounts/forgot-password', async (req, res) => {
   try {
     const { email } = req.body;
@@ -7534,19 +7534,150 @@ app.post('/api/accounts/forgot-password', async (req, res) => {
     }
     
     // Check if account exists
-    const account = await pool.query('SELECT id, name FROM accounts WHERE email = $1', [email.toLowerCase().trim()]);
+    const account = await pool.query('SELECT id, name, email FROM accounts WHERE email = $1', [email.toLowerCase().trim()]);
+    
+    // Always return success to not reveal if account exists
     if (account.rows.length === 0) {
-      // Don't reveal if account exists or not for security
-      return res.json({ success: true, message: 'If an account exists with this email, the password has been reset.' });
+      return res.json({ success: true, message: 'If an account exists with this email, a reset link has been sent.' });
     }
     
-    // Clear the password so they can set a new one
-    await pool.query('UPDATE accounts SET password_hash = NULL WHERE id = $1', [account.rows[0].id]);
+    // Generate reset token
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
     
-    // Also clear any active sessions for security
-    await pool.query('DELETE FROM account_sessions WHERE account_id = $1', [account.rows[0].id]);
+    // Ensure password_reset_tokens table exists
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS password_reset_tokens (
+        id SERIAL PRIMARY KEY,
+        account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
+        token VARCHAR(255) UNIQUE NOT NULL,
+        expires_at TIMESTAMP NOT NULL,
+        used BOOLEAN DEFAULT false,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
     
-    res.json({ success: true, message: 'Password reset. You can now set a new password.' });
+    // Delete any existing tokens for this account
+    await pool.query('DELETE FROM password_reset_tokens WHERE account_id = $1', [account.rows[0].id]);
+    
+    // Store new token
+    await pool.query(
+      'INSERT INTO password_reset_tokens (account_id, token, expires_at) VALUES ($1, $2, $3)',
+      [account.rows[0].id, resetToken, expiresAt]
+    );
+    
+    // Send reset email
+    const resetUrl = `https://admin.gas.travel/reset-password.html?token=${resetToken}`;
+    
+    await sendEmail({
+      to: account.rows[0].email,
+      subject: 'Reset Your GAS Password',
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 40px 20px; }
+            .logo { font-size: 24px; font-weight: bold; color: #6366f1; margin-bottom: 30px; }
+            .button { display: inline-block; background: #6366f1; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 500; margin: 20px 0; }
+            .footer { margin-top: 40px; font-size: 13px; color: #666; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="logo">🏨 GAS Admin</div>
+            <h2>Reset Your Password</h2>
+            <p>Hi ${account.rows[0].name || 'there'},</p>
+            <p>We received a request to reset your password. Click the button below to create a new password:</p>
+            <a href="${resetUrl}" class="button">Reset Password</a>
+            <p>Or copy this link: <br><a href="${resetUrl}">${resetUrl}</a></p>
+            <p>This link will expire in 1 hour.</p>
+            <p>If you didn't request this, you can safely ignore this email.</p>
+            <div class="footer">
+              <p>— The GAS Team</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `
+    });
+    
+    console.log(`Password reset email sent to ${account.rows[0].email}`);
+    
+    res.json({ success: true, message: 'If an account exists with this email, a reset link has been sent.' });
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Validate reset token (check if valid before showing reset form)
+app.get('/api/accounts/validate-reset-token/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    
+    const result = await pool.query(`
+      SELECT prt.*, a.email, a.name 
+      FROM password_reset_tokens prt
+      JOIN accounts a ON a.id = prt.account_id
+      WHERE prt.token = $1 AND prt.expires_at > NOW() AND prt.used = false
+    `, [token]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Invalid or expired reset link' });
+    }
+    
+    res.json({ 
+      success: true, 
+      email: result.rows[0].email,
+      name: result.rows[0].name
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Reset password with token
+app.post('/api/accounts/reset-password', async (req, res) => {
+  try {
+    const { token, password, confirm_password } = req.body;
+    
+    if (!token || !password || !confirm_password) {
+      return res.json({ success: false, error: 'All fields required' });
+    }
+    
+    if (password !== confirm_password) {
+      return res.json({ success: false, error: 'Passwords do not match' });
+    }
+    
+    if (password.length < 8) {
+      return res.json({ success: false, error: 'Password must be at least 8 characters' });
+    }
+    
+    // Find valid token
+    const tokenResult = await pool.query(`
+      SELECT account_id FROM password_reset_tokens 
+      WHERE token = $1 AND expires_at > NOW() AND used = false
+    `, [token]);
+    
+    if (tokenResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Invalid or expired reset link. Please request a new one.' });
+    }
+    
+    const accountId = tokenResult.rows[0].account_id;
+    
+    // Hash and set new password
+    const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
+    await pool.query('UPDATE accounts SET password_hash = $1, updated_at = NOW() WHERE id = $2', [passwordHash, accountId]);
+    
+    // Mark token as used
+    await pool.query('UPDATE password_reset_tokens SET used = true WHERE token = $1', [token]);
+    
+    // Clear any existing sessions for security
+    await pool.query('DELETE FROM account_sessions WHERE account_id = $1', [accountId]);
+    
+    res.json({ success: true, message: 'Password reset successfully. You can now log in.' });
   } catch (error) {
     res.json({ success: false, error: error.message });
   }
@@ -48788,50 +48919,6 @@ app.get('/api/plugin-licenses/:id', async (req, res) => {
 // ============================================
 // BEDS24 WIZARD ENDPOINTS
 // ============================================
-
-// Login for wizard
-app.post('/api/accounts/login', async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    
-    const result = await pool.query(
-      'SELECT * FROM accounts WHERE email = $1',
-      [email]
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(401).json({ success: false, error: 'Invalid email or password' });
-    }
-    
-    const account = result.rows[0];
-    
-    // Simple password check (in production, use bcrypt)
-    if (account.password_hash !== password && account.password_hash !== null) {
-      // Try bcrypt if available
-      try {
-        const bcrypt = require('bcrypt');
-        const valid = await bcrypt.compare(password, account.password_hash);
-        if (!valid) {
-          return res.status(401).json({ success: false, error: 'Invalid email or password' });
-        }
-      } catch (e) {
-        return res.status(401).json({ success: false, error: 'Invalid email or password' });
-      }
-    }
-    
-    res.json({ 
-      success: true, 
-      account: {
-        id: account.id,
-        name: account.name,
-        email: account.email,
-        role: account.role
-      }
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
 
 // Serve wizard HTML - try multiple locations
 app.get('/beds24-wizard', (req, res) => {
