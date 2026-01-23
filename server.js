@@ -668,6 +668,7 @@ async function runMigrations() {
     // Add property-level Stripe keys (legacy - will migrate to payment_configurations)
     try {
       await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS stripe_account_id TEXT`);
+      await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS stripe_name VARCHAR(255)`);
       await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS stripe_publishable_key TEXT`);
       await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS stripe_secret_key TEXT`);
       await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS stripe_enabled BOOLEAN DEFAULT false`);
@@ -19858,13 +19859,14 @@ async function importCalryPropertiesViaAdapter(integrationAccountId, pmsName, ex
                 // Insert new
                 roomSyncResult = await pool.query(`
                   INSERT INTO gas_sync_room_types (
-                    sync_property_id, external_id, name,
+                    sync_property_id, connection_id, external_id, name,
                     max_guests, base_price, currency,
                     bedrooms, bathrooms, raw_data, created_at
-                  ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+                  ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
                   RETURNING id
                 `, [
                   syncPropertyId,
+                  connectionId,
                   roomType.externalId,
                   roomType.name,
                   roomType.maxGuests || 2,
@@ -20231,13 +20233,14 @@ app.get('/api/admin/calry/debug-room-sync/:connectionId', async (req, res) => {
         } else {
           roomSyncResult = await pool.query(`
             INSERT INTO gas_sync_room_types (
-              sync_property_id, external_id, name,
+              sync_property_id, connection_id, external_id, name,
               max_guests, base_price, currency,
               bedrooms, bathrooms, raw_data, created_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
             RETURNING id
           `, [
             syncPropertyId,
+            parseInt(connectionId),
             roomType.externalId,
             roomType.name,
             roomType.maxGuests || 2,
