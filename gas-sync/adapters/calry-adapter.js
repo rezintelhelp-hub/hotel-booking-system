@@ -9,7 +9,7 @@
  * 
  * KEY v2 CHANGES:
  * - Room types are now the bookable entity (not properties)
- * - Availability uses roomTypeId (not propertyId/roomId)
+ * - Availability endpoint: /vrs/availability/{propertyId}?roomTypeId={roomTypeId}
  * - For PMSs without room types (Hostfully, Hostaway, Guesty), 
  *   roomTypeId = propertyId
  */
@@ -43,7 +43,7 @@ const CALRY_SUPPORTED_PMS = [
 class CalryAdapter {
   constructor(config) {
     this.name = 'calry';
-    this.version = '2.1.0';
+    this.version = '2.2.0'; // Updated version for availability fix
     this.capabilities = [
       'properties',
       'room_types',
@@ -252,7 +252,7 @@ class CalryAdapter {
   }
   
   mapProperty(raw) {
-    // Extract amenities - handle different formats
+    // Extract amenities - Calry can return various formats
     let amenities = [];
     if (raw.amenities && Array.isArray(raw.amenities)) {
       raw.amenities.forEach(a => {
@@ -262,42 +262,47 @@ class CalryAdapter {
       });
     }
     
-    // Extract images - handle different formats
+    // Extract images - handle multiple formats
     let images = [];
     const rawImages = raw.pictures || raw.images || raw.photos || [];
     rawImages.forEach((pic, idx) => {
-      const url = typeof pic === 'string' ? pic : (pic.url || pic.original || pic.large || pic.medium);
+      const url = typeof pic === 'string' ? pic : (pic.url || pic.original || pic.large);
       if (url) {
         images.push({
           url,
-          caption: typeof pic === 'object' ? (pic.caption || pic.description || pic.title || '') : '',
+          caption: typeof pic === 'object' ? (pic.caption || pic.description || '') : '',
           order: idx,
           isPrimary: idx === 0
         });
       }
     });
     
+    // Handle location/coordinates
+    const coords = raw.coordinates || raw.location || raw.geoLocation || {};
+    const lat = coords.latitude || coords.lat || raw.latitude;
+    const lng = coords.longitude || coords.lng || coords.lon || raw.longitude;
+    
     return {
       externalId: String(raw.id),
       name: raw.name,
       description: raw.description || raw.summary || '',
       shortDescription: raw.shortDescription || raw.summary || '',
-      propertyType: raw.propertyType || raw.type || 'vacation_rental',
+      propertyType: raw.type || raw.propertyType || 'vacation_rental',
+      status: raw.status || 'active',
       address: {
-        street: raw.address?.line1 || raw.address?.street || '',
-        city: raw.address?.city || '',
-        state: raw.address?.state || raw.address?.region || '',
-        country: raw.address?.country || raw.address?.countryCode || '',
-        postalCode: raw.address?.postalCode || raw.address?.postal_code || raw.address?.zipCode || '',
-        coordinates: {
-          lat: parseFloat(raw.geoLocation?.latitude || raw.coordinates?.lat || raw.latitude) || null,
-          lng: parseFloat(raw.geoLocation?.longitude || raw.coordinates?.lng || raw.longitude) || null
-        }
+        street: raw.address?.address1 || raw.address?.street || raw.street || '',
+        street2: raw.address?.address2 || '',
+        city: raw.address?.city || raw.city || '',
+        state: raw.address?.state || raw.state || raw.region || '',
+        postalCode: raw.address?.postalCode || raw.address?.zipCode || raw.postalCode || '',
+        country: raw.address?.country || raw.country || '',
+        countryCode: raw.address?.countryCode || raw.countryCode || ''
       },
-      timezone: raw.timezone || 'UTC',
+      coordinates: (lat && lng) ? { latitude: parseFloat(lat), longitude: parseFloat(lng) } : null,
+      timezone: raw.timezone || raw.timeZone || null,
       currency: raw.currency || 'EUR',
-      checkInTime: raw.checkInTime || raw.checkinTime || raw.defaultCheckIn || '15:00',
-      checkOutTime: raw.checkOutTime || raw.checkoutTime || raw.defaultCheckOut || '11:00',
+      defaultCheckIn: raw.checkInTime || raw.checkinTime || raw.defaultCheckIn || '15:00',
+      defaultCheckOut: raw.checkOutTime || raw.checkoutTime || raw.defaultCheckOut || '11:00',
       houseRules: raw.houseRules || raw.rules || '',
       cancellationPolicy: raw.cancellationPolicy || '',
       minNights: raw.minNights || raw.minimumStay || null,
@@ -407,51 +412,67 @@ class CalryAdapter {
   }
   
   // =====================================================
-  // AVAILABILITY (Calry v2 - by roomTypeId)
+  // AVAILABILITY (Calry v2 - FIXED endpoint format)
+  // Correct: /vrs/availability/{propertyId}?roomTypeId={roomTypeId}
   // =====================================================
   
   /**
    * Get availability for a room type
-   * In v2, availability is per roomTypeId (the bookable entity)
+   * IMPORTANT: Calry v2 availability endpoint format is:
+   *   /vrs/availability/{propertyId}?roomTypeId={roomTypeId}&startDate=X&endDate=Y&rates=true
+   * 
+   * @param {string} propertyExternalId - The Calry property ID (goes in URL path)
+   * @param {string} roomTypeExternalId - The Calry room type ID (goes in query param)
+   * @param {string} startDate - Start date YYYY-MM-DD
+   * @param {string} endDate - End date YYYY-MM-DD
    */
-  async getAvailability(roomTypeExternalId, startDate, endDate) {
-    // Try prod v2 endpoint first: /vrs/availability/{roomTypeId}?rates=true
-    let response = await this.request(`/vrs/availability/${roomTypeExternalId}`, 'GET', null, {
-      params: { startDate, endDate, roomTypeId: roomTypeExternalId, rates: true }
+  async getAvailability(propertyExternalId, roomTypeExternalId, startDate, endDate) {
+    // Correct v2 endpoint: /vrs/availability/{propertyId}?roomTypeId={roomTypeId}
+    console.log(`[Calry Availability] Fetching: property=${propertyExternalId}, roomType=${roomTypeExternalId}, ${startDate} to ${endDate}`);
+    
+    let response = await this.request(`/vrs/availability/${propertyExternalId}`, 'GET', null, {
+      params: { 
+        startDate, 
+        endDate, 
+        roomTypeId: roomTypeExternalId, 
+        rates: true 
+      }
     });
     
-    // If prod fails with 404, try dev environment
+    // If prod fails, try dev environment
     if (!response.success && (response.code === 'NOT_FOUND' || response.details?.status === 404)) {
-      console.log(`Calry: prod availability 404, trying dev environment for roomType ${roomTypeExternalId}`);
+      console.log(`[Calry Availability] Prod 404, trying dev environment`);
       
-      // Temporarily switch to dev
       const originalBaseUrl = this.baseUrl;
       this.baseUrl = 'https://dev.calry.app/api/v2';
       
-      response = await this.request(`/vrs/availability/${roomTypeExternalId}`, 'GET', null, {
-        params: { startDate, endDate, roomTypeId: roomTypeExternalId, rates: true }
+      response = await this.request(`/vrs/availability/${propertyExternalId}`, 'GET', null, {
+        params: { 
+          startDate, 
+          endDate, 
+          roomTypeId: roomTypeExternalId, 
+          rates: true 
+        }
       });
       
-      // Store that this connection uses dev environment
       if (response.success) {
         this._useDevEnvironment = true;
-        console.log(`Calry: dev environment works for this integration, will use dev going forward`);
+        console.log(`[Calry Availability] Dev environment works, using dev going forward`);
       } else {
-        // Restore original URL
         this.baseUrl = originalBaseUrl;
       }
     }
     
     // Fall back to alternative endpoints if still failing
     if (!response.success) {
-      console.log(`Calry: /vrs/availability failed, trying /vrs/room-types endpoint for roomType ${roomTypeExternalId}`);
+      console.log(`[Calry Availability] Primary endpoint failed, trying /vrs/room-types/{roomTypeId}/availability`);
       response = await this.request(`/vrs/room-types/${roomTypeExternalId}/availability`, 'GET', null, {
         params: { startDate, endDate }
       });
     }
     
     if (!response.success) {
-      console.log(`Calry: v2 endpoints failed, trying v1 for roomType ${roomTypeExternalId}`);
+      console.log(`[Calry Availability] v2 endpoints failed, trying v1`);
       response = await this.request(`/vrs/availability/${roomTypeExternalId}`, 'GET', null, {
         useV1: true,
         params: { startDate, endDate }
@@ -464,6 +485,8 @@ class CalryAdapter {
     
     const availability = (response.data?.data || response.data || []).map(day => this.mapAvailabilityDay(day, roomTypeExternalId));
     
+    console.log(`[Calry Availability] Success: ${availability.length} days fetched for roomType ${roomTypeExternalId}`);
+    
     return {
       success: true,
       data: availability
@@ -471,7 +494,17 @@ class CalryAdapter {
   }
   
   /**
+   * Legacy method signature for backward compatibility
+   * If called with 3 params, assumes roomTypeId = propertyId (PMSs without room types)
+   */
+  async getAvailabilityLegacy(roomTypeExternalId, startDate, endDate) {
+    // For PMSs without room types, roomTypeId = propertyId
+    return this.getAvailability(roomTypeExternalId, roomTypeExternalId, startDate, endDate);
+  }
+  
+  /**
    * Get availability for a property (fetches all room types)
+   * This is the main method called by GAS sync
    */
   async getPropertyAvailability(propertyExternalId, startDate, endDate) {
     // First get room types for this property
@@ -480,7 +513,8 @@ class CalryAdapter {
     if (!roomTypesResult.success) {
       // If no room types endpoint, property itself might be the room type
       // (common for PMSs without native room type support)
-      const avail = await this.getAvailability(propertyExternalId, startDate, endDate);
+      console.log(`[Calry Availability] No room types found, treating property ${propertyExternalId} as room type`);
+      const avail = await this.getAvailability(propertyExternalId, propertyExternalId, startDate, endDate);
       if (avail.success) {
         return {
           success: true,
@@ -490,11 +524,16 @@ class CalryAdapter {
       return roomTypesResult;
     }
     
+    console.log(`[Calry Availability] Found ${roomTypesResult.data.length} room types for property ${propertyExternalId}`);
+    
     const results = {};
     for (const roomType of roomTypesResult.data) {
-      const avail = await this.getAvailability(roomType.externalId, startDate, endDate);
+      // Pass both propertyId and roomTypeId to the corrected getAvailability
+      const avail = await this.getAvailability(propertyExternalId, roomType.externalId, startDate, endDate);
       if (avail.success) {
         results[roomType.externalId] = avail.data;
+      } else {
+        console.log(`[Calry Availability] Failed for roomType ${roomType.externalId}: ${avail.error}`);
       }
     }
     
@@ -505,25 +544,41 @@ class CalryAdapter {
   }
   
   mapAvailabilityDay(day, roomTypeId) {
+    // Handle the Calry response format from your successful curl:
+    // {"date":"2026-02-04","status":"AVAILABLE","unitsAvailable":1,"reservationIds":[],"price":{"amount":857},"minimumNights":4,"maximumNights":6}
+    
+    const isAvailable = day.status === 'AVAILABLE' || 
+                        (day.available !== false && day.status !== 'blocked' && day.status !== 'booked' && day.status !== 'BLOCKED' && day.status !== 'BOOKED');
+    
+    // Price can be in different formats
+    let price = null;
+    if (day.price) {
+      if (typeof day.price === 'object' && day.price.amount !== undefined) {
+        price = parseFloat(day.price.amount);
+      } else if (typeof day.price === 'number' || typeof day.price === 'string') {
+        price = parseFloat(day.price);
+      }
+    }
+    
     return {
       roomTypeId: roomTypeId,
       date: day.date,
-      isAvailable: day.available !== false && day.status !== 'blocked' && day.status !== 'booked',
-      unitsAvailable: day.unitsAvailable || day.availableUnits || (day.available ? 1 : 0),
+      isAvailable: isAvailable,
+      unitsAvailable: day.unitsAvailable || day.availableUnits || (isAvailable ? 1 : 0),
       totalUnits: day.totalUnits || 1,
-      status: day.status || (day.available ? 'available' : 'blocked'),
+      status: day.status || (isAvailable ? 'available' : 'blocked'),
       blockedReason: day.blockedReason || day.blockReason || null,
-      minStay: day.minStay || day.minimumStay || day.minNights || 1,
-      maxStay: day.maxStay || day.maximumStay || day.maxNights || null,
+      minStay: day.minimumNights || day.minStay || day.minimumStay || day.minNights || 1,
+      maxStay: day.maximumNights || day.maxStay || day.maximumStay || day.maxNights || null,
       checkInAllowed: day.checkInAllowed !== false && day.closedToArrival !== true,
       checkOutAllowed: day.checkOutAllowed !== false && day.closedToDeparture !== true,
-      // Price may be included in availability response
-      price: day.price ? parseFloat(day.price) : null,
-      currency: day.currency || null
+      price: price,
+      currency: day.currency || (day.price?.currency) || null,
+      reservationIds: day.reservationIds || []
     };
   }
   
-  async updateAvailability(roomTypeExternalId, availabilityData) {
+  async updateAvailability(propertyExternalId, roomTypeExternalId, availabilityData) {
     const updates = availabilityData.map(day => ({
       date: day.date,
       available: day.isAvailable,
@@ -534,12 +589,21 @@ class CalryAdapter {
       checkOutAllowed: day.checkOutAllowed
     }));
     
-    // Try v2 first
+    // Try v2 first with correct endpoint
     let response = await this.request(
-      `/vrs/room-types/${roomTypeExternalId}/availability`,
+      `/vrs/availability/${propertyExternalId}`,
       'PUT',
-      { availability: updates }
+      { roomTypeId: roomTypeExternalId, availability: updates }
     );
+    
+    // Fall back to room-types endpoint
+    if (!response.success) {
+      response = await this.request(
+        `/vrs/room-types/${roomTypeExternalId}/availability`,
+        'PUT',
+        { availability: updates }
+      );
+    }
     
     // Fall back to v1
     if (!response.success) {
@@ -551,62 +615,34 @@ class CalryAdapter {
       );
     }
     
-    return {
-      success: response.success,
-      updated: response.success ? updates.length : 0,
-      errors: response.success ? [] : [response.error]
-    };
+    return response;
   }
   
-  async batchAvailability(roomTypeIds, startDate, endDate) {
-    // Calry v2 batch availability endpoint
-    const response = await this.request('/vrs/availability/batch', 'POST', {
-      roomTypeIds,
-      startDate,
-      endDate
+  // =====================================================
+  // RATES (Calry v2 - by roomTypeId)
+  // =====================================================
+  
+  async getRates(propertyExternalId, roomTypeExternalId, startDate, endDate) {
+    // Rates endpoint likely follows same pattern as availability
+    let response = await this.request(`/vrs/rates/${propertyExternalId}`, 'GET', null, {
+      params: { 
+        startDate, 
+        endDate, 
+        roomTypeId: roomTypeExternalId 
+      }
     });
     
+    // Fall back to alternative endpoints
     if (!response.success) {
-      // Fall back to individual calls
-      const results = {};
-      for (const roomTypeId of roomTypeIds) {
-        const avail = await this.getAvailability(roomTypeId, startDate, endDate);
-        if (avail.success) {
-          results[roomTypeId] = avail.data;
-        }
-      }
-      return { success: true, data: results };
+      response = await this.request(`/vrs/room-types/${roomTypeExternalId}/rates`, 'GET', null, {
+        params: { startDate, endDate }
+      });
     }
     
-    return {
-      success: true,
-      data: response.data
-    };
-  }
-  
-  // =====================================================
-  // RATES / PRICING
-  // =====================================================
-  
-  /**
-   * Get rates for a room type
-   */
-  async getRates(roomTypeExternalId, startDate, endDate) {
-    // Try v2 endpoint
-    let response = await this.request(`/vrs/room-types/${roomTypeExternalId}/rates`, 'GET', null, {
-      params: { startDate, endDate }
-    });
-    
-    // Fall back to v1
     if (!response.success) {
-      console.log(`Calry: v2 rates failed, trying v1 for roomType ${roomTypeExternalId}`);
-      response = await this.request(`/vrs/rates`, 'GET', null, {
+      response = await this.request(`/vrs/rates/${roomTypeExternalId}`, 'GET', null, {
         useV1: true,
-        params: { 
-          roomTypeId: roomTypeExternalId,
-          startDate, 
-          endDate 
-        }
+        params: { startDate, endDate }
       });
     }
     
@@ -623,14 +659,17 @@ class CalryAdapter {
   }
   
   /**
-   * Get rates for a property (all room types)
+   * Legacy method for backward compatibility
    */
+  async getRatesLegacy(roomTypeExternalId, startDate, endDate) {
+    return this.getRates(roomTypeExternalId, roomTypeExternalId, startDate, endDate);
+  }
+  
   async getPropertyRates(propertyExternalId, startDate, endDate) {
     const roomTypesResult = await this.getRoomTypes(propertyExternalId);
     
     if (!roomTypesResult.success) {
-      // Property might be the room type
-      const rates = await this.getRates(propertyExternalId, startDate, endDate);
+      const rates = await this.getRates(propertyExternalId, propertyExternalId, startDate, endDate);
       if (rates.success) {
         return {
           success: true,
@@ -642,7 +681,7 @@ class CalryAdapter {
     
     const results = {};
     for (const roomType of roomTypesResult.data) {
-      const rates = await this.getRates(roomType.externalId, startDate, endDate);
+      const rates = await this.getRates(propertyExternalId, roomType.externalId, startDate, endDate);
       if (rates.success) {
         results[roomType.externalId] = rates.data;
       }
@@ -655,42 +694,60 @@ class CalryAdapter {
   }
   
   mapRateDay(day, roomTypeId) {
+    // Handle price in different formats
+    let price = null;
+    if (day.price) {
+      if (typeof day.price === 'object' && day.price.amount !== undefined) {
+        price = parseFloat(day.price.amount);
+      } else {
+        price = parseFloat(day.price);
+      }
+    } else if (day.rate) {
+      price = parseFloat(day.rate);
+    } else if (day.amount) {
+      price = parseFloat(day.amount);
+    }
+    
     return {
       roomTypeId: roomTypeId,
       date: day.date,
-      price: parseFloat(day.price || day.rate || day.baseRate) || 0,
-      currency: day.currency || 'EUR',
-      extraGuestFee: parseFloat(day.extraGuestFee || day.additionalGuestFee) || 0,
-      weeklyDiscountPercent: parseFloat(day.weeklyDiscount || day.weeklyDiscountPercent) || 0,
-      monthlyDiscountPercent: parseFloat(day.monthlyDiscount || day.monthlyDiscountPercent) || 0,
-      minStay: day.minStay || day.minimumStay || null,
-      maxStay: day.maxStay || day.maximumStay || null,
-      ratePlanId: day.ratePlanId || null,
-      ratePlanName: day.ratePlanName || null,
-      // Some PMSs include fees breakdown
-      cleaningFee: parseFloat(day.cleaningFee) || null,
-      serviceFee: parseFloat(day.serviceFee) || null,
-      taxes: day.taxes || null
+      price: price,
+      currency: day.currency || (day.price?.currency) || 'EUR',
+      extraGuestFee: day.extraGuestFee || day.additionalGuestFee || null,
+      weeklyDiscountPercent: day.weeklyDiscount || day.weeklyDiscountPercent || null,
+      monthlyDiscountPercent: day.monthlyDiscount || day.monthlyDiscountPercent || null,
+      minStay: day.minimumNights || day.minStay || null,
+      maxStay: day.maximumNights || day.maxStay || null
     };
   }
   
-  async updateRates(roomTypeExternalId, ratesData) {
-    const updates = ratesData.map(rate => ({
-      date: rate.date,
-      price: rate.price,
-      extraGuestFee: rate.extraGuestFee,
-      weeklyDiscount: rate.weeklyDiscountPercent,
-      monthlyDiscount: rate.monthlyDiscountPercent,
-      minStay: rate.minStay,
-      maxStay: rate.maxStay
+  async updateRates(propertyExternalId, roomTypeExternalId, ratesData) {
+    const updates = ratesData.map(day => ({
+      date: day.date,
+      price: day.price,
+      currency: day.currency || 'EUR',
+      extraGuestFee: day.extraGuestFee,
+      minStay: day.minStay,
+      maxStay: day.maxStay
     }));
     
+    // Try v2 first
     let response = await this.request(
-      `/vrs/room-types/${roomTypeExternalId}/rates`,
+      `/vrs/rates/${propertyExternalId}`,
       'PUT',
-      { rates: updates }
+      { roomTypeId: roomTypeExternalId, rates: updates }
     );
     
+    // Fall back to room-types endpoint
+    if (!response.success) {
+      response = await this.request(
+        `/vrs/room-types/${roomTypeExternalId}/rates`,
+        'PUT',
+        { rates: updates }
+      );
+    }
+    
+    // Fall back to v1
     if (!response.success) {
       response = await this.request(
         `/vrs/rates/${roomTypeExternalId}`,
@@ -700,25 +757,21 @@ class CalryAdapter {
       );
     }
     
-    return {
-      success: response.success,
-      updated: response.success ? updates.length : 0,
-      errors: response.success ? [] : [response.error]
-    };
+    return response;
   }
   
   // =====================================================
-  // RESERVATIONS (Calry v2)
+  // RESERVATIONS
   // =====================================================
   
   async getReservations(options = {}) {
     const params = {};
+    if (options.startDate) params.startDate = options.startDate;
+    if (options.endDate) params.endDate = options.endDate;
+    if (options.status) params.status = options.status;
     if (options.page) params.page = options.page;
     if (options.limit) params.limit = options.limit;
-    if (options.propertyId) params.propertyId = options.propertyId;
-    if (options.startDate) params.arrivalStartDate = options.startDate;
-    if (options.endDate) params.arrivalEndDate = options.endDate;
-    if (options.updatedSince) params.modifiedSince = options.updatedSince;
+    if (options.modifiedSince) params.modifiedSince = options.modifiedSince;
     
     const response = await this.request('/vrs/reservations', 'GET', null, { params });
     
@@ -726,24 +779,21 @@ class CalryAdapter {
       return response;
     }
     
-    const reservations = (response.data?.data || response.data || []).map(res => 
-      this.mapReservation(res)
-    );
+    const reservations = (response.data?.data || response.data || []).map(r => this.mapReservation(r));
     
     return {
       success: true,
       data: reservations,
       pagination: {
         page: options.page || 1,
-        limit: options.limit || 100,
         total: response.data?.total || reservations.length,
         hasMore: response.data?.hasMore || false
       }
     };
   }
   
-  async getReservation(externalId) {
-    const response = await this.request(`/vrs/reservations/${externalId}`);
+  async getReservation(reservationId) {
+    const response = await this.request(`/vrs/reservations/${reservationId}`);
     
     if (!response.success) {
       return response;
@@ -755,96 +805,96 @@ class CalryAdapter {
     };
   }
   
+  async getPropertyReservations(propertyExternalId, options = {}) {
+    return this.getReservations({
+      ...options,
+      propertyId: propertyExternalId
+    });
+  }
+  
   mapReservation(raw) {
-    // Handle guest info - v2 uses primaryGuest object
-    const guest = raw.primaryGuest || raw.guest || {};
-    const guestName = guest.name || `${guest.nameFirst || guest.firstName || ''} ${guest.nameLast || guest.lastName || ''}`.trim() || 'Guest';
-    const guestEmail = (guest.emails && guest.emails[0]) || guest.email || null;
-    const guestPhone = (guest.mobileNumbers && guest.mobileNumbers[0]) || guest.phone || null;
+    const guest = raw.guest || raw.guestDetails || {};
+    const pricing = raw.pricing || raw.price || raw.financials || {};
     
     return {
       externalId: String(raw.id),
       propertyId: String(raw.propertyId),
-      // v2 adds roomTypeIds array
-      roomTypeId: raw.roomTypeIds?.[0] || raw.roomTypeId || raw.propertyId,
-      roomTypeIds: raw.roomTypeIds || [raw.roomTypeId || raw.propertyId],
-      unitIds: raw.unitIds || [],
-      channel: raw.source || raw.channel || 'DIRECT',
+      roomTypeId: String(raw.roomTypeId || raw.unitId),
+      channel: raw.channel || raw.source || 'DIRECT',
       channelReservationId: raw.channelReservationId || raw.externalId,
-      status: raw.status || 'confirmed',
-      checkIn: raw.arrivalDate || raw.checkIn,
-      checkOut: raw.departureDate || raw.checkOut,
-      nights: raw.nights || this.calculateNights(raw.arrivalDate, raw.departureDate),
+      checkIn: raw.checkIn || raw.arrivalDate,
+      checkOut: raw.checkOut || raw.departureDate,
+      status: this.mapReservationStatus(raw.status),
       guest: {
-        name: guestName,
-        firstName: guest.nameFirst || guest.firstName,
-        lastName: guest.nameLast || guest.lastName,
-        email: guestEmail,
-        phone: guestPhone,
-        address: guest.addresses || null,
-        language: guest.preferredLanguage?.code || null
+        firstName: guest.firstName || guest.name?.split(' ')[0] || '',
+        lastName: guest.lastName || guest.name?.split(' ').slice(1).join(' ') || '',
+        email: guest.email,
+        phone: guest.phone || guest.phoneNumber,
+        address: guest.address
       },
       guests: {
-        total: raw.numberOfGuests || 1,
-        adults: raw.numberOfAdults || 1,
-        children: raw.numberOfChildren || 0,
-        infants: raw.numberOfInfants || 0,
-        pets: raw.numberOfPets || 0
+        adults: raw.adults || raw.numberOfAdults || 1,
+        children: raw.children || raw.numberOfChildren || 0,
+        infants: raw.infants || raw.numberOfInfants || 0,
+        total: raw.guests || (raw.adults || 1) + (raw.children || 0)
       },
       pricing: {
-        total: parseFloat(raw.totalPrice || raw.total) || 0,
-        currency: raw.currency || 'EUR',
-        accommodation: raw.finances?.accommodation || null,
-        cleaning: raw.finances?.cleaning || null,
-        fees: raw.finances?.fees || null,
-        taxes: raw.finances?.taxes || null,
-        paid: raw.finances?.paid || 0,
-        due: raw.finances?.due || null
+        total: parseFloat(pricing.total || pricing.totalPrice || pricing.amount) || 0,
+        subtotal: parseFloat(pricing.subtotal || pricing.accommodationFare) || null,
+        taxes: parseFloat(pricing.taxes || pricing.taxAmount) || null,
+        fees: parseFloat(pricing.fees || pricing.feeAmount) || null,
+        currency: pricing.currency || raw.currency || 'EUR',
+        paid: parseFloat(pricing.paid || pricing.amountPaid) || 0,
+        balance: parseFloat(pricing.balance || pricing.amountDue) || null
       },
-      arrivalTime: raw.arrivalEstimatedTime || null,
-      departureTime: raw.departureEstimatedTime || null,
-      notes: raw.notes || '',
-      source: raw.source || 'direct',
-      createdAt: raw.createdAt,
-      updatedAt: raw.updatedAt,
-      cancelledAt: raw.cancelledAt || null,
-      metadata: {
-        calryId: raw.id,
-        pmsType: this.pmsType
-      },
+      notes: raw.notes || raw.guestNotes || raw.specialRequests || '',
+      source: raw.source || 'calry',
+      createdAt: raw.createdAt || raw.created,
+      updatedAt: raw.updatedAt || raw.modified,
       raw: raw
     };
   }
   
-  calculateNights(checkIn, checkOut) {
-    if (!checkIn || !checkOut) return 0;
-    const start = new Date(checkIn);
-    const end = new Date(checkOut);
-    return Math.round((end - start) / (1000 * 60 * 60 * 24));
+  mapReservationStatus(status) {
+    if (!status) return 'confirmed';
+    
+    const statusLower = status.toLowerCase();
+    
+    if (statusLower.includes('confirm')) return 'confirmed';
+    if (statusLower.includes('pending')) return 'pending';
+    if (statusLower.includes('cancel')) return 'cancelled';
+    if (statusLower.includes('check') && statusLower.includes('in')) return 'checked_in';
+    if (statusLower.includes('check') && statusLower.includes('out')) return 'checked_out';
+    if (statusLower.includes('no') && statusLower.includes('show')) return 'no_show';
+    
+    return status;
   }
   
   async createReservation(reservationData) {
     const payload = {
       propertyId: reservationData.propertyId,
       roomTypeId: reservationData.roomTypeId,
-      arrivalDate: reservationData.checkIn,
-      departureDate: reservationData.checkOut,
-      numberOfGuests: reservationData.guests?.total || 1,
-      numberOfAdults: reservationData.guests?.adults || 1,
-      numberOfChildren: reservationData.guests?.children || 0,
-      totalPrice: reservationData.pricing?.total,
-      currency: reservationData.pricing?.currency || 'EUR',
-      primaryGuest: {
-        nameFirst: reservationData.guest?.firstName,
-        nameLast: reservationData.guest?.lastName,
-        emails: reservationData.guest?.email ? [reservationData.guest.email] : [],
-        mobileNumbers: reservationData.guest?.phone ? [reservationData.guest.phone] : []
+      checkIn: reservationData.checkIn,
+      checkOut: reservationData.checkOut,
+      guest: {
+        firstName: reservationData.guest?.firstName,
+        lastName: reservationData.guest?.lastName,
+        email: reservationData.guest?.email,
+        phone: reservationData.guest?.phone
       },
-      notes: reservationData.notes,
-      source: 'direct'
+      adults: reservationData.guests?.adults || 1,
+      children: reservationData.guests?.children || 0,
+      infants: reservationData.guests?.infants || 0,
+      notes: reservationData.notes
     };
     
-    const response = await this.request('/vrs/reservations', 'POST', payload);
+    // Try v2 first
+    let response = await this.request('/vrs/reservations', 'POST', payload);
+    
+    // Fall back to v1
+    if (!response.success) {
+      response = await this.request('/vrs/reservations', 'POST', payload, { useV1: true });
+    }
     
     if (!response.success) {
       return response;
@@ -852,74 +902,49 @@ class CalryAdapter {
     
     return {
       success: true,
-      data: this.mapReservation(response.data?.data || response.data)
+      data: this.mapReservation(response.data)
     };
   }
   
-  async updateReservation(externalId, updates) {
-    const response = await this.request(`/vrs/reservations/${externalId}`, 'PATCH', updates);
+  async updateReservation(reservationId, updates) {
+    const payload = {};
     
-    return {
-      success: response.success,
-      data: response.success ? this.mapReservation(response.data) : null,
-      error: response.error
-    };
-  }
-  
-  async cancelReservation(externalId, reason = null) {
-    const response = await this.request(`/vrs/reservations/${externalId}/cancel`, 'POST', {
-      reason
-    });
+    if (updates.checkIn) payload.checkIn = updates.checkIn;
+    if (updates.checkOut) payload.checkOut = updates.checkOut;
+    if (updates.status) payload.status = updates.status;
+    if (updates.guest) payload.guest = updates.guest;
+    if (updates.guests) {
+      payload.adults = updates.guests.adults;
+      payload.children = updates.guests.children;
+      payload.infants = updates.guests.infants;
+    }
+    if (updates.notes) payload.notes = updates.notes;
     
-    return {
-      success: response.success,
-      error: response.error
-    };
-  }
-  
-  // =====================================================
-  // QUOTES
-  // =====================================================
-  
-  async getQuote(params) {
-    const response = await this.request('/vrs/quotes', 'POST', {
-      propertyId: params.propertyId,
-      roomTypeId: params.roomTypeId,
-      arrivalDate: params.checkIn,
-      departureDate: params.checkOut,
-      numberOfGuests: params.guests || 1,
-      numberOfAdults: params.adults || params.guests || 1,
-      numberOfChildren: params.children || 0
-    });
+    let response = await this.request(`/vrs/reservations/${reservationId}`, 'PUT', payload);
+    
+    if (!response.success) {
+      response = await this.request(`/vrs/reservations/${reservationId}`, 'PATCH', payload);
+    }
     
     if (!response.success) {
       return response;
     }
     
-    const quote = response.data?.data || response.data;
-    
     return {
       success: true,
-      data: {
-        available: quote.available !== false,
-        price: parseFloat(quote.totalPrice || quote.total) || 0,
-        currency: quote.currency || 'EUR',
-        breakdown: {
-          accommodation: quote.accommodation || quote.basePrice,
-          cleaning: quote.cleaningFee,
-          fees: quote.fees,
-          taxes: quote.taxes,
-          discount: quote.discount
-        },
-        ratePlans: quote.ratePlans || [],
-        minStay: quote.minStay,
-        maxStay: quote.maxStay
-      }
+      data: this.mapReservation(response.data)
     };
   }
   
+  async cancelReservation(reservationId, reason = '') {
+    return this.updateReservation(reservationId, {
+      status: 'cancelled',
+      notes: reason
+    });
+  }
+  
   // =====================================================
-  // CONVERSATIONS / MESSAGING
+  // CONVERSATIONS/MESSAGING
   // =====================================================
   
   async getConversations(options = {}) {
@@ -936,70 +961,74 @@ class CalryAdapter {
     
     return {
       success: true,
-      data: (response.data?.data || response.data || []).map(conv => ({
-        id: conv.id,
-        reservationId: conv.reservationId,
-        roomTypeId: conv.roomTypeId,
-        guestName: conv.guestName,
-        lastMessage: conv.lastMessage,
-        lastMessageAt: conv.lastMessageAt,
-        unreadCount: conv.unreadCount || 0,
-        externalThreadId: conv.externalThreadId
-      }))
+      data: response.data?.data || response.data || []
     };
   }
   
   async getConversation(conversationId) {
     const response = await this.request(`/vrs/conversations/${conversationId}`);
-    
-    if (!response.success) {
-      return response;
-    }
-    
-    const conv = response.data?.data || response.data;
-    
-    return {
-      success: true,
-      data: {
-        id: conv.id,
-        reservationId: conv.reservationId,
-        roomTypeId: conv.roomTypeId,
-        guestName: conv.guestName,
-        externalThreadId: conv.externalThreadId,
-        messages: (conv.messages || []).map(msg => ({
-          id: msg.id,
-          content: msg.content || msg.body,
-          sender: msg.sender || msg.from,
-          sentAt: msg.sentAt || msg.createdAt,
-          type: msg.type,
-          status: msg.status,
-          seenStatus: msg.seenStatus,
-          isAutomatic: msg.is_automatic,
-          attachments: msg.attachments || []
-        }))
-      }
-    };
+    return response;
   }
   
   async sendMessage(conversationId, message) {
-    const response = await this.request(`/vrs/conversations/${conversationId}/messages`, 'POST', {
-      content: message.content,
-      channel: message.channel
+    const response = await this.request(
+      `/vrs/conversations/${conversationId}/messages`,
+      'POST',
+      { body: message }
+    );
+    return response;
+  }
+  
+  // =====================================================
+  // QUOTES
+  // =====================================================
+  
+  async getQuote(propertyExternalId, roomTypeExternalId, params) {
+    const response = await this.request('/vrs/quotes', 'POST', {
+      propertyId: propertyExternalId,
+      roomTypeId: roomTypeExternalId,
+      checkIn: params.checkIn,
+      checkOut: params.checkOut,
+      adults: params.adults || 1,
+      children: params.children || 0,
+      infants: params.infants || 0,
+      couponCode: params.couponCode
     });
     
     if (!response.success) {
       return response;
     }
     
+    const quote = response.data;
+    
     return {
       success: true,
       data: {
-        id: response.data?.id,
-        content: message.content,
-        sender: 'host',
-        sentAt: new Date().toISOString()
+        propertyId: propertyExternalId,
+        roomTypeId: roomTypeExternalId,
+        checkIn: params.checkIn,
+        checkOut: params.checkOut,
+        nights: quote.nights || this.calculateNights(params.checkIn, params.checkOut),
+        pricing: {
+          accommodation: parseFloat(quote.accommodationFare || quote.subtotal) || 0,
+          cleaning: parseFloat(quote.cleaningFee) || 0,
+          taxes: parseFloat(quote.taxes || quote.taxAmount) || 0,
+          fees: parseFloat(quote.fees || quote.serviceFee) || 0,
+          discount: parseFloat(quote.discount) || 0,
+          total: parseFloat(quote.total || quote.totalPrice) || 0,
+          currency: quote.currency || 'EUR'
+        },
+        available: quote.available !== false,
+        minStay: quote.minStay || quote.minimumStay,
+        maxStay: quote.maxStay || quote.maximumStay
       }
     };
+  }
+  
+  calculateNights(checkIn, checkOut) {
+    const start = new Date(checkIn);
+    const end = new Date(checkOut);
+    return Math.ceil((end - start) / (1000 * 60 * 60 * 24));
   }
   
   // =====================================================
@@ -1011,47 +1040,7 @@ class CalryAdapter {
     if (options.page) params.page = options.page;
     if (options.limit) params.limit = options.limit;
     
-    // Reviews endpoint is on v1
-    const response = await this.request(`/vrs/reviews/property/${propertyExternalId}`, 'GET', null, { 
-      useV1: true 
-    });
-    
-    if (!response.success) {
-      return response;
-    }
-    
-    const reviews = (response.data?.data || response.data || []).map(review => ({
-      externalId: review.id,
-      propertyId: propertyExternalId,
-      reservationId: review.reservationId,
-      rating: review.rating,
-      title: review.title,
-      content: review.description || review.content || review.review,
-      feedback: review.feedback,
-      guestName: review.guestName,
-      guestId: review.guestId,
-      source: review.source || review.channel,
-      createdAt: review.createdAt,
-      response: review.response,
-      respondedAt: review.respondedAt,
-      categoryRatings: review.categoryRatings || []
-    }));
-    
-    return {
-      success: true,
-      data: reviews
-    };
-  }
-  
-  // =====================================================
-  // WEBHOOKS
-  // =====================================================
-  
-  async registerWebhook(url, events) {
-    const response = await this.request('/webhooks', 'POST', {
-      url,
-      events
-    }, { useV1: true });
+    const response = await this.request('/vrs/reviews', 'GET', null, { params });
     
     if (!response.success) {
       return response;
@@ -1059,332 +1048,239 @@ class CalryAdapter {
     
     return {
       success: true,
-      webhookId: response.data?.id,
-      listenerUrl: response.data?.listenerUrl
+      data: (response.data?.data || response.data || []).map(r => ({
+        externalId: String(r.id),
+        propertyId: propertyExternalId,
+        guestName: r.guestName || r.author || 'Guest',
+        rating: r.rating || r.overallRating,
+        comment: r.comment || r.text || r.review,
+        response: r.response || r.ownerResponse,
+        createdAt: r.createdAt || r.date
+      }))
     };
-  }
-  
-  async unregisterWebhook(webhookId) {
-    const response = await this.request(`/webhooks/${webhookId}`, 'DELETE', null, { useV1: true });
-    return { success: response.success };
-  }
-  
-  parseWebhookPayload(payload, headers) {
-    return {
-      event: payload.event || payload.type,
-      data: payload.data || payload.payload,
-      timestamp: payload.timestamp || new Date().toISOString(),
-      integrationAccountId: payload.integrationAccountId,
-      externalId: payload.data?.id || payload.resourceId
-    };
-  }
-  
-  // =====================================================
-  // FULL SYNC (includes pricing & availability)
-  // =====================================================
-  
-  async fullSync(options = {}) {
-    const stats = {
-      properties: { synced: 0, errors: 0 },
-      roomTypes: { synced: 0, errors: 0 },
-      availability: { synced: 0, errors: 0 },
-      rates: { synced: 0, errors: 0 },
-      reservations: { synced: 0, errors: 0 }
-    };
-    
-    const syncDays = options.days || 90;
-    const startDate = new Date().toISOString().split('T')[0];
-    const endDate = new Date(Date.now() + syncDays * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-    
-    try {
-      // 1. Sync properties
-      const propertiesResult = await this.getProperties({ limit: 100 });
-      if (propertiesResult.success) {
-        for (const property of propertiesResult.data) {
-          try {
-            await this.syncPropertyToDatabase(property);
-            stats.properties.synced++;
-            
-            // 2. Sync room types
-            const roomTypesResult = await this.getRoomTypes(property.externalId);
-            if (roomTypesResult.success) {
-              for (const roomType of roomTypesResult.data) {
-                try {
-                  await this.syncRoomTypeToDatabase(roomType, property.externalId);
-                  stats.roomTypes.synced++;
-                  
-                  // 3. Sync availability for this room type
-                  if (options.syncAvailability !== false) {
-                    try {
-                      const availResult = await this.getAvailability(roomType.externalId, startDate, endDate);
-                      if (availResult.success && availResult.data.length > 0) {
-                        await this.syncAvailabilityToDatabase(roomType.externalId, availResult.data);
-                        stats.availability.synced += availResult.data.length;
-                      }
-                    } catch (availErr) {
-                      stats.availability.errors++;
-                      console.error(`Availability sync error for ${roomType.externalId}:`, availErr.message);
-                    }
-                  }
-                  
-                  // 4. Sync rates for this room type
-                  if (options.syncRates !== false) {
-                    try {
-                      const ratesResult = await this.getRates(roomType.externalId, startDate, endDate);
-                      if (ratesResult.success && ratesResult.data.length > 0) {
-                        await this.syncRatesToDatabase(roomType.externalId, ratesResult.data);
-                        stats.rates.synced += ratesResult.data.length;
-                      }
-                    } catch (ratesErr) {
-                      stats.rates.errors++;
-                      console.error(`Rates sync error for ${roomType.externalId}:`, ratesErr.message);
-                    }
-                  }
-                  
-                } catch (e) {
-                  stats.roomTypes.errors++;
-                  console.error('Room type sync error:', e.message);
-                }
-              }
-            }
-          } catch (e) {
-            stats.properties.errors++;
-            console.error('Property sync error:', e.message);
-          }
-        }
-      }
-      
-      // 5. Sync reservations
-      const reservationsResult = await this.getReservations({ limit: 100 });
-      if (reservationsResult.success) {
-        for (const reservation of reservationsResult.data) {
-          try {
-            await this.syncReservationToDatabase(reservation);
-            stats.reservations.synced++;
-          } catch (e) {
-            stats.reservations.errors++;
-            console.error('Reservation sync error:', e.message);
-          }
-        }
-      }
-      
-      return { success: true, stats };
-    } catch (error) {
-      return { success: false, error: error.message, stats };
-    }
-  }
-  
-  // Incremental sync - only sync changes since last sync
-  async incrementalSync(lastSyncTime, options = {}) {
-    const stats = {
-      properties: { synced: 0, errors: 0 },
-      roomTypes: { synced: 0, errors: 0 },
-      availability: { synced: 0, errors: 0 },
-      rates: { synced: 0, errors: 0 },
-      reservations: { synced: 0, errors: 0 }
-    };
-    
-    try {
-      // For incremental, mainly sync reservations and upcoming availability
-      const reservationsResult = await this.getReservations({ 
-        modifiedSince: lastSyncTime,
-        limit: 100 
-      });
-      
-      if (reservationsResult.success) {
-        for (const reservation of reservationsResult.data) {
-          try {
-            await this.syncReservationToDatabase(reservation);
-            stats.reservations.synced++;
-          } catch (e) {
-            stats.reservations.errors++;
-          }
-        }
-      }
-      
-      // Also sync availability/rates for next 30 days
-      if (options.syncAvailability !== false) {
-        const startDate = new Date().toISOString().split('T')[0];
-        const endDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-        
-        // Get all linked room types
-        if (this.pool && this.connectionId) {
-          const roomsResult = await this.pool.query(`
-            SELECT srt.external_id 
-            FROM gas_sync_room_types srt
-            JOIN gas_sync_properties sp ON srt.sync_property_id = sp.id
-            WHERE sp.connection_id = $1
-          `, [this.connectionId]);
-          
-          for (const row of roomsResult.rows) {
-            try {
-              const availResult = await this.getAvailability(row.external_id, startDate, endDate);
-              if (availResult.success) {
-                await this.syncAvailabilityToDatabase(row.external_id, availResult.data);
-                stats.availability.synced += availResult.data.length;
-              }
-              
-              const ratesResult = await this.getRates(row.external_id, startDate, endDate);
-              if (ratesResult.success) {
-                await this.syncRatesToDatabase(row.external_id, ratesResult.data);
-                stats.rates.synced += ratesResult.data.length;
-              }
-            } catch (e) {
-              stats.availability.errors++;
-              stats.rates.errors++;
-            }
-          }
-        }
-      }
-      
-      return { success: true, stats };
-    } catch (error) {
-      return { success: false, error: error.message, stats };
-    }
   }
   
   // =====================================================
   // DATABASE SYNC METHODS
   // =====================================================
   
-  async syncPropertyToDatabase(property) {
+  /**
+   * Sync a property to GAS database tables
+   * Maps to: gas_sync_properties, properties
+   */
+  async syncPropertyToDatabase(propertyData, accountId) {
     if (!this.pool || !this.connectionId) return;
     
     try {
-      const address = property.address || {};
-      const street = address.street || '';
-      const city = address.city || '';
-      const country = address.country || '';
-      const postalCode = address.postalCode || '';
-      const lat = address.coordinates?.lat || null;
-      const lng = address.coordinates?.lng || null;
-      
-      const settings = {
-        calry_id: property.metadata?.calryId || property.externalId,
-        calry_external_id: property.metadata?.externalPropertyId,
-        pms_type: this.pmsType,
-        check_in_time: property.checkInTime || null,
-        check_out_time: property.checkOutTime || null,
-        timezone: property.timezone || null,
-        property_type: property.propertyType || null,
-        amenities: property.amenities || []
-      };
-      
-      const result = await this.pool.query(`
+      // First, upsert to gas_sync_properties (staging)
+      const stagingResult = await this.pool.query(`
         INSERT INTO gas_sync_properties (
-          connection_id, external_id, name, 
-          address, city, country, postal_code,
-          latitude, longitude, currency, description,
-          raw_data, created_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
+          connection_id, external_id, cm_property_id, name, status, raw_data, created_at
+        ) VALUES ($1, $2, $2, $3, $4, $5, NOW())
         ON CONFLICT (connection_id, external_id) DO UPDATE SET
           name = EXCLUDED.name,
-          address = EXCLUDED.address,
-          city = EXCLUDED.city,
-          country = EXCLUDED.country,
-          postal_code = EXCLUDED.postal_code,
-          latitude = EXCLUDED.latitude,
-          longitude = EXCLUDED.longitude,
-          currency = EXCLUDED.currency,
-          description = EXCLUDED.description,
+          status = EXCLUDED.status,
           raw_data = EXCLUDED.raw_data,
           updated_at = NOW()
         RETURNING id
       `, [
         this.connectionId,
-        property.externalId,
-        property.name,
-        street,
-        city,
-        country,
-        postalCode,
-        lat,
-        lng,
-        property.currency || 'EUR',
-        property.description || '',
-        JSON.stringify({ ...property.raw, _settings: settings })
+        propertyData.externalId,
+        propertyData.name,
+        propertyData.status || 'active',
+        JSON.stringify(propertyData.raw || propertyData)
       ]);
       
-      return result.rows[0]?.id;
+      const syncPropertyId = stagingResult.rows[0]?.id;
+      
+      // Then upsert to main properties table
+      const coords = propertyData.coordinates || {};
+      const address = propertyData.address || {};
+      
+      const propResult = await this.pool.query(`
+        INSERT INTO properties (
+          account_id, name, description, property_type, status,
+          address_line1, address_line2, city, state_province, postal_code, country,
+          latitude, longitude, timezone, currency,
+          check_in_time, check_out_time,
+          min_nights, max_nights,
+          thumbnail_url, contact_email, contact_phone,
+          cm_property_id, cm_source,
+          created_at
+        ) VALUES (
+          $1, $2, $3, $4, $5,
+          $6, $7, $8, $9, $10, $11,
+          $12, $13, $14, $15,
+          $16, $17,
+          $18, $19,
+          $20, $21, $22,
+          $23, $24,
+          NOW()
+        )
+        ON CONFLICT (account_id, cm_property_id) WHERE cm_property_id IS NOT NULL
+        DO UPDATE SET
+          name = EXCLUDED.name,
+          description = EXCLUDED.description,
+          status = EXCLUDED.status,
+          address_line1 = EXCLUDED.address_line1,
+          city = EXCLUDED.city,
+          state_province = EXCLUDED.state_province,
+          postal_code = EXCLUDED.postal_code,
+          country = EXCLUDED.country,
+          latitude = COALESCE(EXCLUDED.latitude, properties.latitude),
+          longitude = COALESCE(EXCLUDED.longitude, properties.longitude),
+          thumbnail_url = COALESCE(EXCLUDED.thumbnail_url, properties.thumbnail_url),
+          updated_at = NOW()
+        RETURNING id
+      `, [
+        accountId,
+        propertyData.name,
+        propertyData.description || '',
+        propertyData.propertyType || 'vacation_rental',
+        propertyData.status || 'active',
+        address.street || '',
+        address.street2 || '',
+        address.city || '',
+        address.state || '',
+        address.postalCode || '',
+        address.country || '',
+        coords.latitude || null,
+        coords.longitude || null,
+        propertyData.timezone || null,
+        propertyData.currency || 'EUR',
+        propertyData.defaultCheckIn || '15:00',
+        propertyData.defaultCheckOut || '11:00',
+        propertyData.minNights || null,
+        propertyData.maxNights || null,
+        propertyData.thumbnailUrl || null,
+        propertyData.contactEmail || null,
+        propertyData.contactPhone || null,
+        propertyData.externalId,
+        'calry'
+      ]);
+      
+      const gasPropertyId = propResult.rows[0]?.id;
+      
+      // Link staging to main property
+      if (syncPropertyId && gasPropertyId) {
+        await this.pool.query(`
+          UPDATE gas_sync_properties 
+          SET gas_property_id = $1 
+          WHERE id = $2
+        `, [gasPropertyId, syncPropertyId]);
+      }
+      
+      return gasPropertyId;
     } catch (error) {
       console.error('Calry syncPropertyToDatabase error:', error.message);
       throw error;
     }
   }
   
-  async syncRoomTypeToDatabase(roomType, propertyExternalId) {
+  /**
+   * Sync room type to GAS database
+   * Maps to: gas_sync_room_types, bookable_units
+   */
+  async syncRoomTypeToDatabase(roomTypeData, gasPropertyId, syncPropertyId) {
     if (!this.pool || !this.connectionId) return;
     
     try {
-      const propResult = await this.pool.query(
-        'SELECT id FROM gas_sync_properties WHERE connection_id = $1 AND external_id = $2',
-        [this.connectionId, propertyExternalId]
-      );
-      
-      if (propResult.rows.length === 0) {
-        console.log('Property not found for room type:', propertyExternalId);
-        return;
-      }
-      
-      const syncPropertyId = propResult.rows[0].id;
-      
-      const amenitiesData = {
-        amenities: roomType.amenities || [],
-        calry_id: roomType.metadata?.calryRoomTypeId || roomType.externalId,
-        calry_external_id: roomType.metadata?.externalRoomTypeId,
-        bed_types: roomType.bedTypes || [],
-        room_type: roomType.roomType || null,
-        floor: roomType.floor || null,
-        size: roomType.size || null,
-        size_unit: roomType.sizeUnit || 'sqm',
-        unit_count: roomType.unitCount || 1
-      };
-      
-      const result = await this.pool.query(`
+      // Upsert to gas_sync_room_types (staging)
+      const stagingResult = await this.pool.query(`
         INSERT INTO gas_sync_room_types (
-          sync_property_id, external_id, name,
-          max_guests, base_price, currency,
-          bedrooms, bathrooms,
-          raw_data, created_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+          sync_property_id, external_id, name, raw_data, created_at
+        ) VALUES ($1, $2, $3, $4, NOW())
         ON CONFLICT (sync_property_id, external_id) DO UPDATE SET
           name = EXCLUDED.name,
-          max_guests = EXCLUDED.max_guests,
-          base_price = EXCLUDED.base_price,
-          currency = EXCLUDED.currency,
-          bedrooms = EXCLUDED.bedrooms,
-          bathrooms = EXCLUDED.bathrooms,
           raw_data = EXCLUDED.raw_data,
           updated_at = NOW()
         RETURNING id
       `, [
         syncPropertyId,
-        roomType.externalId,
-        roomType.name,
-        roomType.maxGuests || 2,
-        roomType.basePrice || 0,
-        roomType.currency || 'EUR',
-        roomType.bedrooms || 1,
-        roomType.bathrooms || 1,
-        JSON.stringify({ ...roomType.raw, _amenities: amenitiesData })
+        roomTypeData.externalId,
+        roomTypeData.name,
+        JSON.stringify(roomTypeData.raw || roomTypeData)
       ]);
       
-      return result.rows[0]?.id;
+      const syncRoomTypeId = stagingResult.rows[0]?.id;
+      
+      // Upsert to bookable_units (main rooms table)
+      const roomResult = await this.pool.query(`
+        INSERT INTO bookable_units (
+          property_id, name, description, room_type,
+          max_guests, max_adults, max_children,
+          bedrooms, bathrooms,
+          base_price, currency,
+          cm_room_id, cm_source,
+          created_at
+        ) VALUES (
+          $1, $2, $3, $4,
+          $5, $6, $7,
+          $8, $9,
+          $10, $11,
+          $12, $13,
+          NOW()
+        )
+        ON CONFLICT (property_id, cm_room_id) WHERE cm_room_id IS NOT NULL
+        DO UPDATE SET
+          name = EXCLUDED.name,
+          description = EXCLUDED.description,
+          max_guests = EXCLUDED.max_guests,
+          max_adults = EXCLUDED.max_adults,
+          max_children = EXCLUDED.max_children,
+          bedrooms = EXCLUDED.bedrooms,
+          bathrooms = EXCLUDED.bathrooms,
+          base_price = EXCLUDED.base_price,
+          updated_at = NOW()
+        RETURNING id
+      `, [
+        gasPropertyId,
+        roomTypeData.name,
+        roomTypeData.description || '',
+        roomTypeData.roomType || 'standard',
+        roomTypeData.maxGuests || 2,
+        roomTypeData.maxAdults || null,
+        roomTypeData.maxChildren || 0,
+        roomTypeData.bedrooms || 1,
+        roomTypeData.bathrooms || 1,
+        roomTypeData.basePrice || 0,
+        roomTypeData.currency || 'EUR',
+        roomTypeData.externalId,
+        'calry'
+      ]);
+      
+      const gasRoomId = roomResult.rows[0]?.id;
+      
+      // Link staging to main room
+      if (syncRoomTypeId && gasRoomId) {
+        await this.pool.query(`
+          UPDATE gas_sync_room_types 
+          SET gas_room_id = $1 
+          WHERE id = $2
+        `, [gasRoomId, syncRoomTypeId]);
+      }
+      
+      return gasRoomId;
     } catch (error) {
       console.error('Calry syncRoomTypeToDatabase error:', error.message);
       throw error;
     }
   }
   
+  /**
+   * Sync reservation to GAS database
+   */
   async syncReservationToDatabase(reservation) {
     if (!this.pool || !this.connectionId) return;
     
     try {
-      const guestName = reservation.guest?.name || 'Guest';
+      const guestName = [reservation.guest?.firstName, reservation.guest?.lastName]
+        .filter(Boolean).join(' ') || 'Guest';
       
       const result = await this.pool.query(`
         INSERT INTO gas_sync_reservations (
-          connection_id, external_id, property_external_id, room_type_external_id,
+          connection_id, external_id,
+          property_external_id, room_type_external_id,
           channel, channel_reservation_id,
           check_in, check_out, status,
           guest_name, guest_email, guest_phone,
