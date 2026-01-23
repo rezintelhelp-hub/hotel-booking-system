@@ -14386,7 +14386,15 @@ async function pushSettingsToWordPress(siteUrl, section, settings) {
       'search-label-color': 'search_label_color',
       'search-max-guests': 'search_max_guests',
       // Favicon
-      'favicon-image-url': 'site_icon'
+      'favicon-image-url': 'site_icon',
+      // Hero Slider Images
+      'slide-1-url': 'slide_1_url',
+      'slide-2-url': 'slide_2_url',
+      'slide-3-url': 'slide_3_url',
+      'slide-4-url': 'slide_4_url',
+      'background-type': 'background_type',
+      'slider-duration': 'slider_duration',
+      'slider-transition': 'slider_transition'
     };
     
     // Transform settings keys
