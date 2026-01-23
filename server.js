@@ -2407,14 +2407,14 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
     
     let propResult = { rows: [] };
     
-    // First try to find in gas_sync_properties (may not exist)
+    // First try to find in gas_sync_properties by gas_property_id (for Beds24)
     try {
       propResult = await pool.query(`
-        SELECT sp.id, sp.gas_property_id, sp.cm_property_id, sp.name,
-               c.adapter_code, c.external_account_id
+        SELECT sp.id, sp.gas_property_id, sp.external_id as cm_property_id, sp.name,
+               c.id as connection_id, c.adapter_code, c.external_account_id
         FROM gas_sync_properties sp
         JOIN gas_sync_connections c ON c.id = sp.connection_id
-        WHERE sp.id = $1
+        WHERE sp.gas_property_id = $1
       `, [syncPropertyId]);
     } catch (e) {
       console.log('gas_sync_properties lookup failed:', e.message);
@@ -2429,6 +2429,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
                COALESCE(p.cm_source, 
                  CASE WHEN bu.beds24_room_id IS NOT NULL THEN 'beds24' ELSE NULL END
                ) as cm_source,
+               c.id as connection_id,
                c.adapter_code, 
                c.external_account_id
         FROM properties p
@@ -2557,30 +2558,11 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
       }
       
     } else if (adapterCode === 'beds24') {
-      // Beds24 manual sync - find the connection and trigger sync
-      const connResult = await pool.query(`
-        SELECT c.id as connection_id, c.access_token, c.refresh_token
-        FROM gas_sync_connections c
-        WHERE c.account_id = (SELECT account_id FROM properties WHERE id = $1)
-        AND c.adapter_code = 'beds24'
-        LIMIT 1
-      `, [gasPropertyId]);
+      // Beds24 manual sync - use the connection_id from the query
+      const connectionId = prop.connection_id;
       
-      if (connResult.rows.length === 0) {
+      if (!connectionId) {
         return res.json({ success: false, error: 'No Beds24 connection found for this property' });
-      }
-      
-      const connectionId = connResult.rows[0].connection_id;
-      
-      // Get the room for this property
-      const roomResult = await pool.query(`
-        SELECT bu.id, bu.beds24_room_id, bu.name
-        FROM bookable_units bu
-        WHERE bu.property_id = $1 AND bu.beds24_room_id IS NOT NULL
-      `, [gasPropertyId]);
-      
-      if (roomResult.rows.length === 0) {
-        return res.json({ success: false, error: 'No Beds24-linked rooms found' });
       }
       
       // Trigger the existing sync endpoint internally
