@@ -1591,6 +1591,10 @@
                         <span class="nav-icon">📋</span>
                         <span>Availability</span>
                     </a>
+                    <a class="nav-item" data-view="stripe-settings" href="#" onclick="navClick(this, 'stripe-settings'); return false;">
+                        <span class="nav-icon">💳</span>
+                        <span>Stripe</span>
+                    </a>
                     </div>
                 </div>
 
@@ -3011,6 +3015,85 @@
                         </code>
                     </div>
                 </details>
+            </div>
+
+            <!-- Stripe Settings View -->
+            <div id="stripe-settings" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>💳 Stripe Payment Settings</h2>
+                            <p>Manage Stripe connections for your properties</p>
+                        </div>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button class="btn btn-secondary" onclick="loadStripeSettings()">↻ Refresh</button>
+                            <button class="btn" onclick="openBulkStripeModal()">📦 Bulk Setup</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Info Card -->
+                <div class="card" style="margin-bottom: 1rem; background: linear-gradient(135deg, #f0f9ff 0%, #e0e7ff 100%); border: 1px solid #c7d2fe;">
+                    <div style="display: flex; gap: 1rem; align-items: flex-start;">
+                        <div style="font-size: 2rem;">💡</div>
+                        <div>
+                            <h4 style="margin: 0 0 0.5rem 0; color: #4338ca;">Property-Level Stripe Keys</h4>
+                            <p style="margin: 0; color: #5b21b6; font-size: 0.9rem;">
+                                Each property can have its own Stripe account for payments. Create a 
+                                <a href="https://dashboard.stripe.com/apikeys" target="_blank" style="color: #4338ca; font-weight: 600;">Restricted API Key</a> 
+                                in Stripe with permissions for: <strong>Charges, Payment Intents, Customers, Refunds</strong> (Write access).
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Summary Stats -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                    <div class="card" style="text-align: center; padding: 1.25rem;">
+                        <div id="stripe-stat-total" style="font-size: 2rem; font-weight: 700; color: #1e293b;">-</div>
+                        <div style="color: #64748b; font-size: 0.85rem;">Total Properties</div>
+                    </div>
+                    <div class="card" style="text-align: center; padding: 1.25rem;">
+                        <div id="stripe-stat-connected" style="font-size: 2rem; font-weight: 700; color: #10b981;">-</div>
+                        <div style="color: #64748b; font-size: 0.85rem;">Stripe Connected</div>
+                    </div>
+                    <div class="card" style="text-align: center; padding: 1.25rem;">
+                        <div id="stripe-stat-pending" style="font-size: 2rem; font-weight: 700; color: #f59e0b;">-</div>
+                        <div style="color: #64748b; font-size: 0.85rem;">Needs Setup</div>
+                    </div>
+                </div>
+
+                <!-- Properties Table -->
+                <div class="card">
+                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                        <h3 class="card-title" style="margin: 0;">Properties</h3>
+                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            <select id="stripe-filter-status" class="form-input" style="min-width: 150px;" onchange="filterStripeTable()">
+                                <option value="">All Status</option>
+                                <option value="connected">✓ Connected</option>
+                                <option value="pending">⚠ Needs Setup</option>
+                            </select>
+                            <input type="text" id="stripe-search" class="form-input" placeholder="Search properties..." style="min-width: 200px;" oninput="filterStripeTable()">
+                        </div>
+                    </div>
+                    <div class="table-container">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Property</th>
+                                    <th>Location</th>
+                                    <th>Account</th>
+                                    <th>Stripe Status</th>
+                                    <th>Stripe Account Name</th>
+                                    <th style="text-align: center;">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="stripe-properties-table">
+                                <tr><td colspan="6" style="text-align: center; padding: 2rem; color: #64748b;">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
 
             <!-- Offers View -->
@@ -17164,6 +17247,7 @@ Local honey and preserves"></textarea>
             if (viewName === 'images') loadImages();
             if (viewName === 'amenities') loadAmenities();
             if (viewName === 'availability') loadAvailabilityView();
+            if (viewName === 'stripe-settings') loadStripeSettings();
             if (viewName === 'tasks') loadTasks();
             if (viewName === 'deploy-sites') {
                 checkVpsStatus();
@@ -39335,6 +39419,107 @@ Local honey and preserves"></textarea>
                     }, 2000);
                 }
             }, 300);
+        }
+
+        // ============================================
+        // STRIPE SETTINGS VIEW
+        // ============================================
+        
+        let stripePropertiesData = [];
+        
+        async function loadStripeSettings() {
+            try {
+                const queryParams = [];
+                if (selectedAccountId) {
+                    queryParams.push(`account_id=${selectedAccountId}`);
+                }
+                const queryString = queryParams.length > 0 ? '?' + queryParams.join('&') : '';
+                
+                const response = await fetch(`/api/db/properties${queryString}`, { headers: authHeaders() });
+                const data = await response.json();
+                stripePropertiesData = data.data || [];
+                
+                // Calculate stats
+                const total = stripePropertiesData.length;
+                const connected = stripePropertiesData.filter(p => p.stripe_secret_key).length;
+                const pending = total - connected;
+                
+                // Update stat cards
+                document.getElementById('stripe-stat-total').textContent = total;
+                document.getElementById('stripe-stat-connected').textContent = connected;
+                document.getElementById('stripe-stat-pending').textContent = pending;
+                
+                // Render table
+                renderStripeTable();
+                
+            } catch (error) {
+                console.error('Error loading stripe settings:', error);
+                showNotification('Error loading stripe settings', 'error');
+            }
+        }
+        
+        function renderStripeTable() {
+            const tbody = document.getElementById('stripe-properties-table');
+            const searchTerm = (document.getElementById('stripe-search')?.value || '').toLowerCase();
+            const statusFilter = document.getElementById('stripe-filter-status')?.value || '';
+            
+            let filtered = stripePropertiesData;
+            
+            // Apply search filter
+            if (searchTerm) {
+                filtered = filtered.filter(p => 
+                    (p.name || '').toLowerCase().includes(searchTerm) ||
+                    (p.city || '').toLowerCase().includes(searchTerm) ||
+                    (p.country || '').toLowerCase().includes(searchTerm) ||
+                    (p.account_name || '').toLowerCase().includes(searchTerm)
+                );
+            }
+            
+            // Apply status filter
+            if (statusFilter === 'connected') {
+                filtered = filtered.filter(p => p.stripe_secret_key);
+            } else if (statusFilter === 'pending') {
+                filtered = filtered.filter(p => !p.stripe_secret_key);
+            }
+            
+            if (filtered.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: #64748b;">No properties found</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = filtered.map(prop => {
+                const hasStripe = !!prop.stripe_secret_key;
+                const statusBadge = hasStripe 
+                    ? '<span class="badge badge-success">✓ Connected</span>'
+                    : '<span class="badge badge-warning">⚠ Needs Setup</span>';
+                
+                return `
+                    <tr>
+                        <td>
+                            <div style="font-weight: 500;">${prop.name || 'Unnamed Property'}</div>
+                            <div style="font-size: 0.8rem; color: #64748b;">ID: ${prop.id}</div>
+                        </td>
+                        <td>${prop.city || ''}${prop.city && prop.country ? ', ' : ''}${prop.country || ''}</td>
+                        <td>${prop.account_name || '-'}</td>
+                        <td>${statusBadge}</td>
+                        <td>${prop.stripe_name || '<span style="color: #9ca3af;">-</span>'}</td>
+                        <td style="text-align: center;">
+                            <button class="btn btn-secondary btn-small" onclick="openStripeConfigModal(${prop.id}, '${(prop.name || '').replace(/'/g, "\\'")}', ${hasStripe})" style="${hasStripe ? 'color: #10b981;' : 'color: #f59e0b;'}">
+                                💳 ${hasStripe ? 'Edit' : 'Connect'}
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+        
+        function filterStripeTable() {
+            renderStripeTable();
+        }
+        
+        function openStripeConfigModal(propertyId, propertyName, isConnected) {
+            // Use the existing property edit modal with stripe section
+            openPropertyStripeSettings(propertyId, propertyName);
         }
 
         // Bulk Stripe Setup
