@@ -40530,6 +40530,51 @@ app.post('/api/admin/website-builder/upload-image', upload.single('image'), asyn
   }
 });
 
+// Generic image upload for blogs/attractions (stores in R2)
+app.post('/api/admin/upload-image', upload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.json({ success: false, error: 'No image uploaded' });
+    }
+    
+    // Get account ID from auth header or request body
+    const authHeader = req.headers.authorization || '';
+    let accountId = req.body.account_id;
+    
+    // Try to extract from auth if not in body
+    if (!accountId && authHeader.startsWith('Basic ')) {
+      try {
+        const [id] = Buffer.from(authHeader.split(' ')[1], 'base64').toString().split(':');
+        accountId = id;
+      } catch (e) {
+        // Ignore auth parse errors
+      }
+    }
+    
+    // Default to 'general' folder if no account
+    const folder = accountId ? `content/${accountId}` : 'content/general';
+    
+    console.log(`📸 Generic image upload: file=${req.file.originalname}, folder=${folder}`);
+    
+    // Process and upload to R2
+    const results = await processAndUploadImage(
+      req.file.buffer,
+      folder,
+      'blog',
+      req.file.originalname
+    );
+    
+    res.json({ 
+      success: true, 
+      url: results.large, // Return large size
+      urls: results
+    });
+  } catch (error) {
+    console.error('Image upload error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Video upload for website builder (hero backgrounds, etc.)
 const videoUpload = multer({
   storage: multer.memoryStorage(),
