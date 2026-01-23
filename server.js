@@ -14394,7 +14394,21 @@ async function pushSettingsToWordPress(siteUrl, section, settings) {
       'slide-4-url': 'slide_4',
       'background-type': 'background_type',
       'slider-duration': 'slider_duration',
-      'slider-transition': 'slider_transition'
+      'slider-transition': 'slider_transition',
+      // Global Typography & Styles
+      'heading-font': 'heading_font',
+      'body-font': 'body_font',
+      'title-size': 'title_size',
+      'body-size': 'body_size',
+      'primary-color': 'primary_color',
+      'secondary-color': 'secondary_color',
+      'accent-color': 'accent_color',
+      'link-color': 'link_color',
+      'btn-primary-bg': 'btn_primary_bg',
+      'btn-primary-text': 'btn_primary_text',
+      'btn-secondary-bg': 'btn_secondary_bg',
+      'btn-secondary-text': 'btn_secondary_text',
+      'btn-radius': 'btn_radius'
     };
     
     // Transform settings keys
