@@ -3877,8 +3877,13 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         }
         console.log('link-to-gas: Room amenities extracted:', roomAmenities.length);
         
-        // Bedroom configuration
-        const bedroomConfig = room.bedRoom?.beds || room.bedTypes || room.beds || room.bedConfiguration || [];
+        // Bedroom configuration - Lodgify stores in rooms[0].beds
+        let bedroomConfig = room.bedRoom?.beds || room.bedTypes || room.beds || room.bedConfiguration || [];
+        // Also check rooms array (Lodgify format)
+        if ((!bedroomConfig || bedroomConfig.length === 0) && room.rooms && Array.isArray(room.rooms) && room.rooms[0]?.beds) {
+          bedroomConfig = room.rooms[0].beds;
+          console.log('link-to-gas: Found beds in rooms[0].beds:', JSON.stringify(bedroomConfig));
+        }
         console.log('link-to-gas: Bedroom config:', JSON.stringify(bedroomConfig).substring(0, 200));
         
         // Bathroom configuration  
@@ -4046,13 +4051,25 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
                 bedCount = bed.count || 1;
               }
               
-              // Normalize bed type to our standard codes
-              if (bedType.includes('king')) bedType = 'bed_king';
-              else if (bedType.includes('queen')) bedType = 'bed_queen';
-              else if (bedType.includes('double')) bedType = 'bed_double';
-              else if (bedType.includes('single') || bedType.includes('twin')) bedType = 'bed_single';
-              else if (bedType.includes('sofa')) bedType = 'bed_sofa_double';
-              else if (bedType.includes('bunk')) bedType = 'bed_bunk';
+              // Skip beds with count 0 (e.g., SleepingBedLinen)
+              if (bedCount === 0) {
+                console.log('link-to-gas: Skipping bed with count 0:', bedType);
+                continue;
+              }
+              
+              // Normalize bed type to our standard codes (handle Lodgify's Sleeping* format)
+              const bedTypeLower = bedType.toLowerCase();
+              if (bedTypeLower.includes('king')) bedType = 'bed_king';
+              else if (bedTypeLower.includes('queen')) bedType = 'bed_queen';
+              else if (bedTypeLower.includes('double')) bedType = 'bed_double';
+              else if (bedTypeLower.includes('single') || bedTypeLower.includes('twin')) bedType = 'bed_single';
+              else if (bedTypeLower.includes('sofa')) bedType = 'bed_sofa_double';
+              else if (bedTypeLower.includes('bunk')) bedType = 'bed_bunk';
+              else if (bedTypeLower.includes('cot') || bedTypeLower.includes('crib')) bedType = 'bed_cot';
+              else if (bedTypeLower.includes('futon')) bedType = 'bed_futon';
+              else bedType = 'bed_double'; // Default
+              
+              console.log('link-to-gas: Adding bed:', bedType, 'x', bedCount);
               
               await pool.query(`
                 INSERT INTO property_bedrooms (room_id, name, bed_type, bed_count, display_order, created_at)
@@ -4068,12 +4085,24 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         }
         
         // ===== SYNC BATHROOM CONFIGURATION =====
-        if (bathroomConfig && (Array.isArray(bathroomConfig) ? bathroomConfig.length > 0 : typeof bathroomConfig === 'object')) {
+        // Lodgify returns bathRoom: {count: 2} so we need to handle that
+        const bathroomCount = room.bathRoom?.count || bathrooms || 1;
+        if (bathroomCount > 0) {
           try {
             // Clear existing bathrooms for this room
             await pool.query('DELETE FROM property_bathrooms WHERE room_id = $1', [gasRoomId]);
             
-            const bathsArray = Array.isArray(bathroomConfig) ? bathroomConfig : [bathroomConfig];
+            // If we have detailed config, use it; otherwise create based on count
+            let bathsArray = [];
+            if (bathroomConfig && Array.isArray(bathroomConfig) && bathroomConfig.length > 0) {
+              bathsArray = bathroomConfig;
+            } else {
+              // Create bathrooms based on count
+              for (let i = 0; i < bathroomCount; i++) {
+                bathsArray.push({ type: i === 0 ? 'bathroom_private_ensuite' : 'bathroom_full' });
+              }
+            }
+            
             let bathroomOrder = 1;
             
             for (const bath of bathsArray) {
@@ -20725,49 +20754,87 @@ app.get('/api/admin/calry/debug-by-account/:accountId', async (req, res) => {
         photosCount: rt.photos?.length || 0
       };
       
-      // Try to get availability
+      // Try to get availability - try prod first, then dev
       try {
         const today = new Date().toISOString().split('T')[0];
         const endDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
         
-        const availResponse = await axios.get(`https://prod.calry.app/api/v2/vrs/room-types/${rt.id}/availability`, {
-          headers: {
-            'Authorization': `Bearer ${CALRY_API_TOKEN}`,
-            'workspaceId': CALRY_WORKSPACE_ID,
-            'integrationAccountId': integrationAccountId
-          },
-          params: { startDate: today, endDate: endDate },
-          timeout: 30000
-        });
+        let availResponse;
+        let usedEnv = 'prod';
+        
+        // Try prod first
+        try {
+          availResponse = await axios.get(`https://prod.calry.app/api/v2/vrs/availability/${rt.id}`, {
+            headers: {
+              'Authorization': `Bearer ${CALRY_API_TOKEN}`,
+              'workspaceId': CALRY_WORKSPACE_ID,
+              'integrationAccountId': integrationAccountId
+            },
+            params: { startDate: today, endDate: endDate, roomTypeId: rt.id, rates: true },
+            timeout: 30000
+          });
+        } catch (prodErr) {
+          // Try dev if prod fails
+          console.log('Calry prod availability failed, trying dev:', prodErr.message);
+          usedEnv = 'dev';
+          availResponse = await axios.get(`https://dev.calry.app/api/v2/vrs/availability/${rt.id}`, {
+            headers: {
+              'Authorization': `Bearer ${CALRY_API_TOKEN}`,
+              'workspaceId': CALRY_WORKSPACE_ID,
+              'integrationAccountId': integrationAccountId
+            },
+            params: { startDate: today, endDate: endDate, roomTypeId: rt.id, rates: true },
+            timeout: 30000
+          });
+        }
         
         const availability = availResponse.data?.data || availResponse.data || [];
         debug.availability = {
+          environment: usedEnv,
           count: Array.isArray(availability) ? availability.length : 'not array',
-          sample: Array.isArray(availability) ? availability.slice(0, 3) : availability
+          sample: Array.isArray(availability) ? availability.slice(0, 5) : availability,
+          rawResponse: availResponse.data
         };
       } catch (availErr) {
-        debug.availability = { error: availErr.message };
+        debug.availability = { error: availErr.message, triedBothEnvs: true };
       }
       
-      // Try to get rates
+      // Try to get rates - try prod first, then dev
       try {
         const today = new Date().toISOString().split('T')[0];
         const endDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
         
-        const ratesResponse = await axios.get(`https://prod.calry.app/api/v2/vrs/room-types/${rt.id}/rates`, {
-          headers: {
-            'Authorization': `Bearer ${CALRY_API_TOKEN}`,
-            'workspaceId': CALRY_WORKSPACE_ID,
-            'integrationAccountId': integrationAccountId
-          },
-          params: { startDate: today, endDate: endDate },
-          timeout: 30000
-        });
+        let ratesResponse;
+        let usedEnv = 'prod';
+        
+        try {
+          ratesResponse = await axios.get(`https://prod.calry.app/api/v2/vrs/availability/${rt.id}`, {
+            headers: {
+              'Authorization': `Bearer ${CALRY_API_TOKEN}`,
+              'workspaceId': CALRY_WORKSPACE_ID,
+              'integrationAccountId': integrationAccountId
+            },
+            params: { startDate: today, endDate: endDate, roomTypeId: rt.id, rates: true },
+            timeout: 30000
+          });
+        } catch (prodErr) {
+          usedEnv = 'dev';
+          ratesResponse = await axios.get(`https://dev.calry.app/api/v2/vrs/availability/${rt.id}`, {
+            headers: {
+              'Authorization': `Bearer ${CALRY_API_TOKEN}`,
+              'workspaceId': CALRY_WORKSPACE_ID,
+              'integrationAccountId': integrationAccountId
+            },
+            params: { startDate: today, endDate: endDate, roomTypeId: rt.id, rates: true },
+            timeout: 30000
+          });
+        }
         
         const rates = ratesResponse.data?.data || ratesResponse.data || [];
         debug.rates = {
+          environment: usedEnv,
           count: Array.isArray(rates) ? rates.length : 'not array',
-          sample: Array.isArray(rates) ? rates.slice(0, 3) : rates
+          sample: Array.isArray(rates) ? rates.slice(0, 5) : rates
         };
       } catch (ratesErr) {
         debug.rates = { error: ratesErr.message };
@@ -20865,7 +20932,7 @@ app.get('/api/admin/calry/debug-room-sync/:connectionId', async (req, res) => {
             const endDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
             const roomTypeId = roomTypes[0]?.id;
             
-            const availResponse = await axios.get(`https://prod.calry.app/api/v2/vrs/room-types/${roomTypeId}/availability`, {
+            const availResponse = await axios.get(`https://prod.calry.app/api/v2/vrs/availability/${roomTypeId}`, {
               headers: {
                 'Authorization': `Bearer ${CALRY_API_TOKEN}`,
                 'workspaceId': CALRY_WORKSPACE_ID,
