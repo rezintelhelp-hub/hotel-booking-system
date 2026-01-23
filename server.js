@@ -2490,7 +2490,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
                 'integrationAccountId': integrationAccountId,
                 'Content-Type': 'application/json'
               },
-              params: { startDate, endDate, roomTypeId, rates: true },
+              params: { startDate, endDate, rates: 'true' },
               timeout: 30000
             });
             
@@ -22178,6 +22178,7 @@ app.post('/api/calry/sync-pricing/:propertyId', async (req, res) => {
       
       try {
         // Fetch availability with rates from v2 API
+        // Note: rates param should be string 'true', and keep date range reasonable
         const availResponse = await axios.get(`https://prod.calry.app/api/v2/vrs/availability/${roomTypeId}`, {
           headers: {
             'Authorization': `Bearer ${CALRY_API_TOKEN}`,
@@ -22188,8 +22189,7 @@ app.post('/api/calry/sync-pricing/:propertyId', async (req, res) => {
           params: {
             startDate: startDate,
             endDate: endDate,
-            roomTypeId: roomTypeId,
-            rates: true
+            rates: 'true'
           },
           timeout: 30000
         });
