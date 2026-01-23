@@ -22643,15 +22643,31 @@ Local honey and preserves"></textarea>
             }
             
             container.innerHTML = bedrooms.map(bedroom => {
-                const bedConfig = typeof bedroom.bed_config === 'string' ? JSON.parse(bedroom.bed_config) : (bedroom.bed_config || []);
+                let bedConfig = typeof bedroom.bed_config === 'string' ? JSON.parse(bedroom.bed_config) : (bedroom.bed_config || []);
+                
+                // Handle both formats: {beds: [...]} and flat array [...]
+                if (bedConfig && bedConfig.beds && Array.isArray(bedConfig.beds)) {
+                    bedConfig = bedConfig.beds;
+                }
+                if (!Array.isArray(bedConfig)) {
+                    bedConfig = [];
+                }
+                
                 const bedSummary = bedConfig.map(b => {
                     const bedNames = {
                         'king': 'King', 'super-king': 'Super King', 'queen': 'Queen', 'double': 'Double',
-                        'single': 'Single', 'sofa-bed': 'Sofa Bed', 'bunk': 'Bunk', 'murphy': 'Murphy',
-                        'daybed': 'Daybed', 'trundle': 'Trundle', 'cot': 'Cot', 'toddler': 'Toddler',
-                        'air-mattress': 'Air Mattress', 'futon': 'Futon', 'floor-mattress': 'Floor Mattress'
+                        'single': 'Single', 'sofa-bed': 'Sofa Bed', 'sofa-bed-single': 'Sofa Bed (Single)', 
+                        'bunk': 'Bunk', 'murphy': 'Murphy', 'daybed': 'Daybed', 'trundle': 'Trundle', 
+                        'cot': 'Cot', 'toddler': 'Toddler', 'air-mattress': 'Air Mattress', 
+                        'futon': 'Futon', 'floor-mattress': 'Floor Mattress',
+                        // Also handle bed_ prefix versions
+                        'bed_king': 'King', 'bed_queen': 'Queen', 'bed_double': 'Double', 
+                        'bed_single': 'Single', 'bed_sofa_double': 'Sofa Bed', 'bed_sofa_single': 'Sofa Bed (Single)',
+                        'bed_bunk': 'Bunk', 'bed_cot': 'Cot', 'bed_futon': 'Futon'
                     };
-                    return `${b.qty || 1}× ${bedNames[b.type] || b.type}`;
+                    const qty = b.qty || b.count || 1;
+                    const typeName = bedNames[b.type] || b.type;
+                    return `${qty}× ${typeName}`;
                 }).join(', ') || 'No beds configured';
                 
                 return `
