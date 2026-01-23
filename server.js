@@ -4864,8 +4864,164 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
     }
     
     const conn = connResult.rows[0];
+    
+    // Route to appropriate handler based on adapter
+    if (conn.adapter_code === 'calry') {
+      // ===== CALRY AVAILABILITY SYNC =====
+      const integrationAccountId = conn.external_account_id;
+      
+      if (!CALRY_API_TOKEN || !CALRY_WORKSPACE_ID) {
+        return res.json({ success: false, error: 'Calry not configured on server' });
+      }
+      
+      // Get all synced properties with linked rooms
+      const propsResult = await pool.query(`
+        SELECT sp.id, sp.external_id as cm_property_id, sp.name, sp.gas_property_id
+        FROM gas_sync_properties sp
+        WHERE sp.connection_id = $1 AND sp.gas_property_id IS NOT NULL
+      `, [connectionId]);
+      
+      if (propsResult.rows.length === 0) {
+        return res.json({ success: false, error: 'No linked properties found.' });
+      }
+      
+      // Ensure room_availability table exists
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS room_availability (
+          id SERIAL PRIMARY KEY,
+          room_id INTEGER NOT NULL,
+          date DATE NOT NULL,
+          cm_price DECIMAL(10,2),
+          direct_price DECIMAL(10,2),
+          is_available BOOLEAN DEFAULT true,
+          is_blocked BOOLEAN DEFAULT false,
+          min_stay INTEGER DEFAULT 1,
+          max_stay INTEGER,
+          source VARCHAR(50),
+          created_at TIMESTAMP DEFAULT NOW(),
+          updated_at TIMESTAMP DEFAULT NOW(),
+          UNIQUE(room_id, date)
+        )
+      `);
+      
+      const today = new Date();
+      const startDate = today.toISOString().split('T')[0];
+      const endDate = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      
+      let totalDaysUpdated = 0;
+      let roomsSynced = 0;
+      const errors = [];
+      
+      for (const prop of propsResult.rows) {
+        try {
+          const calryPropertyId = prop.cm_property_id;
+          
+          // Get room types for this property
+          const roomTypesResponse = await axios.get(`https://prod.calry.app/api/v2/vrs/room-types/${calryPropertyId}`, {
+            headers: {
+              'Authorization': `Bearer ${CALRY_API_TOKEN}`,
+              'workspaceId': CALRY_WORKSPACE_ID,
+              'integrationAccountId': integrationAccountId,
+              'Content-Type': 'application/json'
+            },
+            timeout: 30000
+          });
+          
+          const roomTypes = roomTypesResponse.data?.data || roomTypesResponse.data || [];
+          
+          for (const roomType of roomTypes) {
+            const roomTypeId = String(roomType.id);
+            
+            // Find matching GAS room
+            const roomResult = await pool.query(`
+              SELECT id, name FROM bookable_units 
+              WHERE property_id = $1 AND (cm_room_id = $2 OR cm_room_id = $3)
+            `, [prop.gas_property_id, roomTypeId, roomTypeId.toString()]);
+            
+            let gasRoomId = roomResult.rows[0]?.id;
+            if (!gasRoomId) {
+              // Fall back to first room
+              const anyRoom = await pool.query(`SELECT id FROM bookable_units WHERE property_id = $1 LIMIT 1`, [prop.gas_property_id]);
+              gasRoomId = anyRoom.rows[0]?.id;
+              if (gasRoomId) {
+                await pool.query(`UPDATE bookable_units SET cm_room_id = $1 WHERE id = $2`, [roomTypeId, gasRoomId]);
+              }
+            }
+            
+            if (!gasRoomId) continue;
+            
+            // FIXED: URL uses propertyId, query param uses roomTypeId
+            const availResponse = await axios.get(`https://prod.calry.app/api/v2/vrs/availability/${calryPropertyId}`, {
+              headers: {
+                'Authorization': `Bearer ${CALRY_API_TOKEN}`,
+                'workspaceId': CALRY_WORKSPACE_ID,
+                'integrationAccountId': integrationAccountId,
+                'Content-Type': 'application/json'
+              },
+              params: { startDate, endDate, roomTypeId: roomTypeId, rates: 'true' },
+              timeout: 30000
+            });
+            
+            const availData = availResponse.data?.data || availResponse.data || [];
+            
+            if (Array.isArray(availData)) {
+              for (const day of availData) {
+                const date = day.date;
+                if (!date) continue;
+                
+                // Handle price in different formats
+                let price = null;
+                if (day.price) {
+                  if (typeof day.price === 'object' && day.price.amount !== undefined) {
+                    price = parseFloat(day.price.amount);
+                  } else {
+                    price = parseFloat(day.price);
+                  }
+                }
+                
+                const isAvailable = day.status === 'AVAILABLE' || (day.available !== false && day.status !== 'blocked' && day.status !== 'BLOCKED');
+                const minStay = day.minimumNights || day.minStay || day.minimumStay || 1;
+                const maxStay = day.maximumNights || day.maxStay || day.maximumStay || null;
+                
+                await pool.query(`
+                  INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, max_stay, source)
+                  VALUES ($1, $2, $3, $3, $4, $5, $6, $7, 'calry')
+                  ON CONFLICT (room_id, date) 
+                  DO UPDATE SET 
+                    cm_price = COALESCE($3, room_availability.cm_price),
+                    direct_price = COALESCE($3, room_availability.direct_price),
+                    is_available = $4,
+                    is_blocked = $5,
+                    min_stay = $6,
+                    max_stay = $7,
+                    source = 'calry',
+                    updated_at = NOW()
+                `, [gasRoomId, date, price, isAvailable, !isAvailable, minStay, maxStay]);
+                
+                totalDaysUpdated++;
+              }
+              roomsSynced++;
+            }
+          }
+        } catch (propError) {
+          console.error(`Calry sync error for property ${prop.name}:`, propError.message);
+          errors.push({ property: prop.name, error: propError.message });
+        }
+      }
+      
+      await pool.query('UPDATE gas_sync_connections SET last_sync_at = NOW() WHERE id = $1', [connectionId]);
+      
+      return res.json({
+        success: true,
+        message: 'Calry availability sync complete',
+        stats: { propertiesChecked: propsResult.rows.length, roomsSynced, totalDaysUpdated, days },
+        errors: errors.length > 0 ? errors : undefined
+      });
+    }
+    
+    // ===== BEDS24 AVAILABILITY SYNC =====
     if (conn.adapter_code !== 'beds24') {
-      return res.json({ success: false, error: 'Only Beds24 connections supported for now' });
+      return res.json({ success: false, error: 'Only Beds24 and Calry connections supported' });
     }
     
     // Get access token - try stored token first, then refresh
