@@ -19814,46 +19814,67 @@ async function importCalryPropertiesViaAdapter(integrationAccountId, pmsName, ex
         
         console.log(`  getRoomTypes result: success=${roomTypesResult.success}, count=${roomTypesResult.data?.length || 0}`);
         if (roomTypesResult.success && roomTypesResult.data?.length > 0) {
-          // Ensure gas_sync_room_types has all required columns
+          // Ensure gas_sync_room_types has all required columns and constraints
           await pool.query('ALTER TABLE gas_sync_room_types ADD COLUMN IF NOT EXISTS bedrooms INTEGER').catch(() => {});
           await pool.query('ALTER TABLE gas_sync_room_types ADD COLUMN IF NOT EXISTS bathrooms INTEGER').catch(() => {});
           await pool.query('ALTER TABLE gas_sync_room_types ADD COLUMN IF NOT EXISTS raw_data JSONB').catch(() => {});
           await pool.query('ALTER TABLE gas_sync_room_types ADD COLUMN IF NOT EXISTS max_guests INTEGER').catch(() => {});
           await pool.query('ALTER TABLE gas_sync_room_types ADD COLUMN IF NOT EXISTS base_price DECIMAL(10,2)').catch(() => {});
           await pool.query('ALTER TABLE gas_sync_room_types ADD COLUMN IF NOT EXISTS currency VARCHAR(3)').catch(() => {});
+          // Add unique constraint for upsert
+          await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS gas_sync_room_types_prop_ext_idx ON gas_sync_room_types(sync_property_id, external_id)').catch(() => {});
           
           for (const roomType of roomTypesResult.data) {
             try {
               console.log(`  Syncing room type: ${roomType.name} (${roomType.externalId})`);
               
-              // Direct insert to gas_sync_room_types (bypass adapter)
-              const roomSyncResult = await pool.query(`
-                INSERT INTO gas_sync_room_types (
-                  sync_property_id, external_id, name,
-                  max_guests, base_price, currency,
-                  bedrooms, bathrooms, raw_data, created_at
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
-                ON CONFLICT (sync_property_id, external_id) DO UPDATE SET
-                  name = EXCLUDED.name,
-                  max_guests = EXCLUDED.max_guests,
-                  base_price = EXCLUDED.base_price,
-                  currency = EXCLUDED.currency,
-                  bedrooms = EXCLUDED.bedrooms,
-                  bathrooms = EXCLUDED.bathrooms,
-                  raw_data = EXCLUDED.raw_data,
-                  updated_at = NOW()
-                RETURNING id
-              `, [
-                syncPropertyId,
-                roomType.externalId,
-                roomType.name,
-                roomType.maxGuests || 2,
-                roomType.basePrice || 0,
-                roomType.currency || 'EUR',
-                roomType.bedrooms || 1,
-                roomType.bathrooms || 1,
-                JSON.stringify(roomType.raw || roomType)
-              ]);
+              // Check if room type already exists
+              const existingRoom = await pool.query(
+                'SELECT id FROM gas_sync_room_types WHERE sync_property_id = $1 AND external_id = $2',
+                [syncPropertyId, roomType.externalId]
+              );
+              
+              let roomSyncResult;
+              if (existingRoom.rows.length > 0) {
+                // Update existing
+                roomSyncResult = await pool.query(`
+                  UPDATE gas_sync_room_types SET
+                    name = $1, max_guests = $2, base_price = $3, currency = $4,
+                    bedrooms = $5, bathrooms = $6, raw_data = $7, updated_at = NOW()
+                  WHERE sync_property_id = $8 AND external_id = $9
+                  RETURNING id
+                `, [
+                  roomType.name,
+                  roomType.maxGuests || 2,
+                  roomType.basePrice || 0,
+                  roomType.currency || 'EUR',
+                  roomType.bedrooms || 1,
+                  roomType.bathrooms || 1,
+                  JSON.stringify(roomType.raw || roomType),
+                  syncPropertyId,
+                  roomType.externalId
+                ]);
+              } else {
+                // Insert new
+                roomSyncResult = await pool.query(`
+                  INSERT INTO gas_sync_room_types (
+                    sync_property_id, external_id, name,
+                    max_guests, base_price, currency,
+                    bedrooms, bathrooms, raw_data, created_at
+                  ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+                  RETURNING id
+                `, [
+                  syncPropertyId,
+                  roomType.externalId,
+                  roomType.name,
+                  roomType.maxGuests || 2,
+                  roomType.basePrice || 0,
+                  roomType.currency || 'EUR',
+                  roomType.bedrooms || 1,
+                  roomType.bathrooms || 1,
+                  JSON.stringify(roomType.raw || roomType)
+                ]);
+              }
               
               console.log(`  Room synced to staging: ${roomSyncResult.rows[0]?.id}`);
               roomsForProperty++;
