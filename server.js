@@ -33053,6 +33053,7 @@ app.get('/api/elevate/:apiKey/room/:roomId/bedrooms', async (req, res) => {
 // Set bathroom configuration for a room (replaces existing)
 app.put('/api/elevate/:apiKey/room/:roomId/bathrooms', async (req, res) => {
   console.log('=== ELEVATE: SET ROOM BATHROOMS ===');
+  console.log('Request body:', JSON.stringify(req.body));
   
   try {
     const auth = await validateElevatePartnerKey(req.params.apiKey);
@@ -33066,6 +33067,10 @@ app.put('/api/elevate/:apiKey/room/:roomId/bathrooms', async (req, res) => {
     // Support nested format
     if (!bathrooms && req.body.room?.bathrooms) {
       bathrooms = req.body.room.bathrooms;
+    }
+    
+    if (!bathrooms) {
+      return res.status(400).json({ success: false, error: 'bathrooms field is required' });
     }
     
     if (!Array.isArray(bathrooms)) {
