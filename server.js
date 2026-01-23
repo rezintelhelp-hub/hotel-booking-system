@@ -33197,6 +33197,298 @@ app.get('/api/elevate/:apiKey/room/:roomId/bathrooms', async (req, res) => {
 });
 
 // =========================================================
+// ELEVATE: PRICING & AVAILABILITY
+// =========================================================
+
+// Set combined pricing and availability for a room
+app.put('/api/elevate/:apiKey/room/:roomId/calendar', async (req, res) => {
+  console.log('=== ELEVATE: SET ROOM CALENDAR ===');
+  
+  try {
+    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: 'Invalid API key' });
+    }
+    
+    const { roomId } = req.params;
+    let { dates } = req.body;
+    
+    if (!Array.isArray(dates)) {
+      return res.status(400).json({ success: false, error: 'dates must be an array' });
+    }
+    
+    // Find room
+    const roomCheck = await pool.query(`
+      SELECT bu.id, bu.currency
+      FROM bookable_units bu
+      JOIN properties p ON p.id = bu.property_id
+      JOIN accounts a ON a.id = p.account_id
+      WHERE a.parent_id = $1 
+      AND (bu.id::text = $2 OR bu.cm_room_id = $2)
+    `, [ELEVATE_MASTER_ACCOUNT_ID, roomId]);
+    
+    if (roomCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Room not found' });
+    }
+    
+    const gasRoomId = roomCheck.rows[0].id;
+    const defaultCurrency = roomCheck.rows[0].currency || 'USD';
+    
+    // Ensure room_calendar table exists
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS room_calendar (
+        id SERIAL PRIMARY KEY,
+        room_id INTEGER REFERENCES bookable_units(id) ON DELETE CASCADE,
+        date DATE NOT NULL,
+        price DECIMAL(10,2),
+        currency VARCHAR(3) DEFAULT 'USD',
+        available BOOLEAN DEFAULT true,
+        min_stay INTEGER DEFAULT 1,
+        max_stay INTEGER,
+        closed_to_arrival BOOLEAN DEFAULT false,
+        closed_to_departure BOOLEAN DEFAULT false,
+        status VARCHAR(20) DEFAULT 'available',
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(room_id, date)
+      )
+    `);
+    
+    let updatedCount = 0;
+    let createdCount = 0;
+    
+    for (const day of dates) {
+      if (!day.date) continue;
+      
+      const price = day.price !== undefined ? day.price : null;
+      const available = day.available !== undefined ? day.available : true;
+      const minStay = day.min_stay || day.minStay || 1;
+      const maxStay = day.max_stay || day.maxStay || null;
+      const currency = day.currency || defaultCurrency;
+      const status = available ? 'available' : 'blocked';
+      
+      const result = await pool.query(`
+        INSERT INTO room_calendar (room_id, date, price, currency, available, min_stay, max_stay, status, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+        ON CONFLICT (room_id, date) DO UPDATE SET
+          price = COALESCE(EXCLUDED.price, room_calendar.price),
+          currency = EXCLUDED.currency,
+          available = EXCLUDED.available,
+          min_stay = EXCLUDED.min_stay,
+          max_stay = EXCLUDED.max_stay,
+          status = EXCLUDED.status,
+          updated_at = NOW()
+        RETURNING (xmax = 0) AS inserted
+      `, [gasRoomId, day.date, price, currency, available, minStay, maxStay, status]);
+      
+      if (result.rows[0]?.inserted) {
+        createdCount++;
+      } else {
+        updatedCount++;
+      }
+    }
+    
+    res.json({
+      success: true,
+      room_id: gasRoomId,
+      dates_processed: dates.length,
+      created: createdCount,
+      updated: updatedCount
+    });
+    
+  } catch (error) {
+    console.error('Elevate set calendar error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get calendar/pricing for a room
+app.get('/api/elevate/:apiKey/room/:roomId/calendar', async (req, res) => {
+  console.log('=== ELEVATE: GET ROOM CALENDAR ===');
+  
+  try {
+    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: 'Invalid API key' });
+    }
+    
+    const { roomId } = req.params;
+    const { start_date, end_date } = req.query;
+    
+    // Find room
+    const roomCheck = await pool.query(`
+      SELECT bu.id
+      FROM bookable_units bu
+      JOIN properties p ON p.id = bu.property_id
+      JOIN accounts a ON a.id = p.account_id
+      WHERE a.parent_id = $1 
+      AND (bu.id::text = $2 OR bu.cm_room_id = $2)
+    `, [ELEVATE_MASTER_ACCOUNT_ID, roomId]);
+    
+    if (roomCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Room not found' });
+    }
+    
+    const gasRoomId = roomCheck.rows[0].id;
+    
+    let query = 'SELECT date, price, currency, available, min_stay, max_stay, status FROM room_calendar WHERE room_id = $1';
+    const params = [gasRoomId];
+    
+    if (start_date) {
+      query += ' AND date >= $2';
+      params.push(start_date);
+    }
+    if (end_date) {
+      query += ` AND date <= $${params.length + 1}`;
+      params.push(end_date);
+    }
+    
+    query += ' ORDER BY date';
+    
+    const result = await pool.query(query, params);
+    
+    res.json({
+      success: true,
+      room_id: gasRoomId,
+      dates: result.rows
+    });
+    
+  } catch (error) {
+    console.error('Elevate get calendar error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Set pricing only
+app.put('/api/elevate/:apiKey/room/:roomId/pricing', async (req, res) => {
+  console.log('=== ELEVATE: SET ROOM PRICING ===');
+  
+  try {
+    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: 'Invalid API key' });
+    }
+    
+    const { roomId } = req.params;
+    let { dates } = req.body;
+    
+    if (!Array.isArray(dates)) {
+      return res.status(400).json({ success: false, error: 'dates must be an array' });
+    }
+    
+    // Find room
+    const roomCheck = await pool.query(`
+      SELECT bu.id, bu.currency
+      FROM bookable_units bu
+      JOIN properties p ON p.id = bu.property_id
+      JOIN accounts a ON a.id = p.account_id
+      WHERE a.parent_id = $1 
+      AND (bu.id::text = $2 OR bu.cm_room_id = $2)
+    `, [ELEVATE_MASTER_ACCOUNT_ID, roomId]);
+    
+    if (roomCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Room not found' });
+    }
+    
+    const gasRoomId = roomCheck.rows[0].id;
+    const defaultCurrency = roomCheck.rows[0].currency || 'USD';
+    
+    let processedCount = 0;
+    
+    for (const day of dates) {
+      if (!day.date || day.price === undefined) continue;
+      
+      await pool.query(`
+        INSERT INTO room_calendar (room_id, date, price, currency, updated_at)
+        VALUES ($1, $2, $3, $4, NOW())
+        ON CONFLICT (room_id, date) DO UPDATE SET
+          price = EXCLUDED.price,
+          currency = EXCLUDED.currency,
+          updated_at = NOW()
+      `, [gasRoomId, day.date, day.price, day.currency || defaultCurrency]);
+      
+      processedCount++;
+    }
+    
+    res.json({
+      success: true,
+      room_id: gasRoomId,
+      dates_processed: processedCount
+    });
+    
+  } catch (error) {
+    console.error('Elevate set pricing error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Set availability only
+app.put('/api/elevate/:apiKey/room/:roomId/availability', async (req, res) => {
+  console.log('=== ELEVATE: SET ROOM AVAILABILITY ===');
+  
+  try {
+    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: 'Invalid API key' });
+    }
+    
+    const { roomId } = req.params;
+    let { dates } = req.body;
+    
+    if (!Array.isArray(dates)) {
+      return res.status(400).json({ success: false, error: 'dates must be an array' });
+    }
+    
+    // Find room
+    const roomCheck = await pool.query(`
+      SELECT bu.id
+      FROM bookable_units bu
+      JOIN properties p ON p.id = bu.property_id
+      JOIN accounts a ON a.id = p.account_id
+      WHERE a.parent_id = $1 
+      AND (bu.id::text = $2 OR bu.cm_room_id = $2)
+    `, [ELEVATE_MASTER_ACCOUNT_ID, roomId]);
+    
+    if (roomCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Room not found' });
+    }
+    
+    const gasRoomId = roomCheck.rows[0].id;
+    
+    let processedCount = 0;
+    
+    for (const day of dates) {
+      if (!day.date) continue;
+      
+      const available = day.available !== undefined ? day.available : true;
+      const status = available ? 'available' : 'blocked';
+      
+      await pool.query(`
+        INSERT INTO room_calendar (room_id, date, available, status, updated_at)
+        VALUES ($1, $2, $3, $4, NOW())
+        ON CONFLICT (room_id, date) DO UPDATE SET
+          available = EXCLUDED.available,
+          status = EXCLUDED.status,
+          updated_at = NOW()
+      `, [gasRoomId, day.date, available, status]);
+      
+      processedCount++;
+    }
+    
+    res.json({
+      success: true,
+      room_id: gasRoomId,
+      dates_processed: processedCount
+    });
+    
+  } catch (error) {
+    console.error('Elevate set availability error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// =========================================================
 // ELEVATE: PROPERTY/ROOM IMAGES
 // =========================================================
 
