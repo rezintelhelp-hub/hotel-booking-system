@@ -2558,12 +2558,105 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
       }
       
     } else if (adapterCode === 'beds24') {
-      // Beds24 uses tiered sync which runs automatically
-      // The sync button in the room grid uses different endpoints
-      return res.json({ 
-        success: true, 
-        message: 'Beds24 syncs automatically via tiered sync. Use room-level sync buttons for manual sync.'
-      });
+      // Beds24 manual sync - fetch calendar data from Beds24 API
+      const connectionId = prop.connection_id;
+      
+      if (!connectionId) {
+        return res.json({ success: false, error: 'No Beds24 connection found for this property' });
+      }
+      
+      // Get connection with token
+      const connResult = await pool.query('SELECT * FROM gas_sync_connections WHERE id = $1', [connectionId]);
+      if (connResult.rows.length === 0) {
+        return res.json({ success: false, error: 'Connection not found' });
+      }
+      
+      const conn = connResult.rows[0];
+      let accessToken = conn.access_token;
+      
+      // Refresh token if needed
+      if (!accessToken && conn.refresh_token) {
+        try {
+          const tokenResponse = await axios.get('https://beds24.com/api/v2/authentication/token', {
+            headers: { 'refreshToken': conn.refresh_token }
+          });
+          accessToken = tokenResponse.data.token;
+          await pool.query('UPDATE gas_sync_connections SET access_token = $1 WHERE id = $2', [accessToken, connectionId]);
+        } catch (e) {
+          return res.json({ success: false, error: 'Token expired. Please reconnect to Beds24.' });
+        }
+      }
+      
+      if (!accessToken) {
+        return res.json({ success: false, error: 'No access token. Please reconnect to Beds24.' });
+      }
+      
+      // Get rooms for this property
+      const roomsResult = await pool.query(`
+        SELECT bu.id as gas_room_id, bu.beds24_room_id, bu.name
+        FROM bookable_units bu
+        WHERE bu.property_id = $1 AND bu.beds24_room_id IS NOT NULL
+      `, [gasPropertyId]);
+      
+      if (roomsResult.rows.length === 0) {
+        return res.json({ success: false, error: 'No Beds24-linked rooms found' });
+      }
+      
+      const startDate = new Date().toISOString().split('T')[0];
+      const endDate = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      
+      let totalDaysUpdated = 0;
+      
+      for (const room of roomsResult.rows) {
+        try {
+          // Fetch calendar from Beds24 V2
+          const calResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/calendar', {
+            headers: { 'token': accessToken },
+            params: {
+              roomId: parseInt(room.beds24_room_id),
+              startDate: startDate,
+              endDate: endDate,
+              includeNumAvail: true,
+              includePrices: true,
+              includeMinStay: true
+            }
+          });
+          
+          const calendarData = calResponse.data.data?.[0]?.calendar || [];
+          
+          for (const entry of calendarData) {
+            const fromDate = new Date(entry.from);
+            const toDate = new Date(entry.to);
+            
+            for (let d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
+              const dateStr = d.toISOString().split('T')[0];
+              const numAvail = entry.numAvail || 0;
+              const price = entry.price1 || null;
+              const minStay = entry.minStay || 1;
+              
+              await pool.query(`
+                INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
+                VALUES ($1, $2, $3, $3, $4, $5, $6, $6, 'beds24', NOW())
+                ON CONFLICT (room_id, date) 
+                DO UPDATE SET 
+                  cm_price = COALESCE($3, room_availability.cm_price),
+                  is_available = $4,
+                  is_blocked = $5,
+                  min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $6 END,
+                  cm_min_stay = $6,
+                  source = 'beds24',
+                  updated_at = NOW()
+              `, [room.gas_room_id, dateStr, price, numAvail > 0, numAvail === 0, minStay]);
+              
+              totalDaysUpdated++;
+            }
+          }
+        } catch (roomErr) {
+          console.error(`Beds24 sync error for room ${room.beds24_room_id}:`, roomErr.message);
+        }
+      }
+      
+      return res.json({ success: true, daysUpdated: totalDaysUpdated });
     } else if (adapterCode === 'elevate') {
       // Elevate properties are synced via the Elevate partner API pushing data to us
       // We don't pull from Elevate - they push pricing via PUT /api/elevate/:apiKey/room/:roomId/calendar
