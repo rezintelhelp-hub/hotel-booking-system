@@ -32669,6 +32669,339 @@ app.post('/api/elevate/:apiKey/room/:roomId/amenities', async (req, res) => {
 });
 
 // =========================================================
+// ELEVATE: BEDROOM/BATHROOM CONFIGURATION
+// =========================================================
+
+// Set bedroom configuration for a room (replaces existing)
+app.put('/api/elevate/:apiKey/room/:roomId/bedrooms', async (req, res) => {
+  console.log('=== ELEVATE: SET ROOM BEDROOMS ===');
+  
+  try {
+    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: 'Invalid API key' });
+    }
+    
+    const { roomId } = req.params;
+    let { bedrooms } = req.body;
+    
+    // Support nested format: { bedrooms: [...] }
+    if (!bedrooms && req.body.room?.bedrooms) {
+      bedrooms = req.body.room.bedrooms;
+    }
+    
+    if (!Array.isArray(bedrooms)) {
+      return res.status(400).json({ success: false, error: 'bedrooms must be an array' });
+    }
+    
+    // Find room
+    const roomCheck = await pool.query(`
+      SELECT bu.id 
+      FROM bookable_units bu
+      JOIN properties p ON p.id = bu.property_id
+      JOIN accounts a ON a.id = p.account_id
+      WHERE a.parent_id = $1 
+      AND (bu.id::text = $2 OR bu.cm_room_id = $2)
+    `, [ELEVATE_MASTER_ACCOUNT_ID, roomId]);
+    
+    if (roomCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Room not found' });
+    }
+    
+    const gasRoomId = roomCheck.rows[0].id;
+    
+    // Ensure property_bedrooms table exists
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS property_bedrooms (
+        id SERIAL PRIMARY KEY,
+        room_id INTEGER REFERENCES bookable_units(id) ON DELETE CASCADE,
+        name VARCHAR(255),
+        bed_type VARCHAR(50),
+        bed_count INTEGER DEFAULT 1,
+        has_ensuite BOOLEAN DEFAULT false,
+        display_order INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    
+    // Remove existing bedrooms
+    await pool.query('DELETE FROM property_bedrooms WHERE room_id = $1', [gasRoomId]);
+    
+    // Add new bedrooms
+    const addedBedrooms = [];
+    let displayOrder = 1;
+    
+    for (const bedroom of bedrooms) {
+      const bedroomName = bedroom.name || `Bedroom ${displayOrder}`;
+      
+      // Handle beds array within bedroom
+      const beds = bedroom.beds || [{ type: bedroom.bed_type || 'bed_double', count: bedroom.bed_count || 1 }];
+      
+      for (const bed of beds) {
+        let bedType = bed.type || bed.bed_type || 'bed_double';
+        const bedCount = bed.count || bed.bed_count || 1;
+        
+        // Normalize bed type
+        const bedTypeLower = bedType.toLowerCase().replace(/\s+/g, '_');
+        if (bedTypeLower.includes('king')) bedType = 'bed_king';
+        else if (bedTypeLower.includes('queen')) bedType = 'bed_queen';
+        else if (bedTypeLower.includes('double')) bedType = 'bed_double';
+        else if (bedTypeLower.includes('single') || bedTypeLower.includes('twin')) bedType = 'bed_single';
+        else if (bedTypeLower.includes('sofa')) bedType = 'bed_sofa_double';
+        else if (bedTypeLower.includes('bunk')) bedType = 'bed_bunk';
+        else if (bedTypeLower.includes('cot') || bedTypeLower.includes('crib')) bedType = 'bed_cot';
+        else if (bedTypeLower.includes('futon')) bedType = 'bed_futon';
+        else if (!bedType.startsWith('bed_')) bedType = 'bed_' + bedTypeLower;
+        
+        const result = await pool.query(`
+          INSERT INTO property_bedrooms (room_id, name, bed_type, bed_count, has_ensuite, display_order, created_at)
+          VALUES ($1, $2, $3, $4, $5, $6, NOW())
+          RETURNING id
+        `, [gasRoomId, bedroomName, bedType, bedCount, bedroom.has_ensuite || false, displayOrder]);
+        
+        addedBedrooms.push({
+          id: result.rows[0].id,
+          name: bedroomName,
+          bed_type: bedType,
+          bed_count: bedCount,
+          has_ensuite: bedroom.has_ensuite || false,
+          display_order: displayOrder
+        });
+      }
+      
+      displayOrder++;
+    }
+    
+    // Also update num_bedrooms on the room
+    await pool.query(
+      'UPDATE bookable_units SET num_bedrooms = $1, updated_at = NOW() WHERE id = $2',
+      [bedrooms.length, gasRoomId]
+    );
+    
+    res.json({ 
+      success: true, 
+      room_id: gasRoomId,
+      bedrooms_count: bedrooms.length,
+      beds_count: addedBedrooms.length,
+      bedrooms: addedBedrooms
+    });
+    
+  } catch (error) {
+    console.error('Elevate set bedrooms error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get bedroom configuration for a room
+app.get('/api/elevate/:apiKey/room/:roomId/bedrooms', async (req, res) => {
+  console.log('=== ELEVATE: GET ROOM BEDROOMS ===');
+  
+  try {
+    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: 'Invalid API key' });
+    }
+    
+    const { roomId } = req.params;
+    
+    // Find room
+    const roomCheck = await pool.query(`
+      SELECT bu.id, bu.num_bedrooms
+      FROM bookable_units bu
+      JOIN properties p ON p.id = bu.property_id
+      JOIN accounts a ON a.id = p.account_id
+      WHERE a.parent_id = $1 
+      AND (bu.id::text = $2 OR bu.cm_room_id = $2)
+    `, [ELEVATE_MASTER_ACCOUNT_ID, roomId]);
+    
+    if (roomCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Room not found' });
+    }
+    
+    const gasRoomId = roomCheck.rows[0].id;
+    
+    // Get bedrooms
+    const bedroomsResult = await pool.query(`
+      SELECT id, name, bed_type, bed_count, has_ensuite, display_order
+      FROM property_bedrooms
+      WHERE room_id = $1
+      ORDER BY display_order
+    `, [gasRoomId]);
+    
+    res.json({
+      success: true,
+      room_id: gasRoomId,
+      num_bedrooms: roomCheck.rows[0].num_bedrooms,
+      bedrooms: bedroomsResult.rows
+    });
+    
+  } catch (error) {
+    console.error('Elevate get bedrooms error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Set bathroom configuration for a room (replaces existing)
+app.put('/api/elevate/:apiKey/room/:roomId/bathrooms', async (req, res) => {
+  console.log('=== ELEVATE: SET ROOM BATHROOMS ===');
+  
+  try {
+    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: 'Invalid API key' });
+    }
+    
+    const { roomId } = req.params;
+    let { bathrooms } = req.body;
+    
+    // Support nested format
+    if (!bathrooms && req.body.room?.bathrooms) {
+      bathrooms = req.body.room.bathrooms;
+    }
+    
+    if (!Array.isArray(bathrooms)) {
+      return res.status(400).json({ success: false, error: 'bathrooms must be an array' });
+    }
+    
+    // Find room
+    const roomCheck = await pool.query(`
+      SELECT bu.id 
+      FROM bookable_units bu
+      JOIN properties p ON p.id = bu.property_id
+      JOIN accounts a ON a.id = p.account_id
+      WHERE a.parent_id = $1 
+      AND (bu.id::text = $2 OR bu.cm_room_id = $2)
+    `, [ELEVATE_MASTER_ACCOUNT_ID, roomId]);
+    
+    if (roomCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Room not found' });
+    }
+    
+    const gasRoomId = roomCheck.rows[0].id;
+    
+    // Ensure property_bathrooms table exists
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS property_bathrooms (
+        id SERIAL PRIMARY KEY,
+        room_id INTEGER REFERENCES bookable_units(id) ON DELETE CASCADE,
+        name VARCHAR(255),
+        bathroom_type VARCHAR(50),
+        linked_bedroom VARCHAR(255),
+        features JSONB,
+        display_order INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    
+    // Remove existing bathrooms
+    await pool.query('DELETE FROM property_bathrooms WHERE room_id = $1', [gasRoomId]);
+    
+    // Add new bathrooms
+    const addedBathrooms = [];
+    let displayOrder = 1;
+    
+    for (const bathroom of bathrooms) {
+      const bathroomName = bathroom.name || `Bathroom ${displayOrder}`;
+      let bathType = bathroom.type || bathroom.bathroom_type || 'bathroom_full';
+      
+      // Normalize bathroom type
+      const bathTypeLower = bathType.toLowerCase().replace(/\s+/g, '_');
+      if (bathTypeLower.includes('ensuite') || bathTypeLower.includes('private')) bathType = 'bathroom_private_ensuite';
+      else if (bathTypeLower.includes('shared')) bathType = 'bathroom_shared';
+      else if (bathTypeLower.includes('half') || bathTypeLower.includes('powder')) bathType = 'bathroom_half';
+      else if (bathTypeLower.includes('jack')) bathType = 'bathroom_jack_and_jill';
+      else if (bathTypeLower.includes('outdoor')) bathType = 'bathroom_outdoor_shower';
+      else if (!bathType.startsWith('bathroom_')) bathType = 'bathroom_' + bathTypeLower;
+      
+      const features = bathroom.features || [];
+      
+      const result = await pool.query(`
+        INSERT INTO property_bathrooms (room_id, name, bathroom_type, linked_bedroom, features, display_order, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, NOW())
+        RETURNING id
+      `, [gasRoomId, bathroomName, bathType, bathroom.linked_bedroom || null, JSON.stringify(features), displayOrder]);
+      
+      addedBathrooms.push({
+        id: result.rows[0].id,
+        name: bathroomName,
+        bathroom_type: bathType,
+        linked_bedroom: bathroom.linked_bedroom || null,
+        features: features,
+        display_order: displayOrder
+      });
+      
+      displayOrder++;
+    }
+    
+    // Also update num_bathrooms on the room
+    await pool.query(
+      'UPDATE bookable_units SET num_bathrooms = $1, updated_at = NOW() WHERE id = $2',
+      [bathrooms.length, gasRoomId]
+    );
+    
+    res.json({ 
+      success: true, 
+      room_id: gasRoomId,
+      bathrooms_count: addedBathrooms.length,
+      bathrooms: addedBathrooms
+    });
+    
+  } catch (error) {
+    console.error('Elevate set bathrooms error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get bathroom configuration for a room
+app.get('/api/elevate/:apiKey/room/:roomId/bathrooms', async (req, res) => {
+  console.log('=== ELEVATE: GET ROOM BATHROOMS ===');
+  
+  try {
+    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: 'Invalid API key' });
+    }
+    
+    const { roomId } = req.params;
+    
+    // Find room
+    const roomCheck = await pool.query(`
+      SELECT bu.id, bu.num_bathrooms
+      FROM bookable_units bu
+      JOIN properties p ON p.id = bu.property_id
+      JOIN accounts a ON a.id = p.account_id
+      WHERE a.parent_id = $1 
+      AND (bu.id::text = $2 OR bu.cm_room_id = $2)
+    `, [ELEVATE_MASTER_ACCOUNT_ID, roomId]);
+    
+    if (roomCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Room not found' });
+    }
+    
+    const gasRoomId = roomCheck.rows[0].id;
+    
+    // Get bathrooms
+    const bathroomsResult = await pool.query(`
+      SELECT id, name, bathroom_type, linked_bedroom, features, display_order
+      FROM property_bathrooms
+      WHERE room_id = $1
+      ORDER BY display_order
+    `, [gasRoomId]);
+    
+    res.json({
+      success: true,
+      room_id: gasRoomId,
+      num_bathrooms: roomCheck.rows[0].num_bathrooms,
+      bathrooms: bathroomsResult.rows
+    });
+    
+  } catch (error) {
+    console.error('Elevate get bathrooms error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// =========================================================
 // ELEVATE: PROPERTY/ROOM IMAGES
 // =========================================================
 
