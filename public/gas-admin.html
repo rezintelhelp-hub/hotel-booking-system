@@ -1534,6 +1534,10 @@
                 <div class="nav-section collapsed">
                     <div class="nav-label" onclick="toggleNavSection(this)">Accounts</div>
                     <div class="nav-section-items">
+                    <a class="nav-item" data-view="my-account" href="#" onclick="navClick(this, 'my-account'); return false;">
+                        <span class="nav-icon">👤</span>
+                        <span>My Account</span>
+                    </a>
                     <a class="nav-item" data-view="accounts" href="#" onclick="navClick(this, 'accounts'); return false;">
                         <span class="nav-icon">📋</span>
                         <span>All Accounts</span>
@@ -14499,6 +14503,33 @@ Local honey and preserves"></textarea>
                     <button type="button" class="btn btn-secondary" onclick="togglePropertyMap()" style="margin-top: 0.5rem; font-size: 0.85rem;" id="toggle-map-btn">
                          Show Map
                     </button>
+                </div>
+                
+                <!-- Stripe Payment Connection -->
+                <div style="margin-bottom: 1.5rem;">
+                    <h4 style="margin: 0 0 1rem 0; color: var(--text-primary); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;">💳 Stripe Payment Connection</h4>
+                    <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 1rem;">Connect Stripe to receive payments for this property. Each property can have its own Stripe account.</p>
+                    
+                    <div id="property-stripe-status" style="padding: 0.75rem; border-radius: 8px; margin-bottom: 1rem; background: #f1f5f9;">
+                        <span style="color: #64748b;">Checking Stripe status...</span>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label class="form-label">Stripe Account ID</label>
+                            <input type="text" class="form-input" id="edit-property-stripe-account-id" placeholder="acct_... (from Stripe Connect)">
+                            <small style="color: #64748b;">Enter your Stripe Connect account ID if you have one</small>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Stripe Publishable Key</label>
+                            <input type="text" class="form-input" id="edit-property-stripe-publishable" placeholder="pk_live_... or pk_test_...">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Stripe Secret Key</label>
+                            <input type="password" class="form-input" id="edit-property-stripe-secret" placeholder="sk_live_... or sk_test_...">
+                            <small style="color: #64748b;">Your secret key is encrypted and stored securely</small>
+                        </div>
+                    </div>
                 </div>
                 
                 <div style="display: flex; gap: 1rem; justify-content: space-between; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid #e2e8f0;">
@@ -32836,6 +32867,24 @@ Local honey and preserves"></textarea>
                     document.getElementById('edit-property-longitude').value = prop.longitude || '';
                     document.getElementById('edit-property-status').value = prop.status || 'active';
                     
+                    // Stripe fields
+                    document.getElementById('edit-property-stripe-account-id').value = prop.stripe_account_id || '';
+                    document.getElementById('edit-property-stripe-publishable').value = prop.stripe_publishable_key || '';
+                    document.getElementById('edit-property-stripe-secret').value = ''; // Don't show secret, just placeholder
+                    
+                    // Update Stripe status display
+                    const stripeStatus = document.getElementById('property-stripe-status');
+                    if (prop.stripe_account_id || prop.stripe_publishable_key) {
+                        stripeStatus.innerHTML = '<span style="color: #10b981;">✓ Stripe is connected to this property</span>';
+                        stripeStatus.style.background = '#d1fae5';
+                        if (prop.stripe_secret_key) {
+                            document.getElementById('edit-property-stripe-secret').placeholder = '••••••••••••••••• (saved)';
+                        }
+                    } else {
+                        stripeStatus.innerHTML = '<span style="color: #f59e0b;">⚠ Stripe not connected - payments disabled for this property</span>';
+                        stripeStatus.style.background = '#fef3c7';
+                    }
+                    
                     // Master admin: show account dropdown
                     const accountSection = document.getElementById('property-account-section');
                     if (currentAccount && currentAccount.role === 'master_admin') {
@@ -32881,8 +32930,17 @@ Local honey and preserves"></textarea>
                 country: document.getElementById('edit-property-country').value,
                 latitude: document.getElementById('edit-property-latitude').value ? parseFloat(document.getElementById('edit-property-latitude').value) : null,
                 longitude: document.getElementById('edit-property-longitude').value ? parseFloat(document.getElementById('edit-property-longitude').value) : null,
-                status: document.getElementById('edit-property-status').value
+                status: document.getElementById('edit-property-status').value,
+                // Stripe fields
+                stripe_account_id: document.getElementById('edit-property-stripe-account-id').value || null,
+                stripe_publishable_key: document.getElementById('edit-property-stripe-publishable').value || null
             };
+            
+            // Only include secret key if it was changed (not the placeholder)
+            const secretKey = document.getElementById('edit-property-stripe-secret').value;
+            if (secretKey && !secretKey.includes('•')) {
+                data.stripe_secret_key = secretKey;
+            }
             
             // Master admin can change account_id
             const accountIdSelect = document.getElementById('edit-property-account-id');
