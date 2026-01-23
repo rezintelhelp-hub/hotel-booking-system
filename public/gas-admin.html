@@ -5822,11 +5822,15 @@
                         </div>
                         <div class="form-group">
                             <label class="form-label">Title</label>
-                            <input type="text" class="form-input" id="wb-intro-title" placeholder="e.g., Welcome to Our Property">
+                            <div style="display: flex; gap: 8px;">
+                                <input type="text" class="form-input" id="wb-intro-title" placeholder="e.g., Welcome to Our Property" style="flex: 1;">
+                                <button type="button" class="btn" onclick="generateIntroTitle()" style="background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%); white-space: nowrap;">✨ Generate</button>
+                            </div>
                         </div>
                         <div class="form-group">
                             <label class="form-label">Text</label>
                             <textarea class="form-textarea" id="wb-intro-text" rows="4" placeholder="Welcome text about your property..."></textarea>
+                            <button type="button" class="btn" onclick="generateIntroText()" style="background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%); margin-top: 8px;">✨ Generate Intro Text</button>
                         </div>
                     </div>
                 </div>
@@ -6276,11 +6280,15 @@
                         </div>
                         <div class="form-group">
                             <label class="form-label">Title</label>
-                            <input type="text" class="form-input" id="wb-about-title" value="Experience Luxury & Comfort">
+                            <div style="display: flex; gap: 8px;">
+                                <input type="text" class="form-input" id="wb-about-title" value="Experience Luxury & Comfort" style="flex: 1;">
+                                <button type="button" class="btn" onclick="generateAboutTitle()" style="background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%); white-space: nowrap;">✨ Generate</button>
+                            </div>
                         </div>
                         <div class="form-group">
                             <label class="form-label">Text</label>
                             <textarea class="form-textarea" id="wb-about-text" rows="4">Our carefully curated collection of vacation rentals offers the perfect blend of luxury, comfort, and convenience.</textarea>
+                            <button type="button" class="btn" onclick="generateAboutText()" style="background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%); margin-top: 8px;">✨ Generate About Text</button>
                         </div>
                         <div class="form-group">
                             <label class="form-label">Layout</label>
@@ -17643,6 +17651,164 @@ Local honey and preserves"></textarea>
             } catch (error) {
                 console.error('Error generating FAQs:', error);
                 showNotification('Error generating FAQs', 'error');
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+        
+        // AI Generation for Intro Section
+        async function generateIntroTitle() {
+            const btn = event.target;
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '✨ Generating...';
+            btn.disabled = true;
+            
+            try {
+                const businessName = document.getElementById('wb-header-site-name')?.value || 
+                                    document.getElementById('wb-hero-headline')?.value || 'Our Property';
+                const location = document.getElementById('wb-hero-subheadline')?.value || '';
+                
+                const response = await fetch('/api/admin/ai/generate-website-content', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({
+                        type: 'intro_title',
+                        business_name: businessName,
+                        location: location,
+                        account_id: selectedAccountId
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success && data.content) {
+                    document.getElementById('wb-intro-title').value = data.content;
+                    showNotification('Title generated!', 'success');
+                } else {
+                    showNotification('Failed to generate: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (error) {
+                console.error('Generate intro title error:', error);
+                showNotification('Generation failed: ' + error.message, 'error');
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+        
+        async function generateIntroText() {
+            const btn = event.target;
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '✨ Generating...';
+            btn.disabled = true;
+            
+            try {
+                const businessName = document.getElementById('wb-header-site-name')?.value || 
+                                    document.getElementById('wb-hero-headline')?.value || 'Our Property';
+                const location = document.getElementById('wb-hero-subheadline')?.value || '';
+                const introTitle = document.getElementById('wb-intro-title')?.value || '';
+                
+                const response = await fetch('/api/admin/ai/generate-website-content', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({
+                        type: 'intro_text',
+                        business_name: businessName,
+                        location: location,
+                        title: introTitle,
+                        account_id: selectedAccountId
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success && data.content) {
+                    document.getElementById('wb-intro-text').value = data.content;
+                    showNotification('Intro text generated!', 'success');
+                } else {
+                    showNotification('Failed to generate: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (error) {
+                console.error('Generate intro text error:', error);
+                showNotification('Generation failed: ' + error.message, 'error');
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+        
+        // AI Generation for About Section
+        async function generateAboutTitle() {
+            const btn = event.target;
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '✨ Generating...';
+            btn.disabled = true;
+            
+            try {
+                const businessName = document.getElementById('wb-header-site-name')?.value || 
+                                    document.getElementById('wb-hero-headline')?.value || 'Our Property';
+                const location = document.getElementById('wb-hero-subheadline')?.value || '';
+                
+                const response = await fetch('/api/admin/ai/generate-website-content', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({
+                        type: 'about_title',
+                        business_name: businessName,
+                        location: location,
+                        account_id: selectedAccountId
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success && data.content) {
+                    document.getElementById('wb-about-title').value = data.content;
+                    showNotification('Title generated!', 'success');
+                } else {
+                    showNotification('Failed to generate: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (error) {
+                console.error('Generate about title error:', error);
+                showNotification('Generation failed: ' + error.message, 'error');
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+        
+        async function generateAboutText() {
+            const btn = event.target;
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '✨ Generating...';
+            btn.disabled = true;
+            
+            try {
+                const businessName = document.getElementById('wb-header-site-name')?.value || 
+                                    document.getElementById('wb-hero-headline')?.value || 'Our Property';
+                const location = document.getElementById('wb-hero-subheadline')?.value || '';
+                const aboutTitle = document.getElementById('wb-about-title')?.value || '';
+                
+                const response = await fetch('/api/admin/ai/generate-website-content', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({
+                        type: 'about_text',
+                        business_name: businessName,
+                        location: location,
+                        title: aboutTitle,
+                        account_id: selectedAccountId
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success && data.content) {
+                    document.getElementById('wb-about-text').value = data.content;
+                    showNotification('About text generated!', 'success');
+                } else {
+                    showNotification('Failed to generate: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (error) {
+                console.error('Generate about text error:', error);
+                showNotification('Generation failed: ' + error.message, 'error');
             } finally {
                 btn.innerHTML = originalText;
                 btn.disabled = false;
