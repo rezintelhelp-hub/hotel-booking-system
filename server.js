@@ -3178,6 +3178,14 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS status VARCHAR(50)');
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS feature_codes TEXT');
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS quantity INTEGER DEFAULT 1');
+    
+    // Add unique constraint to prevent duplicate rooms from channel managers
+    try {
+      await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS idx_bookable_units_property_cm_room ON bookable_units(property_id, cm_room_id) WHERE cm_room_id IS NOT NULL');
+      console.log('✅ bookable_units unique constraint ensured');
+    } catch (e) {
+      console.log('ℹ️  bookable_units unique constraint:', e.message);
+    }
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS max_adults INTEGER');
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS max_children INTEGER DEFAULT 0');
     
@@ -19933,104 +19941,278 @@ async function linkSyncPropertyToGasInternal(syncPropertyId, accountId, calryPro
     const prop = syncProp.rows[0];
     const rawData = typeof prop.raw_data === 'string' ? JSON.parse(prop.raw_data) : (prop.raw_data || {});
     
+    // Log what we're getting from Calry for debugging
+    console.log(`linkSyncPropertyToGas: Property ${prop.name}`);
+    console.log(`  calryProperty keys: ${calryProperty ? Object.keys(calryProperty).join(', ') : 'null'}`);
+    console.log(`  rawData keys: ${Object.keys(rawData).join(', ')}`);
+    
     let gasPropertyId;
     const existingProp = await pool.query(
       "SELECT id FROM properties WHERE cm_property_id = $1 AND account_id = $2",
       [prop.external_id, accountId]
     );
     
+    // Build comprehensive property data from all available sources
+    const cp = calryProperty || {};
+    const addr = cp.address || {};
+    const coords = addr.coordinates || addr.geoLocation || {};
+    
     const propData = {
-      name: prop.name || calryProperty?.name || 'Imported Property',
-      address: prop.address || calryProperty?.address?.street || '',
-      city: prop.city || calryProperty?.address?.city || '',
-      country: prop.country || calryProperty?.address?.country || '',
-      postal_code: prop.postal_code || calryProperty?.address?.postalCode || '',
-      latitude: prop.latitude || calryProperty?.address?.coordinates?.lat || null,
-      longitude: prop.longitude || calryProperty?.address?.coordinates?.lng || null,
-      currency: prop.currency || calryProperty?.currency || 'EUR'
+      name: prop.name || cp.name || 'Imported Property',
+      display_name: cp.displayName || cp.name || prop.name || '',
+      address: prop.address || addr.street || addr.addressLine1 || addr.line1 || '',
+      city: prop.city || addr.city || '',
+      state: addr.state || addr.region || addr.province || '',
+      country: prop.country || addr.country || addr.countryCode || '',
+      postal_code: prop.postal_code || addr.postalCode || addr.zipCode || addr.zip || '',
+      latitude: prop.latitude || coords.lat || coords.latitude || null,
+      longitude: prop.longitude || coords.lng || coords.lon || coords.longitude || null,
+      currency: prop.currency || cp.currency || 'EUR',
+      // Text fields
+      short_description: cp.shortDescription || cp.summary || rawData.shortDescription || '',
+      full_description: cp.description || cp.longDescription || rawData.description || '',
+      house_rules: cp.houseRules || cp.rules || rawData.houseRules || '',
+      cancellation_policy: cp.cancellationPolicy || rawData.cancellationPolicy || '',
+      check_in_instructions: cp.checkInInstructions || cp.arrivalInstructions || '',
+      check_out_instructions: cp.checkOutInstructions || cp.departureInstructions || '',
+      // Times
+      check_in_time: cp.checkInTime || cp.checkinTime || rawData.checkInTime || '',
+      check_out_time: cp.checkOutTime || cp.checkoutTime || rawData.checkOutTime || '',
+      // Capacity
+      max_guests: cp.maxGuests || cp.maxOccupancy || rawData.maxGuests || null,
+      bedrooms: cp.bedrooms || cp.bedroomCount || rawData.bedrooms || null,
+      bathrooms: cp.bathrooms || cp.bathroomCount || rawData.bathrooms || null,
+      // Type
+      property_type: cp.propertyType || cp.type || rawData.propertyType || 'vacation_rental',
+      // Contact
+      contact_email: cp.contactEmail || cp.email || '',
+      contact_phone: cp.contactPhone || cp.phone || cp.telephone || '',
+      website: cp.website || cp.websiteUrl || ''
     };
+    
+    console.log(`  Mapped: ${propData.city}, ${propData.country} | ${propData.bedrooms}BR/${propData.bathrooms}BA | max ${propData.max_guests} guests`);
     
     if (existingProp.rows.length > 0) {
       gasPropertyId = existingProp.rows[0].id;
-      await pool.query(`UPDATE properties SET name=$1, address=$2, city=$3, country=$4, postal_code=$5,
-        latitude=$6, longitude=$7, currency=$8, updated_at=NOW() WHERE id=$9`,
-        [propData.name, propData.address, propData.city, propData.country, propData.postal_code,
-         propData.latitude, propData.longitude, propData.currency, gasPropertyId]);
+      await pool.query(`
+        UPDATE properties SET 
+          name=$1, display_name=$2, address=$3, city=$4, state=$5, country=$6, postal_code=$7,
+          latitude=$8, longitude=$9, currency=$10, short_description=$11, full_description=$12,
+          house_rules=$13, cancellation_policy=$14, check_in_instructions=$15, check_out_instructions=$16,
+          check_in_time=$17, check_out_time=$18, max_guests=$19, bedrooms=$20, bathrooms=$21,
+          property_type=$22, contact_email=$23, contact_phone=$24, website=$25, updated_at=NOW()
+        WHERE id=$26`,
+        [propData.name, propData.display_name, propData.address, propData.city, propData.state,
+         propData.country, propData.postal_code, propData.latitude, propData.longitude, propData.currency,
+         propData.short_description, propData.full_description, propData.house_rules, propData.cancellation_policy,
+         propData.check_in_instructions, propData.check_out_instructions, propData.check_in_time, propData.check_out_time,
+         propData.max_guests, propData.bedrooms, propData.bathrooms, propData.property_type,
+         propData.contact_email, propData.contact_phone, propData.website, gasPropertyId]);
+      console.log(`  Updated existing property: ${gasPropertyId}`);
     } else {
       const propResult = await pool.query(`
-        INSERT INTO properties (account_id, user_id, name, address, city, country, postal_code,
-          latitude, longitude, currency, cm_property_id, cm_source, status, created_at)
-        VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'calry', 'active', NOW()) RETURNING id
-      `, [accountId, propData.name, propData.address, propData.city, propData.country,
-          propData.postal_code, propData.latitude, propData.longitude, propData.currency, prop.external_id]);
+        INSERT INTO properties (
+          account_id, user_id, name, display_name, address, city, state, country, postal_code,
+          latitude, longitude, currency, short_description, full_description, house_rules,
+          cancellation_policy, check_in_instructions, check_out_instructions, check_in_time, check_out_time,
+          max_guests, bedrooms, bathrooms, property_type, contact_email, contact_phone, website,
+          cm_property_id, cm_source, status, created_at
+        ) VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, 'calry', 'active', NOW()) 
+        RETURNING id
+      `, [accountId, propData.name, propData.display_name, propData.address, propData.city, propData.state,
+          propData.country, propData.postal_code, propData.latitude, propData.longitude, propData.currency,
+          propData.short_description, propData.full_description, propData.house_rules, propData.cancellation_policy,
+          propData.check_in_instructions, propData.check_out_instructions, propData.check_in_time, propData.check_out_time,
+          propData.max_guests, propData.bedrooms, propData.bathrooms, propData.property_type,
+          propData.contact_email, propData.contact_phone, propData.website, prop.external_id]);
       gasPropertyId = propResult.rows[0].id;
-    }
-    
-    const optionalFields = [
-      ['check_in_time', calryProperty?.checkInTime],
-      ['check_out_time', calryProperty?.checkOutTime],
-      ['house_rules', calryProperty?.houseRules],
-      ['property_type', calryProperty?.propertyType],
-      ['max_guests', calryProperty?.maxGuests],
-      ['bedrooms', calryProperty?.bedrooms],
-      ['bathrooms', calryProperty?.bathrooms]
-    ];
-    for (const [field, value] of optionalFields) {
-      if (value) { try { await pool.query(`UPDATE properties SET ${field}=$1 WHERE id=$2`, [value, gasPropertyId]); } catch(e) {} }
+      console.log(`  Created new property: ${gasPropertyId}`);
     }
     
     await pool.query('UPDATE gas_sync_properties SET gas_property_id=$1 WHERE id=$2', [gasPropertyId, syncPropertyId]);
     
+    // ============ SYNC ROOMS ============
     let roomsCreated = 0;
     const syncRooms = await pool.query('SELECT * FROM gas_sync_room_types WHERE sync_property_id=$1', [syncPropertyId]);
     
     for (const room of syncRooms.rows) {
       try {
+        const roomRawData = typeof room.raw_data === 'string' ? JSON.parse(room.raw_data) : (room.raw_data || {});
+        
+        // Build comprehensive room data
+        const roomData = {
+          name: room.name || roomRawData.name || 'Room',
+          max_guests: room.max_guests || roomRawData.maxOccupancy || roomRawData.maxGuests || 2,
+          base_price: room.base_price || roomRawData.startPrice || roomRawData.basePrice || 0,
+          currency: room.currency || propData.currency || 'EUR',
+          bedrooms: room.bedrooms || roomRawData.bedRoom?.count || roomRawData.bedrooms || 1,
+          bathrooms: room.bathrooms || roomRawData.bathRoom?.count || roomRawData.bathrooms || 1,
+          short_description: roomRawData.shortDescription || roomRawData.summary || '',
+          full_description: roomRawData.description || roomRawData.longDescription || ''
+        };
+        
+        console.log(`  Room: ${roomData.name} - ${roomData.bedrooms}BR/${roomData.bathrooms}BA, max ${roomData.max_guests}, base $${roomData.base_price}`);
+        
         const existingRoom = await pool.query(
           "SELECT id FROM bookable_units WHERE cm_room_id=$1 AND property_id=$2", [room.external_id, gasPropertyId]
         );
         let gasRoomId;
         if (existingRoom.rows.length > 0) {
           gasRoomId = existingRoom.rows[0].id;
-          await pool.query(`UPDATE bookable_units SET name=$1, max_guests=$2, base_price=$3, currency=$4, updated_at=NOW() WHERE id=$5`,
-            [room.name, room.max_guests || 2, room.base_price || 0, room.currency || propData.currency, gasRoomId]);
+          await pool.query(`
+            UPDATE bookable_units SET 
+              name=$1, max_guests=$2, base_price=$3, currency=$4, 
+              bedrooms=$5, bathrooms=$6, short_description=$7, full_description=$8, 
+              updated_at=NOW() 
+            WHERE id=$9`,
+            [roomData.name, roomData.max_guests, roomData.base_price, roomData.currency,
+             roomData.bedrooms, roomData.bathrooms, roomData.short_description, roomData.full_description, gasRoomId]);
         } else {
           const roomResult = await pool.query(`
-            INSERT INTO bookable_units (property_id, name, max_guests, base_price, currency, cm_room_id, cm_source, status, created_at)
-            VALUES ($1, $2, $3, $4, $5, $6, 'calry', 'active', NOW()) RETURNING id
-          `, [gasPropertyId, room.name, room.max_guests || 2, room.base_price || 0, room.currency || propData.currency, room.external_id]);
+            INSERT INTO bookable_units (
+              property_id, name, max_guests, base_price, currency, 
+              bedrooms, bathrooms, short_description, full_description,
+              cm_room_id, cm_source, status, created_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'calry', 'active', NOW()) 
+            RETURNING id
+          `, [gasPropertyId, roomData.name, roomData.max_guests, roomData.base_price, roomData.currency,
+              roomData.bedrooms, roomData.bathrooms, roomData.short_description, roomData.full_description, room.external_id]);
           gasRoomId = roomResult.rows[0].id;
         }
         await pool.query('UPDATE gas_sync_room_types SET gas_room_id=$1 WHERE id=$2', [gasRoomId, room.id]);
+        
+        // Sync room images
+        const roomImages = roomRawData.pictures || roomRawData.images || [];
+        for (let i = 0; i < Math.min(roomImages.length, 20); i++) {
+          const img = roomImages[i];
+          const imageUrl = typeof img === 'string' ? img : (img.url || img.original);
+          if (!imageUrl) continue;
+          try {
+            await pool.query(`
+              INSERT INTO room_images (room_id, image_key, image_url, display_order, is_primary, is_active, created_at)
+              VALUES ($1, $2, $3, $4, $5, true, NOW()) 
+              ON CONFLICT (room_id, image_key) DO UPDATE SET image_url=$3, updated_at=NOW()
+            `, [gasRoomId, `calry_${gasRoomId}_${i}`, imageUrl, i, i === 0]);
+          } catch(imgErr) { /* ignore duplicate */ }
+        }
+        
+        // Sync room amenities
+        const roomAmenities = roomRawData.amenities || [];
+        for (const amenity of roomAmenities) {
+          const amenityName = typeof amenity === 'string' ? amenity : (amenity.name || amenity.title);
+          if (!amenityName) continue;
+          try {
+            // Find or create amenity
+            let amenityId;
+            const existingAmenity = await pool.query(
+              "SELECT id FROM amenities WHERE LOWER(name) = LOWER($1) LIMIT 1", [amenityName]
+            );
+            if (existingAmenity.rows.length > 0) {
+              amenityId = existingAmenity.rows[0].id;
+            } else {
+              const newAmenity = await pool.query(
+                "INSERT INTO amenities (name, created_at) VALUES ($1, NOW()) ON CONFLICT DO NOTHING RETURNING id", [amenityName]
+              );
+              if (newAmenity.rows.length > 0) {
+                amenityId = newAmenity.rows[0].id;
+              }
+            }
+            if (amenityId) {
+              await pool.query(`
+                INSERT INTO room_amenity_selections (room_id, amenity_id, created_at)
+                VALUES ($1, $2, NOW()) ON CONFLICT DO NOTHING
+              `, [gasRoomId, amenityId]);
+            }
+          } catch(amenErr) { /* ignore */ }
+        }
+        
         roomsCreated++;
       } catch(e) { console.log(`Room link error: ${e.message}`); }
     }
     
-    if (roomsCreated === 0) {
+    // Create default room if none found - but check for existing first
+    if (roomsCreated === 0 && (cp.maxGuests || cp.bedrooms)) {
       try {
-        await pool.query(`
-          INSERT INTO bookable_units (property_id, name, max_guests, base_price, currency, cm_room_id, cm_source, status, created_at)
-          VALUES ($1, $2, $3, $4, $5, $6, 'calry', 'active', NOW())
-        `, [gasPropertyId, propData.name, calryProperty?.maxGuests || 4, calryProperty?.basePrice || 0, propData.currency, prop.external_id]);
-        roomsCreated = 1;
-      } catch(e) {}
+        // Check if a default room already exists for this property
+        const existingDefault = await pool.query(
+          "SELECT id FROM bookable_units WHERE property_id = $1 AND (cm_room_id = $2 OR cm_room_id IS NULL) LIMIT 1",
+          [gasPropertyId, prop.external_id]
+        );
+        
+        if (existingDefault.rows.length > 0) {
+          // Update existing default room
+          await pool.query(`
+            UPDATE bookable_units SET 
+              name=$1, max_guests=$2, base_price=$3, currency=$4, bedrooms=$5, bathrooms=$6, 
+              cm_room_id=$7, cm_source='calry', updated_at=NOW()
+            WHERE id=$8
+          `, [propData.name, cp.maxGuests || 4, cp.basePrice || 0, propData.currency, 
+              cp.bedrooms || 1, cp.bathrooms || 1, prop.external_id, existingDefault.rows[0].id]);
+          roomsCreated = 1;
+          console.log(`  Updated existing default room: ${existingDefault.rows[0].id}`);
+        } else {
+          const defaultRoom = await pool.query(`
+            INSERT INTO bookable_units (property_id, name, max_guests, base_price, currency, bedrooms, bathrooms, cm_room_id, cm_source, status, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'calry', 'active', NOW()) RETURNING id
+          `, [gasPropertyId, propData.name, cp.maxGuests || 4, cp.basePrice || 0, propData.currency, 
+              cp.bedrooms || 1, cp.bathrooms || 1, prop.external_id]);
+          roomsCreated = 1;
+          console.log(`  Created default room: ${defaultRoom.rows[0].id}`);
+        }
+      } catch(e) { console.log(`  Default room error: ${e.message}`); }
     }
     
-    const images = calryProperty?.images || rawData.images || [];
-    for (let i = 0; i < Math.min(images.length, 20); i++) {
+    // ============ SYNC PROPERTY IMAGES ============
+    const images = cp.images || cp.pictures || cp.photos || rawData.images || [];
+    console.log(`  Syncing ${images.length} property images`);
+    for (let i = 0; i < Math.min(images.length, 30); i++) {
       const img = images[i];
-      const imageUrl = typeof img === 'string' ? img : (img.url || img.original);
+      const imageUrl = typeof img === 'string' ? img : (img.url || img.original || img.large);
+      const caption = typeof img === 'object' ? (img.caption || img.description || img.alt || '') : '';
       if (!imageUrl) continue;
       try {
         await pool.query(`
-          INSERT INTO property_images (property_id, image_key, image_url, url, display_order, is_primary, is_active, created_at)
-          VALUES ($1, $2, $3, $3, $4, $5, true, NOW()) ON CONFLICT (property_id, image_key) DO UPDATE SET image_url=$3, url=$3
-        `, [gasPropertyId, `calry_${gasPropertyId}_${i}`, imageUrl, i, i === 0]);
+          INSERT INTO property_images (property_id, image_key, image_url, url, caption, display_order, is_primary, is_active, created_at)
+          VALUES ($1, $2, $3, $3, $4, $5, $6, true, NOW()) 
+          ON CONFLICT (property_id, image_key) DO UPDATE SET image_url=$3, url=$3, caption=$4
+        `, [gasPropertyId, `calry_${gasPropertyId}_${i}`, imageUrl, caption, i, i === 0]);
       } catch(e) {}
     }
     
+    // ============ SYNC PROPERTY AMENITIES ============
+    const propertyAmenities = cp.amenities || rawData.amenities || [];
+    console.log(`  Syncing ${propertyAmenities.length} property amenities`);
+    for (const amenity of propertyAmenities) {
+      const amenityName = typeof amenity === 'string' ? amenity : (amenity.name || amenity.title);
+      if (!amenityName) continue;
+      try {
+        let amenityId;
+        const existingAmenity = await pool.query(
+          "SELECT id FROM amenities WHERE LOWER(name) = LOWER($1) LIMIT 1", [amenityName]
+        );
+        if (existingAmenity.rows.length > 0) {
+          amenityId = existingAmenity.rows[0].id;
+        } else {
+          const newAmenity = await pool.query(
+            "INSERT INTO amenities (name, created_at) VALUES ($1, NOW()) ON CONFLICT DO NOTHING RETURNING id", [amenityName]
+          );
+          if (newAmenity.rows.length > 0) {
+            amenityId = newAmenity.rows[0].id;
+          }
+        }
+        if (amenityId) {
+          await pool.query(`
+            INSERT INTO property_amenities (property_id, amenity_id, created_at)
+            VALUES ($1, $2, NOW()) ON CONFLICT DO NOTHING
+          `, [gasPropertyId, amenityId]);
+        }
+      } catch(amenErr) { /* ignore */ }
+    }
+    
+    console.log(`  ✓ Complete: property ${gasPropertyId}, ${roomsCreated} rooms, ${images.length} images, ${propertyAmenities.length} amenities`);
     return { success: true, gas_property_id: gasPropertyId, rooms_created: roomsCreated };
   } catch (error) {
+    console.error(`linkSyncPropertyToGas error:`, error);
     return { success: false, error: error.message };
   }
 }
@@ -40526,51 +40708,6 @@ app.post('/api/admin/website-builder/upload-image', upload.single('image'), asyn
     });
   } catch (error) {
     console.error('Website image upload error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// Generic image upload for blogs/attractions (stores in R2)
-app.post('/api/admin/upload-image', upload.single('image'), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.json({ success: false, error: 'No image uploaded' });
-    }
-    
-    // Get account ID from auth header or request body
-    const authHeader = req.headers.authorization || '';
-    let accountId = req.body.account_id;
-    
-    // Try to extract from auth if not in body
-    if (!accountId && authHeader.startsWith('Basic ')) {
-      try {
-        const [id] = Buffer.from(authHeader.split(' ')[1], 'base64').toString().split(':');
-        accountId = id;
-      } catch (e) {
-        // Ignore auth parse errors
-      }
-    }
-    
-    // Default to 'general' folder if no account
-    const folder = accountId ? `content/${accountId}` : 'content/general';
-    
-    console.log(`📸 Generic image upload: file=${req.file.originalname}, folder=${folder}`);
-    
-    // Process and upload to R2
-    const results = await processAndUploadImage(
-      req.file.buffer,
-      folder,
-      'blog',
-      req.file.originalname
-    );
-    
-    res.json({ 
-      success: true, 
-      url: results.large, // Return large size
-      urls: results
-    });
-  } catch (error) {
-    console.error('Image upload error:', error);
     res.json({ success: false, error: error.message });
   }
 });
