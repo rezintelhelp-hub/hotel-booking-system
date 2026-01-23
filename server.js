@@ -3849,22 +3849,41 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
       for (const room of rawData._calryRooms) {
         const roomExternalId = String(room.id);
         
-        // Extract room data
-        const roomName = room.name || rawData._calryProperty?.name || 'Room';
-        const roomDesc = room.description || room.summary || '';
-        const maxGuests = room.maxOccupancy || room.maxGuests || room.capacity || 2;
-        const bedrooms = room.bedRoom?.count || room.bedrooms || room.numberOfBedrooms || 1;
-        const bathrooms = room.bathRoom?.count || room.bathrooms || room.numberOfBathrooms || 1;
-        const basePrice = parseFloat(room.startPrice || room.basePrice || room.price || 0);
+        // Log raw room data for debugging
+        console.log('link-to-gas: Calry room raw keys:', Object.keys(room).join(', '));
         
-        // Room amenities
+        // Extract room data - comprehensive mapping
+        const roomName = room.name || rawData._calryProperty?.name || 'Room';
+        const roomDesc = room.description || room.longDescription || room.summary || '';
+        const shortDesc = room.shortDescription || room.summary || '';
+        const maxGuests = room.maxOccupancy || room.maxGuests || room.capacity || 2;
+        const maxAdults = room.maxAdults || room.maxOccupancy || maxGuests;
+        const maxChildren = room.maxChildren || 0;
+        const bedrooms = room.bedRoom?.count || room.bedrooms || room.numberOfBedrooms || room.bedroomCount || 1;
+        const bathrooms = room.bathRoom?.count || room.bathrooms || room.numberOfBathrooms || room.bathroomCount || 1;
+        const basePrice = parseFloat(room.startPrice || room.basePrice || room.price || 0);
+        const roomType = room.roomType || room.type || room.accommodationType || 'entire_place';
+        const sizeSqm = room.size || room.area || room.squareMeters || null;
+        const currency = room.currency || rawData._calryProperty?.currency || 'EUR';
+        
+        // Room amenities - extract as array
         const roomAmenities = [];
         if (room.amenities && Array.isArray(room.amenities)) {
           room.amenities.forEach(a => {
             if (typeof a === 'string') roomAmenities.push(a);
             else if (a.name) roomAmenities.push(a.name);
+            else if (a.amenity) roomAmenities.push(a.amenity);
           });
         }
+        console.log('link-to-gas: Room amenities extracted:', roomAmenities.length);
+        
+        // Bedroom configuration
+        const bedroomConfig = room.bedRoom?.beds || room.bedTypes || room.beds || room.bedConfiguration || [];
+        console.log('link-to-gas: Bedroom config:', JSON.stringify(bedroomConfig).substring(0, 200));
+        
+        // Bathroom configuration  
+        const bathroomConfig = room.bathRoom?.types || room.bathroomTypes || room.bathrooms || [];
+        console.log('link-to-gas: Bathroom config:', JSON.stringify(bathroomConfig).substring(0, 200));
         
         // Check if room exists
         const existingRoom = await pool.query(
@@ -3874,8 +3893,9 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         
         let gasRoomId;
         
-        // Prepare description as JSONB if not empty
-        const descriptionJson = roomDesc ? JSON.stringify({ en: roomDesc }) : null;
+        // Prepare descriptions as JSONB
+        const fullDescJson = roomDesc ? JSON.stringify({ en: roomDesc }) : null;
+        const shortDescJson = shortDesc ? JSON.stringify({ en: shortDesc }) : null;
         
         if (existingRoom.rows.length > 0) {
           gasRoomId = existingRoom.rows[0].id;
@@ -3885,28 +3905,40 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
             UPDATE bookable_units SET
               name = $1,
               max_guests = $2,
-              num_bedrooms = $3,
-              num_bathrooms = $4,
-              base_price = $5,
-              amenities = $6,
+              max_adults = $3,
+              max_children = $4,
+              num_bedrooms = $5,
+              num_bathrooms = $6,
+              base_price = $7,
+              currency = $8,
+              room_type = $9,
+              size_sqm = $10,
+              amenities = $11,
               updated_at = NOW()
-            WHERE id = $7
+            WHERE id = $12
           `, [
             roomName,
             maxGuests,
+            maxAdults,
+            maxChildren,
             bedrooms,
             bathrooms,
             basePrice,
-            JSON.stringify({ amenities: roomAmenities, calry_id: room.id }),
+            currency,
+            roomType,
+            sizeSqm,
+            JSON.stringify({ amenities: roomAmenities, calry_id: room.id, raw_amenities: room.amenities }),
             gasRoomId
           ]);
           
-          // Update description separately if we have one (it's JSONB)
-          if (descriptionJson) {
-            await pool.query(
-              'UPDATE bookable_units SET description = $1::jsonb WHERE id = $2',
-              [descriptionJson, gasRoomId]
-            ).catch(e => console.log('link-to-gas: description update skipped:', e.message));
+          // Update descriptions separately (JSONB columns)
+          if (fullDescJson) {
+            await pool.query('UPDATE bookable_units SET full_description = $1::jsonb WHERE id = $2', [fullDescJson, gasRoomId])
+              .catch(e => console.log('link-to-gas: full_description update skipped:', e.message));
+          }
+          if (shortDescJson) {
+            await pool.query('UPDATE bookable_units SET short_description = $1::jsonb WHERE id = $2', [shortDescJson, gasRoomId])
+              .catch(e => console.log('link-to-gas: short_description update skipped:', e.message));
           }
           
           roomsUpdated++;
@@ -3916,35 +3948,163 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
           const roomResult = await pool.query(`
             INSERT INTO bookable_units (
               property_id, cm_room_id, cm_source, name,
-              max_guests, num_bedrooms, num_bathrooms, base_price, currency,
-              amenities, status, created_at
-            ) VALUES ($1, $2, 'calry', $3, $4, $5, $6, $7, $8, $9, 'active', NOW())
+              max_guests, max_adults, max_children,
+              num_bedrooms, num_bathrooms, base_price, currency,
+              room_type, size_sqm, amenities, status, created_at
+            ) VALUES ($1, $2, 'calry', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'active', NOW())
             RETURNING id
           `, [
             gasPropertyId,
             roomExternalId,
             roomName,
             maxGuests,
+            maxAdults,
+            maxChildren,
             bedrooms,
             bathrooms,
             basePrice,
-            rawData._calryProperty?.currency || 'EUR',
-            JSON.stringify({ amenities: roomAmenities, calry_id: room.id })
+            currency,
+            roomType,
+            sizeSqm,
+            JSON.stringify({ amenities: roomAmenities, calry_id: room.id, raw_amenities: room.amenities })
           ]);
           gasRoomId = roomResult.rows[0].id;
           
-          // Update description separately if we have one (it's JSONB)
-          if (descriptionJson) {
-            await pool.query(
-              'UPDATE bookable_units SET description = $1::jsonb WHERE id = $2',
-              [descriptionJson, gasRoomId]
-            ).catch(e => console.log('link-to-gas: description update skipped:', e.message));
+          // Update descriptions separately (JSONB columns)
+          if (fullDescJson) {
+            await pool.query('UPDATE bookable_units SET full_description = $1::jsonb WHERE id = $2', [fullDescJson, gasRoomId])
+              .catch(e => console.log('link-to-gas: full_description update skipped:', e.message));
+          }
+          if (shortDescJson) {
+            await pool.query('UPDATE bookable_units SET short_description = $1::jsonb WHERE id = $2', [shortDescJson, gasRoomId])
+              .catch(e => console.log('link-to-gas: short_description update skipped:', e.message));
           }
           
           roomsCreated++;
         }
         
         roomIdMap[roomExternalId] = gasRoomId;
+        
+        // ===== SYNC AMENITIES TO room_amenities TABLE =====
+        if (roomAmenities.length > 0) {
+          try {
+            for (const amenityName of roomAmenities) {
+              // Find or create amenity
+              let amenityResult = await pool.query(
+                "SELECT id FROM amenities WHERE LOWER(name) = LOWER($1)",
+                [amenityName]
+              );
+              
+              let amenityId;
+              if (amenityResult.rows.length > 0) {
+                amenityId = amenityResult.rows[0].id;
+              } else {
+                const newAmenity = await pool.query(
+                  "INSERT INTO amenities (name, created_at) VALUES ($1, NOW()) RETURNING id",
+                  [amenityName]
+                );
+                amenityId = newAmenity.rows[0].id;
+              }
+              
+              // Link amenity to room
+              await pool.query(`
+                INSERT INTO room_amenities (room_id, amenity_id)
+                VALUES ($1, $2)
+                ON CONFLICT DO NOTHING
+              `, [gasRoomId, amenityId]);
+            }
+            console.log('link-to-gas: Synced', roomAmenities.length, 'amenities for room', gasRoomId);
+          } catch (amenErr) {
+            console.log('link-to-gas: Amenity sync skipped:', amenErr.message);
+          }
+        }
+        
+        // ===== SYNC BEDROOM CONFIGURATION =====
+        if (bedroomConfig && (Array.isArray(bedroomConfig) ? bedroomConfig.length > 0 : typeof bedroomConfig === 'object')) {
+          try {
+            // Clear existing bedrooms for this room
+            await pool.query('DELETE FROM property_bedrooms WHERE room_id = $1', [gasRoomId]);
+            
+            const bedsArray = Array.isArray(bedroomConfig) ? bedroomConfig : [bedroomConfig];
+            let bedroomOrder = 1;
+            
+            for (const bed of bedsArray) {
+              // Handle different bed config formats
+              let bedType = 'bed_double';
+              let bedCount = 1;
+              let bedroomName = `Bedroom ${bedroomOrder}`;
+              
+              if (typeof bed === 'string') {
+                bedType = bed.toLowerCase().replace(/\s+/g, '_');
+              } else if (bed.type || bed.bedType) {
+                bedType = (bed.type || bed.bedType).toLowerCase().replace(/\s+/g, '_');
+                bedCount = bed.count || bed.quantity || 1;
+                bedroomName = bed.name || bed.roomName || `Bedroom ${bedroomOrder}`;
+              } else if (bed.name) {
+                // bed.name might be "King Bed", "Queen Bed", etc.
+                bedType = bed.name.toLowerCase().replace(/\s+/g, '_');
+                bedCount = bed.count || 1;
+              }
+              
+              // Normalize bed type to our standard codes
+              if (bedType.includes('king')) bedType = 'bed_king';
+              else if (bedType.includes('queen')) bedType = 'bed_queen';
+              else if (bedType.includes('double')) bedType = 'bed_double';
+              else if (bedType.includes('single') || bedType.includes('twin')) bedType = 'bed_single';
+              else if (bedType.includes('sofa')) bedType = 'bed_sofa_double';
+              else if (bedType.includes('bunk')) bedType = 'bed_bunk';
+              
+              await pool.query(`
+                INSERT INTO property_bedrooms (room_id, name, bed_type, bed_count, display_order, created_at)
+                VALUES ($1, $2, $3, $4, $5, NOW())
+              `, [gasRoomId, bedroomName, bedType, bedCount, bedroomOrder]);
+              
+              bedroomOrder++;
+            }
+            console.log('link-to-gas: Synced', bedroomOrder - 1, 'bedroom configs for room', gasRoomId);
+          } catch (bedErr) {
+            console.log('link-to-gas: Bedroom config sync skipped:', bedErr.message);
+          }
+        }
+        
+        // ===== SYNC BATHROOM CONFIGURATION =====
+        if (bathroomConfig && (Array.isArray(bathroomConfig) ? bathroomConfig.length > 0 : typeof bathroomConfig === 'object')) {
+          try {
+            // Clear existing bathrooms for this room
+            await pool.query('DELETE FROM property_bathrooms WHERE room_id = $1', [gasRoomId]);
+            
+            const bathsArray = Array.isArray(bathroomConfig) ? bathroomConfig : [bathroomConfig];
+            let bathroomOrder = 1;
+            
+            for (const bath of bathsArray) {
+              let bathType = 'bathroom_full';
+              let bathroomName = `Bathroom ${bathroomOrder}`;
+              
+              if (typeof bath === 'string') {
+                bathType = bath.toLowerCase().replace(/\s+/g, '_');
+              } else if (bath.type || bath.bathType) {
+                bathType = (bath.type || bath.bathType).toLowerCase().replace(/\s+/g, '_');
+                bathroomName = bath.name || `Bathroom ${bathroomOrder}`;
+              }
+              
+              // Normalize bathroom type
+              if (bathType.includes('ensuite') || bathType.includes('private')) bathType = 'bathroom_private_ensuite';
+              else if (bathType.includes('shared')) bathType = 'bathroom_shared';
+              else if (bathType.includes('half')) bathType = 'bathroom_half';
+              else bathType = 'bathroom_full';
+              
+              await pool.query(`
+                INSERT INTO property_bathrooms (room_id, name, bathroom_type, display_order, created_at)
+                VALUES ($1, $2, $3, $4, NOW())
+              `, [gasRoomId, bathroomName, bathType, bathroomOrder]);
+              
+              bathroomOrder++;
+            }
+            console.log('link-to-gas: Synced', bathroomOrder - 1, 'bathroom configs for room', gasRoomId);
+          } catch (bathErr) {
+            console.log('link-to-gas: Bathroom config sync skipped:', bathErr.message);
+          }
+        }
         
         // Import room images
         const roomPictures = room.pictures || room.images || room.photos || [];
