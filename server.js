@@ -19833,24 +19833,47 @@ async function importCalryPropertiesViaAdapter(integrationAccountId, pmsName, ex
             }
           });
           const rawRoomTypes = roomResponse.data?.data || [];
+          
+          // Log first room type to see all available fields
+          if (rawRoomTypes.length > 0) {
+            console.log(`  Calry room type fields: ${Object.keys(rawRoomTypes[0]).join(', ')}`);
+          }
+          
           roomTypesResult = {
             success: true,
             data: rawRoomTypes.map(rt => ({
               externalId: String(rt.id),
               name: rt.name,
-              description: rt.description || '',
-              maxGuests: rt.maxOccupancy || 2,
-              bedrooms: rt.bedRoom?.count || 1,
-              bathrooms: rt.bathRoom?.count || 1,
-              basePrice: rt.startPrice || 0,
-              currency: fullProperty.currency || 'EUR',
-              images: (rt.pictures || []).map((pic, idx) => ({
-                url: pic.url,
-                caption: pic.description || '',
+              // Display name / internal name
+              displayName: rt.displayName || rt.internalName || rt.title || '',
+              // Descriptions
+              shortDescription: rt.shortDescription || rt.summary || rt.tagline || '',
+              description: rt.description || rt.longDescription || '',
+              // Room type classification
+              roomType: rt.roomType || rt.type || rt.category || '',
+              // Capacity
+              maxGuests: rt.maxOccupancy || rt.maxGuests || rt.capacity || 2,
+              maxAdults: rt.maxAdults || rt.adultsMax || null,
+              maxChildren: rt.maxChildren || rt.childrenMax || 0,
+              // Layout
+              bedrooms: rt.bedRoom?.count || rt.bedrooms || rt.bedroomCount || 1,
+              bathrooms: rt.bathRoom?.count || rt.bathrooms || rt.bathroomCount || 1,
+              beds: rt.beds || rt.bedCount || null,
+              // Size
+              sizeSqm: rt.size || rt.sizeSqm || rt.squareMeters || rt.area || null,
+              // Pricing
+              basePrice: rt.startPrice || rt.basePrice || rt.price || 0,
+              currency: fullProperty.currency || rt.currency || 'EUR',
+              // Images
+              images: (rt.pictures || rt.images || rt.photos || []).map((pic, idx) => ({
+                url: typeof pic === 'string' ? pic : (pic.url || pic.original),
+                caption: typeof pic === 'object' ? (pic.description || pic.caption || '') : '',
                 order: idx,
                 isPrimary: idx === 0
               })),
-              amenities: (rt.amenities || []).map(a => a.name || a),
+              // Amenities
+              amenities: (rt.amenities || []).map(a => typeof a === 'string' ? a : (a.name || a.title || a)),
+              // Store raw data for future use
               raw: rt
             }))
           };
@@ -20077,19 +20100,25 @@ async function linkSyncPropertyToGasInternal(syncPropertyId, accountId, calryPro
       try {
         const roomRawData = typeof room.raw_data === 'string' ? JSON.parse(room.raw_data) : (room.raw_data || {});
         
-        // Build comprehensive room data
+        // Build comprehensive room data from raw Calry data
         const roomData = {
           name: room.name || roomRawData.name || 'Room',
-          max_guests: room.max_guests || roomRawData.maxOccupancy || roomRawData.maxGuests || 2,
-          base_price: room.base_price || roomRawData.startPrice || roomRawData.basePrice || 0,
+          display_name: roomRawData.displayName || roomRawData.internalName || roomRawData.title || '',
+          short_description: roomRawData.shortDescription || roomRawData.summary || roomRawData.tagline || '',
+          full_description: roomRawData.description || roomRawData.longDescription || '',
+          room_type: roomRawData.roomType || roomRawData.type || roomRawData.category || '',
+          max_guests: room.max_guests || roomRawData.maxOccupancy || roomRawData.maxGuests || roomRawData.capacity || 2,
+          max_adults: roomRawData.maxAdults || roomRawData.adultsMax || null,
+          max_children: roomRawData.maxChildren || roomRawData.childrenMax || 0,
+          base_price: room.base_price || roomRawData.startPrice || roomRawData.basePrice || roomRawData.price || 0,
           currency: room.currency || propData.currency || 'EUR',
-          bedrooms: room.bedrooms || roomRawData.bedRoom?.count || roomRawData.bedrooms || 1,
-          bathrooms: room.bathrooms || roomRawData.bathRoom?.count || roomRawData.bathrooms || 1,
-          short_description: roomRawData.shortDescription || roomRawData.summary || '',
-          full_description: roomRawData.description || roomRawData.longDescription || ''
+          bedrooms: room.bedrooms || roomRawData.bedRoom?.count || roomRawData.bedrooms || roomRawData.bedroomCount || 1,
+          bathrooms: room.bathrooms || roomRawData.bathRoom?.count || roomRawData.bathrooms || roomRawData.bathroomCount || 1,
+          beds: roomRawData.beds || roomRawData.bedCount || null,
+          size_sqm: roomRawData.size || roomRawData.sizeSqm || roomRawData.squareMeters || roomRawData.area || null
         };
         
-        console.log(`  Room: ${roomData.name} - ${roomData.bedrooms}BR/${roomData.bathrooms}BA, max ${roomData.max_guests}, base $${roomData.base_price}`);
+        console.log(`  Room: ${roomData.name} | display: ${roomData.display_name || '(none)'} | type: ${roomData.room_type || '(none)'} | ${roomData.bedrooms}BR/${roomData.bathrooms}BA, max ${roomData.max_guests}`);
         
         const existingRoom = await pool.query(
           "SELECT id FROM bookable_units WHERE cm_room_id=$1 AND property_id=$2", [room.external_id, gasPropertyId]
@@ -20099,22 +20128,26 @@ async function linkSyncPropertyToGasInternal(syncPropertyId, accountId, calryPro
           gasRoomId = existingRoom.rows[0].id;
           await pool.query(`
             UPDATE bookable_units SET 
-              name=$1, max_guests=$2, base_price=$3, currency=$4, 
-              bedrooms=$5, bathrooms=$6, short_description=$7, full_description=$8, 
+              name=$1, display_name=$2, max_guests=$3, base_price=$4, currency=$5, 
+              bedrooms=$6, bathrooms=$7, short_description=$8, full_description=$9,
+              room_type=$10, max_adults=$11, max_children=$12, beds=$13, size_sqm=$14,
               updated_at=NOW() 
-            WHERE id=$9`,
-            [roomData.name, roomData.max_guests, roomData.base_price, roomData.currency,
-             roomData.bedrooms, roomData.bathrooms, roomData.short_description, roomData.full_description, gasRoomId]);
+            WHERE id=$15`,
+            [roomData.name, roomData.display_name, roomData.max_guests, roomData.base_price, roomData.currency,
+             roomData.bedrooms, roomData.bathrooms, roomData.short_description, roomData.full_description,
+             roomData.room_type, roomData.max_adults, roomData.max_children, roomData.beds, roomData.size_sqm, gasRoomId]);
         } else {
           const roomResult = await pool.query(`
             INSERT INTO bookable_units (
-              property_id, name, max_guests, base_price, currency, 
+              property_id, name, display_name, max_guests, base_price, currency, 
               bedrooms, bathrooms, short_description, full_description,
+              room_type, max_adults, max_children, beds, size_sqm,
               cm_room_id, cm_source, status, created_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'calry', 'active', NOW()) 
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, 'calry', 'active', NOW()) 
             RETURNING id
-          `, [gasPropertyId, roomData.name, roomData.max_guests, roomData.base_price, roomData.currency,
-              roomData.bedrooms, roomData.bathrooms, roomData.short_description, roomData.full_description, room.external_id]);
+          `, [gasPropertyId, roomData.name, roomData.display_name, roomData.max_guests, roomData.base_price, roomData.currency,
+              roomData.bedrooms, roomData.bathrooms, roomData.short_description, roomData.full_description,
+              roomData.room_type, roomData.max_adults, roomData.max_children, roomData.beds, roomData.size_sqm, room.external_id]);
           gasRoomId = roomResult.rows[0].id;
         }
         await pool.query('UPDATE gas_sync_room_types SET gas_room_id=$1 WHERE id=$2', [gasRoomId, room.id]);
