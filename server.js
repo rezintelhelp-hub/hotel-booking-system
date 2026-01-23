@@ -2492,7 +2492,8 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
           console.log(`[Calry Sync] Step 2: Getting availability for room type ${roomTypeId}`);
           
           try {
-            const availResponse = await axios.get(`https://prod.calry.app/api/v2/vrs/availability/${roomTypeId}`, {
+            // FIXED: URL uses propertyId, query param uses roomTypeId
+            const availResponse = await axios.get(`https://prod.calry.app/api/v2/vrs/availability/${cmPropertyId}`, {
               headers: {
                 'Authorization': `Bearer ${CALRY_API_TOKEN}`,
                 'workspaceId': CALRY_WORKSPACE_ID,
@@ -21071,6 +21072,14 @@ async function triggerInitialCalrySyncInternal(connectionId, gasPropertyId, calr
     );
     if (roomsResult.rows.length === 0) return;
     
+    // Get cm_property_id for the availability calls (FIXED: need propertyId for URL path)
+    const propCmResult = await pool.query('SELECT cm_property_id FROM properties WHERE id = $1', [gasPropertyId]);
+    const cmPropertyId = propCmResult.rows[0]?.cm_property_id;
+    if (!cmPropertyId) {
+      console.log(`No cm_property_id found for property ${gasPropertyId}`);
+      return;
+    }
+    
     const adapter = getAdapter('calry', {
       token: CALRY_API_TOKEN, workspaceId: CALRY_WORKSPACE_ID, integrationAccountId,
       pool, connectionId, useDev: false
@@ -21081,7 +21090,8 @@ async function triggerInitialCalrySyncInternal(connectionId, gasPropertyId, calr
     
     for (const room of roomsResult.rows) {
       try {
-        const availResult = await adapter.getAvailability(room.cm_room_id, startDate, endDate);
+        // FIXED: Pass propertyId AND roomTypeId to adapter
+        const availResult = await adapter.getAvailability(cmPropertyId, room.cm_room_id, startDate, endDate);
         if (availResult.success && availResult.data) {
           await adapter.syncAvailabilityToDatabase(room.cm_room_id, availResult.data);
         }
@@ -21364,7 +21374,8 @@ app.get('/api/admin/calry/debug-by-account/:accountId', async (req, res) => {
         
         // Try prod first
         try {
-          availResponse = await axios.get(`https://prod.calry.app/api/v2/vrs/availability/${rt.id}`, {
+          // FIXED: URL uses propertyId, query param uses roomTypeId (rt.id)
+          availResponse = await axios.get(`https://prod.calry.app/api/v2/vrs/availability/${propertyId}`, {
             headers: {
               'Authorization': `Bearer ${CALRY_API_TOKEN}`,
               'workspaceId': CALRY_WORKSPACE_ID,
@@ -21377,7 +21388,8 @@ app.get('/api/admin/calry/debug-by-account/:accountId', async (req, res) => {
           // Try dev if prod fails
           console.log('Calry prod availability failed, trying dev:', prodErr.message);
           usedEnv = 'dev';
-          availResponse = await axios.get(`https://dev.calry.app/api/v2/vrs/availability/${rt.id}`, {
+          // FIXED: URL uses propertyId, query param uses roomTypeId (rt.id)
+          availResponse = await axios.get(`https://dev.calry.app/api/v2/vrs/availability/${propertyId}`, {
             headers: {
               'Authorization': `Bearer ${CALRY_API_TOKEN}`,
               'workspaceId': CALRY_WORKSPACE_ID,
@@ -21408,7 +21420,8 @@ app.get('/api/admin/calry/debug-by-account/:accountId', async (req, res) => {
         let usedEnv = 'prod';
         
         try {
-          ratesResponse = await axios.get(`https://prod.calry.app/api/v2/vrs/availability/${rt.id}`, {
+          // FIXED: URL uses propertyId, query param uses roomTypeId (rt.id)
+          ratesResponse = await axios.get(`https://prod.calry.app/api/v2/vrs/availability/${propertyId}`, {
             headers: {
               'Authorization': `Bearer ${CALRY_API_TOKEN}`,
               'workspaceId': CALRY_WORKSPACE_ID,
@@ -21419,7 +21432,8 @@ app.get('/api/admin/calry/debug-by-account/:accountId', async (req, res) => {
           });
         } catch (prodErr) {
           usedEnv = 'dev';
-          ratesResponse = await axios.get(`https://dev.calry.app/api/v2/vrs/availability/${rt.id}`, {
+          // FIXED: URL uses propertyId, query param uses roomTypeId (rt.id)
+          ratesResponse = await axios.get(`https://dev.calry.app/api/v2/vrs/availability/${propertyId}`, {
             headers: {
               'Authorization': `Bearer ${CALRY_API_TOKEN}`,
               'workspaceId': CALRY_WORKSPACE_ID,
@@ -21670,14 +21684,15 @@ app.get('/api/admin/calry/debug-room-sync/:connectionId', async (req, res) => {
             const endDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
             const roomTypeId = roomTypes[0]?.id;
             
-            const availResponse = await axios.get(`https://prod.calry.app/api/v2/vrs/availability/${roomTypeId}`, {
+            // FIXED: URL uses propertyId, query param uses roomTypeId
+            const availResponse = await axios.get(`https://prod.calry.app/api/v2/vrs/availability/${propertyId}`, {
               headers: {
                 'Authorization': `Bearer ${CALRY_API_TOKEN}`,
                 'workspaceId': CALRY_WORKSPACE_ID,
                 'integrationAccountId': integrationAccountId,
                 'Content-Type': 'application/json'
               },
-              params: { startDate: today, endDate: endDate },
+              params: { startDate: today, endDate: endDate, roomTypeId: roomTypeId },
               timeout: 30000
             });
             
@@ -22311,7 +22326,8 @@ app.post('/api/calry/sync-pricing/:propertyId', async (req, res) => {
         console.log(`[Calry Pricing v2] Request headers:`, { workspaceId: CALRY_WORKSPACE_ID, integrationAccountId });
         console.log(`[Calry Pricing v2] Request params:`, params);
         
-        const availResponse = await axios.get(`https://prod.calry.app/api/v2/vrs/availability/${roomTypeId}`, {
+        // FIXED: URL uses calryPropertyId, query param uses roomTypeId
+        const availResponse = await axios.get(`https://prod.calry.app/api/v2/vrs/availability/${calryPropertyId}`, {
           headers,
           params,
           timeout: 30000
