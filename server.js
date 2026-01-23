@@ -2340,26 +2340,30 @@ app.get('/api/gas-sync/property-by-gas-id/:gasPropertyId', async (req, res) => {
   try {
     const { gasPropertyId } = req.params;
     
-    // Try gas_sync_properties first
-    let result = await pool.query(`
-      SELECT id, connection_id, cm_property_id, gas_property_id, name
-      FROM gas_sync_properties 
-      WHERE gas_property_id = $1
-    `, [gasPropertyId]);
-    
-    if (result.rows.length > 0) {
-      return res.json({ 
-        success: true, 
-        syncPropertyId: result.rows[0].id,
-        connectionId: result.rows[0].connection_id,
-        cmPropertyId: result.rows[0].cm_property_id,
-        name: result.rows[0].name
-      });
+    // Try gas_sync_properties first (if table exists)
+    try {
+      const result = await pool.query(`
+        SELECT id, connection_id, cm_property_id, gas_property_id, name
+        FROM gas_sync_properties 
+        WHERE gas_property_id = $1
+      `, [gasPropertyId]);
+      
+      if (result.rows.length > 0) {
+        return res.json({ 
+          success: true, 
+          syncPropertyId: result.rows[0].id,
+          connectionId: result.rows[0].connection_id,
+          cmPropertyId: result.rows[0].cm_property_id,
+          name: result.rows[0].name
+        });
+      }
+    } catch (e) {
+      // gas_sync_properties table or column doesn't exist, continue to fallback
+      console.log('gas_sync_properties lookup failed:', e.message);
     }
     
-    // Try to find via bookable_units which has cm_room_id and cm_property_id in some setups
-    // Get the first room for this property and use its cm info
-    result = await pool.query(`
+    // Fallback: find via bookable_units which has cm_room_id
+    const result = await pool.query(`
       SELECT bu.cm_room_id, bu.property_id, p.name, p.account_id,
              c.id as connection_id, c.adapter_code, c.external_account_id
       FROM bookable_units bu
@@ -2370,13 +2374,11 @@ app.get('/api/gas-sync/property-by-gas-id/:gasPropertyId', async (req, res) => {
     `, [gasPropertyId]);
     
     if (result.rows.length > 0 && result.rows[0].cm_room_id) {
-      // For Calry, we need to get the property ID from the room type
-      // The cm_room_id IS the room type ID, and we can derive property from connection
       return res.json({
         success: true,
         syncPropertyId: gasPropertyId,
         connectionId: result.rows[0].connection_id,
-        cmPropertyId: result.rows[0].cm_room_id, // Use room ID - for single-room properties this works
+        cmPropertyId: result.rows[0].cm_room_id,
         adapterCode: result.rows[0].adapter_code,
         integrationAccountId: result.rows[0].external_account_id,
         name: result.rows[0].name
