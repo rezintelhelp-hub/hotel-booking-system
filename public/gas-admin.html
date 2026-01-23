@@ -4771,6 +4771,108 @@
                             <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
                                 <button class="btn" onclick="saveWebsiteSection('page-about', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save About Page</button>
                             </div>
+                            
+                            <!-- Page Header Section -->
+                            <div class="card" style="margin-bottom: 1.5rem;">
+                                <div class="card-header"><h3>📄 Page Header</h3></div>
+                                <div class="card-body">
+                                    <div class="form-group">
+                                        <label class="form-label">Page Title</label>
+                                        <div style="display: flex; gap: 8px;">
+                                            <input type="text" class="form-input" id="wb-page-about-title" placeholder="e.g., About Us" value="About Us" style="flex: 1;">
+                                            <button type="button" class="btn" onclick="generatePageAboutTitle()" style="background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%); white-space: nowrap;">✨ Generate</button>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Page Subtitle</label>
+                                        <input type="text" class="form-input" id="wb-page-about-subtitle" placeholder="e.g., Learn more about our story and values">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Header Background Image</label>
+                                        <div id="wb-page-about-hero-preview" style="width: 100%; height: 150px; background: linear-gradient(135deg, #1e293b 0%, #334155 100%); border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; background-size: cover; background-position: center;">
+                                            <span style="color: #94a3b8;">Click below to upload a header image</span>
+                                        </div>
+                                        <input type="file" id="wb-page-about-hero-file" accept="image/*" onchange="previewPageImage('about', 'hero')">
+                                        <input type="hidden" id="wb-page-about-hero-image">
+                                    </div>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+                                        <div class="form-group">
+                                            <label class="form-label">Header Background Color</label>
+                                            <div style="display: flex; gap: 8px; align-items: center;">
+                                                <input type="color" id="wb-page-about-header-bg-picker" value="#1e293b" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-page-about-header-bg').value = this.value">
+                                                <input type="text" class="form-input" id="wb-page-about-header-bg" value="#1e293b" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-page-about-header-bg-picker')">
+                                            </div>
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label">Header Text Color</label>
+                                            <div style="display: flex; gap: 8px; align-items: center;">
+                                                <input type="color" id="wb-page-about-header-text-picker" value="#ffffff" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-page-about-header-text').value = this.value">
+                                                <input type="text" class="form-input" id="wb-page-about-header-text" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-page-about-header-text-picker')">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Page Content Section -->
+                            <div class="card" style="margin-bottom: 1.5rem;">
+                                <div class="card-header"><h3>📝 Page Content</h3></div>
+                                <div class="card-body">
+                                    <div class="form-group">
+                                        <label class="form-label">Main Content</label>
+                                        <textarea class="form-textarea" id="wb-page-about-content" rows="8" placeholder="Tell your story here... You can write multiple paragraphs about your property, your team, your values, and what makes you unique."></textarea>
+                                        <button type="button" class="btn" onclick="generatePageAboutContent()" style="background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%); margin-top: 8px;">✨ Generate About Content</button>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Content Image (Optional)</label>
+                                        <div id="wb-page-about-content-image-preview" style="width: 100%; height: 200px; background: #f1f5f9; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; background-size: cover; background-position: center;">
+                                            <span style="color: #94a3b8;">Click below to upload an image</span>
+                                        </div>
+                                        <input type="file" id="wb-page-about-content-image-file" accept="image/*" onchange="previewPageImage('about', 'content-image')">
+                                        <input type="hidden" id="wb-page-about-content-image">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Image Position</label>
+                                        <select class="form-select" id="wb-page-about-image-position">
+                                            <option value="right">Image Right</option>
+                                            <option value="left">Image Left</option>
+                                            <option value="top">Image Top (Full Width)</option>
+                                            <option value="none">No Image</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Page Styling Section -->
+                            <div class="card" style="margin-bottom: 1.5rem;">
+                                <div class="card-header"><h3>🎨 Page Styling</h3></div>
+                                <div class="card-body">
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+                                        <div class="form-group">
+                                            <label class="form-label">Page Background</label>
+                                            <div style="display: flex; gap: 8px; align-items: center;">
+                                                <input type="color" id="wb-page-about-bg-picker" value="#ffffff" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-page-about-bg').value = this.value">
+                                                <input type="text" class="form-input" id="wb-page-about-bg" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-page-about-bg-picker')">
+                                            </div>
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label">Title Color</label>
+                                            <div style="display: flex; gap: 8px; align-items: center;">
+                                                <input type="color" id="wb-page-about-title-color-picker" value="#1e293b" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-page-about-title-color').value = this.value">
+                                                <input type="text" class="form-input" id="wb-page-about-title-color" value="#1e293b" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-page-about-title-color-picker')">
+                                            </div>
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label">Text Color</label>
+                                            <div style="display: flex; gap: 8px; align-items: center;">
+                                                <input type="color" id="wb-page-about-text-color-picker" value="#475569" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-page-about-text-color').value = this.value">
+                                                <input type="text" class="form-input" id="wb-page-about-text-color" value="#475569" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-page-about-text-color-picker')">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
                             <div id="editor-page-about-content"></div>
                             <div class="card" style="margin-top: 1.5rem; margin-bottom: 1.5rem; border: 2px solid #f59e0b; border-radius: 12px; overflow: hidden;">
                                 <div class="card-header" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; display: flex; justify-content: space-between; align-items: center;">
@@ -17828,6 +17930,133 @@ Local honey and preserves"></textarea>
             }
         }
         
+        // AI Generation for About Page (standalone page, not homepage section)
+        async function generatePageAboutTitle() {
+            const btn = event.target;
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '✨ Generating...';
+            btn.disabled = true;
+            
+            try {
+                const businessName = document.getElementById('wb-header-site-name')?.value || 'Our Property';
+                
+                const response = await fetch('/api/admin/ai/generate-website-content', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({
+                        type: 'page_about_title',
+                        business_name: businessName,
+                        account_id: selectedAccountId
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success && data.content) {
+                    document.getElementById('wb-page-about-title').value = data.content;
+                    showNotification('Title generated!', 'success');
+                } else {
+                    showNotification('Failed to generate: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (error) {
+                console.error('Generate page about title error:', error);
+                showNotification('Generation failed: ' + error.message, 'error');
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+        
+        async function generatePageAboutContent() {
+            const btn = event.target;
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '✨ Generating...';
+            btn.disabled = true;
+            
+            try {
+                const businessName = document.getElementById('wb-header-site-name')?.value || 'Our Property';
+                const location = document.getElementById('wb-hero-subheadline')?.value || '';
+                const pageTitle = document.getElementById('wb-page-about-title')?.value || 'About Us';
+                
+                const response = await fetch('/api/admin/ai/generate-website-content', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({
+                        type: 'page_about_content',
+                        business_name: businessName,
+                        location: location,
+                        title: pageTitle,
+                        account_id: selectedAccountId
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success && data.content) {
+                    document.getElementById('wb-page-about-content').value = data.content;
+                    showNotification('About page content generated!', 'success');
+                } else {
+                    showNotification('Failed to generate: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (error) {
+                console.error('Generate page about content error:', error);
+                showNotification('Generation failed: ' + error.message, 'error');
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+        
+        // Preview and upload images for sub-pages (about, gallery, etc.)
+        async function previewPageImage(page, field) {
+            const fileInput = document.getElementById(`wb-page-${page}-${field}-file`);
+            const preview = document.getElementById(`wb-page-${page}-${field}-preview`);
+            const urlField = document.getElementById(`wb-page-${page}-${field}`);
+            
+            if (!fileInput || !fileInput.files || !fileInput.files[0]) return;
+            
+            const file = fileInput.files[0];
+            
+            // Show preview immediately
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                preview.style.backgroundImage = `url(${e.target.result})`;
+                const placeholder = preview.querySelector('span');
+                if (placeholder) placeholder.style.display = 'none';
+            };
+            reader.readAsDataURL(file);
+            
+            // Upload to server
+            try {
+                const formData = new FormData();
+                formData.append('image', file);
+                formData.append('section', `page-${page}-${field}`);
+                
+                const siteId = selectedDeployedSiteId || localStorage.getItem('gas_selected_client_id') || getClientId();
+                if (siteId) {
+                    formData.append('deployed_site_id', siteId);
+                }
+                
+                const token = localStorage.getItem('gas_token');
+                const response = await fetch('/api/admin/website-builder/upload-image', {
+                    method: 'POST',
+                    headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+                    body: formData
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (urlField && data.url) {
+                        urlField.value = data.url;
+                    }
+                    showNotification('Image uploaded successfully', 'success');
+                } else {
+                    showNotification('Failed to upload image', 'error');
+                }
+            } catch (error) {
+                console.error('Page image upload error:', error);
+                showNotification('Upload failed: ' + error.message, 'error');
+            }
+        }
+        
         async function saveWebsiteSection(section, buttonEl = null) {
             // Find the save button if not passed
             const saveBtn = buttonEl || document.querySelector(`button[onclick*="saveWebsiteSection('${section}', this)"]`);
@@ -17893,7 +18122,13 @@ Local honey and preserves"></textarea>
                 
                 // Collect from BOTH original and clone, with clone values taking priority
                 // This ensures we get all fields (some may only exist in original)
-                const originalContainer = document.getElementById(`wb-${section}`);
+                // For page-* sections, the editorContainer IS the container with the fields
+                let originalContainer = document.getElementById(`wb-${section}`);
+                
+                // For page-* sections, use the editorContainer as the source
+                if (!originalContainer && section.startsWith('page-') && editorContainer) {
+                    originalContainer = editorContainer;
+                }
                 
                 // First collect from original
                 let elementsToCheck = originalContainer 
@@ -17913,6 +18148,16 @@ Local honey and preserves"></textarea>
                         settings[key] = el.value;
                     }
                 });
+                
+                // Debug: log what we collected for page-about
+                if (section.startsWith('page-')) {
+                    console.log(`Saving ${section}:`, {
+                        editorContainerId,
+                        originalContainerFound: !!originalContainer,
+                        settingsCount: Object.keys(settings).length,
+                        settings
+                    });
+                }
                 
                 // Then override with values from clone (user's edits)
                 // BUT don't override non-empty values with empty values (preserves uploaded images etc.)
