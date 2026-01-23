@@ -33132,68 +33132,27 @@ app.put('/api/elevate/:apiKey/room/:roomId/amenities', async (req, res) => {
     
     const gasRoomId = roomCheck.rows[0].id;
     
-    // Ensure amenities table exists
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS amenities (
-        id SERIAL PRIMARY KEY,
-        name VARCHAR(255) NOT NULL UNIQUE,
-        category VARCHAR(100),
-        icon VARCHAR(100),
-        created_at TIMESTAMP DEFAULT NOW()
-      )
-    `);
+    // Process amenities into consistent format
+    const processedAmenities = amenities.map(a => typeof a === 'string' ? a : a.name).filter(Boolean);
     
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS room_amenities (
-        room_id INTEGER REFERENCES bookable_units(id) ON DELETE CASCADE,
-        amenity_id INTEGER REFERENCES amenities(id) ON DELETE CASCADE,
-        PRIMARY KEY (room_id, amenity_id)
-      )
-    `);
+    // Save amenities to bookable_units.amenities JSON field
+    const amenitiesJson = {
+      amenities: processedAmenities,
+      raw_amenities: amenities.map(a => typeof a === 'string' ? { name: a } : a),
+      updated_at: new Date().toISOString(),
+      source: 'elevate'
+    };
     
-    // Remove existing amenities
-    await pool.query('DELETE FROM room_amenities WHERE room_id = $1', [gasRoomId]);
-    
-    // Add new amenities
-    const addedAmenities = [];
-    
-    for (const amenity of amenities) {
-      const amenityName = typeof amenity === 'string' ? amenity : amenity.name;
-      const category = typeof amenity === 'object' ? amenity.category : null;
-      
-      if (!amenityName) continue;
-      
-      // Find or create amenity
-      let amenityResult = await pool.query(
-        'SELECT id FROM amenities WHERE LOWER(name) = LOWER($1)',
-        [amenityName]
-      );
-      
-      let amenityId;
-      if (amenityResult.rows.length > 0) {
-        amenityId = amenityResult.rows[0].id;
-      } else {
-        const newAmenity = await pool.query(
-          'INSERT INTO amenities (name, category) VALUES ($1, $2) RETURNING id',
-          [amenityName, category]
-        );
-        amenityId = newAmenity.rows[0].id;
-      }
-      
-      // Link to room
-      await pool.query(
-        'INSERT INTO room_amenities (room_id, amenity_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-        [gasRoomId, amenityId]
-      );
-      
-      addedAmenities.push({ id: amenityId, name: amenityName });
-    }
+    await pool.query(
+      'UPDATE bookable_units SET amenities = $1, updated_at = NOW() WHERE id = $2',
+      [JSON.stringify(amenitiesJson), gasRoomId]
+    );
     
     res.json({ 
       success: true, 
       room_id: gasRoomId,
-      amenities_count: addedAmenities.length,
-      amenities: addedAmenities
+      amenities_count: processedAmenities.length,
+      amenities: processedAmenities
     });
     
   } catch (error) {
@@ -33219,9 +33178,9 @@ app.post('/api/elevate/:apiKey/room/:roomId/amenities', async (req, res) => {
       return res.status(400).json({ success: false, error: 'amenities must be an array' });
     }
     
-    // Find room
+    // Find room and get existing amenities
     const roomCheck = await pool.query(`
-      SELECT bu.id 
+      SELECT bu.id, bu.amenities
       FROM bookable_units bu
       JOIN properties p ON p.id = bu.property_id
       JOIN accounts a ON a.id = p.account_id
@@ -33234,63 +33193,39 @@ app.post('/api/elevate/:apiKey/room/:roomId/amenities', async (req, res) => {
     }
     
     const gasRoomId = roomCheck.rows[0].id;
+    const existingAmenities = roomCheck.rows[0].amenities || {};
     
-    // Ensure tables exist
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS amenities (
-        id SERIAL PRIMARY KEY,
-        name VARCHAR(255) NOT NULL UNIQUE,
-        category VARCHAR(100),
-        icon VARCHAR(100),
-        created_at TIMESTAMP DEFAULT NOW()
-      )
-    `);
-    
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS room_amenities (
-        room_id INTEGER REFERENCES bookable_units(id) ON DELETE CASCADE,
-        amenity_id INTEGER REFERENCES amenities(id) ON DELETE CASCADE,
-        PRIMARY KEY (room_id, amenity_id)
-      )
-    `);
-    
-    const addedAmenities = [];
-    
-    for (const amenity of amenities) {
-      const amenityName = typeof amenity === 'string' ? amenity : amenity.name;
-      const category = typeof amenity === 'object' ? amenity.category : null;
-      
-      if (!amenityName) continue;
-      
-      let amenityResult = await pool.query(
-        'SELECT id FROM amenities WHERE LOWER(name) = LOWER($1)',
-        [amenityName]
-      );
-      
-      let amenityId;
-      if (amenityResult.rows.length > 0) {
-        amenityId = amenityResult.rows[0].id;
-      } else {
-        const newAmenity = await pool.query(
-          'INSERT INTO amenities (name, category) VALUES ($1, $2) RETURNING id',
-          [amenityName, category]
-        );
-        amenityId = newAmenity.rows[0].id;
-      }
-      
-      await pool.query(
-        'INSERT INTO room_amenities (room_id, amenity_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-        [gasRoomId, amenityId]
-      );
-      
-      addedAmenities.push({ id: amenityId, name: amenityName });
+    // Get existing amenities list
+    let existingList = [];
+    if (existingAmenities.amenities && Array.isArray(existingAmenities.amenities)) {
+      existingList = existingAmenities.amenities;
     }
+    
+    // Process new amenities
+    const newAmenities = amenities.map(a => typeof a === 'string' ? a : a.name).filter(Boolean);
+    
+    // Merge with existing (no duplicates)
+    const mergedAmenities = [...new Set([...existingList, ...newAmenities])];
+    
+    // Save to bookable_units.amenities JSON field
+    const amenitiesJson = {
+      amenities: mergedAmenities,
+      raw_amenities: mergedAmenities.map(a => ({ name: a })),
+      updated_at: new Date().toISOString(),
+      source: 'elevate'
+    };
+    
+    await pool.query(
+      'UPDATE bookable_units SET amenities = $1, updated_at = NOW() WHERE id = $2',
+      [JSON.stringify(amenitiesJson), gasRoomId]
+    );
     
     res.json({ 
       success: true, 
       room_id: gasRoomId,
-      added: addedAmenities.length,
-      amenities: addedAmenities
+      added: newAmenities.length,
+      total: mergedAmenities.length,
+      amenities: mergedAmenities
     });
     
   } catch (error) {
