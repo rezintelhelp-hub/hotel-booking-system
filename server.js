@@ -39333,13 +39333,56 @@ Requirements:
 Generate the about paragraph only, nothing else:`;
                 break;
                 
+            case 'page_about_title':
+                prompt = `Generate an engaging page title for a standalone "About Us" page on a vacation rental website.
+
+Business/Property Name: ${businessContext}
+Location: ${locationContext || 'Not specified'}
+
+Requirements:
+- 2-5 words
+- More formal/professional than homepage section titles
+- Can be creative but clear
+- Do NOT just use "About Us" - make it unique
+- Do NOT include quotes around the text
+
+Examples:
+- Our Story
+- The Heart of Hospitality
+- Meet Your Hosts
+- A Legacy of Excellence
+- Where Dreams Stay
+
+Generate ONE title only, nothing else:`;
+                break;
+                
+            case 'page_about_content':
+                prompt = `Generate comprehensive content for a standalone "About Us" page on a vacation rental website.
+
+Business/Property Name: ${businessContext}
+Location: ${locationContext || 'Not specified'}
+Page Title: ${title || 'About Us'}
+
+Requirements:
+- 3-4 paragraphs (200-300 words total)
+- Professional yet warm and personal tone
+- Include: the story/history, what makes you unique, your commitment to guests
+- Mention the location and its appeal if known
+- Make it feel authentic and personal
+- Do NOT use headers or bullet points - just flowing paragraphs
+- Do NOT include quotes around the text
+- Separate paragraphs with blank lines
+
+Generate the page content only, nothing else:`;
+                break;
+                
             default:
                 return res.json({ success: false, error: 'Unknown content type' });
         }
         
         const claudeResponse = await axios.post('https://api.anthropic.com/v1/messages', {
             model: 'claude-sonnet-4-20250514',
-            max_tokens: 500,
+            max_tokens: 1000,
             messages: [{ role: 'user', content: prompt }]
         }, {
             headers: {
