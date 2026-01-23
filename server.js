@@ -2504,8 +2504,13 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
               timeout: 30000
             });
             
-            const availData = availResponse.data?.data || [];
-            console.log(`[Calry Sync] Room type ${roomTypeId}: ${availData.length} availability records`);
+            // Response can be { data: [...] } or just [...] directly
+            const availData = availResponse.data?.data || availResponse.data || [];
+            console.log(`[Calry Sync] Room type ${roomTypeId}: ${Array.isArray(availData) ? availData.length : 'non-array'} availability records`);
+            
+            if (Array.isArray(availData) && availData.length > 0) {
+              console.log(`[Calry Sync] Sample record:`, JSON.stringify(availData[0]));
+            }
             
             // Find the GAS room by cm_room_id
             const roomResult = await pool.query(`
@@ -2524,9 +2529,27 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
                 const date = day.date || day.startDate;
                 if (!date) continue;
                 
-                const price = day.price || day.rate || day.basePrice || day.amount || null;
-                const available = day.available !== false && day.isAvailable !== false && day.status !== 'blocked';
-                const minStay = day.minStay || day.minimumStay || day.minNights || 1;
+                // Handle price in different formats - Calry returns { price: { amount: 857 } }
+                let price = null;
+                if (day.price) {
+                  if (typeof day.price === 'object' && day.price.amount !== undefined) {
+                    price = parseFloat(day.price.amount);
+                  } else if (typeof day.price === 'number' || typeof day.price === 'string') {
+                    price = parseFloat(day.price);
+                  }
+                } else if (day.rate) {
+                  price = parseFloat(day.rate);
+                } else if (day.amount) {
+                  price = parseFloat(day.amount);
+                }
+                
+                // Handle availability status - Calry returns status: "AVAILABLE" or "BLOCKED"
+                const isAvailable = day.status === 'AVAILABLE' || 
+                                   (day.available !== false && day.isAvailable !== false && 
+                                    day.status !== 'blocked' && day.status !== 'BLOCKED');
+                
+                const minStay = day.minimumNights || day.minStay || day.minimumStay || day.minNights || 1;
+                const maxStay = day.maximumNights || day.maxStay || day.maximumStay || day.maxNights || null;
                 
                 await pool.query(`
                   INSERT INTO room_availability (room_id, date, cm_price, is_available, is_blocked, min_stay, source, updated_at)
@@ -2538,7 +2561,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
                     min_stay = COALESCE(EXCLUDED.min_stay, room_availability.min_stay),
                     source = 'calry',
                     updated_at = NOW()
-                `, [gasRoomId, date, price, available, !available, minStay]);
+                `, [gasRoomId, date, price, isAvailable, !isAvailable, minStay]);
                 
                 totalDaysUpdated++;
               }
@@ -2547,7 +2570,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
             roomTypesProcessed++;
             
           } catch (roomErr) {
-            console.error(`[Calry Sync] Error fetching availability for room type ${roomTypeId}:`, roomErr.response?.data || roomErr.message);
+            console.error(`[Calry Sync] Error fetching availability for room type ${roomTypeId}:`, roomErr.response?.status, roomErr.response?.data || roomErr.message);
           }
         }
         
@@ -4875,15 +4898,20 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
       }
       
       // Get all synced properties with linked rooms
+      // Note: external_id might be room type ID, cm_property_id should be the actual Calry property ID
       const propsResult = await pool.query(`
-        SELECT sp.id, sp.external_id as cm_property_id, sp.name, sp.gas_property_id
+        SELECT sp.id, sp.external_id, sp.cm_property_id, sp.name, sp.gas_property_id,
+               p.cm_property_id as prop_cm_property_id
         FROM gas_sync_properties sp
+        LEFT JOIN properties p ON p.id = sp.gas_property_id
         WHERE sp.connection_id = $1 AND sp.gas_property_id IS NOT NULL
       `, [connectionId]);
       
       if (propsResult.rows.length === 0) {
         return res.json({ success: false, error: 'No linked properties found.' });
       }
+      
+      console.log(`[Calry Sync] Found ${propsResult.rows.length} properties to sync`);
       
       // Ensure room_availability table exists
       await pool.query(`
@@ -4911,12 +4939,34 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
       let totalDaysUpdated = 0;
       let roomsSynced = 0;
       const errors = [];
+      const debug = [];
       
       for (const prop of propsResult.rows) {
         try {
-          const calryPropertyId = prop.cm_property_id;
+          // Try multiple sources for the Calry property ID
+          const calryPropertyId = prop.cm_property_id || prop.prop_cm_property_id || prop.external_id;
+          
+          console.log(`[Calry Sync] Property: ${prop.name}`);
+          console.log(`[Calry Sync]   - external_id: ${prop.external_id}`);
+          console.log(`[Calry Sync]   - cm_property_id: ${prop.cm_property_id}`);
+          console.log(`[Calry Sync]   - prop_cm_property_id: ${prop.prop_cm_property_id}`);
+          console.log(`[Calry Sync]   - Using calryPropertyId: ${calryPropertyId}`);
+          
+          debug.push({
+            property: prop.name,
+            external_id: prop.external_id,
+            cm_property_id: prop.cm_property_id,
+            prop_cm_property_id: prop.prop_cm_property_id,
+            using: calryPropertyId
+          });
+          
+          if (!calryPropertyId) {
+            errors.push({ property: prop.name, error: 'No Calry property ID found' });
+            continue;
+          }
           
           // Get room types for this property
+          console.log(`[Calry Sync] Fetching room types from: /vrs/room-types/${calryPropertyId}`);
           const roomTypesResponse = await axios.get(`https://prod.calry.app/api/v2/vrs/room-types/${calryPropertyId}`, {
             headers: {
               'Authorization': `Bearer ${CALRY_API_TOKEN}`,
@@ -4928,6 +4978,7 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
           });
           
           const roomTypes = roomTypesResponse.data?.data || roomTypesResponse.data || [];
+          console.log(`[Calry Sync] Found ${roomTypes.length} room types: ${roomTypes.map(rt => rt.id).join(', ')}`);
           
           for (const roomType of roomTypes) {
             const roomTypeId = String(roomType.id);
@@ -4939,18 +4990,26 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
             `, [prop.gas_property_id, roomTypeId, roomTypeId.toString()]);
             
             let gasRoomId = roomResult.rows[0]?.id;
+            let gasRoomName = roomResult.rows[0]?.name;
+            
             if (!gasRoomId) {
               // Fall back to first room
-              const anyRoom = await pool.query(`SELECT id FROM bookable_units WHERE property_id = $1 LIMIT 1`, [prop.gas_property_id]);
+              const anyRoom = await pool.query(`SELECT id, name FROM bookable_units WHERE property_id = $1 LIMIT 1`, [prop.gas_property_id]);
               gasRoomId = anyRoom.rows[0]?.id;
+              gasRoomName = anyRoom.rows[0]?.name;
               if (gasRoomId) {
                 await pool.query(`UPDATE bookable_units SET cm_room_id = $1 WHERE id = $2`, [roomTypeId, gasRoomId]);
+                console.log(`[Calry Sync] Linked room type ${roomTypeId} to GAS room ${gasRoomId} (${gasRoomName})`);
               }
             }
             
-            if (!gasRoomId) continue;
+            if (!gasRoomId) {
+              console.log(`[Calry Sync] No GAS room found for room type ${roomTypeId}`);
+              continue;
+            }
             
             // FIXED: URL uses propertyId, query param uses roomTypeId
+            console.log(`[Calry Sync] Fetching availability: /vrs/availability/${calryPropertyId}?roomTypeId=${roomTypeId}`);
             const availResponse = await axios.get(`https://prod.calry.app/api/v2/vrs/availability/${calryPropertyId}`, {
               headers: {
                 'Authorization': `Bearer ${CALRY_API_TOKEN}`,
@@ -4963,8 +5022,11 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
             });
             
             const availData = availResponse.data?.data || availResponse.data || [];
+            console.log(`[Calry Sync] Got ${Array.isArray(availData) ? availData.length : 'non-array'} availability records`);
             
-            if (Array.isArray(availData)) {
+            if (Array.isArray(availData) && availData.length > 0) {
+              console.log(`[Calry Sync] Sample: ${JSON.stringify(availData[0])}`);
+              
               for (const day of availData) {
                 const date = day.date;
                 if (!date) continue;
@@ -5015,7 +5077,8 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
         success: true,
         message: 'Calry availability sync complete',
         stats: { propertiesChecked: propsResult.rows.length, roomsSynced, totalDaysUpdated, days },
-        errors: errors.length > 0 ? errors : undefined
+        errors: errors.length > 0 ? errors : undefined,
+        debug: debug
       });
     }
     
