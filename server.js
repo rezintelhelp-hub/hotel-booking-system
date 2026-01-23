@@ -33125,6 +33125,9 @@ app.put('/api/elevate/:apiKey/room/:roomId/bathrooms', async (req, res) => {
     for (const bathroom of bathrooms) {
       let bathType = bathroom.type || bathroom.bathroom_type || 'bathroom_full';
       const quantity = bathroom.quantity || 1;
+      const name = bathroom.name || null;
+      const features = bathroom.features ? JSON.stringify(bathroom.features) : null;
+      const linkedBedroom = bathroom.linked_bedroom || null;
       
       // Normalize bathroom type
       const bathTypeLower = bathType.toLowerCase().replace(/\s+/g, '_');
@@ -33136,17 +33139,32 @@ app.put('/api/elevate/:apiKey/room/:roomId/bathrooms', async (req, res) => {
       else if (bathTypeLower.includes('full')) bathType = 'bathroom_full';
       else if (!bathType.startsWith('bathroom_')) bathType = 'bathroom_' + bathTypeLower;
       
+      // Check if this is an ensuite linked to a bedroom
+      let linkedBedroomId = null;
+      if (linkedBedroom) {
+        const bedroomLookup = await pool.query(
+          'SELECT id FROM property_bedrooms WHERE room_id = $1 AND name = $2',
+          [gasRoomId, linkedBedroom]
+        );
+        if (bedroomLookup.rows.length > 0) {
+          linkedBedroomId = bedroomLookup.rows[0].id;
+        }
+      }
+      
       const result = await pool.query(`
-        INSERT INTO property_bathrooms (property_id, room_id, bathroom_type, quantity, display_order, created_at)
-        VALUES ($1, $2, $3, $4, $5, NOW())
+        INSERT INTO property_bathrooms (property_id, room_id, name, bathroom_type, features, quantity, display_order, linked_bedroom_id, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
         RETURNING id
-      `, [propertyId, gasRoomId, bathType, quantity, displayOrder]);
+      `, [propertyId, gasRoomId, name, bathType, features, quantity, bathroom.display_order || displayOrder, linkedBedroomId]);
       
       addedBathrooms.push({
         id: result.rows[0].id,
+        name: name,
         bathroom_type: bathType,
+        features: bathroom.features || [],
         quantity: quantity,
-        display_order: displayOrder
+        display_order: bathroom.display_order || displayOrder,
+        linked_bedroom_id: linkedBedroomId
       });
       
       displayOrder++;
