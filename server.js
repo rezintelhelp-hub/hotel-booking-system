@@ -22190,19 +22190,24 @@ app.post('/api/calry/sync-pricing/:propertyId', async (req, res) => {
       try {
         // Fetch availability with rates from v2 API
         // Note: roomTypeId must be a string in params
+        const headers = {
+          'Authorization': `Bearer ${CALRY_API_TOKEN}`,
+          'workspaceId': CALRY_WORKSPACE_ID,
+          'integrationAccountId': integrationAccountId,
+          'Content-Type': 'application/json'
+        };
+        const params = {
+          startDate: startDate,
+          endDate: endDate,
+          roomTypeId: roomTypeId,
+          rates: 'true'
+        };
+        console.log(`[Calry Pricing v2] Request headers:`, { workspaceId: CALRY_WORKSPACE_ID, integrationAccountId });
+        console.log(`[Calry Pricing v2] Request params:`, params);
+        
         const availResponse = await axios.get(`https://prod.calry.app/api/v2/vrs/availability/${roomTypeId}`, {
-          headers: {
-            'Authorization': `Bearer ${CALRY_API_TOKEN}`,
-            'workspaceId': CALRY_WORKSPACE_ID,
-            'integrationAccountId': integrationAccountId,
-            'Content-Type': 'application/json'
-          },
-          params: {
-            startDate: startDate,
-            endDate: endDate,
-            roomTypeId: roomTypeId,
-            rates: 'true'
-          },
+          headers,
+          params,
           timeout: 30000
         });
         
