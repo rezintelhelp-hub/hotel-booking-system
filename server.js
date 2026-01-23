@@ -33039,9 +33039,9 @@ app.get('/api/elevate/:apiKey/room/:roomId/amenities', async (req, res) => {
     
     const { roomId } = req.params;
     
-    // Find room
+    // Find room and get amenities from bookable_units
     const roomCheck = await pool.query(`
-      SELECT bu.id 
+      SELECT bu.id, bu.amenities
       FROM bookable_units bu
       JOIN properties p ON p.id = bu.property_id
       JOIN accounts a ON a.id = p.account_id
@@ -33054,31 +33054,25 @@ app.get('/api/elevate/:apiKey/room/:roomId/amenities', async (req, res) => {
     }
     
     const gasRoomId = roomCheck.rows[0].id;
+    const amenitiesData = roomCheck.rows[0].amenities;
     
-    // Get amenities - check if room_amenities table exists
-    try {
-      const amenities = await pool.query(`
-        SELECT a.id, a.name, a.category, a.icon
-        FROM room_amenities ra
-        JOIN amenities a ON a.id = ra.amenity_id
-        WHERE ra.room_id = $1
-        ORDER BY a.category, a.name
-      `, [gasRoomId]);
-      
-      res.json({ 
-        success: true, 
-        room_id: gasRoomId,
-        amenities: amenities.rows 
-      });
-    } catch (tableError) {
-      // Table might not exist
-      res.json({ 
-        success: true, 
-        room_id: gasRoomId,
-        amenities: [],
-        note: 'Amenities table not configured'
-      });
+    // Parse amenities - could be JSON object with amenities array, or just array
+    let amenities = [];
+    if (amenitiesData) {
+      if (Array.isArray(amenitiesData)) {
+        amenities = amenitiesData;
+      } else if (amenitiesData.amenities && Array.isArray(amenitiesData.amenities)) {
+        amenities = amenitiesData.amenities;
+      } else if (amenitiesData.raw_amenities && Array.isArray(amenitiesData.raw_amenities)) {
+        amenities = amenitiesData.raw_amenities.map(a => a.name || a);
+      }
     }
+    
+    res.json({ 
+      success: true, 
+      room_id: gasRoomId,
+      amenities: amenities
+    });
     
   } catch (error) {
     console.error('Elevate get amenities error:', error);
