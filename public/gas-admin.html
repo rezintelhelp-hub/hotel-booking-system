@@ -14508,28 +14508,23 @@ Local honey and preserves"></textarea>
                 <!-- Stripe Payment Connection -->
                 <div style="margin-bottom: 1.5rem;">
                     <h4 style="margin: 0 0 1rem 0; color: var(--text-primary); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;">💳 Stripe Payment Connection</h4>
-                    <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 1rem;">Connect Stripe to receive payments for this property. Each property can have its own Stripe account.</p>
+                    <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 1rem;">Connect Stripe to receive payments for this property. Get your API keys from <a href="https://dashboard.stripe.com/apikeys" target="_blank" style="color: var(--accent);">Stripe Dashboard → Developers → API Keys</a></p>
                     
                     <div id="property-stripe-status" style="padding: 0.75rem; border-radius: 8px; margin-bottom: 1rem; background: #f1f5f9;">
                         <span style="color: #64748b;">Checking Stripe status...</span>
                     </div>
                     
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                        <div class="form-group" style="grid-column: 1 / -1;">
-                            <label class="form-label">Stripe Account ID</label>
-                            <input type="text" class="form-input" id="edit-property-stripe-account-id" placeholder="acct_... (from Stripe Connect)">
-                            <small style="color: #64748b;">Enter your Stripe Connect account ID if you have one</small>
-                        </div>
                         <div class="form-group">
-                            <label class="form-label">Stripe Publishable Key</label>
+                            <label class="form-label">Publishable Key</label>
                             <input type="text" class="form-input" id="edit-property-stripe-publishable" placeholder="pk_live_... or pk_test_...">
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Stripe Secret Key</label>
+                            <label class="form-label">Secret Key</label>
                             <input type="password" class="form-input" id="edit-property-stripe-secret" placeholder="sk_live_... or sk_test_...">
-                            <small style="color: #64748b;">Your secret key is encrypted and stored securely</small>
                         </div>
                     </div>
+                    <small style="color: #64748b;">Your keys are stored securely. Use test keys (pk_test/sk_test) for testing, live keys (pk_live/sk_live) for real payments.</small>
                 </div>
                 
                 <div style="display: flex; gap: 1rem; justify-content: space-between; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid #e2e8f0;">
@@ -21386,7 +21381,7 @@ Local honey and preserves"></textarea>
                                             <td>
                                                 <div style="display: flex; gap: 0.25rem;">
                                                     <button class="btn btn-secondary btn-small" onclick="editProperty(${prop.id})">✏️ Edit</button>
-                                                    <button class="btn btn-secondary btn-small" onclick="openPropertyStripeSettings(${prop.id}, '${(prop.name || '').replace(/'/g, "\\'")}')" title="Stripe Payment Settings" style="${prop.stripe_account_id || prop.stripe_publishable_key ? 'color: #10b981;' : 'color: #f59e0b;'}">💳</button>
+                                                    <button class="btn btn-secondary btn-small" onclick="openPropertyStripeSettings(${prop.id}, '${(prop.name || '').replace(/'/g, "\\'")}')" title="Stripe Payment Settings" style="${prop.stripe_publishable_key ? 'color: #10b981;' : 'color: #f59e0b;'}">💳</button>
                                                     <button class="btn btn-secondary btn-small" onclick="openPaymentSettings(${prop.id}, '${(prop.name || '').replace(/'/g, "\\'")}')" title="Payment Settings">⚙️</button>
                                                 </div>
                                             </td>
@@ -32869,13 +32864,12 @@ Local honey and preserves"></textarea>
                     document.getElementById('edit-property-status').value = prop.status || 'active';
                     
                     // Stripe fields
-                    document.getElementById('edit-property-stripe-account-id').value = prop.stripe_account_id || '';
                     document.getElementById('edit-property-stripe-publishable').value = prop.stripe_publishable_key || '';
                     document.getElementById('edit-property-stripe-secret').value = ''; // Don't show secret, just placeholder
                     
                     // Update Stripe status display
                     const stripeStatus = document.getElementById('property-stripe-status');
-                    if (prop.stripe_account_id || prop.stripe_publishable_key) {
+                    if (prop.stripe_publishable_key) {
                         stripeStatus.innerHTML = '<span style="color: #10b981;">✓ Stripe is connected to this property</span>';
                         stripeStatus.style.background = '#d1fae5';
                         if (prop.stripe_secret_key) {
@@ -32933,7 +32927,6 @@ Local honey and preserves"></textarea>
                 longitude: document.getElementById('edit-property-longitude').value ? parseFloat(document.getElementById('edit-property-longitude').value) : null,
                 status: document.getElementById('edit-property-status').value,
                 // Stripe fields
-                stripe_account_id: document.getElementById('edit-property-stripe-account-id').value || null,
                 stripe_publishable_key: document.getElementById('edit-property-stripe-publishable').value || null
             };
             
