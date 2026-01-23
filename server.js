@@ -2335,6 +2335,183 @@ app.get('/api/gas-sync/property/:propertyId/status', async (req, res) => {
   }
 });
 
+// Get sync property by GAS property ID
+app.get('/api/gas-sync/property-by-gas-id/:gasPropertyId', async (req, res) => {
+  try {
+    const { gasPropertyId } = req.params;
+    
+    // Try gas_sync_properties first
+    let result = await pool.query(`
+      SELECT id, connection_id, cm_property_id, gas_property_id, name
+      FROM gas_sync_properties 
+      WHERE gas_property_id = $1
+    `, [gasPropertyId]);
+    
+    if (result.rows.length > 0) {
+      return res.json({ 
+        success: true, 
+        syncPropertyId: result.rows[0].id,
+        connectionId: result.rows[0].connection_id,
+        cmPropertyId: result.rows[0].cm_property_id,
+        name: result.rows[0].name
+      });
+    }
+    
+    // Try to find via properties table cm_property_id
+    result = await pool.query(`
+      SELECT p.id, p.cm_property_id, p.name, p.account_id,
+             c.id as connection_id, c.adapter_code, c.external_account_id
+      FROM properties p
+      LEFT JOIN gas_sync_connections c ON c.account_id = p.account_id
+      WHERE p.id = $1
+    `, [gasPropertyId]);
+    
+    if (result.rows.length > 0 && result.rows[0].cm_property_id) {
+      return res.json({
+        success: true,
+        syncPropertyId: result.rows[0].id, // Use GAS property ID as sync ID for Calry
+        connectionId: result.rows[0].connection_id,
+        cmPropertyId: result.rows[0].cm_property_id,
+        adapterCode: result.rows[0].adapter_code,
+        integrationAccountId: result.rows[0].external_account_id,
+        name: result.rows[0].name
+      });
+    }
+    
+    res.json({ success: false, error: 'No sync property found for this GAS property' });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Sync prices for a property (works with both gas_sync_properties ID and GAS property ID)
+app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res) => {
+  try {
+    const { syncPropertyId } = req.params;
+    const { days = 90, force = false } = req.body;
+    
+    // First try to find in gas_sync_properties
+    let propResult = await pool.query(`
+      SELECT sp.id, sp.gas_property_id, sp.cm_property_id, sp.name,
+             c.adapter_code, c.external_account_id
+      FROM gas_sync_properties sp
+      JOIN gas_sync_connections c ON c.id = sp.connection_id
+      WHERE sp.id = $1
+    `, [syncPropertyId]);
+    
+    // If not found, try as a GAS property ID
+    if (propResult.rows.length === 0) {
+      propResult = await pool.query(`
+        SELECT p.id as gas_property_id, p.cm_property_id, p.name,
+               c.adapter_code, c.external_account_id
+        FROM properties p
+        JOIN gas_sync_connections c ON c.account_id = p.account_id
+        WHERE p.id = $1
+      `, [syncPropertyId]);
+    }
+    
+    if (propResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Property not found' });
+    }
+    
+    const prop = propResult.rows[0];
+    const gasPropertyId = prop.gas_property_id || syncPropertyId;
+    const cmPropertyId = prop.cm_property_id;
+    const adapterCode = prop.adapter_code;
+    const integrationAccountId = prop.external_account_id;
+    
+    if (!cmPropertyId) {
+      return res.json({ success: false, error: 'Property not linked to channel manager' });
+    }
+    
+    // Route to appropriate sync based on adapter
+    if (adapterCode === 'calry') {
+      // Use Calry v2 pricing sync
+      const startDate = new Date().toISOString().split('T')[0];
+      const endDate = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      
+      // Get room types from Calry
+      const roomTypesResponse = await axios.get(`https://prod.calry.app/api/v2/vrs/room-types/${cmPropertyId}`, {
+        headers: {
+          'Authorization': `Bearer ${CALRY_API_TOKEN}`,
+          'workspaceId': CALRY_WORKSPACE_ID,
+          'integrationAccountId': integrationAccountId,
+          'Content-Type': 'application/json'
+        },
+        timeout: 30000
+      });
+      
+      const roomTypes = roomTypesResponse.data?.data || [];
+      let totalDaysUpdated = 0;
+      
+      for (const roomType of roomTypes) {
+        // Get availability with rates
+        const availResponse = await axios.get(`https://prod.calry.app/api/v2/vrs/availability/${roomType.id}`, {
+          headers: {
+            'Authorization': `Bearer ${CALRY_API_TOKEN}`,
+            'workspaceId': CALRY_WORKSPACE_ID,
+            'integrationAccountId': integrationAccountId,
+            'Content-Type': 'application/json'
+          },
+          params: { startDate, endDate, roomTypeId: roomType.id, rates: true },
+          timeout: 30000
+        });
+        
+        const availData = availResponse.data?.data || [];
+        
+        // Find matching GAS room
+        const roomResult = await pool.query(`
+          SELECT id FROM bookable_units WHERE property_id = $1 AND (cm_room_id = $2 OR cm_room_id = $3)
+        `, [gasPropertyId, roomType.id, roomType.id.toString()]);
+        
+        let gasRoomId = roomResult.rows[0]?.id;
+        if (!gasRoomId) {
+          // Use first room
+          const anyRoom = await pool.query(`SELECT id FROM bookable_units WHERE property_id = $1 LIMIT 1`, [gasPropertyId]);
+          gasRoomId = anyRoom.rows[0]?.id;
+        }
+        
+        if (gasRoomId && Array.isArray(availData)) {
+          for (const day of availData) {
+            const date = day.date || day.startDate;
+            if (!date) continue;
+            
+            const price = day.price || day.rate || day.basePrice || day.amount || null;
+            const available = day.available !== false && day.isAvailable !== false && day.status !== 'blocked';
+            const minStay = day.minStay || day.minimumStay || day.minNights || 1;
+            
+            await pool.query(`
+              INSERT INTO room_availability (room_id, date, cm_price, is_available, is_blocked, min_stay, source, updated_at)
+              VALUES ($1, $2, $3, $4, $5, $6, 'calry', NOW())
+              ON CONFLICT (room_id, date) DO UPDATE SET
+                cm_price = COALESCE(EXCLUDED.cm_price, room_availability.cm_price),
+                is_available = EXCLUDED.is_available,
+                is_blocked = NOT EXCLUDED.is_available,
+                min_stay = COALESCE(EXCLUDED.min_stay, room_availability.min_stay),
+                source = 'calry',
+                updated_at = NOW()
+            `, [gasRoomId, date, price, available, !available, minStay]);
+            
+            totalDaysUpdated++;
+          }
+        }
+      }
+      
+      return res.json({ success: true, daysUpdated: totalDaysUpdated, roomTypes: roomTypes.length });
+      
+    } else if (adapterCode === 'beds24') {
+      // Beds24 pricing sync - to be implemented
+      return res.json({ success: false, error: 'Beds24 pricing sync not yet implemented via this endpoint' });
+    } else {
+      return res.json({ success: false, error: `Unknown adapter: ${adapterCode}` });
+    }
+    
+  } catch (error) {
+    console.error('Sync prices error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Copy images from gas_sync_images to room_images for a property
 app.post('/api/gas-sync/properties/:syncPropertyId/copy-images', async (req, res) => {
   try {
@@ -17963,6 +18140,37 @@ app.get('/api/db/rooms', async (req, res) => {
   }
 });
 
+// Get single room by ID
+app.get('/api/db/rooms/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Try rooms table first, then bookable_units
+    let result = await pool.query('SELECT * FROM rooms WHERE id = $1', [id]);
+    
+    if (result.rows.length === 0) {
+      // Try bookable_units table
+      result = await pool.query(`
+        SELECT bu.*, p.cm_property_id, p.name as property_name,
+               c.external_account_id as integration_account_id,
+               c.adapter_code
+        FROM bookable_units bu
+        JOIN properties p ON p.id = bu.property_id
+        LEFT JOIN gas_sync_connections c ON c.account_id = p.account_id
+        WHERE bu.id = $1
+      `, [id]);
+    }
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Room not found' });
+    }
+    
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Smart units endpoint - returns units based on property type
 // For multi-unit properties: returns rooms/apartments
 // For single-unit properties: returns the property itself as a unit
@@ -21665,14 +21873,17 @@ async function handleAvailabilityWebhook(connectionId, data) {
   const gasRoomId = roomResult.rows[0].id;
   
   for (const day of Array.isArray(dates) ? dates : [dates]) {
+    const available = day.available !== false;
     await pool.query(`
-      INSERT INTO room_calendar (room_id, date, available, min_stay, updated_at)
-      VALUES ($1, $2, $3, $4, NOW())
+      INSERT INTO room_availability (room_id, date, is_available, is_blocked, min_stay, source, updated_at)
+      VALUES ($1, $2, $3, $4, $5, 'calry', NOW())
       ON CONFLICT (room_id, date) DO UPDATE SET
-        available = EXCLUDED.available,
-        min_stay = COALESCE(EXCLUDED.min_stay, room_calendar.min_stay),
+        is_available = EXCLUDED.is_available,
+        is_blocked = EXCLUDED.is_blocked,
+        min_stay = COALESCE(EXCLUDED.min_stay, room_availability.min_stay),
+        source = 'calry',
         updated_at = NOW()
-    `, [gasRoomId, day.date, day.available !== false, day.minStay || null]);
+    `, [gasRoomId, day.date, available, !available, day.minStay || null]);
   }
   
   console.log(`Availability updated for room ${roomTypeId}`);
@@ -21700,13 +21911,13 @@ async function handlePricingWebhook(connectionId, data) {
   
   for (const day of Array.isArray(dates) ? dates : [dates]) {
     await pool.query(`
-      INSERT INTO room_calendar (room_id, date, price, currency, updated_at)
-      VALUES ($1, $2, $3, $4, NOW())
+      INSERT INTO room_availability (room_id, date, cm_price, source, updated_at)
+      VALUES ($1, $2, $3, 'calry', NOW())
       ON CONFLICT (room_id, date) DO UPDATE SET
-        price = EXCLUDED.price,
-        currency = COALESCE(EXCLUDED.currency, room_calendar.currency),
+        cm_price = EXCLUDED.cm_price,
+        source = 'calry',
         updated_at = NOW()
-    `, [gasRoomId, day.date, parseFloat(day.price || day.rate) || null, day.currency || 'EUR']);
+    `, [gasRoomId, day.date, parseFloat(day.price || day.rate) || null]);
   }
   
   console.log(`Pricing updated for room ${roomTypeId}`);
@@ -21981,21 +22192,19 @@ app.post('/api/calry/sync-pricing/:propertyId', async (req, res) => {
             
             const price = day.price || day.rate || day.basePrice || day.amount || null;
             const available = day.available !== false && day.isAvailable !== false && day.status !== 'blocked';
-            const minStay = day.minStay || day.minimumStay || day.minNights || null;
-            const maxStay = day.maxStay || day.maximumStay || day.maxNights || null;
-            const currency = day.currency || 'EUR';
+            const minStay = day.minStay || day.minimumStay || day.minNights || 1;
             
             await pool.query(`
-              INSERT INTO room_calendar (room_id, date, price, available, min_stay, max_stay, currency, updated_at)
-              VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+              INSERT INTO room_availability (room_id, date, cm_price, is_available, is_blocked, min_stay, source, updated_at)
+              VALUES ($1, $2, $3, $4, $5, $6, 'calry', NOW())
               ON CONFLICT (room_id, date) DO UPDATE SET
-                price = COALESCE(EXCLUDED.price, room_calendar.price),
-                available = EXCLUDED.available,
-                min_stay = COALESCE(EXCLUDED.min_stay, room_calendar.min_stay),
-                max_stay = COALESCE(EXCLUDED.max_stay, room_calendar.max_stay),
-                currency = COALESCE(EXCLUDED.currency, room_calendar.currency),
+                cm_price = COALESCE(EXCLUDED.cm_price, room_availability.cm_price),
+                is_available = EXCLUDED.is_available,
+                is_blocked = NOT EXCLUDED.is_available,
+                min_stay = COALESCE(EXCLUDED.min_stay, room_availability.min_stay),
+                source = 'calry',
                 updated_at = NOW()
-            `, [gasRoomId, date, price, available, minStay, maxStay, currency]);
+            `, [gasRoomId, date, price, available, !available, minStay]);
             
             daysSynced++;
           }
@@ -33442,23 +33651,19 @@ app.put('/api/elevate/:apiKey/room/:roomId/calendar', async (req, res) => {
       const price = day.price !== undefined ? day.price : null;
       const available = day.available !== undefined ? day.available : true;
       const minStay = day.min_stay || day.minStay || 1;
-      const maxStay = day.max_stay || day.maxStay || null;
-      const currency = day.currency || defaultCurrency;
-      const status = available ? 'available' : 'blocked';
       
       const result = await pool.query(`
-        INSERT INTO room_calendar (room_id, date, price, currency, available, min_stay, max_stay, status, updated_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+        INSERT INTO room_availability (room_id, date, cm_price, is_available, is_blocked, min_stay, source, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, 'elevate', NOW())
         ON CONFLICT (room_id, date) DO UPDATE SET
-          price = COALESCE(EXCLUDED.price, room_calendar.price),
-          currency = EXCLUDED.currency,
-          available = EXCLUDED.available,
+          cm_price = COALESCE(EXCLUDED.cm_price, room_availability.cm_price),
+          is_available = EXCLUDED.is_available,
+          is_blocked = EXCLUDED.is_blocked,
           min_stay = EXCLUDED.min_stay,
-          max_stay = EXCLUDED.max_stay,
-          status = EXCLUDED.status,
+          source = 'elevate',
           updated_at = NOW()
         RETURNING (xmax = 0) AS inserted
-      `, [gasRoomId, day.date, price, currency, available, minStay, maxStay, status]);
+      `, [gasRoomId, day.date, price, available, !available, minStay]);
       
       if (result.rows[0]?.inserted) {
         createdCount++;
@@ -33578,13 +33783,13 @@ app.put('/api/elevate/:apiKey/room/:roomId/pricing', async (req, res) => {
       if (!day.date || day.price === undefined) continue;
       
       await pool.query(`
-        INSERT INTO room_calendar (room_id, date, price, currency, updated_at)
-        VALUES ($1, $2, $3, $4, NOW())
+        INSERT INTO room_availability (room_id, date, cm_price, source, updated_at)
+        VALUES ($1, $2, $3, 'elevate', NOW())
         ON CONFLICT (room_id, date) DO UPDATE SET
-          price = EXCLUDED.price,
-          currency = EXCLUDED.currency,
+          cm_price = EXCLUDED.cm_price,
+          source = 'elevate',
           updated_at = NOW()
-      `, [gasRoomId, day.date, day.price, day.currency || defaultCurrency]);
+      `, [gasRoomId, day.date, day.price]);
       
       processedCount++;
     }
@@ -33640,16 +33845,16 @@ app.put('/api/elevate/:apiKey/room/:roomId/availability', async (req, res) => {
       if (!day.date) continue;
       
       const available = day.available !== undefined ? day.available : true;
-      const status = available ? 'available' : 'blocked';
       
       await pool.query(`
-        INSERT INTO room_calendar (room_id, date, available, status, updated_at)
-        VALUES ($1, $2, $3, $4, NOW())
+        INSERT INTO room_availability (room_id, date, is_available, is_blocked, source, updated_at)
+        VALUES ($1, $2, $3, $4, 'elevate', NOW())
         ON CONFLICT (room_id, date) DO UPDATE SET
-          available = EXCLUDED.available,
-          status = EXCLUDED.status,
+          is_available = EXCLUDED.is_available,
+          is_blocked = EXCLUDED.is_blocked,
+          source = 'elevate',
           updated_at = NOW()
-      `, [gasRoomId, day.date, available, status]);
+      `, [gasRoomId, day.date, available, !available]);
       
       processedCount++;
     }
