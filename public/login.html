@@ -226,10 +226,17 @@
             to { transform: rotate(360deg); }
         }
         
-        .password-requirements {
-            font-size: 0.8rem;
+        .info-text {
+            margin-bottom: 1rem;
             color: #6b7280;
-            margin-top: 0.5rem;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+        
+        .email-icon {
+            font-size: 48px;
+            text-align: center;
+            margin-bottom: 1rem;
         }
     </style>
 </head>
@@ -243,7 +250,6 @@
         <div class="login-body">
             <div class="tabs">
                 <button class="tab active" onclick="showTab('login')">Sign In</button>
-                <button class="tab" onclick="showTab('setpassword')">Set Password</button>
                 <button class="tab" onclick="showTab('forgot')">Forgot Password</button>
             </div>
             
@@ -263,8 +269,8 @@
                     </div>
                     
                     <div class="remember-me">
-                        <input type="checkbox" id="remember-me" checked>
-                        <label for="remember-me">Keep me signed in for 7 days</label>
+                        <input type="checkbox" id="remember-me">
+                        <label for="remember-me">Keep me signed in</label>
                     </div>
                     
                     <button type="submit" class="btn" id="login-btn">
@@ -277,47 +283,12 @@
                 </div>
             </div>
             
-            <!-- Set Password Form (for new accounts) -->
-            <div id="setpassword-section" class="form-section">
-                <div id="setpassword-alert" class="alert hidden"></div>
-                
-                <p style="margin-bottom: 1rem; color: #6b7280; font-size: 0.9rem;">
-                    If you've been invited to GAS but haven't set a password yet, enter your email and create one below.
-                </p>
-                
-                <form id="setpassword-form" onsubmit="handleSetPassword(event)">
-                    <div class="form-group">
-                        <label for="set-email">Email Address</label>
-                        <input type="email" id="set-email" name="email" required placeholder="you@example.com">
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="set-password">New Password</label>
-                        <input type="password" id="set-password" name="password" required placeholder="••••••••" minlength="8">
-                        <p class="password-requirements">Minimum 8 characters</p>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="confirm-password">Confirm Password</label>
-                        <input type="password" id="confirm-password" name="confirm_password" required placeholder="••••••••">
-                    </div>
-                    
-                    <button type="submit" class="btn" id="setpassword-btn">
-                        Set Password
-                    </button>
-                </form>
-                
-                <div class="footer-links">
-                    <a href="#" onclick="showTab('login'); return false;">Already have a password? Sign in</a>
-                </div>
-            </div>
-            
             <!-- Forgot Password Form -->
             <div id="forgot-section" class="form-section">
                 <div id="forgot-alert" class="alert hidden"></div>
                 
-                <p style="margin-bottom: 1rem; color: #6b7280; font-size: 0.9rem;">
-                    Enter your email to reset your password. You'll be able to set a new one.
+                <p class="info-text">
+                    Enter your email address and we'll send you a link to reset your password.
                 </p>
                 
                 <form id="forgot-form" onsubmit="handleForgotPassword(event)">
@@ -327,9 +298,28 @@
                     </div>
                     
                     <button type="submit" class="btn" id="forgot-btn">
-                        Reset Password
+                        Send Reset Link
                     </button>
                 </form>
+                
+                <div class="footer-links">
+                    <a href="#" onclick="showTab('login'); return false;">Back to Sign In</a>
+                </div>
+            </div>
+            
+            <!-- Email Sent Confirmation -->
+            <div id="sent-section" class="form-section">
+                <div class="email-icon">📧</div>
+                <div class="alert alert-success">
+                    Check your email for a password reset link.
+                </div>
+                <p class="info-text" style="text-align: center;">
+                    We've sent a reset link to <strong id="sent-email"></strong>. 
+                    Click the link in the email to create a new password.
+                </p>
+                <p class="info-text" style="text-align: center; font-size: 0.85rem;">
+                    Didn't receive it? Check your spam folder or <a href="#" onclick="showTab('forgot'); return false;">try again</a>.
+                </p>
                 
                 <div class="footer-links">
                     <a href="#" onclick="showTab('login'); return false;">Back to Sign In</a>
@@ -354,26 +344,36 @@
                     localStorage.removeItem('gas_token');
                     localStorage.removeItem('gas_account');
                 }
+            })
+            .catch(() => {
+                // Network error, stay on login page
             });
         }
         
         function showTab(tab) {
             // Update tabs
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            document.querySelector(`.tab[onclick*="${tab}"]`).classList.add('active');
+            const tabBtn = document.querySelector(`.tab[onclick*="${tab}"]`);
+            if (tabBtn) tabBtn.classList.add('active');
             
             // Update sections
             document.querySelectorAll('.form-section').forEach(s => s.classList.remove('active'));
             document.getElementById(tab + '-section').classList.add('active');
             
             // Clear alerts
-            document.querySelectorAll('.alert').forEach(a => a.classList.add('hidden'));
+            document.querySelectorAll('.alert').forEach(a => {
+                if (!a.closest('#sent-section')) {
+                    a.classList.add('hidden');
+                }
+            });
         }
         
         function showAlert(sectionId, message, type) {
             const alert = document.getElementById(sectionId + '-alert');
-            alert.textContent = message;
-            alert.className = 'alert alert-' + type;
+            if (alert) {
+                alert.textContent = message;
+                alert.className = 'alert alert-' + type;
+            }
         }
         
         async function handleLogin(e) {
@@ -417,51 +417,6 @@
             }
         }
         
-        async function handleSetPassword(e) {
-            e.preventDefault();
-            
-            const btn = document.getElementById('setpassword-btn');
-            const email = document.getElementById('set-email').value;
-            const password = document.getElementById('set-password').value;
-            const confirmPassword = document.getElementById('confirm-password').value;
-            
-            if (password !== confirmPassword) {
-                showAlert('setpassword', 'Passwords do not match', 'error');
-                return;
-            }
-            
-            btn.disabled = true;
-            btn.innerHTML = '<span class="loading-spinner"></span>Setting password...';
-            
-            try {
-                const response = await fetch('/api/accounts/set-password', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email, password, confirm_password: confirmPassword })
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    showAlert('setpassword', data.message, 'success');
-                    
-                    // Pre-fill login form and switch to it
-                    setTimeout(() => {
-                        document.getElementById('login-email').value = email;
-                        showTab('login');
-                        showAlert('login', 'Password set! You can now sign in.', 'success');
-                    }, 1500);
-                } else {
-                    showAlert('setpassword', data.error, 'error');
-                }
-            } catch (error) {
-                showAlert('setpassword', 'Connection error. Please try again.', 'error');
-            }
-            
-            btn.disabled = false;
-            btn.textContent = 'Set Password';
-        }
-        
         async function handleForgotPassword(e) {
             e.preventDefault();
             
@@ -469,7 +424,7 @@
             const email = document.getElementById('forgot-email').value;
             
             btn.disabled = true;
-            btn.innerHTML = '<span class="loading-spinner"></span>Resetting...';
+            btn.innerHTML = '<span class="loading-spinner"></span>Sending...';
             
             try {
                 const response = await fetch('/api/accounts/forgot-password', {
@@ -480,24 +435,20 @@
                 
                 const data = await response.json();
                 
-                if (data.success) {
-                    showAlert('forgot', 'Password reset! You can now set a new password.', 'success');
-                    
-                    // Pre-fill set password form and switch to it
-                    setTimeout(() => {
-                        document.getElementById('set-email').value = email;
-                        showTab('setpassword');
-                        showAlert('setpassword', 'Now create your new password.', 'success');
-                    }, 1500);
-                } else {
-                    showAlert('forgot', data.error, 'error');
-                }
+                // Always show success (don't reveal if email exists)
+                document.getElementById('sent-email').textContent = email;
+                
+                // Hide tabs and show sent confirmation
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.form-section').forEach(s => s.classList.remove('active'));
+                document.getElementById('sent-section').classList.add('active');
+                
             } catch (error) {
                 showAlert('forgot', 'Connection error. Please try again.', 'error');
             }
             
             btn.disabled = false;
-            btn.textContent = 'Reset Password';
+            btn.textContent = 'Send Reset Link';
         }
     </script>
 </body>
