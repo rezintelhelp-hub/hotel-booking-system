@@ -3186,6 +3186,24 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     } catch (e) {
       console.log('ℹ️  bookable_units unique constraint:', e.message);
     }
+    
+    // Add unique constraints for image tables (needed for ON CONFLICT)
+    try {
+      await pool.query('ALTER TABLE room_images ADD COLUMN IF NOT EXISTS image_key VARCHAR(100)');
+      await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS idx_room_images_room_key ON room_images(room_id, image_key) WHERE image_key IS NOT NULL');
+      console.log('✅ room_images unique constraint ensured');
+    } catch (e) {
+      console.log('ℹ️  room_images unique constraint:', e.message);
+    }
+    
+    try {
+      await pool.query('ALTER TABLE property_images ADD COLUMN IF NOT EXISTS image_key VARCHAR(100)');
+      await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS idx_property_images_prop_key ON property_images(property_id, image_key) WHERE image_key IS NOT NULL');
+      console.log('✅ property_images unique constraint ensured');
+    } catch (e) {
+      console.log('ℹ️  property_images unique constraint:', e.message);
+    }
+    
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS max_adults INTEGER');
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS max_children INTEGER DEFAULT 0');
     
@@ -3939,12 +3957,22 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
           const caption = typeof pic === 'object' ? (pic.caption || pic.description || '') : '';
           
           try {
-            await pool.query(`
-              INSERT INTO property_images (property_id, room_id, image_key, image_url, url, caption, display_order, is_primary, is_active, created_at)
-              VALUES ($1, $2, $3, $4, $4, $5, $6, $7, true, NOW())
-              ON CONFLICT (property_id, image_key) DO UPDATE SET
-                room_id = $2, image_url = $4, url = $4, caption = $5, display_order = $6
-            `, [gasPropertyId, gasRoomId, imageKey, imageUrl, caption, i, i === 0]);
+            // Check if image exists first
+            const existingImg = await pool.query(
+              'SELECT id FROM property_images WHERE property_id = $1 AND image_key = $2',
+              [gasPropertyId, imageKey]
+            );
+            if (existingImg.rows.length > 0) {
+              await pool.query(
+                'UPDATE property_images SET room_id = $1, image_url = $2, url = $2, caption = $3, display_order = $4, updated_at = NOW() WHERE id = $5',
+                [gasRoomId, imageUrl, caption, i, existingImg.rows[0].id]
+              );
+            } else {
+              await pool.query(`
+                INSERT INTO property_images (property_id, room_id, image_key, image_url, url, caption, display_order, is_primary, is_active, created_at)
+                VALUES ($1, $2, $3, $4, $4, $5, $6, $7, true, NOW())
+              `, [gasPropertyId, gasRoomId, imageKey, imageUrl, caption, i, i === 0]);
+            }
             imagesCreated++;
           } catch (e) {
             console.log('link-to-gas: Room image insert error:', e.message);
@@ -3964,12 +3992,22 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
           const caption = typeof pic === 'object' ? (pic.caption || pic.description || '') : '';
           
           try {
-            await pool.query(`
-              INSERT INTO property_images (property_id, image_key, image_url, url, caption, display_order, is_primary, is_active, created_at)
-              VALUES ($1, $2, $3, $3, $4, $5, $6, true, NOW())
-              ON CONFLICT (property_id, image_key) DO UPDATE SET
-                image_url = $3, url = $3, caption = $4, display_order = $5
-            `, [gasPropertyId, imageKey, imageUrl, caption, i, i === 0]);
+            // Check if image exists first
+            const existingImg = await pool.query(
+              'SELECT id FROM property_images WHERE property_id = $1 AND image_key = $2',
+              [gasPropertyId, imageKey]
+            );
+            if (existingImg.rows.length > 0) {
+              await pool.query(
+                'UPDATE property_images SET image_url = $1, url = $1, caption = $2, display_order = $3, updated_at = NOW() WHERE id = $4',
+                [imageUrl, caption, i, existingImg.rows[0].id]
+              );
+            } else {
+              await pool.query(`
+                INSERT INTO property_images (property_id, image_key, image_url, url, caption, display_order, is_primary, is_active, created_at)
+                VALUES ($1, $2, $3, $3, $4, $5, $6, true, NOW())
+              `, [gasPropertyId, imageKey, imageUrl, caption, i, i === 0]);
+            }
             imagesCreated++;
           } catch (e) {
             console.log('link-to-gas: Property image insert error:', e.message);
@@ -20087,13 +20125,27 @@ async function linkSyncPropertyToGasInternal(syncPropertyId, accountId, calryPro
           const img = roomImages[i];
           const imageUrl = typeof img === 'string' ? img : (img.url || img.original);
           if (!imageUrl) continue;
+          const imageKey = `calry_${gasRoomId}_${i}`;
           try {
-            await pool.query(`
-              INSERT INTO room_images (room_id, image_key, image_url, display_order, is_primary, is_active, created_at)
-              VALUES ($1, $2, $3, $4, $5, true, NOW()) 
-              ON CONFLICT (room_id, image_key) DO UPDATE SET image_url=$3, updated_at=NOW()
-            `, [gasRoomId, `calry_${gasRoomId}_${i}`, imageUrl, i, i === 0]);
-          } catch(imgErr) { /* ignore duplicate */ }
+            // Check if image exists first
+            const existingImg = await pool.query(
+              'SELECT id FROM room_images WHERE room_id = $1 AND image_key = $2',
+              [gasRoomId, imageKey]
+            );
+            if (existingImg.rows.length > 0) {
+              await pool.query(
+                'UPDATE room_images SET image_url = $1, updated_at = NOW() WHERE id = $2',
+                [imageUrl, existingImg.rows[0].id]
+              );
+            } else {
+              await pool.query(`
+                INSERT INTO room_images (room_id, image_key, image_url, display_order, is_primary, is_active, created_at)
+                VALUES ($1, $2, $3, $4, $5, true, NOW())
+              `, [gasRoomId, imageKey, imageUrl, i, i === 0]);
+            }
+          } catch(imgErr) { 
+            console.log(`  Room image error: ${imgErr.message}`);
+          }
         }
         
         // Sync room amenities
@@ -20170,13 +20222,27 @@ async function linkSyncPropertyToGasInternal(syncPropertyId, accountId, calryPro
       const imageUrl = typeof img === 'string' ? img : (img.url || img.original || img.large);
       const caption = typeof img === 'object' ? (img.caption || img.description || img.alt || '') : '';
       if (!imageUrl) continue;
+      const imageKey = `calry_${gasPropertyId}_${i}`;
       try {
-        await pool.query(`
-          INSERT INTO property_images (property_id, image_key, image_url, url, caption, display_order, is_primary, is_active, created_at)
-          VALUES ($1, $2, $3, $3, $4, $5, $6, true, NOW()) 
-          ON CONFLICT (property_id, image_key) DO UPDATE SET image_url=$3, url=$3, caption=$4
-        `, [gasPropertyId, `calry_${gasPropertyId}_${i}`, imageUrl, caption, i, i === 0]);
-      } catch(e) {}
+        // Check if image exists first
+        const existingImg = await pool.query(
+          'SELECT id FROM property_images WHERE property_id = $1 AND image_key = $2',
+          [gasPropertyId, imageKey]
+        );
+        if (existingImg.rows.length > 0) {
+          await pool.query(
+            'UPDATE property_images SET image_url = $1, url = $1, caption = $2, updated_at = NOW() WHERE id = $3',
+            [imageUrl, caption, existingImg.rows[0].id]
+          );
+        } else {
+          await pool.query(`
+            INSERT INTO property_images (property_id, image_key, image_url, url, caption, display_order, is_primary, is_active, created_at)
+            VALUES ($1, $2, $3, $3, $4, $5, $6, true, NOW())
+          `, [gasPropertyId, imageKey, imageUrl, caption, i, i === 0]);
+        }
+      } catch(e) {
+        console.log(`  Property image error: ${e.message}`);
+      }
     }
     
     // ============ SYNC PROPERTY AMENITIES ============
