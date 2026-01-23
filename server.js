@@ -667,6 +667,7 @@ async function runMigrations() {
     
     // Add property-level Stripe keys (legacy - will migrate to payment_configurations)
     try {
+      await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS stripe_account_id TEXT`);
       await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS stripe_publishable_key TEXT`);
       await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS stripe_secret_key TEXT`);
       await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS stripe_enabled BOOLEAN DEFAULT false`);
