@@ -39207,6 +39207,149 @@ Return ONLY a valid JSON array with this exact structure, no other text:
     }
 });
 
+// Generate website content with AI (intro, about sections)
+app.post('/api/admin/ai/generate-website-content', async (req, res) => {
+    try {
+        const { type, business_name, location, title, account_id } = req.body;
+        
+        if (!type) {
+            return res.json({ success: false, error: 'Content type required' });
+        }
+        
+        // Get business context if account_id provided
+        let businessContext = business_name || 'Our Property';
+        let locationContext = location || '';
+        
+        if (account_id) {
+            const accountResult = await pool.query(
+                'SELECT name, city, country FROM accounts WHERE id = $1',
+                [account_id]
+            );
+            if (accountResult.rows[0]) {
+                const acc = accountResult.rows[0];
+                if (!business_name && acc.name) businessContext = acc.name;
+                if (!location) {
+                    if (acc.city) locationContext = acc.city;
+                    if (acc.country) locationContext += (locationContext ? ', ' : '') + acc.country;
+                }
+            }
+        }
+        
+        let prompt = '';
+        
+        switch(type) {
+            case 'intro_title':
+                prompt = `Generate a welcoming, engaging title for the introduction section of a vacation rental website.
+
+Business/Property Name: ${businessContext}
+Location: ${locationContext || 'Not specified'}
+
+Requirements:
+- Short and impactful (3-6 words)
+- Welcoming and inviting tone
+- Can reference the location or experience
+- Do NOT include quotes around the text
+- Do NOT include any explanation, just the title text
+
+Examples of good titles:
+- Welcome to Paradise
+- Your Perfect Getaway Awaits
+- Experience Coastal Living
+- Discover Tranquility
+
+Generate ONE title only, nothing else:`;
+                break;
+                
+            case 'intro_text':
+                prompt = `Generate welcoming introduction text for a vacation rental website.
+
+Business/Property Name: ${businessContext}
+Location: ${locationContext || 'Not specified'}
+Section Title: ${title || 'Welcome'}
+
+Requirements:
+- 2-3 sentences (40-60 words)
+- Warm, inviting, and professional tone
+- Highlight the experience guests can expect
+- Mention location benefits if applicable
+- Do NOT include quotes around the text
+- Do NOT include any explanation or labels
+
+Generate the intro paragraph only, nothing else:`;
+                break;
+                
+            case 'about_title':
+                prompt = `Generate an engaging title for the "About Us" section of a vacation rental website.
+
+Business/Property Name: ${businessContext}
+Location: ${locationContext || 'Not specified'}
+
+Requirements:
+- Short and compelling (3-6 words)
+- Should convey experience, quality, or hospitality
+- Do NOT use "About Us" literally
+- Do NOT include quotes around the text
+- Do NOT include any explanation
+
+Examples of good titles:
+- Experience Luxury & Comfort
+- Our Story, Your Escape
+- Where Memories Are Made
+- The Art of Hospitality
+
+Generate ONE title only, nothing else:`;
+                break;
+                
+            case 'about_text':
+                prompt = `Generate compelling "About Us" text for a vacation rental website.
+
+Business/Property Name: ${businessContext}
+Location: ${locationContext || 'Not specified'}
+Section Title: ${title || 'About Us'}
+
+Requirements:
+- 3-4 sentences (60-100 words)
+- Professional yet warm tone
+- Highlight what makes the property/business special
+- Mention commitment to guest experience
+- Include something about the location if known
+- Do NOT include quotes around the text
+- Do NOT include any explanation or labels
+
+Generate the about paragraph only, nothing else:`;
+                break;
+                
+            default:
+                return res.json({ success: false, error: 'Unknown content type' });
+        }
+        
+        const claudeResponse = await axios.post('https://api.anthropic.com/v1/messages', {
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 500,
+            messages: [{ role: 'user', content: prompt }]
+        }, {
+            headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': process.env.ANTHROPIC_API_KEY,
+                'anthropic-version': '2023-06-01'
+            }
+        });
+        
+        let content = claudeResponse.data.content[0].text.trim();
+        
+        // Clean up any quotes or extra formatting
+        content = content.replace(/^["']|["']$/g, '').trim();
+        
+        console.log(`Generated ${type} content:`, content);
+        
+        res.json({ success: true, content, type });
+        
+    } catch (error) {
+        console.error('Error generating website content:', error);
+        res.json({ success: false, error: error.message });
+    }
+});
+
 // Generate content ideas with AI
 app.post('/api/admin/content-ideas/generate', async (req, res) => {
     try {
