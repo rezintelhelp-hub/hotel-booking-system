@@ -20610,6 +20610,178 @@ app.post('/api/admin/calry/sync-connection/:connectionId', async (req, res) => {
 });
 
 // Debug endpoint to test Calry room type sync
+// Debug endpoint by account ID (easier to use)
+app.get('/api/admin/calry/debug-by-account/:accountId', async (req, res) => {
+  const { accountId } = req.params;
+  const debug = { accountId, rawData: {} };
+  
+  try {
+    // Find connection for this account
+    const connResult = await pool.query(
+      "SELECT id, external_account_id FROM gas_sync_connections WHERE account_id = $1 AND adapter_code = 'calry' ORDER BY id DESC LIMIT 1",
+      [accountId]
+    );
+    
+    if (connResult.rows.length === 0) {
+      return res.json({ success: false, error: 'No Calry connection found for this account' });
+    }
+    
+    const connection = connResult.rows[0];
+    debug.connectionId = connection.id;
+    debug.integrationAccountId = connection.external_account_id;
+    
+    const integrationAccountId = connection.external_account_id;
+    
+    // Fetch raw properties from Calry API
+    const axios = require('axios');
+    const propResponse = await axios.get('https://prod.calry.app/api/v2/vrs/properties', {
+      headers: {
+        'Authorization': `Bearer ${CALRY_API_TOKEN}`,
+        'workspaceId': CALRY_WORKSPACE_ID,
+        'integrationAccountId': integrationAccountId,
+        'Content-Type': 'application/json'
+      },
+      timeout: 30000
+    });
+    
+    const properties = propResponse.data?.data || propResponse.data || [];
+    debug.rawData.propertiesCount = properties.length;
+    
+    if (properties.length === 0) {
+      return res.json({ success: false, error: 'No properties returned from Calry', debug });
+    }
+    
+    debug.rawData.firstPropertyKeys = Object.keys(properties[0]);
+    debug.rawData.firstPropertyName = properties[0].name;
+    
+    const propertyId = properties[0].id;
+    
+    // Fetch raw room types
+    const roomResponse = await axios.get(`https://prod.calry.app/api/v2/vrs/room-types/${propertyId}`, {
+      headers: {
+        'Authorization': `Bearer ${CALRY_API_TOKEN}`,
+        'workspaceId': CALRY_WORKSPACE_ID,
+        'integrationAccountId': integrationAccountId,
+        'Content-Type': 'application/json'
+      },
+      timeout: 30000
+    });
+    
+    const roomTypes = roomResponse.data?.data || roomResponse.data || [];
+    debug.rawData.roomTypesCount = roomTypes.length;
+    
+    if (roomTypes.length > 0) {
+      const rt = roomTypes[0];
+      debug.rawData.firstRoomTypeKeys = Object.keys(rt);
+      debug.rawData.firstRoomTypeName = rt.name;
+      
+      // Show ALL the raw data for the first room type
+      debug.rawData.firstRoomTypeRAW = rt;
+      
+      // Show specific fields we need
+      debug.fieldMapping = {
+        // Descriptions
+        description: rt.description || null,
+        longDescription: rt.longDescription || null,
+        shortDescription: rt.shortDescription || null,
+        summary: rt.summary || null,
+        
+        // Occupancy
+        maxOccupancy: rt.maxOccupancy || null,
+        maxGuests: rt.maxGuests || null,
+        capacity: rt.capacity || null,
+        maxAdults: rt.maxAdults || null,
+        maxChildren: rt.maxChildren || null,
+        
+        // Bedrooms/Bathrooms
+        bedRoom: rt.bedRoom || null,
+        bathRoom: rt.bathRoom || null,
+        bedrooms: rt.bedrooms || null,
+        bathrooms: rt.bathrooms || null,
+        numberOfBedrooms: rt.numberOfBedrooms || null,
+        numberOfBathrooms: rt.numberOfBathrooms || null,
+        beds: rt.beds || null,
+        bedTypes: rt.bedTypes || null,
+        bedConfiguration: rt.bedConfiguration || null,
+        
+        // Room type
+        roomType: rt.roomType || null,
+        type: rt.type || null,
+        accommodationType: rt.accommodationType || null,
+        
+        // Pricing
+        startPrice: rt.startPrice || null,
+        basePrice: rt.basePrice || null,
+        price: rt.price || null,
+        
+        // Amenities
+        amenitiesCount: rt.amenities?.length || 0,
+        amenitiesType: rt.amenities ? typeof rt.amenities[0] : 'none',
+        amenitiesSample: rt.amenities?.slice(0, 5) || [],
+        
+        // Images
+        picturesCount: rt.pictures?.length || 0,
+        imagesCount: rt.images?.length || 0,
+        photosCount: rt.photos?.length || 0
+      };
+      
+      // Try to get availability
+      try {
+        const today = new Date().toISOString().split('T')[0];
+        const endDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        
+        const availResponse = await axios.get(`https://prod.calry.app/api/v2/vrs/room-types/${rt.id}/availability`, {
+          headers: {
+            'Authorization': `Bearer ${CALRY_API_TOKEN}`,
+            'workspaceId': CALRY_WORKSPACE_ID,
+            'integrationAccountId': integrationAccountId
+          },
+          params: { startDate: today, endDate: endDate },
+          timeout: 30000
+        });
+        
+        const availability = availResponse.data?.data || availResponse.data || [];
+        debug.availability = {
+          count: Array.isArray(availability) ? availability.length : 'not array',
+          sample: Array.isArray(availability) ? availability.slice(0, 3) : availability
+        };
+      } catch (availErr) {
+        debug.availability = { error: availErr.message };
+      }
+      
+      // Try to get rates
+      try {
+        const today = new Date().toISOString().split('T')[0];
+        const endDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        
+        const ratesResponse = await axios.get(`https://prod.calry.app/api/v2/vrs/room-types/${rt.id}/rates`, {
+          headers: {
+            'Authorization': `Bearer ${CALRY_API_TOKEN}`,
+            'workspaceId': CALRY_WORKSPACE_ID,
+            'integrationAccountId': integrationAccountId
+          },
+          params: { startDate: today, endDate: endDate },
+          timeout: 30000
+        });
+        
+        const rates = ratesResponse.data?.data || ratesResponse.data || [];
+        debug.rates = {
+          count: Array.isArray(rates) ? rates.length : 'not array',
+          sample: Array.isArray(rates) ? rates.slice(0, 3) : rates
+        };
+      } catch (ratesErr) {
+        debug.rates = { error: ratesErr.message };
+      }
+    }
+    
+    res.json({ success: true, debug });
+    
+  } catch (error) {
+    debug.error = error.message;
+    res.status(500).json({ success: false, error: error.message, debug });
+  }
+});
+
 app.get('/api/admin/calry/debug-room-sync/:connectionId', async (req, res) => {
   const { connectionId } = req.params;
   const debug = { steps: [], rawData: {} };
