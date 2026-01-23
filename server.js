@@ -4033,6 +4033,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
             const bedsArray = Array.isArray(bedroomConfig) ? bedroomConfig : [bedroomConfig];
             let bedroomOrder = 1;
             
+            // Group beds by bedroom (each bed entry becomes a bedroom with that bed type)
             for (const bed of bedsArray) {
               // Handle different bed config formats
               let bedType = 'bed_double';
@@ -4071,10 +4072,13 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
               
               console.log('link-to-gas: Adding bed:', bedType, 'x', bedCount);
               
+              // Use bed_config JSONB column
+              const bedConfig = JSON.stringify({ beds: [{ type: bedType, count: bedCount }] });
+              
               await pool.query(`
-                INSERT INTO property_bedrooms (room_id, name, bed_type, bed_count, display_order, created_at)
-                VALUES ($1, $2, $3, $4, $5, NOW())
-              `, [gasRoomId, bedroomName, bedType, bedCount, bedroomOrder]);
+                INSERT INTO property_bedrooms (property_id, room_id, name, bed_config, has_ensuite, display_order, created_at, updated_at)
+                VALUES ((SELECT property_id FROM bookable_units WHERE id = $1), $1, $2, $3::jsonb, false, $4, NOW(), NOW())
+              `, [gasRoomId, bedroomName, bedConfig, bedroomOrder]);
               
               bedroomOrder++;
             }
@@ -4107,13 +4111,11 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
             
             for (const bath of bathsArray) {
               let bathType = 'bathroom_full';
-              let bathroomName = `Bathroom ${bathroomOrder}`;
               
               if (typeof bath === 'string') {
                 bathType = bath.toLowerCase().replace(/\s+/g, '_');
               } else if (bath.type || bath.bathType) {
                 bathType = (bath.type || bath.bathType).toLowerCase().replace(/\s+/g, '_');
-                bathroomName = bath.name || `Bathroom ${bathroomOrder}`;
               }
               
               // Normalize bathroom type
@@ -4123,9 +4125,9 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
               else bathType = 'bathroom_full';
               
               await pool.query(`
-                INSERT INTO property_bathrooms (room_id, name, bathroom_type, display_order, created_at)
-                VALUES ($1, $2, $3, $4, NOW())
-              `, [gasRoomId, bathroomName, bathType, bathroomOrder]);
+                INSERT INTO property_bathrooms (property_id, room_id, bathroom_type, quantity, display_order, created_at)
+                VALUES ((SELECT property_id FROM bookable_units WHERE id = $1), $1, $2, 1, $3, NOW())
+              `, [gasRoomId, bathType, bathroomOrder]);
               
               bathroomOrder++;
             }
@@ -32832,9 +32834,9 @@ app.put('/api/elevate/:apiKey/room/:roomId/bedrooms', async (req, res) => {
       return res.status(400).json({ success: false, error: 'bedrooms must be an array' });
     }
     
-    // Find room
+    // Find room and get property_id
     const roomCheck = await pool.query(`
-      SELECT bu.id 
+      SELECT bu.id, bu.property_id
       FROM bookable_units bu
       JOIN properties p ON p.id = bu.property_id
       JOIN accounts a ON a.id = p.account_id
@@ -32847,22 +32849,9 @@ app.put('/api/elevate/:apiKey/room/:roomId/bedrooms', async (req, res) => {
     }
     
     const gasRoomId = roomCheck.rows[0].id;
+    const propertyId = roomCheck.rows[0].property_id;
     
-    // Ensure property_bedrooms table exists
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS property_bedrooms (
-        id SERIAL PRIMARY KEY,
-        room_id INTEGER REFERENCES bookable_units(id) ON DELETE CASCADE,
-        name VARCHAR(255),
-        bed_type VARCHAR(50),
-        bed_count INTEGER DEFAULT 1,
-        has_ensuite BOOLEAN DEFAULT false,
-        display_order INTEGER DEFAULT 0,
-        created_at TIMESTAMP DEFAULT NOW()
-      )
-    `);
-    
-    // Remove existing bedrooms
+    // Remove existing bedrooms for this room
     await pool.query('DELETE FROM property_bedrooms WHERE room_id = $1', [gasRoomId]);
     
     // Add new bedrooms
@@ -32872,15 +32861,14 @@ app.put('/api/elevate/:apiKey/room/:roomId/bedrooms', async (req, res) => {
     for (const bedroom of bedrooms) {
       const bedroomName = bedroom.name || `Bedroom ${displayOrder}`;
       
-      // Handle beds array within bedroom
+      // Build bed_config JSONB from beds array
       const beds = bedroom.beds || [{ type: bedroom.bed_type || 'bed_double', count: bedroom.bed_count || 1 }];
       
-      for (const bed of beds) {
+      // Normalize bed types
+      const normalizedBeds = beds.map(bed => {
         let bedType = bed.type || bed.bed_type || 'bed_double';
-        const bedCount = bed.count || bed.bed_count || 1;
-        
-        // Normalize bed type
         const bedTypeLower = bedType.toLowerCase().replace(/\s+/g, '_');
+        
         if (bedTypeLower.includes('king')) bedType = 'bed_king';
         else if (bedTypeLower.includes('queen')) bedType = 'bed_queen';
         else if (bedTypeLower.includes('double')) bedType = 'bed_double';
@@ -32891,21 +32879,27 @@ app.put('/api/elevate/:apiKey/room/:roomId/bedrooms', async (req, res) => {
         else if (bedTypeLower.includes('futon')) bedType = 'bed_futon';
         else if (!bedType.startsWith('bed_')) bedType = 'bed_' + bedTypeLower;
         
-        const result = await pool.query(`
-          INSERT INTO property_bedrooms (room_id, name, bed_type, bed_count, has_ensuite, display_order, created_at)
-          VALUES ($1, $2, $3, $4, $5, $6, NOW())
-          RETURNING id
-        `, [gasRoomId, bedroomName, bedType, bedCount, bedroom.has_ensuite || false, displayOrder]);
-        
-        addedBedrooms.push({
-          id: result.rows[0].id,
-          name: bedroomName,
-          bed_type: bedType,
-          bed_count: bedCount,
-          has_ensuite: bedroom.has_ensuite || false,
-          display_order: displayOrder
-        });
-      }
+        return {
+          type: bedType,
+          count: bed.count || bed.bed_count || 1
+        };
+      });
+      
+      const bedConfig = { beds: normalizedBeds };
+      
+      const result = await pool.query(`
+        INSERT INTO property_bedrooms (property_id, room_id, name, bed_config, has_ensuite, display_order, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+        RETURNING id
+      `, [propertyId, gasRoomId, bedroomName, JSON.stringify(bedConfig), bedroom.has_ensuite || false, displayOrder]);
+      
+      addedBedrooms.push({
+        id: result.rows[0].id,
+        name: bedroomName,
+        bed_config: bedConfig,
+        has_ensuite: bedroom.has_ensuite || false,
+        display_order: displayOrder
+      });
       
       displayOrder++;
     }
@@ -32919,8 +32913,7 @@ app.put('/api/elevate/:apiKey/room/:roomId/bedrooms', async (req, res) => {
     res.json({ 
       success: true, 
       room_id: gasRoomId,
-      bedrooms_count: bedrooms.length,
-      beds_count: addedBedrooms.length,
+      bedrooms_count: addedBedrooms.length,
       bedrooms: addedBedrooms
     });
     
@@ -32960,7 +32953,7 @@ app.get('/api/elevate/:apiKey/room/:roomId/bedrooms', async (req, res) => {
     
     // Get bedrooms
     const bedroomsResult = await pool.query(`
-      SELECT id, name, bed_type, bed_count, has_ensuite, display_order
+      SELECT id, name, bed_config, has_ensuite, display_order
       FROM property_bedrooms
       WHERE room_id = $1
       ORDER BY display_order
@@ -33001,9 +32994,9 @@ app.put('/api/elevate/:apiKey/room/:roomId/bathrooms', async (req, res) => {
       return res.status(400).json({ success: false, error: 'bathrooms must be an array' });
     }
     
-    // Find room
+    // Find room and get property_id
     const roomCheck = await pool.query(`
-      SELECT bu.id 
+      SELECT bu.id, bu.property_id
       FROM bookable_units bu
       JOIN properties p ON p.id = bu.property_id
       JOIN accounts a ON a.id = p.account_id
@@ -33016,22 +33009,9 @@ app.put('/api/elevate/:apiKey/room/:roomId/bathrooms', async (req, res) => {
     }
     
     const gasRoomId = roomCheck.rows[0].id;
+    const propertyId = roomCheck.rows[0].property_id;
     
-    // Ensure property_bathrooms table exists
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS property_bathrooms (
-        id SERIAL PRIMARY KEY,
-        room_id INTEGER REFERENCES bookable_units(id) ON DELETE CASCADE,
-        name VARCHAR(255),
-        bathroom_type VARCHAR(50),
-        linked_bedroom VARCHAR(255),
-        features JSONB,
-        display_order INTEGER DEFAULT 0,
-        created_at TIMESTAMP DEFAULT NOW()
-      )
-    `);
-    
-    // Remove existing bathrooms
+    // Remove existing bathrooms for this room
     await pool.query('DELETE FROM property_bathrooms WHERE room_id = $1', [gasRoomId]);
     
     // Add new bathrooms
@@ -33039,8 +33019,8 @@ app.put('/api/elevate/:apiKey/room/:roomId/bathrooms', async (req, res) => {
     let displayOrder = 1;
     
     for (const bathroom of bathrooms) {
-      const bathroomName = bathroom.name || `Bathroom ${displayOrder}`;
       let bathType = bathroom.type || bathroom.bathroom_type || 'bathroom_full';
+      const quantity = bathroom.quantity || 1;
       
       // Normalize bathroom type
       const bathTypeLower = bathType.toLowerCase().replace(/\s+/g, '_');
@@ -33049,22 +33029,19 @@ app.put('/api/elevate/:apiKey/room/:roomId/bathrooms', async (req, res) => {
       else if (bathTypeLower.includes('half') || bathTypeLower.includes('powder')) bathType = 'bathroom_half';
       else if (bathTypeLower.includes('jack')) bathType = 'bathroom_jack_and_jill';
       else if (bathTypeLower.includes('outdoor')) bathType = 'bathroom_outdoor_shower';
+      else if (bathTypeLower.includes('full')) bathType = 'bathroom_full';
       else if (!bathType.startsWith('bathroom_')) bathType = 'bathroom_' + bathTypeLower;
       
-      const features = bathroom.features || [];
-      
       const result = await pool.query(`
-        INSERT INTO property_bathrooms (room_id, name, bathroom_type, linked_bedroom, features, display_order, created_at)
-        VALUES ($1, $2, $3, $4, $5, $6, NOW())
+        INSERT INTO property_bathrooms (property_id, room_id, bathroom_type, quantity, display_order, created_at)
+        VALUES ($1, $2, $3, $4, $5, NOW())
         RETURNING id
-      `, [gasRoomId, bathroomName, bathType, bathroom.linked_bedroom || null, JSON.stringify(features), displayOrder]);
+      `, [propertyId, gasRoomId, bathType, quantity, displayOrder]);
       
       addedBathrooms.push({
         id: result.rows[0].id,
-        name: bathroomName,
         bathroom_type: bathType,
-        linked_bedroom: bathroom.linked_bedroom || null,
-        features: features,
+        quantity: quantity,
         display_order: displayOrder
       });
       
@@ -33072,15 +33049,17 @@ app.put('/api/elevate/:apiKey/room/:roomId/bathrooms', async (req, res) => {
     }
     
     // Also update num_bathrooms on the room
+    const totalBathrooms = bathrooms.reduce((sum, b) => sum + (b.quantity || 1), 0);
     await pool.query(
       'UPDATE bookable_units SET num_bathrooms = $1, updated_at = NOW() WHERE id = $2',
-      [bathrooms.length, gasRoomId]
+      [totalBathrooms, gasRoomId]
     );
     
     res.json({ 
       success: true, 
       room_id: gasRoomId,
       bathrooms_count: addedBathrooms.length,
+      total_bathrooms: totalBathrooms,
       bathrooms: addedBathrooms
     });
     
@@ -33120,7 +33099,7 @@ app.get('/api/elevate/:apiKey/room/:roomId/bathrooms', async (req, res) => {
     
     // Get bathrooms
     const bathroomsResult = await pool.query(`
-      SELECT id, name, bathroom_type, linked_bedroom, features, display_order
+      SELECT id, bathroom_type, quantity, display_order
       FROM property_bathrooms
       WHERE room_id = $1
       ORDER BY display_order
