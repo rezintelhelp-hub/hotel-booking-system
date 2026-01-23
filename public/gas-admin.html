@@ -15669,8 +15669,13 @@ Local honey and preserves"></textarea>
                         <!-- Right Column: Settings -->
                         <div>
                             <div class="form-group">
-                                <label class="form-label">Featured Image URL</label>
-                                <input type="url" class="form-input" id="blog-featured-image" placeholder="https://...">
+                                <label class="form-label">Featured Image</label>
+                                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                    <button type="button" class="btn btn-secondary" onclick="document.getElementById('blog-image-upload').click()" style="white-space: nowrap;">📷 Upload</button>
+                                    <input type="file" id="blog-image-upload" accept="image/*" style="display: none;" onchange="uploadBlogFeaturedImage(this)">
+                                    <span style="color: #64748b;">or</span>
+                                    <input type="url" class="form-input" id="blog-featured-image" placeholder="Paste image URL" style="flex: 1;">
+                                </div>
                                 <div id="blog-image-preview" style="margin-top: 0.5rem; border-radius: 8px; overflow: hidden;"></div>
                             </div>
                             
@@ -34539,6 +34544,47 @@ Local honey and preserves"></textarea>
             } catch (error) {
                 console.error('Error loading blog post:', error);
                 showNotification('Error loading blog post', 'error');
+            }
+        }
+
+        // Upload featured image for blog edit modal
+        async function uploadBlogFeaturedImage(input) {
+            if (!input.files || !input.files[0]) return;
+            
+            const file = input.files[0];
+            if (!file.type.startsWith('image/')) {
+                showNotification('Please select an image file', 'error');
+                return;
+            }
+            
+            showNotification('Uploading image...', 'info');
+            
+            const formData = new FormData();
+            formData.append('image', file);
+            
+            try {
+                const token = localStorage.getItem('gas_token');
+                const headers = token ? { 'Authorization': 'Bearer ' + token } : {};
+                
+                const response = await fetch('/api/admin/upload-image', {
+                    method: 'POST',
+                    headers: headers,
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.success && data.url) {
+                    document.getElementById('blog-featured-image').value = data.url;
+                    // Update preview
+                    document.getElementById('blog-image-preview').innerHTML = `<img src="${data.url}" style="width: 100%; max-height: 150px; object-fit: cover; border-radius: 8px;">`;
+                    showNotification('Image uploaded!', 'success');
+                } else {
+                    showNotification('Upload failed: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (error) {
+                console.error('Upload error:', error);
+                showNotification('Error uploading image', 'error');
             }
         }
 
