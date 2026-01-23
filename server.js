@@ -22093,7 +22093,7 @@ app.get('/api/debug/calry-import/:propertyId', async (req, res) => {
 app.post('/api/calry/sync-pricing/:propertyId', async (req, res) => {
   try {
     const { propertyId } = req.params;
-    const { days = 90 } = req.body;
+    const { days = 30 } = req.body;  // Default to 30 days - Calry may have limits on range
     
     if (!CALRY_API_TOKEN || !CALRY_WORKSPACE_ID) {
       return res.status(400).json({ success: false, error: 'Calry not configured' });
@@ -22281,11 +22281,18 @@ app.post('/api/calry/sync-pricing/:propertyId', async (req, res) => {
         });
         
       } catch (availErr) {
-        console.error(`[Calry Pricing v2] Error fetching availability for room type ${roomTypeId}:`, availErr.response?.status, availErr.response?.data || availErr.message);
+        const errDetails = {
+          status: availErr.response?.status,
+          data: availErr.response?.data,
+          message: availErr.message,
+          url: availErr.config?.url,
+          params: availErr.config?.params
+        };
+        console.error(`[Calry Pricing v2] Error fetching availability for room type ${roomTypeId}:`, JSON.stringify(errDetails, null, 2));
         roomResults.push({ 
           roomType: roomTypeName, 
           roomTypeId: roomTypeId,
-          error: availErr.response?.data?.message || availErr.message 
+          error: availErr.response?.data?.message || availErr.response?.data?.error || availErr.message 
         });
       }
     }
