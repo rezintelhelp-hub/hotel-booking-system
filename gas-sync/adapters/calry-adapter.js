@@ -392,12 +392,12 @@ class CalryAdapter {
       currency: raw.currency || 'EUR',
       amenities: amenities,
       images: images,
-      unitCount: raw.units?.length || raw.quantity || 1,
-      units: (raw.units || []).map(u => ({
+      unitCount: Array.isArray(raw.units) ? raw.units.length : (raw.units?.count || raw.quantity || 1),
+      units: Array.isArray(raw.units) ? raw.units.map(u => ({
         externalId: String(u.id),
         name: u.name,
         status: u.status || 'available'
-      })),
+      })) : [],
       metadata: {
         calryRoomTypeId: raw.id,
         externalRoomTypeId: raw.externalId
