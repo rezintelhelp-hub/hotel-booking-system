@@ -2504,12 +2504,14 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
               timeout: 30000
             });
             
-            // Response can be { data: [...] } or just [...] directly
+            // Response structure: { success: true, data: { propertyId, roomTypeId, dateWiseAvailability: [...] } }
             console.log(`[Calry Sync] Raw response type:`, typeof availResponse.data);
             console.log(`[Calry Sync] Raw response keys:`, availResponse.data ? Object.keys(availResponse.data) : 'null');
-            console.log(`[Calry Sync] Raw response sample:`, JSON.stringify(availResponse.data).substring(0, 500));
             
-            const availData = availResponse.data?.data || availResponse.data || [];
+            // Extract the availability array from the correct path
+            const responseData = availResponse.data?.data || availResponse.data || {};
+            const availData = responseData.dateWiseAvailability || responseData.data || responseData || [];
+            
             console.log(`[Calry Sync] Room type ${roomTypeId}: ${Array.isArray(availData) ? availData.length : 'non-array'} availability records`);
             
             if (Array.isArray(availData) && availData.length > 0) {
@@ -5025,7 +5027,9 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
               timeout: 30000
             });
             
-            const availData = availResponse.data?.data || availResponse.data || [];
+            // Response structure: { success: true, data: { propertyId, roomTypeId, dateWiseAvailability: [...] } }
+            const responseData = availResponse.data?.data || availResponse.data || {};
+            const availData = responseData.dateWiseAvailability || responseData.data || responseData || [];
             console.log(`[Calry Sync] Got ${Array.isArray(availData) ? availData.length : 'non-array'} availability records`);
             
             if (Array.isArray(availData) && availData.length > 0) {
