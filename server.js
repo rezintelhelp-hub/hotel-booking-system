@@ -32259,7 +32259,7 @@ app.get('/api/elevate/:apiKey/clients', async (req, res) => {
         COUNT(DISTINCT p.id) as property_count
       FROM accounts a
       LEFT JOIN properties p ON p.account_id = a.id AND p.status = 'active'
-      WHERE a.parent_id = $1
+      WHERE (a.parent_id = $1 OR a.id = $1)
       GROUP BY a.id
       ORDER BY a.created_at DESC
     `, [ELEVATE_MASTER_ACCOUNT_ID]);
@@ -32306,7 +32306,7 @@ app.get('/api/elevate/:apiKey/clients/:clientId', async (req, res) => {
         a.status,
         a.created_at
       FROM accounts a
-      WHERE a.parent_id = $1 
+      WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (a.id::text = $2 OR a.partner_external_id = $2 OR a.public_id::text = $2)
     `, [ELEVATE_MASTER_ACCOUNT_ID, clientId]);
     
@@ -32725,7 +32725,7 @@ app.put('/api/elevate/:apiKey/property/:propertyId', async (req, res) => {
       SELECT p.id, p.account_id 
       FROM properties p
       JOIN accounts a ON a.id = p.account_id
-      WHERE a.parent_id = $1 
+      WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (p.id::text = $2 OR p.cm_property_id = $2)
     `, [ELEVATE_MASTER_ACCOUNT_ID, propertyId]);
     
@@ -32795,7 +32795,7 @@ app.delete('/api/elevate/:apiKey/property/:propertyId', async (req, res) => {
       SELECT p.id 
       FROM properties p
       JOIN accounts a ON a.id = p.account_id
-      WHERE a.parent_id = $1 
+      WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (p.id::text = $2 OR p.cm_property_id = $2)
     `, [ELEVATE_MASTER_ACCOUNT_ID, propertyId]);
     
@@ -32839,7 +32839,7 @@ app.post('/api/elevate/:apiKey/property/:propertyId/room', async (req, res) => {
       SELECT p.id, p.currency
       FROM properties p
       JOIN accounts a ON a.id = p.account_id
-      WHERE a.parent_id = $1 
+      WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (p.id::text = $2 OR p.cm_property_id = $2)
     `, [ELEVATE_MASTER_ACCOUNT_ID, propertyId]);
     
@@ -32909,7 +32909,7 @@ app.get('/api/elevate/:apiKey/property/:propertyId/rooms', async (req, res) => {
       SELECT p.id
       FROM properties p
       JOIN accounts a ON a.id = p.account_id
-      WHERE a.parent_id = $1 
+      WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (p.id::text = $2 OR p.cm_property_id = $2)
     `, [ELEVATE_MASTER_ACCOUNT_ID, propertyId]);
     
@@ -32968,7 +32968,7 @@ app.put('/api/elevate/:apiKey/room/:roomId', async (req, res) => {
       FROM bookable_units bu
       JOIN properties p ON p.id = bu.property_id
       JOIN accounts a ON a.id = p.account_id
-      WHERE a.parent_id = $1 
+      WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (bu.id::text = $2 OR bu.cm_room_id = $2)
     `, [ELEVATE_MASTER_ACCOUNT_ID, roomId]);
     
@@ -33057,7 +33057,7 @@ app.get('/api/elevate/:apiKey/room/:roomId/amenities', async (req, res) => {
       FROM bookable_units bu
       JOIN properties p ON p.id = bu.property_id
       JOIN accounts a ON a.id = p.account_id
-      WHERE a.parent_id = $1 
+      WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (bu.id::text = $2 OR bu.cm_room_id = $2)
     `, [ELEVATE_MASTER_ACCOUNT_ID, roomId]);
     
@@ -33115,7 +33115,7 @@ app.put('/api/elevate/:apiKey/room/:roomId/amenities', async (req, res) => {
       FROM bookable_units bu
       JOIN properties p ON p.id = bu.property_id
       JOIN accounts a ON a.id = p.account_id
-      WHERE a.parent_id = $1 
+      WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (bu.id::text = $2 OR bu.cm_room_id = $2)
     `, [ELEVATE_MASTER_ACCOUNT_ID, roomId]);
     
@@ -33218,7 +33218,7 @@ app.post('/api/elevate/:apiKey/room/:roomId/amenities', async (req, res) => {
       FROM bookable_units bu
       JOIN properties p ON p.id = bu.property_id
       JOIN accounts a ON a.id = p.account_id
-      WHERE a.parent_id = $1 
+      WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (bu.id::text = $2 OR bu.cm_room_id = $2)
     `, [ELEVATE_MASTER_ACCOUNT_ID, roomId]);
     
@@ -33324,7 +33324,7 @@ app.put('/api/elevate/:apiKey/room/:roomId/bedrooms', async (req, res) => {
       FROM bookable_units bu
       JOIN properties p ON p.id = bu.property_id
       JOIN accounts a ON a.id = p.account_id
-      WHERE a.parent_id = $1 
+      WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (bu.id::text = $2 OR bu.cm_room_id = $2)
     `, [ELEVATE_MASTER_ACCOUNT_ID, roomId]);
     
@@ -33436,7 +33436,7 @@ app.get('/api/elevate/:apiKey/room/:roomId/bedrooms', async (req, res) => {
       FROM bookable_units bu
       JOIN properties p ON p.id = bu.property_id
       JOIN accounts a ON a.id = p.account_id
-      WHERE a.parent_id = $1 
+      WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (bu.id::text = $2 OR bu.cm_room_id = $2)
     `, [ELEVATE_MASTER_ACCOUNT_ID, roomId]);
     
@@ -33502,7 +33502,7 @@ app.put('/api/elevate/:apiKey/room/:roomId/bathrooms', async (req, res) => {
       FROM bookable_units bu
       JOIN properties p ON p.id = bu.property_id
       JOIN accounts a ON a.id = p.account_id
-      WHERE a.parent_id = $1 
+      WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (bu.id::text = $2 OR bu.cm_room_id = $2)
     `, [ELEVATE_MASTER_ACCOUNT_ID, roomId]);
     
@@ -33607,7 +33607,7 @@ app.get('/api/elevate/:apiKey/room/:roomId/bathrooms', async (req, res) => {
       FROM bookable_units bu
       JOIN properties p ON p.id = bu.property_id
       JOIN accounts a ON a.id = p.account_id
-      WHERE a.parent_id = $1 
+      WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (bu.id::text = $2 OR bu.cm_room_id = $2)
     `, [ELEVATE_MASTER_ACCOUNT_ID, roomId]);
     
@@ -33665,7 +33665,7 @@ app.put('/api/elevate/:apiKey/room/:roomId/calendar', async (req, res) => {
       FROM bookable_units bu
       JOIN properties p ON p.id = bu.property_id
       JOIN accounts a ON a.id = p.account_id
-      WHERE a.parent_id = $1 
+      WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (bu.id::text = $2 OR bu.cm_room_id = $2)
     `, [ELEVATE_MASTER_ACCOUNT_ID, roomId]);
     
@@ -33760,7 +33760,7 @@ app.get('/api/elevate/:apiKey/room/:roomId/calendar', async (req, res) => {
       FROM bookable_units bu
       JOIN properties p ON p.id = bu.property_id
       JOIN accounts a ON a.id = p.account_id
-      WHERE a.parent_id = $1 
+      WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (bu.id::text = $2 OR bu.cm_room_id = $2)
     `, [ELEVATE_MASTER_ACCOUNT_ID, roomId]);
     
@@ -33821,7 +33821,7 @@ app.put('/api/elevate/:apiKey/room/:roomId/pricing', async (req, res) => {
       FROM bookable_units bu
       JOIN properties p ON p.id = bu.property_id
       JOIN accounts a ON a.id = p.account_id
-      WHERE a.parent_id = $1 
+      WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (bu.id::text = $2 OR bu.cm_room_id = $2)
     `, [ELEVATE_MASTER_ACCOUNT_ID, roomId]);
     
@@ -33884,7 +33884,7 @@ app.put('/api/elevate/:apiKey/room/:roomId/availability', async (req, res) => {
       FROM bookable_units bu
       JOIN properties p ON p.id = bu.property_id
       JOIN accounts a ON a.id = p.account_id
-      WHERE a.parent_id = $1 
+      WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (bu.id::text = $2 OR bu.cm_room_id = $2)
     `, [ELEVATE_MASTER_ACCOUNT_ID, roomId]);
     
@@ -33946,7 +33946,7 @@ app.get('/api/elevate/:apiKey/property/:propertyId/images', async (req, res) => 
     const propCheck = await pool.query(`
       SELECT p.id FROM properties p
       JOIN accounts a ON a.id = p.account_id
-      WHERE a.parent_id = $1 
+      WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (p.id::text = $2 OR p.cm_property_id = $2)
     `, [ELEVATE_MASTER_ACCOUNT_ID, propertyId]);
     
@@ -34006,7 +34006,7 @@ app.post('/api/elevate/:apiKey/property/:propertyId/images', async (req, res) =>
     const propCheck = await pool.query(`
       SELECT p.id FROM properties p
       JOIN accounts a ON a.id = p.account_id
-      WHERE a.parent_id = $1 
+      WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (p.id::text = $2 OR p.cm_property_id = $2)
     `, [ELEVATE_MASTER_ACCOUNT_ID, propertyId]);
     
@@ -34094,7 +34094,7 @@ app.delete('/api/elevate/:apiKey/property/:propertyId/images/:imageId', async (r
     const propCheck = await pool.query(`
       SELECT p.id FROM properties p
       JOIN accounts a ON a.id = p.account_id
-      WHERE a.parent_id = $1 
+      WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (p.id::text = $2 OR p.cm_property_id = $2)
     `, [ELEVATE_MASTER_ACCOUNT_ID, propertyId]);
     
@@ -34140,7 +34140,7 @@ app.get('/api/elevate/:apiKey/room/:roomId/images', async (req, res) => {
       FROM bookable_units bu
       JOIN properties p ON p.id = bu.property_id
       JOIN accounts a ON a.id = p.account_id
-      WHERE a.parent_id = $1 
+      WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (bu.id::text = $2 OR bu.cm_room_id = $2)
     `, [ELEVATE_MASTER_ACCOUNT_ID, roomId]);
     
@@ -34204,7 +34204,7 @@ app.post('/api/elevate/:apiKey/room/:roomId/images', async (req, res) => {
       FROM bookable_units bu
       JOIN properties p ON p.id = bu.property_id
       JOIN accounts a ON a.id = p.account_id
-      WHERE a.parent_id = $1 
+      WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (bu.id::text = $2 OR bu.cm_room_id = $2)
     `, [ELEVATE_MASTER_ACCOUNT_ID, roomId]);
     
@@ -34301,7 +34301,7 @@ app.delete('/api/elevate/:apiKey/room/:roomId/images/:imageId', async (req, res)
       FROM bookable_units bu
       JOIN properties p ON p.id = bu.property_id
       JOIN accounts a ON a.id = p.account_id
-      WHERE a.parent_id = $1 
+      WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (bu.id::text = $2 OR bu.cm_room_id = $2)
     `, [ELEVATE_MASTER_ACCOUNT_ID, roomId]);
     
