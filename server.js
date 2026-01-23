@@ -2357,21 +2357,26 @@ app.get('/api/gas-sync/property-by-gas-id/:gasPropertyId', async (req, res) => {
       });
     }
     
-    // Try to find via properties table cm_property_id
+    // Try to find via bookable_units which has cm_room_id and cm_property_id in some setups
+    // Get the first room for this property and use its cm info
     result = await pool.query(`
-      SELECT p.id, p.cm_property_id, p.name, p.account_id,
+      SELECT bu.cm_room_id, bu.property_id, p.name, p.account_id,
              c.id as connection_id, c.adapter_code, c.external_account_id
-      FROM properties p
+      FROM bookable_units bu
+      JOIN properties p ON p.id = bu.property_id
       LEFT JOIN gas_sync_connections c ON c.account_id = p.account_id
-      WHERE p.id = $1
+      WHERE bu.property_id = $1
+      LIMIT 1
     `, [gasPropertyId]);
     
-    if (result.rows.length > 0 && result.rows[0].cm_property_id) {
+    if (result.rows.length > 0 && result.rows[0].cm_room_id) {
+      // For Calry, we need to get the property ID from the room type
+      // The cm_room_id IS the room type ID, and we can derive property from connection
       return res.json({
         success: true,
-        syncPropertyId: result.rows[0].id, // Use GAS property ID as sync ID for Calry
+        syncPropertyId: gasPropertyId,
         connectionId: result.rows[0].connection_id,
-        cmPropertyId: result.rows[0].cm_property_id,
+        cmPropertyId: result.rows[0].cm_room_id, // Use room ID - for single-room properties this works
         adapterCode: result.rows[0].adapter_code,
         integrationAccountId: result.rows[0].external_account_id,
         name: result.rows[0].name
@@ -2399,14 +2404,16 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
       WHERE sp.id = $1
     `, [syncPropertyId]);
     
-    // If not found, try as a GAS property ID
+    // If not found, try as a GAS property ID - get cm_property_id from bookable_units
     if (propResult.rows.length === 0) {
       propResult = await pool.query(`
-        SELECT p.id as gas_property_id, p.cm_property_id, p.name,
+        SELECT p.id as gas_property_id, bu.cm_room_id as cm_property_id, p.name,
                c.adapter_code, c.external_account_id
         FROM properties p
+        JOIN bookable_units bu ON bu.property_id = p.id
         JOIN gas_sync_connections c ON c.account_id = p.account_id
         WHERE p.id = $1
+        LIMIT 1
       `, [syncPropertyId]);
     }
     
@@ -2426,47 +2433,37 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
     
     // Route to appropriate sync based on adapter
     if (adapterCode === 'calry') {
-      // Use Calry v2 pricing sync
+      // Use Calry v2 pricing sync - for Calry the cm_property_id from room is actually the roomTypeId
+      // We need to get the actual property ID from Calry or use the room type directly
       const startDate = new Date().toISOString().split('T')[0];
       const endDate = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
       
-      // Get room types from Calry
-      const roomTypesResponse = await axios.get(`https://prod.calry.app/api/v2/vrs/room-types/${cmPropertyId}`, {
-        headers: {
-          'Authorization': `Bearer ${CALRY_API_TOKEN}`,
-          'workspaceId': CALRY_WORKSPACE_ID,
-          'integrationAccountId': integrationAccountId,
-          'Content-Type': 'application/json'
-        },
-        timeout: 30000
-      });
-      
-      const roomTypes = roomTypesResponse.data?.data || [];
+      // For Calry, we can fetch availability directly using the roomTypeId (which is cm_property_id here)
+      // The room-types endpoint needs a propertyId, but we have the roomTypeId
+      // Let's fetch availability directly for this room type
       let totalDaysUpdated = 0;
       
-      for (const roomType of roomTypes) {
-        // Get availability with rates
-        const availResponse = await axios.get(`https://prod.calry.app/api/v2/vrs/availability/${roomType.id}`, {
+      try {
+        const availResponse = await axios.get(`https://prod.calry.app/api/v2/vrs/availability/${cmPropertyId}`, {
           headers: {
             'Authorization': `Bearer ${CALRY_API_TOKEN}`,
             'workspaceId': CALRY_WORKSPACE_ID,
             'integrationAccountId': integrationAccountId,
             'Content-Type': 'application/json'
           },
-          params: { startDate, endDate, roomTypeId: roomType.id, rates: true },
+          params: { startDate, endDate, roomTypeId: cmPropertyId, rates: true },
           timeout: 30000
         });
         
         const availData = availResponse.data?.data || [];
         
-        // Find matching GAS room
+        // Find the GAS room
         const roomResult = await pool.query(`
-          SELECT id FROM bookable_units WHERE property_id = $1 AND (cm_room_id = $2 OR cm_room_id = $3)
-        `, [gasPropertyId, roomType.id, roomType.id.toString()]);
+          SELECT id FROM bookable_units WHERE property_id = $1 AND cm_room_id = $2
+        `, [gasPropertyId, cmPropertyId]);
         
         let gasRoomId = roomResult.rows[0]?.id;
         if (!gasRoomId) {
-          // Use first room
           const anyRoom = await pool.query(`SELECT id FROM bookable_units WHERE property_id = $1 LIMIT 1`, [gasPropertyId]);
           gasRoomId = anyRoom.rows[0]?.id;
         }
@@ -2495,9 +2492,13 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
             totalDaysUpdated++;
           }
         }
+        
+        return res.json({ success: true, daysUpdated: totalDaysUpdated, roomTypeId: cmPropertyId });
+        
+      } catch (calryErr) {
+        console.error('Calry availability fetch error:', calryErr.response?.data || calryErr.message);
+        return res.json({ success: false, error: calryErr.response?.data?.message || calryErr.message });
       }
-      
-      return res.json({ success: true, daysUpdated: totalDaysUpdated, roomTypes: roomTypes.length });
       
     } else if (adapterCode === 'beds24') {
       // Beds24 pricing sync - to be implemented
