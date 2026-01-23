@@ -2397,16 +2397,22 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
     const { syncPropertyId } = req.params;
     const { days = 90, force = false } = req.body;
     
-    // First try to find in gas_sync_properties
-    let propResult = await pool.query(`
-      SELECT sp.id, sp.gas_property_id, sp.cm_property_id, sp.name,
-             c.adapter_code, c.external_account_id
-      FROM gas_sync_properties sp
-      JOIN gas_sync_connections c ON c.id = sp.connection_id
-      WHERE sp.id = $1
-    `, [syncPropertyId]);
+    let propResult = { rows: [] };
     
-    // If not found, try as a GAS property ID - get cm_property_id from bookable_units
+    // First try to find in gas_sync_properties (may not exist)
+    try {
+      propResult = await pool.query(`
+        SELECT sp.id, sp.gas_property_id, sp.cm_property_id, sp.name,
+               c.adapter_code, c.external_account_id
+        FROM gas_sync_properties sp
+        JOIN gas_sync_connections c ON c.id = sp.connection_id
+        WHERE sp.id = $1
+      `, [syncPropertyId]);
+    } catch (e) {
+      console.log('gas_sync_properties lookup failed:', e.message);
+    }
+    
+    // If not found, try as a GAS property ID - get cm_room_id from bookable_units
     if (propResult.rows.length === 0) {
       propResult = await pool.query(`
         SELECT p.id as gas_property_id, bu.cm_room_id as cm_property_id, p.name,
@@ -2436,13 +2442,9 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
     // Route to appropriate sync based on adapter
     if (adapterCode === 'calry') {
       // Use Calry v2 pricing sync - for Calry the cm_property_id from room is actually the roomTypeId
-      // We need to get the actual property ID from Calry or use the room type directly
       const startDate = new Date().toISOString().split('T')[0];
       const endDate = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
       
-      // For Calry, we can fetch availability directly using the roomTypeId (which is cm_property_id here)
-      // The room-types endpoint needs a propertyId, but we have the roomTypeId
-      // Let's fetch availability directly for this room type
       let totalDaysUpdated = 0;
       
       try {
