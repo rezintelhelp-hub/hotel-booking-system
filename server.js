@@ -2479,7 +2479,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
         
         // Step 2: For each room type, get availability
         for (const roomType of roomTypes) {
-          const roomTypeId = roomType.id;
+          const roomTypeId = String(roomType.id);
           console.log(`[Calry Sync] Step 2: Getting availability for room type ${roomTypeId}`);
           
           try {
@@ -2490,7 +2490,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
                 'integrationAccountId': integrationAccountId,
                 'Content-Type': 'application/json'
               },
-              params: { startDate, endDate, rates: 'true' },
+              params: { startDate, endDate, roomTypeId: roomTypeId, rates: 'true' },
               timeout: 30000
             });
             
@@ -2551,6 +2551,17 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
     } else if (adapterCode === 'beds24') {
       // Beds24 pricing sync - to be implemented
       return res.json({ success: false, error: 'Beds24 pricing sync not yet implemented via this endpoint' });
+    } else if (adapterCode === 'elevate') {
+      // Elevate properties are synced via the Elevate partner API pushing data to us
+      // We don't pull from Elevate - they push pricing via PUT /api/elevate/:apiKey/room/:roomId/calendar
+      return res.json({ 
+        success: true, 
+        message: 'Elevate properties receive pricing updates via push from Elevate partner API',
+        note: 'No pull sync needed - Elevate pushes data to GAS'
+      });
+    } else if (adapterCode === 'hostaway') {
+      // Hostaway pricing sync - to be implemented
+      return res.json({ success: false, error: 'Hostaway pricing sync not yet implemented via this endpoint' });
     } else {
       return res.json({ success: false, error: `Unknown adapter: ${adapterCode}` });
     }
@@ -22171,14 +22182,14 @@ app.post('/api/calry/sync-pricing/:propertyId', async (req, res) => {
     
     // Step 2: For each room type, get availability with rates
     for (const roomType of roomTypes) {
-      const roomTypeId = roomType.id;
+      const roomTypeId = String(roomType.id);
       const roomTypeName = roomType.name || `Room ${roomTypeId}`;
       
       console.log(`[Calry Pricing v2] Step 2: Fetching availability for room type ${roomTypeId} (${roomTypeName})`);
       
       try {
         // Fetch availability with rates from v2 API
-        // Note: rates param should be string 'true', and keep date range reasonable
+        // Note: roomTypeId must be a string in params
         const availResponse = await axios.get(`https://prod.calry.app/api/v2/vrs/availability/${roomTypeId}`, {
           headers: {
             'Authorization': `Bearer ${CALRY_API_TOKEN}`,
@@ -22189,6 +22200,7 @@ app.post('/api/calry/sync-pricing/:propertyId', async (req, res) => {
           params: {
             startDate: startDate,
             endDate: endDate,
+            roomTypeId: roomTypeId,
             rates: 'true'
           },
           timeout: 30000
