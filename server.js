@@ -30658,8 +30658,10 @@ app.get('/api/admin/properties/:id/bedrooms', async (req, res) => {
     
     let query = `
       SELECT pb.*, 
+        bu.name as room_name,
         (SELECT name FROM property_bathrooms WHERE id = pb.ensuite_bathroom_id) as ensuite_bathroom_name
       FROM property_bedrooms pb
+      LEFT JOIN bookable_units bu ON pb.room_id = bu.id
       WHERE pb.property_id = $1
     `;
     const params = [propertyId];
@@ -30667,11 +30669,11 @@ app.get('/api/admin/properties/:id/bedrooms', async (req, res) => {
     if (roomId) {
       query += ` AND pb.room_id = $2`;
       params.push(roomId);
-    } else {
-      query += ` AND pb.room_id IS NULL`;
     }
+    // Removed: else { query += ` AND pb.room_id IS NULL`; }
+    // Now returns ALL bedrooms for the property (both property-level and room-level)
     
-    query += ` ORDER BY pb.display_order, pb.id`;
+    query += ` ORDER BY pb.room_id NULLS FIRST, pb.display_order, pb.id`;
     
     const result = await pool.query(query, params);
     
@@ -30833,8 +30835,10 @@ app.get('/api/admin/properties/:id/bathrooms-detailed', async (req, res) => {
     
     let query = `
       SELECT pb.*,
+        bu.name as room_name,
         (SELECT name FROM property_bedrooms WHERE id = pb.linked_bedroom_id) as linked_bedroom_name
       FROM property_bathrooms pb
+      LEFT JOIN bookable_units bu ON pb.room_id = bu.id
       WHERE pb.property_id = $1
     `;
     const params = [propertyId];
@@ -30842,11 +30846,11 @@ app.get('/api/admin/properties/:id/bathrooms-detailed', async (req, res) => {
     if (roomId) {
       query += ` AND pb.room_id = $2`;
       params.push(roomId);
-    } else {
-      query += ` AND pb.room_id IS NULL`;
     }
+    // Removed: else { query += ` AND pb.room_id IS NULL`; }
+    // Now returns ALL bathrooms for the property (both property-level and room-level)
     
-    query += ` ORDER BY pb.display_order, pb.id`;
+    query += ` ORDER BY pb.room_id NULLS FIRST, pb.display_order, pb.id`;
     
     const result = await pool.query(query, params);
     
