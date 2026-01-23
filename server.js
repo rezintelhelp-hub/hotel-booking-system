@@ -20641,6 +20641,84 @@ app.post('/api/admin/calry/sync-connection/:connectionId', async (req, res) => {
 });
 
 // Debug endpoint to test Calry room type sync
+// Debug: Check what's actually in the database for a room
+app.get('/api/admin/debug-room/:roomId', async (req, res) => {
+  const { roomId } = req.params;
+  
+  try {
+    // Get room data
+    const roomResult = await pool.query('SELECT * FROM bookable_units WHERE id = $1', [roomId]);
+    
+    if (roomResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Room not found' });
+    }
+    
+    const room = roomResult.rows[0];
+    
+    // Get bedrooms
+    const bedroomsResult = await pool.query(
+      'SELECT * FROM property_bedrooms WHERE room_id = $1 ORDER BY display_order',
+      [roomId]
+    );
+    
+    // Get bathrooms
+    const bathroomsResult = await pool.query(
+      'SELECT * FROM property_bathrooms WHERE room_id = $1 ORDER BY display_order',
+      [roomId]
+    );
+    
+    // Get amenities
+    const amenitiesResult = await pool.query(`
+      SELECT a.id, a.name, a.category 
+      FROM room_amenities ra 
+      JOIN amenities a ON ra.amenity_id = a.id 
+      WHERE ra.room_id = $1
+    `, [roomId]);
+    
+    // Get images
+    const imagesResult = await pool.query(
+      'SELECT * FROM property_images WHERE room_id = $1 ORDER BY display_order',
+      [roomId]
+    );
+    
+    // Get calendar/pricing (sample)
+    const calendarResult = await pool.query(
+      'SELECT * FROM room_calendar WHERE room_id = $1 ORDER BY date LIMIT 10',
+      [roomId]
+    );
+    
+    res.json({
+      success: true,
+      room: {
+        id: room.id,
+        name: room.name,
+        display_name: room.display_name,
+        short_description: room.short_description,
+        full_description: room.full_description,
+        max_guests: room.max_guests,
+        max_adults: room.max_adults,
+        max_children: room.max_children,
+        num_bedrooms: room.num_bedrooms,
+        num_bathrooms: room.num_bathrooms,
+        room_type: room.room_type,
+        base_price: room.base_price,
+        currency: room.currency,
+        amenities_json: room.amenities,
+        cm_room_id: room.cm_room_id,
+        cm_source: room.cm_source
+      },
+      bedrooms: bedroomsResult.rows,
+      bathrooms: bathroomsResult.rows,
+      amenities: amenitiesResult.rows,
+      images: imagesResult.rows.length,
+      calendar_sample: calendarResult.rows
+    });
+    
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Debug endpoint by account ID (easier to use)
 app.get('/api/admin/calry/debug-by-account/:accountId', async (req, res) => {
   const { accountId } = req.params;
