@@ -20202,7 +20202,54 @@ app.get('/api/admin/calry/debug-room-sync/:connectionId', async (req, res) => {
         await pool.query('ALTER TABLE gas_sync_room_types ADD COLUMN IF NOT EXISTS base_price DECIMAL(10,2)').catch(() => {});
         await pool.query('ALTER TABLE gas_sync_room_types ADD COLUMN IF NOT EXISTS currency VARCHAR(3)').catch(() => {});
         
-        const roomSyncId = await adapter.syncRoomTypeToDatabase(roomType, property.externalId);
+        // Direct SQL - check then insert/update (avoid ON CONFLICT issue)
+        const syncPropertyId = syncPropResult.rows[0].id;
+        const existingRoom = await pool.query(
+          'SELECT id FROM gas_sync_room_types WHERE sync_property_id = $1 AND external_id = $2',
+          [syncPropertyId, roomType.externalId]
+        );
+        
+        let roomSyncResult;
+        if (existingRoom.rows.length > 0) {
+          roomSyncResult = await pool.query(`
+            UPDATE gas_sync_room_types SET
+              name = $1, max_guests = $2, base_price = $3, currency = $4,
+              bedrooms = $5, bathrooms = $6, raw_data = $7, updated_at = NOW()
+            WHERE sync_property_id = $8 AND external_id = $9
+            RETURNING id
+          `, [
+            roomType.name,
+            roomType.maxGuests || 2,
+            roomType.basePrice || 0,
+            roomType.currency || 'EUR',
+            roomType.bedrooms || 1,
+            roomType.bathrooms || 1,
+            JSON.stringify(roomType.raw || roomType),
+            syncPropertyId,
+            roomType.externalId
+          ]);
+        } else {
+          roomSyncResult = await pool.query(`
+            INSERT INTO gas_sync_room_types (
+              sync_property_id, external_id, name,
+              max_guests, base_price, currency,
+              bedrooms, bathrooms, raw_data, created_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+            RETURNING id
+          `, [
+            syncPropertyId,
+            roomType.externalId,
+            roomType.name,
+            roomType.maxGuests || 2,
+            roomType.basePrice || 0,
+            roomType.currency || 'EUR',
+            roomType.bedrooms || 1,
+            roomType.bathrooms || 1,
+            JSON.stringify(roomType.raw || roomType)
+          ]);
+        }
+        
+        const roomSyncId = roomSyncResult.rows[0]?.id;
         debug.steps.push({ step: 'syncRoomTypeToDatabase', success: true, roomSyncId });
       } catch (e) {
         debug.steps.push({ step: 'syncRoomTypeToDatabase', success: false, error: e.message });
