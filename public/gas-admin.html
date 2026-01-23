@@ -21385,8 +21385,9 @@ Local honey and preserves"></textarea>
                                             <td><span class="badge ${prop.status === 'active' ? 'badge-success' : prop.status === 'draft' ? 'badge-warning' : 'badge-secondary'}">${prop.status || 'active'}</span></td>
                                             <td>
                                                 <div style="display: flex; gap: 0.25rem;">
-                                                    <button class="btn btn-secondary btn-small" onclick="editProperty(${prop.id})">Edit</button>
-                                                    <button class="btn btn-secondary btn-small" onclick="openPaymentSettings(${prop.id}, '${(prop.name || '').replace(/'/g, "\\'")}')" title="Payment Settings"></button>
+                                                    <button class="btn btn-secondary btn-small" onclick="editProperty(${prop.id})">✏️ Edit</button>
+                                                    <button class="btn btn-secondary btn-small" onclick="openPropertyStripeSettings(${prop.id}, '${(prop.name || '').replace(/'/g, "\\'")}')" title="Stripe Payment Settings" style="${prop.stripe_account_id || prop.stripe_publishable_key ? 'color: #10b981;' : 'color: #f59e0b;'}">💳</button>
+                                                    <button class="btn btn-secondary btn-small" onclick="openPaymentSettings(${prop.id}, '${(prop.name || '').replace(/'/g, "\\'")}')" title="Payment Settings">⚙️</button>
                                                 </div>
                                             </td>
                                         </tr>
@@ -39272,6 +39273,24 @@ Local honey and preserves"></textarea>
         
         let currentPaymentPropertyId = null;
         
+        // Open property edit modal focused on Stripe settings
+        async function openPropertyStripeSettings(propertyId, propertyName) {
+            await editProperty(propertyId);
+            // Scroll to Stripe section after modal opens
+            setTimeout(() => {
+                const stripeSection = document.getElementById('property-stripe-status');
+                if (stripeSection) {
+                    stripeSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    // Highlight the section briefly
+                    stripeSection.style.transition = 'box-shadow 0.3s';
+                    stripeSection.style.boxShadow = '0 0 0 3px #6366f1';
+                    setTimeout(() => {
+                        stripeSection.style.boxShadow = 'none';
+                    }, 2000);
+                }
+            }, 300);
+        }
+
         async function openPaymentSettings(propertyId, propertyName) {
             currentPaymentPropertyId = propertyId;
             document.getElementById('payment-settings-property-id').value = propertyId;
