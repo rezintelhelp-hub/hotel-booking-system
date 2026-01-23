@@ -14387,11 +14387,11 @@ async function pushSettingsToWordPress(siteUrl, section, settings) {
       'search-max-guests': 'search_max_guests',
       // Favicon
       'favicon-image-url': 'site_icon',
-      // Hero Slider Images
-      'slide-1-url': 'slide_1_url',
-      'slide-2-url': 'slide_2_url',
-      'slide-3-url': 'slide_3_url',
-      'slide-4-url': 'slide_4_url',
+      // Hero Slider Images - map to theme_mod names (without _url suffix)
+      'slide-1-url': 'slide_1',
+      'slide-2-url': 'slide_2',
+      'slide-3-url': 'slide_3',
+      'slide-4-url': 'slide_4',
       'background-type': 'background_type',
       'slider-duration': 'slider_duration',
       'slider-transition': 'slider_transition'
@@ -14402,6 +14402,21 @@ async function pushSettingsToWordPress(siteUrl, section, settings) {
     for (const [key, value] of Object.entries(settings)) {
       const wpKey = keyMapping[key] || key;
       transformedSettings[wpKey] = value;
+    }
+    
+    // Log slider-specific settings for debugging
+    console.log('WordPress push for section:', section);
+    if (section === 'hero') {
+      console.log('Slider settings being pushed:');
+      console.log('  background-type:', settings['background-type']);
+      console.log('  slide-1-url:', settings['slide-1-url']);
+      console.log('  slide-2-url:', settings['slide-2-url']);
+      console.log('  slide-3-url:', settings['slide-3-url']);
+      console.log('  slide-4-url:', settings['slide-4-url']);
+      console.log('  Transformed to:');
+      console.log('    background_type:', transformedSettings['background_type']);
+      console.log('    slide_1:', transformedSettings['slide_1']);
+      console.log('    slide_2:', transformedSettings['slide_2']);
     }
     
     console.log('Transformed settings:', JSON.stringify(transformedSettings, null, 2));
