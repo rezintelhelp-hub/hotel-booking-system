@@ -32961,28 +32961,39 @@ app.put('/api/elevate/:apiKey/room/:roomId/bedrooms', async (req, res) => {
       // Build bed_config JSONB from beds array
       const beds = bedroom.beds || [{ type: bedroom.bed_type || 'bed_double', count: bedroom.bed_count || 1 }];
       
-      // Normalize bed types
+      // Normalize bed types to match UI expectations (no 'bed_' prefix, 'qty' instead of 'count')
       const normalizedBeds = beds.map(bed => {
-        let bedType = bed.type || bed.bed_type || 'bed_double';
-        const bedTypeLower = bedType.toLowerCase().replace(/\s+/g, '_');
+        let bedType = bed.type || bed.bed_type || 'double';
+        const bedTypeLower = bedType.toLowerCase().replace(/\s+/g, '-').replace(/^bed[_-]?/, '');
         
-        if (bedTypeLower.includes('king')) bedType = 'bed_king';
-        else if (bedTypeLower.includes('queen')) bedType = 'bed_queen';
-        else if (bedTypeLower.includes('double')) bedType = 'bed_double';
-        else if (bedTypeLower.includes('single') || bedTypeLower.includes('twin')) bedType = 'bed_single';
-        else if (bedTypeLower.includes('sofa')) bedType = 'bed_sofa_double';
-        else if (bedTypeLower.includes('bunk')) bedType = 'bed_bunk';
-        else if (bedTypeLower.includes('cot') || bedTypeLower.includes('crib')) bedType = 'bed_cot';
-        else if (bedTypeLower.includes('futon')) bedType = 'bed_futon';
-        else if (!bedType.startsWith('bed_')) bedType = 'bed_' + bedTypeLower;
+        // Map to standard UI bed types
+        let uiType = 'double';
+        if (bedTypeLower.includes('super') && bedTypeLower.includes('king')) uiType = 'super-king';
+        else if (bedTypeLower.includes('king')) uiType = 'king';
+        else if (bedTypeLower.includes('queen')) uiType = 'queen';
+        else if (bedTypeLower.includes('double')) uiType = 'double';
+        else if (bedTypeLower.includes('single') || bedTypeLower.includes('twin')) uiType = 'single';
+        else if (bedTypeLower.includes('sofa') && bedTypeLower.includes('single')) uiType = 'sofa-bed-single';
+        else if (bedTypeLower.includes('sofa')) uiType = 'sofa-bed';
+        else if (bedTypeLower.includes('bunk')) uiType = 'bunk';
+        else if (bedTypeLower.includes('cot') || bedTypeLower.includes('crib')) uiType = 'cot';
+        else if (bedTypeLower.includes('futon')) uiType = 'futon';
+        else if (bedTypeLower.includes('murphy')) uiType = 'murphy';
+        else if (bedTypeLower.includes('daybed')) uiType = 'daybed';
+        else if (bedTypeLower.includes('trundle')) uiType = 'trundle';
+        else if (bedTypeLower.includes('toddler')) uiType = 'toddler';
+        else if (bedTypeLower.includes('air')) uiType = 'air-mattress';
+        else if (bedTypeLower.includes('floor')) uiType = 'floor-mattress';
+        else uiType = bedTypeLower;
         
         return {
-          type: bedType,
-          count: bed.count || bed.bed_count || 1
+          type: uiType,
+          qty: bed.count || bed.qty || bed.bed_count || 1
         };
       });
       
-      const bedConfig = { beds: normalizedBeds };
+      // Save as flat array (UI expects this format, not {beds: [...]})
+      const bedConfig = normalizedBeds;
       
       const result = await pool.query(`
         INSERT INTO property_bedrooms (property_id, room_id, name, bed_config, has_ensuite, display_order, created_at, updated_at)
