@@ -2362,27 +2362,35 @@ app.get('/api/gas-sync/property-by-gas-id/:gasPropertyId', async (req, res) => {
       console.log('gas_sync_properties lookup failed:', e.message);
     }
     
-    // Fallback: find via bookable_units which has cm_room_id
+    // Fallback: get cm_property_id from properties table, and room info from bookable_units
     const result = await pool.query(`
-      SELECT bu.cm_room_id, bu.property_id, p.name, p.account_id,
+      SELECT p.id, p.name, p.account_id, p.cm_property_id, p.cm_source,
+             bu.cm_room_id,
              c.id as connection_id, c.adapter_code, c.external_account_id
-      FROM bookable_units bu
-      JOIN properties p ON p.id = bu.property_id
+      FROM properties p
+      LEFT JOIN bookable_units bu ON bu.property_id = p.id
       LEFT JOIN gas_sync_connections c ON c.account_id = p.account_id
-      WHERE bu.property_id = $1
+      WHERE p.id = $1
       LIMIT 1
     `, [gasPropertyId]);
     
-    if (result.rows.length > 0 && result.rows[0].cm_room_id) {
-      return res.json({
-        success: true,
-        syncPropertyId: gasPropertyId,
-        connectionId: result.rows[0].connection_id,
-        cmPropertyId: result.rows[0].cm_room_id,
-        adapterCode: result.rows[0].adapter_code,
-        integrationAccountId: result.rows[0].external_account_id,
-        name: result.rows[0].name
-      });
+    if (result.rows.length > 0) {
+      const row = result.rows[0];
+      // Use cm_property_id from properties if available, otherwise fall back to cm_room_id
+      const cmPropertyId = row.cm_property_id || row.cm_room_id;
+      
+      if (cmPropertyId) {
+        return res.json({
+          success: true,
+          syncPropertyId: gasPropertyId,
+          connectionId: row.connection_id,
+          cmPropertyId: cmPropertyId,
+          cmRoomId: row.cm_room_id,
+          adapterCode: row.adapter_code || row.cm_source,
+          integrationAccountId: row.external_account_id,
+          name: row.name
+        });
+      }
     }
     
     res.json({ success: false, error: 'No sync property found for this GAS property' });
@@ -2412,14 +2420,13 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
       console.log('gas_sync_properties lookup failed:', e.message);
     }
     
-    // If not found, try as a GAS property ID - get cm_room_id from bookable_units
+    // If not found, try as a GAS property ID - get cm_property_id from properties table
     if (propResult.rows.length === 0) {
       propResult = await pool.query(`
-        SELECT p.id as gas_property_id, bu.cm_room_id as cm_property_id, p.name,
+        SELECT p.id as gas_property_id, p.cm_property_id, p.name, p.cm_source,
                c.adapter_code, c.external_account_id
         FROM properties p
-        JOIN bookable_units bu ON bu.property_id = p.id
-        JOIN gas_sync_connections c ON c.account_id = p.account_id
+        LEFT JOIN gas_sync_connections c ON c.account_id = p.account_id
         WHERE p.id = $1
         LIMIT 1
       `, [syncPropertyId]);
@@ -2432,7 +2439,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
     const prop = propResult.rows[0];
     const gasPropertyId = prop.gas_property_id || syncPropertyId;
     const cmPropertyId = prop.cm_property_id;
-    const adapterCode = prop.adapter_code;
+    const adapterCode = prop.adapter_code || prop.cm_source;
     const integrationAccountId = prop.external_account_id;
     
     if (!cmPropertyId) {
@@ -2441,66 +2448,103 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
     
     // Route to appropriate sync based on adapter
     if (adapterCode === 'calry') {
-      // Use Calry v2 pricing sync - for Calry the cm_property_id from room is actually the roomTypeId
+      // Calry v2 pricing sync - 2-step process:
+      // Step 1: Get room types from property ID
+      // Step 2: Get availability for each room type
       const startDate = new Date().toISOString().split('T')[0];
       const endDate = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
       
       let totalDaysUpdated = 0;
+      let roomTypesProcessed = 0;
       
       try {
-        const availResponse = await axios.get(`https://prod.calry.app/api/v2/vrs/availability/${cmPropertyId}`, {
+        // Step 1: Get room types for this property
+        console.log(`[Calry Sync] Step 1: Getting room types for property ${cmPropertyId}`);
+        const roomTypesResponse = await axios.get(`https://prod.calry.app/api/v2/vrs/room-types/${cmPropertyId}`, {
           headers: {
             'Authorization': `Bearer ${CALRY_API_TOKEN}`,
             'workspaceId': CALRY_WORKSPACE_ID,
             'integrationAccountId': integrationAccountId,
             'Content-Type': 'application/json'
           },
-          params: { startDate, endDate, roomTypeId: cmPropertyId, rates: true },
           timeout: 30000
         });
         
-        const availData = availResponse.data?.data || [];
+        const roomTypes = roomTypesResponse.data?.data || [];
+        console.log(`[Calry Sync] Found ${roomTypes.length} room types`);
         
-        // Find the GAS room
-        const roomResult = await pool.query(`
-          SELECT id FROM bookable_units WHERE property_id = $1 AND cm_room_id = $2
-        `, [gasPropertyId, cmPropertyId]);
-        
-        let gasRoomId = roomResult.rows[0]?.id;
-        if (!gasRoomId) {
-          const anyRoom = await pool.query(`SELECT id FROM bookable_units WHERE property_id = $1 LIMIT 1`, [gasPropertyId]);
-          gasRoomId = anyRoom.rows[0]?.id;
+        if (roomTypes.length === 0) {
+          return res.json({ success: false, error: 'No room types found in Calry for this property' });
         }
         
-        if (gasRoomId && Array.isArray(availData)) {
-          for (const day of availData) {
-            const date = day.date || day.startDate;
-            if (!date) continue;
+        // Step 2: For each room type, get availability
+        for (const roomType of roomTypes) {
+          const roomTypeId = roomType.id;
+          console.log(`[Calry Sync] Step 2: Getting availability for room type ${roomTypeId}`);
+          
+          try {
+            const availResponse = await axios.get(`https://prod.calry.app/api/v2/vrs/availability/${roomTypeId}`, {
+              headers: {
+                'Authorization': `Bearer ${CALRY_API_TOKEN}`,
+                'workspaceId': CALRY_WORKSPACE_ID,
+                'integrationAccountId': integrationAccountId,
+                'Content-Type': 'application/json'
+              },
+              params: { startDate, endDate, roomTypeId, rates: true },
+              timeout: 30000
+            });
             
-            const price = day.price || day.rate || day.basePrice || day.amount || null;
-            const available = day.available !== false && day.isAvailable !== false && day.status !== 'blocked';
-            const minStay = day.minStay || day.minimumStay || day.minNights || 1;
+            const availData = availResponse.data?.data || [];
+            console.log(`[Calry Sync] Room type ${roomTypeId}: ${availData.length} availability records`);
             
-            await pool.query(`
-              INSERT INTO room_availability (room_id, date, cm_price, is_available, is_blocked, min_stay, source, updated_at)
-              VALUES ($1, $2, $3, $4, $5, $6, 'calry', NOW())
-              ON CONFLICT (room_id, date) DO UPDATE SET
-                cm_price = COALESCE(EXCLUDED.cm_price, room_availability.cm_price),
-                is_available = EXCLUDED.is_available,
-                is_blocked = NOT EXCLUDED.is_available,
-                min_stay = COALESCE(EXCLUDED.min_stay, room_availability.min_stay),
-                source = 'calry',
-                updated_at = NOW()
-            `, [gasRoomId, date, price, available, !available, minStay]);
+            // Find the GAS room by cm_room_id
+            const roomResult = await pool.query(`
+              SELECT id FROM bookable_units WHERE property_id = $1 AND cm_room_id = $2
+            `, [gasPropertyId, String(roomTypeId)]);
             
-            totalDaysUpdated++;
+            let gasRoomId = roomResult.rows[0]?.id;
+            if (!gasRoomId) {
+              // Fall back to first room for property
+              const anyRoom = await pool.query(`SELECT id FROM bookable_units WHERE property_id = $1 LIMIT 1`, [gasPropertyId]);
+              gasRoomId = anyRoom.rows[0]?.id;
+            }
+            
+            if (gasRoomId && Array.isArray(availData)) {
+              for (const day of availData) {
+                const date = day.date || day.startDate;
+                if (!date) continue;
+                
+                const price = day.price || day.rate || day.basePrice || day.amount || null;
+                const available = day.available !== false && day.isAvailable !== false && day.status !== 'blocked';
+                const minStay = day.minStay || day.minimumStay || day.minNights || 1;
+                
+                await pool.query(`
+                  INSERT INTO room_availability (room_id, date, cm_price, is_available, is_blocked, min_stay, source, updated_at)
+                  VALUES ($1, $2, $3, $4, $5, $6, 'calry', NOW())
+                  ON CONFLICT (room_id, date) DO UPDATE SET
+                    cm_price = COALESCE(EXCLUDED.cm_price, room_availability.cm_price),
+                    is_available = EXCLUDED.is_available,
+                    is_blocked = NOT EXCLUDED.is_available,
+                    min_stay = COALESCE(EXCLUDED.min_stay, room_availability.min_stay),
+                    source = 'calry',
+                    updated_at = NOW()
+                `, [gasRoomId, date, price, available, !available, minStay]);
+                
+                totalDaysUpdated++;
+              }
+            }
+            
+            roomTypesProcessed++;
+            
+          } catch (roomErr) {
+            console.error(`[Calry Sync] Error fetching availability for room type ${roomTypeId}:`, roomErr.response?.data || roomErr.message);
           }
         }
         
-        return res.json({ success: true, daysUpdated: totalDaysUpdated, roomTypeId: cmPropertyId });
+        return res.json({ success: true, daysUpdated: totalDaysUpdated, roomTypes: roomTypesProcessed });
         
       } catch (calryErr) {
-        console.error('Calry availability fetch error:', calryErr.response?.data || calryErr.message);
+        console.error('Calry sync error:', calryErr.response?.data || calryErr.message);
         return res.json({ success: false, error: calryErr.response?.data?.message || calryErr.message });
       }
       
