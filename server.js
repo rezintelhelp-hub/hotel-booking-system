@@ -2531,6 +2531,9 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
             }
             
             if (gasRoomId && Array.isArray(availData)) {
+              let availCount = 0;
+              let blockedCount = 0;
+              
               for (const day of availData) {
                 const date = day.date || day.startDate;
                 if (!date) continue;
@@ -2549,10 +2552,16 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
                   price = parseFloat(day.amount);
                 }
                 
-                // Handle availability status - Calry returns status: "AVAILABLE" or "BLOCKED"
-                const isAvailable = day.status === 'AVAILABLE' || 
-                                   (day.available !== false && day.isAvailable !== false && 
-                                    day.status !== 'blocked' && day.status !== 'BLOCKED');
+                // Handle availability status - check multiple indicators
+                // Calry returns: status: "AVAILABLE"/"BLOCKED", unitsAvailable: 0/1, reservationIds: []
+                const hasReservation = day.reservationIds && day.reservationIds.length > 0;
+                const noUnitsAvailable = day.unitsAvailable === 0 || day.unitsAvailable === '0';
+                const statusBlocked = day.status === 'BLOCKED' || day.status === 'blocked';
+                
+                const isAvailable = !hasReservation && !noUnitsAvailable && !statusBlocked && 
+                                   (day.status === 'AVAILABLE' || day.available !== false);
+                
+                if (isAvailable) availCount++; else blockedCount++;
                 
                 const minStay = day.minimumNights || day.minStay || day.minimumStay || day.minNights || 1;
                 const maxStay = day.maximumNights || day.maxStay || day.maximumStay || day.maxNights || null;
@@ -2571,6 +2580,8 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
                 
                 totalDaysUpdated++;
               }
+              
+              console.log(`[Calry Sync] Room type ${roomTypeId}: ${availCount} available, ${blockedCount} blocked`);
             }
             
             roomTypesProcessed++;
@@ -5049,7 +5060,14 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
                   }
                 }
                 
-                const isAvailable = day.status === 'AVAILABLE' || (day.available !== false && day.status !== 'blocked' && day.status !== 'BLOCKED');
+                // Handle availability status - check multiple indicators
+                const hasReservation = day.reservationIds && day.reservationIds.length > 0;
+                const noUnitsAvailable = day.unitsAvailable === 0 || day.unitsAvailable === '0';
+                const statusBlocked = day.status === 'BLOCKED' || day.status === 'blocked';
+                
+                const isAvailable = !hasReservation && !noUnitsAvailable && !statusBlocked && 
+                                   (day.status === 'AVAILABLE' || day.available !== false);
+                                   
                 const minStay = day.minimumNights || day.minStay || day.minimumStay || 1;
                 const maxStay = day.maximumNights || day.maxStay || day.maximumStay || null;
                 
