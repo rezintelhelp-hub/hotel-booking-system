@@ -2558,22 +2558,12 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
       }
       
     } else if (adapterCode === 'beds24') {
-      // Beds24 manual sync - use the connection_id from the query
-      const connectionId = prop.connection_id;
-      
-      if (!connectionId) {
-        return res.json({ success: false, error: 'No Beds24 connection found for this property' });
-      }
-      
-      // Trigger the existing sync endpoint internally
-      try {
-        const syncUrl = `${req.protocol}://${req.get('host')}/api/gas-sync/connections/${connectionId}/sync-availability`;
-        const syncResponse = await axios.post(syncUrl, { days: days }, { timeout: 60000 });
-        return res.json(syncResponse.data);
-      } catch (syncErr) {
-        console.error('Beds24 sync error:', syncErr.message);
-        return res.json({ success: false, error: syncErr.message });
-      }
+      // Beds24 uses tiered sync which runs automatically
+      // The sync button in the room grid uses different endpoints
+      return res.json({ 
+        success: true, 
+        message: 'Beds24 syncs automatically via tiered sync. Use room-level sync buttons for manual sync.'
+      });
     } else if (adapterCode === 'elevate') {
       // Elevate properties are synced via the Elevate partner API pushing data to us
       // We don't pull from Elevate - they push pricing via PUT /api/elevate/:apiKey/room/:roomId/calendar
