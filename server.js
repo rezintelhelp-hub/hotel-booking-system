@@ -2420,12 +2420,19 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
       console.log('gas_sync_properties lookup failed:', e.message);
     }
     
-    // If not found, try as a GAS property ID - get cm_property_id from properties table
+    // If not found, try as a GAS property ID - get cm_property_id from properties or bookable_units
     if (propResult.rows.length === 0) {
       propResult = await pool.query(`
-        SELECT p.id as gas_property_id, p.cm_property_id, p.name, p.cm_source,
-               c.adapter_code, c.external_account_id
+        SELECT p.id as gas_property_id, 
+               COALESCE(p.cm_property_id, bu.beds24_room_id::text, bu.cm_room_id) as cm_property_id, 
+               p.name, 
+               COALESCE(p.cm_source, 
+                 CASE WHEN bu.beds24_room_id IS NOT NULL THEN 'beds24' ELSE NULL END
+               ) as cm_source,
+               c.adapter_code, 
+               c.external_account_id
         FROM properties p
+        LEFT JOIN bookable_units bu ON bu.property_id = p.id
         LEFT JOIN gas_sync_connections c ON c.account_id = p.account_id
         WHERE p.id = $1
         LIMIT 1
@@ -2442,7 +2449,8 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
     const adapterCode = prop.adapter_code || prop.cm_source;
     const integrationAccountId = prop.external_account_id;
     
-    if (!cmPropertyId) {
+    // For Beds24, we don't need cm_property_id - they use their own sync
+    if (!cmPropertyId && adapterCode !== 'beds24') {
       return res.json({ success: false, error: 'Property not linked to channel manager' });
     }
     
@@ -2549,8 +2557,41 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
       }
       
     } else if (adapterCode === 'beds24') {
-      // Beds24 pricing sync - to be implemented
-      return res.json({ success: false, error: 'Beds24 pricing sync not yet implemented via this endpoint' });
+      // Beds24 manual sync - find the connection and trigger sync
+      const connResult = await pool.query(`
+        SELECT c.id as connection_id, c.access_token, c.refresh_token
+        FROM gas_sync_connections c
+        WHERE c.account_id = (SELECT account_id FROM properties WHERE id = $1)
+        AND c.adapter_code = 'beds24'
+        LIMIT 1
+      `, [gasPropertyId]);
+      
+      if (connResult.rows.length === 0) {
+        return res.json({ success: false, error: 'No Beds24 connection found for this property' });
+      }
+      
+      const connectionId = connResult.rows[0].connection_id;
+      
+      // Get the room for this property
+      const roomResult = await pool.query(`
+        SELECT bu.id, bu.beds24_room_id, bu.name
+        FROM bookable_units bu
+        WHERE bu.property_id = $1 AND bu.beds24_room_id IS NOT NULL
+      `, [gasPropertyId]);
+      
+      if (roomResult.rows.length === 0) {
+        return res.json({ success: false, error: 'No Beds24-linked rooms found' });
+      }
+      
+      // Trigger the existing sync endpoint internally
+      try {
+        const syncUrl = `${req.protocol}://${req.get('host')}/api/gas-sync/connections/${connectionId}/sync-availability`;
+        const syncResponse = await axios.post(syncUrl, { days: days }, { timeout: 60000 });
+        return res.json(syncResponse.data);
+      } catch (syncErr) {
+        console.error('Beds24 sync error:', syncErr.message);
+        return res.json({ success: false, error: syncErr.message });
+      }
     } else if (adapterCode === 'elevate') {
       // Elevate properties are synced via the Elevate partner API pushing data to us
       // We don't pull from Elevate - they push pricing via PUT /api/elevate/:apiKey/room/:roomId/calendar
