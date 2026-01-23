@@ -31706,7 +31706,14 @@ app.put('/api/elevate/:apiKey/property/:propertyId', async (req, res) => {
     }
     
     const { propertyId } = req.params;
-    const updates = req.body;
+    
+    // Support both flat format and nested { property: {...} } format
+    // This maintains backward compatibility while supporting Elevate's preferred format
+    let updates = req.body;
+    if (req.body.property && typeof req.body.property === 'object') {
+      updates = req.body.property;
+      console.log('Using nested property object format');
+    }
     
     // Find property (by GAS ID or external_id) that belongs to an Elevate sub-account
     const propCheck = await pool.query(`
@@ -31942,7 +31949,13 @@ app.put('/api/elevate/:apiKey/room/:roomId', async (req, res) => {
     }
     
     const { roomId } = req.params;
-    const updates = req.body;
+    
+    // Support both flat format and nested { room: {...} } format
+    let updates = req.body;
+    if (req.body.room && typeof req.body.room === 'object') {
+      updates = req.body.room;
+      console.log('Using nested room object format');
+    }
     
     // Find room that belongs to an Elevate property
     const roomCheck = await pool.query(`
