@@ -14519,6 +14519,12 @@ Local honey and preserves"></textarea>
                         <span style="color: #64748b;">Checking Stripe status...</span>
                     </div>
                     
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label class="form-label">Stripe Account Name</label>
+                        <input type="text" class="form-input" id="edit-property-stripe-name" placeholder="e.g. Main Account, Beach Villas, etc.">
+                        <small style="color: #64748b;">A friendly name to identify this Stripe account</small>
+                    </div>
+                    
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                         <div class="form-group">
                             <label class="form-label">Restricted Publishable Key</label>
@@ -14558,6 +14564,10 @@ Local honey and preserves"></textarea>
                 <!-- Stripe Keys Input -->
                 <div style="background: #f8fafc; border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem; border: 1px solid #e2e8f0;">
                     <h4 style="margin: 0 0 1rem 0; font-size: 0.9rem; color: #1e293b;">Stripe Restricted Keys</h4>
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label class="form-label">Stripe Account Name</label>
+                        <input type="text" class="form-input" id="bulk-stripe-name" placeholder="e.g. Main Account, Beach Villas, etc.">
+                    </div>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                         <div class="form-group">
                             <label class="form-label">Publishable Key</label>
@@ -32920,13 +32930,15 @@ Local honey and preserves"></textarea>
                     document.getElementById('edit-property-status').value = prop.status || 'active';
                     
                     // Stripe fields
+                    document.getElementById('edit-property-stripe-name').value = prop.stripe_name || '';
                     document.getElementById('edit-property-stripe-publishable').value = prop.stripe_publishable_key || '';
                     document.getElementById('edit-property-stripe-secret').value = ''; // Don't show secret, just placeholder
                     
                     // Update Stripe status display
                     const stripeStatus = document.getElementById('property-stripe-status');
                     if (prop.stripe_publishable_key) {
-                        stripeStatus.innerHTML = '<span style="color: #10b981;">✓ Stripe is connected to this property</span>';
+                        const stripeName = prop.stripe_name ? ` (${prop.stripe_name})` : '';
+                        stripeStatus.innerHTML = `<span style="color: #10b981;">✓ Stripe is connected${stripeName}</span>`;
                         stripeStatus.style.background = '#d1fae5';
                         if (prop.stripe_secret_key) {
                             document.getElementById('edit-property-stripe-secret').placeholder = '••••••••••••••••• (saved)';
@@ -32983,6 +32995,7 @@ Local honey and preserves"></textarea>
                 longitude: document.getElementById('edit-property-longitude').value ? parseFloat(document.getElementById('edit-property-longitude').value) : null,
                 status: document.getElementById('edit-property-status').value,
                 // Stripe fields
+                stripe_name: document.getElementById('edit-property-stripe-name').value || null,
                 stripe_publishable_key: document.getElementById('edit-property-stripe-publishable').value || null
             };
             
@@ -39379,6 +39392,7 @@ Local honey and preserves"></textarea>
                 }
                 
                 // Reset form
+                document.getElementById('bulk-stripe-name').value = '';
                 document.getElementById('bulk-stripe-publishable').value = '';
                 document.getElementById('bulk-stripe-secret').value = '';
                 updateBulkStripeCount();
@@ -39401,6 +39415,7 @@ Local honey and preserves"></textarea>
         }
         
         async function applyBulkStripe() {
+            const stripeName = document.getElementById('bulk-stripe-name').value.trim();
             const publishableKey = document.getElementById('bulk-stripe-publishable').value.trim();
             const secretKey = document.getElementById('bulk-stripe-secret').value.trim();
             
@@ -39416,7 +39431,7 @@ Local honey and preserves"></textarea>
                 return;
             }
             
-            if (!confirm(`Apply Stripe keys to ${selectedIds.length} properties?`)) {
+            if (!confirm(`Apply Stripe keys${stripeName ? ` (${stripeName})` : ''} to ${selectedIds.length} properties?`)) {
                 return;
             }
             
@@ -39432,6 +39447,7 @@ Local honey and preserves"></textarea>
                             method: 'PUT',
                             headers: { 'Content-Type': 'application/json', ...authHeaders() },
                             body: JSON.stringify({
+                                stripe_name: stripeName || null,
                                 stripe_publishable_key: publishableKey,
                                 stripe_secret_key: secretKey
                             })
