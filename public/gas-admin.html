@@ -18153,7 +18153,15 @@ const promo = await fetch('/api/v1/offers/validate', {
                     } else if (el.type === 'file') {
                         // Skip file inputs
                     } else if (el.value !== undefined) {
-                        settings[key] = el.value;
+                        let value = el.value;
+                        // Sanitize color values - remove any invalid characters
+                        if (key.includes('color') || key.includes('bg') || key.includes('text')) {
+                            if (value.startsWith('#')) {
+                                // Keep only valid hex characters after #
+                                value = '#' + value.slice(1).replace(/[^0-9A-Fa-f]/g, '').slice(0, 6);
+                            }
+                        }
+                        settings[key] = value;
                     }
                 });
                 
