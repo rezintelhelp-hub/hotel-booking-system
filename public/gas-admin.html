@@ -253,6 +253,19 @@
             background: transparent;
             color: #64748b;
         }
+        
+        /* Locked sub-tabs in Website Builder */
+        .sub-tab.feature-locked {
+            opacity: 0.6;
+            background: #f1f5f9 !important;
+            color: #94a3b8 !important;
+            border-color: #e2e8f0 !important;
+        }
+        
+        .sub-tab.feature-locked:hover {
+            background: #f1f5f9 !important;
+            color: #64748b !important;
+        }
 
         .nav-icon {
             font-size: 1.1rem;
@@ -4664,14 +4677,14 @@
                             <button class="sub-tab" data-subtab="page-dining" onclick="switchSubPageTab('page-dining')" style="padding: 0.5rem 1rem; border: 1px solid #e2e8f0; border-radius: 20px; background: white; color: #64748b; cursor: pointer; font-size: 0.875rem;">
                                 <span class="page-status-dot" id="status-page-dining" style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #94a3b8; margin-right: 6px;"></span>Dining
                             </button>
-                            <button class="sub-tab" data-subtab="page-blog" onclick="switchSubPageTab('page-blog')" style="padding: 0.5rem 1rem; border: 1px solid #e2e8f0; border-radius: 20px; background: white; color: #64748b; cursor: pointer; font-size: 0.875rem;">
-                                <span class="page-status-dot" id="status-page-blog" style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #94a3b8; margin-right: 6px;"></span>Blog 🔒
+                            <button class="sub-tab" data-subtab="page-blog" data-requires-feature="blog_module" onclick="switchSubPageTab('page-blog')" style="padding: 0.5rem 1rem; border: 1px solid #e2e8f0; border-radius: 20px; background: white; color: #64748b; cursor: pointer; font-size: 0.875rem;">
+                                <span class="page-status-dot" id="status-page-blog" style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #94a3b8; margin-right: 6px;"></span>Blog <span class="feature-lock-icon" style="display: none;">🔒</span>
                             </button>
-                            <button class="sub-tab" data-subtab="page-attractions" onclick="switchSubPageTab('page-attractions')" style="padding: 0.5rem 1rem; border: 1px solid #e2e8f0; border-radius: 20px; background: white; color: #64748b; cursor: pointer; font-size: 0.875rem;">
-                                <span class="page-status-dot" id="status-page-attractions" style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #94a3b8; margin-right: 6px;"></span>Attractions 🔒
+                            <button class="sub-tab" data-subtab="page-attractions" data-requires-feature="attractions_module" onclick="switchSubPageTab('page-attractions')" style="padding: 0.5rem 1rem; border: 1px solid #e2e8f0; border-radius: 20px; background: white; color: #64748b; cursor: pointer; font-size: 0.875rem;">
+                                <span class="page-status-dot" id="status-page-attractions" style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #94a3b8; margin-right: 6px;"></span>Attractions <span class="feature-lock-icon" style="display: none;">🔒</span>
                             </button>
-                            <button class="sub-tab" data-subtab="page-reviews" onclick="switchSubPageTab('page-reviews')" style="padding: 0.5rem 1rem; border: 1px solid #e2e8f0; border-radius: 20px; background: white; color: #64748b; cursor: pointer; font-size: 0.875rem;">
-                                <span class="page-status-dot" id="status-page-reviews" style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #94a3b8; margin-right: 6px;"></span>Reviews 🔒
+                            <button class="sub-tab" data-subtab="page-reviews" data-requires-feature="reviews_widget" onclick="switchSubPageTab('page-reviews')" style="padding: 0.5rem 1rem; border: 1px solid #e2e8f0; border-radius: 20px; background: white; color: #64748b; cursor: pointer; font-size: 0.875rem;">
+                                <span class="page-status-dot" id="status-page-reviews" style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #94a3b8; margin-right: 6px;"></span>Reviews <span class="feature-lock-icon" style="display: none;">🔒</span>
                             </button>
                             <button class="sub-tab" data-subtab="page-contact" onclick="switchSubPageTab('page-contact')" style="padding: 0.5rem 1rem; border: 1px solid #e2e8f0; border-radius: 20px; background: white; color: #64748b; cursor: pointer; font-size: 0.875rem;">
                                 <span class="page-status-dot" id="status-page-contact" style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #10b981; margin-right: 6px;"></span>Contact
@@ -16599,6 +16612,11 @@ const promo = await fetch('/api/v1/offers/validate', {
             
             // Load saved data for the header section (will overwrite defaults if data exists)
             loadWebsiteBuilderSection('header');
+            
+            // Apply feature locks to sub-page tabs based on account entitlements
+            if (typeof applyFeatureLocks === 'function') {
+                applyFeatureLocks();
+            }
         }
         
         // Switch main editor tabs
@@ -39469,6 +39487,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                     el.classList.remove('feature-locked');
                     const lock = el.querySelector('.feature-lock');
                     if (lock) lock.style.display = 'none';
+                    const lockIcon = el.querySelector('.feature-lock-icon');
+                    if (lockIcon) lockIcon.style.display = 'none';
                 });
                 return;
             }
@@ -39491,10 +39511,14 @@ const promo = await fetch('/api/v1/offers/validate', {
                     el.classList.remove('feature-locked');
                     const lock = el.querySelector('.feature-lock');
                     if (lock) lock.style.display = 'none';
+                    const lockIcon = el.querySelector('.feature-lock-icon');
+                    if (lockIcon) lockIcon.style.display = 'none';
                 } else {
                     el.classList.add('feature-locked');
                     const lock = el.querySelector('.feature-lock');
                     if (lock) lock.style.display = 'inline';
+                    const lockIcon = el.querySelector('.feature-lock-icon');
+                    if (lockIcon) lockIcon.style.display = 'inline';
                 }
             });
         }
