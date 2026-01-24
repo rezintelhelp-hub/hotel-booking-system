@@ -4633,16 +4633,47 @@
                     <!-- Sub Pages Tab -->
                     <div id="editor-panel-subpages" class="editor-panel" style="display: none;">
                         <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap;">
-                            <button class="sub-tab active" data-subtab="page-rooms" onclick="switchSubPageTab('page-rooms')" style="padding: 0.5rem 1rem; border: 1px solid #e2e8f0; border-radius: 20px; background: #7c3aed; color: white; cursor: pointer; font-size: 0.875rem;"> Rooms</button>
-                            <button class="sub-tab" data-subtab="page-about" onclick="switchSubPageTab('page-about')" style="padding: 0.5rem 1rem; border: 1px solid #e2e8f0; border-radius: 20px; background: white; color: #64748b; cursor: pointer; font-size: 0.875rem;"> About</button>
-                            <button class="sub-tab" data-subtab="page-gallery" onclick="switchSubPageTab('page-gallery')" style="padding: 0.5rem 1rem; border: 1px solid #e2e8f0; border-radius: 20px; background: white; color: #64748b; cursor: pointer; font-size: 0.875rem;"> Gallery</button>
-                            <button class="sub-tab" data-subtab="page-blog" onclick="switchSubPageTab('page-blog')" style="padding: 0.5rem 1rem; border: 1px solid #e2e8f0; border-radius: 20px; background: white; color: #64748b; cursor: pointer; font-size: 0.875rem;"> Blog</button>
-                            <button class="sub-tab" data-subtab="page-attractions" onclick="switchSubPageTab('page-attractions')" style="padding: 0.5rem 1rem; border: 1px solid #e2e8f0; border-radius: 20px; background: white; color: #64748b; cursor: pointer; font-size: 0.875rem;"> Attractions</button>
-                            <button class="sub-tab" data-subtab="page-dining" onclick="switchSubPageTab('page-dining')" style="padding: 0.5rem 1rem; border: 1px solid #e2e8f0; border-radius: 20px; background: white; color: #64748b; cursor: pointer; font-size: 0.875rem;"> Dining</button>
-                            <button class="sub-tab" data-subtab="page-contact" onclick="switchSubPageTab('page-contact')" style="padding: 0.5rem 1rem; border: 1px solid #e2e8f0; border-radius: 20px; background: white; color: #64748b; cursor: pointer; font-size: 0.875rem;"> Contact</button>
+                            <button class="sub-tab active" data-subtab="page-rooms" onclick="switchSubPageTab('page-rooms')" style="padding: 0.5rem 1rem; border: 1px solid #e2e8f0; border-radius: 20px; background: #7c3aed; color: white; cursor: pointer; font-size: 0.875rem;">
+                                <span class="page-status-dot" id="status-page-rooms" style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #10b981; margin-right: 6px;"></span>Rooms
+                            </button>
+                            <button class="sub-tab" data-subtab="page-about" onclick="switchSubPageTab('page-about')" style="padding: 0.5rem 1rem; border: 1px solid #e2e8f0; border-radius: 20px; background: white; color: #64748b; cursor: pointer; font-size: 0.875rem;">
+                                <span class="page-status-dot" id="status-page-about" style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #94a3b8; margin-right: 6px;"></span>About Us
+                            </button>
+                            <button class="sub-tab" data-subtab="page-gallery" onclick="switchSubPageTab('page-gallery')" style="padding: 0.5rem 1rem; border: 1px solid #e2e8f0; border-radius: 20px; background: white; color: #64748b; cursor: pointer; font-size: 0.875rem;">
+                                <span class="page-status-dot" id="status-page-gallery" style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #94a3b8; margin-right: 6px;"></span>Gallery
+                            </button>
+                            <button class="sub-tab" data-subtab="page-offers" onclick="switchSubPageTab('page-offers')" style="padding: 0.5rem 1rem; border: 1px solid #e2e8f0; border-radius: 20px; background: white; color: #64748b; cursor: pointer; font-size: 0.875rem;">
+                                <span class="page-status-dot" id="status-page-offers" style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #94a3b8; margin-right: 6px;"></span>Special Offers
+                            </button>
+                            <button class="sub-tab" data-subtab="page-properties" onclick="switchSubPageTab('page-properties')" style="padding: 0.5rem 1rem; border: 1px solid #e2e8f0; border-radius: 20px; background: white; color: #64748b; cursor: pointer; font-size: 0.875rem;">
+                                <span class="page-status-dot" id="status-page-properties" style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #94a3b8; margin-right: 6px;"></span>Properties
+                            </button>
+                            <button class="sub-tab" data-subtab="page-dining" onclick="switchSubPageTab('page-dining')" style="padding: 0.5rem 1rem; border: 1px solid #e2e8f0; border-radius: 20px; background: white; color: #64748b; cursor: pointer; font-size: 0.875rem;">
+                                <span class="page-status-dot" id="status-page-dining" style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #94a3b8; margin-right: 6px;"></span>Dining
+                            </button>
+                            <button class="sub-tab" data-subtab="page-blog" onclick="switchSubPageTab('page-blog')" style="padding: 0.5rem 1rem; border: 1px solid #e2e8f0; border-radius: 20px; background: white; color: #64748b; cursor: pointer; font-size: 0.875rem;">
+                                <span class="page-status-dot" id="status-page-blog" style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #94a3b8; margin-right: 6px;"></span>Blog 🔒
+                            </button>
+                            <button class="sub-tab" data-subtab="page-attractions" onclick="switchSubPageTab('page-attractions')" style="padding: 0.5rem 1rem; border: 1px solid #e2e8f0; border-radius: 20px; background: white; color: #64748b; cursor: pointer; font-size: 0.875rem;">
+                                <span class="page-status-dot" id="status-page-attractions" style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #94a3b8; margin-right: 6px;"></span>Attractions 🔒
+                            </button>
+                            <button class="sub-tab" data-subtab="page-reviews" onclick="switchSubPageTab('page-reviews')" style="padding: 0.5rem 1rem; border: 1px solid #e2e8f0; border-radius: 20px; background: white; color: #64748b; cursor: pointer; font-size: 0.875rem;">
+                                <span class="page-status-dot" id="status-page-reviews" style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #94a3b8; margin-right: 6px;"></span>Reviews 🔒
+                            </button>
+                            <button class="sub-tab" data-subtab="page-contact" onclick="switchSubPageTab('page-contact')" style="padding: 0.5rem 1rem; border: 1px solid #e2e8f0; border-radius: 20px; background: white; color: #64748b; cursor: pointer; font-size: 0.875rem;">
+                                <span class="page-status-dot" id="status-page-contact" style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #10b981; margin-right: 6px;"></span>Contact
+                            </button>
                         </div>
                         <div id="editor-subpage-page-rooms" class="subpage-panel">
-                            <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
+                            <!-- Page Enable Toggle -->
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; padding: 1rem; background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border-radius: 12px; border: 1px solid #bbf7d0;">
+                                <div style="display: flex; align-items: center; gap: 1rem;">
+                                    <label class="toggle-switch" style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer;">
+                                        <input type="checkbox" id="wb-page-rooms-enabled" checked disabled style="width: 20px; height: 20px; accent-color: #10b981;">
+                                        <span style="font-weight: 600; color: #166534;">Rooms Page Enabled</span>
+                                    </label>
+                                    <span style="font-size: 0.8rem; color: #166534; background: #bbf7d0; padding: 2px 8px; border-radius: 4px;">Core Page - Always On</span>
+                                </div>
                                 <button class="btn" onclick="saveWebsiteSection('page-rooms', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Rooms Page</button>
                             </div>
                             <div class="card" style="margin-bottom: 1.5rem;">
@@ -4772,7 +4803,15 @@
                             </div>
                         </div>
                         <div id="editor-subpage-page-about" class="subpage-panel" style="display: none;">
-                            <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
+                            <!-- Page Enable Toggle -->
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; padding: 1rem; background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%); border-radius: 12px; border: 1px solid #e9d5ff;">
+                                <div style="display: flex; align-items: center; gap: 1rem;">
+                                    <label class="toggle-switch" style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer;">
+                                        <input type="checkbox" id="wb-page-about-enabled" onchange="togglePageEnabled('about', this.checked)" style="width: 20px; height: 20px; accent-color: #7c3aed;">
+                                        <span style="font-weight: 600; color: #6b21a8;">Enable About Us Page</span>
+                                    </label>
+                                    <span style="font-size: 0.8rem; color: #7c3aed; background: #e9d5ff; padding: 2px 8px; border-radius: 4px;">Free</span>
+                                </div>
                                 <button class="btn" onclick="saveWebsiteSection('page-about', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save About Page</button>
                             </div>
                             
@@ -4917,7 +4956,15 @@
                             </div>
                         </div>
                         <div id="editor-subpage-page-gallery" class="subpage-panel" style="display: none;">
-                            <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
+                            <!-- Page Enable Toggle -->
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; padding: 1rem; background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%); border-radius: 12px; border: 1px solid #e9d5ff;">
+                                <div style="display: flex; align-items: center; gap: 1rem;">
+                                    <label class="toggle-switch" style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer;">
+                                        <input type="checkbox" id="wb-page-gallery-enabled" onchange="togglePageEnabled('gallery', this.checked)" style="width: 20px; height: 20px; accent-color: #7c3aed;">
+                                        <span style="font-weight: 600; color: #6b21a8;">Enable Gallery Page</span>
+                                    </label>
+                                    <span style="font-size: 0.8rem; color: #7c3aed; background: #e9d5ff; padding: 2px 8px; border-radius: 4px;">Free</span>
+                                </div>
                                 <button class="btn" onclick="saveWebsiteSection('page-gallery', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Gallery Page</button>
                             </div>
                             <div id="editor-page-gallery-content"></div>
@@ -4960,7 +5007,15 @@
                             </div>
                         </div>
                         <div id="editor-subpage-page-blog" class="subpage-panel" style="display: none;">
-                            <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
+                            <!-- Page Enable Toggle - Paid Feature -->
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; padding: 1rem; background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border-radius: 12px; border: 1px solid #fcd34d;">
+                                <div style="display: flex; align-items: center; gap: 1rem;">
+                                    <label class="toggle-switch" style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer;">
+                                        <input type="checkbox" id="wb-page-blog-enabled" onchange="togglePageEnabled('blog', this.checked)" style="width: 20px; height: 20px; accent-color: #f59e0b;">
+                                        <span style="font-weight: 600; color: #92400e;">Enable Blog Page</span>
+                                    </label>
+                                    <span style="font-size: 0.8rem; color: #92400e; background: #fcd34d; padding: 2px 8px; border-radius: 4px;">🔒 Requires Blog App</span>
+                                </div>
                                 <button class="btn" onclick="saveWebsiteSection('page-blog', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Blog Page</button>
                             </div>
                             <div id="editor-page-blog-content"></div>
@@ -5003,7 +5058,15 @@
                             </div>
                         </div>
                         <div id="editor-subpage-page-attractions" class="subpage-panel" style="display: none;">
-                            <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
+                            <!-- Page Enable Toggle - Paid Feature -->
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; padding: 1rem; background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border-radius: 12px; border: 1px solid #fcd34d;">
+                                <div style="display: flex; align-items: center; gap: 1rem;">
+                                    <label class="toggle-switch" style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer;">
+                                        <input type="checkbox" id="wb-page-attractions-enabled" onchange="togglePageEnabled('attractions', this.checked)" style="width: 20px; height: 20px; accent-color: #f59e0b;">
+                                        <span style="font-weight: 600; color: #92400e;">Enable Attractions Page</span>
+                                    </label>
+                                    <span style="font-size: 0.8rem; color: #92400e; background: #fcd34d; padding: 2px 8px; border-radius: 4px;">🔒 Requires Attractions App</span>
+                                </div>
                                 <button class="btn" onclick="saveWebsiteSection('page-attractions', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Attractions Page</button>
                             </div>
                             <div id="editor-page-attractions-content"></div>
@@ -5046,7 +5109,15 @@
                             </div>
                         </div>
                         <div id="editor-subpage-page-dining" class="subpage-panel" style="display: none;">
-                            <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
+                            <!-- Page Enable Toggle -->
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; padding: 1rem; background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%); border-radius: 12px; border: 1px solid #e9d5ff;">
+                                <div style="display: flex; align-items: center; gap: 1rem;">
+                                    <label class="toggle-switch" style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer;">
+                                        <input type="checkbox" id="wb-page-dining-enabled" onchange="togglePageEnabled('dining', this.checked)" style="width: 20px; height: 20px; accent-color: #7c3aed;">
+                                        <span style="font-weight: 600; color: #6b21a8;">Enable Dining Page</span>
+                                    </label>
+                                    <span style="font-size: 0.8rem; color: #7c3aed; background: #e9d5ff; padding: 2px 8px; border-radius: 4px;">Free</span>
+                                </div>
                                 <button class="btn" onclick="saveWebsiteSection('page-dining', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Dining Page</button>
                             </div>
                             <div id="editor-page-dining-content"></div>
@@ -5088,8 +5159,170 @@
                                 </div>
                             </div>
                         </div>
+                        
+                        <!-- Special Offers Page Panel -->
+                        <div id="editor-subpage-page-offers" class="subpage-panel" style="display: none;">
+                            <!-- Page Enable Toggle -->
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; padding: 1rem; background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%); border-radius: 12px; border: 1px solid #e9d5ff;">
+                                <div style="display: flex; align-items: center; gap: 1rem;">
+                                    <label class="toggle-switch" style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer;">
+                                        <input type="checkbox" id="wb-page-offers-enabled" onchange="togglePageEnabled('offers', this.checked)" style="width: 20px; height: 20px; accent-color: #7c3aed;">
+                                        <span style="font-weight: 600; color: #6b21a8;">Enable Special Offers Page</span>
+                                    </label>
+                                    <span style="font-size: 0.8rem; color: #7c3aed; background: #e9d5ff; padding: 2px 8px; border-radius: 4px;">Free</span>
+                                </div>
+                                <button class="btn" onclick="saveWebsiteSection('page-offers', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Offers Page</button>
+                            </div>
+                            <div class="card" style="margin-bottom: 1.5rem;">
+                                <div class="card-header"><h3>📄 Page Header</h3></div>
+                                <div class="card-body">
+                                    <div class="form-group">
+                                        <label class="form-label">Page Title</label>
+                                        <input type="text" class="form-input" id="wb-page-offers-title" placeholder="e.g., Special Offers" value="Special Offers">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Page Subtitle</label>
+                                        <input type="text" class="form-input" id="wb-page-offers-subtitle" placeholder="e.g., Exclusive deals and discounts">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card" style="margin-bottom: 1.5rem;">
+                                <div class="card-header"><h3>📝 Page Content</h3></div>
+                                <div class="card-body">
+                                    <p style="color: #64748b; margin-bottom: 1rem;">This page will automatically display offers created in the Bookings & Revenue → Offers section.</p>
+                                    <div class="form-group">
+                                        <label class="form-label">Intro Text (Optional)</label>
+                                        <textarea class="form-textarea" id="wb-page-offers-content" rows="4" placeholder="Add an introduction to your special offers page..."></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #10b981; border-radius: 12px; overflow: hidden;">
+                                <div class="card-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white;"><h3> SEO Settings</h3></div>
+                                <div class="card-body">
+                                    <div class="form-group">
+                                        <label class="form-label">Meta Title</label>
+                                        <input type="text" class="form-input" id="wb-page-offers-meta-title" placeholder="e.g., Special Offers | Your Hotel Name">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Meta Description</label>
+                                        <textarea class="form-input" id="wb-page-offers-meta-description" rows="3" placeholder="e.g., Discover our latest special offers and exclusive deals..."></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Properties Page Panel -->
+                        <div id="editor-subpage-page-properties" class="subpage-panel" style="display: none;">
+                            <!-- Page Enable Toggle -->
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; padding: 1rem; background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%); border-radius: 12px; border: 1px solid #e9d5ff;">
+                                <div style="display: flex; align-items: center; gap: 1rem;">
+                                    <label class="toggle-switch" style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer;">
+                                        <input type="checkbox" id="wb-page-properties-enabled" onchange="togglePageEnabled('properties', this.checked)" style="width: 20px; height: 20px; accent-color: #7c3aed;">
+                                        <span style="font-weight: 600; color: #6b21a8;">Enable Properties Page</span>
+                                    </label>
+                                    <span style="font-size: 0.8rem; color: #7c3aed; background: #e9d5ff; padding: 2px 8px; border-radius: 4px;">Free</span>
+                                </div>
+                                <button class="btn" onclick="saveWebsiteSection('page-properties', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Properties Page</button>
+                            </div>
+                            <div class="card" style="margin-bottom: 1.5rem;">
+                                <div class="card-header"><h3>📄 Page Header</h3></div>
+                                <div class="card-body">
+                                    <div class="form-group">
+                                        <label class="form-label">Page Title</label>
+                                        <input type="text" class="form-input" id="wb-page-properties-title" placeholder="e.g., Our Properties" value="Our Properties">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Page Subtitle</label>
+                                        <input type="text" class="form-input" id="wb-page-properties-subtitle" placeholder="e.g., Explore our collection of vacation rentals">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card" style="margin-bottom: 1.5rem;">
+                                <div class="card-header"><h3>📝 Page Content</h3></div>
+                                <div class="card-body">
+                                    <p style="color: #64748b; margin-bottom: 1rem;">This page displays all your properties. Useful for multi-property accounts.</p>
+                                    <div class="form-group">
+                                        <label class="form-label">Intro Text (Optional)</label>
+                                        <textarea class="form-textarea" id="wb-page-properties-content" rows="4" placeholder="Add an introduction to your properties page..."></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #10b981; border-radius: 12px; overflow: hidden;">
+                                <div class="card-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white;"><h3> SEO Settings</h3></div>
+                                <div class="card-body">
+                                    <div class="form-group">
+                                        <label class="form-label">Meta Title</label>
+                                        <input type="text" class="form-input" id="wb-page-properties-meta-title" placeholder="e.g., Our Properties | Your Brand Name">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Meta Description</label>
+                                        <textarea class="form-input" id="wb-page-properties-meta-description" rows="3" placeholder="e.g., Browse our collection of vacation rental properties..."></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Reviews Page Panel -->
+                        <div id="editor-subpage-page-reviews" class="subpage-panel" style="display: none;">
+                            <!-- Page Enable Toggle - Paid Feature -->
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; padding: 1rem; background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border-radius: 12px; border: 1px solid #fcd34d;">
+                                <div style="display: flex; align-items: center; gap: 1rem;">
+                                    <label class="toggle-switch" style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer;">
+                                        <input type="checkbox" id="wb-page-reviews-enabled" onchange="togglePageEnabled('reviews', this.checked)" style="width: 20px; height: 20px; accent-color: #f59e0b;">
+                                        <span style="font-weight: 600; color: #92400e;">Enable Reviews Page</span>
+                                    </label>
+                                    <span style="font-size: 0.8rem; color: #92400e; background: #fcd34d; padding: 2px 8px; border-radius: 4px;">🔒 Requires Reviews App</span>
+                                </div>
+                                <button class="btn" onclick="saveWebsiteSection('page-reviews', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Reviews Page</button>
+                            </div>
+                            <div class="card" style="margin-bottom: 1.5rem;">
+                                <div class="card-header"><h3>📄 Page Header</h3></div>
+                                <div class="card-body">
+                                    <div class="form-group">
+                                        <label class="form-label">Page Title</label>
+                                        <input type="text" class="form-input" id="wb-page-reviews-title" placeholder="e.g., Guest Reviews" value="Guest Reviews">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Page Subtitle</label>
+                                        <input type="text" class="form-input" id="wb-page-reviews-subtitle" placeholder="e.g., See what our guests are saying">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card" style="margin-bottom: 1.5rem;">
+                                <div class="card-header"><h3>📝 Page Content</h3></div>
+                                <div class="card-body">
+                                    <p style="color: #64748b; margin-bottom: 1rem;">This page will display reviews from the Reviews App. Subscribe to unlock this feature.</p>
+                                    <div class="form-group">
+                                        <label class="form-label">Intro Text (Optional)</label>
+                                        <textarea class="form-textarea" id="wb-page-reviews-content" rows="4" placeholder="Add an introduction to your reviews page..."></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #10b981; border-radius: 12px; overflow: hidden;">
+                                <div class="card-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white;"><h3> SEO Settings</h3></div>
+                                <div class="card-body">
+                                    <div class="form-group">
+                                        <label class="form-label">Meta Title</label>
+                                        <input type="text" class="form-input" id="wb-page-reviews-meta-title" placeholder="e.g., Guest Reviews | Your Hotel Name">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Meta Description</label>
+                                        <textarea class="form-input" id="wb-page-reviews-meta-description" rows="3" placeholder="e.g., Read genuine reviews from our guests..."></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
                         <div id="editor-subpage-page-contact" class="subpage-panel" style="display: none;">
-                            <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
+                            <!-- Page Enable Toggle -->
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; padding: 1rem; background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border-radius: 12px; border: 1px solid #bbf7d0;">
+                                <div style="display: flex; align-items: center; gap: 1rem;">
+                                    <label class="toggle-switch" style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer;">
+                                        <input type="checkbox" id="wb-page-contact-enabled" checked disabled style="width: 20px; height: 20px; accent-color: #10b981;">
+                                        <span style="font-weight: 600; color: #166534;">Contact Page Enabled</span>
+                                    </label>
+                                    <span style="font-size: 0.8rem; color: #166534; background: #bbf7d0; padding: 2px 8px; border-radius: 4px;">Core Page - Always On</span>
+                                </div>
                                 <button class="btn" onclick="saveWebsiteSection('page-contact', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Contact Page</button>
                             </div>
                             <div id="editor-page-contact-content"></div>
@@ -16935,6 +17168,33 @@ Local honey and preserves"></textarea>
         }
         
         // Switch Sub Pages tabs
+        // Toggle page enabled status
+        async function togglePageEnabled(pageType, enabled) {
+            const statusDot = document.getElementById(`status-page-${pageType}`);
+            if (statusDot) {
+                statusDot.style.background = enabled ? '#10b981' : '#94a3b8';
+            }
+            
+            // The enabled status will be saved when user clicks Save button
+            console.log(`Page ${pageType} enabled: ${enabled}`);
+        }
+        
+        // Update page status dots based on saved settings
+        function updatePageStatusDots(settings) {
+            const pages = ['about', 'gallery', 'offers', 'properties', 'dining', 'blog', 'attractions', 'reviews'];
+            pages.forEach(page => {
+                const checkbox = document.getElementById(`wb-page-${page}-enabled`);
+                const statusDot = document.getElementById(`status-page-${page}`);
+                if (checkbox && settings && settings[`page-${page}`]) {
+                    const isEnabled = settings[`page-${page}`].enabled === true || settings[`page-${page}`].enabled === 'true';
+                    checkbox.checked = isEnabled;
+                    if (statusDot) {
+                        statusDot.style.background = isEnabled ? '#10b981' : '#94a3b8';
+                    }
+                }
+            });
+        }
+        
         function switchSubPageTab(subTabName) {
             // Check if user is master_admin AND not viewing a different account
             // If viewing another account, show client experience (restricted)
@@ -16955,8 +17215,12 @@ Local honey and preserves"></textarea>
             if (features.attractions_module === true) {
                 allowedForClients.push('page-attractions');
             }
-            // About, Gallery, Dining are always available
-            allowedForClients.push('page-about', 'page-gallery', 'page-dining');
+            // Add Reviews if plan includes it
+            if (features.reviews_widget === true) {
+                allowedForClients.push('page-reviews');
+            }
+            // About, Gallery, Dining, Offers, Properties are always available (free)
+            allowedForClients.push('page-about', 'page-gallery', 'page-dining', 'page-offers', 'page-properties');
             
             if (!hasFullAccess && !allowedForClients.includes(subTabName)) {
                 // Show upgrade prompt for locked features
@@ -16985,6 +17249,9 @@ Local honey and preserves"></textarea>
                 } else if (subTabName === 'page-attractions') {
                     featureName = 'attractions_module';
                     featureLabel = 'Attractions Module';
+                } else if (subTabName === 'page-reviews') {
+                    featureName = 'reviews_widget';
+                    featureLabel = 'Reviews Widget';
                 }
                 
                 // Show upgrade panel
@@ -17559,9 +17826,12 @@ Local honey and preserves"></textarea>
                     'page-rooms': 'editor-subpage-page-rooms',
                     'page-about': 'editor-subpage-page-about',
                     'page-gallery': 'editor-subpage-page-gallery',
+                    'page-offers': 'editor-subpage-page-offers',
+                    'page-properties': 'editor-subpage-page-properties',
                     'page-blog': 'editor-subpage-page-blog',
                     'page-attractions': 'editor-subpage-page-attractions',
                     'page-dining': 'editor-subpage-page-dining',
+                    'page-reviews': 'editor-subpage-page-reviews',
                     'page-contact': 'editor-subpage-page-contact',
                     'page-terms': 'editor-footer-footer-terms',
                     'page-privacy': 'editor-footer-footer-privacy'
@@ -18233,9 +18503,12 @@ Local honey and preserves"></textarea>
                     'page-rooms': 'editor-subpage-page-rooms',
                     'page-about': 'editor-subpage-page-about',
                     'page-gallery': 'editor-subpage-page-gallery',
+                    'page-offers': 'editor-subpage-page-offers',
+                    'page-properties': 'editor-subpage-page-properties',
                     'page-blog': 'editor-subpage-page-blog',
                     'page-attractions': 'editor-subpage-page-attractions',
                     'page-dining': 'editor-subpage-page-dining',
+                    'page-reviews': 'editor-subpage-page-reviews',
                     'page-contact': 'editor-subpage-page-contact',
                     'page-terms': 'editor-footer-footer-terms',
                     'page-privacy': 'editor-footer-footer-privacy'
