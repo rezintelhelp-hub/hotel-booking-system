@@ -21691,8 +21691,9 @@ app.get('/api/admin/calry/test-connection', async (req, res) => {
     
     const creds = JSON.parse(credsResult.rows[0].setting_value);
     
-    // Test connection by fetching integration accounts
-    const response = await axios.get('https://prod.calry.app/api/v2/integration-accounts', {
+    // Test connection by making a simple API call
+    // We'll just verify the token works by checking the response
+    const response = await axios.get('https://prod.calry.app/api/v2/vrs/properties', {
       headers: {
         'Authorization': `Bearer ${creds.api_token}`,
         'workspaceId': creds.workspace_id
@@ -21700,14 +21701,17 @@ app.get('/api/admin/calry/test-connection', async (req, res) => {
       timeout: 15000
     });
     
-    const accounts = response.data?.data || response.data || [];
+    // If we get here without error, connection works
+    // Count PMS integrations we have stored
+    const pmsCount = await pool.query(`SELECT COUNT(*) FROM calry_pms_integrations`).catch(() => ({ rows: [{ count: 0 }] }));
     
     res.json({ 
       success: true, 
-      pms_count: Array.isArray(accounts) ? accounts.length : 0,
-      accounts: accounts
+      message: 'Calry API connection successful!',
+      pms_count: parseInt(pmsCount.rows[0]?.count || 0)
     });
   } catch (error) {
+    console.error('Calry test connection error:', error.response?.data || error.message);
     res.json({ success: false, error: error.response?.data?.message || error.message });
   }
 });
