@@ -18099,7 +18099,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                     'featured': 'editor-featured-content',
                     'about': 'editor-about-content',
                     'reviews': 'editor-reviews-content',
-                    'cta': 'editor-cta-content'
+                    'cta': 'editor-cta-content',
+                    'styles': 'editor-styles-content'
                 };
                 
                 const clonedContainerId = clonedPanelMap[section];
@@ -18135,10 +18136,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                 });
                 
                 // Debug: log what we collected for page-about
-                if (section.startsWith('page-')) {
+                if (section.startsWith('page-') || section === 'styles') {
                     console.log(`Saving ${section}:`, {
                         editorContainerId,
                         originalContainerFound: !!originalContainer,
+                        clonedContainerFound: !!clonedContainer,
                         settingsCount: Object.keys(settings).length,
                         settings
                     });
