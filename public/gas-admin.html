@@ -16697,45 +16697,45 @@ const promo = await fetch('/api/v1/offers/validate', {
         
         // Trigger WordPress page sync - called automatically after saving page sections
         async function triggerWordPressPageSync() {
-            // Get the deployed site URL
+            // Get the deployed site URL from cached data
             if (!selectedDeployedSiteId) {
                 console.log('No deployed site selected, skipping WordPress page sync');
                 return;
             }
             
             try {
-                // Get site details to find the URL
-                const siteResponse = await fetch(`/api/deployed-sites/${selectedDeployedSiteId}`, {
-                    headers: authHeaders()
-                });
-                const siteData = await siteResponse.json();
+                // Use the site URL from cached website data
+                const siteUrl = selectedWebsiteData?.site_url;
                 
-                if (siteData.success && siteData.site && siteData.site.site_url) {
-                    const siteUrl = siteData.site.site_url.replace(/\/$/, ''); // Remove trailing slash
+                if (!siteUrl) {
+                    console.log('No site URL available, skipping WordPress page sync');
+                    return;
+                }
+                
+                const cleanSiteUrl = siteUrl.replace(/\/$/, ''); // Remove trailing slash
+                
+                // Try REST API first
+                const restUrl = `${cleanSiteUrl}/wp-json/gas-booking/v1/sync-pages`;
+                console.log('Triggering WordPress page sync via REST:', restUrl);
+                
+                try {
+                    const syncResponse = await fetch(restUrl, { 
+                        method: 'POST',
+                        mode: 'cors',
+                        cache: 'no-cache',
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                    const syncResult = await syncResponse.json();
+                    console.log('REST sync result:', syncResult);
+                } catch (e) {
+                    console.log('REST sync failed, trying query string method:', e);
                     
-                    // Try REST API first
-                    const restUrl = `${siteUrl}/wp-json/gas-booking/v1/sync-pages`;
-                    console.log('Triggering WordPress page sync via REST:', restUrl);
-                    
-                    try {
-                        const syncResponse = await fetch(restUrl, { 
-                            method: 'POST',
-                            mode: 'cors',
-                            cache: 'no-cache',
-                            headers: { 'Content-Type': 'application/json' }
-                        });
-                        const syncResult = await syncResponse.json();
-                        console.log('REST sync result:', syncResult);
-                    } catch (e) {
-                        console.log('REST sync failed, trying query string method:', e);
-                        
-                        // Fallback to query string method
-                        const directSyncUrl = `${siteUrl}/?gas_sync_pages=1&format=json&t=${Date.now()}`;
-                        fetch(directSyncUrl, { 
-                            mode: 'no-cors',
-                            cache: 'no-cache' 
-                        }).catch(e => console.log('Direct page sync request sent (no-cors)'));
-                    }
+                    // Fallback to query string method
+                    const directSyncUrl = `${cleanSiteUrl}/?gas_sync_pages=1&format=json&t=${Date.now()}`;
+                    fetch(directSyncUrl, { 
+                        mode: 'no-cors',
+                        cache: 'no-cache' 
+                    }).catch(e => console.log('Direct page sync request sent (no-cors)'));
                 }
             } catch (error) {
                 console.log('Could not trigger WordPress page sync:', error);
