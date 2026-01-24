@@ -2709,6 +2709,120 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
     } else if (adapterCode === 'hostaway') {
       // Hostaway pricing sync - to be implemented
       return res.json({ success: false, error: 'Hostaway pricing sync not yet implemented via this endpoint' });
+    } else if (adapterCode === 'smoobu') {
+      // Smoobu pricing/availability sync
+      const connectionId = prop.connection_id;
+      
+      // Get connection to find API key
+      let smoobuApiKey = null;
+      if (connectionId) {
+        const connResult = await pool.query('SELECT api_key, access_token FROM gas_sync_connections WHERE id = $1', [connectionId]);
+        smoobuApiKey = connResult.rows[0]?.api_key || connResult.rows[0]?.access_token;
+      }
+      
+      // If no API key from connection, try client_settings
+      if (!smoobuApiKey) {
+        const propResult = await pool.query('SELECT account_id FROM properties WHERE id = $1', [gasPropertyId]);
+        const accountId = propResult.rows[0]?.account_id;
+        if (accountId) {
+          const keyResult = await pool.query(`
+            SELECT setting_value FROM client_settings 
+            WHERE client_id = (SELECT client_id FROM accounts WHERE id = $1) AND setting_key = 'smoobu_api_key'
+          `, [accountId]);
+          smoobuApiKey = keyResult.rows[0]?.setting_value;
+        }
+      }
+      
+      if (!smoobuApiKey) {
+        return res.json({ success: false, error: 'No Smoobu API key found' });
+      }
+      
+      // Get smoobu_id for this property
+      const smoobuIdResult = await pool.query(`
+        SELECT smoobu_id FROM properties WHERE id = $1
+        UNION
+        SELECT smoobu_id FROM bookable_units WHERE property_id = $1 AND smoobu_id IS NOT NULL
+        LIMIT 1
+      `, [gasPropertyId]);
+      
+      const smoobuApartmentId = smoobuIdResult.rows[0]?.smoobu_id || cmPropertyId;
+      
+      if (!smoobuApartmentId) {
+        return res.json({ success: false, error: 'No Smoobu apartment ID found for this property' });
+      }
+      
+      console.log(`[Smoobu Sync] Fetching rates for apartment ${smoobuApartmentId}`);
+      
+      const startDate = new Date().toISOString().split('T')[0];
+      const endDate = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      
+      try {
+        const ratesResponse = await axios.get(
+          `https://login.smoobu.com/api/rates?apartments[]=${smoobuApartmentId}&start_date=${startDate}&end_date=${endDate}`,
+          {
+            headers: {
+              'Api-Key': smoobuApiKey,
+              'Cache-Control': 'no-cache'
+            },
+            timeout: 30000
+          }
+        );
+        
+        const ratesData = ratesResponse.data?.data || ratesResponse.data || {};
+        const apartmentRates = ratesData[smoobuApartmentId];
+        
+        console.log(`[Smoobu Sync] Raw response keys:`, Object.keys(ratesData));
+        console.log(`[Smoobu Sync] Apartment ${smoobuApartmentId} has ${apartmentRates ? Object.keys(apartmentRates).length : 0} rate entries`);
+        
+        if (!apartmentRates) {
+          return res.json({ success: false, error: 'No rates data returned from Smoobu' });
+        }
+        
+        // Find GAS room
+        const roomResult = await pool.query(`
+          SELECT id FROM bookable_units WHERE property_id = $1 ORDER BY id LIMIT 1
+        `, [gasPropertyId]);
+        
+        const gasRoomId = roomResult.rows[0]?.id;
+        if (!gasRoomId) {
+          return res.json({ success: false, error: 'No GAS room found for this property' });
+        }
+        
+        let totalDaysUpdated = 0;
+        let availCount = 0;
+        let blockedCount = 0;
+        
+        for (const [date, info] of Object.entries(apartmentRates)) {
+          const isAvailable = info.available > 0;
+          const price = parseFloat(info.price) || null;
+          const minStay = info.min_length_of_stay || 1;
+          
+          if (isAvailable) availCount++; else blockedCount++;
+          
+          await pool.query(`
+            INSERT INTO room_availability (room_id, date, cm_price, is_available, is_blocked, min_stay, source, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, 'smoobu', NOW())
+            ON CONFLICT (room_id, date) DO UPDATE SET
+              cm_price = COALESCE(EXCLUDED.cm_price, room_availability.cm_price),
+              is_available = EXCLUDED.is_available,
+              is_blocked = NOT EXCLUDED.is_available,
+              min_stay = COALESCE(EXCLUDED.min_stay, room_availability.min_stay),
+              source = 'smoobu',
+              updated_at = NOW()
+          `, [gasRoomId, date, price, isAvailable, !isAvailable, minStay]);
+          
+          totalDaysUpdated++;
+        }
+        
+        console.log(`[Smoobu Sync] Apartment ${smoobuApartmentId}: ${availCount} available, ${blockedCount} blocked`);
+        
+        return res.json({ success: true, daysUpdated: totalDaysUpdated, available: availCount, blocked: blockedCount });
+        
+      } catch (smoobuErr) {
+        console.error('Smoobu sync error:', smoobuErr.response?.data || smoobuErr.message);
+        return res.json({ success: false, error: smoobuErr.response?.data?.message || smoobuErr.message });
+      }
+      
     } else {
       return res.json({ success: false, error: `Unknown adapter: ${adapterCode}` });
     }
@@ -5108,9 +5222,151 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
       });
     }
     
+    // ===== SMOOBU AVAILABILITY SYNC =====
+    if (conn.adapter_code === 'smoobu') {
+      const smoobuApiKey = conn.api_key || conn.access_token;
+      
+      if (!smoobuApiKey) {
+        return res.json({ success: false, error: 'Smoobu API key not found for this connection' });
+      }
+      
+      // Get all synced properties with linked rooms
+      const propsResult = await pool.query(`
+        SELECT sp.id, sp.external_id as smoobu_apartment_id, sp.name, sp.gas_property_id
+        FROM gas_sync_properties sp
+        WHERE sp.connection_id = $1 AND sp.gas_property_id IS NOT NULL
+      `, [connectionId]);
+      
+      if (propsResult.rows.length === 0) {
+        return res.json({ success: false, error: 'No linked properties found.' });
+      }
+      
+      console.log(`[Smoobu Sync] Found ${propsResult.rows.length} properties to sync`);
+      
+      // Ensure room_availability table exists
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS room_availability (
+          id SERIAL PRIMARY KEY,
+          room_id INTEGER NOT NULL,
+          date DATE NOT NULL,
+          cm_price DECIMAL(10,2),
+          direct_price DECIMAL(10,2),
+          is_available BOOLEAN DEFAULT true,
+          is_blocked BOOLEAN DEFAULT false,
+          min_stay INTEGER DEFAULT 1,
+          max_stay INTEGER,
+          source VARCHAR(50),
+          created_at TIMESTAMP DEFAULT NOW(),
+          updated_at TIMESTAMP DEFAULT NOW(),
+          UNIQUE(room_id, date)
+        )
+      `);
+      
+      const today = new Date();
+      const startDate = today.toISOString().split('T')[0];
+      const endDate = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      
+      let totalDaysUpdated = 0;
+      let roomsSynced = 0;
+      const errors = [];
+      
+      // Collect all apartment IDs for batch request
+      const apartmentIds = propsResult.rows.map(p => p.smoobu_apartment_id).filter(Boolean);
+      
+      if (apartmentIds.length === 0) {
+        return res.json({ success: false, error: 'No Smoobu apartment IDs found' });
+      }
+      
+      console.log(`[Smoobu Sync] Fetching rates for apartments: ${apartmentIds.join(', ')}`);
+      
+      try {
+        // Smoobu rates endpoint returns availability and pricing
+        const ratesResponse = await axios.get(
+          `https://login.smoobu.com/api/rates?${apartmentIds.map(id => `apartments[]=${id}`).join('&')}&start_date=${startDate}&end_date=${endDate}`,
+          {
+            headers: {
+              'Api-Key': smoobuApiKey,
+              'Cache-Control': 'no-cache'
+            },
+            timeout: 30000
+          }
+        );
+        
+        const ratesData = ratesResponse.data?.data || ratesResponse.data || {};
+        console.log(`[Smoobu Sync] Raw response keys:`, Object.keys(ratesData));
+        
+        for (const prop of propsResult.rows) {
+          const apartmentId = prop.smoobu_apartment_id;
+          const apartmentRates = ratesData[apartmentId];
+          
+          if (!apartmentRates) {
+            console.log(`[Smoobu Sync] No rates data for apartment ${apartmentId}`);
+            continue;
+          }
+          
+          // Find GAS room for this property
+          const roomResult = await pool.query(`
+            SELECT id, name FROM bookable_units 
+            WHERE property_id = $1 
+            ORDER BY id LIMIT 1
+          `, [prop.gas_property_id]);
+          
+          const gasRoomId = roomResult.rows[0]?.id;
+          if (!gasRoomId) {
+            console.log(`[Smoobu Sync] No GAS room found for property ${prop.name}`);
+            continue;
+          }
+          
+          let availCount = 0;
+          let blockedCount = 0;
+          
+          // Smoobu returns rates as { "2026-01-24": { available: 1, price: 100, min_length_of_stay: 2 }, ... }
+          for (const [date, info] of Object.entries(apartmentRates)) {
+            const isAvailable = info.available > 0;
+            const price = parseFloat(info.price) || null;
+            const minStay = info.min_length_of_stay || 1;
+            
+            if (isAvailable) availCount++; else blockedCount++;
+            
+            await pool.query(`
+              INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, source)
+              VALUES ($1, $2, $3, $3, $4, $5, $6, 'smoobu')
+              ON CONFLICT (room_id, date) 
+              DO UPDATE SET 
+                cm_price = COALESCE($3, room_availability.cm_price),
+                direct_price = COALESCE($3, room_availability.direct_price),
+                is_available = $4,
+                is_blocked = $5,
+                min_stay = $6,
+                source = 'smoobu',
+                updated_at = NOW()
+            `, [gasRoomId, date, price, isAvailable, !isAvailable, minStay]);
+            
+            totalDaysUpdated++;
+          }
+          
+          console.log(`[Smoobu Sync] Property ${prop.name}: ${availCount} available, ${blockedCount} blocked`);
+          roomsSynced++;
+        }
+        
+      } catch (smoobuError) {
+        console.error('[Smoobu Sync] Error:', smoobuError.response?.data || smoobuError.message);
+        errors.push({ error: smoobuError.message });
+      }
+      
+      await pool.query('UPDATE gas_sync_connections SET last_sync_at = NOW() WHERE id = $1', [connectionId]);
+      
+      return res.json({
+        success: true,
+        message: 'Smoobu availability sync complete',
+        stats: { propertiesChecked: propsResult.rows.length, roomsSynced, totalDaysUpdated, days },
+        errors: errors.length > 0 ? errors : undefined
+      });
+    }
+    
     // ===== BEDS24 AVAILABILITY SYNC =====
     if (conn.adapter_code !== 'beds24') {
-      return res.json({ success: false, error: 'Only Beds24 and Calry connections supported' });
+      return res.json({ success: false, error: 'Only Beds24, Calry and Smoobu connections supported' });
     }
     
     // Get access token - try stored token first, then refresh
@@ -21364,6 +21620,408 @@ async function importCalryPropertyHelper(integrationAccountId, propertyId, exist
   }
   throw new Error(results.errors.join(', ') || 'No properties found');
 }
+
+// =====================================================
+// CALRY ADMIN API ENDPOINTS
+// =====================================================
+
+// Get Calry credentials
+app.get('/api/admin/calry/credentials', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT setting_value FROM admin_settings WHERE setting_key = 'calry_credentials'
+    `);
+    
+    if (result.rows.length > 0) {
+      const credentials = JSON.parse(result.rows[0].setting_value);
+      res.json({ success: true, credentials });
+    } else {
+      res.json({ success: true, credentials: null });
+    }
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Save Calry credentials
+app.post('/api/admin/calry/credentials', async (req, res) => {
+  try {
+    const { api_token, workspace_id } = req.body;
+    
+    // Ensure admin_settings table exists
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS admin_settings (
+        id SERIAL PRIMARY KEY,
+        setting_key VARCHAR(100) UNIQUE NOT NULL,
+        setting_value TEXT,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    
+    const credentials = JSON.stringify({ api_token, workspace_id });
+    
+    await pool.query(`
+      INSERT INTO admin_settings (setting_key, setting_value, updated_at)
+      VALUES ('calry_credentials', $1, NOW())
+      ON CONFLICT (setting_key) DO UPDATE SET setting_value = $1, updated_at = NOW()
+    `, [credentials]);
+    
+    // Also update environment-style config
+    global.CALRY_API_TOKEN = api_token;
+    global.CALRY_WORKSPACE_ID = workspace_id;
+    
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Test Calry connection
+app.get('/api/admin/calry/test-connection', async (req, res) => {
+  try {
+    // Get credentials from admin_settings
+    const credsResult = await pool.query(`
+      SELECT setting_value FROM admin_settings WHERE setting_key = 'calry_credentials'
+    `);
+    
+    if (credsResult.rows.length === 0) {
+      return res.json({ success: false, error: 'No Calry credentials configured' });
+    }
+    
+    const creds = JSON.parse(credsResult.rows[0].setting_value);
+    
+    // Test connection by fetching integration accounts
+    const response = await axios.get('https://prod.calry.app/api/v2/integration-accounts', {
+      headers: {
+        'Authorization': `Bearer ${creds.api_token}`,
+        'workspaceId': creds.workspace_id
+      },
+      timeout: 15000
+    });
+    
+    const accounts = response.data?.data || response.data || [];
+    
+    res.json({ 
+      success: true, 
+      pms_count: Array.isArray(accounts) ? accounts.length : 0,
+      accounts: accounts
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.response?.data?.message || error.message });
+  }
+});
+
+// Get PMS integrations
+app.get('/api/admin/calry/pms-integrations', async (req, res) => {
+  try {
+    // Ensure table exists
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS calry_pms_integrations (
+        id SERIAL PRIMARY KEY,
+        pms_type VARCHAR(50) NOT NULL,
+        integration_account_id VARCHAR(100) NOT NULL UNIQUE,
+        account_name VARCHAR(200),
+        gas_account_id INTEGER,
+        status VARCHAR(20) DEFAULT 'active',
+        property_count INTEGER DEFAULT 0,
+        last_sync TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    
+    const result = await pool.query(`
+      SELECT * FROM calry_pms_integrations ORDER BY created_at DESC
+    `);
+    
+    res.json({ success: true, integrations: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Add PMS integration
+app.post('/api/admin/calry/pms-integrations', async (req, res) => {
+  try {
+    const { pms_type, integration_account_id, account_name, gas_account_id } = req.body;
+    
+    // Ensure table exists
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS calry_pms_integrations (
+        id SERIAL PRIMARY KEY,
+        pms_type VARCHAR(50) NOT NULL,
+        integration_account_id VARCHAR(100) NOT NULL UNIQUE,
+        account_name VARCHAR(200),
+        gas_account_id INTEGER,
+        status VARCHAR(20) DEFAULT 'active',
+        property_count INTEGER DEFAULT 0,
+        last_sync TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    
+    const result = await pool.query(`
+      INSERT INTO calry_pms_integrations (pms_type, integration_account_id, account_name, gas_account_id)
+      VALUES ($1, $2, $3, $4)
+      RETURNING id
+    `, [pms_type, integration_account_id, account_name, gas_account_id]);
+    
+    // Also create a gas_sync_connection for this integration
+    if (gas_account_id) {
+      await pool.query(`
+        INSERT INTO gas_sync_connections (account_id, adapter_code, external_account_id, status, created_at)
+        VALUES ($1, 'calry', $2, 'active', NOW())
+        ON CONFLICT DO NOTHING
+      `, [gas_account_id, integration_account_id]);
+    }
+    
+    res.json({ success: true, id: result.rows[0].id });
+  } catch (error) {
+    if (error.code === '23505') {
+      res.json({ success: false, error: 'This Integration Account ID already exists' });
+    } else {
+      res.json({ success: false, error: error.message });
+    }
+  }
+});
+
+// Sync PMS integration (fetch properties from Calry)
+app.post('/api/admin/calry/pms-integrations/:id/sync', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Get the integration
+    const integResult = await pool.query(`SELECT * FROM calry_pms_integrations WHERE id = $1`, [id]);
+    if (integResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Integration not found' });
+    }
+    
+    const integration = integResult.rows[0];
+    
+    // Get Calry credentials
+    const credsResult = await pool.query(`
+      SELECT setting_value FROM admin_settings WHERE setting_key = 'calry_credentials'
+    `);
+    
+    if (credsResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Calry credentials not configured' });
+    }
+    
+    const creds = JSON.parse(credsResult.rows[0].setting_value);
+    
+    // Fetch properties from Calry for this integration account
+    const response = await axios.get('https://prod.calry.app/api/v2/vrs/properties', {
+      headers: {
+        'Authorization': `Bearer ${creds.api_token}`,
+        'workspaceId': creds.workspace_id,
+        'integrationAccountId': integration.integration_account_id
+      },
+      timeout: 30000
+    });
+    
+    const properties = response.data?.data || response.data || [];
+    
+    // Ensure calry_properties table exists
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS calry_properties (
+        id SERIAL PRIMARY KEY,
+        pms_integration_id INTEGER REFERENCES calry_pms_integrations(id),
+        calry_property_id VARCHAR(100) NOT NULL,
+        name VARCHAR(300),
+        pms_type VARCHAR(50),
+        gas_property_id INTEGER,
+        raw_data JSONB,
+        last_sync TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(pms_integration_id, calry_property_id)
+      )
+    `);
+    
+    // Store properties
+    for (const prop of properties) {
+      await pool.query(`
+        INSERT INTO calry_properties (pms_integration_id, calry_property_id, name, pms_type, raw_data, last_sync)
+        VALUES ($1, $2, $3, $4, $5, NOW())
+        ON CONFLICT (pms_integration_id, calry_property_id) 
+        DO UPDATE SET name = $3, raw_data = $5, last_sync = NOW()
+      `, [id, String(prop.id), prop.name, integration.pms_type, JSON.stringify(prop)]);
+    }
+    
+    // Update property count
+    await pool.query(`
+      UPDATE calry_pms_integrations SET property_count = $1, last_sync = NOW() WHERE id = $2
+    `, [properties.length, id]);
+    
+    res.json({ success: true, properties_found: properties.length });
+  } catch (error) {
+    console.error('Sync PMS error:', error.response?.data || error.message);
+    res.json({ success: false, error: error.response?.data?.message || error.message });
+  }
+});
+
+// Delete PMS integration
+app.delete('/api/admin/calry/pms-integrations/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Delete associated properties first
+    await pool.query(`DELETE FROM calry_properties WHERE pms_integration_id = $1`, [id]);
+    
+    // Delete the integration
+    await pool.query(`DELETE FROM calry_pms_integrations WHERE id = $1`, [id]);
+    
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get Calry properties
+app.get('/api/admin/calry/properties', async (req, res) => {
+  try {
+    // Ensure table exists
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS calry_properties (
+        id SERIAL PRIMARY KEY,
+        pms_integration_id INTEGER,
+        calry_property_id VARCHAR(100) NOT NULL,
+        name VARCHAR(300),
+        pms_type VARCHAR(50),
+        gas_property_id INTEGER,
+        raw_data JSONB,
+        last_sync TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `).catch(() => {});
+    
+    const result = await pool.query(`
+      SELECT cp.*, cpi.pms_type 
+      FROM calry_properties cp
+      LEFT JOIN calry_pms_integrations cpi ON cpi.id = cp.pms_integration_id
+      ORDER BY cp.name
+    `);
+    
+    res.json({ success: true, properties: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Sync individual Calry property (availability/pricing)
+app.post('/api/admin/calry/properties/:id/sync', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Get property details
+    const propResult = await pool.query(`
+      SELECT cp.*, cpi.integration_account_id 
+      FROM calry_properties cp
+      JOIN calry_pms_integrations cpi ON cpi.id = cp.pms_integration_id
+      WHERE cp.id = $1
+    `, [id]);
+    
+    if (propResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Property not found' });
+    }
+    
+    const prop = propResult.rows[0];
+    
+    // Get Calry credentials
+    const credsResult = await pool.query(`
+      SELECT setting_value FROM admin_settings WHERE setting_key = 'calry_credentials'
+    `);
+    
+    if (credsResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Calry credentials not configured' });
+    }
+    
+    const creds = JSON.parse(credsResult.rows[0].setting_value);
+    
+    // Get room types for this property
+    const roomTypesResponse = await axios.get(`https://prod.calry.app/api/v2/vrs/room-types/${prop.calry_property_id}`, {
+      headers: {
+        'Authorization': `Bearer ${creds.api_token}`,
+        'workspaceId': creds.workspace_id,
+        'integrationAccountId': prop.integration_account_id
+      },
+      timeout: 30000
+    });
+    
+    const roomTypes = roomTypesResponse.data?.data || roomTypesResponse.data || [];
+    
+    if (roomTypes.length === 0) {
+      return res.json({ success: false, error: 'No room types found for this property' });
+    }
+    
+    const startDate = new Date().toISOString().split('T')[0];
+    const endDate = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    
+    let totalDaysUpdated = 0;
+    
+    for (const roomType of roomTypes) {
+      // Fetch availability
+      const availResponse = await axios.get(`https://prod.calry.app/api/v2/vrs/availability/${prop.calry_property_id}`, {
+        headers: {
+          'Authorization': `Bearer ${creds.api_token}`,
+          'workspaceId': creds.workspace_id,
+          'integrationAccountId': prop.integration_account_id
+        },
+        params: { startDate, endDate, roomTypeId: String(roomType.id), rates: 'true' },
+        timeout: 30000
+      });
+      
+      const responseData = availResponse.data?.data || availResponse.data || {};
+      const availData = responseData.dateWiseAvailability || responseData.data || [];
+      
+      if (prop.gas_property_id && Array.isArray(availData)) {
+        // Find GAS room
+        const roomResult = await pool.query(`
+          SELECT id FROM bookable_units WHERE property_id = $1 LIMIT 1
+        `, [prop.gas_property_id]);
+        
+        const gasRoomId = roomResult.rows[0]?.id;
+        
+        if (gasRoomId) {
+          for (const day of availData) {
+            if (!day.date) continue;
+            
+            let price = null;
+            if (day.price?.amount !== undefined) {
+              price = parseFloat(day.price.amount);
+            }
+            
+            const isAvailable = day.status === 'AVAILABLE';
+            const minStay = day.minimumNights || 1;
+            
+            await pool.query(`
+              INSERT INTO room_availability (room_id, date, cm_price, is_available, is_blocked, min_stay, source, updated_at)
+              VALUES ($1, $2, $3, $4, $5, $6, 'calry', NOW())
+              ON CONFLICT (room_id, date) DO UPDATE SET
+                cm_price = COALESCE(EXCLUDED.cm_price, room_availability.cm_price),
+                is_available = EXCLUDED.is_available,
+                is_blocked = NOT EXCLUDED.is_available,
+                min_stay = EXCLUDED.min_stay,
+                source = 'calry',
+                updated_at = NOW()
+            `, [gasRoomId, day.date, price, isAvailable, !isAvailable, minStay]);
+            
+            totalDaysUpdated++;
+          }
+        }
+      }
+    }
+    
+    // Update last sync
+    await pool.query(`UPDATE calry_properties SET last_sync = NOW() WHERE id = $1`, [id]);
+    
+    res.json({ success: true, days_updated: totalDaysUpdated });
+  } catch (error) {
+    console.error('Sync property error:', error.response?.data || error.message);
+    res.json({ success: false, error: error.response?.data?.message || error.message });
+  }
+});
 
 // Admin endpoint to manually sync a Calry connection
 app.post('/api/admin/calry/sync-connection/:connectionId', async (req, res) => {
