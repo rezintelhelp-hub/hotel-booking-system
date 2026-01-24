@@ -4821,6 +4821,10 @@
                                         <span style="font-weight: 600; color: #6b21a8;">Enable About Us Page</span>
                                     </label>
                                     <span style="font-size: 0.8rem; color: #7c3aed; background: #e9d5ff; padding: 2px 8px; border-radius: 4px;">Free</span>
+                                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-left: 1rem;">
+                                        <label style="font-size: 0.85rem; color: #6b21a8;">Menu Position:</label>
+                                        <input type="number" id="wb-page-about-menu-order" value="2" min="1" max="20" style="width: 60px; padding: 4px 8px; border: 1px solid #e9d5ff; border-radius: 6px; text-align: center;">
+                                    </div>
                                 </div>
                                 <button class="btn" onclick="saveWebsiteSection('page-about', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save About Page</button>
                             </div>
@@ -4974,6 +4978,10 @@
                                         <span style="font-weight: 600; color: #6b21a8;">Enable Gallery Page</span>
                                     </label>
                                     <span style="font-size: 0.8rem; color: #7c3aed; background: #e9d5ff; padding: 2px 8px; border-radius: 4px;">Free</span>
+                                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-left: 1rem;">
+                                        <label style="font-size: 0.85rem; color: #6b21a8;">Menu Position:</label>
+                                        <input type="number" id="wb-page-gallery-menu-order" value="3" min="1" max="20" style="width: 60px; padding: 4px 8px; border: 1px solid #e9d5ff; border-radius: 6px; text-align: center;">
+                                    </div>
                                 </div>
                                 <button class="btn" onclick="saveWebsiteSection('page-gallery', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Gallery Page</button>
                             </div>
@@ -5127,6 +5135,10 @@
                                         <span style="font-weight: 600; color: #6b21a8;">Enable Dining Page</span>
                                     </label>
                                     <span style="font-size: 0.8rem; color: #7c3aed; background: #e9d5ff; padding: 2px 8px; border-radius: 4px;">Free</span>
+                                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-left: 1rem;">
+                                        <label style="font-size: 0.85rem; color: #6b21a8;">Menu Position:</label>
+                                        <input type="number" id="wb-page-dining-menu-order" value="4" min="1" max="20" style="width: 60px; padding: 4px 8px; border: 1px solid #e9d5ff; border-radius: 6px; text-align: center;">
+                                    </div>
                                 </div>
                                 <button class="btn" onclick="saveWebsiteSection('page-dining', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Dining Page</button>
                             </div>
@@ -5180,6 +5192,10 @@
                                         <span style="font-weight: 600; color: #6b21a8;">Enable Special Offers Page</span>
                                     </label>
                                     <span style="font-size: 0.8rem; color: #7c3aed; background: #e9d5ff; padding: 2px 8px; border-radius: 4px;">Free</span>
+                                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-left: 1rem;">
+                                        <label style="font-size: 0.85rem; color: #6b21a8;">Menu Position:</label>
+                                        <input type="number" id="wb-page-offers-menu-order" value="5" min="1" max="20" style="width: 60px; padding: 4px 8px; border: 1px solid #e9d5ff; border-radius: 6px; text-align: center;">
+                                    </div>
                                 </div>
                                 <button class="btn" onclick="saveWebsiteSection('page-offers', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Offers Page</button>
                             </div>
@@ -5231,6 +5247,10 @@
                                         <span style="font-weight: 600; color: #6b21a8;">Enable Properties Page</span>
                                     </label>
                                     <span style="font-size: 0.8rem; color: #7c3aed; background: #e9d5ff; padding: 2px 8px; border-radius: 4px;">Free</span>
+                                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-left: 1rem;">
+                                        <label style="font-size: 0.85rem; color: #6b21a8;">Menu Position:</label>
+                                        <input type="number" id="wb-page-properties-menu-order" value="6" min="1" max="20" style="width: 60px; padding: 4px 8px; border: 1px solid #e9d5ff; border-radius: 6px; text-align: center;">
+                                    </div>
                                 </div>
                                 <button class="btn" onclick="saveWebsiteSection('page-properties', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Properties Page</button>
                             </div>
@@ -17222,22 +17242,30 @@ Local honey and preserves"></textarea>
                 
                 if (siteData.success && siteData.site && siteData.site.site_url) {
                     const siteUrl = siteData.site.site_url.replace(/\/$/, ''); // Remove trailing slash
-                    const syncUrl = `${siteUrl}/wp-admin/admin-ajax.php?action=gas_sync_pages`;
                     
-                    console.log('Triggering WordPress page sync:', syncUrl);
+                    // Try REST API first
+                    const restUrl = `${siteUrl}/wp-json/gas-booking/v1/sync-pages`;
+                    console.log('Triggering WordPress page sync via REST:', restUrl);
                     
-                    // Call the sync endpoint (fire and forget, don't wait)
-                    fetch(syncUrl, { 
-                        mode: 'no-cors',
-                        cache: 'no-cache'
-                    }).catch(e => console.log('Page sync request sent (no-cors)'));
-                    
-                    // Also try the direct URL approach
-                    const directSyncUrl = `${siteUrl}/?gas_sync_pages=1`;
-                    fetch(directSyncUrl, { 
-                        mode: 'no-cors',
-                        cache: 'no-cache' 
-                    }).catch(e => console.log('Direct page sync request sent (no-cors)'));
+                    try {
+                        const syncResponse = await fetch(restUrl, { 
+                            method: 'POST',
+                            mode: 'cors',
+                            cache: 'no-cache',
+                            headers: { 'Content-Type': 'application/json' }
+                        });
+                        const syncResult = await syncResponse.json();
+                        console.log('REST sync result:', syncResult);
+                    } catch (e) {
+                        console.log('REST sync failed, trying query string method:', e);
+                        
+                        // Fallback to query string method
+                        const directSyncUrl = `${siteUrl}/?gas_sync_pages=1&format=json&t=${Date.now()}`;
+                        fetch(directSyncUrl, { 
+                            mode: 'no-cors',
+                            cache: 'no-cache' 
+                        }).catch(e => console.log('Direct page sync request sent (no-cors)'));
+                    }
                 }
             } catch (error) {
                 console.log('Could not trigger WordPress page sync:', error);
