@@ -1809,6 +1809,10 @@
                         <span class="nav-icon">📋</span>
                         <span>Credentials Vault</span>
                     </a>
+                    <a class="nav-item" data-view="calry-admin" href="#" onclick="navClick(this, 'calry-admin'); return false;">
+                        <span class="nav-icon">🔗</span>
+                        <span>Calry Admin</span>
+                    </a>
                     </div>
                 </div>
 
@@ -9044,6 +9048,141 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <div class="modal-footer" style="padding: 1rem 1.5rem; border-top: 1px solid #e5e7eb; display: flex; justify-content: flex-end; gap: 0.5rem;">
                         <button class="btn btn-secondary" onclick="closeCredentialModal()">Cancel</button>
                         <button class="btn" onclick="saveCredential()"> Save</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Calry Admin View -->
+            <div id="calry-admin" class="view">
+                <div class="header">
+                    <h2>🔗 Calry Admin</h2>
+                    <p>Manage Calry API credentials and PMS integrations (Lodgify, Smoobu, Guesty, etc.)</p>
+                </div>
+
+                <!-- Calry API Credentials Card -->
+                <div class="card" style="margin-bottom: 1.5rem; background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%); color: white;">
+                    <div class="card-header" style="border-bottom-color: rgba(255,255,255,0.1);">
+                        <h3 style="color: white;">🔑 Calry API Credentials</h3>
+                    </div>
+                    <div class="card-body">
+                        <div style="display: grid; gap: 1rem;">
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="color: rgba(255,255,255,0.9); font-size: 0.85rem;">API Token (JWT)</label>
+                                <div style="display: flex; gap: 0.5rem;">
+                                    <input type="password" id="calry-api-token" class="form-input" style="background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.2); color: white;" placeholder="eyJ...">
+                                    <button class="btn btn-secondary" onclick="toggleCalryTokenVisibility()" style="background: rgba(255,255,255,0.2); border: none; color: white;">👁️</button>
+                                </div>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="color: rgba(255,255,255,0.9); font-size: 0.85rem;">Workspace ID</label>
+                                <input type="text" id="calry-workspace-id" class="form-input" style="background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.2); color: white;" placeholder="d0799b62-8521-4577-8b9b-...">
+                            </div>
+                            <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+                                <button class="btn" onclick="saveCalryCredentials()" style="background: rgba(255,255,255,0.2); border: none;">💾 Save Credentials</button>
+                                <button class="btn btn-secondary" onclick="testCalryConnection()" style="background: rgba(255,255,255,0.1); border: none; color: white;">🔍 Test Connection</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PMS Integrations Card -->
+                <div class="card" style="margin-bottom: 1.5rem;">
+                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                        <h3>📡 PMS Integrations via Calry</h3>
+                        <button class="btn btn-small" onclick="openAddCalryPMSModal()" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                            ➕ Add PMS
+                        </button>
+                    </div>
+                    <div class="card-body" style="padding: 0;">
+                        <table class="table" style="margin: 0;">
+                            <thead>
+                                <tr>
+                                    <th>PMS</th>
+                                    <th>Integration Account ID</th>
+                                    <th>Properties</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="calry-pms-list">
+                                <!-- Will be populated by loadCalryPMSIntegrations() -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Calry Connected Properties -->
+                <div class="card">
+                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                        <h3>🏠 Connected Properties</h3>
+                        <button class="btn btn-small btn-secondary" onclick="refreshCalryProperties()">🔄 Refresh</button>
+                    </div>
+                    <div class="card-body" style="padding: 0;">
+                        <table class="table" style="margin: 0;">
+                            <thead>
+                                <tr>
+                                    <th>Property</th>
+                                    <th>PMS</th>
+                                    <th>Calry ID</th>
+                                    <th>GAS Link</th>
+                                    <th>Last Sync</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="calry-properties-list">
+                                <!-- Will be populated by loadCalryProperties() -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Add Calry PMS Modal -->
+            <div id="calry-pms-modal" class="modal" style="display: none;">
+                <div class="modal-content" style="max-width: 500px; border-radius: 12px; overflow: hidden;">
+                    <div class="modal-header" style="background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%); color: white; padding: 1.25rem 1.5rem;">
+                        <h3 id="calry-pms-modal-title" style="margin: 0; color: white;">Add PMS Integration</h3>
+                    </div>
+                    <div class="modal-body" style="padding: 1.5rem;">
+                        <input type="hidden" id="calry-pms-id">
+                        
+                        <div class="form-group">
+                            <label class="form-label">PMS Type <span style="color: #ef4444;">*</span></label>
+                            <select id="calry-pms-type" class="form-input">
+                                <option value="">Select PMS...</option>
+                                <option value="lodgify">Lodgify</option>
+                                <option value="smoobu">Smoobu</option>
+                                <option value="guesty">Guesty</option>
+                                <option value="hostaway">Hostaway</option>
+                                <option value="beds24">Beds24</option>
+                                <option value="hostify">Hostify</option>
+                                <option value="uplisting">Uplisting</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Integration Account ID <span style="color: #ef4444;">*</span></label>
+                            <input type="text" class="form-input" id="calry-pms-account-id" placeholder="acc15bd3-eaac-42b0-b585-...">
+                            <small style="color: #64748b;">Get this from the Calry dashboard for each connected PMS</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Account Name (optional)</label>
+                            <input type="text" class="form-input" id="calry-pms-account-name" placeholder="e.g., John's Lodgify Account">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">GAS Account</label>
+                            <select id="calry-pms-gas-account" class="form-input">
+                                <option value="">Select GAS Account to link...</option>
+                                <!-- Will be populated with accounts -->
+                            </select>
+                        </div>
+                    </div>
+                    <div class="modal-footer" style="padding: 1rem 1.5rem; border-top: 1px solid #e5e7eb; display: flex; justify-content: flex-end; gap: 0.5rem;">
+                        <button class="btn btn-secondary" onclick="closeCalryPMSModal()">Cancel</button>
+                        <button class="btn" onclick="saveCalryPMS()">💾 Save Integration</button>
                     </div>
                 </div>
             </div>
@@ -41324,6 +41463,315 @@ Local honey and preserves"></textarea>
             const input = document.getElementById('credential-api-key');
             input.type = input.type === 'password' ? 'text' : 'password';
         }
+        
+        // =====================================================
+        // CALRY ADMIN FUNCTIONS
+        // =====================================================
+        
+        function toggleCalryTokenVisibility() {
+            const input = document.getElementById('calry-api-token');
+            input.type = input.type === 'password' ? 'text' : 'password';
+        }
+        
+        async function loadCalryAdmin() {
+            await loadCalryCredentials();
+            await loadCalryPMSIntegrations();
+            await loadCalryProperties();
+            await loadGASAccountsForCalry();
+        }
+        
+        async function loadCalryCredentials() {
+            try {
+                const response = await fetch('/api/admin/calry/credentials', { headers: authHeaders() });
+                const result = await response.json();
+                
+                if (result.success && result.credentials) {
+                    document.getElementById('calry-api-token').value = result.credentials.api_token || '';
+                    document.getElementById('calry-workspace-id').value = result.credentials.workspace_id || '';
+                }
+            } catch (error) {
+                console.log('No Calry credentials found yet');
+            }
+        }
+        
+        async function saveCalryCredentials() {
+            const apiToken = document.getElementById('calry-api-token').value.trim();
+            const workspaceId = document.getElementById('calry-workspace-id').value.trim();
+            
+            if (!apiToken || !workspaceId) {
+                showNotification('Please enter both API token and Workspace ID', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/admin/calry/credentials', {
+                    method: 'POST',
+                    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ api_token: apiToken, workspace_id: workspaceId })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showNotification('Calry credentials saved!', 'success');
+                } else {
+                    showNotification(result.error || 'Failed to save', 'error');
+                }
+            } catch (error) {
+                console.error('Save Calry credentials error:', error);
+                showNotification('Error saving credentials', 'error');
+            }
+        }
+        
+        async function testCalryConnection() {
+            try {
+                showNotification('Testing connection...', 'info');
+                const response = await fetch('/api/admin/calry/test-connection', { headers: authHeaders() });
+                const result = await response.json();
+                
+                if (result.success) {
+                    showNotification(`✅ Connected! Found ${result.pms_count || 0} PMS integrations`, 'success');
+                } else {
+                    showNotification(result.error || 'Connection failed', 'error');
+                }
+            } catch (error) {
+                console.error('Test connection error:', error);
+                showNotification('Error testing connection', 'error');
+            }
+        }
+        
+        async function loadCalryPMSIntegrations() {
+            try {
+                const response = await fetch('/api/admin/calry/pms-integrations', { headers: authHeaders() });
+                const result = await response.json();
+                
+                const tbody = document.getElementById('calry-pms-list');
+                
+                if (!result.success || !result.integrations || result.integrations.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 2rem; color: #64748b;">No PMS integrations yet. Click "Add PMS" to connect one.</td></tr>`;
+                    return;
+                }
+                
+                tbody.innerHTML = result.integrations.map(pms => `
+                    <tr>
+                        <td>
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <span style="font-size: 1.2rem;">${getPMSIcon(pms.pms_type)}</span>
+                                <strong>${pms.pms_type || 'Unknown'}</strong>
+                            </div>
+                        </td>
+                        <td><code style="font-size: 0.8rem; background: #f1f5f9; padding: 0.25rem 0.5rem; border-radius: 4px;">${pms.integration_account_id}</code></td>
+                        <td>${pms.property_count || 0}</td>
+                        <td><span class="badge ${pms.status === 'active' ? 'badge-success' : 'badge-warning'}">${pms.status || 'unknown'}</span></td>
+                        <td>
+                            <button class="btn btn-small btn-secondary" onclick="syncCalryPMS('${pms.id}')">🔄 Sync</button>
+                            <button class="btn btn-small btn-secondary" onclick="editCalryPMS('${pms.id}')" style="margin-left: 0.25rem;">✏️</button>
+                            <button class="btn btn-small" onclick="deleteCalryPMS('${pms.id}')" style="margin-left: 0.25rem; background: #ef4444;">🗑️</button>
+                        </td>
+                    </tr>
+                `).join('');
+            } catch (error) {
+                console.error('Load PMS integrations error:', error);
+            }
+        }
+        
+        function getPMSIcon(pmsType) {
+            const icons = {
+                'lodgify': '🏠',
+                'smoobu': '🔵',
+                'guesty': '🟣',
+                'hostaway': '🟠',
+                'beds24': '🛏️',
+                'hostify': '🏡',
+                'uplisting': '📋'
+            };
+            return icons[pmsType?.toLowerCase()] || '📡';
+        }
+        
+        async function loadCalryProperties() {
+            try {
+                const response = await fetch('/api/admin/calry/properties', { headers: authHeaders() });
+                const result = await response.json();
+                
+                const tbody = document.getElementById('calry-properties-list');
+                
+                if (!result.success || !result.properties || result.properties.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 2rem; color: #64748b;">No properties found. Add a PMS integration and sync to see properties.</td></tr>`;
+                    return;
+                }
+                
+                tbody.innerHTML = result.properties.map(prop => `
+                    <tr>
+                        <td><strong>${prop.name}</strong></td>
+                        <td><span class="badge">${prop.pms_type || '-'}</span></td>
+                        <td><code style="font-size: 0.8rem;">${prop.calry_property_id || '-'}</code></td>
+                        <td>${prop.gas_property_id ? `<a href="#" onclick="showView('properties'); return false;">ID: ${prop.gas_property_id}</a>` : '<span style="color: #f59e0b;">Not linked</span>'}</td>
+                        <td>${prop.last_sync ? new Date(prop.last_sync).toLocaleDateString() : 'Never'}</td>
+                        <td>
+                            <button class="btn btn-small btn-secondary" onclick="syncCalryProperty('${prop.id}')">🔄 Sync</button>
+                            ${!prop.gas_property_id ? `<button class="btn btn-small" onclick="linkCalryProperty('${prop.id}')" style="margin-left: 0.25rem;">🔗 Link</button>` : ''}
+                        </td>
+                    </tr>
+                `).join('');
+            } catch (error) {
+                console.error('Load Calry properties error:', error);
+            }
+        }
+        
+        async function loadGASAccountsForCalry() {
+            try {
+                const response = await fetch('/api/admin/accounts', { headers: authHeaders() });
+                const result = await response.json();
+                
+                const select = document.getElementById('calry-pms-gas-account');
+                if (!select) return;
+                
+                select.innerHTML = '<option value="">Select GAS Account to link...</option>';
+                
+                if (result.success && result.accounts) {
+                    result.accounts.forEach(acc => {
+                        select.innerHTML += `<option value="${acc.id}">${acc.name || acc.email || 'Account ' + acc.id}</option>`;
+                    });
+                }
+            } catch (error) {
+                console.error('Load accounts error:', error);
+            }
+        }
+        
+        function openAddCalryPMSModal() {
+            document.getElementById('calry-pms-modal-title').textContent = 'Add PMS Integration';
+            document.getElementById('calry-pms-id').value = '';
+            document.getElementById('calry-pms-type').value = '';
+            document.getElementById('calry-pms-account-id').value = '';
+            document.getElementById('calry-pms-account-name').value = '';
+            document.getElementById('calry-pms-gas-account').value = '';
+            document.getElementById('calry-pms-modal').style.display = 'flex';
+        }
+        
+        function closeCalryPMSModal() {
+            document.getElementById('calry-pms-modal').style.display = 'none';
+        }
+        
+        async function saveCalryPMS() {
+            const pmsType = document.getElementById('calry-pms-type').value;
+            const integrationAccountId = document.getElementById('calry-pms-account-id').value.trim();
+            const accountName = document.getElementById('calry-pms-account-name').value.trim();
+            const gasAccountId = document.getElementById('calry-pms-gas-account').value;
+            
+            if (!pmsType || !integrationAccountId) {
+                showNotification('Please select PMS type and enter Integration Account ID', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/admin/calry/pms-integrations', {
+                    method: 'POST',
+                    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        pms_type: pmsType,
+                        integration_account_id: integrationAccountId,
+                        account_name: accountName,
+                        gas_account_id: gasAccountId || null
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showNotification('PMS integration added!', 'success');
+                    closeCalryPMSModal();
+                    loadCalryPMSIntegrations();
+                } else {
+                    showNotification(result.error || 'Failed to save', 'error');
+                }
+            } catch (error) {
+                console.error('Save PMS error:', error);
+                showNotification('Error saving PMS integration', 'error');
+            }
+        }
+        
+        async function syncCalryPMS(pmsId) {
+            try {
+                showNotification('Syncing PMS...', 'info');
+                const response = await fetch(`/api/admin/calry/pms-integrations/${pmsId}/sync`, {
+                    method: 'POST',
+                    headers: authHeaders()
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showNotification(`✅ Synced! ${result.properties_found || 0} properties found`, 'success');
+                    loadCalryPMSIntegrations();
+                    loadCalryProperties();
+                } else {
+                    showNotification(result.error || 'Sync failed', 'error');
+                }
+            } catch (error) {
+                console.error('Sync PMS error:', error);
+                showNotification('Error syncing PMS', 'error');
+            }
+        }
+        
+        async function deleteCalryPMS(pmsId) {
+            if (!confirm('Are you sure you want to delete this PMS integration?')) return;
+            
+            try {
+                const response = await fetch(`/api/admin/calry/pms-integrations/${pmsId}`, {
+                    method: 'DELETE',
+                    headers: authHeaders()
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showNotification('PMS integration deleted', 'success');
+                    loadCalryPMSIntegrations();
+                } else {
+                    showNotification(result.error || 'Failed to delete', 'error');
+                }
+            } catch (error) {
+                console.error('Delete PMS error:', error);
+                showNotification('Error deleting PMS', 'error');
+            }
+        }
+        
+        async function refreshCalryProperties() {
+            showNotification('Refreshing properties...', 'info');
+            await loadCalryProperties();
+            showNotification('Properties refreshed', 'success');
+        }
+        
+        async function syncCalryProperty(propertyId) {
+            try {
+                showNotification('Syncing property...', 'info');
+                const response = await fetch(`/api/admin/calry/properties/${propertyId}/sync`, {
+                    method: 'POST',
+                    headers: authHeaders()
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showNotification(`✅ Synced! ${result.days_updated || 0} days updated`, 'success');
+                    loadCalryProperties();
+                } else {
+                    showNotification(result.error || 'Sync failed', 'error');
+                }
+            } catch (error) {
+                console.error('Sync property error:', error);
+                showNotification('Error syncing property', 'error');
+            }
+        }
+        
+        // Load Calry Admin when view is shown
+        const originalShowView = showView;
+        showView = function(viewId) {
+            originalShowView(viewId);
+            if (viewId === 'calry-admin') {
+                loadCalryAdmin();
+            }
+        };
         
         function showModal(title, content) {
             // Create modal if it doesn't exist
