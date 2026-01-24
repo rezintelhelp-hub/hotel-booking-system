@@ -4632,6 +4632,16 @@
                     
                     <!-- Sub Pages Tab -->
                     <div id="editor-panel-subpages" class="editor-panel" style="display: none;">
+                        <!-- Sync Button Bar -->
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; padding: 0.75rem 1rem; background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%); border-radius: 10px; border: 1px solid #93c5fd;">
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <span style="font-size: 1.1rem;">🔄</span>
+                                <span style="font-weight: 500; color: #1e40af;">After enabling or disabling pages, sync to update your WordPress site</span>
+                            </div>
+                            <button id="sync-pages-btn" onclick="syncPagesToWordPress(this)" style="padding: 0.5rem 1rem; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; display: flex; align-items: center; gap: 0.5rem;">
+                                🚀 Sync Pages to WordPress
+                            </button>
+                        </div>
                         <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap;">
                             <button class="sub-tab active" data-subtab="page-rooms" onclick="switchSubPageTab('page-rooms')" style="padding: 0.5rem 1rem; border: 1px solid #e2e8f0; border-radius: 20px; background: #7c3aed; color: white; cursor: pointer; font-size: 0.875rem;">
                                 <span class="page-status-dot" id="status-page-rooms" style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #10b981; margin-right: 6px;"></span>Rooms
@@ -17195,6 +17205,71 @@ Local honey and preserves"></textarea>
             });
         }
         
+        // Trigger WordPress page sync - called automatically after saving page sections
+        async function triggerWordPressPageSync() {
+            // Get the deployed site URL
+            if (!selectedDeployedSiteId) {
+                console.log('No deployed site selected, skipping WordPress page sync');
+                return;
+            }
+            
+            try {
+                // Get site details to find the URL
+                const siteResponse = await fetch(`/api/deployed-sites/${selectedDeployedSiteId}`, {
+                    headers: authHeaders()
+                });
+                const siteData = await siteResponse.json();
+                
+                if (siteData.success && siteData.site && siteData.site.site_url) {
+                    const siteUrl = siteData.site.site_url.replace(/\/$/, ''); // Remove trailing slash
+                    const syncUrl = `${siteUrl}/wp-admin/admin-ajax.php?action=gas_sync_pages`;
+                    
+                    console.log('Triggering WordPress page sync:', syncUrl);
+                    
+                    // Call the sync endpoint (fire and forget, don't wait)
+                    fetch(syncUrl, { 
+                        mode: 'no-cors',
+                        cache: 'no-cache'
+                    }).catch(e => console.log('Page sync request sent (no-cors)'));
+                    
+                    // Also try the direct URL approach
+                    const directSyncUrl = `${siteUrl}/?gas_sync_pages=1`;
+                    fetch(directSyncUrl, { 
+                        mode: 'no-cors',
+                        cache: 'no-cache' 
+                    }).catch(e => console.log('Direct page sync request sent (no-cors)'));
+                }
+            } catch (error) {
+                console.log('Could not trigger WordPress page sync:', error);
+            }
+        }
+        
+        // Manual sync button handler
+        async function syncPagesToWordPress(btn) {
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '⏳ Syncing...';
+            
+            try {
+                await triggerWordPressPageSync();
+                btn.innerHTML = '✅ Sync Triggered!';
+                showNotification('Page sync triggered! Changes will appear on your site within a few seconds.', 'success');
+                
+                setTimeout(() => {
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                }, 3000);
+            } catch (error) {
+                btn.innerHTML = '❌ Failed';
+                showNotification('Could not trigger sync. Please refresh your WordPress site manually.', 'error');
+                
+                setTimeout(() => {
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                }, 3000);
+            }
+        }
+        
         function switchSubPageTab(subTabName) {
             // Check if user is master_admin AND not viewing a different account
             // If viewing another account, show client experience (restricted)
@@ -18639,6 +18714,11 @@ Local honey and preserves"></textarea>
                         }
                     } else {
                         showNotification(' Settings saved!', 'success');
+                    }
+                    
+                    // For page sections, trigger WordPress page sync
+                    if (section.startsWith('page-')) {
+                        await triggerWordPressPageSync();
                     }
                 } else {
                     showNotification('Error: ' + (data.error || 'Failed to save'), 'error');
