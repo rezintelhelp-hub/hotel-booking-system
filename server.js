@@ -33820,7 +33820,7 @@ app.get('/api/partner/room-types/:roomTypeId', async (req, res) => {
     // Get assigned units
     const units = await pool.query(`
       SELECT bu.id, bu.name, bu.partner_external_id as elevate_id, 
-             bu.max_guests, bu.bedrooms, bu.bathrooms, bu.base_rate,
+             bu.max_guests, bu.num_bedrooms as bedrooms, bu.num_bathrooms as bathrooms,
              p.id as property_id, p.name as property_name
       FROM bookable_units bu
       JOIN properties p ON p.id = bu.property_id
@@ -33845,8 +33845,7 @@ app.get('/api/partner/room-types/:roomTypeId', async (req, res) => {
           property_name: u.property_name,
           max_guests: u.max_guests,
           bedrooms: u.bedrooms,
-          bathrooms: u.bathrooms,
-          base_rate: u.base_rate
+          bathrooms: u.bathrooms
         }))
       }
     });
