@@ -34047,6 +34047,7 @@ app.post('/api/admin/migrate-websites', async (req, res) => {
     await pool.query(`ALTER TABLE websites ALTER COLUMN subdomain TYPE VARCHAR(100)`).catch(() => {});
     await pool.query(`ALTER TABLE websites ALTER COLUMN primary_color TYPE VARCHAR(50)`).catch(() => {});
     await pool.query(`ALTER TABLE websites ALTER COLUMN secondary_color TYPE VARCHAR(50)`).catch(() => {});
+    await pool.query(`ALTER TABLE websites ADD COLUMN IF NOT EXISTS deployed_site_id INTEGER REFERENCES deployed_sites(id)`);
     console.log('   ✓ Extended column sizes');
     
     // Add columns if they don't exist
@@ -34594,10 +34595,11 @@ app.post('/api/partner/websites/:websiteId/deploy', async (req, res) => {
     `, [vpsData.site.url, vpsData.site.admin_url, vpsData.site.slug, selectedTemplate, websiteId]);
     
     // Store in deployed_sites table for GAS Admin visibility
-    await pool.query(`
+    const deployedResult = await pool.query(`
       INSERT INTO deployed_sites 
       (property_id, property_ids, room_ids, account_id, blog_id, site_url, admin_url, slug, site_name, status, wp_username, wp_password_temp, template, deployed_at)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW())
+      RETURNING id
     `, [
       propertyIds[0],
       JSON.stringify(propertyIds),
@@ -34613,6 +34615,13 @@ app.post('/api/partner/websites/:websiteId/deploy', async (req, res) => {
       vpsData.credentials?.password || null,
       selectedTemplate
     ]);
+    
+    const deployedSiteId = deployedResult.rows[0].id;
+    
+    // Link websites table to deployed_sites
+    await pool.query(`
+      UPDATE websites SET deployed_site_id = $1 WHERE id = $2
+    `, [deployedSiteId, websiteId]);
     
     // Update rooms with site URL
     for (const roomId of roomIds) {
@@ -34641,6 +34650,266 @@ app.post('/api/partner/websites/:websiteId/deploy', async (req, res) => {
     
   } catch (error) {
     console.error('Partner API deploy website error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
+// PARTNER API - WEBSITE CONTENT
+// =====================================================
+// These endpoints allow Elevate to update website content
+// Changes are saved to GAS and pushed to WordPress
+
+// Helper: Get deployed_site_id for a partner website
+async function getPartnerDeployedSiteId(partnerId, websiteId) {
+  const result = await pool.query(`
+    SELECT w.deployed_site_id, w.site_url, ds.id as ds_id
+    FROM websites w
+    LEFT JOIN deployed_sites ds ON ds.site_url = w.site_url
+    JOIN accounts a ON a.id = w.account_id
+    WHERE w.id = $1 AND a.parent_id = $2 AND w.site_url IS NOT NULL
+  `, [websiteId, partnerId]);
+  
+  if (result.rows.length === 0) return null;
+  
+  // Return deployed_site_id or fall back to ds.id from join
+  return result.rows[0].deployed_site_id || result.rows[0].ds_id;
+}
+
+// GET /api/partner/websites/:websiteId/credentials - Get WP credentials
+app.get('/api/partner/websites/:websiteId/credentials', async (req, res) => {
+  console.log('=== PARTNER API: GET CREDENTIALS ===');
+  
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    
+    const { websiteId } = req.params;
+    
+    // Get website with deployed site info
+    const result = await pool.query(`
+      SELECT w.id, w.name, w.site_url, w.admin_url, ds.wp_username, ds.wp_password_temp
+      FROM websites w
+      JOIN accounts a ON a.id = w.account_id
+      LEFT JOIN deployed_sites ds ON ds.site_url = w.site_url
+      WHERE w.id = $1 AND a.parent_id = $2
+    `, [websiteId, auth.partnerId]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Website not found' });
+    }
+    
+    const website = result.rows[0];
+    
+    if (!website.site_url) {
+      return res.status(400).json({ success: false, error: 'Website not yet deployed' });
+    }
+    
+    res.json({
+      success: true,
+      website: {
+        id: website.id,
+        name: website.name,
+        site_url: website.site_url,
+        admin_url: website.admin_url
+      },
+      credentials: {
+        username: website.wp_username,
+        password: website.wp_password_temp
+      }
+    });
+    
+  } catch (error) {
+    console.error('Partner API get credentials error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/partner/websites/:websiteId/content/:section - Update website content section
+app.put('/api/partner/websites/:websiteId/content/:section', async (req, res) => {
+  console.log('=== PARTNER API: UPDATE CONTENT ===');
+  
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    
+    const { websiteId, section } = req.params;
+    const { settings } = req.body;
+    
+    // Validate section
+    const validSections = [
+      'header', 'hero', 'intro', 'featured', 'about', 'reviews', 'cta', 'footer', 'styles', 'seo',
+      'page-rooms', 'page-about', 'page-gallery', 'page-contact', 'page-blog', 'page-attractions',
+      'page-dining', 'page-offers', 'page-properties', 'page-reviews', 'page-terms', 'page-privacy'
+    ];
+    if (!validSections.includes(section)) {
+      return res.status(400).json({ success: false, error: `Invalid section. Valid: ${validSections.join(', ')}` });
+    }
+    
+    if (!settings || typeof settings !== 'object') {
+      return res.status(400).json({ success: false, error: 'settings object required' });
+    }
+    
+    // Get deployed site ID
+    const deployedSiteId = await getPartnerDeployedSiteId(auth.partnerId, websiteId);
+    if (!deployedSiteId) {
+      return res.status(400).json({ success: false, error: 'Website not deployed or not found' });
+    }
+    
+    // Get site info for WordPress push
+    const siteResult = await pool.query(
+      'SELECT id, account_id, template, site_name, site_url FROM deployed_sites WHERE id = $1',
+      [deployedSiteId]
+    );
+    
+    if (siteResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Deployed site not found' });
+    }
+    
+    const site = siteResult.rows[0];
+    
+    console.log(`[Partner Content] Saving ${section} for site ${deployedSiteId} (${site.site_name})`);
+    
+    // UPSERT settings
+    const updateResult = await pool.query(`
+      UPDATE website_settings 
+      SET settings = $1, updated_at = CURRENT_TIMESTAMP, sync_source = 'partner'
+      WHERE deployed_site_id = $2 AND section = $3
+    `, [JSON.stringify(settings), deployedSiteId, section]);
+    
+    if (updateResult.rowCount === 0) {
+      await pool.query(`
+        INSERT INTO website_settings (deployed_site_id, account_id, section, settings, sync_source, updated_at)
+        VALUES ($1, $2, $3, $4, 'partner', CURRENT_TIMESTAMP)
+      `, [deployedSiteId, site.account_id, section, JSON.stringify(settings)]);
+    }
+    
+    // Push to WordPress
+    let wpPushResult = null;
+    if (site.site_url) {
+      wpPushResult = await pushSettingsToWordPress(site.site_url, section, settings);
+    }
+    
+    res.json({
+      success: true,
+      message: `${section} content updated`,
+      deployed_site_id: deployedSiteId,
+      section,
+      wordpress_push: wpPushResult
+    });
+    
+  } catch (error) {
+    console.error('Partner API update content error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/partner/websites/:websiteId/content/:section - Get website content section
+app.get('/api/partner/websites/:websiteId/content/:section', async (req, res) => {
+  console.log('=== PARTNER API: GET CONTENT ===');
+  
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    
+    const { websiteId, section } = req.params;
+    
+    // Get deployed site ID
+    const deployedSiteId = await getPartnerDeployedSiteId(auth.partnerId, websiteId);
+    if (!deployedSiteId) {
+      return res.status(400).json({ success: false, error: 'Website not deployed or not found' });
+    }
+    
+    // Get settings
+    const result = await pool.query(`
+      SELECT settings FROM website_settings 
+      WHERE deployed_site_id = $1 AND section = $2
+    `, [deployedSiteId, section]);
+    
+    res.json({
+      success: true,
+      section,
+      settings: result.rows.length > 0 ? result.rows[0].settings : {}
+    });
+    
+  } catch (error) {
+    console.error('Partner API get content error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/partner/websites/:websiteId/upload - Upload image/video
+app.post('/api/partner/websites/:websiteId/upload', async (req, res) => {
+  console.log('=== PARTNER API: UPLOAD MEDIA ===');
+  
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    
+    const { websiteId } = req.params;
+    const { file_data, file_name, file_type, section } = req.body;
+    
+    if (!file_data || !file_name) {
+      return res.status(400).json({ success: false, error: 'file_data and file_name required' });
+    }
+    
+    // Verify website belongs to partner
+    const wResult = await pool.query(`
+      SELECT w.id, w.site_url, w.account_id
+      FROM websites w
+      JOIN accounts a ON a.id = w.account_id
+      WHERE w.id = $1 AND a.parent_id = $2
+    `, [websiteId, auth.partnerId]);
+    
+    if (wResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Website not found' });
+    }
+    
+    const website = wResult.rows[0];
+    
+    if (!website.site_url) {
+      return res.status(400).json({ success: false, error: 'Website not yet deployed' });
+    }
+    
+    // Upload to WordPress media library
+    const wpApiKey = 'GAS_SECRET_KEY_2024!';
+    const uploadResponse = await fetch(`${website.site_url}wp-json/developer-theme/v1/upload-media`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-GAS-API-Key': wpApiKey
+      },
+      body: JSON.stringify({
+        file_data: file_data,  // Base64 encoded
+        file_name: file_name,
+        file_type: file_type || 'image/jpeg'
+      })
+    });
+    
+    const uploadData = await uploadResponse.json();
+    
+    if (!uploadData.success) {
+      return res.status(500).json({ success: false, error: uploadData.error || 'Upload failed' });
+    }
+    
+    res.json({
+      success: true,
+      message: 'Media uploaded',
+      url: uploadData.url,
+      media_id: uploadData.media_id,
+      file_name: file_name
+    });
+    
+  } catch (error) {
+    console.error('Partner API upload error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
