@@ -34461,6 +34461,175 @@ app.delete('/api/partner/websites/:websiteId', async (req, res) => {
   }
 });
 
+// POST /api/partner/websites/:websiteId/deploy - Deploy website to VPS
+app.post('/api/partner/websites/:websiteId/deploy', async (req, res) => {
+  console.log('=== PARTNER API: DEPLOY WEBSITE ===');
+  
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    
+    const { websiteId } = req.params;
+    const { template, admin_email } = req.body;
+    
+    // Validate template
+    const validTemplates = ['light', 'dark', 'developer-light', 'developer-dark'];
+    const selectedTemplate = template === 'dark' ? 'developer-dark' : 'developer-light';
+    
+    // Get website with account verification
+    const wResult = await pool.query(`
+      SELECT w.*, a.parent_id, a.email as account_email, a.name as account_name
+      FROM websites w
+      JOIN accounts a ON a.id = w.account_id
+      WHERE w.id = $1 AND a.parent_id = $2
+    `, [websiteId, auth.partnerId]);
+    
+    if (wResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Website not found' });
+    }
+    
+    const website = wResult.rows[0];
+    
+    // Check if already deployed
+    if (website.site_url) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Website already deployed',
+        site_url: website.site_url,
+        admin_url: website.admin_url
+      });
+    }
+    
+    // Get assigned rooms
+    const roomsResult = await pool.query(`
+      SELECT 
+        bu.id as room_id,
+        bu.name as room_name,
+        bu.max_guests,
+        bu.num_bedrooms as bedrooms,
+        bu.num_bathrooms as bathrooms,
+        p.id as property_id,
+        p.name as property_name
+      FROM website_rooms wr
+      JOIN bookable_units bu ON bu.id = wr.bookable_unit_id
+      JOIN properties p ON p.id = bu.property_id
+      WHERE wr.website_id = $1
+      ORDER BY wr.display_order, bu.name
+    `, [websiteId]);
+    
+    if (roomsResult.rows.length === 0) {
+      return res.status(400).json({ success: false, error: 'No rooms assigned to website. Assign rooms first.' });
+    }
+    
+    const rooms = roomsResult.rows;
+    const roomIds = rooms.map(r => r.room_id);
+    const propertyIds = [...new Set(rooms.map(r => r.property_id))];
+    
+    // Generate slug from subdomain or website name
+    const slug = website.subdomain || website.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const siteAdminEmail = admin_email || website.account_email || 'admin@gas.travel';
+    
+    // Determine WordPress theme
+    const wpTheme = selectedTemplate === 'developer-dark' ? 'gas-theme-developer-dark' : 'gas-theme-developer-light';
+    
+    console.log(`[Partner Deploy] Creating site "${website.name}" for account ${website.account_id} with template ${selectedTemplate}`);
+    
+    // Call VPS to create site
+    const vpsResponse = await fetch(`${VPS_DEPLOY_URL}?action=create-site`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        site_name: website.name,
+        slug: slug,
+        admin_email: siteAdminEmail,
+        room_ids: roomIds,
+        rooms: rooms,
+        property_ids: propertyIds,
+        account_id: website.account_id,
+        use_theme: true,
+        use_plugin: true,
+        theme: wpTheme,
+        template: selectedTemplate,
+        enable_blog: false,
+        enable_attractions: false
+      })
+    });
+    
+    const vpsData = await vpsResponse.json();
+    
+    if (!vpsData.success) {
+      console.error('[Partner Deploy] VPS deployment failed:', vpsData.error);
+      return res.status(500).json({ success: false, error: vpsData.error || 'VPS deployment failed' });
+    }
+    
+    // Update website with deployment info
+    await pool.query(`
+      UPDATE websites SET 
+        site_url = $1,
+        admin_url = $2,
+        slug = $3,
+        status = 'deployed',
+        template_code = $4,
+        updated_at = NOW()
+      WHERE id = $5
+    `, [vpsData.site.url, vpsData.site.admin_url, vpsData.site.slug, selectedTemplate, websiteId]);
+    
+    // Store in deployed_sites table for GAS Admin visibility
+    await pool.query(`
+      INSERT INTO deployed_sites 
+      (property_id, property_ids, room_ids, account_id, blog_id, site_url, admin_url, slug, site_name, status, wp_username, wp_password_temp, template, deployed_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW())
+    `, [
+      propertyIds[0],
+      JSON.stringify(propertyIds),
+      JSON.stringify(roomIds),
+      website.account_id,
+      vpsData.site.blog_id,
+      vpsData.site.url,
+      vpsData.site.admin_url,
+      vpsData.site.slug,
+      website.name,
+      'deployed',
+      vpsData.credentials?.username || 'admin',
+      vpsData.credentials?.password || null,
+      selectedTemplate
+    ]);
+    
+    // Update rooms with site URL
+    for (const roomId of roomIds) {
+      await pool.query(
+        'UPDATE bookable_units SET website_url = $1 WHERE id = $2',
+        [vpsData.site.url, roomId]
+      );
+    }
+    
+    console.log(`[Partner Deploy] Site "${website.name}" deployed successfully: ${vpsData.site.url}`);
+    
+    res.json({
+      success: true,
+      website: {
+        id: websiteId,
+        name: website.name,
+        site_url: vpsData.site.url,
+        admin_url: vpsData.site.admin_url,
+        slug: vpsData.site.slug,
+        template: selectedTemplate,
+        room_count: roomIds.length,
+        status: 'deployed'
+      },
+      credentials: vpsData.credentials
+    });
+    
+  } catch (error) {
+    console.error('Partner API deploy website error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // =====================================================
 // TEMPORARY CLEANUP ENDPOINT - REMOVE AFTER USE
 // =====================================================
