@@ -33303,6 +33303,322 @@ async function matchAmenity(rawName, source = 'unknown') {
 }
 
 // =====================================================
+// PARTNER API - TENANT MANAGEMENT
+// =====================================================
+// New Partner API for Elevate to manage tenants (Sub Masters)
+// Base URL: /api/partner/...
+// Authentication: X-API-Key header with Elevate's API key
+
+// Validate Partner API key from header
+async function validatePartnerApiKey(req) {
+  const apiKey = req.headers['x-api-key'];
+  if (!apiKey) {
+    return { valid: false, error: 'Missing X-API-Key header' };
+  }
+  
+  // Check if this API key belongs to an agency_admin account
+  const result = await pool.query(
+    `SELECT id, name, role FROM accounts 
+     WHERE api_key = $1 AND status = 'active' AND role = 'agency_admin'`,
+    [apiKey]
+  );
+  
+  if (result.rows.length > 0) {
+    return { valid: true, partnerId: result.rows[0].id, partnerName: result.rows[0].name };
+  }
+  
+  return { valid: false, error: 'Invalid API key' };
+}
+
+// Migration: Create partner_tenant_mapping table
+app.post('/api/admin/migrate-partner-tenant-mapping', async (req, res) => {
+  try {
+    console.log('🔄 Creating partner_tenant_mapping table...');
+    
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS partner_tenant_mapping (
+        id SERIAL PRIMARY KEY,
+        partner_account_id INTEGER NOT NULL REFERENCES accounts(id),
+        external_tenant_id VARCHAR(100) NOT NULL,
+        gas_account_id INTEGER NOT NULL REFERENCES accounts(id),
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(partner_account_id, external_tenant_id)
+      )
+    `);
+    
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_partner_tenant_partner 
+      ON partner_tenant_mapping(partner_account_id)
+    `);
+    
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_partner_tenant_external 
+      ON partner_tenant_mapping(external_tenant_id)
+    `);
+    
+    console.log('   ✓ Created partner_tenant_mapping table');
+    
+    res.json({ success: true, message: 'Partner tenant mapping table created' });
+  } catch (error) {
+    console.error('Migration error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/partner/tenants - Create a new tenant (Sub Master)
+app.post('/api/partner/tenants', async (req, res) => {
+  console.log('=== PARTNER API: CREATE TENANT ===');
+  
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    
+    const { tenant_id, business_name, contact_email, contact_phone, country, timezone } = req.body;
+    
+    // Validate required fields
+    if (!tenant_id) {
+      return res.status(400).json({ success: false, error: 'tenant_id is required' });
+    }
+    if (!business_name) {
+      return res.status(400).json({ success: false, error: 'business_name is required' });
+    }
+    
+    // Check if tenant already exists
+    const existingMapping = await pool.query(
+      `SELECT ptm.*, a.name, a.status 
+       FROM partner_tenant_mapping ptm
+       JOIN accounts a ON a.id = ptm.gas_account_id
+       WHERE ptm.partner_account_id = $1 AND ptm.external_tenant_id = $2`,
+      [auth.partnerId, tenant_id]
+    );
+    
+    if (existingMapping.rows.length > 0) {
+      // Return existing tenant
+      const existing = existingMapping.rows[0];
+      return res.json({
+        success: true,
+        created: false,
+        tenant: {
+          id: existing.gas_account_id,
+          tenant_id: existing.external_tenant_id,
+          business_name: existing.name,
+          status: existing.status,
+          created_at: existing.created_at
+        }
+      });
+    }
+    
+    // Create new Sub Master account
+    const newAccount = await pool.query(
+      `INSERT INTO accounts (name, email, phone, country, timezone, parent_id, role, status, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, 'sub_master', 'active', NOW())
+       RETURNING id, name, status, created_at`,
+      [business_name, contact_email || null, contact_phone || null, country || null, timezone || null, auth.partnerId]
+    );
+    
+    const newAccountId = newAccount.rows[0].id;
+    
+    // Create mapping
+    await pool.query(
+      `INSERT INTO partner_tenant_mapping (partner_account_id, external_tenant_id, gas_account_id)
+       VALUES ($1, $2, $3)`,
+      [auth.partnerId, tenant_id, newAccountId]
+    );
+    
+    console.log(`[Partner API] Created tenant: ${tenant_id} -> account ${newAccountId}`);
+    
+    res.json({
+      success: true,
+      created: true,
+      tenant: {
+        id: newAccountId,
+        tenant_id: tenant_id,
+        business_name: business_name,
+        status: 'active',
+        created_at: newAccount.rows[0].created_at
+      }
+    });
+    
+  } catch (error) {
+    console.error('Partner API create tenant error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/partner/tenants - List all tenants for this partner
+app.get('/api/partner/tenants', async (req, res) => {
+  console.log('=== PARTNER API: LIST TENANTS ===');
+  
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    
+    const result = await pool.query(
+      `SELECT ptm.external_tenant_id as tenant_id, a.id, a.name as business_name, 
+              a.email as contact_email, a.phone as contact_phone, a.status, a.created_at
+       FROM partner_tenant_mapping ptm
+       JOIN accounts a ON a.id = ptm.gas_account_id
+       WHERE ptm.partner_account_id = $1
+       ORDER BY a.created_at DESC`,
+      [auth.partnerId]
+    );
+    
+    res.json({
+      success: true,
+      tenants: result.rows.map(row => ({
+        id: row.id,
+        tenant_id: row.tenant_id,
+        business_name: row.business_name,
+        contact_email: row.contact_email,
+        contact_phone: row.contact_phone,
+        status: row.status,
+        created_at: row.created_at
+      }))
+    });
+    
+  } catch (error) {
+    console.error('Partner API list tenants error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/partner/tenants/:tenantId - Get single tenant details
+app.get('/api/partner/tenants/:tenantId', async (req, res) => {
+  console.log('=== PARTNER API: GET TENANT ===');
+  
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    
+    const { tenantId } = req.params;
+    
+    const result = await pool.query(
+      `SELECT ptm.external_tenant_id as tenant_id, a.id, a.name as business_name, 
+              a.email as contact_email, a.phone as contact_phone, a.country, a.timezone,
+              a.status, a.created_at,
+              (SELECT COUNT(*) FROM properties WHERE account_id = a.id) as property_count,
+              (SELECT COUNT(*) FROM sites WHERE account_id = a.id) as site_count
+       FROM partner_tenant_mapping ptm
+       JOIN accounts a ON a.id = ptm.gas_account_id
+       WHERE ptm.partner_account_id = $1 AND ptm.external_tenant_id = $2`,
+      [auth.partnerId, tenantId]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Tenant not found' });
+    }
+    
+    const row = result.rows[0];
+    res.json({
+      success: true,
+      tenant: {
+        id: row.id,
+        tenant_id: row.tenant_id,
+        business_name: row.business_name,
+        contact_email: row.contact_email,
+        contact_phone: row.contact_phone,
+        country: row.country,
+        timezone: row.timezone,
+        status: row.status,
+        created_at: row.created_at,
+        property_count: parseInt(row.property_count),
+        site_count: parseInt(row.site_count)
+      }
+    });
+    
+  } catch (error) {
+    console.error('Partner API get tenant error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/partner/tenants/:tenantId - Update tenant details
+app.put('/api/partner/tenants/:tenantId', async (req, res) => {
+  console.log('=== PARTNER API: UPDATE TENANT ===');
+  
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    
+    const { tenantId } = req.params;
+    const { business_name, contact_email, contact_phone, country, timezone } = req.body;
+    
+    // Find the tenant
+    const mapping = await pool.query(
+      `SELECT gas_account_id FROM partner_tenant_mapping 
+       WHERE partner_account_id = $1 AND external_tenant_id = $2`,
+      [auth.partnerId, tenantId]
+    );
+    
+    if (mapping.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Tenant not found' });
+    }
+    
+    const accountId = mapping.rows[0].gas_account_id;
+    
+    // Build update query
+    const updates = [];
+    const values = [];
+    let paramIndex = 1;
+    
+    if (business_name !== undefined) {
+      updates.push(`name = $${paramIndex++}`);
+      values.push(business_name);
+    }
+    if (contact_email !== undefined) {
+      updates.push(`email = $${paramIndex++}`);
+      values.push(contact_email);
+    }
+    if (contact_phone !== undefined) {
+      updates.push(`phone = $${paramIndex++}`);
+      values.push(contact_phone);
+    }
+    if (country !== undefined) {
+      updates.push(`country = $${paramIndex++}`);
+      values.push(country);
+    }
+    if (timezone !== undefined) {
+      updates.push(`timezone = $${paramIndex++}`);
+      values.push(timezone);
+    }
+    
+    if (updates.length === 0) {
+      return res.status(400).json({ success: false, error: 'No fields to update' });
+    }
+    
+    updates.push(`updated_at = NOW()`);
+    values.push(accountId);
+    
+    await pool.query(
+      `UPDATE accounts SET ${updates.join(', ')} WHERE id = $${paramIndex}`,
+      values
+    );
+    
+    // Also update mapping timestamp
+    await pool.query(
+      `UPDATE partner_tenant_mapping SET updated_at = NOW() 
+       WHERE partner_account_id = $1 AND external_tenant_id = $2`,
+      [auth.partnerId, tenantId]
+    );
+    
+    res.json({ success: true, message: 'Tenant updated' });
+    
+  } catch (error) {
+    console.error('Partner API update tenant error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
 // TEMPORARY CLEANUP ENDPOINT - REMOVE AFTER USE
 // =====================================================
 app.get('/api/elevate/cleanup-test-data-xK9mP2nL', async (req, res) => {
