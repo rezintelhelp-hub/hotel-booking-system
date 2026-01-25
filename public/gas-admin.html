@@ -22041,6 +22041,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                     <tr>
                                         <th>ID</th>
                                         <th>Room Name</th>
+                                        <th>Room Type</th>
                                         <th>Type</th>
                                         <th>Capacity</th>
                                         <th>Qty</th>
@@ -22054,6 +22055,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                         <tr style="${unit.is_hidden ? 'opacity: 0.6;' : ''}">
                                             <td><code style="background: #f3f4f6; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem;">${unit.id}</code></td>
                                             <td><strong>${unit.name}</strong>${unit.is_hidden ? ' <span style="color: #9ca3af; font-size: 0.8rem;">(hidden)</span>' : ''}</td>
+                                            <td>${unit.room_type_name ? `<span class="badge badge-info">${unit.room_type_name}</span>` : '<span style="color: #9ca3af;">—</span>'}</td>
                                             <td>${unit.unit_type || 'N/A'}</td>
                                             <td>${unit.max_guests || '-'} guests</td>
                                             <td>${unit.quantity || 1}</td>
