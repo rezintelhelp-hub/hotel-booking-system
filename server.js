@@ -29042,9 +29042,12 @@ app.get('/api/admin/units', async (req, res) => {
       result = await pool.query(`
         SELECT 
           bu.*,
-          p.name as property_name
+          p.name as property_name,
+          rt.id as room_type_id,
+          rt.name as room_type_name
         FROM bookable_units bu
         LEFT JOIN properties p ON bu.property_id = p.id
+        LEFT JOIN room_types rt ON bu.room_type_id = rt.id
         WHERE bu.property_id = $1
         ORDER BY bu.name
       `, [propertyId]);
@@ -29052,9 +29055,12 @@ app.get('/api/admin/units', async (req, res) => {
       result = await pool.query(`
         SELECT 
           bu.*,
-          p.name as property_name
+          p.name as property_name,
+          rt.id as room_type_id,
+          rt.name as room_type_name
         FROM bookable_units bu
         LEFT JOIN properties p ON bu.property_id = p.id
+        LEFT JOIN room_types rt ON bu.room_type_id = rt.id
         WHERE p.account_id = $1
         ORDER BY bu.created_at DESC
       `, [accountId]);
@@ -29062,9 +29068,12 @@ app.get('/api/admin/units', async (req, res) => {
       result = await pool.query(`
         SELECT 
           bu.*,
-          p.name as property_name
+          p.name as property_name,
+          rt.id as room_type_id,
+          rt.name as room_type_name
         FROM bookable_units bu
         LEFT JOIN properties p ON bu.property_id = p.id
+        LEFT JOIN room_types rt ON bu.room_type_id = rt.id
         ORDER BY bu.created_at DESC
       `);
     }
