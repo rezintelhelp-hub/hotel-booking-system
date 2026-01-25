@@ -33412,11 +33412,14 @@ app.post('/api/partner/tenants', async (req, res) => {
     }
     
     // Create new Sub Master account
+    // Use placeholder email if not provided (required field in accounts table)
+    const accountEmail = contact_email || `${tenant_id}@partner.gas.travel`;
+    
     const newAccount = await pool.query(
       `INSERT INTO accounts (name, email, phone, country, timezone, parent_id, role, status, created_at)
        VALUES ($1, $2, $3, $4, $5, $6, 'sub_master', 'active', NOW())
        RETURNING id, name, status, created_at`,
-      [business_name, contact_email || null, contact_phone || null, country || null, timezone || null, auth.partnerId]
+      [business_name, accountEmail, contact_phone || null, country || null, timezone || null, auth.partnerId]
     );
     
     const newAccountId = newAccount.rows[0].id;
