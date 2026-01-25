@@ -33628,7 +33628,7 @@ app.put('/api/partner/tenants/:tenantId', async (req, res) => {
 });
 
 // =====================================================
-// PARTNER API - PROPERTY MANAGEMENT
+// PARTNER API - HELPER FUNCTIONS
 // =====================================================
 
 // Helper function to get tenant's GAS account ID
@@ -33641,9 +33641,61 @@ async function getTenantAccountId(partnerId, tenantId) {
   return result.rows.length > 0 ? result.rows[0].gas_account_id : null;
 }
 
-// POST /api/partner/tenants/:tenantId/properties - Push properties
-app.post('/api/partner/tenants/:tenantId/properties', async (req, res) => {
-  console.log('=== PARTNER API: PUSH PROPERTIES ===');
+// =====================================================
+// PARTNER API - ROOM TYPES (Grouping)
+// =====================================================
+// Room Types allow grouping multiple properties/rooms for website display
+// e.g., "Studio Apartment" group containing Room 1, 2, 3
+
+// Migration: Create room_types table
+app.post('/api/admin/migrate-room-types', async (req, res) => {
+  try {
+    console.log('🔄 Creating room_types table...');
+    
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS room_types (
+        id SERIAL PRIMARY KEY,
+        account_id INTEGER NOT NULL REFERENCES accounts(id),
+        name VARCHAR(255) NOT NULL,
+        description TEXT,
+        display_order INTEGER DEFAULT 0,
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    console.log('   ✓ Created room_types table');
+    
+    // Add room_type_id to bookable_units (optional grouping)
+    await pool.query(`
+      ALTER TABLE bookable_units 
+      ADD COLUMN IF NOT EXISTS room_type_id INTEGER REFERENCES room_types(id)
+    `);
+    console.log('   ✓ Added room_type_id to bookable_units');
+    
+    // Add room_type_id to properties (optional grouping)
+    await pool.query(`
+      ALTER TABLE properties 
+      ADD COLUMN IF NOT EXISTS room_type_id INTEGER REFERENCES room_types(id)
+    `);
+    console.log('   ✓ Added room_type_id to properties');
+    
+    // Create index
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_room_types_account 
+      ON room_types(account_id)
+    `);
+    
+    res.json({ success: true, message: 'Room types table created' });
+  } catch (error) {
+    console.error('Migration error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/partner/tenants/:tenantId/room-types - Create room type
+app.post('/api/partner/tenants/:tenantId/room-types', async (req, res) => {
+  console.log('=== PARTNER API: CREATE ROOM TYPE ===');
   
   try {
     const auth = await validatePartnerApiKey(req);
@@ -33652,239 +33704,46 @@ app.post('/api/partner/tenants/:tenantId/properties', async (req, res) => {
     }
     
     const { tenantId } = req.params;
-    const { properties } = req.body;
+    const { name, description, display_order } = req.body;
     
-    // Validate
-    if (!properties || !Array.isArray(properties) || properties.length === 0) {
-      return res.status(400).json({ success: false, error: 'properties array is required' });
+    if (!name) {
+      return res.status(400).json({ success: false, error: 'name is required' });
     }
     
-    // Get tenant's GAS account ID
     const accountId = await getTenantAccountId(auth.partnerId, tenantId);
     if (!accountId) {
       return res.status(404).json({ success: false, error: 'Tenant not found' });
     }
     
-    const results = [];
+    const result = await pool.query(`
+      INSERT INTO room_types (account_id, name, description, display_order)
+      VALUES ($1, $2, $3, $4)
+      RETURNING id, name, description, display_order, is_active, created_at
+    `, [accountId, name, description || null, display_order || 0]);
     
-    for (const prop of properties) {
-      // Validate required fields
-      if (!prop.elevate_id) {
-        results.push({ elevate_id: null, error: 'elevate_id is required' });
-        continue;
-      }
-      if (!prop.name) {
-        results.push({ elevate_id: prop.elevate_id, error: 'name is required' });
-        continue;
-      }
-      
-      try {
-        // Check if property already exists (by partner_external_id for this partner)
-        const existing = await pool.query(
-          `SELECT id FROM properties WHERE account_id = $1 AND partner_external_id = $2`,
-          [accountId, prop.elevate_id]
-        );
-        
-        let propertyId;
-        let status;
-        
-        // Build address string
-        const addressParts = [];
-        if (prop.address?.street) addressParts.push(prop.address.street);
-        if (prop.address?.city) addressParts.push(prop.address.city);
-        if (prop.address?.state) addressParts.push(prop.address.state);
-        if (prop.address?.postal_code) addressParts.push(prop.address.postal_code);
-        const addressStr = addressParts.join(', ') || null;
-        
-        if (existing.rows.length > 0) {
-          // Update existing property
-          propertyId = existing.rows[0].id;
-          
-          await pool.query(`
-            UPDATE properties SET
-              name = $1,
-              description = $2,
-              address = $3,
-              city = $4,
-              state = $5,
-              postal_code = $6,
-              country = $7,
-              currency = $8,
-              check_in_time = $9,
-              check_out_time = $10,
-              updated_at = NOW()
-            WHERE id = $11
-          `, [
-            prop.name,
-            prop.description || null,
-            addressStr,
-            prop.address?.city || null,
-            prop.address?.state || null,
-            prop.address?.postal_code || null,
-            prop.address?.country || null,
-            prop.currency || 'USD',
-            prop.check_in_time || '15:00',
-            prop.check_out_time || '11:00',
-            propertyId
-          ]);
-          
-          status = 'updated';
-        } else {
-          // Create new property - use partner_external_id, NOT cm_property_id
-          const newProp = await pool.query(`
-            INSERT INTO properties (
-              account_id, partner_external_id, partner_source, name, description,
-              address, city, state, postal_code, country,
-              currency, check_in_time, check_out_time, status, created_at
-            ) VALUES ($1, $2, 'elevate', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'active', NOW())
-            RETURNING id
-          `, [
-            accountId,
-            prop.elevate_id,
-            prop.name,
-            prop.description || null,
-            addressStr,
-            prop.address?.city || null,
-            prop.address?.state || null,
-            prop.address?.postal_code || null,
-            prop.address?.country || null,
-            prop.currency || 'USD',
-            prop.check_in_time || '15:00',
-            prop.check_out_time || '11:00'
-          ]);
-          
-          propertyId = newProp.rows[0].id;
-          status = 'created';
-        }
-        
-        // Handle room/unit (each property has one bookable unit in this model)
-        // Check if bookable unit exists
-        const existingUnit = await pool.query(
-          `SELECT id FROM bookable_units WHERE property_id = $1`,
-          [propertyId]
-        );
-        
-        let unitId;
-        if (existingUnit.rows.length > 0) {
-          unitId = existingUnit.rows[0].id;
-          // Update unit - use partner_external_id, NOT cm_room_id
-          await pool.query(`
-            UPDATE bookable_units SET
-              name = $1,
-              description = $2,
-              max_guests = $3,
-              bedrooms = $4,
-              bathrooms = $5,
-              base_rate = $6,
-              min_nights = $7,
-              partner_external_id = $8,
-              updated_at = NOW()
-            WHERE id = $9
-          `, [
-            prop.name,
-            prop.description || null,
-            prop.max_guests || 2,
-            prop.bedrooms || 0,
-            prop.bathrooms || 1,
-            prop.base_rate || null,
-            prop.min_nights || 1,
-            prop.elevate_id,
-            unitId
-          ]);
-        } else {
-          // Create unit - use partner_external_id, NOT cm_room_id
-          const newUnit = await pool.query(`
-            INSERT INTO bookable_units (
-              property_id, partner_external_id, name, description,
-              max_guests, bedrooms, bathrooms, base_rate, min_nights,
-              status, created_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'active', NOW())
-            RETURNING id
-          `, [
-            propertyId,
-            prop.elevate_id,
-            prop.name,
-            prop.description || null,
-            prop.max_guests || 2,
-            prop.bedrooms || 0,
-            prop.bathrooms || 1,
-            prop.base_rate || null,
-            prop.min_nights || 1
-          ]);
-          unitId = newUnit.rows[0].id;
-        }
-        
-        // Handle amenities if provided
-        if (prop.amenities && Array.isArray(prop.amenities)) {
-          for (const amenityName of prop.amenities) {
-            await matchAmenity(amenityName, 'elevate-partner');
-          }
-          // Store amenities on the bookable unit
-          await pool.query(
-            `UPDATE bookable_units SET amenities = $1, updated_at = NOW() WHERE id = $2`,
-            [JSON.stringify({ amenities: prop.amenities, source: 'elevate-partner' }), unitId]
-          );
-        }
-        
-        // Handle images if provided
-        if (prop.images && Array.isArray(prop.images)) {
-          for (const img of prop.images) {
-            if (!img.url) continue;
-            
-            // Check if image already exists
-            const existingImg = await pool.query(
-              `SELECT id FROM property_images WHERE property_id = $1 AND image_url = $2`,
-              [propertyId, img.url]
-            );
-            
-            if (existingImg.rows.length === 0) {
-              await pool.query(`
-                INSERT INTO property_images (property_id, image_url, caption, display_order, created_at)
-                VALUES ($1, $2, $3, $4, NOW())
-              `, [propertyId, img.url, img.caption || null, img.order || 0]);
-            }
-          }
-        }
-        
-        results.push({
-          gas_id: propertyId,
-          unit_id: unitId,
-          elevate_id: prop.elevate_id,
-          name: prop.name,
-          status: status,
-          room_type_id: null
-        });
-        
-      } catch (propError) {
-        console.error(`Error processing property ${prop.elevate_id}:`, propError);
-        results.push({
-          elevate_id: prop.elevate_id,
-          error: propError.message
-        });
-      }
-    }
-    
-    const created = results.filter(r => r.status === 'created').length;
-    const updated = results.filter(r => r.status === 'updated').length;
-    const errors = results.filter(r => r.error).length;
-    
-    console.log(`[Partner API] Properties: ${created} created, ${updated} updated, ${errors} errors`);
+    const roomType = result.rows[0];
     
     res.json({
       success: true,
-      summary: { created, updated, errors },
-      properties: results
+      room_type: {
+        id: roomType.id,
+        name: roomType.name,
+        description: roomType.description,
+        display_order: roomType.display_order,
+        property_count: 0,
+        status: roomType.is_active ? 'active' : 'inactive'
+      }
     });
     
   } catch (error) {
-    console.error('Partner API push properties error:', error);
+    console.error('Partner API create room type error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
 
-// GET /api/partner/tenants/:tenantId/properties - List properties
-app.get('/api/partner/tenants/:tenantId/properties', async (req, res) => {
-  console.log('=== PARTNER API: LIST PROPERTIES ===');
+// GET /api/partner/tenants/:tenantId/room-types - List room types
+app.get('/api/partner/tenants/:tenantId/room-types', async (req, res) => {
+  console.log('=== PARTNER API: LIST ROOM TYPES ===');
   
   try {
     const auth = await validatePartnerApiKey(req);
@@ -33894,7 +33753,6 @@ app.get('/api/partner/tenants/:tenantId/properties', async (req, res) => {
     
     const { tenantId } = req.params;
     
-    // Get tenant's GAS account ID
     const accountId = await getTenantAccountId(auth.partnerId, tenantId);
     if (!accountId) {
       return res.status(404).json({ success: false, error: 'Tenant not found' });
@@ -33902,53 +33760,40 @@ app.get('/api/partner/tenants/:tenantId/properties', async (req, res) => {
     
     const result = await pool.query(`
       SELECT 
-        p.id as gas_id,
-        p.partner_external_id as elevate_id,
-        p.name,
-        p.city,
-        p.country,
-        p.status,
-        p.created_at,
-        bu.id as unit_id,
-        bu.max_guests,
-        bu.bedrooms,
-        bu.bathrooms,
-        bu.base_rate
-      FROM properties p
-      LEFT JOIN bookable_units bu ON bu.property_id = p.id
-      WHERE p.account_id = $1
-      ORDER BY p.created_at DESC
+        rt.id, rt.name, rt.description, rt.display_order, rt.is_active, rt.created_at,
+        COUNT(DISTINCT bu.id) as unit_count,
+        COUNT(DISTINCT p.id) as property_count
+      FROM room_types rt
+      LEFT JOIN bookable_units bu ON bu.room_type_id = rt.id
+      LEFT JOIN properties p ON p.room_type_id = rt.id
+      WHERE rt.account_id = $1
+      GROUP BY rt.id
+      ORDER BY rt.display_order, rt.name
     `, [accountId]);
     
     res.json({
       success: true,
-      properties: result.rows.map(row => ({
-        gas_id: row.gas_id,
-        elevate_id: row.elevate_id,
+      room_types: result.rows.map(row => ({
+        id: row.id,
         name: row.name,
-        city: row.city,
-        country: row.country,
-        status: row.status,
-        unit_id: row.unit_id,
-        max_guests: row.max_guests,
-        bedrooms: row.bedrooms,
-        bathrooms: row.bathrooms,
-        base_rate: row.base_rate,
-        room_type_id: null,
-        room_type_name: null,
+        description: row.description,
+        display_order: row.display_order,
+        unit_count: parseInt(row.unit_count),
+        property_count: parseInt(row.property_count),
+        status: row.is_active ? 'active' : 'inactive',
         created_at: row.created_at
       }))
     });
     
   } catch (error) {
-    console.error('Partner API list properties error:', error);
+    console.error('Partner API list room types error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
 
-// GET /api/partner/properties/:propertyId - Get single property
-app.get('/api/partner/properties/:propertyId', async (req, res) => {
-  console.log('=== PARTNER API: GET PROPERTY ===');
+// GET /api/partner/room-types/:roomTypeId - Get single room type with assigned units
+app.get('/api/partner/room-types/:roomTypeId', async (req, res) => {
+  console.log('=== PARTNER API: GET ROOM TYPE ===');
   
   try {
     const auth = await validatePartnerApiKey(req);
@@ -33956,81 +33801,65 @@ app.get('/api/partner/properties/:propertyId', async (req, res) => {
       return res.status(401).json({ success: false, error: auth.error });
     }
     
-    const { propertyId } = req.params;
+    const { roomTypeId } = req.params;
     
-    const result = await pool.query(`
-      SELECT 
-        p.*,
-        bu.id as unit_id,
-        bu.max_guests,
-        bu.bedrooms,
-        bu.bathrooms,
-        bu.base_rate,
-        bu.min_nights,
-        bu.amenities,
-        a.parent_id
-      FROM properties p
-      LEFT JOIN bookable_units bu ON bu.property_id = p.id
-      JOIN accounts a ON a.id = p.account_id
-      WHERE p.id = $1 AND a.parent_id = $2
-    `, [propertyId, auth.partnerId]);
+    // Get room type (verify it belongs to partner's tenant)
+    const rtResult = await pool.query(`
+      SELECT rt.*, a.parent_id
+      FROM room_types rt
+      JOIN accounts a ON a.id = rt.account_id
+      WHERE rt.id = $1 AND a.parent_id = $2
+    `, [roomTypeId, auth.partnerId]);
     
-    if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Property not found' });
+    if (rtResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Room type not found' });
     }
     
-    const row = result.rows[0];
+    const rt = rtResult.rows[0];
     
-    // Get images
-    const images = await pool.query(
-      `SELECT id, image_url, caption, display_order FROM property_images WHERE property_id = $1 ORDER BY display_order`,
-      [propertyId]
-    );
+    // Get assigned units
+    const units = await pool.query(`
+      SELECT bu.id, bu.name, bu.partner_external_id as elevate_id, 
+             bu.max_guests, bu.bedrooms, bu.bathrooms, bu.base_rate,
+             p.id as property_id, p.name as property_name
+      FROM bookable_units bu
+      JOIN properties p ON p.id = bu.property_id
+      WHERE bu.room_type_id = $1
+      ORDER BY bu.name
+    `, [roomTypeId]);
     
     res.json({
       success: true,
-      property: {
-        gas_id: row.id,
-        elevate_id: row.partner_external_id,
-        name: row.name,
-        description: row.description,
-        address: {
-          street: row.address,
-          city: row.city,
-          state: row.state,
-          postal_code: row.postal_code,
-          country: row.country
-        },
-        unit_id: row.unit_id,
-        max_guests: row.max_guests,
-        bedrooms: row.bedrooms,
-        bathrooms: row.bathrooms,
-        base_rate: row.base_rate,
-        min_nights: row.min_nights,
-        currency: row.currency,
-        check_in_time: row.check_in_time,
-        check_out_time: row.check_out_time,
-        amenities: row.amenities?.amenities || [],
-        images: images.rows.map(img => ({
-          id: img.id,
-          url: img.image_url,
-          caption: img.caption,
-          order: img.display_order
-        })),
-        status: row.status,
-        created_at: row.created_at
+      room_type: {
+        id: rt.id,
+        name: rt.name,
+        description: rt.description,
+        display_order: rt.display_order,
+        status: rt.is_active ? 'active' : 'inactive',
+        created_at: rt.created_at,
+        units: units.rows.map(u => ({
+          id: u.id,
+          elevate_id: u.elevate_id,
+          name: u.name,
+          property_id: u.property_id,
+          property_name: u.property_name,
+          max_guests: u.max_guests,
+          bedrooms: u.bedrooms,
+          bathrooms: u.bathrooms,
+          base_rate: u.base_rate
+        }))
       }
     });
     
   } catch (error) {
-    console.error('Partner API get property error:', error);
+    console.error('Partner API get room type error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
 
-// PUT /api/partner/properties/:propertyId - Update property
-app.put('/api/partner/properties/:propertyId', async (req, res) => {
-  console.log('=== PARTNER API: UPDATE PROPERTY ===');
+// PUT /api/partner/room-types/:roomTypeId - Update room type
+app.put('/api/partner/room-types/:roomTypeId', async (req, res) => {
+  console.log('=== PARTNER API: UPDATE ROOM TYPE ===');
   
   try {
     const auth = await validatePartnerApiKey(req);
@@ -34038,84 +33867,52 @@ app.put('/api/partner/properties/:propertyId', async (req, res) => {
       return res.status(401).json({ success: false, error: auth.error });
     }
     
-    const { propertyId } = req.params;
-    const updates = req.body;
+    const { roomTypeId } = req.params;
+    const { name, description, display_order, is_active } = req.body;
     
-    // Verify property belongs to partner's tenant
-    const propCheck = await pool.query(`
-      SELECT p.id, p.account_id, bu.id as unit_id
-      FROM properties p
-      LEFT JOIN bookable_units bu ON bu.property_id = p.id
-      JOIN accounts a ON a.id = p.account_id
-      WHERE p.id = $1 AND a.parent_id = $2
-    `, [propertyId, auth.partnerId]);
+    // Verify room type belongs to partner's tenant
+    const rtCheck = await pool.query(`
+      SELECT rt.id FROM room_types rt
+      JOIN accounts a ON a.id = rt.account_id
+      WHERE rt.id = $1 AND a.parent_id = $2
+    `, [roomTypeId, auth.partnerId]);
     
-    if (propCheck.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Property not found' });
+    if (rtCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Room type not found' });
     }
     
-    const unitId = propCheck.rows[0].unit_id;
-    
-    // Update property fields
-    const propFields = [];
-    const propValues = [];
+    const updates = [];
+    const values = [];
     let idx = 1;
     
-    if (updates.name !== undefined) { propFields.push(`name = $${idx++}`); propValues.push(updates.name); }
-    if (updates.description !== undefined) { propFields.push(`description = $${idx++}`); propValues.push(updates.description); }
-    if (updates.address?.street !== undefined) { propFields.push(`address = $${idx++}`); propValues.push(updates.address.street); }
-    if (updates.address?.city !== undefined) { propFields.push(`city = $${idx++}`); propValues.push(updates.address.city); }
-    if (updates.address?.state !== undefined) { propFields.push(`state = $${idx++}`); propValues.push(updates.address.state); }
-    if (updates.address?.postal_code !== undefined) { propFields.push(`postal_code = $${idx++}`); propValues.push(updates.address.postal_code); }
-    if (updates.address?.country !== undefined) { propFields.push(`country = $${idx++}`); propValues.push(updates.address.country); }
-    if (updates.currency !== undefined) { propFields.push(`currency = $${idx++}`); propValues.push(updates.currency); }
-    if (updates.check_in_time !== undefined) { propFields.push(`check_in_time = $${idx++}`); propValues.push(updates.check_in_time); }
-    if (updates.check_out_time !== undefined) { propFields.push(`check_out_time = $${idx++}`); propValues.push(updates.check_out_time); }
+    if (name !== undefined) { updates.push(`name = $${idx++}`); values.push(name); }
+    if (description !== undefined) { updates.push(`description = $${idx++}`); values.push(description); }
+    if (display_order !== undefined) { updates.push(`display_order = $${idx++}`); values.push(display_order); }
+    if (is_active !== undefined) { updates.push(`is_active = $${idx++}`); values.push(is_active); }
     
-    if (propFields.length > 0) {
-      propFields.push(`updated_at = NOW()`);
-      propValues.push(propertyId);
-      await pool.query(
-        `UPDATE properties SET ${propFields.join(', ')} WHERE id = $${idx}`,
-        propValues
-      );
+    if (updates.length === 0) {
+      return res.status(400).json({ success: false, error: 'No fields to update' });
     }
     
-    // Update unit fields if unit exists
-    if (unitId) {
-      const unitFields = [];
-      const unitValues = [];
-      let uidx = 1;
-      
-      if (updates.name !== undefined) { unitFields.push(`name = $${uidx++}`); unitValues.push(updates.name); }
-      if (updates.description !== undefined) { unitFields.push(`description = $${uidx++}`); unitValues.push(updates.description); }
-      if (updates.max_guests !== undefined) { unitFields.push(`max_guests = $${uidx++}`); unitValues.push(updates.max_guests); }
-      if (updates.bedrooms !== undefined) { unitFields.push(`bedrooms = $${uidx++}`); unitValues.push(updates.bedrooms); }
-      if (updates.bathrooms !== undefined) { unitFields.push(`bathrooms = $${uidx++}`); unitValues.push(updates.bathrooms); }
-      if (updates.base_rate !== undefined) { unitFields.push(`base_rate = $${uidx++}`); unitValues.push(updates.base_rate); }
-      if (updates.min_nights !== undefined) { unitFields.push(`min_nights = $${uidx++}`); unitValues.push(updates.min_nights); }
-      
-      if (unitFields.length > 0) {
-        unitFields.push(`updated_at = NOW()`);
-        unitValues.push(unitId);
-        await pool.query(
-          `UPDATE bookable_units SET ${unitFields.join(', ')} WHERE id = $${uidx}`,
-          unitValues
-        );
-      }
-    }
+    updates.push(`updated_at = NOW()`);
+    values.push(roomTypeId);
     
-    res.json({ success: true, message: 'Property updated' });
+    await pool.query(
+      `UPDATE room_types SET ${updates.join(', ')} WHERE id = $${idx}`,
+      values
+    );
+    
+    res.json({ success: true, message: 'Room type updated' });
     
   } catch (error) {
-    console.error('Partner API update property error:', error);
+    console.error('Partner API update room type error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
 
-// DELETE /api/partner/properties/:propertyId - Delete property
-app.delete('/api/partner/properties/:propertyId', async (req, res) => {
-  console.log('=== PARTNER API: DELETE PROPERTY ===');
+// PUT /api/partner/room-types/:roomTypeId/units - Assign units to room type
+app.put('/api/partner/room-types/:roomTypeId/units', async (req, res) => {
+  console.log('=== PARTNER API: ASSIGN UNITS TO ROOM TYPE ===');
   
   try {
     const auth = await validatePartnerApiKey(req);
@@ -34123,33 +33920,90 @@ app.delete('/api/partner/properties/:propertyId', async (req, res) => {
       return res.status(401).json({ success: false, error: auth.error });
     }
     
-    const { propertyId } = req.params;
+    const { roomTypeId } = req.params;
+    const { unit_ids } = req.body; // Array of bookable_unit IDs
     
-    // Verify property belongs to partner's tenant
-    const propCheck = await pool.query(`
-      SELECT p.id
-      FROM properties p
-      JOIN accounts a ON a.id = p.account_id
-      WHERE p.id = $1 AND a.parent_id = $2
-    `, [propertyId, auth.partnerId]);
-    
-    if (propCheck.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Property not found' });
+    if (!unit_ids || !Array.isArray(unit_ids)) {
+      return res.status(400).json({ success: false, error: 'unit_ids array is required' });
     }
     
-    // Delete bookable units first (foreign key constraint)
-    await pool.query(`DELETE FROM bookable_units WHERE property_id = $1`, [propertyId]);
+    // Verify room type belongs to partner's tenant
+    const rtCheck = await pool.query(`
+      SELECT rt.id, rt.account_id FROM room_types rt
+      JOIN accounts a ON a.id = rt.account_id
+      WHERE rt.id = $1 AND a.parent_id = $2
+    `, [roomTypeId, auth.partnerId]);
     
-    // Delete property images
-    await pool.query(`DELETE FROM property_images WHERE property_id = $1`, [propertyId]);
+    if (rtCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Room type not found' });
+    }
     
-    // Delete property
-    await pool.query(`DELETE FROM properties WHERE id = $1`, [propertyId]);
+    const accountId = rtCheck.rows[0].account_id;
     
-    res.json({ success: true, message: 'Property deleted' });
+    // Clear existing assignments for this room type
+    await pool.query(`UPDATE bookable_units SET room_type_id = NULL WHERE room_type_id = $1`, [roomTypeId]);
+    
+    // Assign new units (verify they belong to the same account)
+    let assigned = 0;
+    for (const unitId of unit_ids) {
+      const result = await pool.query(`
+        UPDATE bookable_units bu
+        SET room_type_id = $1
+        FROM properties p
+        WHERE bu.id = $2 
+        AND bu.property_id = p.id 
+        AND p.account_id = $3
+      `, [roomTypeId, unitId, accountId]);
+      
+      if (result.rowCount > 0) assigned++;
+    }
+    
+    res.json({ 
+      success: true, 
+      message: `Assigned ${assigned} units to room type`,
+      assigned_count: assigned
+    });
     
   } catch (error) {
-    console.error('Partner API delete property error:', error);
+    console.error('Partner API assign units error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// DELETE /api/partner/room-types/:roomTypeId - Delete room type
+app.delete('/api/partner/room-types/:roomTypeId', async (req, res) => {
+  console.log('=== PARTNER API: DELETE ROOM TYPE ===');
+  
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    
+    const { roomTypeId } = req.params;
+    
+    // Verify room type belongs to partner's tenant
+    const rtCheck = await pool.query(`
+      SELECT rt.id FROM room_types rt
+      JOIN accounts a ON a.id = rt.account_id
+      WHERE rt.id = $1 AND a.parent_id = $2
+    `, [roomTypeId, auth.partnerId]);
+    
+    if (rtCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Room type not found' });
+    }
+    
+    // Clear unit assignments first
+    await pool.query(`UPDATE bookable_units SET room_type_id = NULL WHERE room_type_id = $1`, [roomTypeId]);
+    await pool.query(`UPDATE properties SET room_type_id = NULL WHERE room_type_id = $1`, [roomTypeId]);
+    
+    // Delete room type
+    await pool.query(`DELETE FROM room_types WHERE id = $1`, [roomTypeId]);
+    
+    res.json({ success: true, message: 'Room type deleted' });
+    
+  } catch (error) {
+    console.error('Partner API delete room type error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
