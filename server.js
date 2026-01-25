@@ -37105,6 +37105,204 @@ app.post('/api/elevate/:apiKey/property/:propertyId/images', async (req, res) =>
   }
 });
 
+// =========================================================
+// ELEVATE: ROOM IMAGES
+// =========================================================
+
+// Get room images
+app.get('/api/elevate/:apiKey/room/:roomId/images', async (req, res) => {
+  console.log('=== ELEVATE: GET ROOM IMAGES ===');
+  
+  try {
+    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: 'Invalid API key' });
+    }
+    
+    const { roomId } = req.params;
+    
+    // Find room by ID or external_id
+    const roomCheck = await pool.query(`
+      SELECT bu.id, bu.name
+      FROM bookable_units bu
+      JOIN properties p ON bu.property_id = p.id
+      JOIN accounts a ON a.id = p.account_id
+      WHERE (a.parent_id = $1 OR a.id = $1) 
+      AND (bu.id::text = $2 OR bu.cm_room_id = $2)
+    `, [ELEVATE_MASTER_ACCOUNT_ID, roomId]);
+    
+    if (roomCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Room not found' });
+    }
+    
+    const gasRoomId = roomCheck.rows[0].id;
+    
+    // Get room images
+    const images = await pool.query(`
+      SELECT id, image_key, image_url, caption, display_order as sort_order, is_active
+      FROM room_images
+      WHERE room_id = $1
+      ORDER BY display_order ASC
+    `, [gasRoomId]);
+    
+    res.json({
+      success: true,
+      room_id: gasRoomId,
+      room_name: roomCheck.rows[0].name,
+      images: images.rows
+    });
+    
+  } catch (error) {
+    console.error('Elevate get room images error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Add/update room images
+app.post('/api/elevate/:apiKey/room/:roomId/images', async (req, res) => {
+  console.log('=== ELEVATE: ADD ROOM IMAGES ===');
+  
+  try {
+    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: 'Invalid API key' });
+    }
+    
+    const { roomId } = req.params;
+    const { images } = req.body; // Array of { url, caption, sort_order, external_id }
+    
+    if (!Array.isArray(images)) {
+      return res.status(400).json({ success: false, error: 'images must be an array' });
+    }
+    
+    // Find room by ID or external_id
+    const roomCheck = await pool.query(`
+      SELECT bu.id, bu.name
+      FROM bookable_units bu
+      JOIN properties p ON bu.property_id = p.id
+      JOIN accounts a ON a.id = p.account_id
+      WHERE (a.parent_id = $1 OR a.id = $1) 
+      AND (bu.id::text = $2 OR bu.cm_room_id = $2)
+    `, [ELEVATE_MASTER_ACCOUNT_ID, roomId]);
+    
+    if (roomCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Room not found' });
+    }
+    
+    const gasRoomId = roomCheck.rows[0].id;
+    
+    // Ensure room_images table exists
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS room_images (
+        id SERIAL PRIMARY KEY,
+        room_id INTEGER REFERENCES bookable_units(id) ON DELETE CASCADE,
+        image_key VARCHAR(100),
+        image_url TEXT NOT NULL,
+        thumbnail_url TEXT,
+        caption VARCHAR(500),
+        display_order INTEGER DEFAULT 0,
+        upload_source VARCHAR(50) DEFAULT 'elevate',
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    
+    const addedImages = [];
+    
+    for (const img of images) {
+      if (!img.url) continue;
+      
+      // Generate unique image key
+      const imageKey = img.external_id || `elevate_room_${gasRoomId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      // Check if image with this key already exists
+      const existing = await pool.query(
+        'SELECT id FROM room_images WHERE room_id = $1 AND image_key = $2',
+        [gasRoomId, imageKey]
+      );
+      
+      if (existing.rows.length > 0) {
+        // Update existing
+        await pool.query(`
+          UPDATE room_images SET image_url = $1, caption = $2, display_order = $3, is_active = true
+          WHERE id = $4
+        `, [img.url, img.caption || null, img.sort_order || 0, existing.rows[0].id]);
+        addedImages.push({ id: existing.rows[0].id, url: img.url, updated: true });
+      } else {
+        // Insert new
+        const result = await pool.query(`
+          INSERT INTO room_images (room_id, image_key, image_url, caption, display_order, upload_source, is_active, created_at)
+          VALUES ($1, $2, $3, $4, $5, 'elevate', true, NOW())
+          RETURNING id
+        `, [gasRoomId, imageKey, img.url, img.caption || null, img.sort_order || 0]);
+        
+        addedImages.push({ id: result.rows[0].id, url: img.url });
+      }
+    }
+    
+    console.log(`[Elevate] Added ${addedImages.length} images to room ${gasRoomId}`);
+    
+    res.json({ 
+      success: true, 
+      room_id: gasRoomId,
+      room_name: roomCheck.rows[0].name,
+      images_added: addedImages.length,
+      images: addedImages
+    });
+    
+  } catch (error) {
+    console.error('Elevate add room images error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Delete room image
+app.delete('/api/elevate/:apiKey/room/:roomId/images/:imageId', async (req, res) => {
+  console.log('=== ELEVATE: DELETE ROOM IMAGE ===');
+  
+  try {
+    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: 'Invalid API key' });
+    }
+    
+    const { roomId, imageId } = req.params;
+    
+    // Find room
+    const roomCheck = await pool.query(`
+      SELECT bu.id
+      FROM bookable_units bu
+      JOIN properties p ON bu.property_id = p.id
+      JOIN accounts a ON a.id = p.account_id
+      WHERE (a.parent_id = $1 OR a.id = $1) 
+      AND (bu.id::text = $2 OR bu.cm_room_id = $2)
+    `, [ELEVATE_MASTER_ACCOUNT_ID, roomId]);
+    
+    if (roomCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Room not found' });
+    }
+    
+    const gasRoomId = roomCheck.rows[0].id;
+    
+    // Delete image (by id or image_key)
+    const result = await pool.query(`
+      DELETE FROM room_images 
+      WHERE room_id = $1 AND (id::text = $2 OR image_key = $2)
+      RETURNING id
+    `, [gasRoomId, imageId]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Image not found' });
+    }
+    
+    res.json({ success: true, deleted: true, image_id: result.rows[0].id });
+    
+  } catch (error) {
+    console.error('Elevate delete room image error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Delete property image
 app.delete('/api/elevate/:apiKey/property/:propertyId/images/:imageId', async (req, res) => {
   console.log('=== ELEVATE: DELETE PROPERTY IMAGE ===');
