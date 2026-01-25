@@ -33417,7 +33417,7 @@ app.post('/api/partner/tenants', async (req, res) => {
     
     const newAccount = await pool.query(
       `INSERT INTO accounts (name, email, phone, country, timezone, parent_id, role, status, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, 'sub_master', 'active', NOW())
+       VALUES ($1, $2, $3, $4, $5, $6, 'submaster_admin', 'active', NOW())
        RETURNING id, name, status, created_at`,
       [business_name, accountEmail, contact_phone || null, country || null, timezone || null, auth.partnerId]
     );
