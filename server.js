@@ -4078,6 +4078,8 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         if (featureCodesArray && featureCodesArray.length > 0) {
           // Use structured array - each element is a space-separated group
           for (const line of featureCodesArray) {
+            // Skip if line is not a string
+            if (typeof line !== 'string') continue;
             const parts = line.trim().toUpperCase().split(/\s+/);
             
             // Check if this line defines a bedroom
