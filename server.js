@@ -34591,10 +34591,72 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
       
       console.log(`[Elevate] Using existing client account ${clientAccountId} with user_id ${clientUserId}`);
       
+    } else if (client.action === 'tenant') {
+      // Use tenant_id from partner_tenant_mapping (created via Partner API)
+      if (!client.tenant_id) {
+        return res.status(400).json({ 
+          success: false, 
+          error: 'client.tenant_id is required when using action: "tenant"' 
+        });
+      }
+      
+      const tenantMapping = await pool.query(`
+        SELECT ptm.gas_account_id, a.api_key, a.email, a.settings
+        FROM partner_tenant_mapping ptm
+        JOIN accounts a ON a.id = ptm.gas_account_id
+        WHERE ptm.partner_account_id = $1 AND ptm.external_tenant_id = $2
+      `, [ELEVATE_MASTER_ACCOUNT_ID, client.tenant_id]);
+      
+      if (tenantMapping.rows.length === 0) {
+        return res.status(404).json({ 
+          success: false, 
+          error: `Tenant "${client.tenant_id}" not found. Create it first via POST /api/partner/tenants` 
+        });
+      }
+      
+      clientAccountId = tenantMapping.rows[0].gas_account_id;
+      clientApiKey = tenantMapping.rows[0].api_key;
+      
+      // Get user_id from settings JSON
+      const settings = tenantMapping.rows[0].settings || {};
+      clientUserId = settings.user_id;
+      
+      // If tenant account doesn't have user_id, try to find or create one
+      if (!clientUserId) {
+        const email = tenantMapping.rows[0].email;
+        
+        if (email) {
+          const existingUser = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+          if (existingUser.rows.length > 0) {
+            clientUserId = existingUser.rows[0].id;
+          } else {
+            // Create user for this tenant account
+            const tempPassword = Math.random().toString(36).substring(2, 15);
+            const passwordHash = Buffer.from(tempPassword).toString('base64');
+            
+            const newUser = await pool.query(`
+              INSERT INTO users (
+                email, password_hash, first_name, last_name,
+                user_type, account_status, created_at
+              )
+              VALUES ($1, $2, 'Tenant', 'User', 'property_owner', 'active', NOW())
+              RETURNING id
+            `, [email, passwordHash]);
+            clientUserId = newUser.rows[0].id;
+          }
+          
+          // Update account settings with user_id
+          const updatedSettings = { ...settings, user_id: clientUserId };
+          await pool.query('UPDATE accounts SET settings = $1 WHERE id = $2', [JSON.stringify(updatedSettings), clientAccountId]);
+        }
+      }
+      
+      console.log(`[Elevate] Using tenant account ${clientAccountId} (tenant_id: ${client.tenant_id}) with user_id ${clientUserId}`);
+      
     } else {
       return res.status(400).json({ 
         success: false, 
-        error: 'client.action must be "create" or "existing"' 
+        error: 'client.action must be "create", "existing", or "tenant"' 
       });
     }
     
