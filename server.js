@@ -34027,30 +34027,26 @@ app.post('/api/admin/migrate-websites', async (req, res) => {
   try {
     console.log('🔄 Creating websites tables...');
     
-    // Check if websites table exists
-    const tableCheck = await pool.query(`
-      SELECT column_name FROM information_schema.columns 
-      WHERE table_name = 'websites' AND column_name = 'account_id'
-    `);
+    // Extend existing columns that might be too short
+    await pool.query(`ALTER TABLE websites ALTER COLUMN name TYPE VARCHAR(255)`).catch(() => {});
+    await pool.query(`ALTER TABLE websites ALTER COLUMN subdomain TYPE VARCHAR(100)`).catch(() => {});
+    await pool.query(`ALTER TABLE websites ALTER COLUMN primary_color TYPE VARCHAR(50)`).catch(() => {});
+    await pool.query(`ALTER TABLE websites ALTER COLUMN secondary_color TYPE VARCHAR(50)`).catch(() => {});
+    console.log('   ✓ Extended column sizes');
     
-    if (tableCheck.rows.length === 0) {
-      // Either table doesn't exist or missing account_id - add columns
-      await pool.query(`ALTER TABLE websites ADD COLUMN IF NOT EXISTS account_id INTEGER REFERENCES accounts(id)`);
-      await pool.query(`ALTER TABLE websites ADD COLUMN IF NOT EXISTS name VARCHAR(255)`);
-      await pool.query(`ALTER TABLE websites ADD COLUMN IF NOT EXISTS subdomain VARCHAR(100)`);
-      await pool.query(`ALTER TABLE websites ADD COLUMN IF NOT EXISTS custom_domain VARCHAR(255)`);
-      await pool.query(`ALTER TABLE websites ADD COLUMN IF NOT EXISTS description TEXT`);
-      await pool.query(`ALTER TABLE websites ADD COLUMN IF NOT EXISTS logo_url VARCHAR(500)`);
-      await pool.query(`ALTER TABLE websites ADD COLUMN IF NOT EXISTS primary_color VARCHAR(20) DEFAULT '#3B82F6'`);
-      await pool.query(`ALTER TABLE websites ADD COLUMN IF NOT EXISTS secondary_color VARCHAR(20) DEFAULT '#1E40AF'`);
-      await pool.query(`ALTER TABLE websites ADD COLUMN IF NOT EXISTS settings JSONB DEFAULT '{}'`);
-      await pool.query(`ALTER TABLE websites ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true`);
-      await pool.query(`ALTER TABLE websites ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()`);
-      await pool.query(`ALTER TABLE websites ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()`);
-      console.log('   ✓ Added columns to websites table');
-    } else {
-      console.log('   ✓ websites table already has account_id');
-    }
+    // Add columns if they don't exist
+    await pool.query(`ALTER TABLE websites ADD COLUMN IF NOT EXISTS account_id INTEGER REFERENCES accounts(id)`);
+    await pool.query(`ALTER TABLE websites ADD COLUMN IF NOT EXISTS subdomain VARCHAR(100)`);
+    await pool.query(`ALTER TABLE websites ADD COLUMN IF NOT EXISTS custom_domain VARCHAR(255)`);
+    await pool.query(`ALTER TABLE websites ADD COLUMN IF NOT EXISTS description TEXT`);
+    await pool.query(`ALTER TABLE websites ADD COLUMN IF NOT EXISTS logo_url VARCHAR(500)`);
+    await pool.query(`ALTER TABLE websites ADD COLUMN IF NOT EXISTS primary_color VARCHAR(50) DEFAULT '#3B82F6'`);
+    await pool.query(`ALTER TABLE websites ADD COLUMN IF NOT EXISTS secondary_color VARCHAR(50) DEFAULT '#1E40AF'`);
+    await pool.query(`ALTER TABLE websites ADD COLUMN IF NOT EXISTS settings JSONB DEFAULT '{}'`);
+    await pool.query(`ALTER TABLE websites ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true`);
+    await pool.query(`ALTER TABLE websites ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()`);
+    await pool.query(`ALTER TABLE websites ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()`);
+    console.log('   ✓ Added columns to websites table');
     
     // Website rooms - many-to-many link
     await pool.query(`
