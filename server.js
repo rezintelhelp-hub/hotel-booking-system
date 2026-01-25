@@ -34017,6 +34017,447 @@ app.delete('/api/partner/room-types/:roomTypeId', async (req, res) => {
 });
 
 // =====================================================
+// PARTNER API - WEBSITES
+// =====================================================
+// Websites allow tenants to have multiple booking sites
+// Each site can display different rooms/units
+
+// Migration: Create websites tables
+app.post('/api/admin/migrate-websites', async (req, res) => {
+  try {
+    console.log('🔄 Creating websites tables...');
+    
+    // Main websites table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS websites (
+        id SERIAL PRIMARY KEY,
+        account_id INTEGER NOT NULL REFERENCES accounts(id),
+        name VARCHAR(255) NOT NULL,
+        subdomain VARCHAR(100),
+        custom_domain VARCHAR(255),
+        description TEXT,
+        logo_url VARCHAR(500),
+        primary_color VARCHAR(20) DEFAULT '#3B82F6',
+        secondary_color VARCHAR(20) DEFAULT '#1E40AF',
+        settings JSONB DEFAULT '{}',
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(subdomain)
+      )
+    `);
+    console.log('   ✓ Created websites table');
+    
+    // Website rooms - many-to-many link
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS website_rooms (
+        id SERIAL PRIMARY KEY,
+        website_id INTEGER NOT NULL REFERENCES websites(id) ON DELETE CASCADE,
+        bookable_unit_id INTEGER NOT NULL REFERENCES bookable_units(id) ON DELETE CASCADE,
+        display_order INTEGER DEFAULT 0,
+        is_featured BOOLEAN DEFAULT false,
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(website_id, bookable_unit_id)
+      )
+    `);
+    console.log('   ✓ Created website_rooms table');
+    
+    // Indexes
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_websites_account ON websites(account_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_website_rooms_website ON website_rooms(website_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_website_rooms_unit ON website_rooms(bookable_unit_id)`);
+    
+    res.json({ success: true, message: 'Websites tables created' });
+  } catch (error) {
+    console.error('Migration error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/partner/tenants/:tenantId/websites - Create website
+app.post('/api/partner/tenants/:tenantId/websites', async (req, res) => {
+  console.log('=== PARTNER API: CREATE WEBSITE ===');
+  
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    
+    const { tenantId } = req.params;
+    const { name, subdomain, custom_domain, description, logo_url, primary_color, secondary_color, settings } = req.body;
+    
+    if (!name) {
+      return res.status(400).json({ success: false, error: 'name is required' });
+    }
+    
+    const accountId = await getTenantAccountId(auth.partnerId, tenantId);
+    if (!accountId) {
+      return res.status(404).json({ success: false, error: 'Tenant not found' });
+    }
+    
+    // Check subdomain uniqueness if provided
+    if (subdomain) {
+      const existing = await pool.query('SELECT id FROM websites WHERE subdomain = $1', [subdomain]);
+      if (existing.rows.length > 0) {
+        return res.status(400).json({ success: false, error: 'Subdomain already in use' });
+      }
+    }
+    
+    const result = await pool.query(`
+      INSERT INTO websites (account_id, name, subdomain, custom_domain, description, logo_url, primary_color, secondary_color, settings)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      RETURNING id, name, subdomain, custom_domain, description, logo_url, primary_color, secondary_color, is_active, created_at
+    `, [
+      accountId, 
+      name, 
+      subdomain || null, 
+      custom_domain || null, 
+      description || null, 
+      logo_url || null,
+      primary_color || '#3B82F6',
+      secondary_color || '#1E40AF',
+      JSON.stringify(settings || {})
+    ]);
+    
+    const website = result.rows[0];
+    
+    res.json({
+      success: true,
+      website: {
+        id: website.id,
+        name: website.name,
+        subdomain: website.subdomain,
+        custom_domain: website.custom_domain,
+        url: website.subdomain ? `https://${website.subdomain}.gas.travel` : null,
+        description: website.description,
+        logo_url: website.logo_url,
+        primary_color: website.primary_color,
+        secondary_color: website.secondary_color,
+        room_count: 0,
+        status: website.is_active ? 'active' : 'inactive',
+        created_at: website.created_at
+      }
+    });
+    
+  } catch (error) {
+    console.error('Partner API create website error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/partner/tenants/:tenantId/websites - List websites
+app.get('/api/partner/tenants/:tenantId/websites', async (req, res) => {
+  console.log('=== PARTNER API: LIST WEBSITES ===');
+  
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    
+    const { tenantId } = req.params;
+    
+    const accountId = await getTenantAccountId(auth.partnerId, tenantId);
+    if (!accountId) {
+      return res.status(404).json({ success: false, error: 'Tenant not found' });
+    }
+    
+    const result = await pool.query(`
+      SELECT 
+        w.id, w.name, w.subdomain, w.custom_domain, w.description,
+        w.logo_url, w.primary_color, w.secondary_color, w.is_active, w.created_at,
+        COUNT(wr.id) as room_count
+      FROM websites w
+      LEFT JOIN website_rooms wr ON wr.website_id = w.id
+      WHERE w.account_id = $1
+      GROUP BY w.id
+      ORDER BY w.created_at DESC
+    `, [accountId]);
+    
+    res.json({
+      success: true,
+      websites: result.rows.map(w => ({
+        id: w.id,
+        name: w.name,
+        subdomain: w.subdomain,
+        custom_domain: w.custom_domain,
+        url: w.subdomain ? `https://${w.subdomain}.gas.travel` : (w.custom_domain || null),
+        description: w.description,
+        logo_url: w.logo_url,
+        primary_color: w.primary_color,
+        secondary_color: w.secondary_color,
+        room_count: parseInt(w.room_count),
+        status: w.is_active ? 'active' : 'inactive',
+        created_at: w.created_at
+      }))
+    });
+    
+  } catch (error) {
+    console.error('Partner API list websites error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/partner/websites/:websiteId - Get website with rooms
+app.get('/api/partner/websites/:websiteId', async (req, res) => {
+  console.log('=== PARTNER API: GET WEBSITE ===');
+  
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    
+    const { websiteId } = req.params;
+    
+    // Get website (verify it belongs to partner's tenant)
+    const wResult = await pool.query(`
+      SELECT w.*, a.parent_id
+      FROM websites w
+      JOIN accounts a ON a.id = w.account_id
+      WHERE w.id = $1 AND a.parent_id = $2
+    `, [websiteId, auth.partnerId]);
+    
+    if (wResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Website not found' });
+    }
+    
+    const w = wResult.rows[0];
+    
+    // Get assigned rooms
+    const rooms = await pool.query(`
+      SELECT 
+        wr.id as assignment_id,
+        wr.display_order,
+        wr.is_featured,
+        bu.id as room_id,
+        bu.name as room_name,
+        bu.partner_external_id as elevate_id,
+        bu.max_guests,
+        bu.num_bedrooms as bedrooms,
+        bu.num_bathrooms as bathrooms,
+        p.id as property_id,
+        p.name as property_name,
+        rt.id as room_type_id,
+        rt.name as room_type_name
+      FROM website_rooms wr
+      JOIN bookable_units bu ON bu.id = wr.bookable_unit_id
+      JOIN properties p ON p.id = bu.property_id
+      LEFT JOIN room_types rt ON rt.id = bu.room_type_id
+      WHERE wr.website_id = $1
+      ORDER BY wr.display_order, bu.name
+    `, [websiteId]);
+    
+    res.json({
+      success: true,
+      website: {
+        id: w.id,
+        name: w.name,
+        subdomain: w.subdomain,
+        custom_domain: w.custom_domain,
+        url: w.subdomain ? `https://${w.subdomain}.gas.travel` : (w.custom_domain || null),
+        description: w.description,
+        logo_url: w.logo_url,
+        primary_color: w.primary_color,
+        secondary_color: w.secondary_color,
+        settings: w.settings || {},
+        status: w.is_active ? 'active' : 'inactive',
+        created_at: w.created_at,
+        rooms: rooms.rows.map(r => ({
+          assignment_id: r.assignment_id,
+          room_id: r.room_id,
+          elevate_id: r.elevate_id,
+          room_name: r.room_name,
+          property_id: r.property_id,
+          property_name: r.property_name,
+          room_type_id: r.room_type_id,
+          room_type_name: r.room_type_name,
+          max_guests: r.max_guests,
+          bedrooms: r.bedrooms,
+          bathrooms: r.bathrooms,
+          display_order: r.display_order,
+          is_featured: r.is_featured
+        }))
+      }
+    });
+    
+  } catch (error) {
+    console.error('Partner API get website error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/partner/websites/:websiteId - Update website
+app.put('/api/partner/websites/:websiteId', async (req, res) => {
+  console.log('=== PARTNER API: UPDATE WEBSITE ===');
+  
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    
+    const { websiteId } = req.params;
+    const { name, subdomain, custom_domain, description, logo_url, primary_color, secondary_color, settings, is_active } = req.body;
+    
+    // Verify website belongs to partner's tenant
+    const wCheck = await pool.query(`
+      SELECT w.id FROM websites w
+      JOIN accounts a ON a.id = w.account_id
+      WHERE w.id = $1 AND a.parent_id = $2
+    `, [websiteId, auth.partnerId]);
+    
+    if (wCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Website not found' });
+    }
+    
+    // Check subdomain uniqueness if changing
+    if (subdomain) {
+      const existing = await pool.query('SELECT id FROM websites WHERE subdomain = $1 AND id != $2', [subdomain, websiteId]);
+      if (existing.rows.length > 0) {
+        return res.status(400).json({ success: false, error: 'Subdomain already in use' });
+      }
+    }
+    
+    const updates = [];
+    const values = [];
+    let idx = 1;
+    
+    if (name !== undefined) { updates.push(`name = $${idx++}`); values.push(name); }
+    if (subdomain !== undefined) { updates.push(`subdomain = $${idx++}`); values.push(subdomain); }
+    if (custom_domain !== undefined) { updates.push(`custom_domain = $${idx++}`); values.push(custom_domain); }
+    if (description !== undefined) { updates.push(`description = $${idx++}`); values.push(description); }
+    if (logo_url !== undefined) { updates.push(`logo_url = $${idx++}`); values.push(logo_url); }
+    if (primary_color !== undefined) { updates.push(`primary_color = $${idx++}`); values.push(primary_color); }
+    if (secondary_color !== undefined) { updates.push(`secondary_color = $${idx++}`); values.push(secondary_color); }
+    if (settings !== undefined) { updates.push(`settings = $${idx++}`); values.push(JSON.stringify(settings)); }
+    if (is_active !== undefined) { updates.push(`is_active = $${idx++}`); values.push(is_active); }
+    
+    if (updates.length === 0) {
+      return res.status(400).json({ success: false, error: 'No fields to update' });
+    }
+    
+    updates.push(`updated_at = NOW()`);
+    values.push(websiteId);
+    
+    await pool.query(
+      `UPDATE websites SET ${updates.join(', ')} WHERE id = $${idx}`,
+      values
+    );
+    
+    res.json({ success: true, message: 'Website updated' });
+    
+  } catch (error) {
+    console.error('Partner API update website error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/partner/websites/:websiteId/rooms - Assign rooms to website
+app.put('/api/partner/websites/:websiteId/rooms', async (req, res) => {
+  console.log('=== PARTNER API: ASSIGN ROOMS TO WEBSITE ===');
+  
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    
+    const { websiteId } = req.params;
+    const { rooms } = req.body; // Array of { room_id, display_order?, is_featured? }
+    
+    if (!rooms || !Array.isArray(rooms)) {
+      return res.status(400).json({ success: false, error: 'rooms array is required' });
+    }
+    
+    // Verify website belongs to partner's tenant
+    const wCheck = await pool.query(`
+      SELECT w.id, w.account_id FROM websites w
+      JOIN accounts a ON a.id = w.account_id
+      WHERE w.id = $1 AND a.parent_id = $2
+    `, [websiteId, auth.partnerId]);
+    
+    if (wCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Website not found' });
+    }
+    
+    const accountId = wCheck.rows[0].account_id;
+    
+    // Clear existing room assignments
+    await pool.query(`DELETE FROM website_rooms WHERE website_id = $1`, [websiteId]);
+    
+    // Add new room assignments
+    let assigned = 0;
+    for (const room of rooms) {
+      const roomId = room.room_id || room;
+      const displayOrder = room.display_order || 0;
+      const isFeatured = room.is_featured || false;
+      
+      // Verify room belongs to the same account
+      const roomCheck = await pool.query(`
+        SELECT bu.id FROM bookable_units bu
+        JOIN properties p ON p.id = bu.property_id
+        WHERE bu.id = $1 AND p.account_id = $2
+      `, [roomId, accountId]);
+      
+      if (roomCheck.rows.length > 0) {
+        await pool.query(`
+          INSERT INTO website_rooms (website_id, bookable_unit_id, display_order, is_featured)
+          VALUES ($1, $2, $3, $4)
+          ON CONFLICT (website_id, bookable_unit_id) DO UPDATE SET display_order = $3, is_featured = $4
+        `, [websiteId, roomId, displayOrder, isFeatured]);
+        assigned++;
+      }
+    }
+    
+    res.json({
+      success: true,
+      message: `Assigned ${assigned} rooms to website`,
+      assigned_count: assigned
+    });
+    
+  } catch (error) {
+    console.error('Partner API assign rooms error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// DELETE /api/partner/websites/:websiteId - Delete website
+app.delete('/api/partner/websites/:websiteId', async (req, res) => {
+  console.log('=== PARTNER API: DELETE WEBSITE ===');
+  
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    
+    const { websiteId } = req.params;
+    
+    // Verify website belongs to partner's tenant
+    const wCheck = await pool.query(`
+      SELECT w.id FROM websites w
+      JOIN accounts a ON a.id = w.account_id
+      WHERE w.id = $1 AND a.parent_id = $2
+    `, [websiteId, auth.partnerId]);
+    
+    if (wCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Website not found' });
+    }
+    
+    // Delete website (cascade will delete website_rooms)
+    await pool.query(`DELETE FROM websites WHERE id = $1`, [websiteId]);
+    
+    res.json({ success: true, message: 'Website deleted' });
+    
+  } catch (error) {
+    console.error('Partner API delete website error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
 // TEMPORARY CLEANUP ENDPOINT - REMOVE AFTER USE
 // =====================================================
 app.get('/api/elevate/cleanup-test-data-xK9mP2nL', async (req, res) => {
