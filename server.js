@@ -34108,11 +34108,15 @@ app.post('/api/partner/tenants/:tenantId/websites', async (req, res) => {
       }
     }
     
+    // Generate public_id
+    const publicId = `ELEV-${tenantId}-${Date.now()}`;
+    
     const result = await pool.query(`
-      INSERT INTO websites (account_id, name, subdomain, custom_domain, description, logo_url, primary_color, secondary_color, settings)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      INSERT INTO websites (public_id, owner_type, owner_id, account_id, name, subdomain, custom_domain, description, logo_url, primary_color, secondary_color, settings, status)
+      VALUES ($1, 'account', $2, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'active')
       RETURNING id, name, subdomain, custom_domain, description, logo_url, primary_color, secondary_color, is_active, created_at
     `, [
+      publicId,
       accountId, 
       name, 
       subdomain || null, 
