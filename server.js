@@ -34104,8 +34104,8 @@ app.post('/api/partner/tenants/:tenantId/websites', async (req, res) => {
       }
     }
     
-    // Generate public_id
-    const publicId = `ELEV-${tenantId}-${Date.now()}`;
+    // Generate public_id (keep it short - max 20 chars)
+    const publicId = `EL${accountId}-${Date.now().toString(36)}`;
     
     const result = await pool.query(`
       INSERT INTO websites (public_id, owner_type, owner_id, account_id, name, subdomain, custom_domain, description, logo_url, primary_color, secondary_color, settings, status)
