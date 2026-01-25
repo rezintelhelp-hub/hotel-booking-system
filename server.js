@@ -29385,6 +29385,75 @@ app.delete('/api/admin/amenities/delete-all', async (req, res) => {
   }
 });
 
+// Get unmatched amenities (from partner integrations)
+app.get('/api/admin/unmatched-amenities', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT ua.*, ma.amenity_name as suggested_name, ma.amenity_code as suggested_code
+      FROM unmatched_amenities ua
+      LEFT JOIN master_amenities ma ON ma.id = ua.suggested_match_id
+      WHERE ua.mapped_to_id IS NULL
+      ORDER BY ua.occurrence_count DESC, ua.last_seen DESC
+      LIMIT 100
+    `);
+    
+    res.json({ success: true, unmatched: result.rows });
+  } catch (error) {
+    // Table might not exist yet
+    if (error.message.includes('does not exist')) {
+      res.json({ success: true, unmatched: [], message: 'Run migrate-amenity-aliases first' });
+    } else {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  }
+});
+
+// Manually map an unmatched amenity to a master amenity
+app.post('/api/admin/map-amenity', async (req, res) => {
+  try {
+    const { unmatched_id, master_amenity_id, add_as_alias } = req.body;
+    
+    // Update the mapping
+    await pool.query(`
+      UPDATE unmatched_amenities 
+      SET mapped_to_id = $1 
+      WHERE id = $2
+    `, [master_amenity_id, unmatched_id]);
+    
+    // Optionally add as alias for future auto-matching
+    if (add_as_alias) {
+      const unmatched = await pool.query('SELECT raw_name FROM unmatched_amenities WHERE id = $1', [unmatched_id]);
+      if (unmatched.rows.length > 0) {
+        await pool.query(`
+          UPDATE master_amenities 
+          SET aliases = COALESCE(aliases, '[]'::jsonb) || $1::jsonb
+          WHERE id = $2
+        `, [JSON.stringify([unmatched.rows[0].raw_name.toLowerCase()]), master_amenity_id]);
+      }
+    }
+    
+    res.json({ success: true, message: 'Amenity mapped successfully' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get master amenities list (for mapping dropdown)
+app.get('/api/admin/master-amenities', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT id, amenity_code, amenity_name, category, icon, aliases
+      FROM master_amenities 
+      WHERE is_active = true
+      ORDER BY category, amenity_code
+    `);
+    
+    res.json({ success: true, amenities: result.rows });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // ========================================
 // CONTENT MANAGEMENT ENDPOINTS
 // ========================================
@@ -30929,6 +30998,92 @@ app.post('/api/admin/migrate-clean-amenities', async (req, res) => {
     res.json({ success: false, error: error.message });
   } finally {
     client.release();
+  }
+});
+
+// Migration: Add amenity aliases for intelligent matching
+app.post('/api/admin/migrate-amenity-aliases', async (req, res) => {
+  try {
+    console.log('🔄 Adding amenity aliases for intelligent matching...');
+    
+    // Add aliases column to master_amenities
+    await pool.query(`
+      ALTER TABLE master_amenities 
+      ADD COLUMN IF NOT EXISTS aliases JSONB DEFAULT '[]'
+    `);
+    console.log('   ✓ Added aliases column to master_amenities');
+    
+    // Add some default aliases for common amenities
+    const aliasUpdates = [
+      { code: 'wifi', aliases: ['wi-fi', 'wireless', 'internet', 'free wifi', 'free wi-fi'] },
+      { code: 'parking', aliases: ['free parking', 'car park', 'parking space', 'garage'] },
+      { code: 'pool', aliases: ['swimming pool', 'swimming', 'outdoor pool', 'indoor pool'] },
+      { code: 'ac', aliases: ['air conditioning', 'air-conditioning', 'air con', 'a/c', 'climate control'] },
+      { code: 'kitchen', aliases: ['kitchenette', 'full kitchen', 'equipped kitchen'] },
+      { code: 'washer', aliases: ['washing machine', 'laundry', 'tumblr', 'tumble dryer', 'dryer', 'tumbler'] },
+      { code: 'tv', aliases: ['television', 'smart tv', 'flat screen', 'cable tv', 'satellite tv'] },
+      { code: 'bbq', aliases: ['barbeque', 'barbecue', 'outdoor bbq', 'grill', 'bbq grill'] },
+      { code: 'beach_access', aliases: ['beach', 'beach view', 'beachfront', 'oceanfront', 'sea view'] },
+      { code: 'microwave', aliases: ['micro wave', 'micro-wave'] },
+      { code: 'refrigerator', aliases: ['fridge', 'freezer', 'mini fridge', 'mini-fridge', 'minibar'] },
+      { code: 'highchair', aliases: ['high chair', 'baby chair', 'child chair', 'kids chair'] },
+      { code: 'essentials', aliases: ['basic essentials', 'toiletries', 'basics'] },
+      { code: 'heating', aliases: ['heater', 'central heating', 'radiator', 'underfloor heating'] },
+      { code: 'iron', aliases: ['ironing', 'iron and board', 'ironing board'] },
+      { code: 'hairdryer', aliases: ['hair dryer', 'blow dryer', 'hair-dryer'] },
+      { code: 'coffee_maker', aliases: ['coffee machine', 'coffee', 'nespresso', 'espresso machine'] },
+      { code: 'dishwasher', aliases: ['dish washer', 'dish-washer'] },
+      { code: 'balcony', aliases: ['terrace', 'patio', 'deck', 'outdoor space'] },
+      { code: 'garden', aliases: ['yard', 'backyard', 'outdoor garden', 'private garden'] },
+      { code: 'gym', aliases: ['fitness', 'fitness center', 'fitness centre', 'workout room', 'exercise room'] },
+      { code: 'hot_tub', aliases: ['jacuzzi', 'spa', 'whirlpool', 'hot-tub'] },
+      { code: 'fireplace', aliases: ['fire place', 'wood burner', 'log burner'] },
+      { code: 'workspace', aliases: ['desk', 'office', 'work space', 'home office', 'dedicated workspace'] },
+      { code: 'safe', aliases: ['safety box', 'safe box', 'security safe', 'in-room safe'] },
+      { code: 'elevator', aliases: ['lift', 'lifts', 'elevators'] },
+      { code: 'wheelchair', aliases: ['wheelchair accessible', 'accessible', 'disability access', 'disabled access'] },
+      { code: 'pet_friendly', aliases: ['pets allowed', 'dogs allowed', 'pet-friendly', 'pets welcome'] },
+      { code: 'smoking', aliases: ['smoking allowed', 'smoking area'] },
+      { code: 'non_smoking', aliases: ['no smoking', 'smoke free', 'smoke-free'] },
+      { code: 'cot', aliases: ['crib', 'baby cot', 'baby crib', 'infant bed'] },
+      { code: 'entertainment', aliases: ['games', 'game room', 'entertainment system', 'streaming'] }
+    ];
+    
+    let updatedCount = 0;
+    for (const { code, aliases } of aliasUpdates) {
+      const result = await pool.query(`
+        UPDATE master_amenities 
+        SET aliases = $1 
+        WHERE amenity_code = $2
+      `, [JSON.stringify(aliases), code]);
+      if (result.rowCount > 0) updatedCount++;
+    }
+    console.log(`   ✓ Updated aliases for ${updatedCount} amenities`);
+    
+    // Create unmatched_amenities table for tracking
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS unmatched_amenities (
+        id SERIAL PRIMARY KEY,
+        source VARCHAR(50) NOT NULL,
+        raw_name VARCHAR(255) NOT NULL,
+        suggested_match_id INTEGER REFERENCES master_amenities(id),
+        mapped_to_id INTEGER REFERENCES master_amenities(id),
+        occurrence_count INTEGER DEFAULT 1,
+        first_seen TIMESTAMP DEFAULT NOW(),
+        last_seen TIMESTAMP DEFAULT NOW(),
+        UNIQUE(source, raw_name)
+      )
+    `);
+    console.log('   ✓ Created unmatched_amenities table');
+    
+    res.json({ 
+      success: true, 
+      message: 'Amenity aliases migration complete',
+      aliases_updated: updatedCount
+    });
+  } catch (error) {
+    console.error('Migration error:', error);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
@@ -33031,6 +33186,86 @@ async function validateElevatePartnerKey(apiKey) {
 }
 
 // =====================================================
+// AMENITY MATCHING HELPER FUNCTION
+// =====================================================
+
+// Amenity matching helper function - matches incoming amenities to master_amenities
+async function matchAmenity(rawName, source = 'unknown') {
+  const normalized = rawName.toLowerCase().trim();
+  
+  // 1. Exact match on amenity_code
+  let match = await pool.query(`
+    SELECT id, amenity_code, amenity_name, category, icon 
+    FROM master_amenities 
+    WHERE LOWER(amenity_code) = $1 AND is_active = true
+  `, [normalized]);
+  
+  if (match.rows.length > 0) {
+    return { matched: true, amenity: match.rows[0], match_type: 'exact_code' };
+  }
+  
+  // 2. Exact match on amenity_name (JSONB contains)
+  match = await pool.query(`
+    SELECT id, amenity_code, amenity_name, category, icon 
+    FROM master_amenities 
+    WHERE LOWER(amenity_name::text) LIKE $1 AND is_active = true
+  `, [`%${normalized}%`]);
+  
+  if (match.rows.length > 0) {
+    return { matched: true, amenity: match.rows[0], match_type: 'exact_name' };
+  }
+  
+  // 3. Alias match
+  match = await pool.query(`
+    SELECT id, amenity_code, amenity_name, category, icon 
+    FROM master_amenities 
+    WHERE aliases IS NOT NULL 
+    AND aliases::text ILIKE $1 
+    AND is_active = true
+  `, [`%${normalized}%`]);
+  
+  if (match.rows.length > 0) {
+    return { matched: true, amenity: match.rows[0], match_type: 'alias' };
+  }
+  
+  // 4. Fuzzy match using similarity (if pg_trgm extension is available)
+  try {
+    match = await pool.query(`
+      SELECT id, amenity_code, amenity_name, category, icon,
+             similarity(LOWER(amenity_code), $1) as code_sim,
+             similarity(LOWER(amenity_name::text), $1) as name_sim
+      FROM master_amenities 
+      WHERE is_active = true
+      AND (similarity(LOWER(amenity_code), $1) > 0.3 
+           OR similarity(LOWER(amenity_name::text), $1) > 0.3)
+      ORDER BY GREATEST(similarity(LOWER(amenity_code), $1), similarity(LOWER(amenity_name::text), $1)) DESC
+      LIMIT 1
+    `, [normalized]);
+    
+    if (match.rows.length > 0) {
+      return { matched: true, amenity: match.rows[0], match_type: 'fuzzy', confidence: Math.max(match.rows[0].code_sim, match.rows[0].name_sim) };
+    }
+  } catch (e) {
+    // pg_trgm extension not installed, skip fuzzy matching
+  }
+  
+  // 5. No match - log for manual mapping
+  try {
+    await pool.query(`
+      INSERT INTO unmatched_amenities (source, raw_name, last_seen) 
+      VALUES ($1, $2, NOW())
+      ON CONFLICT (source, raw_name) DO UPDATE SET 
+        occurrence_count = unmatched_amenities.occurrence_count + 1,
+        last_seen = NOW()
+    `, [source, rawName]);
+  } catch (e) {
+    // Table might not exist yet, ignore
+  }
+  
+  return { matched: false, raw_name: rawName };
+}
+
+// =====================================================
 // TEMPORARY CLEANUP ENDPOINT - REMOVE AFTER USE
 // =====================================================
 app.get('/api/elevate/cleanup-test-data-xK9mP2nL', async (req, res) => {
@@ -34133,9 +34368,9 @@ app.get('/api/elevate/:apiKey/room/:roomId/amenities', async (req, res) => {
   }
 });
 
-// Set amenities for a room (replaces existing)
+// Set amenities for a room (replaces existing) - WITH INTELLIGENT MATCHING
 app.put('/api/elevate/:apiKey/room/:roomId/amenities', async (req, res) => {
-  console.log('=== ELEVATE: SET ROOM AMENITIES ===');
+  console.log('=== ELEVATE: SET ROOM AMENITIES (with matching) ===');
   
   try {
     const auth = await validateElevatePartnerKey(req.params.apiKey);
@@ -34144,7 +34379,7 @@ app.put('/api/elevate/:apiKey/room/:roomId/amenities', async (req, res) => {
     }
     
     const { roomId } = req.params;
-    const { amenities } = req.body; // Array of amenity names or objects
+    const { amenities } = req.body;
     
     if (!Array.isArray(amenities)) {
       return res.status(400).json({ success: false, error: 'amenities must be an array' });
@@ -34166,13 +34401,68 @@ app.put('/api/elevate/:apiKey/room/:roomId/amenities', async (req, res) => {
     
     const gasRoomId = roomCheck.rows[0].id;
     
-    // Process amenities into consistent format
-    const processedAmenities = amenities.map(a => typeof a === 'string' ? a : a.name).filter(Boolean);
+    // Clear existing room_amenity_selections for this room
+    await pool.query('DELETE FROM room_amenity_selections WHERE room_id = $1', [gasRoomId]);
     
-    // Save amenities to bookable_units.amenities JSON field
+    // Process and match each amenity
+    const matched = [];
+    const unmatched = [];
+    const processedAmenities = [];
+    
+    for (const a of amenities) {
+      const rawName = typeof a === 'string' ? a : a.name;
+      if (!rawName) continue;
+      
+      const matchResult = await matchAmenity(rawName, 'elevate');
+      
+      if (matchResult.matched) {
+        matched.push({
+          raw: rawName,
+          matched_to: matchResult.amenity.amenity_code,
+          name: matchResult.amenity.amenity_name,
+          icon: matchResult.amenity.icon,
+          category: matchResult.amenity.category,
+          match_type: matchResult.match_type
+        });
+        
+        // Get amenity name as string
+        let amenityName = matchResult.amenity.amenity_name;
+        if (typeof amenityName === 'object') {
+          amenityName = amenityName.en || Object.values(amenityName)[0] || matchResult.amenity.amenity_code;
+        }
+        
+        processedAmenities.push({
+          code: matchResult.amenity.amenity_code,
+          name: amenityName,
+          icon: matchResult.amenity.icon,
+          category: matchResult.amenity.category
+        });
+        
+        // Insert into room_amenity_selections for proper linking
+        await pool.query(`
+          INSERT INTO room_amenity_selections (room_id, amenity_id)
+          VALUES ($1, $2)
+          ON CONFLICT (room_id, amenity_id) DO NOTHING
+        `, [gasRoomId, matchResult.amenity.id]);
+        
+      } else {
+        unmatched.push(rawName);
+        processedAmenities.push({
+          code: rawName.toLowerCase().replace(/[^a-z0-9]/g, '_'),
+          name: rawName,
+          icon: '✓',
+          category: 'Other',
+          unmatched: true
+        });
+      }
+    }
+    
+    // Save to bookable_units.amenities JSON field (for quick access)
     const amenitiesJson = {
       amenities: processedAmenities,
       raw_amenities: amenities.map(a => typeof a === 'string' ? { name: a } : a),
+      matched_count: matched.length,
+      unmatched_count: unmatched.length,
       updated_at: new Date().toISOString(),
       source: 'elevate'
     };
@@ -34182,11 +34472,16 @@ app.put('/api/elevate/:apiKey/room/:roomId/amenities', async (req, res) => {
       [JSON.stringify(amenitiesJson), gasRoomId]
     );
     
+    console.log(`Elevate amenities: ${matched.length} matched, ${unmatched.length} unmatched for room ${gasRoomId}`);
+    
     res.json({ 
       success: true, 
       room_id: gasRoomId,
-      amenities_count: processedAmenities.length,
-      amenities: processedAmenities
+      total_count: processedAmenities.length,
+      matched_count: matched.length,
+      unmatched_count: unmatched.length,
+      matched: matched,
+      unmatched: unmatched
     });
     
   } catch (error) {
