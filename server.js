@@ -33330,7 +33330,7 @@ async function validatePartnerApiKey(req) {
   return { valid: false, error: 'Invalid API key' };
 }
 
-// Migration: Create partner_tenant_mapping table
+// Migration: Create partner_tenant_mapping table and partner columns
 app.post('/api/admin/migrate-partner-tenant-mapping', async (req, res) => {
   try {
     console.log('🔄 Creating partner_tenant_mapping table...');
@@ -33358,6 +33358,14 @@ app.post('/api/admin/migrate-partner-tenant-mapping', async (req, res) => {
     `);
     
     console.log('   ✓ Created partner_tenant_mapping table');
+    
+    // Add partner_external_id columns to properties and bookable_units
+    // These are separate from cm_property_id/cm_room_id to avoid conflicts with other CMs
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS partner_external_id VARCHAR(255)`);
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS partner_source VARCHAR(50)`);
+    await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS partner_external_id VARCHAR(255)`);
+    
+    console.log('   ✓ Added partner_external_id columns');
     
     res.json({ success: true, message: 'Partner tenant mapping table created' });
   } catch (error) {
@@ -33671,14 +33679,22 @@ app.post('/api/partner/tenants/:tenantId/properties', async (req, res) => {
       }
       
       try {
-        // Check if property already exists (by elevate_id)
+        // Check if property already exists (by partner_external_id for this partner)
         const existing = await pool.query(
-          `SELECT id FROM properties WHERE account_id = $1 AND external_id = $2`,
+          `SELECT id FROM properties WHERE account_id = $1 AND partner_external_id = $2`,
           [accountId, prop.elevate_id]
         );
         
         let propertyId;
         let status;
+        
+        // Build address string
+        const addressParts = [];
+        if (prop.address?.street) addressParts.push(prop.address.street);
+        if (prop.address?.city) addressParts.push(prop.address.city);
+        if (prop.address?.state) addressParts.push(prop.address.state);
+        if (prop.address?.postal_code) addressParts.push(prop.address.postal_code);
+        const addressStr = addressParts.join(', ') || null;
         
         if (existing.rows.length > 0) {
           // Update existing property
@@ -33688,9 +33704,9 @@ app.post('/api/partner/tenants/:tenantId/properties', async (req, res) => {
             UPDATE properties SET
               name = $1,
               description = $2,
-              street_address = $3,
+              address = $3,
               city = $4,
-              state_province = $5,
+              state = $5,
               postal_code = $6,
               country = $7,
               currency = $8,
@@ -33701,7 +33717,7 @@ app.post('/api/partner/tenants/:tenantId/properties', async (req, res) => {
           `, [
             prop.name,
             prop.description || null,
-            prop.address?.street || null,
+            addressStr,
             prop.address?.city || null,
             prop.address?.state || null,
             prop.address?.postal_code || null,
@@ -33714,20 +33730,20 @@ app.post('/api/partner/tenants/:tenantId/properties', async (req, res) => {
           
           status = 'updated';
         } else {
-          // Create new property
+          // Create new property - use partner_external_id, NOT cm_property_id
           const newProp = await pool.query(`
             INSERT INTO properties (
-              account_id, external_id, name, description,
-              street_address, city, state_province, postal_code, country,
+              account_id, partner_external_id, partner_source, name, description,
+              address, city, state, postal_code, country,
               currency, check_in_time, check_out_time, status, created_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'active', NOW())
+            ) VALUES ($1, $2, 'elevate', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'active', NOW())
             RETURNING id
           `, [
             accountId,
             prop.elevate_id,
             prop.name,
             prop.description || null,
-            prop.address?.street || null,
+            addressStr,
             prop.address?.city || null,
             prop.address?.state || null,
             prop.address?.postal_code || null,
@@ -33744,14 +33760,14 @@ app.post('/api/partner/tenants/:tenantId/properties', async (req, res) => {
         // Handle room/unit (each property has one bookable unit in this model)
         // Check if bookable unit exists
         const existingUnit = await pool.query(
-          `SELECT id FROM bookable_units WHERE property_id = $1 AND (external_id = $2 OR name = $3)`,
-          [propertyId, prop.elevate_id, prop.name]
+          `SELECT id FROM bookable_units WHERE property_id = $1`,
+          [propertyId]
         );
         
         let unitId;
         if (existingUnit.rows.length > 0) {
           unitId = existingUnit.rows[0].id;
-          // Update unit
+          // Update unit - use partner_external_id, NOT cm_room_id
           await pool.query(`
             UPDATE bookable_units SET
               name = $1,
@@ -33761,8 +33777,9 @@ app.post('/api/partner/tenants/:tenantId/properties', async (req, res) => {
               bathrooms = $5,
               base_rate = $6,
               min_nights = $7,
+              partner_external_id = $8,
               updated_at = NOW()
-            WHERE id = $8
+            WHERE id = $9
           `, [
             prop.name,
             prop.description || null,
@@ -33771,13 +33788,14 @@ app.post('/api/partner/tenants/:tenantId/properties', async (req, res) => {
             prop.bathrooms || 1,
             prop.base_rate || null,
             prop.min_nights || 1,
+            prop.elevate_id,
             unitId
           ]);
         } else {
-          // Create unit
+          // Create unit - use partner_external_id, NOT cm_room_id
           const newUnit = await pool.query(`
             INSERT INTO bookable_units (
-              property_id, external_id, name, description,
+              property_id, partner_external_id, name, description,
               max_guests, bedrooms, bathrooms, base_rate, min_nights,
               status, created_at
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'active', NOW())
@@ -33885,7 +33903,7 @@ app.get('/api/partner/tenants/:tenantId/properties', async (req, res) => {
     const result = await pool.query(`
       SELECT 
         p.id as gas_id,
-        p.external_id as elevate_id,
+        p.partner_external_id as elevate_id,
         p.name,
         p.city,
         p.country,
@@ -33973,13 +33991,13 @@ app.get('/api/partner/properties/:propertyId', async (req, res) => {
       success: true,
       property: {
         gas_id: row.id,
-        elevate_id: row.external_id,
+        elevate_id: row.partner_external_id,
         name: row.name,
         description: row.description,
         address: {
-          street: row.street_address,
+          street: row.address,
           city: row.city,
-          state: row.state_province,
+          state: row.state,
           postal_code: row.postal_code,
           country: row.country
         },
@@ -34045,9 +34063,9 @@ app.put('/api/partner/properties/:propertyId', async (req, res) => {
     
     if (updates.name !== undefined) { propFields.push(`name = $${idx++}`); propValues.push(updates.name); }
     if (updates.description !== undefined) { propFields.push(`description = $${idx++}`); propValues.push(updates.description); }
-    if (updates.address?.street !== undefined) { propFields.push(`street_address = $${idx++}`); propValues.push(updates.address.street); }
+    if (updates.address?.street !== undefined) { propFields.push(`address = $${idx++}`); propValues.push(updates.address.street); }
     if (updates.address?.city !== undefined) { propFields.push(`city = $${idx++}`); propValues.push(updates.address.city); }
-    if (updates.address?.state !== undefined) { propFields.push(`state_province = $${idx++}`); propValues.push(updates.address.state); }
+    if (updates.address?.state !== undefined) { propFields.push(`state = $${idx++}`); propValues.push(updates.address.state); }
     if (updates.address?.postal_code !== undefined) { propFields.push(`postal_code = $${idx++}`); propValues.push(updates.address.postal_code); }
     if (updates.address?.country !== undefined) { propFields.push(`country = $${idx++}`); propValues.push(updates.address.country); }
     if (updates.currency !== undefined) { propFields.push(`currency = $${idx++}`); propValues.push(updates.currency); }
