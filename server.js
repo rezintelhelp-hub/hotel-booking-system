@@ -16409,6 +16409,7 @@ app.get('/api/admin/deployed-sites', async (req, res) => {
   try {
     const includeDeleted = req.query.include_deleted === 'true';
     const accountId = req.query.account_id;
+    const includeChildren = req.query.include_children !== 'false'; // Default to true
     
     let conditions = [];
     let params = [];
@@ -16419,7 +16420,19 @@ app.get('/api/admin/deployed-sites', async (req, res) => {
     }
     
     if (accountId) {
-      conditions.push(`ds.account_id = $${paramIndex}`);
+      // Check if this is an agency_admin or master_admin account
+      const accountCheck = await pool.query(
+        'SELECT role FROM accounts WHERE id = $1',
+        [accountId]
+      );
+      const accountRole = accountCheck.rows[0]?.role;
+      
+      if (includeChildren && (accountRole === 'agency_admin' || accountRole === 'master_admin')) {
+        // Include sites from this account AND all child accounts
+        conditions.push(`(ds.account_id = $${paramIndex} OR ds.account_id IN (SELECT id FROM accounts WHERE parent_id = $${paramIndex}))`);
+      } else {
+        conditions.push(`ds.account_id = $${paramIndex}`);
+      }
       params.push(accountId);
       paramIndex++;
     }
