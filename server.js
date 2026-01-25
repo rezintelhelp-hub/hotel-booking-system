@@ -15651,6 +15651,42 @@ async function pushSettingsToWordPress(siteUrl, section, settings) {
   }
 }
 
+// Helper function to create default WordPress menu after deployment
+async function createDefaultWordPressMenu(siteUrl) {
+  try {
+    const cleanUrl = siteUrl.replace(/\/$/, '');
+    console.log(`Creating default menu for: ${cleanUrl}`);
+    
+    const response = await fetch(`${cleanUrl}/wp-json/developer-theme/v1/create-menu`, {
+      method: 'POST',
+      headers: {
+        'X-GAS-API-Key': 'GAS_SECRET_KEY_2024!',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        menu_items: [
+          { title: 'Home', url: '/', order: 1 },
+          { title: 'Rooms', url: '/book-now/', order: 2 },
+          { title: 'Contact Us', url: '/contact/', order: 3 },
+          { title: 'Book Now', url: '/book-now/', order: 4, classes: 'developer-nav-cta' }
+        ]
+      })
+    });
+    
+    const responseText = await response.text();
+    console.log('Menu creation response:', responseText);
+    
+    try {
+      return JSON.parse(responseText);
+    } catch (e) {
+      return { success: false, error: 'Invalid response', raw: responseText };
+    }
+  } catch (error) {
+    console.error('Menu creation error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
 // Debug endpoint to check raw website_settings
 app.get('/api/debug/settings/:siteId/:section', async (req, res) => {
   try {
@@ -16198,6 +16234,15 @@ app.post('/api/deploy/create', async (req, res) => {
             console.error(`[Deploy] Google setup failed (non-blocking):`, googleError.message);
             // Don't fail the deployment - this is nice-to-have
           }
+        }
+        
+        // Create default WordPress menu
+        try {
+          console.log(`[Deploy] Creating default menu for ${site_name}...`);
+          await createDefaultWordPressMenu(data.site.url);
+          console.log(`[Deploy] Default menu created`);
+        } catch (menuError) {
+          console.error(`[Deploy] Menu creation failed (non-blocking):`, menuError.message);
         }
       } catch (dbError) {
         console.error('[Deploy] WordPress site created but database save failed:', dbError);
