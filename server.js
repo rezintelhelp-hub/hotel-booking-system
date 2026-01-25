@@ -33506,8 +33506,7 @@ app.get('/api/partner/tenants/:tenantId', async (req, res) => {
       `SELECT ptm.external_tenant_id as tenant_id, a.id, a.name as business_name, 
               a.email as contact_email, a.phone as contact_phone, a.country, a.timezone,
               a.status, a.created_at,
-              (SELECT COUNT(*) FROM properties WHERE account_id = a.id) as property_count,
-              (SELECT COUNT(*) FROM sites WHERE account_id = a.id) as site_count
+              (SELECT COUNT(*) FROM properties WHERE account_id = a.id) as property_count
        FROM partner_tenant_mapping ptm
        JOIN accounts a ON a.id = ptm.gas_account_id
        WHERE ptm.partner_account_id = $1 AND ptm.external_tenant_id = $2`,
@@ -33531,8 +33530,7 @@ app.get('/api/partner/tenants/:tenantId', async (req, res) => {
         timezone: row.timezone,
         status: row.status,
         created_at: row.created_at,
-        property_count: parseInt(row.property_count),
-        site_count: parseInt(row.site_count)
+        property_count: parseInt(row.property_count)
       }
     });
     
