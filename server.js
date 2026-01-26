@@ -16988,6 +16988,130 @@ app.put('/api/deployed-sites/:id/pricing-tier', async (req, res) => {
   }
 });
 
+// Connect custom domain to deployed site
+app.post('/api/deployed-sites/connect-domain', async (req, res) => {
+  try {
+    const { site_id, domain } = req.body;
+    
+    if (!site_id || !domain) {
+      return res.json({ success: false, error: 'site_id and domain are required' });
+    }
+    
+    // Clean domain
+    const cleanDomain = domain.toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').replace(/\/$/, '');
+    
+    // Get the deployed site
+    const siteResult = await pool.query('SELECT * FROM deployed_sites WHERE id = $1', [site_id]);
+    if (siteResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Deployed site not found' });
+    }
+    
+    const site = siteResult.rows[0];
+    const blogId = site.blog_id;
+    
+    console.log(`[Custom Domain] Connecting ${cleanDomain} to site ${site_id} (blog_id: ${blogId})`);
+    
+    // Call the VPS API to set up Nginx, SSL, and WordPress
+    const SITES_VPS_URL = 'https://sites.gas.travel/gas-api.php';
+    
+    const vpsResponse = await fetch(SITES_VPS_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': process.env.VPS_DEPLOY_API_KEY || 'GAS-DEPLOY-SECRET-2024'
+      },
+      body: JSON.stringify({
+        action: 'connect-custom-domain',
+        blog_id: blogId,
+        domain: cleanDomain
+      })
+    });
+    
+    const vpsData = await vpsResponse.json();
+    console.log(`[Custom Domain] VPS response:`, vpsData);
+    
+    if (vpsData.success) {
+      // Update the deployed_sites table
+      await pool.query(`
+        UPDATE deployed_sites 
+        SET custom_domain = $1, updated_at = NOW()
+        WHERE id = $2
+      `, [cleanDomain, site_id]);
+      
+      res.json({ 
+        success: true, 
+        domain: cleanDomain,
+        url: `https://${cleanDomain}`,
+        message: 'Domain connected successfully'
+      });
+    } else {
+      res.json({ success: false, error: vpsData.error || 'Failed to connect domain on VPS' });
+    }
+  } catch (error) {
+    console.error('[Custom Domain] Error connecting domain:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Remove custom domain from deployed site
+app.post('/api/deployed-sites/remove-domain', async (req, res) => {
+  try {
+    const { site_id } = req.body;
+    
+    if (!site_id) {
+      return res.json({ success: false, error: 'site_id is required' });
+    }
+    
+    // Get the deployed site
+    const siteResult = await pool.query('SELECT * FROM deployed_sites WHERE id = $1', [site_id]);
+    if (siteResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Deployed site not found' });
+    }
+    
+    const site = siteResult.rows[0];
+    const customDomain = site.custom_domain;
+    
+    if (!customDomain) {
+      return res.json({ success: false, error: 'No custom domain configured' });
+    }
+    
+    console.log(`[Custom Domain] Removing ${customDomain} from site ${site_id}`);
+    
+    // Call VPS API to remove the domain mapping
+    const SITES_VPS_URL = 'https://sites.gas.travel/gas-api.php';
+    
+    const vpsResponse = await fetch(SITES_VPS_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': process.env.VPS_DEPLOY_API_KEY || 'GAS-DEPLOY-SECRET-2024'
+      },
+      body: JSON.stringify({
+        action: 'remove-custom-domain',
+        blog_id: site.blog_id,
+        domain: customDomain
+      })
+    });
+    
+    const vpsData = await vpsResponse.json();
+    
+    // Update database regardless of VPS response
+    await pool.query(`
+      UPDATE deployed_sites 
+      SET custom_domain = NULL, updated_at = NOW()
+      WHERE id = $1
+    `, [site_id]);
+    
+    res.json({ 
+      success: true, 
+      message: 'Domain removed'
+    });
+  } catch (error) {
+    console.error('[Custom Domain] Error removing domain:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Delete a deployed site
 app.delete('/api/deploy/:id', async (req, res) => {
   try {
