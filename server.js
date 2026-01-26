@@ -16032,6 +16032,37 @@ app.get('/api/my-custom-site', async (req, res) => {
   }
 });
 
+// Link custom site to account (admin only)
+app.post('/api/custom-site/link', async (req, res) => {
+  try {
+    const { slug, account_id } = req.body;
+    
+    if (!slug || !account_id) {
+      return res.json({ success: false, error: 'slug and account_id required' });
+    }
+    
+    // Add account_id column if it doesn't exist
+    await pool.query(`ALTER TABLE custom_sites ADD COLUMN IF NOT EXISTS account_id INTEGER`).catch(() => {});
+    
+    // Update the site
+    const result = await pool.query(`
+      UPDATE custom_sites 
+      SET account_id = $1 
+      WHERE slug = $2
+      RETURNING *
+    `, [account_id, slug]);
+    
+    if (result.rows.length > 0) {
+      res.json({ success: true, site: result.rows[0], message: `Site ${slug} linked to account ${account_id}` });
+    } else {
+      res.json({ success: false, error: 'Site not found' });
+    }
+  } catch (error) {
+    console.error('Error linking custom site:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Manually register an existing bespoke site
 app.post('/api/custom-site/register', async (req, res) => {
   try {
