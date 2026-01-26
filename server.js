@@ -16731,6 +16731,34 @@ app.delete('/api/admin/deployed-sites/:id', async (req, res) => {
   }
 });
 
+// TEMPORARY: Fix foreign key constraints - visit once then remove
+app.get('/api/admin/fix-fk-constraints-xK9mP2nL', async (req, res) => {
+  try {
+    const results = [];
+    
+    // Fix websites table FK to cascade on delete
+    await pool.query('ALTER TABLE websites DROP CONSTRAINT IF EXISTS websites_deployed_site_id_fkey');
+    await pool.query(`
+      ALTER TABLE websites ADD CONSTRAINT websites_deployed_site_id_fkey 
+      FOREIGN KEY (deployed_site_id) REFERENCES deployed_sites(id) ON DELETE CASCADE
+    `);
+    results.push('Fixed websites.deployed_site_id FK to CASCADE');
+    
+    // Also fix website_settings if it exists without cascade
+    await pool.query('ALTER TABLE website_settings DROP CONSTRAINT IF EXISTS website_settings_deployed_site_id_fkey');
+    await pool.query(`
+      ALTER TABLE website_settings ADD CONSTRAINT website_settings_deployed_site_id_fkey 
+      FOREIGN KEY (deployed_site_id) REFERENCES deployed_sites(id) ON DELETE CASCADE
+    `);
+    results.push('Fixed website_settings.deployed_site_id FK to CASCADE');
+    
+    res.json({ success: true, message: 'Foreign key constraints fixed', results });
+  } catch (error) {
+    console.error('Fix FK error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Get all deployed sites
 app.get('/api/admin/deployed-sites', async (req, res) => {
   try {
