@@ -16187,6 +16187,9 @@ const promo = await fetch('/api/v1/offers/validate', {
         function applyRoleBasedAccess() {
             if (!currentAccount) return;
             
+            // Check if user has a custom site (for all roles)
+            checkCustomSiteAccess();
+            
             // Master admin sees everything
             if (currentAccount.role === 'master_admin') {
                 // Master admin sees everything including agency management requests
@@ -16254,9 +16257,6 @@ const promo = await fetch('/api/v1/offers/validate', {
             const clientsNavItem = document.querySelector('[data-view="clients"]');
             if (agenciesNavItem) agenciesNavItem.style.display = 'none';
             if (clientsNavItem) clientsNavItem.style.display = 'none';
-            
-            // Check if user has a custom site
-            checkCustomSiteAccess();
             
             console.log('Role-based access applied for:', currentAccount.role, '- filtering to account:', selectedAccountId);
         }
