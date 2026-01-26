@@ -15799,6 +15799,7 @@ app.post('/api/plugin-license/create', async (req, res) => {
       success: true, 
       license_key: licenseKey,
       download_url: downloadUrl,
+      version: latest.version,
       rooms_count: room_ids ? room_ids.length : 0,
       message: 'License created successfully'
     });
@@ -15842,6 +15843,7 @@ app.post('/api/plugin-license/create', async (req, res) => {
           success: true, 
           license_key: licenseKey,
           download_url: downloadUrl,
+          version: latest.version,
           rooms_count: req.body.room_ids ? req.body.room_ids.length : 0,
           message: 'License created successfully'
         });
