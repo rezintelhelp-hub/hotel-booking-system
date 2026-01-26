@@ -11101,6 +11101,21 @@ app.post('/api/public/create-group-booking', async (req, res) => {
         }
         // ========== END EMAIL ==========
         
+        // ========== SEND PARTNER WEBHOOKS ==========
+        // Send webhook for each booking to notify partners (e.g., Elevate)
+        for (const booking of createdBookings) {
+            try {
+                const webhookResult = await sendPartnerBookingWebhook(booking.id, 'booking.created');
+                if (webhookResult.sent) {
+                    console.log(`[Webhook] Sent booking.created for booking ${booking.id}`);
+                }
+            } catch (webhookError) {
+                console.error(`[Webhook] Error sending webhook for booking ${booking.id}:`, webhookError.message);
+                // Don't fail the booking if webhook fails
+            }
+        }
+        // ========== END PARTNER WEBHOOKS ==========
+        
         res.json({
             success: true,
             group_booking_id: groupBookingId,
@@ -33412,16 +33427,296 @@ async function validatePartnerApiKey(req) {
   
   // Check if this API key belongs to an agency_admin account
   const result = await pool.query(
-    `SELECT id, name, role FROM accounts 
+    `SELECT id, name, role, booking_webhook_url, webhook_secret FROM accounts 
      WHERE api_key = $1 AND status = 'active' AND role = 'agency_admin'`,
     [apiKey]
   );
   
   if (result.rows.length > 0) {
-    return { valid: true, partnerId: result.rows[0].id, partnerName: result.rows[0].name };
+    return { 
+      valid: true, 
+      partnerId: result.rows[0].id, 
+      partnerName: result.rows[0].name,
+      webhookUrl: result.rows[0].booking_webhook_url,
+      webhookSecret: result.rows[0].webhook_secret
+    };
   }
   
   return { valid: false, error: 'Invalid API key' };
+}
+
+// =====================================================
+// PARTNER API - WEBHOOK CONFIGURATION
+// =====================================================
+
+// PUT /api/partner/webhooks - Configure webhook URL for booking notifications
+app.put('/api/partner/webhooks', async (req, res) => {
+  console.log('=== PARTNER API: CONFIGURE WEBHOOKS ===');
+  
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    
+    const { booking_created, booking_cancelled } = req.body;
+    
+    // For now, we use one URL for all events
+    const webhookUrl = booking_created || booking_cancelled;
+    
+    if (!webhookUrl) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'At least one webhook URL required (booking_created or booking_cancelled)' 
+      });
+    }
+    
+    // Validate URL format
+    try {
+      new URL(webhookUrl);
+    } catch (e) {
+      return res.status(400).json({ success: false, error: 'Invalid webhook URL format' });
+    }
+    
+    // Generate webhook secret if not exists
+    let webhookSecret = auth.webhookSecret;
+    if (!webhookSecret) {
+      webhookSecret = 'whsec_' + require('crypto').randomBytes(24).toString('hex');
+    }
+    
+    // Update partner account with webhook config
+    await pool.query(`
+      UPDATE accounts 
+      SET booking_webhook_url = $1, 
+          webhook_secret = $2,
+          updated_at = NOW()
+      WHERE id = $3
+    `, [webhookUrl, webhookSecret, auth.partnerId]);
+    
+    console.log(`✅ Webhook configured for partner ${auth.partnerName}`);
+    
+    res.json({ 
+      success: true, 
+      message: 'Webhook configured successfully',
+      webhook_url: webhookUrl,
+      webhook_secret: webhookSecret,
+      events: ['booking.created', 'booking.cancelled']
+    });
+    
+  } catch (error) {
+    console.error('Partner API configure webhooks error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/partner/webhooks - Get current webhook configuration
+app.get('/api/partner/webhooks', async (req, res) => {
+  console.log('=== PARTNER API: GET WEBHOOKS ===');
+  
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    
+    const result = await pool.query(`
+      SELECT booking_webhook_url, webhook_secret 
+      FROM accounts WHERE id = $1
+    `, [auth.partnerId]);
+    
+    const config = result.rows[0];
+    
+    res.json({
+      success: true,
+      configured: !!config.booking_webhook_url,
+      webhook_url: config.booking_webhook_url || null,
+      webhook_secret: config.webhook_secret || null,
+      events: config.booking_webhook_url ? ['booking.created', 'booking.cancelled'] : []
+    });
+    
+  } catch (error) {
+    console.error('Partner API get webhooks error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// DELETE /api/partner/webhooks - Remove webhook configuration
+app.delete('/api/partner/webhooks', async (req, res) => {
+  console.log('=== PARTNER API: DELETE WEBHOOKS ===');
+  
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    
+    await pool.query(`
+      UPDATE accounts 
+      SET booking_webhook_url = NULL, 
+          webhook_secret = NULL,
+          updated_at = NOW()
+      WHERE id = $1
+    `, [auth.partnerId]);
+    
+    res.json({ success: true, message: 'Webhook configuration removed' });
+    
+  } catch (error) {
+    console.error('Partner API delete webhooks error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
+// PARTNER WEBHOOK SENDER FUNCTION
+// =====================================================
+
+async function sendPartnerBookingWebhook(bookingId, eventType = 'booking.created') {
+  const crypto = require('crypto');
+  const axios = require('axios');
+  
+  try {
+    // Get booking details with tenant/partner info
+    const bookingResult = await pool.query(`
+      SELECT 
+        b.*,
+        bu.id as room_id,
+        bu.name as room_name,
+        bu.external_id as external_room_id,
+        p.id as property_id,
+        p.name as property_name,
+        p.external_id as external_property_id,
+        p.account_id,
+        ptm.external_tenant_id as tenant_id,
+        ptm.partner_account_id,
+        pa.booking_webhook_url,
+        pa.webhook_secret,
+        pa.name as partner_name
+      FROM bookings b
+      JOIN bookable_units bu ON b.bookable_unit_id = bu.id
+      JOIN properties p ON b.property_id = p.id
+      LEFT JOIN partner_tenant_mapping ptm ON p.account_id = ptm.gas_account_id
+      LEFT JOIN accounts pa ON ptm.partner_account_id = pa.id
+      WHERE b.id = $1
+    `, [bookingId]);
+    
+    if (bookingResult.rows.length === 0) {
+      console.log(`[Webhook] Booking ${bookingId} not found`);
+      return { sent: false, reason: 'booking_not_found' };
+    }
+    
+    const booking = bookingResult.rows[0];
+    
+    // Check if this booking belongs to a partner tenant with webhook configured
+    if (!booking.partner_account_id || !booking.booking_webhook_url) {
+      console.log(`[Webhook] No webhook configured for booking ${bookingId}`);
+      return { sent: false, reason: 'no_webhook_configured' };
+    }
+    
+    // Build webhook payload
+    const timestamp = new Date().toISOString();
+    const payload = {
+      event: eventType,
+      timestamp: timestamp,
+      data: {
+        booking_id: booking.id,
+        group_booking_id: booking.group_booking_id || null,
+        tenant_id: booking.tenant_id,
+        property: {
+          gas_id: booking.property_id,
+          external_id: booking.external_property_id,
+          name: booking.property_name
+        },
+        room: {
+          gas_id: booking.room_id,
+          external_id: booking.external_room_id,
+          name: booking.room_name
+        },
+        dates: {
+          check_in: booking.arrival_date,
+          check_out: booking.departure_date,
+          nights: Math.ceil((new Date(booking.departure_date) - new Date(booking.arrival_date)) / (1000 * 60 * 60 * 24))
+        },
+        guest: {
+          first_name: booking.guest_first_name,
+          last_name: booking.guest_last_name,
+          email: booking.guest_email,
+          phone: booking.guest_phone || null
+        },
+        guests: {
+          adults: booking.num_adults || 1,
+          children: booking.num_children || 0,
+          total: (booking.num_adults || 1) + (booking.num_children || 0)
+        },
+        payment: {
+          total: parseFloat(booking.grand_total) || 0,
+          deposit: parseFloat(booking.deposit_amount) || null,
+          currency: booking.currency || 'USD',
+          status: booking.payment_status || 'pending',
+          method: booking.stripe_payment_intent_id ? 'card' : 'property'
+        },
+        status: booking.status,
+        source: booking.booking_source || 'direct',
+        created_at: booking.created_at
+      }
+    };
+    
+    // Generate HMAC signature
+    const signature = crypto
+      .createHmac('sha256', booking.webhook_secret)
+      .update(JSON.stringify(payload))
+      .digest('hex');
+    
+    // Send webhook with retries
+    let lastError = null;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        console.log(`[Webhook] Sending ${eventType} to ${booking.booking_webhook_url} (attempt ${attempt})`);
+        
+        const response = await axios.post(booking.booking_webhook_url, payload, {
+          headers: {
+            'Content-Type': 'application/json',
+            'X-GAS-Signature': 'sha256=' + signature,
+            'X-GAS-Timestamp': timestamp,
+            'X-GAS-Event': eventType,
+            'User-Agent': 'GAS-Webhook/1.0'
+          },
+          timeout: 10000
+        });
+        
+        console.log(`[Webhook] ✅ Sent successfully to ${booking.partner_name}, status: ${response.status}`);
+        
+        // Log successful webhook
+        await pool.query(`
+          INSERT INTO webhook_logs (booking_id, partner_id, event_type, webhook_url, status, response_code, created_at)
+          VALUES ($1, $2, $3, $4, 'success', $5, NOW())
+        `, [bookingId, booking.partner_account_id, eventType, booking.booking_webhook_url, response.status]).catch(() => {});
+        
+        return { sent: true, status: response.status };
+        
+      } catch (err) {
+        lastError = err;
+        console.error(`[Webhook] Attempt ${attempt} failed:`, err.message);
+        
+        if (attempt < 3) {
+          // Wait before retry (exponential backoff)
+          await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+        }
+      }
+    }
+    
+    // Log failed webhook
+    await pool.query(`
+      INSERT INTO webhook_logs (booking_id, partner_id, event_type, webhook_url, status, error_message, created_at)
+      VALUES ($1, $2, $3, $4, 'failed', $5, NOW())
+    `, [bookingId, booking.partner_account_id, eventType, booking.booking_webhook_url, lastError?.message || 'Unknown error']).catch(() => {});
+    
+    console.error(`[Webhook] ❌ All attempts failed for booking ${bookingId}`);
+    return { sent: false, reason: 'all_attempts_failed', error: lastError?.message };
+    
+  } catch (error) {
+    console.error('[Webhook] Error sending partner webhook:', error);
+    return { sent: false, reason: 'error', error: error.message };
+  }
 }
 
 // Migration: Create partner_tenant_mapping table and partner columns
@@ -33461,7 +33756,40 @@ app.post('/api/admin/migrate-partner-tenant-mapping', async (req, res) => {
     
     console.log('   ✓ Added partner_external_id columns');
     
-    res.json({ success: true, message: 'Partner tenant mapping table created' });
+    // Add webhook columns to accounts for partner webhooks
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS booking_webhook_url TEXT`);
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS webhook_secret VARCHAR(64)`);
+    
+    console.log('   ✓ Added webhook columns to accounts');
+    
+    // Create webhook_logs table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS webhook_logs (
+        id SERIAL PRIMARY KEY,
+        booking_id INTEGER REFERENCES bookings(id),
+        partner_id INTEGER REFERENCES accounts(id),
+        event_type VARCHAR(50) NOT NULL,
+        webhook_url TEXT,
+        status VARCHAR(20) NOT NULL,
+        response_code INTEGER,
+        error_message TEXT,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_webhook_logs_booking 
+      ON webhook_logs(booking_id)
+    `);
+    
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_webhook_logs_partner 
+      ON webhook_logs(partner_id)
+    `);
+    
+    console.log('   ✓ Created webhook_logs table');
+    
+    res.json({ success: true, message: 'Partner tenant mapping table created with webhook support' });
   } catch (error) {
     console.error('Migration error:', error);
     res.status(500).json({ success: false, error: error.message });
