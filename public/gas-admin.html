@@ -5741,6 +5741,18 @@
                                 </div>
                             </div>
                             
+                            <!-- WordPress Admin Access Card -->
+                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #8b5cf6;">
+                                <div class="card-header" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); color: white;">
+                                    <h3>🔐 WordPress Admin Access</h3>
+                                </div>
+                                <div class="card-body">
+                                    <div id="wp-admin-access-content">
+                                        <p style="color: #64748b;">Loading WordPress access details...</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
                             <div class="card" style="border: 2px solid #f59e0b;">
                                 <div class="card-header" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white;">
                                     <h3>💡 Need Help?</h3>
@@ -16819,6 +16831,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             const container = document.getElementById('custom-domain-current');
             const formDiv = document.getElementById('custom-domain-form');
             const successDiv = document.getElementById('custom-domain-success');
+            const wpAdminContent = document.getElementById('wp-admin-access-content');
             
             try {
                 const response = await fetch(`/api/deployed-sites/${selectedDeployedSiteId}`, { headers: authHeaders() });
@@ -16827,7 +16840,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                 if (data.success && data.site) {
                     const customDomain = data.site.custom_domain;
                     const originalUrl = data.site.site_url;
+                    const blogId = data.site.blog_id;
                     
+                    // Update custom domain section
                     if (customDomain) {
                         container.innerHTML = `
                             <div style="background: #f0fdf4; border: 1px solid #22c55e; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
@@ -16854,10 +16869,68 @@ const promo = await fetch('/api/v1/offers/validate', {
                         formDiv.style.display = 'block';
                         successDiv.style.display = 'none';
                     }
+                    
+                    // Update WordPress admin access section
+                    const wpAdminUrl = originalUrl.replace(/\/$/, '') + '/wp-admin/';
+                    wpAdminContent.innerHTML = `
+                        <div style="margin-bottom: 1rem;">
+                            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;">
+                                <span style="font-weight: 600;">Admin URL:</span>
+                                <a href="${wpAdminUrl}" target="_blank" style="color: #7c3aed;">${wpAdminUrl}</a>
+                            </div>
+                            <div style="background: #f8fafc; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                                    <span style="color: #64748b;">Username:</span>
+                                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                        <code style="background: #e2e8f0; padding: 4px 8px; border-radius: 4px;">gasadmin</code>
+                                        <button onclick="copyToClipboard('gasadmin')" class="btn btn-sm" style="padding: 4px 8px;">📋</button>
+                                    </div>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <span style="color: #64748b;">Password:</span>
+                                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                        <code id="wp-password-display" style="background: #e2e8f0; padding: 4px 8px; border-radius: 4px;">••••••••</code>
+                                        <button onclick="toggleWpPassword()" class="btn btn-sm" style="padding: 4px 8px;">👁️</button>
+                                        <button onclick="copyWpPassword()" class="btn btn-sm" style="padding: 4px 8px;">📋</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <button onclick="window.open('${wpAdminUrl}', '_blank')" class="btn" style="width: 100%; background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">
+                                🚀 Open WordPress Admin
+                            </button>
+                        </div>
+                        <p style="margin: 0; color: #64748b; font-size: 0.85rem;">
+                            <strong>Note:</strong> All multisite subsites use the same network admin credentials. Contact support if you need to reset the password.
+                        </p>
+                    `;
                 }
             } catch (error) {
                 console.error('Error loading custom domain status:', error);
             }
+        }
+        
+        // WP Password helpers
+        let wpPasswordVisible = false;
+        const wpNetworkPassword = 'GAS-Admin-2024!'; // Network admin password
+        
+        function toggleWpPassword() {
+            wpPasswordVisible = !wpPasswordVisible;
+            const display = document.getElementById('wp-password-display');
+            if (display) {
+                display.textContent = wpPasswordVisible ? wpNetworkPassword : '••••••••';
+            }
+        }
+        
+        function copyWpPassword() {
+            copyToClipboard(wpNetworkPassword);
+        }
+        
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                showNotification('Copied to clipboard!', 'success');
+            }).catch(() => {
+                showNotification('Failed to copy', 'error');
+            });
         }
         
         async function connectCustomDomain() {
