@@ -739,6 +739,28 @@ async function runMigrations() {
       console.log('ℹ️  payment_configurations:', payConfigError.message);
     }
     
+    // Add payment_account_id for grouping payments (allows multi-unit checkout when same account)
+    try {
+      await pool.query(`
+        ALTER TABLE payment_configurations 
+        ADD COLUMN IF NOT EXISTS payment_account_id VARCHAR(32) UNIQUE
+      `);
+      console.log('✅ payment_account_id column ensured');
+      
+      // Backfill existing configs without payment_account_id
+      const backfillResult = await pool.query(`
+        UPDATE payment_configurations 
+        SET payment_account_id = 'pa_' || SUBSTRING(REPLACE(gen_random_uuid()::text, '-', ''), 1, 16)
+        WHERE payment_account_id IS NULL
+        RETURNING id
+      `);
+      if (backfillResult.rows.length > 0) {
+        console.log(`✅ Backfilled ${backfillResult.rows.length} payment configs with payment_account_id`);
+      }
+    } catch (payAccountIdError) {
+      console.log('ℹ️  payment_account_id:', payAccountIdError.message);
+    }
+    
     // Create payment_setup_tokens for secure setup links
     try {
       await pool.query(`
@@ -18491,9 +18513,12 @@ app.post('/api/payment-configurations', async (req, res) => {
       }
     }
     
+    // Generate payment_account_id for new configs
+    const paymentAccountId = 'pa_' + require('crypto').randomBytes(8).toString('hex');
+    
     const result = await pool.query(`
-      INSERT INTO payment_configurations (account_id, property_id, provider, name, credentials, settings, is_enabled, is_default, test_mode)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      INSERT INTO payment_configurations (account_id, property_id, provider, name, credentials, settings, is_enabled, is_default, test_mode, payment_account_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       ON CONFLICT (account_id, property_id, provider)
       DO UPDATE SET 
         name = EXCLUDED.name,
@@ -18503,8 +18528,8 @@ app.post('/api/payment-configurations', async (req, res) => {
         is_default = EXCLUDED.is_default,
         test_mode = EXCLUDED.test_mode,
         updated_at = NOW()
-      RETURNING id, account_id, property_id, provider, name, is_enabled, is_default, test_mode, created_at, updated_at
-    `, [account_id, property_id || null, provider, name || PAYMENT_PROVIDERS[provider].name, credentials || {}, settings || {}, is_enabled || false, is_default || false, test_mode || false]);
+      RETURNING id, account_id, property_id, provider, name, is_enabled, is_default, test_mode, payment_account_id, created_at, updated_at
+    `, [account_id, property_id || null, provider, name || PAYMENT_PROVIDERS[provider].name, credentials || {}, settings || {}, is_enabled || false, is_default || false, test_mode || false, paymentAccountId]);
     
     console.log(`✅ Payment configuration saved: ${provider} for ${property_id ? 'property ' + property_id : 'account ' + account_id}`);
     res.json({ success: true, configuration: result.rows[0] });
@@ -33784,23 +33809,27 @@ app.put('/api/partner/properties/:propertyId/stripe', async (req, res) => {
       });
     }
     
+    // Generate payment_account_id for new configs
+    const paymentAccountId = 'pa_' + require('crypto').randomBytes(8).toString('hex');
+    
     // Store in payment_configurations table at property level
     const result = await pool.query(`
-      INSERT INTO payment_configurations (account_id, property_id, provider, name, is_enabled, credentials, is_default, updated_at)
-      VALUES ($1, $2, 'stripe', 'Stripe', true, $3, true, NOW())
+      INSERT INTO payment_configurations (account_id, property_id, provider, name, is_enabled, credentials, is_default, payment_account_id, updated_at)
+      VALUES ($1, $2, 'stripe', 'Stripe', true, $3, true, $4, NOW())
       ON CONFLICT ON CONSTRAINT unique_provider_per_scope 
       DO UPDATE SET 
         credentials = $3,
         is_enabled = true,
         updated_at = NOW()
-      RETURNING id
+      RETURNING id, payment_account_id
     `, [
       property.account_id,
       property.id,
       JSON.stringify({
         publishable_key: stripe_publishable_key,
         secret_key: stripe_secret_key
-      })
+      }),
+      paymentAccountId
     ]);
     
     console.log(`✅ Stripe configured for property ${property.id} (${property.name})`);
@@ -41267,7 +41296,8 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
         p.city,
         p.currency,
         (SELECT image_url FROM room_images WHERE room_id = bu.id AND is_active = true ORDER BY is_primary DESC, display_order ASC LIMIT 1) as image_url,
-        (SELECT COALESCE(standard_price, cm_price) FROM room_availability WHERE room_id = bu.id AND date = $2 LIMIT 1) as todays_rate
+        (SELECT COALESCE(standard_price, cm_price) FROM room_availability WHERE room_id = bu.id AND date = $2 LIMIT 1) as todays_rate,
+        (SELECT pc.payment_account_id FROM payment_configurations pc WHERE pc.property_id = p.id AND pc.provider = 'stripe' AND pc.is_enabled = true LIMIT 1) as payment_account_id
       FROM bookable_units bu
       JOIN properties p ON bu.property_id = p.id
       WHERE p.account_id = $1
