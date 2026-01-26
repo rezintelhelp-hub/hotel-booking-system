@@ -54275,6 +54275,49 @@ function parseRssFeed(rssData) {
   return articles;
 }
 
+// Run database migrations
+app.post('/api/admin/run-migrations', async (req, res) => {
+  try {
+    const results = [];
+    
+    // Add webhook columns to accounts table
+    try {
+      await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS booking_webhook_url TEXT`);
+      results.push('Added booking_webhook_url to accounts');
+    } catch (e) {
+      results.push('booking_webhook_url: ' + e.message);
+    }
+    
+    try {
+      await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS webhook_secret TEXT`);
+      results.push('Added webhook_secret to accounts');
+    } catch (e) {
+      results.push('webhook_secret: ' + e.message);
+    }
+    
+    // Add custom_domain to deployed_sites
+    try {
+      await pool.query(`ALTER TABLE deployed_sites ADD COLUMN IF NOT EXISTS custom_domain VARCHAR(255)`);
+      results.push('Added custom_domain to deployed_sites');
+    } catch (e) {
+      results.push('custom_domain: ' + e.message);
+    }
+    
+    // Add account_id to custom_sites
+    try {
+      await pool.query(`ALTER TABLE custom_sites ADD COLUMN IF NOT EXISTS account_id INTEGER`);
+      results.push('Added account_id to custom_sites');
+    } catch (e) {
+      results.push('account_id: ' + e.message);
+    }
+    
+    res.json({ success: true, results });
+  } catch (error) {
+    console.error('Migration error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 app.listen(PORT, '0.0.0.0', async () => {
   console.log('🚀 Server running on port ' + PORT);
   console.log('🔄 Auto-sync scheduled: Prices every 15min, Beds24 bookings every 15min, Inventory every 6hrs');
