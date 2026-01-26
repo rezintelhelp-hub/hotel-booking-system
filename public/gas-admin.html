@@ -1723,9 +1723,13 @@
                         <span class="nav-icon">📋</span>
                         <span>Create Sites</span>
                     </a>
-                    <a class="nav-item master-only" data-view="custom-sites" href="#" onclick="navClick(this, 'custom-sites'); return false;" style="display: none;">
+                    <a class="nav-item" data-view="my-custom-site" href="#" onclick="navClick(this, 'my-custom-site'); return false;" id="nav-my-custom-site" style="display: none;">
                         <span class="nav-icon">✨</span>
-                        <span>Custom Sites</span>
+                        <span>My Custom Site</span>
+                    </a>
+                    <a class="nav-item master-only" data-view="custom-sites" href="#" onclick="navClick(this, 'custom-sites'); return false;" style="display: none;">
+                        <span class="nav-icon">🛠️</span>
+                        <span>Manage Custom Sites</span>
                     </a>
                     <a class="nav-item" data-view="plugin-licenses" href="#" onclick="navClick(this, 'plugin-licenses'); return false;">
                         <span class="nav-icon">🔑</span>
@@ -6991,6 +6995,28 @@
                                 <input type="text" class="form-input" id="wb-footer-social-tripadvisor" placeholder="https://tripadvisor.com/...">
                             </div>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- My Custom Site - Client View -->
+            <div id="my-custom-site" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>✨ My Custom Site</h2>
+                            <p class="subtitle">Your custom bespoke website details and credentials</p>
+                        </div>
+                        <button class="btn" onclick="loadMyCustomSite()" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
+                            🔄 Refresh
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="my-custom-site-container">
+                    <div style="text-align: center; padding: 3rem; color: #64748b;">
+                        <div class="spinner" style="margin: 0 auto 1rem;"></div>
+                        Loading your custom site details...
                     </div>
                 </div>
             </div>
@@ -12330,8 +12356,16 @@ const promo = await fetch('/api/v1/offers/validate', {
                         </div>
                     </div>
                     <div class="form-group" style="margin-bottom: 1rem;">
-                        <label style="font-weight: 600; margin-bottom: 0.5rem; display: block;">Tell us about your project</label>
-                        <textarea id="custom-project-description" rows="4" class="form-input" placeholder="Describe your ideal website - style, features, inspiration sites, etc." style="width: 100%; resize: vertical;"></textarea>
+                        <label style="font-weight: 600; margin-bottom: 0.5rem; display: block;">Choose your subdomain *</label>
+                        <div style="display: flex; align-items: center; gap: 0;">
+                            <input type="text" id="custom-subdomain" class="form-input" placeholder="myhotel" style="border-radius: 6px 0 0 6px; border-right: none; flex: 1;" required>
+                            <span style="background: #f1f5f9; border: 1px solid #d1d5db; padding: 0.5rem 0.75rem; border-radius: 0 6px 6px 0; color: #64748b; font-size: 0.9rem;">.custom.gas.travel</span>
+                        </div>
+                        <p style="font-size: 0.75rem; color: #64748b; margin: 0.25rem 0 0 0;">This will be your site URL while we build it. You can add a custom domain later.</p>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label style="font-weight: 600; margin-bottom: 0.5rem; display: block;">Tell us about your project *</label>
+                        <textarea id="custom-project-description" rows="4" class="form-input" placeholder="Describe your ideal website - style, features, inspiration sites, etc." style="width: 100%; resize: vertical;" required></textarea>
                     </div>
                     <div class="form-group" style="margin-bottom: 1rem;">
                         <label style="font-weight: 600; margin-bottom: 0.5rem; display: block;">Reference Website (optional)</label>
@@ -16221,6 +16255,9 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (agenciesNavItem) agenciesNavItem.style.display = 'none';
             if (clientsNavItem) clientsNavItem.style.display = 'none';
             
+            // Check if user has a custom site
+            checkCustomSiteAccess();
+            
             console.log('Role-based access applied for:', currentAccount.role, '- filtering to account:', selectedAccountId);
         }
         
@@ -17296,6 +17333,9 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (viewName === 'deploy-sites') {
                 checkVpsStatus();
                 loadDeployedSites();
+            }
+            if (viewName === 'my-custom-site') {
+                loadMyCustomSite();
             }
             if (viewName === 'custom-sites') {
                 loadCustomSiteRequests();
@@ -24535,6 +24575,152 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
         
+        // My Custom Site Function (Client View)
+        async function loadMyCustomSite() {
+            const container = document.getElementById('my-custom-site-container');
+            if (!container) return;
+            
+            container.innerHTML = '<div style="text-align: center; padding: 3rem;"><div class="spinner" style="margin: 0 auto 1rem;"></div>Loading...</div>';
+            
+            try {
+                const response = await fetch('/api/my-custom-site' + buildQueryString(), { headers: authHeaders() });
+                const data = await response.json();
+                
+                if (data.success && data.site) {
+                    const site = data.site;
+                    const creds = site.credentials ? JSON.parse(site.credentials) : {};
+                    
+                    container.innerHTML = `
+                        <div class="card" style="margin-bottom: 1.5rem;">
+                            <div class="card-header" style="background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%); border-bottom: 1px solid #3b82f6;">
+                                <h3 style="margin: 0; color: #1e40af;">🌐 ${site.site_name || site.slug}</h3>
+                            </div>
+                            <div class="card-body">
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                                    <div>
+                                        <h4 style="margin: 0 0 1rem 0; color: #1e293b;">Site Links</h4>
+                                        <div style="margin-bottom: 1rem;">
+                                            <label style="font-weight: 600; color: #64748b; font-size: 0.85rem;">Website URL</label>
+                                            <div style="margin-top: 0.25rem;">
+                                                <a href="https://${site.domain}" target="_blank" style="color: #2563eb; font-size: 1.1rem;">
+                                                    https://${site.domain}
+                                                </a>
+                                            </div>
+                                        </div>
+                                        <div style="margin-bottom: 1rem;">
+                                            <label style="font-weight: 600; color: #64748b; font-size: 0.85rem;">WordPress Admin</label>
+                                            <div style="margin-top: 0.25rem;">
+                                                <a href="https://${site.domain}/wp-admin" target="_blank" style="color: #2563eb;">
+                                                    https://${site.domain}/wp-admin
+                                                </a>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label style="font-weight: 600; color: #64748b; font-size: 0.85rem;">Created</label>
+                                            <div style="margin-top: 0.25rem; color: #1e293b;">
+                                                ${site.created_at ? new Date(site.created_at).toLocaleDateString() : 'N/A'}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <h4 style="margin: 0 0 1rem 0; color: #1e293b;">🔐 Login Credentials</h4>
+                                        <div style="background: #fef3c7; border: 1px solid #fcd34d; border-radius: 8px; padding: 1rem;">
+                                            <div style="margin-bottom: 0.75rem;">
+                                                <label style="font-weight: 600; color: #92400e; font-size: 0.85rem;">Username</label>
+                                                <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.25rem;">
+                                                    <code style="background: #1e293b; color: #22c55e; padding: 0.5rem 0.75rem; border-radius: 4px; flex: 1;">${creds.username || creds.wp_user || 'admin'}</code>
+                                                    <button onclick="navigator.clipboard.writeText('${creds.username || creds.wp_user || 'admin'}'); this.textContent='✓'; setTimeout(() => this.textContent='📋', 1500);" class="btn btn-sm" style="padding: 0.5rem;">📋</button>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label style="font-weight: 600; color: #92400e; font-size: 0.85rem;">Password</label>
+                                                <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.25rem;">
+                                                    <code style="background: #1e293b; color: #22c55e; padding: 0.5rem 0.75rem; border-radius: 4px; flex: 1;" id="custom-site-password">••••••••••••</code>
+                                                    <button onclick="toggleCustomSitePassword()" class="btn btn-sm" style="padding: 0.5rem;" id="toggle-password-btn">👁️</button>
+                                                    <button onclick="navigator.clipboard.writeText('${creds.password || creds.wp_pass || ''}'); this.textContent='✓'; setTimeout(() => this.textContent='📋', 1500);" class="btn btn-sm" style="padding: 0.5rem;">📋</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="card">
+                            <div class="card-header" style="background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%); border-bottom: 1px solid #10b981;">
+                                <h3 style="margin: 0; color: #065f46;">📋 Quick Actions</h3>
+                            </div>
+                            <div class="card-body">
+                                <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                                    <a href="https://${site.domain}" target="_blank" class="btn" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);">
+                                        🌐 Visit Site
+                                    </a>
+                                    <a href="https://${site.domain}/wp-admin" target="_blank" class="btn" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">
+                                        ⚙️ WordPress Admin
+                                    </a>
+                                    <a href="https://${site.domain}/wp-admin/admin.php?page=elementor" target="_blank" class="btn" style="background: linear-gradient(135deg, #ec4899 0%, #db2777 100%);">
+                                        🎨 Elementor
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    // Store password for toggle
+                    window.customSitePassword = creds.password || creds.wp_pass || '';
+                    
+                } else {
+                    container.innerHTML = `
+                        <div class="card">
+                            <div class="card-body" style="text-align: center; padding: 3rem;">
+                                <div style="font-size: 3rem; margin-bottom: 1rem;">🏗️</div>
+                                <h3 style="margin: 0 0 0.5rem 0; color: #1e293b;">No Custom Site Yet</h3>
+                                <p style="color: #64748b; margin: 0 0 1.5rem 0;">You don't have a custom bespoke site. Request one to get a fully custom-designed website!</p>
+                                <button onclick="navClick(null, 'deploy-sites')" class="btn" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
+                                    ✨ Request Custom Site
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading custom site:', error);
+                container.innerHTML = `
+                    <div class="card">
+                        <div class="card-body" style="text-align: center; padding: 2rem; color: #ef4444;">
+                            Error loading custom site: ${error.message}
+                        </div>
+                    </div>
+                `;
+            }
+        }
+        
+        function toggleCustomSitePassword() {
+            const el = document.getElementById('custom-site-password');
+            const btn = document.getElementById('toggle-password-btn');
+            if (el.textContent === '••••••••••••') {
+                el.textContent = window.customSitePassword;
+                btn.textContent = '🙈';
+            } else {
+                el.textContent = '••••••••••••';
+                btn.textContent = '👁️';
+            }
+        }
+        
+        // Check if user has custom site and show menu item
+        async function checkCustomSiteAccess() {
+            try {
+                const response = await fetch('/api/my-custom-site' + buildQueryString(), { headers: authHeaders() });
+                const data = await response.json();
+                const menuItem = document.getElementById('nav-my-custom-site');
+                if (menuItem && data.success && data.site) {
+                    menuItem.style.display = 'flex';
+                }
+            } catch (e) {
+                // Ignore - menu stays hidden
+            }
+        }
+        
         // Custom Sites Functions
         async function loadCustomSiteRequests() {
             const container = document.getElementById('custom-site-requests-container');
@@ -26138,12 +26324,18 @@ const promo = await fetch('/api/v1/offers/validate', {
             const progressDiv = document.getElementById('deploy-progress');
             const resultDiv = document.getElementById('deploy-result');
             
+            const subdomain = document.getElementById('custom-subdomain')?.value?.trim().toLowerCase().replace(/[^a-z0-9-]/g, '') || '';
             const projectDescription = document.getElementById('custom-project-description')?.value || '';
             const referenceUrl = document.getElementById('custom-reference-url')?.value || '';
             const phone = document.getElementById('custom-phone')?.value || '';
             
             if (!email) {
                 showNotification('Please enter your email address', 'error');
+                return;
+            }
+            
+            if (!subdomain) {
+                showNotification('Please choose a subdomain for your site', 'error');
                 return;
             }
             
@@ -26154,13 +26346,14 @@ const promo = await fetch('/api/v1/offers/validate', {
             
             submitBtn.disabled = true;
             progressDiv.style.display = 'block';
-            document.getElementById('deploy-progress-text').textContent = 'Submitting your request...';
+            document.getElementById('deploy-progress-text').textContent = 'Creating your custom site...';
             
             try {
-                const response = await fetch('/api/custom-site/request', {
+                const response = await fetch('/api/custom-site/create', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({
+                        subdomain: subdomain,
                         email: email,
                         phone: phone,
                         account_id: selectedAccountId,
@@ -26174,19 +26367,43 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 if (data.success) {
                     resultDiv.style.display = 'block';
-                    resultDiv.style.background = '#fef3c7';
-                    resultDiv.style.borderColor = '#f59e0b';
+                    resultDiv.style.background = '#f0fdf4';
+                    resultDiv.style.borderColor = '#22c55e';
                     document.getElementById('deploy-result-content').innerHTML = `
-                        <h4 style="margin: 0 0 0.75rem 0; color: #b45309;">✨ Custom Request Submitted!</h4>
-                        <p style="color: #92400e; margin: 0 0 1rem 0;">Thank you for your interest in a custom bespoke website.</p>
-                        <div style="background: white; border-radius: 8px; padding: 1rem;">
-                            <p style="margin: 0 0 0.5rem 0;"><strong>What happens next:</strong></p>
-                            <ol style="margin: 0; padding-left: 1.25rem; color: #92400e; font-size: 0.9rem;">
+                        <h4 style="margin: 0 0 0.75rem 0; color: #166534;">✨ Custom Site Created!</h4>
+                        <p style="color: #15803d; margin: 0 0 1rem 0;">Your custom bespoke site is ready for you to explore.</p>
+                        
+                        <div style="background: white; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+                            <div style="margin-bottom: 0.75rem;">
+                                <strong>Site URL:</strong><br>
+                                <a href="https://${subdomain}.custom.gas.travel" target="_blank" style="color: #2563eb;">https://${subdomain}.custom.gas.travel</a>
+                            </div>
+                            <div style="margin-bottom: 0.75rem;">
+                                <strong>WordPress Admin:</strong><br>
+                                <a href="https://${subdomain}.custom.gas.travel/wp-admin" target="_blank" style="color: #2563eb;">https://${subdomain}.custom.gas.travel/wp-admin</a>
+                            </div>
+                        </div>
+                        
+                        ${data.credentials ? `
+                        <div style="background: #fef3c7; border: 1px solid #fcd34d; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+                            <strong style="color: #92400e;">🔐 Save these login credentials:</strong>
+                            <div style="margin-top: 0.5rem; font-family: monospace; background: white; padding: 0.75rem; border-radius: 4px;">
+                                <div>Username: <strong>${data.credentials.username}</strong></div>
+                                <div>Password: <strong>${data.credentials.password}</strong></div>
+                            </div>
+                        </div>
+                        ` : ''}
+                        
+                        <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 1rem;">
+                            <strong style="color: #1e40af;">📋 What happens next:</strong>
+                            <ol style="margin: 0.5rem 0 0 1.25rem; padding: 0; color: #1e40af; font-size: 0.9rem;">
+                                <li>Log in and explore your new site</li>
                                 <li>We'll review your project requirements</li>
                                 <li>You'll receive a custom quote within 24-48 hours</li>
-                                <li>Once approved, we'll schedule a kickoff call</li>
+                                <li>Once approved, we'll start designing your site</li>
                             </ol>
                         </div>
+                        
                         <p style="font-size: 0.8rem; color: #64748b; margin: 1rem 0 0 0;">Confirmation sent to ${email}</p>
                     `;
                     submitBtn.textContent = '✅ Done';
@@ -26194,7 +26411,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     submitBtn.onclick = () => closeModal('deployModal');
                 } else {
                     submitBtn.disabled = false;
-                    showNotification(data.error || 'Failed to submit request', 'error');
+                    showNotification(data.error || 'Failed to create site', 'error');
                 }
             } catch (error) {
                 progressDiv.style.display = 'none';
