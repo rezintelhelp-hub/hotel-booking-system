@@ -4552,6 +4552,9 @@
                     <button class="editor-tab" data-tab="wpguide" onclick="switchEditorTab('wpguide')" style="padding: 1rem 1.5rem; border: none; background: none; cursor: pointer; font-weight: 600; color: #64748b; border-bottom: 3px solid transparent; margin-bottom: -2px; white-space: nowrap; transition: all 0.2s;">
                          WP Guide
                     </button>
+                    <button class="editor-tab" data-tab="customdomain" onclick="switchEditorTab('customdomain')" style="padding: 1rem 1.5rem; border: none; background: none; cursor: pointer; font-weight: 600; color: #64748b; border-bottom: 3px solid transparent; margin-bottom: -2px; white-space: nowrap; transition: all 0.2s;">
+                        🌐 Custom Domain
+                    </button>
                 </div>
                 
                 <!-- Tab Content Panels -->
@@ -5673,6 +5676,82 @@
                                 <div class="card-body">
                                     <p style="margin: 0; color: #374151;">
                                         Room layout style, filters, and display options can all be configured in <strong>Sub Pages  Rooms</strong> without needing WordPress.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Custom Domain Tab -->
+                    <div id="editor-panel-customdomain" class="editor-panel" style="display: none;">
+                        <div style="max-width: 700px;">
+                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #3b82f6;">
+                                <div class="card-header" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white;">
+                                    <h3>🌐 Custom Domain</h3>
+                                </div>
+                                <div class="card-body">
+                                    <p style="color: #64748b; margin-bottom: 1.5rem;">
+                                        Connect your own domain to your GAS website. Your site will be accessible at both your custom domain and the sites.gas.travel subdomain.
+                                    </p>
+                                    
+                                    <div id="custom-domain-current" style="margin-bottom: 1.5rem;">
+                                        <!-- Current domain status will be loaded here -->
+                                    </div>
+                                    
+                                    <div id="custom-domain-form">
+                                        <div class="form-group" style="margin-bottom: 1rem;">
+                                            <label style="font-weight: 600; margin-bottom: 0.5rem; display: block;">Your Domain</label>
+                                            <input type="text" id="custom-domain-input" class="form-input" placeholder="example.com" style="width: 100%;">
+                                            <small style="color: #64748b;">Enter without http:// or www (e.g., villa-talang.com)</small>
+                                        </div>
+                                        
+                                        <div style="background: #fef3c7; border: 1px solid #fcd34d; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem;">
+                                            <h4 style="margin: 0 0 0.75rem 0; color: #92400e;">⚠️ Before connecting, add these DNS records:</h4>
+                                            <div style="background: #1e293b; border-radius: 6px; padding: 1rem; font-family: monospace; font-size: 0.9rem;">
+                                                <div style="color: #22c55e; margin-bottom: 0.5rem;">
+                                                    <span style="color: #94a3b8;">Type:</span> A &nbsp;&nbsp;
+                                                    <span style="color: #94a3b8;">Name:</span> @ &nbsp;&nbsp;
+                                                    <span style="color: #94a3b8;">Value:</span> 72.61.207.109
+                                                </div>
+                                                <div style="color: #22c55e;">
+                                                    <span style="color: #94a3b8;">Type:</span> A &nbsp;&nbsp;
+                                                    <span style="color: #94a3b8;">Name:</span> www &nbsp;&nbsp;
+                                                    <span style="color: #94a3b8;">Value:</span> 72.61.207.109
+                                                </div>
+                                            </div>
+                                            <p style="margin: 0.75rem 0 0 0; color: #92400e; font-size: 0.85rem;">
+                                                <strong>Important:</strong> Delete any existing AAAA (IPv6) records for your domain.
+                                            </p>
+                                        </div>
+                                        
+                                        <button onclick="connectCustomDomain()" class="btn" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); width: 100%;">
+                                            🔗 Connect Domain
+                                        </button>
+                                    </div>
+                                    
+                                    <div id="custom-domain-progress" style="display: none; text-align: center; padding: 2rem;">
+                                        <div class="spinner" style="margin: 0 auto 1rem;"></div>
+                                        <p id="custom-domain-progress-text" style="color: #64748b;">Connecting domain...</p>
+                                    </div>
+                                    
+                                    <div id="custom-domain-success" style="display: none; background: #f0fdf4; border: 1px solid #22c55e; border-radius: 8px; padding: 1.5rem; text-align: center;">
+                                        <div style="font-size: 2rem; margin-bottom: 0.5rem;">✅</div>
+                                        <h4 style="margin: 0 0 0.5rem 0; color: #166534;">Domain Connected!</h4>
+                                        <p id="custom-domain-success-url" style="color: #15803d; margin: 0;"></p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="card" style="border: 2px solid #f59e0b;">
+                                <div class="card-header" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white;">
+                                    <h3>💡 Need Help?</h3>
+                                </div>
+                                <div class="card-body">
+                                    <p style="margin: 0 0 0.5rem 0; color: #374151;">
+                                        <strong>DNS changes can take up to 24 hours to propagate.</strong>
+                                    </p>
+                                    <p style="margin: 0; color: #64748b; font-size: 0.9rem;">
+                                        If you need help setting up DNS records, contact support or check your domain registrar's documentation.
+                                    </p>
                                 </div>
                             </div>
                         </div>
@@ -16700,6 +16779,9 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (sectionMap[tabName]) {
                 loadWebsiteBuilderSection(sectionMap[tabName]);
             }
+            if (tabName === 'customdomain') {
+                loadCustomDomainStatus();
+            }
         }
         
         // Switch Home Page sub-tabs
@@ -16728,6 +16810,148 @@ const promo = await fetch('/api/v1/offers/validate', {
             
             // Load data for this section
             loadWebsiteBuilderSection(subTabName);
+        }
+        
+        // Custom Domain Functions
+        async function loadCustomDomainStatus() {
+            if (!selectedDeployedSiteId) return;
+            
+            const container = document.getElementById('custom-domain-current');
+            const formDiv = document.getElementById('custom-domain-form');
+            const successDiv = document.getElementById('custom-domain-success');
+            
+            try {
+                const response = await fetch(`/api/deployed-sites/${selectedDeployedSiteId}`, { headers: authHeaders() });
+                const data = await response.json();
+                
+                if (data.success && data.site) {
+                    const customDomain = data.site.custom_domain;
+                    const originalUrl = data.site.site_url;
+                    
+                    if (customDomain) {
+                        container.innerHTML = `
+                            <div style="background: #f0fdf4; border: 1px solid #22c55e; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <div>
+                                        <div style="font-weight: 600; color: #166534;">✅ Custom Domain Active</div>
+                                        <a href="https://${customDomain}" target="_blank" style="color: #15803d; font-size: 1.1rem;">https://${customDomain}</a>
+                                    </div>
+                                    <button onclick="removeCustomDomain()" class="btn btn-sm" style="background: #ef4444; color: white;">Remove</button>
+                                </div>
+                            </div>
+                            <div style="background: #f1f5f9; border-radius: 8px; padding: 0.75rem; font-size: 0.9rem; color: #64748b;">
+                                <strong>Original URL:</strong> <a href="${originalUrl}" target="_blank">${originalUrl}</a>
+                            </div>
+                        `;
+                        formDiv.style.display = 'none';
+                        successDiv.style.display = 'none';
+                    } else {
+                        container.innerHTML = `
+                            <div style="background: #f1f5f9; border-radius: 8px; padding: 0.75rem; margin-bottom: 1rem;">
+                                <strong>Current URL:</strong> <a href="${originalUrl}" target="_blank">${originalUrl}</a>
+                            </div>
+                        `;
+                        formDiv.style.display = 'block';
+                        successDiv.style.display = 'none';
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading custom domain status:', error);
+            }
+        }
+        
+        async function connectCustomDomain() {
+            const domain = document.getElementById('custom-domain-input').value.trim().toLowerCase();
+            
+            if (!domain) {
+                showNotification('Please enter a domain', 'error');
+                return;
+            }
+            
+            // Clean domain (remove http/https/www)
+            const cleanDomain = domain.replace(/^(https?:\/\/)?(www\.)?/, '').replace(/\/$/, '');
+            
+            if (!selectedDeployedSiteId) {
+                showNotification('No website selected', 'error');
+                return;
+            }
+            
+            const formDiv = document.getElementById('custom-domain-form');
+            const progressDiv = document.getElementById('custom-domain-progress');
+            const successDiv = document.getElementById('custom-domain-success');
+            const progressText = document.getElementById('custom-domain-progress-text');
+            
+            formDiv.style.display = 'none';
+            progressDiv.style.display = 'block';
+            progressText.textContent = 'Checking DNS...';
+            
+            try {
+                // Step 1: Verify DNS
+                progressText.textContent = 'Verifying DNS configuration...';
+                
+                // Step 2: Connect domain
+                progressText.textContent = 'Creating SSL certificate...';
+                
+                const response = await fetch('/api/deployed-sites/connect-domain', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({
+                        site_id: selectedDeployedSiteId,
+                        domain: cleanDomain
+                    })
+                });
+                
+                const data = await response.json();
+                
+                progressDiv.style.display = 'none';
+                
+                if (data.success) {
+                    successDiv.style.display = 'block';
+                    document.getElementById('custom-domain-success-url').innerHTML = `
+                        Your site is now live at:<br>
+                        <a href="https://${cleanDomain}" target="_blank" style="color: #15803d; font-size: 1.1rem;">https://${cleanDomain}</a>
+                    `;
+                    
+                    // Update the site URL shown in the header
+                    setTimeout(() => loadCustomDomainStatus(), 2000);
+                    
+                    showNotification('Domain connected successfully!', 'success');
+                } else {
+                    formDiv.style.display = 'block';
+                    showNotification(data.error || 'Failed to connect domain', 'error');
+                }
+            } catch (error) {
+                progressDiv.style.display = 'none';
+                formDiv.style.display = 'block';
+                showNotification('Error: ' + error.message, 'error');
+            }
+        }
+        
+        async function removeCustomDomain() {
+            if (!confirm('Are you sure you want to remove the custom domain? Your site will only be accessible via the sites.gas.travel URL.')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/deployed-sites/remove-domain', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({
+                        site_id: selectedDeployedSiteId
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Domain removed', 'success');
+                    loadCustomDomainStatus();
+                } else {
+                    showNotification(data.error || 'Failed to remove domain', 'error');
+                }
+            } catch (error) {
+                showNotification('Error: ' + error.message, 'error');
+            }
         }
         
         // Switch Sub Pages tabs
