@@ -16691,14 +16691,18 @@ app.delete('/api/admin/deployed-sites/:id', async (req, res) => {
     const siteResult = await pool.query('SELECT * FROM deployed_sites WHERE id = $1', [id]);
     const site = siteResult.rows[0];
     
+    if (!site) {
+      return res.json({ success: false, error: 'Deployed site not found' });
+    }
+    
     if (permanent === 'true') {
       // Clear website URL from property
-      if (site && site.property_id) {
+      if (site.property_id) {
         await pool.query('UPDATE properties SET website_url = NULL WHERE id = $1', [site.property_id]);
       }
       
       // Clear website URL from rooms
-      if (site && site.room_ids) {
+      if (site.room_ids) {
         const roomIds = typeof site.room_ids === 'string' 
           ? JSON.parse(site.room_ids || '[]') 
           : (site.room_ids || []);
@@ -16707,7 +16711,13 @@ app.delete('/api/admin/deployed-sites/:id', async (req, res) => {
         }
       }
       
-      // Permanently delete
+      // Delete from websites table first (foreign key constraint)
+      await pool.query('DELETE FROM websites WHERE deployed_site_id = $1', [id]);
+      
+      // Delete from website_settings if exists
+      await pool.query('DELETE FROM website_settings WHERE deployed_site_id = $1', [id]);
+      
+      // Permanently delete from deployed_sites
       await pool.query('DELETE FROM deployed_sites WHERE id = $1', [id]);
       res.json({ success: true, message: 'Site permanently deleted' });
     } else {
