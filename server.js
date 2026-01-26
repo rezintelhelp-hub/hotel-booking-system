@@ -15990,6 +15990,48 @@ app.get('/api/custom-site/provisioned', async (req, res) => {
   }
 });
 
+// Get my custom site (for client view)
+app.get('/api/my-custom-site', async (req, res) => {
+  try {
+    const accountId = req.query.account_id;
+    
+    if (!accountId) {
+      return res.json({ success: false, error: 'account_id required' });
+    }
+    
+    // Look up custom site by account_id
+    const result = await pool.query(`
+      SELECT * FROM custom_sites 
+      WHERE account_id = $1 
+      ORDER BY created_at DESC 
+      LIMIT 1
+    `, [accountId]);
+    
+    if (result.rows.length > 0) {
+      res.json({ success: true, site: result.rows[0] });
+    } else {
+      // Also check custom_site_requests for linked sites
+      const requestResult = await pool.query(`
+        SELECT cs.* 
+        FROM custom_sites cs
+        JOIN custom_site_requests csr ON cs.slug = csr.subdomain
+        WHERE csr.account_id = $1 AND csr.status = 'provisioned'
+        ORDER BY cs.created_at DESC
+        LIMIT 1
+      `, [accountId]);
+      
+      if (requestResult.rows.length > 0) {
+        res.json({ success: true, site: requestResult.rows[0] });
+      } else {
+        res.json({ success: false, site: null });
+      }
+    }
+  } catch (error) {
+    console.error('Error getting my custom site:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Manually register an existing bespoke site
 app.post('/api/custom-site/register', async (req, res) => {
   try {
@@ -16091,6 +16133,162 @@ app.post('/api/custom-site/request', async (req, res) => {
         return res.json({ success: false, error: retryError.message });
       }
     }
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Create custom bespoke site immediately (saves request AND provisions site)
+app.post('/api/custom-site/create', async (req, res) => {
+  try {
+    const { subdomain, email, phone, account_id, project_description, reference_url } = req.body;
+    
+    if (!subdomain || !email || !project_description) {
+      return res.json({ success: false, error: 'Subdomain, email and project description are required' });
+    }
+    
+    // Clean subdomain
+    const cleanSubdomain = subdomain.toLowerCase().replace(/[^a-z0-9-]/g, '');
+    if (cleanSubdomain.length < 3) {
+      return res.json({ success: false, error: 'Subdomain must be at least 3 characters' });
+    }
+    
+    console.log(`[Custom Site] Creating ${cleanSubdomain}.custom.gas.travel for ${email}`);
+    
+    // 1. Store the request first
+    let requestId;
+    try {
+      const requestResult = await pool.query(`
+        INSERT INTO custom_site_requests (account_id, email, phone, project_description, reference_url, subdomain, status, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, 'provisioning', NOW())
+        RETURNING id
+      `, [account_id || null, email, phone || null, project_description, reference_url || null, cleanSubdomain]);
+      requestId = requestResult.rows[0].id;
+    } catch (dbError) {
+      // Add subdomain column if it doesn't exist
+      if (dbError.code === '42703') {
+        await pool.query(`ALTER TABLE custom_site_requests ADD COLUMN IF NOT EXISTS subdomain VARCHAR(100)`);
+        const requestResult = await pool.query(`
+          INSERT INTO custom_site_requests (account_id, email, phone, project_description, reference_url, subdomain, status, created_at)
+          VALUES ($1, $2, $3, $4, $5, $6, 'provisioning', NOW())
+          RETURNING id
+        `, [account_id || null, email, phone || null, project_description, reference_url || null, cleanSubdomain]);
+        requestId = requestResult.rows[0].id;
+      } else if (dbError.code === '42P01') {
+        // Create table
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS custom_site_requests (
+            id SERIAL PRIMARY KEY,
+            account_id INTEGER,
+            email VARCHAR(255) NOT NULL,
+            phone VARCHAR(50),
+            project_description TEXT NOT NULL,
+            reference_url VARCHAR(500),
+            subdomain VARCHAR(100),
+            status VARCHAR(50) DEFAULT 'pending',
+            quoted_price DECIMAL(10,2),
+            notes TEXT,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+          )
+        `);
+        const requestResult = await pool.query(`
+          INSERT INTO custom_site_requests (account_id, email, phone, project_description, reference_url, subdomain, status, created_at)
+          VALUES ($1, $2, $3, $4, $5, $6, 'provisioning', NOW())
+          RETURNING id
+        `, [account_id || null, email, phone || null, project_description, reference_url || null, cleanSubdomain]);
+        requestId = requestResult.rows[0].id;
+      } else {
+        throw dbError;
+      }
+    }
+    
+    // 2. Call the provision API on custom.gas.travel VPS
+    console.log(`[Custom Site] Calling provision API for ${cleanSubdomain}...`);
+    
+    const provisionResponse = await fetch(`${PROVISION_API_URL}/api/provision-site`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': PROVISION_API_KEY
+      },
+      body: JSON.stringify({ 
+        slug: cleanSubdomain, 
+        site_name: cleanSubdomain, 
+        admin_email: email 
+      }),
+      timeout: 120000 // 2 minutes - site creation takes time
+    });
+    
+    const provisionData = await provisionResponse.json();
+    console.log(`[Custom Site] Provision response:`, JSON.stringify(provisionData).substring(0, 500));
+    
+    if (provisionData.success) {
+      // 3. Save to custom_sites table
+      try {
+        await pool.query(`
+          INSERT INTO custom_sites (slug, domain, site_name, admin_email, account_id, credentials, created_at)
+          VALUES ($1, $2, $3, $4, $5, $6, NOW())
+        `, [cleanSubdomain, `${cleanSubdomain}.custom.gas.travel`, cleanSubdomain, email, account_id || null, JSON.stringify(provisionData.credentials)]);
+      } catch (siteDbError) {
+        if (siteDbError.code === '42P01') {
+          await pool.query(`
+            CREATE TABLE IF NOT EXISTS custom_sites (
+              id SERIAL PRIMARY KEY,
+              slug VARCHAR(100) UNIQUE NOT NULL,
+              domain VARCHAR(255) NOT NULL,
+              site_name VARCHAR(255),
+              admin_email VARCHAR(255),
+              account_id INTEGER,
+              credentials TEXT,
+              status VARCHAR(50) DEFAULT 'active',
+              created_at TIMESTAMP DEFAULT NOW()
+            )
+          `);
+          await pool.query(`
+            INSERT INTO custom_sites (slug, domain, site_name, admin_email, account_id, credentials, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6, NOW())
+          `, [cleanSubdomain, `${cleanSubdomain}.custom.gas.travel`, cleanSubdomain, email, account_id || null, JSON.stringify(provisionData.credentials)]);
+        } else if (siteDbError.code === '42703') {
+          await pool.query(`ALTER TABLE custom_sites ADD COLUMN IF NOT EXISTS account_id INTEGER`);
+          await pool.query(`
+            INSERT INTO custom_sites (slug, domain, site_name, admin_email, account_id, credentials, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6, NOW())
+          `, [cleanSubdomain, `${cleanSubdomain}.custom.gas.travel`, cleanSubdomain, email, account_id || null, JSON.stringify(provisionData.credentials)]);
+        }
+      }
+      
+      // 4. Update request status
+      await pool.query(`
+        UPDATE custom_site_requests 
+        SET status = 'provisioned', updated_at = NOW()
+        WHERE id = $1
+      `, [requestId]);
+      
+      console.log(`[Custom Site] ✅ Site created: ${cleanSubdomain}.custom.gas.travel`);
+      
+      res.json({
+        success: true,
+        site: {
+          url: `https://${cleanSubdomain}.custom.gas.travel`,
+          admin_url: `https://${cleanSubdomain}.custom.gas.travel/wp-admin`,
+          domain: `${cleanSubdomain}.custom.gas.travel`
+        },
+        credentials: provisionData.credentials,
+        request_id: requestId,
+        message: 'Custom site created successfully'
+      });
+    } else {
+      // Update request status to failed
+      await pool.query(`
+        UPDATE custom_site_requests 
+        SET status = 'failed', notes = $1, updated_at = NOW()
+        WHERE id = $2
+      `, [provisionData.error || 'Provisioning failed', requestId]);
+      
+      res.json({ success: false, error: provisionData.error || 'Failed to provision site' });
+    }
+  } catch (error) {
+    console.error('[Custom Site] Error creating site:', error);
     res.json({ success: false, error: error.message });
   }
 });
