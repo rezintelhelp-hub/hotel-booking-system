@@ -26068,6 +26068,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     // Show success result - scroll modal to show result
                     const licenseKey = data.license_key || 'ERROR';
                     const downloadUrl = data.download_url || 'https://github.com/rezintelhelp-hub/gas-booking-plugin/releases';
+                    const pluginVersion = data.version || 'latest';
                     
                     // Build the result HTML
                     const resultHTML = `
@@ -26081,7 +26082,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                             </div>
                         </div>
                         <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1rem;">
-                            <a href="${downloadUrl}" class="btn" style="background: #10b981; display: inline-block;" target="_blank">📥 Download Plugin v1.0.144</a>
+                            <a href="${downloadUrl}" class="btn" style="background: #10b981; display: inline-block;" target="_blank">📥 Download Plugin v${pluginVersion}</a>
                         </div>
                         <div style="background: #fef3c7; border: 1px solid #fcd34d; border-radius: 8px; padding: 1rem;">
                             <strong style="color: #92400e;">📋 Installation Steps:</strong>
