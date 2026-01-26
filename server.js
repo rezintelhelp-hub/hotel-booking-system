@@ -33697,6 +33697,352 @@ app.put('/api/partner/tenants/:tenantId', async (req, res) => {
 });
 
 // =====================================================
+// PARTNER API - STRIPE CONFIGURATION (Property Level)
+// =====================================================
+
+// PUT /api/partner/properties/:propertyId/stripe - Configure Stripe credentials for a property
+app.put('/api/partner/properties/:propertyId/stripe', async (req, res) => {
+  console.log('=== PARTNER API: CONFIGURE PROPERTY STRIPE ===');
+  
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    
+    const { propertyId } = req.params;
+    const { stripe_publishable_key, stripe_secret_key } = req.body;
+    
+    // Validate required fields
+    if (!stripe_publishable_key || !stripe_secret_key) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Both stripe_publishable_key and stripe_secret_key are required' 
+      });
+    }
+    
+    // Validate key formats
+    if (!stripe_publishable_key.startsWith('pk_')) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Invalid publishable key format. Must start with pk_' 
+      });
+    }
+    
+    if (!stripe_secret_key.startsWith('sk_') && !stripe_secret_key.startsWith('rk_')) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Invalid secret key format. Must start with sk_ or rk_' 
+      });
+    }
+    
+    // Find the property - can be GAS ID or external_id
+    let property;
+    const numericId = parseInt(propertyId);
+    
+    if (!isNaN(numericId)) {
+      // Try as GAS property ID first
+      const result = await pool.query(
+        `SELECT p.id, p.account_id, p.name, a.id as account_id
+         FROM properties p
+         JOIN accounts a ON p.account_id = a.id
+         JOIN partner_tenant_mapping ptm ON a.id = ptm.gas_account_id
+         WHERE p.id = $1 AND ptm.partner_account_id = $2`,
+        [numericId, auth.partnerId]
+      );
+      property = result.rows[0];
+    }
+    
+    if (!property) {
+      // Try as external_id
+      const result = await pool.query(
+        `SELECT p.id, p.account_id, p.name
+         FROM properties p
+         JOIN accounts a ON p.account_id = a.id
+         JOIN partner_tenant_mapping ptm ON a.id = ptm.gas_account_id
+         WHERE p.external_id = $1 AND ptm.partner_account_id = $2`,
+        [propertyId, auth.partnerId]
+      );
+      property = result.rows[0];
+    }
+    
+    if (!property) {
+      return res.status(404).json({ success: false, error: 'Property not found or not owned by your tenant' });
+    }
+    
+    // Validate the Stripe keys by testing them
+    try {
+      const testStripe = new Stripe(stripe_secret_key);
+      await testStripe.balance.retrieve();
+      console.log('✅ Stripe keys validated successfully');
+    } catch (stripeError) {
+      console.error('Stripe validation error:', stripeError.message);
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Invalid Stripe keys. Please check and try again.',
+        details: stripeError.message
+      });
+    }
+    
+    // Store in payment_configurations table at property level
+    const result = await pool.query(`
+      INSERT INTO payment_configurations (account_id, property_id, provider, name, is_enabled, credentials, is_default, updated_at)
+      VALUES ($1, $2, 'stripe', 'Stripe', true, $3, true, NOW())
+      ON CONFLICT ON CONSTRAINT unique_provider_per_scope 
+      DO UPDATE SET 
+        credentials = $3,
+        is_enabled = true,
+        updated_at = NOW()
+      RETURNING id
+    `, [
+      property.account_id,
+      property.id,
+      JSON.stringify({
+        publishable_key: stripe_publishable_key,
+        secret_key: stripe_secret_key
+      })
+    ]);
+    
+    console.log(`✅ Stripe configured for property ${property.id} (${property.name})`);
+    
+    res.json({ 
+      success: true, 
+      message: 'Stripe credentials configured successfully',
+      property_id: property.id,
+      property_name: property.name,
+      stripe_configured: true,
+      configuration_id: result.rows[0].id
+    });
+    
+  } catch (error) {
+    console.error('Partner API configure property Stripe error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/partner/properties/:propertyId/stripe - Check Stripe configuration status
+app.get('/api/partner/properties/:propertyId/stripe', async (req, res) => {
+  console.log('=== PARTNER API: GET PROPERTY STRIPE STATUS ===');
+  
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    
+    const { propertyId } = req.params;
+    
+    // Find the property
+    let property;
+    const numericId = parseInt(propertyId);
+    
+    if (!isNaN(numericId)) {
+      const result = await pool.query(
+        `SELECT p.id, p.account_id, p.name
+         FROM properties p
+         JOIN accounts a ON p.account_id = a.id
+         JOIN partner_tenant_mapping ptm ON a.id = ptm.gas_account_id
+         WHERE p.id = $1 AND ptm.partner_account_id = $2`,
+        [numericId, auth.partnerId]
+      );
+      property = result.rows[0];
+    }
+    
+    if (!property) {
+      const result = await pool.query(
+        `SELECT p.id, p.account_id, p.name
+         FROM properties p
+         JOIN accounts a ON p.account_id = a.id
+         JOIN partner_tenant_mapping ptm ON a.id = ptm.gas_account_id
+         WHERE p.external_id = $1 AND ptm.partner_account_id = $2`,
+        [propertyId, auth.partnerId]
+      );
+      property = result.rows[0];
+    }
+    
+    if (!property) {
+      return res.status(404).json({ success: false, error: 'Property not found' });
+    }
+    
+    // Check for Stripe configuration at property level
+    const config = await pool.query(`
+      SELECT id, is_enabled, credentials, updated_at
+      FROM payment_configurations
+      WHERE property_id = $1 AND provider = 'stripe'
+    `, [property.id]);
+    
+    if (config.rows.length === 0) {
+      return res.json({
+        success: true,
+        property_id: property.id,
+        property_name: property.name,
+        stripe_configured: false,
+        message: 'Stripe not configured for this property'
+      });
+    }
+    
+    const stripeConfig = config.rows[0];
+    const hasPublishableKey = !!stripeConfig.credentials?.publishable_key;
+    const hasSecretKey = !!stripeConfig.credentials?.secret_key;
+    
+    res.json({
+      success: true,
+      property_id: property.id,
+      property_name: property.name,
+      stripe_configured: hasPublishableKey && hasSecretKey,
+      stripe_enabled: stripeConfig.is_enabled,
+      has_publishable_key: hasPublishableKey,
+      has_secret_key: hasSecretKey,
+      last_updated: stripeConfig.updated_at
+    });
+    
+  } catch (error) {
+    console.error('Partner API get property Stripe status error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// DELETE /api/partner/properties/:propertyId/stripe - Remove Stripe configuration
+app.delete('/api/partner/properties/:propertyId/stripe', async (req, res) => {
+  console.log('=== PARTNER API: REMOVE PROPERTY STRIPE ===');
+  
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    
+    const { propertyId } = req.params;
+    
+    // Find the property
+    let property;
+    const numericId = parseInt(propertyId);
+    
+    if (!isNaN(numericId)) {
+      const result = await pool.query(
+        `SELECT p.id, p.name
+         FROM properties p
+         JOIN accounts a ON p.account_id = a.id
+         JOIN partner_tenant_mapping ptm ON a.id = ptm.gas_account_id
+         WHERE p.id = $1 AND ptm.partner_account_id = $2`,
+        [numericId, auth.partnerId]
+      );
+      property = result.rows[0];
+    }
+    
+    if (!property) {
+      const result = await pool.query(
+        `SELECT p.id, p.name
+         FROM properties p
+         JOIN accounts a ON p.account_id = a.id
+         JOIN partner_tenant_mapping ptm ON a.id = ptm.gas_account_id
+         WHERE p.external_id = $1 AND ptm.partner_account_id = $2`,
+        [propertyId, auth.partnerId]
+      );
+      property = result.rows[0];
+    }
+    
+    if (!property) {
+      return res.status(404).json({ success: false, error: 'Property not found' });
+    }
+    
+    // Delete Stripe configuration
+    await pool.query(`
+      DELETE FROM payment_configurations
+      WHERE property_id = $1 AND provider = 'stripe'
+    `, [property.id]);
+    
+    console.log(`✅ Stripe configuration removed for property ${property.id}`);
+    
+    res.json({ 
+      success: true, 
+      message: 'Stripe configuration removed',
+      property_id: property.id,
+      property_name: property.name,
+      stripe_configured: false
+    });
+    
+  } catch (error) {
+    console.error('Partner API remove property Stripe error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/partner/tenants/:tenantId/stripe-status - Get Stripe status for all tenant properties
+app.get('/api/partner/tenants/:tenantId/stripe-status', async (req, res) => {
+  console.log('=== PARTNER API: GET TENANT STRIPE STATUS ===');
+  
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    
+    const { tenantId } = req.params;
+    
+    // Find the tenant
+    const mapping = await pool.query(
+      `SELECT gas_account_id FROM partner_tenant_mapping 
+       WHERE partner_account_id = $1 AND external_tenant_id = $2`,
+      [auth.partnerId, tenantId]
+    );
+    
+    if (mapping.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Tenant not found' });
+    }
+    
+    const accountId = mapping.rows[0].gas_account_id;
+    
+    // Get all properties with their Stripe status
+    const properties = await pool.query(`
+      SELECT 
+        p.id,
+        p.name,
+        p.external_id,
+        pc.id as stripe_config_id,
+        pc.is_enabled as stripe_enabled,
+        CASE WHEN pc.credentials->>'publishable_key' IS NOT NULL THEN true ELSE false END as has_publishable_key,
+        CASE WHEN pc.credentials->>'secret_key' IS NOT NULL THEN true ELSE false END as has_secret_key,
+        pc.updated_at as stripe_updated_at
+      FROM properties p
+      LEFT JOIN payment_configurations pc ON p.id = pc.property_id AND pc.provider = 'stripe'
+      WHERE p.account_id = $1
+      ORDER BY p.name
+    `, [accountId]);
+    
+    const propertiesWithStripe = properties.rows.filter(p => p.has_publishable_key && p.has_secret_key);
+    const uniqueStripeAccounts = new Set();
+    
+    // Count unique Stripe accounts (by checking if keys are different)
+    for (const prop of propertiesWithStripe) {
+      if (prop.stripe_config_id) {
+        uniqueStripeAccounts.add(prop.stripe_config_id);
+      }
+    }
+    
+    res.json({
+      success: true,
+      tenant_id: tenantId,
+      total_properties: properties.rows.length,
+      properties_with_stripe: propertiesWithStripe.length,
+      multi_unit_booking_enabled: uniqueStripeAccounts.size <= 1,
+      properties: properties.rows.map(p => ({
+        property_id: p.id,
+        property_name: p.name,
+        external_id: p.external_id,
+        stripe_configured: p.has_publishable_key && p.has_secret_key,
+        stripe_enabled: p.stripe_enabled || false,
+        last_updated: p.stripe_updated_at
+      }))
+    });
+    
+  } catch (error) {
+    console.error('Partner API get tenant Stripe status error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
 // PARTNER API - HELPER FUNCTIONS
 // =====================================================
 
