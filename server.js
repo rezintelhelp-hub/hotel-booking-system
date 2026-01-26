@@ -15781,8 +15781,9 @@ app.post('/api/plugin-license/create', async (req, res) => {
     // Generate a license key
     const licenseKey = 'GAS-' + require('crypto').randomBytes(16).toString('hex').toUpperCase();
     
-    // GitHub download URL
-    const downloadUrl = 'https://github.com/rezintelhelp-hub/gas-booking-plugin/releases/download/v1.0.141/gas-booking-v1.0.141.zip';
+    // Get download URL from GitHub (latest release)
+    const latest = await getLatestGitHubRelease();
+    const downloadUrl = latest.download_url || 'https://github.com/rezintelhelp-hub/gas-booking-plugin/releases/latest';
     
     // Store the license with room_ids and display_settings
     const result = await pool.query(`
@@ -15829,7 +15830,8 @@ app.post('/api/plugin-license/create', async (req, res) => {
         
         // Retry the insert
         const licenseKey = 'GAS-' + require('crypto').randomBytes(16).toString('hex').toUpperCase();
-        const downloadUrl = 'https://github.com/rezintelhelp-hub/gas-booking-plugin/releases/download/v1.0.141/gas-booking-v1.0.141.zip';
+        const latest = await getLatestGitHubRelease();
+        const downloadUrl = latest.download_url || 'https://github.com/rezintelhelp-hub/gas-booking-plugin/releases/latest';
         const result = await pool.query(`
           INSERT INTO plugin_licenses (account_id, email, license_key, product, room_ids, display_settings, status, created_at)
           VALUES ($1, $2, $3, $4, $5, $6, 'active', NOW())
@@ -28795,6 +28797,18 @@ app.post('/api/bookings/:id/cancel', async (req, res) => {
     
     await client.query('COMMIT');
     
+    // ========== SEND PARTNER CANCELLATION WEBHOOK ==========
+    try {
+      const webhookResult = await sendPartnerBookingWebhook(id, 'booking.cancelled');
+      if (webhookResult.sent) {
+        console.log(`[Webhook] Sent booking.cancelled for booking ${id}`);
+      }
+    } catch (webhookError) {
+      console.error(`[Webhook] Error sending cancellation webhook for booking ${id}:`, webhookError.message);
+      // Don't fail the cancellation if webhook fails
+    }
+    // ========== END PARTNER WEBHOOK ==========
+    
     res.json({ success: true, message: 'Booking cancelled' });
     
   } catch (error) {
@@ -35398,6 +35412,281 @@ app.post('/api/partner/websites/:websiteId/deploy', async (req, res) => {
     
   } catch (error) {
     console.error('Partner API deploy website error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
+// PARTNER API - ANALYTICS
+// =====================================================
+
+// GET /api/partner/tenants/:tenantId/analytics - Get booking analytics for a tenant
+app.get('/api/partner/tenants/:tenantId/analytics', async (req, res) => {
+  console.log('=== PARTNER API: GET TENANT ANALYTICS ===');
+  
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    
+    const { tenantId } = req.params;
+    const { period = '30d', from_date, to_date } = req.query;
+    
+    // Find the tenant
+    const mapping = await pool.query(
+      `SELECT gas_account_id FROM partner_tenant_mapping 
+       WHERE partner_account_id = $1 AND external_tenant_id = $2`,
+      [auth.partnerId, tenantId]
+    );
+    
+    if (mapping.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Tenant not found' });
+    }
+    
+    const accountId = mapping.rows[0].gas_account_id;
+    
+    // Calculate date range
+    let startDate, endDate;
+    if (from_date && to_date) {
+      startDate = from_date;
+      endDate = to_date;
+    } else {
+      endDate = new Date().toISOString().split('T')[0];
+      const days = parseInt(period) || 30;
+      const start = new Date();
+      start.setDate(start.getDate() - days);
+      startDate = start.toISOString().split('T')[0];
+    }
+    
+    // Get booking stats
+    const bookingStats = await pool.query(`
+      SELECT 
+        COUNT(*) as total_bookings,
+        COUNT(CASE WHEN status = 'confirmed' THEN 1 END) as confirmed_bookings,
+        COUNT(CASE WHEN status = 'cancelled' THEN 1 END) as cancelled_bookings,
+        COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending_bookings,
+        COALESCE(SUM(CASE WHEN status = 'confirmed' THEN grand_total ELSE 0 END), 0) as total_revenue,
+        COALESCE(AVG(CASE WHEN status = 'confirmed' THEN grand_total END), 0) as avg_booking_value,
+        COALESCE(SUM(CASE WHEN status = 'confirmed' THEN 
+          DATE_PART('day', departure_date::timestamp - arrival_date::timestamp) 
+        ELSE 0 END), 0) as total_nights
+      FROM bookings b
+      JOIN properties p ON b.property_id = p.id
+      WHERE p.account_id = $1 
+      AND b.created_at >= $2 
+      AND b.created_at <= $3::date + INTERVAL '1 day'
+    `, [accountId, startDate, endDate]);
+    
+    // Get bookings by property
+    const bookingsByProperty = await pool.query(`
+      SELECT 
+        p.id as property_id,
+        p.name as property_name,
+        p.external_id,
+        COUNT(*) as bookings,
+        COALESCE(SUM(CASE WHEN b.status = 'confirmed' THEN b.grand_total ELSE 0 END), 0) as revenue
+      FROM bookings b
+      JOIN properties p ON b.property_id = p.id
+      WHERE p.account_id = $1 
+      AND b.created_at >= $2 
+      AND b.created_at <= $3::date + INTERVAL '1 day'
+      GROUP BY p.id, p.name, p.external_id
+      ORDER BY revenue DESC
+    `, [accountId, startDate, endDate]);
+    
+    // Get bookings by room
+    const bookingsByRoom = await pool.query(`
+      SELECT 
+        bu.id as room_id,
+        bu.name as room_name,
+        bu.external_id,
+        p.name as property_name,
+        COUNT(*) as bookings,
+        COALESCE(SUM(CASE WHEN b.status = 'confirmed' THEN b.grand_total ELSE 0 END), 0) as revenue
+      FROM bookings b
+      JOIN bookable_units bu ON b.bookable_unit_id = bu.id
+      JOIN properties p ON b.property_id = p.id
+      WHERE p.account_id = $1 
+      AND b.created_at >= $2 
+      AND b.created_at <= $3::date + INTERVAL '1 day'
+      GROUP BY bu.id, bu.name, bu.external_id, p.name
+      ORDER BY bookings DESC
+      LIMIT 20
+    `, [accountId, startDate, endDate]);
+    
+    // Get daily booking trend
+    const dailyTrend = await pool.query(`
+      SELECT 
+        DATE(b.created_at) as date,
+        COUNT(*) as bookings,
+        COALESCE(SUM(CASE WHEN b.status = 'confirmed' THEN b.grand_total ELSE 0 END), 0) as revenue
+      FROM bookings b
+      JOIN properties p ON b.property_id = p.id
+      WHERE p.account_id = $1 
+      AND b.created_at >= $2 
+      AND b.created_at <= $3::date + INTERVAL '1 day'
+      GROUP BY DATE(b.created_at)
+      ORDER BY date
+    `, [accountId, startDate, endDate]);
+    
+    // Get booking sources
+    const bookingSources = await pool.query(`
+      SELECT 
+        COALESCE(booking_source, 'direct') as source,
+        COUNT(*) as bookings,
+        COALESCE(SUM(CASE WHEN status = 'confirmed' THEN grand_total ELSE 0 END), 0) as revenue
+      FROM bookings b
+      JOIN properties p ON b.property_id = p.id
+      WHERE p.account_id = $1 
+      AND b.created_at >= $2 
+      AND b.created_at <= $3::date + INTERVAL '1 day'
+      GROUP BY COALESCE(booking_source, 'direct')
+      ORDER BY bookings DESC
+    `, [accountId, startDate, endDate]);
+    
+    const stats = bookingStats.rows[0];
+    
+    res.json({
+      success: true,
+      tenant_id: tenantId,
+      period: {
+        from: startDate,
+        to: endDate
+      },
+      summary: {
+        total_bookings: parseInt(stats.total_bookings) || 0,
+        confirmed_bookings: parseInt(stats.confirmed_bookings) || 0,
+        cancelled_bookings: parseInt(stats.cancelled_bookings) || 0,
+        pending_bookings: parseInt(stats.pending_bookings) || 0,
+        total_revenue: parseFloat(stats.total_revenue) || 0,
+        average_booking_value: parseFloat(stats.avg_booking_value) || 0,
+        total_nights: parseInt(stats.total_nights) || 0,
+        cancellation_rate: stats.total_bookings > 0 
+          ? ((stats.cancelled_bookings / stats.total_bookings) * 100).toFixed(1) + '%'
+          : '0%'
+      },
+      by_property: bookingsByProperty.rows.map(p => ({
+        property_id: p.property_id,
+        property_name: p.property_name,
+        external_id: p.external_id,
+        bookings: parseInt(p.bookings),
+        revenue: parseFloat(p.revenue)
+      })),
+      by_room: bookingsByRoom.rows.map(r => ({
+        room_id: r.room_id,
+        room_name: r.room_name,
+        external_id: r.external_id,
+        property_name: r.property_name,
+        bookings: parseInt(r.bookings),
+        revenue: parseFloat(r.revenue)
+      })),
+      daily_trend: dailyTrend.rows.map(d => ({
+        date: d.date,
+        bookings: parseInt(d.bookings),
+        revenue: parseFloat(d.revenue)
+      })),
+      by_source: bookingSources.rows.map(s => ({
+        source: s.source,
+        bookings: parseInt(s.bookings),
+        revenue: parseFloat(s.revenue)
+      }))
+    });
+    
+  } catch (error) {
+    console.error('Partner API get analytics error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/partner/websites/:websiteId/analytics - Get website-specific analytics
+app.get('/api/partner/websites/:websiteId/analytics', async (req, res) => {
+  console.log('=== PARTNER API: GET WEBSITE ANALYTICS ===');
+  
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    
+    const { websiteId } = req.params;
+    const { period = '30d' } = req.query;
+    
+    // Find the website
+    const website = await pool.query(`
+      SELECT w.*, a.id as tenant_account_id
+      FROM websites w
+      JOIN accounts a ON w.account_id = a.id
+      JOIN partner_tenant_mapping ptm ON a.id = ptm.gas_account_id
+      WHERE w.id = $1 AND ptm.partner_account_id = $2
+    `, [websiteId, auth.partnerId]);
+    
+    if (website.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Website not found' });
+    }
+    
+    const site = website.rows[0];
+    const accountId = site.tenant_account_id;
+    
+    // Get rooms assigned to this website
+    const roomIds = site.room_ids || [];
+    
+    // Calculate date range
+    const days = parseInt(period) || 30;
+    const endDate = new Date().toISOString().split('T')[0];
+    const start = new Date();
+    start.setDate(start.getDate() - days);
+    const startDate = start.toISOString().split('T')[0];
+    
+    // Get booking stats for this website's rooms
+    let bookingStats;
+    if (roomIds.length > 0) {
+      bookingStats = await pool.query(`
+        SELECT 
+          COUNT(*) as total_bookings,
+          COUNT(CASE WHEN status = 'confirmed' THEN 1 END) as confirmed_bookings,
+          COALESCE(SUM(CASE WHEN status = 'confirmed' THEN grand_total ELSE 0 END), 0) as total_revenue
+        FROM bookings b
+        WHERE b.bookable_unit_id = ANY($1::int[])
+        AND b.created_at >= $2 
+        AND b.created_at <= $3::date + INTERVAL '1 day'
+      `, [roomIds, startDate, endDate]);
+    } else {
+      // If no specific rooms, get all bookings for this account
+      bookingStats = await pool.query(`
+        SELECT 
+          COUNT(*) as total_bookings,
+          COUNT(CASE WHEN status = 'confirmed' THEN 1 END) as confirmed_bookings,
+          COALESCE(SUM(CASE WHEN status = 'confirmed' THEN grand_total ELSE 0 END), 0) as total_revenue
+        FROM bookings b
+        JOIN properties p ON b.property_id = p.id
+        WHERE p.account_id = $1
+        AND b.created_at >= $2 
+        AND b.created_at <= $3::date + INTERVAL '1 day'
+      `, [accountId, startDate, endDate]);
+    }
+    
+    const stats = bookingStats.rows[0];
+    
+    res.json({
+      success: true,
+      website_id: parseInt(websiteId),
+      website_name: site.name,
+      site_url: site.site_url,
+      period: {
+        from: startDate,
+        to: endDate,
+        days: days
+      },
+      summary: {
+        total_bookings: parseInt(stats.total_bookings) || 0,
+        confirmed_bookings: parseInt(stats.confirmed_bookings) || 0,
+        total_revenue: parseFloat(stats.total_revenue) || 0
+      }
+    });
+    
+  } catch (error) {
+    console.error('Partner API get website analytics error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -53807,18 +54096,69 @@ async function runTieredSync() {
 // PLUGIN API ENDPOINTS
 // ============================================
 
-// Plugin update check - returns latest version info
+// Cache for GitHub release info (refresh every 5 minutes)
+let gitHubReleaseCache = null;
+let gitHubReleaseCacheTime = 0;
+const GITHUB_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+async function getLatestGitHubRelease() {
+  const now = Date.now();
+  
+  // Return cached if still valid
+  if (gitHubReleaseCache && (now - gitHubReleaseCacheTime) < GITHUB_CACHE_TTL) {
+    return gitHubReleaseCache;
+  }
+  
+  try {
+    const response = await axios.get('https://api.github.com/repos/rezintelhelp-hub/gas-booking-plugin/releases/latest', {
+      headers: { 'Accept': 'application/vnd.github.v3+json' },
+      timeout: 5000
+    });
+    
+    const release = response.data;
+    const version = release.tag_name.replace('v', ''); // v1.0.165 -> 1.0.165
+    
+    // Find the zip asset
+    const zipAsset = release.assets.find(a => a.name.endsWith('.zip'));
+    const downloadUrl = zipAsset ? zipAsset.browser_download_url : null;
+    
+    gitHubReleaseCache = {
+      version: version,
+      download_url: downloadUrl,
+      published_at: release.published_at,
+      body: release.body || ''
+    };
+    gitHubReleaseCacheTime = now;
+    
+    console.log(`[GitHub] Fetched latest release: v${version}`);
+    return gitHubReleaseCache;
+    
+  } catch (error) {
+    console.error('[GitHub] Error fetching release:', error.message);
+    // Return fallback if API fails
+    return {
+      version: '1.0.165',
+      download_url: 'https://github.com/rezintelhelp-hub/gas-booking-plugin/releases/latest',
+      published_at: new Date().toISOString(),
+      body: ''
+    };
+  }
+}
+
+// Plugin update check - returns latest version info (fetches from GitHub)
 app.get('/api/plugin/check-update', async (req, res) => {
   try {
+    const latest = await getLatestGitHubRelease();
+    
     const latestVersion = {
-      version: '1.0.151',
-      download_url: 'https://github.com/rezintelhelp-hub/gas-booking-plugin/releases/download/v1.0.151/gas-booking-v1_0_151.zip',
+      version: latest.version,
+      download_url: latest.download_url,
       requires: '5.8',
       tested: '6.4',
       requires_php: '7.4',
-      last_updated: new Date().toISOString().split('T')[0],
+      last_updated: latest.published_at ? latest.published_at.split('T')[0] : new Date().toISOString().split('T')[0],
       description: 'Complete booking system for Guest Accommodation System. Display rooms, handle bookings, and integrate with channel managers.',
-      changelog: '<h4>v1.0.151</h4><ul><li>Added Reviews tab on room pages</li><li>Reviews fetched from GAS API by room</li><li>Shows rating summary and guest reviews</li></ul><h4>v1.0.150</h4><ul><li>Show all rooms on booking/accommodation pages</li></ul><h4>v1.0.149</h4><ul><li>Fixed map popup names</li></ul>'
+      changelog: latest.body || '<p>See GitHub releases for changelog</p>'
     };
     res.json(latestVersion);
   } catch (error) {
