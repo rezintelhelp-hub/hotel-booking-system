@@ -17112,6 +17112,34 @@ app.post('/api/deployed-sites/remove-domain', async (req, res) => {
   }
 });
 
+// Manually set custom domain (for already configured sites)
+app.post('/api/deployed-sites/set-custom-domain', async (req, res) => {
+  try {
+    const { site_id, domain } = req.body;
+    
+    if (!site_id) {
+      return res.json({ success: false, error: 'site_id is required' });
+    }
+    
+    const cleanDomain = domain ? domain.toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').replace(/\/$/, '') : null;
+    
+    await pool.query(`
+      UPDATE deployed_sites 
+      SET custom_domain = $1, updated_at = NOW()
+      WHERE id = $2
+    `, [cleanDomain, site_id]);
+    
+    res.json({ 
+      success: true, 
+      domain: cleanDomain,
+      message: cleanDomain ? `Custom domain set to ${cleanDomain}` : 'Custom domain removed'
+    });
+  } catch (error) {
+    console.error('[Custom Domain] Error setting domain:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Delete a deployed site
 app.delete('/api/deploy/:id', async (req, res) => {
   try {
