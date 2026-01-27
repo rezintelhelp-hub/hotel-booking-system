@@ -35653,6 +35653,7 @@ app.get('/api/partner/tenants/:tenantId/websites', async (req, res) => {
       SELECT 
         w.id, w.name, w.subdomain, w.custom_domain, w.description,
         w.logo_url, w.primary_color, w.secondary_color, w.is_active, w.created_at,
+        w.site_url, w.admin_url, w.status, w.template_code,
         COUNT(wr.id) as room_count
       FROM websites w
       LEFT JOIN website_rooms wr ON wr.website_id = w.id
@@ -35668,13 +35669,15 @@ app.get('/api/partner/tenants/:tenantId/websites', async (req, res) => {
         name: w.name,
         subdomain: w.subdomain,
         custom_domain: w.custom_domain,
-        url: w.subdomain ? `https://${w.subdomain}.gas.travel` : (w.custom_domain || null),
+        site_url: w.site_url || (w.subdomain ? `https://${w.subdomain}.sites.gas.travel` : null),
+        admin_url: w.admin_url,
         description: w.description,
         logo_url: w.logo_url,
         primary_color: w.primary_color,
         secondary_color: w.secondary_color,
         room_count: parseInt(w.room_count),
-        status: w.is_active ? 'active' : 'inactive',
+        status: w.status || (w.is_active ? 'active' : 'inactive'),
+        template: w.template_code,
         created_at: w.created_at
       }))
     });
@@ -36042,6 +36045,9 @@ app.post('/api/partner/websites/:websiteId/deploy', async (req, res) => {
     });
     
     const vpsData = await vpsResponse.json();
+    
+    console.log('[Partner Deploy] VPS response:', JSON.stringify(vpsData, null, 2));
+    console.log('[Partner Deploy] Credentials from VPS:', vpsData.credentials);
     
     if (!vpsData.success) {
       console.error('[Partner Deploy] VPS deployment failed:', vpsData.error);
