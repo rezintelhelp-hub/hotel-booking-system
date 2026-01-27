@@ -29242,7 +29242,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 completed: { bg: '#f3e8ff', text: '#7c3aed', icon: '🏁' }
             };
             
-            let html = '<div class="table-container"><table><thead><tr><th>Campaign</th><th>Property</th><th>Dates</th><th>Discount</th><th>Channels</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
+            let html = '<div class="table-container"><table><thead><tr><th>Campaign</th><th>Property</th><th>Dates</th><th>Discount</th><th>Offer Code</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
             
             allCampaigns.forEach(c => {
                 const status = statusColors[c.status] || statusColors.draft;
@@ -29252,15 +29252,20 @@ const promo = await fetch('/api/v1/offers/validate', {
                 if (channels.facebook) channelIcons.push('📘');
                 if (channels.instagram) channelIcons.push('📷');
                 
+                // Build campaign URL if we have a lite slug
+                const campaignUrl = c.gas_lite_slug && c.offer_code 
+                    ? `https://lite.gas.travel/${c.gas_lite_slug}?offer=${c.offer_code}` 
+                    : null;
+                
                 html += `<tr>
                     <td><strong>${c.name}</strong></td>
-                    <td>${c.property_name || '-'}</td>
+                    <td>${c.property_name || '-'}${c.room_name ? '<br><small style="color:#64748b;">' + c.room_name + '</small>' : ''}</td>
                     <td>${c.start_date ? new Date(c.start_date).toLocaleDateString() : '-'} - ${c.end_date ? new Date(c.end_date).toLocaleDateString() : '-'}</td>
                     <td>${c.discount_type === 'percent' ? c.discount_value + '%' : c.discount_type === 'fixed' ? '£' + c.discount_value : c.custom_price ? '£' + c.custom_price : '-'}</td>
-                    <td>${channelIcons.join(' ') || '-'}</td>
+                    <td>${c.offer_code ? `<code style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 0.85rem;">${c.offer_code}</code>${campaignUrl ? `<br><a href="${campaignUrl}" target="_blank" style="font-size: 0.75rem; color: #6366f1;">Test Link →</a>` : ''}` : '-'}</td>
                     <td><span style="background: ${status.bg}; color: ${status.text}; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem;">${status.icon} ${c.status}</span></td>
                     <td>
-                        <button class="btn btn-sm btn-secondary" onclick="editCampaign(${c.id})">Edit</button>
+                        <button class="btn btn-sm btn-secondary" onclick="viewCampaignDetails(${c.id})">View</button>
                         <button class="btn btn-sm btn-secondary" onclick="deleteCampaign(${c.id})" style="color: #ef4444;">Delete</button>
                     </td>
                 </tr>`;
@@ -29991,6 +29996,87 @@ const promo = await fetch('/api/v1/offers/validate', {
         
         function createCampaignFromGap(gap) {
             openCreateCampaignModal(gap);
+        }
+        
+        function viewCampaignDetails(id) {
+            const campaign = allCampaigns.find(c => c.id === id);
+            if (!campaign) return;
+            
+            const campaignUrl = campaign.gas_lite_slug && campaign.offer_code 
+                ? `https://lite.gas.travel/${campaign.gas_lite_slug}?offer=${campaign.offer_code}` 
+                : null;
+            
+            const discountText = campaign.discount_type === 'percent' 
+                ? campaign.discount_value + '% off' 
+                : campaign.discount_type === 'fixed' 
+                    ? '£' + campaign.discount_value + ' off' 
+                    : '£' + campaign.custom_price + '/night';
+            
+            let modalHtml = `
+                <div class="modal active" id="campaignDetailsModal" onclick="if(event.target===this)closeModal('campaignDetailsModal')">
+                    <div class="modal-content" style="max-width: 600px;">
+                        <div class="modal-header">
+                            <h3>${campaign.name}</h3>
+                            <button onclick="closeModal('campaignDetailsModal')" style="background:none;border:none;font-size:1.5rem;cursor:pointer;">×</button>
+                        </div>
+                        <div style="padding: 1.5rem;">
+                            <div style="display: grid; gap: 1rem;">
+                                <div style="display: flex; justify-content: space-between; padding-bottom: 0.75rem; border-bottom: 1px solid #e2e8f0;">
+                                    <span style="color: #64748b;">Property</span>
+                                    <strong>${campaign.property_name || '-'}</strong>
+                                </div>
+                                ${campaign.room_name ? `
+                                <div style="display: flex; justify-content: space-between; padding-bottom: 0.75rem; border-bottom: 1px solid #e2e8f0;">
+                                    <span style="color: #64748b;">Room</span>
+                                    <strong>${campaign.room_name}</strong>
+                                </div>` : ''}
+                                <div style="display: flex; justify-content: space-between; padding-bottom: 0.75rem; border-bottom: 1px solid #e2e8f0;">
+                                    <span style="color: #64748b;">Dates</span>
+                                    <strong>${campaign.start_date ? new Date(campaign.start_date).toLocaleDateString() : '-'} - ${campaign.end_date ? new Date(campaign.end_date).toLocaleDateString() : '-'}</strong>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; padding-bottom: 0.75rem; border-bottom: 1px solid #e2e8f0;">
+                                    <span style="color: #64748b;">Discount</span>
+                                    <strong style="color: #10b981;">${discountText}</strong>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; padding-bottom: 0.75rem; border-bottom: 1px solid #e2e8f0;">
+                                    <span style="color: #64748b;">Min Nights</span>
+                                    <strong>${campaign.min_nights || 1}</strong>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; padding-bottom: 0.75rem; border-bottom: 1px solid #e2e8f0;">
+                                    <span style="color: #64748b;">Offer Code</span>
+                                    <strong><code style="background: #f1f5f9; padding: 2px 8px; border-radius: 4px;">${campaign.offer_code || 'Not generated'}</code></strong>
+                                </div>
+                                ${campaignUrl ? `
+                                <div style="background: #f0fdf4; border: 1px solid #10b981; border-radius: 8px; padding: 1rem; margin-top: 0.5rem;">
+                                    <div style="font-weight: 600; margin-bottom: 0.5rem; color: #166534;">📎 Campaign Link</div>
+                                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                        <input type="text" value="${campaignUrl}" readonly style="flex: 1; padding: 8px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 0.85rem;">
+                                        <button onclick="navigator.clipboard.writeText('${campaignUrl}'); showNotification('Link copied!', 'success');" class="btn btn-sm">Copy</button>
+                                        <a href="${campaignUrl}" target="_blank" class="btn btn-sm" style="background: #10b981;">Open →</a>
+                                    </div>
+                                </div>` : `
+                                <div style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 1rem; margin-top: 0.5rem;">
+                                    <div style="color: #92400e; font-size: 0.9rem;">⚠️ No GAS Lite linked. Select a room with an active Lite to generate a campaign link.</div>
+                                </div>`}
+                                <div style="display: flex; justify-content: space-between; padding-bottom: 0.75rem; border-bottom: 1px solid #e2e8f0;">
+                                    <span style="color: #64748b;">Status</span>
+                                    <strong>${campaign.status}</strong>
+                                </div>
+                            </div>
+                            <div style="display: flex; gap: 1rem; margin-top: 1.5rem; justify-content: flex-end;">
+                                <button class="btn btn-secondary" onclick="closeModal('campaignDetailsModal')">Close</button>
+                                <button class="btn" onclick="closeModal('campaignDetailsModal'); editCampaign(${campaign.id})">Edit Campaign</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Remove existing modal if present
+            const existing = document.getElementById('campaignDetailsModal');
+            if (existing) existing.remove();
+            
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
         }
         
         function editCampaign(id) {
