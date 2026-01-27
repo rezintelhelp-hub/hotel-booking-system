@@ -1338,6 +1338,55 @@ app.post('/api/book', async (req, res) => {
     // TODO: Send confirmation email
     // TODO: Push to channel manager
     
+    // Create/link traveller record
+    try {
+      // Get account_id from property
+      const propRes = await pool.query('SELECT account_id FROM properties WHERE id = $1', [propertyId]);
+      const accountId = propRes.rows[0]?.account_id;
+      
+      if (accountId && guestEmail) {
+        // Insert or update traveller
+        await pool.query(`
+          INSERT INTO travellers (email, phone, first_name, last_name, address, city, country, postal_code, status, marketing_opt_in)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'lead', $9)
+          ON CONFLICT (email) DO UPDATE SET
+            phone = COALESCE(NULLIF($2, ''), travellers.phone),
+            first_name = COALESCE(NULLIF($3, ''), travellers.first_name),
+            last_name = COALESCE(NULLIF($4, ''), travellers.last_name),
+            updated_at = NOW()
+        `, [
+          guestEmail.toLowerCase().trim(),
+          guestPhone || null,
+          guestFirstName || null,
+          guestLastName || null,
+          guestAddress || null,
+          guestCity || null,
+          guestCountry || null,
+          guestPostcode || null,
+          marketing || false
+        ]);
+        
+        // Get traveller id and link to account
+        const travRes = await pool.query('SELECT id FROM travellers WHERE email = $1', [guestEmail.toLowerCase().trim()]);
+        if (travRes.rows.length > 0) {
+          const travellerId = travRes.rows[0].id;
+          await pool.query(`
+            INSERT INTO traveller_property_links (traveller_id, account_id, property_id, first_booking_id, total_spent, last_stay_date, source)
+            VALUES ($1, $2, $3, $4, $5, $6, 'gas-lite')
+            ON CONFLICT (traveller_id, account_id) DO UPDATE SET
+              total_bookings = traveller_property_links.total_bookings + 1,
+              total_spent = traveller_property_links.total_spent + $5,
+              last_stay_date = $6,
+              updated_at = NOW()
+          `, [travellerId, accountId, propertyId, result.rows[0].id, total || 0, checkin]);
+          console.log(`[Lite Booking] Linked traveller ${travellerId} to account ${accountId}`);
+        }
+      }
+    } catch (travError) {
+      console.error('[Lite Booking] Traveller creation error:', travError.message);
+      // Don't fail the booking if traveller creation fails
+    }
+    
     res.json({
       success: true,
       booking: {
