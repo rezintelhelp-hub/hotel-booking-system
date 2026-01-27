@@ -35729,7 +35729,7 @@ app.post('/api/admin/sync-bookings-to-travellers', async (req, res) => {
     const bookings = await pool.query(`
       SELECT b.id, b.guest_email, b.guest_phone, b.guest_first_name, b.guest_last_name,
              b.guest_address, b.guest_country, b.grand_total,
-             p.account_id, b.property_id, b.check_in
+             p.account_id, b.property_id, b.arrival_date
       FROM bookings b
       JOIN properties p ON p.id = b.property_id
       WHERE b.guest_email IS NOT NULL AND b.guest_email != ''
