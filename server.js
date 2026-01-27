@@ -16752,7 +16752,15 @@ app.get('/api/admin/fix-missing-columns-xK9mP2nL', async (req, res) => {
     `);
     results.push('Fixed partner_tenant_mapping.gas_account_id FK to CASCADE');
     
-    res.json({ success: true, message: 'Missing columns added', results });
+    // Fix room_types FK to cascade on delete
+    await pool.query('ALTER TABLE room_types DROP CONSTRAINT IF EXISTS room_types_account_id_fkey');
+    await pool.query(`
+      ALTER TABLE room_types ADD CONSTRAINT room_types_account_id_fkey 
+      FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE
+    `);
+    results.push('Fixed room_types.account_id FK to CASCADE');
+    
+    res.json({ success: true, message: 'Fixes applied', results });
   } catch (error) {
     console.error('Fix columns error:', error);
     res.json({ success: false, error: error.message });
