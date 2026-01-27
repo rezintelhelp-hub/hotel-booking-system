@@ -55936,6 +55936,634 @@ app.get('*', (req, res) => {
 });
 
 // ============================================
+// GAS NETWORK API - Contacts, Tags, Segments
+// ============================================
+
+// GET /api/network/tags - Get all tags (system + account-specific)
+app.get('/api/network/tags', async (req, res) => {
+  try {
+    const accountId = req.query.account_id;
+    
+    const result = await pool.query(`
+      SELECT * FROM network_tags 
+      WHERE account_id IS NULL OR account_id = $1
+      ORDER BY is_system DESC, category, name
+    `, [accountId || null]);
+    
+    res.json({ success: true, tags: result.rows });
+  } catch (error) {
+    console.error('Get tags error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/network/tags - Create custom tag
+app.post('/api/network/tags', async (req, res) => {
+  try {
+    const { account_id, name, category, icon, color } = req.body;
+    
+    if (!account_id || !name) {
+      return res.status(400).json({ success: false, error: 'account_id and name required' });
+    }
+    
+    const result = await pool.query(`
+      INSERT INTO network_tags (account_id, name, category, icon, color, is_system)
+      VALUES ($1, $2, $3, $4, $5, false)
+      RETURNING *
+    `, [account_id, name, category || 'custom', icon || '🏷️', color || '#3b82f6']);
+    
+    res.json({ success: true, tag: result.rows[0] });
+  } catch (error) {
+    console.error('Create tag error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// DELETE /api/network/tags/:id - Delete custom tag
+app.delete('/api/network/tags/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Don't allow deleting system tags
+    const check = await pool.query('SELECT is_system FROM network_tags WHERE id = $1', [id]);
+    if (check.rows[0]?.is_system) {
+      return res.status(400).json({ success: false, error: 'Cannot delete system tags' });
+    }
+    
+    await pool.query('DELETE FROM network_tags WHERE id = $1', [id]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete tag error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/network/contacts - Get contacts with optional filters
+app.get('/api/network/contacts', async (req, res) => {
+  try {
+    const { account_id, tag_id, search, limit = 100, offset = 0 } = req.query;
+    
+    if (!account_id) {
+      return res.status(400).json({ success: false, error: 'account_id required' });
+    }
+    
+    let query = `
+      SELECT c.*, 
+             COALESCE(
+               (SELECT json_agg(json_build_object('id', t.id, 'name', t.name, 'icon', t.icon))
+                FROM network_contact_tags ct
+                JOIN network_tags t ON t.id = ct.tag_id
+                WHERE ct.contact_id = c.id), '[]'
+             ) as tags,
+             p.name as last_property_name
+      FROM network_contacts c
+      LEFT JOIN properties p ON p.id = c.last_property_id
+      WHERE c.account_id = $1
+    `;
+    const params = [account_id];
+    let paramIndex = 2;
+    
+    if (tag_id) {
+      query += ` AND c.id IN (SELECT contact_id FROM network_contact_tags WHERE tag_id = $${paramIndex})`;
+      params.push(tag_id);
+      paramIndex++;
+    }
+    
+    if (search) {
+      query += ` AND (c.email ILIKE $${paramIndex} OR c.first_name ILIKE $${paramIndex} OR c.last_name ILIKE $${paramIndex})`;
+      params.push(`%${search}%`);
+      paramIndex++;
+    }
+    
+    query += ` ORDER BY c.created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    params.push(limit, offset);
+    
+    const result = await pool.query(query, params);
+    
+    // Get total count
+    const countResult = await pool.query(
+      'SELECT COUNT(*) FROM network_contacts WHERE account_id = $1',
+      [account_id]
+    );
+    
+    res.json({ 
+      success: true, 
+      contacts: result.rows,
+      total: parseInt(countResult.rows[0].count),
+      limit: parseInt(limit),
+      offset: parseInt(offset)
+    });
+  } catch (error) {
+    console.error('Get contacts error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/network/contacts - Create single contact
+app.post('/api/network/contacts', async (req, res) => {
+  try {
+    const { account_id, email, first_name, last_name, phone, source, notes, tags } = req.body;
+    
+    if (!account_id || !email) {
+      return res.status(400).json({ success: false, error: 'account_id and email required' });
+    }
+    
+    const result = await pool.query(`
+      INSERT INTO network_contacts (account_id, email, first_name, last_name, phone, source, notes)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      ON CONFLICT (account_id, email) DO UPDATE SET
+        first_name = COALESCE(EXCLUDED.first_name, network_contacts.first_name),
+        last_name = COALESCE(EXCLUDED.last_name, network_contacts.last_name),
+        phone = COALESCE(EXCLUDED.phone, network_contacts.phone),
+        notes = COALESCE(EXCLUDED.notes, network_contacts.notes),
+        updated_at = NOW()
+      RETURNING *
+    `, [account_id, email.toLowerCase(), first_name, last_name, phone, source || 'manual', notes]);
+    
+    const contact = result.rows[0];
+    
+    // Add tags if provided
+    if (tags && tags.length > 0) {
+      for (const tagId of tags) {
+        await pool.query(`
+          INSERT INTO network_contact_tags (contact_id, tag_id)
+          VALUES ($1, $2)
+          ON CONFLICT DO NOTHING
+        `, [contact.id, tagId]);
+      }
+    }
+    
+    res.json({ success: true, contact });
+  } catch (error) {
+    console.error('Create contact error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/network/contacts/:id - Update contact
+app.put('/api/network/contacts/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { first_name, last_name, phone, notes, tags } = req.body;
+    
+    const result = await pool.query(`
+      UPDATE network_contacts 
+      SET first_name = COALESCE($1, first_name),
+          last_name = COALESCE($2, last_name),
+          phone = COALESCE($3, phone),
+          notes = COALESCE($4, notes),
+          updated_at = NOW()
+      WHERE id = $5
+      RETURNING *
+    `, [first_name, last_name, phone, notes, id]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Contact not found' });
+    }
+    
+    // Update tags if provided
+    if (tags !== undefined) {
+      await pool.query('DELETE FROM network_contact_tags WHERE contact_id = $1', [id]);
+      for (const tagId of tags) {
+        await pool.query(`
+          INSERT INTO network_contact_tags (contact_id, tag_id)
+          VALUES ($1, $2)
+          ON CONFLICT DO NOTHING
+        `, [id, tagId]);
+      }
+    }
+    
+    res.json({ success: true, contact: result.rows[0] });
+  } catch (error) {
+    console.error('Update contact error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// DELETE /api/network/contacts/:id - Delete contact
+app.delete('/api/network/contacts/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query('DELETE FROM network_contacts WHERE id = $1', [id]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete contact error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/network/contacts/:id/tags - Add tags to contact
+app.post('/api/network/contacts/:id/tags', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { tag_ids } = req.body;
+    
+    if (!tag_ids || !Array.isArray(tag_ids)) {
+      return res.status(400).json({ success: false, error: 'tag_ids array required' });
+    }
+    
+    for (const tagId of tag_ids) {
+      await pool.query(`
+        INSERT INTO network_contact_tags (contact_id, tag_id)
+        VALUES ($1, $2)
+        ON CONFLICT DO NOTHING
+      `, [id, tagId]);
+    }
+    
+    res.json({ success: true, added: tag_ids.length });
+  } catch (error) {
+    console.error('Add tags error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// DELETE /api/network/contacts/:id/tags/:tagId - Remove tag from contact
+app.delete('/api/network/contacts/:id/tags/:tagId', async (req, res) => {
+  try {
+    const { id, tagId } = req.params;
+    await pool.query('DELETE FROM network_contact_tags WHERE contact_id = $1 AND tag_id = $2', [id, tagId]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Remove tag error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/network/contacts/import - Bulk import contacts from CSV
+app.post('/api/network/contacts/import', async (req, res) => {
+  try {
+    const { account_id, contacts, default_tags } = req.body;
+    
+    if (!account_id || !contacts || !Array.isArray(contacts)) {
+      return res.status(400).json({ success: false, error: 'account_id and contacts array required' });
+    }
+    
+    let imported = 0;
+    let updated = 0;
+    let errors = [];
+    
+    for (const contact of contacts) {
+      if (!contact.email) {
+        errors.push({ row: contact, error: 'Missing email' });
+        continue;
+      }
+      
+      try {
+        const result = await pool.query(`
+          INSERT INTO network_contacts (account_id, email, first_name, last_name, phone, source)
+          VALUES ($1, $2, $3, $4, $5, 'import')
+          ON CONFLICT (account_id, email) DO UPDATE SET
+            first_name = COALESCE(EXCLUDED.first_name, network_contacts.first_name),
+            last_name = COALESCE(EXCLUDED.last_name, network_contacts.last_name),
+            phone = COALESCE(EXCLUDED.phone, network_contacts.phone),
+            updated_at = NOW()
+          RETURNING *, (xmax = 0) as is_new
+        `, [account_id, contact.email.toLowerCase(), contact.first_name, contact.last_name, contact.phone]);
+        
+        if (result.rows[0].is_new) {
+          imported++;
+        } else {
+          updated++;
+        }
+        
+        // Add default tags if provided
+        if (default_tags && default_tags.length > 0) {
+          for (const tagId of default_tags) {
+            await pool.query(`
+              INSERT INTO network_contact_tags (contact_id, tag_id)
+              VALUES ($1, $2)
+              ON CONFLICT DO NOTHING
+            `, [result.rows[0].id, tagId]);
+          }
+        }
+      } catch (err) {
+        errors.push({ row: contact, error: err.message });
+      }
+    }
+    
+    res.json({ 
+      success: true, 
+      imported,
+      updated,
+      errors: errors.length,
+      error_details: errors.slice(0, 10)
+    });
+  } catch (error) {
+    console.error('Import contacts error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/network/segments - Get saved segments
+app.get('/api/network/segments', async (req, res) => {
+  try {
+    const { account_id } = req.query;
+    
+    if (!account_id) {
+      return res.status(400).json({ success: false, error: 'account_id required' });
+    }
+    
+    const result = await pool.query(`
+      SELECT * FROM network_segments
+      WHERE account_id = $1
+      ORDER BY name
+    `, [account_id]);
+    
+    res.json({ success: true, segments: result.rows });
+  } catch (error) {
+    console.error('Get segments error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/network/segments - Create segment
+app.post('/api/network/segments', async (req, res) => {
+  try {
+    const { account_id, name, description, filter_tags, filter_source, filter_min_bookings, filter_last_stayed_after, filter_last_stayed_before } = req.body;
+    
+    if (!account_id || !name) {
+      return res.status(400).json({ success: false, error: 'account_id and name required' });
+    }
+    
+    const result = await pool.query(`
+      INSERT INTO network_segments (account_id, name, description, filter_tags, filter_source, filter_min_bookings, filter_last_stayed_after, filter_last_stayed_before)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING *
+    `, [account_id, name, description, filter_tags, filter_source, filter_min_bookings, filter_last_stayed_after, filter_last_stayed_before]);
+    
+    res.json({ success: true, segment: result.rows[0] });
+  } catch (error) {
+    console.error('Create segment error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/network/stats - Get network statistics
+app.get('/api/network/stats', async (req, res) => {
+  try {
+    const { account_id } = req.query;
+    
+    if (!account_id) {
+      return res.status(400).json({ success: false, error: 'account_id required' });
+    }
+    
+    const stats = await pool.query(`
+      SELECT 
+        (SELECT COUNT(*) FROM network_contacts WHERE account_id = $1) as total_contacts,
+        (SELECT COUNT(*) FROM network_contacts WHERE account_id = $1 AND source = 'booking') as from_bookings,
+        (SELECT COUNT(*) FROM network_contacts WHERE account_id = $1 AND source = 'import') as from_import,
+        (SELECT COUNT(*) FROM network_contacts WHERE account_id = $1 AND total_bookings > 1) as repeat_guests,
+        (SELECT COUNT(*) FROM network_contacts WHERE account_id = $1 AND unsubscribed = true) as unsubscribed
+    `, [account_id]);
+    
+    res.json({ success: true, stats: stats.rows[0] });
+  } catch (error) {
+    console.error('Get stats error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// ============================================
+// TURBINES API - Campaigns
+// ============================================
+
+// GET /api/turbines/campaigns - Get all campaigns
+app.get('/api/turbines/campaigns', async (req, res) => {
+  try {
+    const { account_id, status } = req.query;
+    
+    if (!account_id) {
+      return res.status(400).json({ success: false, error: 'account_id required' });
+    }
+    
+    let query = `
+      SELECT c.*, 
+             p.name as property_name,
+             bu.name as room_name
+      FROM turbine_campaigns c
+      LEFT JOIN properties p ON p.id = c.property_id
+      LEFT JOIN bookable_units bu ON bu.id = c.room_id
+      WHERE c.account_id = $1
+    `;
+    const params = [account_id];
+    
+    if (status) {
+      query += ' AND c.status = $2';
+      params.push(status);
+    }
+    
+    query += ' ORDER BY c.created_at DESC';
+    
+    const result = await pool.query(query, params);
+    
+    res.json({ success: true, campaigns: result.rows });
+  } catch (error) {
+    console.error('Get campaigns error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/turbines/campaigns - Create campaign
+app.post('/api/turbines/campaigns', async (req, res) => {
+  try {
+    const { 
+      account_id, name, property_id, room_id,
+      discount_type, discount_value, custom_price,
+      start_date, end_date, min_nights,
+      gas_lite_slug, target_type, target_tags, target_segment_id,
+      channels, email_subject, email_body, social_caption, social_image_url
+    } = req.body;
+    
+    if (!account_id || !name) {
+      return res.status(400).json({ success: false, error: 'account_id and name required' });
+    }
+    
+    const result = await pool.query(`
+      INSERT INTO turbine_campaigns (
+        account_id, name, property_id, room_id,
+        discount_type, discount_value, custom_price,
+        start_date, end_date, min_nights,
+        gas_lite_slug, target_type, target_tags, target_segment_id,
+        channels, email_subject, email_body, social_caption, social_image_url
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+      RETURNING *
+    `, [
+      account_id, name, property_id, room_id,
+      discount_type, discount_value, custom_price,
+      start_date, end_date, min_nights,
+      gas_lite_slug, target_type || 'all', target_tags, target_segment_id,
+      JSON.stringify(channels || {}), email_subject, email_body, social_caption, social_image_url
+    ]);
+    
+    res.json({ success: true, campaign: result.rows[0] });
+  } catch (error) {
+    console.error('Create campaign error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/turbines/campaigns/:id - Update campaign
+app.put('/api/turbines/campaigns/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updates = req.body;
+    
+    const fields = [];
+    const values = [];
+    let paramIndex = 1;
+    
+    const allowedFields = [
+      'name', 'property_id', 'room_id', 'discount_type', 'discount_value', 'custom_price',
+      'start_date', 'end_date', 'min_nights', 'gas_lite_slug', 'target_type', 'target_tags',
+      'target_segment_id', 'channels', 'email_subject', 'email_body', 'social_caption',
+      'social_image_url', 'status', 'scheduled_at'
+    ];
+    
+    for (const field of allowedFields) {
+      if (updates[field] !== undefined) {
+        fields.push(`${field} = $${paramIndex}`);
+        values.push(field === 'channels' ? JSON.stringify(updates[field]) : updates[field]);
+        paramIndex++;
+      }
+    }
+    
+    if (fields.length === 0) {
+      return res.status(400).json({ success: false, error: 'No fields to update' });
+    }
+    
+    fields.push('updated_at = NOW()');
+    values.push(id);
+    
+    const result = await pool.query(`
+      UPDATE turbine_campaigns SET ${fields.join(', ')} WHERE id = $${paramIndex} RETURNING *
+    `, values);
+    
+    res.json({ success: true, campaign: result.rows[0] });
+  } catch (error) {
+    console.error('Update campaign error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// DELETE /api/turbines/campaigns/:id - Delete campaign
+app.delete('/api/turbines/campaigns/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query('DELETE FROM turbine_campaigns WHERE id = $1', [id]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete campaign error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/turbines/connections - Get connected social accounts
+app.get('/api/turbines/connections', async (req, res) => {
+  try {
+    const { account_id } = req.query;
+    
+    if (!account_id) {
+      return res.status(400).json({ success: false, error: 'account_id required' });
+    }
+    
+    const result = await pool.query(`
+      SELECT id, platform, platform_username, page_name, status, created_at
+      FROM turbine_connections
+      WHERE account_id = $1 AND status = 'active'
+      ORDER BY platform
+    `, [account_id]);
+    
+    res.json({ success: true, connections: result.rows });
+  } catch (error) {
+    console.error('Get connections error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/turbines/availability-gaps - Find gaps in availability for campaign targeting
+app.get('/api/turbines/availability-gaps', async (req, res) => {
+  try {
+    const { account_id, property_id, min_gap_nights = 3, days_ahead = 90 } = req.query;
+    
+    if (!account_id) {
+      return res.status(400).json({ success: false, error: 'account_id required' });
+    }
+    
+    // Get all rooms for the account/property
+    let roomQuery = `
+      SELECT bu.id, bu.name, bu.property_id, p.name as property_name
+      FROM bookable_units bu
+      JOIN properties p ON p.id = bu.property_id
+      WHERE p.account_id = $1
+    `;
+    const roomParams = [account_id];
+    
+    if (property_id) {
+      roomQuery += ' AND bu.property_id = $2';
+      roomParams.push(property_id);
+    }
+    
+    const rooms = await pool.query(roomQuery, roomParams);
+    
+    const gaps = [];
+    const startDate = new Date();
+    const endDate = new Date();
+    endDate.setDate(endDate.getDate() + parseInt(days_ahead));
+    
+    for (const room of rooms.rows) {
+      // Get bookings for this room in the date range
+      const bookings = await pool.query(`
+        SELECT check_in, check_out FROM bookings
+        WHERE room_id = $1 AND status != 'cancelled'
+        AND check_in <= $2 AND check_out >= $3
+        ORDER BY check_in
+      `, [room.id, endDate, startDate]);
+      
+      // Find gaps between bookings
+      let currentDate = new Date(startDate);
+      
+      for (const booking of bookings.rows) {
+        const bookingStart = new Date(booking.check_in);
+        const gapNights = Math.floor((bookingStart - currentDate) / (1000 * 60 * 60 * 24));
+        
+        if (gapNights >= parseInt(min_gap_nights)) {
+          gaps.push({
+            room_id: room.id,
+            room_name: room.name,
+            property_id: room.property_id,
+            property_name: room.property_name,
+            gap_start: currentDate.toISOString().split('T')[0],
+            gap_end: bookingStart.toISOString().split('T')[0],
+            nights: gapNights
+          });
+        }
+        
+        currentDate = new Date(booking.check_out);
+      }
+      
+      // Check gap after last booking
+      const gapNights = Math.floor((endDate - currentDate) / (1000 * 60 * 60 * 24));
+      if (gapNights >= parseInt(min_gap_nights)) {
+        gaps.push({
+          room_id: room.id,
+          room_name: room.name,
+          property_id: room.property_id,
+          property_name: room.property_name,
+          gap_start: currentDate.toISOString().split('T')[0],
+          gap_end: endDate.toISOString().split('T')[0],
+          nights: gapNights
+        });
+      }
+    }
+    
+    res.json({ success: true, gaps: gaps.sort((a, b) => new Date(a.gap_start) - new Date(b.gap_start)) });
+  } catch (error) {
+    console.error('Get availability gaps error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// ============================================
 // SYNC SCHEDULER
 // ============================================
 function startTieredSyncScheduler() {
