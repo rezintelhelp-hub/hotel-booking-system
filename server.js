@@ -16744,21 +16744,33 @@ app.get('/api/admin/fix-missing-columns-xK9mP2nL', async (req, res) => {
     `);
     results.push('Added booking_webhook_url and webhook_secret to accounts table');
     
-    // Fix partner_tenant_mapping FK to cascade on delete
-    await pool.query('ALTER TABLE partner_tenant_mapping DROP CONSTRAINT IF EXISTS partner_tenant_mapping_gas_account_id_fkey');
-    await pool.query(`
-      ALTER TABLE partner_tenant_mapping ADD CONSTRAINT partner_tenant_mapping_gas_account_id_fkey 
-      FOREIGN KEY (gas_account_id) REFERENCES accounts(id) ON DELETE CASCADE
-    `);
-    results.push('Fixed partner_tenant_mapping.gas_account_id FK to CASCADE');
+    // Fix ALL foreign keys that reference accounts to cascade on delete
+    const fkFixes = [
+      { table: 'partner_tenant_mapping', column: 'gas_account_id' },
+      { table: 'room_types', column: 'account_id' },
+      { table: 'properties', column: 'account_id' },
+      { table: 'websites', column: 'account_id' },
+      { table: 'deployed_sites', column: 'account_id' },
+      { table: 'website_settings', column: 'account_id' },
+      { table: 'channel_connections', column: 'gas_account_id' },
+      { table: 'gas_sync_connections', column: 'account_id' },
+      { table: 'payment_configurations', column: 'account_id' },
+      { table: 'bookings', column: 'account_id' },
+      { table: 'offers', column: 'account_id' },
+    ];
     
-    // Fix room_types FK to cascade on delete
-    await pool.query('ALTER TABLE room_types DROP CONSTRAINT IF EXISTS room_types_account_id_fkey');
-    await pool.query(`
-      ALTER TABLE room_types ADD CONSTRAINT room_types_account_id_fkey 
-      FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE
-    `);
-    results.push('Fixed room_types.account_id FK to CASCADE');
+    for (const fk of fkFixes) {
+      try {
+        await pool.query(`ALTER TABLE ${fk.table} DROP CONSTRAINT IF EXISTS ${fk.table}_${fk.column}_fkey`);
+        await pool.query(`
+          ALTER TABLE ${fk.table} ADD CONSTRAINT ${fk.table}_${fk.column}_fkey 
+          FOREIGN KEY (${fk.column}) REFERENCES accounts(id) ON DELETE CASCADE
+        `);
+        results.push(`Fixed ${fk.table}.${fk.column} FK to CASCADE`);
+      } catch (err) {
+        results.push(`Skipped ${fk.table}.${fk.column}: ${err.message}`);
+      }
+    }
     
     res.json({ success: true, message: 'Fixes applied', results });
   } catch (error) {
