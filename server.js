@@ -37900,6 +37900,9 @@ app.put('/api/elevate/:apiKey/room/:roomId', async (req, res) => {
     const values = [];
     let paramIndex = 1;
     
+    // JSONB columns need special handling - convert string to JSON object
+    const jsonbColumns = ['display_name', 'short_description', 'full_description'];
+    
     // Map API field names to database column names
     const fieldMap = {
       'name': 'name',
@@ -37926,9 +37929,25 @@ app.put('/api/elevate/:apiKey/room/:roomId', async (req, res) => {
     };
     
     for (const [apiField, dbField] of Object.entries(fieldMap)) {
-      if (updates[apiField] !== undefined) {
-        updateFields.push(`${dbField} = $${paramIndex}`);
-        values.push(updates[apiField]);
+      if (updates[apiField] !== undefined && updates[apiField] !== null) {
+        // Handle JSONB columns - convert string to JSON object with 'en' key
+        if (jsonbColumns.includes(dbField)) {
+          let jsonValue;
+          if (typeof updates[apiField] === 'string') {
+            // Convert plain string to JSON object: { "en": "value" }
+            jsonValue = JSON.stringify({ en: updates[apiField] });
+          } else if (typeof updates[apiField] === 'object') {
+            // Already an object, stringify it
+            jsonValue = JSON.stringify(updates[apiField]);
+          } else {
+            continue; // Skip invalid values
+          }
+          updateFields.push(`${dbField} = $${paramIndex}::jsonb`);
+          values.push(jsonValue);
+        } else {
+          updateFields.push(`${dbField} = $${paramIndex}`);
+          values.push(updates[apiField]);
+        }
         paramIndex++;
       }
     }
