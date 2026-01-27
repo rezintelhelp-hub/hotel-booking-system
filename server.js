@@ -37903,6 +37903,9 @@ app.put('/api/elevate/:apiKey/room/:roomId', async (req, res) => {
     // JSONB columns need special handling - convert string to JSON object
     const jsonbColumns = ['display_name', 'short_description', 'full_description'];
     
+    // Numeric columns - convert strings to numbers
+    const numericColumns = ['max_guests', 'max_adults', 'max_children', 'quantity', 'num_bedrooms', 'num_bathrooms', 'base_price'];
+    
     // Map API field names to database column names
     const fieldMap = {
       'name': 'name',
@@ -37930,23 +37933,33 @@ app.put('/api/elevate/:apiKey/room/:roomId', async (req, res) => {
     
     for (const [apiField, dbField] of Object.entries(fieldMap)) {
       if (updates[apiField] !== undefined && updates[apiField] !== null) {
+        let value = updates[apiField];
+        
         // Handle JSONB columns - convert string to JSON object with 'en' key
         if (jsonbColumns.includes(dbField)) {
           let jsonValue;
-          if (typeof updates[apiField] === 'string') {
-            // Convert plain string to JSON object: { "en": "value" }
-            jsonValue = JSON.stringify({ en: updates[apiField] });
-          } else if (typeof updates[apiField] === 'object') {
-            // Already an object, stringify it
-            jsonValue = JSON.stringify(updates[apiField]);
+          if (typeof value === 'string') {
+            jsonValue = JSON.stringify({ en: value });
+          } else if (typeof value === 'object') {
+            jsonValue = JSON.stringify(value);
           } else {
-            continue; // Skip invalid values
+            continue;
           }
           updateFields.push(`${dbField} = $${paramIndex}::jsonb`);
           values.push(jsonValue);
-        } else {
+        } 
+        // Handle numeric columns - convert string to number
+        else if (numericColumns.includes(dbField)) {
+          const numValue = parseFloat(value);
+          if (isNaN(numValue)) {
+            continue; // Skip invalid numeric values
+          }
           updateFields.push(`${dbField} = $${paramIndex}`);
-          values.push(updates[apiField]);
+          values.push(numValue);
+        }
+        else {
+          updateFields.push(`${dbField} = $${paramIndex}`);
+          values.push(value);
         }
         paramIndex++;
       }
