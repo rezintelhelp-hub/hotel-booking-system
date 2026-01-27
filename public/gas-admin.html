@@ -29343,7 +29343,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                 channels: { email: false, facebook: false, instagram: false },
                 email_subject: '',
                 email_body: '',
-                social_caption: ''
+                social_caption: '',
+                include_gas_lite: true,
+                gas_lite_slug: ''
             };
             
             // Prefill from gap if provided
@@ -29522,6 +29524,10 @@ const promo = await fetch('/api/v1/offers/validate', {
             
             // Step 4: Channels
             else if (campaignWizardStep === 4) {
+                const room = campaignRooms.find(r => r.id == campaignData.room_id);
+                const property = campaignProperties.find(p => p.id == campaignData.property_id);
+                const hasGasLite = campaignData.room_id && room; // Only show GAS Lite option if specific room selected
+                
                 content = `
                     <div style="margin-bottom: 1.5rem;">
                         <label style="font-weight: 600; margin-bottom: 0.5rem; display: block;">Select Channels</label>
@@ -29554,13 +29560,57 @@ const promo = await fetch('/api/v1/offers/validate', {
                         </div>
                     </div>
                     ${campaignData.channels.email ? `
-                        <div style="margin-bottom: 1.5rem;">
-                            <label style="font-weight: 600; margin-bottom: 0.5rem; display: block;">Email Subject</label>
-                            <input type="text" id="campaign-email-subject" class="form-input" placeholder="e.g., Special Offer: ${campaignData.discount_value}% off!" value="${campaignData.email_subject}" onchange="campaignData.email_subject = this.value">
-                        </div>
-                        <div style="margin-bottom: 1.5rem;">
-                            <label style="font-weight: 600; margin-bottom: 0.5rem; display: block;">Email Body</label>
-                            <textarea id="campaign-email-body" class="form-input" rows="4" placeholder="Write your email message..." onchange="campaignData.email_body = this.value">${campaignData.email_body}</textarea>
+                        <div style="background: #f8fafc; border-radius: 8px; padding: 1.5rem; margin-bottom: 1rem;">
+                            <h4 style="margin: 0 0 1rem 0; display: flex; align-items: center; gap: 0.5rem;">📧 Email Content</h4>
+                            
+                            <div style="margin-bottom: 1rem;">
+                                <label style="font-weight: 600; margin-bottom: 0.5rem; display: block;">Subject Line *</label>
+                                <input type="text" id="campaign-email-subject" class="form-input" 
+                                    placeholder="e.g., Exclusive Offer: ${campaignData.discount_type === 'percent' ? campaignData.discount_value + '% off' : '£' + campaignData.discount_value + ' off'} at ${property?.name || 'our property'}!" 
+                                    value="${campaignData.email_subject}" 
+                                    onchange="campaignData.email_subject = this.value">
+                            </div>
+                            
+                            <div style="margin-bottom: 1rem;">
+                                <label style="font-weight: 600; margin-bottom: 0.5rem; display: block;">Email Body *</label>
+                                <textarea id="campaign-email-body" class="form-input" rows="6" 
+                                    placeholder="Write your email message here...
+
+Example:
+Dear Guest,
+
+We have a special offer just for you! Book ${room?.name || property?.name || 'your stay'} between ${campaignData.start_date} and ${campaignData.end_date} and receive ${campaignData.discount_type === 'percent' ? campaignData.discount_value + '% off' : '£' + campaignData.discount_value + ' off'}.
+
+${hasGasLite ? '[Book Now Button will be inserted here]' : ''}
+
+Best regards,
+${property?.name || 'The Team'}"
+                                    onchange="campaignData.email_body = this.value">${campaignData.email_body}</textarea>
+                            </div>
+                            
+                            ${hasGasLite ? `
+                                <div style="background: #ecfdf5; border: 1px solid #10b981; border-radius: 8px; padding: 1rem;">
+                                    <div style="display: flex; align-items: start; gap: 0.75rem;">
+                                        <input type="checkbox" id="include-gas-lite" ${campaignData.include_gas_lite ? 'checked' : ''} 
+                                            onchange="campaignData.include_gas_lite = this.checked" style="margin-top: 3px;">
+                                        <div>
+                                            <label for="include-gas-lite" style="font-weight: 600; cursor: pointer;">Include GAS Lite Booking Link</label>
+                                            <p style="margin: 0.25rem 0 0 0; font-size: 0.85rem; color: #047857;">
+                                                Add a "Book Now" button linking directly to <strong>${room?.name}</strong>'s booking page
+                                            </p>
+                                            <p style="margin: 0.5rem 0 0 0; font-size: 0.8rem; color: #64748b;">
+                                                Link: lite.gas.travel/${campaignData.gas_lite_slug || '[auto-generated]'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            ` : `
+                                <div style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 1rem;">
+                                    <p style="margin: 0; font-size: 0.85rem; color: #92400e;">
+                                        <strong>💡 Tip:</strong> Select a specific room in Step 1 to include a direct GAS Lite booking link in your email.
+                                    </p>
+                                </div>
+                            `}
                         </div>
                     ` : ''}
                 `;
