@@ -15377,6 +15377,32 @@ app.get('/api/migrate-website-settings', async (req, res) => {
   }
 });
 
+// GET single deployed site by ID
+app.get('/api/deployed-sites/:id', async (req, res) => {
+  try {
+    const siteId = parseInt(req.params.id);
+    
+    const result = await pool.query(`
+      SELECT ds.*, 
+             p.name as property_name,
+             a.name as account_name
+      FROM deployed_sites ds
+      LEFT JOIN properties p ON p.id = ds.property_id
+      LEFT JOIN accounts a ON a.id = ds.account_id
+      WHERE ds.id = $1
+    `, [siteId]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Site not found' });
+    }
+    
+    res.json({ success: true, site: result.rows[0] });
+  } catch (error) {
+    console.error('Get deployed site error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // GET settings for a deployed site
 app.get('/api/deployed-sites/:id/settings/:section', async (req, res) => {
   try {
