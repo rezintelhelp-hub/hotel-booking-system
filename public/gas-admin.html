@@ -29320,12 +29320,459 @@ const promo = await fetch('/api/v1/offers/validate', {
             showModal('Availability Gaps', html);
         }
         
-        function openCreateCampaignModal() {
-            showNotification('Campaign creation wizard coming soon!', 'info');
+        let campaignWizardStep = 1;
+        let campaignData = {};
+        let campaignProperties = [];
+        let campaignRooms = [];
+        
+        async function openCreateCampaignModal(prefillGap = null) {
+            // Reset wizard
+            campaignWizardStep = 1;
+            campaignData = {
+                name: '',
+                property_id: null,
+                room_id: null,
+                discount_type: 'percent',
+                discount_value: 10,
+                custom_price: null,
+                start_date: '',
+                end_date: '',
+                min_nights: 1,
+                target_type: 'all',
+                target_tags: [],
+                channels: { email: false, facebook: false, instagram: false },
+                email_subject: '',
+                email_body: '',
+                social_caption: ''
+            };
+            
+            // Prefill from gap if provided
+            if (prefillGap) {
+                campaignData.property_id = prefillGap.property_id;
+                campaignData.room_id = prefillGap.room_id;
+                campaignData.start_date = prefillGap.gap_start;
+                campaignData.end_date = prefillGap.gap_end;
+                campaignData.name = `${prefillGap.room_name} - Gap Filler`;
+            }
+            
+            // Load properties
+            await loadCampaignProperties();
+            
+            renderCampaignWizard();
+        }
+        
+        async function loadCampaignProperties() {
+            try {
+                const accountId = selectedAccountId || currentAccount?.id;
+                const response = await fetch(`/api/db/properties?account_id=${accountId}`);
+                const data = await response.json();
+                campaignProperties = data.success ? data.data : [];
+            } catch (e) {
+                campaignProperties = [];
+            }
+        }
+        
+        async function loadCampaignRooms(propertyId) {
+            try {
+                const response = await fetch(`/api/db/rooms?property_id=${propertyId}`);
+                const data = await response.json();
+                campaignRooms = data.success ? data.data : [];
+            } catch (e) {
+                campaignRooms = [];
+            }
+        }
+        
+        function renderCampaignWizard() {
+            const steps = ['Property', 'Dates & Discount', 'Audience', 'Channels', 'Review'];
+            
+            let stepIndicator = '<div style="display: flex; justify-content: center; gap: 0.5rem; margin-bottom: 2rem;">';
+            steps.forEach((step, idx) => {
+                const stepNum = idx + 1;
+                const isActive = stepNum === campaignWizardStep;
+                const isComplete = stepNum < campaignWizardStep;
+                stepIndicator += `
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <div style="width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 0.85rem;
+                            ${isActive ? 'background: #6366f1; color: white;' : isComplete ? 'background: #10b981; color: white;' : 'background: #e2e8f0; color: #64748b;'}">
+                            ${isComplete ? '✓' : stepNum}
+                        </div>
+                        <span style="font-size: 0.85rem; color: ${isActive ? '#1e293b' : '#64748b'}; display: ${idx < 3 ? 'block' : 'none'};">${step}</span>
+                        ${idx < steps.length - 1 ? '<div style="width: 30px; height: 2px; background: #e2e8f0;"></div>' : ''}
+                    </div>
+                `;
+            });
+            stepIndicator += '</div>';
+            
+            let content = '';
+            
+            // Step 1: Property Selection
+            if (campaignWizardStep === 1) {
+                content = `
+                    <div style="margin-bottom: 1.5rem;">
+                        <label style="font-weight: 600; margin-bottom: 0.5rem; display: block;">Campaign Name *</label>
+                        <input type="text" id="campaign-name" class="form-input" placeholder="e.g., Summer Gap Filler" value="${campaignData.name}" onchange="campaignData.name = this.value">
+                    </div>
+                    <div style="margin-bottom: 1.5rem;">
+                        <label style="font-weight: 600; margin-bottom: 0.5rem; display: block;">Property *</label>
+                        <select id="campaign-property" class="form-input" onchange="onCampaignPropertyChange(this.value)">
+                            <option value="">Select a property...</option>
+                            ${campaignProperties.map(p => `<option value="${p.id}" ${campaignData.property_id == p.id ? 'selected' : ''}>${p.name}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div style="margin-bottom: 1.5rem;">
+                        <label style="font-weight: 600; margin-bottom: 0.5rem; display: block;">Room/Unit (optional)</label>
+                        <select id="campaign-room" class="form-input" onchange="campaignData.room_id = this.value || null">
+                            <option value="">All rooms</option>
+                            ${campaignRooms.map(r => `<option value="${r.id}" ${campaignData.room_id == r.id ? 'selected' : ''}>${r.name}</option>`).join('')}
+                        </select>
+                    </div>
+                `;
+            }
+            
+            // Step 2: Dates & Discount
+            else if (campaignWizardStep === 2) {
+                content = `
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
+                        <div>
+                            <label style="font-weight: 600; margin-bottom: 0.5rem; display: block;">Start Date *</label>
+                            <input type="date" id="campaign-start" class="form-input" value="${campaignData.start_date}" onchange="campaignData.start_date = this.value">
+                        </div>
+                        <div>
+                            <label style="font-weight: 600; margin-bottom: 0.5rem; display: block;">End Date *</label>
+                            <input type="date" id="campaign-end" class="form-input" value="${campaignData.end_date}" onchange="campaignData.end_date = this.value">
+                        </div>
+                    </div>
+                    <div style="margin-bottom: 1.5rem;">
+                        <label style="font-weight: 600; margin-bottom: 0.5rem; display: block;">Minimum Nights</label>
+                        <input type="number" id="campaign-min-nights" class="form-input" min="1" value="${campaignData.min_nights}" onchange="campaignData.min_nights = parseInt(this.value) || 1" style="width: 100px;">
+                    </div>
+                    <div style="margin-bottom: 1.5rem;">
+                        <label style="font-weight: 600; margin-bottom: 0.5rem; display: block;">Discount Type</label>
+                        <div style="display: flex; gap: 1rem;">
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="radio" name="discount-type" value="percent" ${campaignData.discount_type === 'percent' ? 'checked' : ''} onchange="onDiscountTypeChange('percent')"> % Off
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="radio" name="discount-type" value="fixed" ${campaignData.discount_type === 'fixed' ? 'checked' : ''} onchange="onDiscountTypeChange('fixed')"> Fixed Amount Off
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="radio" name="discount-type" value="custom" ${campaignData.discount_type === 'custom' ? 'checked' : ''} onchange="onDiscountTypeChange('custom')"> Custom Price
+                            </label>
+                        </div>
+                    </div>
+                    <div style="margin-bottom: 1.5rem;" id="discount-value-container">
+                        ${campaignData.discount_type === 'percent' ? `
+                            <label style="font-weight: 600; margin-bottom: 0.5rem; display: block;">Discount Percentage</label>
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <input type="number" id="campaign-discount" class="form-input" min="1" max="100" value="${campaignData.discount_value}" onchange="campaignData.discount_value = parseFloat(this.value)" style="width: 100px;">
+                                <span>%</span>
+                            </div>
+                        ` : campaignData.discount_type === 'fixed' ? `
+                            <label style="font-weight: 600; margin-bottom: 0.5rem; display: block;">Amount Off Per Night</label>
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <span>£</span>
+                                <input type="number" id="campaign-discount" class="form-input" min="1" value="${campaignData.discount_value}" onchange="campaignData.discount_value = parseFloat(this.value)" style="width: 100px;">
+                            </div>
+                        ` : `
+                            <label style="font-weight: 600; margin-bottom: 0.5rem; display: block;">Custom Price Per Night</label>
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <span>£</span>
+                                <input type="number" id="campaign-custom-price" class="form-input" min="1" value="${campaignData.custom_price || ''}" onchange="campaignData.custom_price = parseFloat(this.value)" style="width: 100px;">
+                            </div>
+                        `}
+                    </div>
+                `;
+            }
+            
+            // Step 3: Audience
+            else if (campaignWizardStep === 3) {
+                content = `
+                    <div style="margin-bottom: 1.5rem;">
+                        <label style="font-weight: 600; margin-bottom: 0.5rem; display: block;">Target Audience</label>
+                        <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; padding: 1rem; border: 2px solid ${campaignData.target_type === 'all' ? '#6366f1' : '#e2e8f0'}; border-radius: 8px;">
+                                <input type="radio" name="target-type" value="all" ${campaignData.target_type === 'all' ? 'checked' : ''} onchange="onTargetTypeChange('all')">
+                                <div>
+                                    <strong>All Contacts</strong>
+                                    <p style="margin: 0; font-size: 0.85rem; color: #64748b;">Send to everyone in your network</p>
+                                </div>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; padding: 1rem; border: 2px solid ${campaignData.target_type === 'tags' ? '#6366f1' : '#e2e8f0'}; border-radius: 8px;">
+                                <input type="radio" name="target-type" value="tags" ${campaignData.target_type === 'tags' ? 'checked' : ''} onchange="onTargetTypeChange('tags')">
+                                <div>
+                                    <strong>By Tags</strong>
+                                    <p style="margin: 0; font-size: 0.85rem; color: #64748b;">Target contacts with specific interests</p>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+                    <div id="tags-selection" style="display: ${campaignData.target_type === 'tags' ? 'block' : 'none'}; margin-bottom: 1.5rem;">
+                        <label style="font-weight: 600; margin-bottom: 0.5rem; display: block;">Select Tags</label>
+                        <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; max-height: 200px; overflow-y: auto; padding: 0.5rem; border: 1px solid #e2e8f0; border-radius: 8px;">
+                            ${allTags.map(t => `
+                                <label style="display: flex; align-items: center; gap: 0.25rem; background: #f1f5f9; padding: 6px 10px; border-radius: 6px; cursor: pointer;">
+                                    <input type="checkbox" value="${t.id}" ${campaignData.target_tags.includes(t.id) ? 'checked' : ''} onchange="onTagSelectionChange(${t.id}, this.checked)">
+                                    ${t.icon || '🏷️'} ${t.name}
+                                </label>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Step 4: Channels
+            else if (campaignWizardStep === 4) {
+                content = `
+                    <div style="margin-bottom: 1.5rem;">
+                        <label style="font-weight: 600; margin-bottom: 0.5rem; display: block;">Select Channels</label>
+                        <p style="color: #64748b; font-size: 0.9rem; margin-bottom: 1rem;">Choose where to publish this campaign</p>
+                        <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                            <label style="display: flex; align-items: center; gap: 1rem; padding: 1rem; border: 2px solid ${campaignData.channels.email ? '#6366f1' : '#e2e8f0'}; border-radius: 8px; cursor: pointer;">
+                                <input type="checkbox" ${campaignData.channels.email ? 'checked' : ''} onchange="campaignData.channels.email = this.checked; renderCampaignWizard();">
+                                <div style="width: 40px; height: 40px; background: #3b82f6; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.25rem;">📧</div>
+                                <div>
+                                    <strong>Email</strong>
+                                    <p style="margin: 0; font-size: 0.85rem; color: #64748b;">Send to your contact list</p>
+                                </div>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 1rem; padding: 1rem; border: 2px solid ${campaignData.channels.facebook ? '#6366f1' : '#e2e8f0'}; border-radius: 8px; cursor: pointer; opacity: 0.5;">
+                                <input type="checkbox" disabled ${campaignData.channels.facebook ? 'checked' : ''}>
+                                <div style="width: 40px; height: 40px; background: #1877f2; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.25rem;">f</div>
+                                <div>
+                                    <strong>Facebook</strong>
+                                    <p style="margin: 0; font-size: 0.85rem; color: #64748b;">Coming soon - Connect your page first</p>
+                                </div>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 1rem; padding: 1rem; border: 2px solid ${campaignData.channels.instagram ? '#6366f1' : '#e2e8f0'}; border-radius: 8px; cursor: pointer; opacity: 0.5;">
+                                <input type="checkbox" disabled ${campaignData.channels.instagram ? 'checked' : ''}>
+                                <div style="width: 40px; height: 40px; background: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.25rem;">📷</div>
+                                <div>
+                                    <strong>Instagram</strong>
+                                    <p style="margin: 0; font-size: 0.85rem; color: #64748b;">Coming soon - Connect your account first</p>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+                    ${campaignData.channels.email ? `
+                        <div style="margin-bottom: 1.5rem;">
+                            <label style="font-weight: 600; margin-bottom: 0.5rem; display: block;">Email Subject</label>
+                            <input type="text" id="campaign-email-subject" class="form-input" placeholder="e.g., Special Offer: ${campaignData.discount_value}% off!" value="${campaignData.email_subject}" onchange="campaignData.email_subject = this.value">
+                        </div>
+                        <div style="margin-bottom: 1.5rem;">
+                            <label style="font-weight: 600; margin-bottom: 0.5rem; display: block;">Email Body</label>
+                            <textarea id="campaign-email-body" class="form-input" rows="4" placeholder="Write your email message..." onchange="campaignData.email_body = this.value">${campaignData.email_body}</textarea>
+                        </div>
+                    ` : ''}
+                `;
+            }
+            
+            // Step 5: Review
+            else if (campaignWizardStep === 5) {
+                const property = campaignProperties.find(p => p.id == campaignData.property_id);
+                const room = campaignRooms.find(r => r.id == campaignData.room_id);
+                const selectedTags = allTags.filter(t => campaignData.target_tags.includes(t.id));
+                
+                content = `
+                    <div style="background: #f8fafc; border-radius: 8px; padding: 1.5rem;">
+                        <h3 style="margin: 0 0 1rem 0; color: #1e293b;">${campaignData.name || 'Untitled Campaign'}</h3>
+                        
+                        <div style="display: grid; gap: 1rem;">
+                            <div style="display: flex; justify-content: space-between; padding-bottom: 0.75rem; border-bottom: 1px solid #e2e8f0;">
+                                <span style="color: #64748b;">Property</span>
+                                <strong>${property?.name || 'Not selected'}</strong>
+                            </div>
+                            ${room ? `
+                                <div style="display: flex; justify-content: space-between; padding-bottom: 0.75rem; border-bottom: 1px solid #e2e8f0;">
+                                    <span style="color: #64748b;">Room</span>
+                                    <strong>${room.name}</strong>
+                                </div>
+                            ` : ''}
+                            <div style="display: flex; justify-content: space-between; padding-bottom: 0.75rem; border-bottom: 1px solid #e2e8f0;">
+                                <span style="color: #64748b;">Dates</span>
+                                <strong>${campaignData.start_date} to ${campaignData.end_date}</strong>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; padding-bottom: 0.75rem; border-bottom: 1px solid #e2e8f0;">
+                                <span style="color: #64748b;">Discount</span>
+                                <strong style="color: #10b981;">
+                                    ${campaignData.discount_type === 'percent' ? campaignData.discount_value + '% off' : 
+                                      campaignData.discount_type === 'fixed' ? '£' + campaignData.discount_value + ' off' : 
+                                      '£' + campaignData.custom_price + '/night'}
+                                </strong>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; padding-bottom: 0.75rem; border-bottom: 1px solid #e2e8f0;">
+                                <span style="color: #64748b;">Minimum Nights</span>
+                                <strong>${campaignData.min_nights}</strong>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; padding-bottom: 0.75rem; border-bottom: 1px solid #e2e8f0;">
+                                <span style="color: #64748b;">Audience</span>
+                                <strong>${campaignData.target_type === 'all' ? 'All Contacts' : selectedTags.map(t => t.icon + ' ' + t.name).join(', ') || 'No tags selected'}</strong>
+                            </div>
+                            <div style="display: flex; justify-content: space-between;">
+                                <span style="color: #64748b;">Channels</span>
+                                <strong>
+                                    ${campaignData.channels.email ? '📧 Email ' : ''}
+                                    ${campaignData.channels.facebook ? '📘 Facebook ' : ''}
+                                    ${campaignData.channels.instagram ? '📷 Instagram' : ''}
+                                    ${!campaignData.channels.email && !campaignData.channels.facebook && !campaignData.channels.instagram ? 'None selected' : ''}
+                                </strong>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Navigation buttons
+            const navButtons = `
+                <div style="display: flex; justify-content: space-between; margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #e2e8f0;">
+                    <button class="btn btn-secondary" onclick="${campaignWizardStep === 1 ? 'closeModal(\'campaignWizardModal\')' : 'prevCampaignStep()'}" style="min-width: 100px;">
+                        ${campaignWizardStep === 1 ? 'Cancel' : '← Back'}
+                    </button>
+                    <button class="btn" onclick="${campaignWizardStep === 5 ? 'saveCampaign()' : 'nextCampaignStep()'}" style="min-width: 100px;">
+                        ${campaignWizardStep === 5 ? '🚀 Create Campaign' : 'Next →'}
+                    </button>
+                </div>
+            `;
+            
+            // Show modal
+            let modal = document.getElementById('campaignWizardModal');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'campaignWizardModal';
+                modal.className = 'modal';
+                modal.innerHTML = `
+                    <div class="modal-content" style="max-width: 600px; max-height: 90vh; overflow-y: auto;">
+                        <div class="modal-header">
+                            <h3>Create Campaign</h3>
+                            <button onclick="closeModal('campaignWizardModal')" style="background: none; border: none; font-size: 1.5rem; cursor: pointer;">×</button>
+                        </div>
+                        <div id="campaignWizardBody" style="padding: 1.5rem;"></div>
+                    </div>
+                `;
+                document.body.appendChild(modal);
+            }
+            
+            document.getElementById('campaignWizardBody').innerHTML = stepIndicator + content + navButtons;
+            modal.classList.add('active');
+        }
+        
+        async function onCampaignPropertyChange(propertyId) {
+            campaignData.property_id = propertyId || null;
+            campaignData.room_id = null;
+            if (propertyId) {
+                await loadCampaignRooms(propertyId);
+            } else {
+                campaignRooms = [];
+            }
+            renderCampaignWizard();
+        }
+        
+        function onDiscountTypeChange(type) {
+            campaignData.discount_type = type;
+            if (type === 'percent') campaignData.discount_value = 10;
+            else if (type === 'fixed') campaignData.discount_value = 20;
+            else campaignData.custom_price = 100;
+            renderCampaignWizard();
+        }
+        
+        function onTargetTypeChange(type) {
+            campaignData.target_type = type;
+            if (type === 'all') campaignData.target_tags = [];
+            renderCampaignWizard();
+        }
+        
+        function onTagSelectionChange(tagId, checked) {
+            if (checked) {
+                if (!campaignData.target_tags.includes(tagId)) {
+                    campaignData.target_tags.push(tagId);
+                }
+            } else {
+                campaignData.target_tags = campaignData.target_tags.filter(id => id !== tagId);
+            }
+        }
+        
+        function prevCampaignStep() {
+            if (campaignWizardStep > 1) {
+                campaignWizardStep--;
+                renderCampaignWizard();
+            }
+        }
+        
+        async function nextCampaignStep() {
+            // Validation
+            if (campaignWizardStep === 1) {
+                campaignData.name = document.getElementById('campaign-name')?.value || '';
+                if (!campaignData.name) {
+                    showNotification('Please enter a campaign name', 'error');
+                    return;
+                }
+                if (!campaignData.property_id) {
+                    showNotification('Please select a property', 'error');
+                    return;
+                }
+            }
+            if (campaignWizardStep === 2) {
+                if (!campaignData.start_date || !campaignData.end_date) {
+                    showNotification('Please select start and end dates', 'error');
+                    return;
+                }
+            }
+            if (campaignWizardStep === 3) {
+                // Load tags if not loaded
+                if (allTags.length === 0) {
+                    await loadTagsForFilter();
+                }
+            }
+            
+            if (campaignWizardStep < 5) {
+                campaignWizardStep++;
+                renderCampaignWizard();
+            }
+        }
+        
+        async function saveCampaign() {
+            try {
+                const accountId = selectedAccountId || currentAccount?.id;
+                
+                const response = await fetch('/api/turbines/campaigns', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        account_id: accountId,
+                        name: campaignData.name,
+                        property_id: campaignData.property_id,
+                        room_id: campaignData.room_id,
+                        discount_type: campaignData.discount_type,
+                        discount_value: campaignData.discount_type !== 'custom' ? campaignData.discount_value : null,
+                        custom_price: campaignData.discount_type === 'custom' ? campaignData.custom_price : null,
+                        start_date: campaignData.start_date,
+                        end_date: campaignData.end_date,
+                        min_nights: campaignData.min_nights,
+                        target_type: campaignData.target_type,
+                        target_tags: campaignData.target_tags.length > 0 ? campaignData.target_tags : null,
+                        channels: campaignData.channels,
+                        email_subject: campaignData.email_subject,
+                        email_body: campaignData.email_body,
+                        social_caption: campaignData.social_caption,
+                        status: 'draft'
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Campaign created!', 'success');
+                    closeModal('campaignWizardModal');
+                    loadTurbineCampaigns();
+                } else {
+                    showNotification(data.error || 'Failed to create campaign', 'error');
+                }
+            } catch (error) {
+                showNotification('Error creating campaign', 'error');
+            }
         }
         
         function createCampaignFromGap(gap) {
-            showNotification(`Creating campaign for ${gap.room_name} (${gap.gap_start} - ${gap.gap_end})`, 'info');
+            openCreateCampaignModal(gap);
         }
         
         function editCampaign(id) {
