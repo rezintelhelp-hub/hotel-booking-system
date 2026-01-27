@@ -1666,9 +1666,31 @@
                         <span class="nav-icon">🔗</span>
                         <span>Connections</span>
                     </a>
+                    <a class="nav-item" data-view="turbine-campaigns" href="#" onclick="navClick(this, 'turbine-campaigns'); return false;">
+                        <span class="nav-icon">📣</span>
+                        <span>Campaigns</span>
+                    </a>
                     <a class="nav-item" data-view="turbine-generator" href="#" onclick="navClick(this, 'turbine-generator'); return false;">
                         <span class="nav-icon">📝</span>
                         <span>Generator</span>
+                    </a>
+                    </div>
+                </div>
+
+                <div class="nav-section collapsed">
+                    <div class="nav-label" onclick="toggleNavSection(this)">GAS Network</div>
+                    <div class="nav-section-items">
+                    <a class="nav-item" data-view="network-contacts" href="#" onclick="navClick(this, 'network-contacts'); return false;">
+                        <span class="nav-icon">👥</span>
+                        <span>Contacts</span>
+                    </a>
+                    <a class="nav-item" data-view="network-tags" href="#" onclick="navClick(this, 'network-tags'); return false;">
+                        <span class="nav-icon">🏷️</span>
+                        <span>Tags</span>
+                    </a>
+                    <a class="nav-item" data-view="network-segments" href="#" onclick="navClick(this, 'network-segments'); return false;">
+                        <span class="nav-icon">📊</span>
+                        <span>Segments</span>
                     </a>
                     </div>
                 </div>
@@ -4407,6 +4429,179 @@
                                 <span>+</span>
                                 <span>Create Your First Post</span>
                             </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Turbine Campaigns View -->
+            <div id="turbine-campaigns" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>📣 Campaigns</h2>
+                            <p>Create targeted promotions and send to your network</p>
+                        </div>
+                        <button class="btn" onclick="openCreateCampaignModal()">
+                            <span>+ New Campaign</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Campaign Stats -->
+                <div class="stats-grid" style="margin-bottom: 1.5rem;">
+                    <div class="stat-card">
+                        <div style="font-size: 1.75rem; font-weight: 700; color: #3b82f6;" id="campaign-stat-active">0</div>
+                        <div style="color: #64748b; font-size: 0.85rem;">Active</div>
+                    </div>
+                    <div class="stat-card">
+                        <div style="font-size: 1.75rem; font-weight: 700; color: #10b981;" id="campaign-stat-sent">0</div>
+                        <div style="color: #64748b; font-size: 0.85rem;">Sent</div>
+                    </div>
+                    <div class="stat-card">
+                        <div style="font-size: 1.75rem; font-weight: 700; color: #8b5cf6;" id="campaign-stat-draft">0</div>
+                        <div style="color: #64748b; font-size: 0.85rem;">Drafts</div>
+                    </div>
+                    <div class="stat-card">
+                        <div style="font-size: 1.75rem; font-weight: 700; color: #f59e0b;" id="campaign-stat-clicks">0</div>
+                        <div style="color: #64748b; font-size: 0.85rem;">Total Clicks</div>
+                    </div>
+                </div>
+
+                <!-- Availability Gaps Alert -->
+                <div id="availability-gaps-alert" style="display: none; margin-bottom: 1.5rem;">
+                    <div class="card" style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: 1px solid #f59e0b;">
+                        <div style="display: flex; align-items: center; gap: 1rem;">
+                            <div style="font-size: 2rem;">💡</div>
+                            <div style="flex: 1;">
+                                <strong style="color: #92400e;">Availability Gaps Detected</strong>
+                                <p style="margin: 0.25rem 0 0 0; color: #a16207; font-size: 0.9rem;" id="gaps-summary">You have unbooked nights that could be filled with a promotion</p>
+                            </div>
+                            <button class="btn" onclick="showAvailabilityGaps()" style="background: #f59e0b;">View Gaps</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Campaigns List -->
+                <div class="card">
+                    <div id="campaigns-list">
+                        <div style="text-align: center; padding: 3rem; color: #64748b;">
+                            <div style="font-size: 3rem; margin-bottom: 1rem;">📣</div>
+                            <h3 style="margin-bottom: 0.5rem; color: #1e293b;">No campaigns yet</h3>
+                            <p style="margin-bottom: 1.5rem;">Create your first campaign to fill availability gaps and boost bookings</p>
+                            <button class="btn" onclick="openCreateCampaignModal()">+ Create Campaign</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- GAS Network Contacts View -->
+            <div id="network-contacts" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>👥 Contacts</h2>
+                            <p>Manage your guest contacts and email list</p>
+                        </div>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button class="btn btn-secondary" onclick="openImportContactsModal()">
+                                <span>📤 Import CSV</span>
+                            </button>
+                            <button class="btn" onclick="openAddContactModal()">
+                                <span>+ Add Contact</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Contact Stats -->
+                <div class="stats-grid" style="margin-bottom: 1.5rem;">
+                    <div class="stat-card">
+                        <div style="font-size: 1.75rem; font-weight: 700; color: #3b82f6;" id="contact-stat-total">0</div>
+                        <div style="color: #64748b; font-size: 0.85rem;">Total Contacts</div>
+                    </div>
+                    <div class="stat-card">
+                        <div style="font-size: 1.75rem; font-weight: 700; color: #10b981;" id="contact-stat-bookings">0</div>
+                        <div style="color: #64748b; font-size: 0.85rem;">From Bookings</div>
+                    </div>
+                    <div class="stat-card">
+                        <div style="font-size: 1.75rem; font-weight: 700; color: #8b5cf6;" id="contact-stat-import">0</div>
+                        <div style="color: #64748b; font-size: 0.85rem;">Imported</div>
+                    </div>
+                    <div class="stat-card">
+                        <div style="font-size: 1.75rem; font-weight: 700; color: #f59e0b;" id="contact-stat-repeat">0</div>
+                        <div style="color: #64748b; font-size: 0.85rem;">Repeat Guests</div>
+                    </div>
+                </div>
+
+                <!-- Search & Filter -->
+                <div class="card" style="margin-bottom: 1rem;">
+                    <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                        <input type="text" id="contact-search" class="form-input" placeholder="Search by name or email..." style="flex: 1; min-width: 200px;" onkeyup="debounceContactSearch()">
+                        <select id="contact-tag-filter" class="form-input" style="width: 200px;" onchange="loadNetworkContacts()">
+                            <option value="">All Tags</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Contacts List -->
+                <div class="card">
+                    <div id="contacts-list">
+                        <div style="text-align: center; padding: 3rem; color: #64748b;">
+                            <div style="font-size: 3rem; margin-bottom: 1rem;">👥</div>
+                            <h3 style="margin-bottom: 0.5rem; color: #1e293b;">No contacts yet</h3>
+                            <p style="margin-bottom: 1.5rem;">Add contacts manually or import from a CSV file</p>
+                            <div style="display: flex; gap: 1rem; justify-content: center;">
+                                <button class="btn btn-secondary" onclick="openImportContactsModal()">📤 Import CSV</button>
+                                <button class="btn" onclick="openAddContactModal()">+ Add Contact</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- GAS Network Tags View -->
+            <div id="network-tags" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>🏷️ Tags</h2>
+                            <p>Manage interest and preference tags for your contacts</p>
+                        </div>
+                        <button class="btn" onclick="openAddTagModal()">
+                            <span>+ New Tag</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Tags by Category -->
+                <div id="tags-container">
+                    <div style="text-align: center; padding: 2rem;"><div class="spinner"></div></div>
+                </div>
+            </div>
+
+            <!-- GAS Network Segments View -->
+            <div id="network-segments" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>📊 Segments</h2>
+                            <p>Create saved audience filters for targeted campaigns</p>
+                        </div>
+                        <button class="btn" onclick="openCreateSegmentModal()">
+                            <span>+ New Segment</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Segments List -->
+                <div class="card">
+                    <div id="segments-list">
+                        <div style="text-align: center; padding: 3rem; color: #64748b;">
+                            <div style="font-size: 3rem; margin-bottom: 1rem;">📊</div>
+                            <h3 style="margin-bottom: 0.5rem; color: #1e293b;">No segments yet</h3>
+                            <p style="margin-bottom: 1.5rem;">Create segments to target specific groups of contacts</p>
+                            <button class="btn" onclick="openCreateSegmentModal()">+ Create Segment</button>
                         </div>
                     </div>
                 </div>
@@ -17654,7 +17849,11 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (viewName === 'bookings') loadBookings();
             if (viewName === 'marketing') loadMarketingProperties();
             if (viewName === 'turbine-connections') loadTurbineConnections();
+            if (viewName === 'turbine-campaigns') loadTurbineCampaigns();
             if (viewName === 'turbine-generator') { loadTurbineConnections(); loadTurbinePosts(); }
+            if (viewName === 'network-contacts') loadNetworkContacts();
+            if (viewName === 'network-tags') loadNetworkTags();
+            if (viewName === 'network-segments') loadNetworkSegments();
             if (viewName === 'wb-header') loadWebsiteSection('header');
             if (viewName === 'wb-hero') loadWebsiteSection('hero');
             if (viewName === 'wb-intro') loadWebsiteSection('intro');
@@ -28984,6 +29183,740 @@ const promo = await fetch('/api/v1/offers/validate', {
             document.getElementById('turbine-stat-scheduled').textContent = '0';
             document.getElementById('turbine-stat-posted').textContent = '0';
             document.getElementById('turbine-stat-drafts').textContent = '0';
+        }
+        
+        // ============================================
+        // TURBINE CAMPAIGNS FUNCTIONS
+        // ============================================
+        
+        let allCampaigns = [];
+        let availabilityGaps = [];
+        
+        async function loadTurbineCampaigns() {
+            const container = document.getElementById('campaigns-list');
+            if (!container) return;
+            
+            container.innerHTML = '<div style="text-align: center; padding: 2rem;"><div class="spinner"></div></div>';
+            
+            try {
+                const accountId = selectedAccountId || currentAccount?.id;
+                if (!accountId) return;
+                
+                const response = await fetch(`/api/turbines/campaigns?account_id=${accountId}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    allCampaigns = data.campaigns || [];
+                    renderCampaigns();
+                    updateCampaignStats();
+                    checkAvailabilityGaps();
+                }
+            } catch (error) {
+                console.error('Error loading campaigns:', error);
+                container.innerHTML = '<div style="text-align: center; padding: 2rem; color: #ef4444;">Error loading campaigns</div>';
+            }
+        }
+        
+        function renderCampaigns() {
+            const container = document.getElementById('campaigns-list');
+            
+            if (allCampaigns.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 3rem; color: #64748b;">
+                        <div style="font-size: 3rem; margin-bottom: 1rem;">📣</div>
+                        <h3 style="margin-bottom: 0.5rem; color: #1e293b;">No campaigns yet</h3>
+                        <p style="margin-bottom: 1.5rem;">Create your first campaign to fill availability gaps and boost bookings</p>
+                        <button class="btn" onclick="openCreateCampaignModal()">+ Create Campaign</button>
+                    </div>
+                `;
+                return;
+            }
+            
+            const statusColors = {
+                draft: { bg: '#f1f5f9', text: '#64748b', icon: '📝' },
+                scheduled: { bg: '#dbeafe', text: '#1d4ed8', icon: '📅' },
+                sent: { bg: '#dcfce7', text: '#166534', icon: '✅' },
+                completed: { bg: '#f3e8ff', text: '#7c3aed', icon: '🏁' }
+            };
+            
+            let html = '<div class="table-container"><table><thead><tr><th>Campaign</th><th>Property</th><th>Dates</th><th>Discount</th><th>Channels</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
+            
+            allCampaigns.forEach(c => {
+                const status = statusColors[c.status] || statusColors.draft;
+                const channels = c.channels || {};
+                const channelIcons = [];
+                if (channels.email) channelIcons.push('📧');
+                if (channels.facebook) channelIcons.push('📘');
+                if (channels.instagram) channelIcons.push('📷');
+                
+                html += `<tr>
+                    <td><strong>${c.name}</strong></td>
+                    <td>${c.property_name || '-'}</td>
+                    <td>${c.start_date ? new Date(c.start_date).toLocaleDateString() : '-'} - ${c.end_date ? new Date(c.end_date).toLocaleDateString() : '-'}</td>
+                    <td>${c.discount_type === 'percent' ? c.discount_value + '%' : c.discount_type === 'fixed' ? '£' + c.discount_value : c.custom_price ? '£' + c.custom_price : '-'}</td>
+                    <td>${channelIcons.join(' ') || '-'}</td>
+                    <td><span style="background: ${status.bg}; color: ${status.text}; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem;">${status.icon} ${c.status}</span></td>
+                    <td>
+                        <button class="btn btn-sm btn-secondary" onclick="editCampaign(${c.id})">Edit</button>
+                        <button class="btn btn-sm btn-secondary" onclick="deleteCampaign(${c.id})" style="color: #ef4444;">Delete</button>
+                    </td>
+                </tr>`;
+            });
+            
+            html += '</tbody></table></div>';
+            container.innerHTML = html;
+        }
+        
+        function updateCampaignStats() {
+            const active = allCampaigns.filter(c => c.status === 'scheduled').length;
+            const sent = allCampaigns.filter(c => c.status === 'sent' || c.status === 'completed').length;
+            const draft = allCampaigns.filter(c => c.status === 'draft').length;
+            
+            document.getElementById('campaign-stat-active').textContent = active;
+            document.getElementById('campaign-stat-sent').textContent = sent;
+            document.getElementById('campaign-stat-draft').textContent = draft;
+        }
+        
+        async function checkAvailabilityGaps() {
+            try {
+                const accountId = selectedAccountId || currentAccount?.id;
+                if (!accountId) return;
+                
+                const response = await fetch(`/api/turbines/availability-gaps?account_id=${accountId}&min_gap_nights=3&days_ahead=60`);
+                const data = await response.json();
+                
+                if (data.success && data.gaps && data.gaps.length > 0) {
+                    availabilityGaps = data.gaps;
+                    document.getElementById('availability-gaps-alert').style.display = 'block';
+                    document.getElementById('gaps-summary').textContent = `You have ${data.gaps.length} gap${data.gaps.length > 1 ? 's' : ''} (3+ nights) in the next 60 days that could be filled with a promotion`;
+                } else {
+                    document.getElementById('availability-gaps-alert').style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Error checking gaps:', error);
+            }
+        }
+        
+        function showAvailabilityGaps() {
+            if (availabilityGaps.length === 0) {
+                showToast('No availability gaps found', 'info');
+                return;
+            }
+            
+            let html = '<div style="max-height: 400px; overflow-y: auto;">';
+            availabilityGaps.forEach(gap => {
+                html += `
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 0.5rem;">
+                        <div>
+                            <strong>${gap.property_name}</strong> - ${gap.room_name}
+                            <div style="color: #64748b; font-size: 0.85rem;">${gap.gap_start} to ${gap.gap_end} (${gap.nights} nights)</div>
+                        </div>
+                        <button class="btn btn-sm" onclick="createCampaignFromGap(${JSON.stringify(gap).replace(/"/g, '&quot;')})">Create Campaign</button>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            
+            showModal('Availability Gaps', html);
+        }
+        
+        function openCreateCampaignModal() {
+            showToast('Campaign creation wizard coming soon!', 'info');
+        }
+        
+        function createCampaignFromGap(gap) {
+            showToast(`Creating campaign for ${gap.room_name} (${gap.gap_start} - ${gap.gap_end})`, 'info');
+        }
+        
+        function editCampaign(id) {
+            showToast('Campaign editor coming soon!', 'info');
+        }
+        
+        async function deleteCampaign(id) {
+            if (!confirm('Delete this campaign?')) return;
+            
+            try {
+                const response = await fetch(`/api/turbines/campaigns/${id}`, { method: 'DELETE' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showToast('Campaign deleted', 'success');
+                    loadTurbineCampaigns();
+                } else {
+                    showToast(data.error || 'Failed to delete', 'error');
+                }
+            } catch (error) {
+                showToast('Error deleting campaign', 'error');
+            }
+        }
+        
+        // ============================================
+        // GAS NETWORK FUNCTIONS
+        // ============================================
+        
+        let allContacts = [];
+        let allTags = [];
+        let allSegments = [];
+        let contactSearchTimeout;
+        
+        async function loadNetworkContacts() {
+            const container = document.getElementById('contacts-list');
+            if (!container) return;
+            
+            container.innerHTML = '<div style="text-align: center; padding: 2rem;"><div class="spinner"></div></div>';
+            
+            try {
+                const accountId = selectedAccountId || currentAccount?.id;
+                if (!accountId) return;
+                
+                // Load stats
+                const statsResponse = await fetch(`/api/network/stats?account_id=${accountId}`);
+                const statsData = await statsResponse.json();
+                if (statsData.success) {
+                    document.getElementById('contact-stat-total').textContent = statsData.stats.total_contacts || 0;
+                    document.getElementById('contact-stat-bookings').textContent = statsData.stats.from_bookings || 0;
+                    document.getElementById('contact-stat-import').textContent = statsData.stats.from_import || 0;
+                    document.getElementById('contact-stat-repeat').textContent = statsData.stats.repeat_guests || 0;
+                }
+                
+                // Load tags for filter dropdown
+                await loadTagsForFilter();
+                
+                // Load contacts
+                const search = document.getElementById('contact-search')?.value || '';
+                const tagId = document.getElementById('contact-tag-filter')?.value || '';
+                
+                let url = `/api/network/contacts?account_id=${accountId}`;
+                if (search) url += `&search=${encodeURIComponent(search)}`;
+                if (tagId) url += `&tag_id=${tagId}`;
+                
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (data.success) {
+                    allContacts = data.contacts || [];
+                    renderContacts();
+                }
+            } catch (error) {
+                console.error('Error loading contacts:', error);
+                container.innerHTML = '<div style="text-align: center; padding: 2rem; color: #ef4444;">Error loading contacts</div>';
+            }
+        }
+        
+        async function loadTagsForFilter() {
+            try {
+                const accountId = selectedAccountId || currentAccount?.id;
+                const response = await fetch(`/api/network/tags?account_id=${accountId}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    allTags = data.tags || [];
+                    const select = document.getElementById('contact-tag-filter');
+                    if (select) {
+                        select.innerHTML = '<option value="">All Tags</option>';
+                        allTags.forEach(tag => {
+                            select.innerHTML += `<option value="${tag.id}">${tag.icon || '🏷️'} ${tag.name}</option>`;
+                        });
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading tags for filter:', error);
+            }
+        }
+        
+        function renderContacts() {
+            const container = document.getElementById('contacts-list');
+            
+            if (allContacts.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 3rem; color: #64748b;">
+                        <div style="font-size: 3rem; margin-bottom: 1rem;">👥</div>
+                        <h3 style="margin-bottom: 0.5rem; color: #1e293b;">No contacts found</h3>
+                        <p style="margin-bottom: 1.5rem;">Add contacts manually or import from a CSV file</p>
+                        <div style="display: flex; gap: 1rem; justify-content: center;">
+                            <button class="btn btn-secondary" onclick="openImportContactsModal()">📤 Import CSV</button>
+                            <button class="btn" onclick="openAddContactModal()">+ Add Contact</button>
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+            
+            let html = '<div class="table-container"><table><thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Tags</th><th>Source</th><th>Bookings</th><th>Actions</th></tr></thead><tbody>';
+            
+            allContacts.forEach(c => {
+                const tags = c.tags || [];
+                const tagHtml = tags.slice(0, 3).map(t => `<span style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; margin-right: 4px;">${t.icon || '🏷️'} ${t.name}</span>`).join('');
+                const moreTags = tags.length > 3 ? `<span style="color: #64748b; font-size: 0.75rem;">+${tags.length - 3} more</span>` : '';
+                
+                html += `<tr>
+                    <td><strong>${c.first_name || ''} ${c.last_name || ''}</strong></td>
+                    <td>${c.email}</td>
+                    <td>${c.phone || '-'}</td>
+                    <td>${tagHtml}${moreTags}</td>
+                    <td><span style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem;">${c.source || 'manual'}</span></td>
+                    <td>${c.total_bookings || 0}</td>
+                    <td>
+                        <button class="btn btn-sm btn-secondary" onclick="editContact(${c.id})">Edit</button>
+                        <button class="btn btn-sm btn-secondary" onclick="deleteContact(${c.id})" style="color: #ef4444;">Delete</button>
+                    </td>
+                </tr>`;
+            });
+            
+            html += '</tbody></table></div>';
+            container.innerHTML = html;
+        }
+        
+        function debounceContactSearch() {
+            clearTimeout(contactSearchTimeout);
+            contactSearchTimeout = setTimeout(() => loadNetworkContacts(), 300);
+        }
+        
+        function openAddContactModal() {
+            const html = `
+                <div style="display: flex; flex-direction: column; gap: 1rem;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div>
+                            <label style="font-weight: 500; margin-bottom: 0.25rem; display: block;">First Name</label>
+                            <input type="text" id="new-contact-first" class="form-input" placeholder="John">
+                        </div>
+                        <div>
+                            <label style="font-weight: 500; margin-bottom: 0.25rem; display: block;">Last Name</label>
+                            <input type="text" id="new-contact-last" class="form-input" placeholder="Smith">
+                        </div>
+                    </div>
+                    <div>
+                        <label style="font-weight: 500; margin-bottom: 0.25rem; display: block;">Email *</label>
+                        <input type="email" id="new-contact-email" class="form-input" placeholder="john@example.com" required>
+                    </div>
+                    <div>
+                        <label style="font-weight: 500; margin-bottom: 0.25rem; display: block;">Phone</label>
+                        <input type="text" id="new-contact-phone" class="form-input" placeholder="+44 7123 456789">
+                    </div>
+                    <div>
+                        <label style="font-weight: 500; margin-bottom: 0.25rem; display: block;">Tags</label>
+                        <div id="new-contact-tags" style="display: flex; flex-wrap: wrap; gap: 0.5rem; max-height: 150px; overflow-y: auto;">
+                            ${allTags.map(t => `<label style="display: flex; align-items: center; gap: 0.25rem; background: #f1f5f9; padding: 4px 8px; border-radius: 4px; cursor: pointer;">
+                                <input type="checkbox" value="${t.id}"> ${t.icon || '🏷️'} ${t.name}
+                            </label>`).join('')}
+                        </div>
+                    </div>
+                    <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem;">
+                        <button class="btn btn-secondary" onclick="closeModal('dynamicModal')">Cancel</button>
+                        <button class="btn" onclick="saveNewContact()">Add Contact</button>
+                    </div>
+                </div>
+            `;
+            showModal('Add Contact', html);
+        }
+        
+        async function saveNewContact() {
+            const email = document.getElementById('new-contact-email').value;
+            if (!email) {
+                showToast('Email is required', 'error');
+                return;
+            }
+            
+            const tags = [];
+            document.querySelectorAll('#new-contact-tags input:checked').forEach(cb => tags.push(parseInt(cb.value)));
+            
+            try {
+                const accountId = selectedAccountId || currentAccount?.id;
+                const response = await fetch('/api/network/contacts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        account_id: accountId,
+                        email: email,
+                        first_name: document.getElementById('new-contact-first').value,
+                        last_name: document.getElementById('new-contact-last').value,
+                        phone: document.getElementById('new-contact-phone').value,
+                        tags: tags
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    showToast('Contact added', 'success');
+                    closeModal('dynamicModal');
+                    loadNetworkContacts();
+                } else {
+                    showToast(data.error || 'Failed to add contact', 'error');
+                }
+            } catch (error) {
+                showToast('Error adding contact', 'error');
+            }
+        }
+        
+        function editContact(id) {
+            showToast('Contact editor coming soon!', 'info');
+        }
+        
+        async function deleteContact(id) {
+            if (!confirm('Delete this contact?')) return;
+            
+            try {
+                const response = await fetch(`/api/network/contacts/${id}`, { method: 'DELETE' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showToast('Contact deleted', 'success');
+                    loadNetworkContacts();
+                } else {
+                    showToast(data.error || 'Failed to delete', 'error');
+                }
+            } catch (error) {
+                showToast('Error deleting contact', 'error');
+            }
+        }
+        
+        function openImportContactsModal() {
+            const html = `
+                <div style="display: flex; flex-direction: column; gap: 1rem;">
+                    <p style="color: #64748b;">Upload a CSV file with columns: email, first_name, last_name, phone</p>
+                    <div style="background: #f8fafc; border: 2px dashed #cbd5e1; border-radius: 8px; padding: 2rem; text-align: center;">
+                        <input type="file" id="csv-file-input" accept=".csv" style="display: none;" onchange="handleCsvUpload(this)">
+                        <button class="btn btn-secondary" onclick="document.getElementById('csv-file-input').click()">📁 Choose CSV File</button>
+                        <p id="csv-file-name" style="margin-top: 0.5rem; color: #64748b; font-size: 0.85rem;">No file selected</p>
+                    </div>
+                    <div>
+                        <label style="font-weight: 500; margin-bottom: 0.25rem; display: block;">Apply tags to all imported contacts:</label>
+                        <div id="import-contact-tags" style="display: flex; flex-wrap: wrap; gap: 0.5rem; max-height: 100px; overflow-y: auto;">
+                            ${allTags.map(t => `<label style="display: flex; align-items: center; gap: 0.25rem; background: #f1f5f9; padding: 4px 8px; border-radius: 4px; cursor: pointer;">
+                                <input type="checkbox" value="${t.id}"> ${t.icon || '🏷️'} ${t.name}
+                            </label>`).join('')}
+                        </div>
+                    </div>
+                    <div id="csv-preview" style="display: none;"></div>
+                    <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem;">
+                        <button class="btn btn-secondary" onclick="closeModal('dynamicModal')">Cancel</button>
+                        <button class="btn" id="import-btn" onclick="importContacts()" disabled>Import Contacts</button>
+                    </div>
+                </div>
+            `;
+            showModal('Import Contacts from CSV', html);
+        }
+        
+        let csvData = [];
+        
+        function handleCsvUpload(input) {
+            const file = input.files[0];
+            if (!file) return;
+            
+            document.getElementById('csv-file-name').textContent = file.name;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const text = e.target.result;
+                const lines = text.split('\n');
+                const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+                
+                csvData = [];
+                for (let i = 1; i < lines.length; i++) {
+                    const values = lines[i].split(',').map(v => v.trim());
+                    if (values.length >= 1 && values[0]) {
+                        const row = {};
+                        headers.forEach((h, idx) => {
+                            if (h === 'email' || h === 'first_name' || h === 'firstname' || h === 'last_name' || h === 'lastname' || h === 'phone') {
+                                const key = h.replace('firstname', 'first_name').replace('lastname', 'last_name');
+                                row[key] = values[idx] || '';
+                            }
+                        });
+                        if (row.email) csvData.push(row);
+                    }
+                }
+                
+                document.getElementById('csv-preview').style.display = 'block';
+                document.getElementById('csv-preview').innerHTML = `<p style="color: #10b981;"><strong>${csvData.length}</strong> contacts found in file</p>`;
+                document.getElementById('import-btn').disabled = csvData.length === 0;
+            };
+            reader.readAsText(file);
+        }
+        
+        async function importContacts() {
+            if (csvData.length === 0) return;
+            
+            const tags = [];
+            document.querySelectorAll('#import-contact-tags input:checked').forEach(cb => tags.push(parseInt(cb.value)));
+            
+            try {
+                const accountId = selectedAccountId || currentAccount?.id;
+                const response = await fetch('/api/network/contacts/import', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        account_id: accountId,
+                        contacts: csvData,
+                        default_tags: tags
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    showToast(`Imported ${data.imported} new, updated ${data.updated} existing`, 'success');
+                    closeModal('dynamicModal');
+                    loadNetworkContacts();
+                } else {
+                    showToast(data.error || 'Import failed', 'error');
+                }
+            } catch (error) {
+                showToast('Error importing contacts', 'error');
+            }
+        }
+        
+        // TAGS VIEW
+        async function loadNetworkTags() {
+            const container = document.getElementById('tags-container');
+            if (!container) return;
+            
+            container.innerHTML = '<div style="text-align: center; padding: 2rem;"><div class="spinner"></div></div>';
+            
+            try {
+                const accountId = selectedAccountId || currentAccount?.id;
+                const response = await fetch(`/api/network/tags?account_id=${accountId}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    allTags = data.tags || [];
+                    renderTags();
+                }
+            } catch (error) {
+                console.error('Error loading tags:', error);
+                container.innerHTML = '<div style="text-align: center; padding: 2rem; color: #ef4444;">Error loading tags</div>';
+            }
+        }
+        
+        function renderTags() {
+            const container = document.getElementById('tags-container');
+            
+            // Group by category
+            const categories = {};
+            allTags.forEach(tag => {
+                const cat = tag.category || 'other';
+                if (!categories[cat]) categories[cat] = [];
+                categories[cat].push(tag);
+            });
+            
+            const categoryLabels = {
+                pets: '🐾 Pets',
+                travel_style: '✈️ Travel Style',
+                interests: '⭐ Interests',
+                status: '🏆 Status',
+                source: '📥 Source',
+                custom: '🏷️ Custom',
+                other: '📌 Other'
+            };
+            
+            let html = '';
+            for (const [cat, tags] of Object.entries(categories)) {
+                html += `
+                    <div class="card" style="margin-bottom: 1rem;">
+                        <h3 style="margin-bottom: 1rem;">${categoryLabels[cat] || cat}</h3>
+                        <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                            ${tags.map(t => `
+                                <div style="display: flex; align-items: center; gap: 0.5rem; background: ${t.color || '#f1f5f9'}20; border: 1px solid ${t.color || '#e2e8f0'}; padding: 8px 12px; border-radius: 8px;">
+                                    <span style="font-size: 1.25rem;">${t.icon || '🏷️'}</span>
+                                    <span>${t.name}</span>
+                                    ${!t.is_system ? `<button onclick="deleteTag(${t.id})" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 0 4px;">×</button>` : ''}
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            container.innerHTML = html || '<div style="text-align: center; padding: 2rem; color: #64748b;">No tags found</div>';
+        }
+        
+        function openAddTagModal() {
+            const html = `
+                <div style="display: flex; flex-direction: column; gap: 1rem;">
+                    <div>
+                        <label style="font-weight: 500; margin-bottom: 0.25rem; display: block;">Tag Name *</label>
+                        <input type="text" id="new-tag-name" class="form-input" placeholder="e.g., Pet Friendly">
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div>
+                            <label style="font-weight: 500; margin-bottom: 0.25rem; display: block;">Category</label>
+                            <select id="new-tag-category" class="form-input">
+                                <option value="custom">Custom</option>
+                                <option value="pets">Pets</option>
+                                <option value="travel_style">Travel Style</option>
+                                <option value="interests">Interests</option>
+                                <option value="status">Status</option>
+                                <option value="source">Source</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="font-weight: 500; margin-bottom: 0.25rem; display: block;">Icon</label>
+                            <input type="text" id="new-tag-icon" class="form-input" placeholder="🏷️" maxlength="2">
+                        </div>
+                    </div>
+                    <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem;">
+                        <button class="btn btn-secondary" onclick="closeModal('dynamicModal')">Cancel</button>
+                        <button class="btn" onclick="saveNewTag()">Create Tag</button>
+                    </div>
+                </div>
+            `;
+            showModal('Create Custom Tag', html);
+        }
+        
+        async function saveNewTag() {
+            const name = document.getElementById('new-tag-name').value;
+            if (!name) {
+                showToast('Tag name is required', 'error');
+                return;
+            }
+            
+            try {
+                const accountId = selectedAccountId || currentAccount?.id;
+                const response = await fetch('/api/network/tags', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        account_id: accountId,
+                        name: name,
+                        category: document.getElementById('new-tag-category').value,
+                        icon: document.getElementById('new-tag-icon').value || '🏷️'
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    showToast('Tag created', 'success');
+                    closeModal('dynamicModal');
+                    loadNetworkTags();
+                } else {
+                    showToast(data.error || 'Failed to create tag', 'error');
+                }
+            } catch (error) {
+                showToast('Error creating tag', 'error');
+            }
+        }
+        
+        async function deleteTag(id) {
+            if (!confirm('Delete this tag? It will be removed from all contacts.')) return;
+            
+            try {
+                const response = await fetch(`/api/network/tags/${id}`, { method: 'DELETE' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showToast('Tag deleted', 'success');
+                    loadNetworkTags();
+                } else {
+                    showToast(data.error || 'Failed to delete', 'error');
+                }
+            } catch (error) {
+                showToast('Error deleting tag', 'error');
+            }
+        }
+        
+        // SEGMENTS VIEW
+        async function loadNetworkSegments() {
+            const container = document.getElementById('segments-list');
+            if (!container) return;
+            
+            container.innerHTML = '<div style="text-align: center; padding: 2rem;"><div class="spinner"></div></div>';
+            
+            try {
+                const accountId = selectedAccountId || currentAccount?.id;
+                const response = await fetch(`/api/network/segments?account_id=${accountId}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    allSegments = data.segments || [];
+                    renderSegments();
+                }
+            } catch (error) {
+                console.error('Error loading segments:', error);
+                container.innerHTML = '<div style="text-align: center; padding: 2rem; color: #ef4444;">Error loading segments</div>';
+            }
+        }
+        
+        function renderSegments() {
+            const container = document.getElementById('segments-list');
+            
+            if (allSegments.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 3rem; color: #64748b;">
+                        <div style="font-size: 3rem; margin-bottom: 1rem;">📊</div>
+                        <h3 style="margin-bottom: 0.5rem; color: #1e293b;">No segments yet</h3>
+                        <p style="margin-bottom: 1.5rem;">Create segments to target specific groups of contacts</p>
+                        <button class="btn" onclick="openCreateSegmentModal()">+ Create Segment</button>
+                    </div>
+                `;
+                return;
+            }
+            
+            let html = '<div style="display: grid; gap: 1rem;">';
+            allSegments.forEach(s => {
+                html += `
+                    <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: start;">
+                            <div>
+                                <strong style="font-size: 1.1rem;">${s.name}</strong>
+                                <p style="color: #64748b; margin: 0.25rem 0 0 0; font-size: 0.9rem;">${s.description || 'No description'}</p>
+                            </div>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <button class="btn btn-sm btn-secondary" onclick="deleteSegment(${s.id})" style="color: #ef4444;">Delete</button>
+                            </div>
+                        </div>
+                        <div style="margin-top: 0.75rem; color: #64748b; font-size: 0.85rem;">
+                            <span style="background: #f1f5f9; padding: 2px 8px; border-radius: 4px;">${s.contact_count || 0} contacts</span>
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            container.innerHTML = html;
+        }
+        
+        function openCreateSegmentModal() {
+            showToast('Segment builder coming soon!', 'info');
+        }
+        
+        async function deleteSegment(id) {
+            if (!confirm('Delete this segment?')) return;
+            
+            try {
+                const response = await fetch(`/api/network/segments/${id}`, { method: 'DELETE' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showToast('Segment deleted', 'success');
+                    loadNetworkSegments();
+                } else {
+                    showToast(data.error || 'Failed to delete', 'error');
+                }
+            } catch (error) {
+                showToast('Error deleting segment', 'error');
+            }
+        }
+        
+        // Simple modal helper
+        function showModal(title, content) {
+            // Check if dynamicModal exists, if not create it
+            let modal = document.getElementById('dynamicModal');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'dynamicModal';
+                modal.className = 'modal';
+                modal.innerHTML = `
+                    <div class="modal-content" style="max-width: 500px;">
+                        <div class="modal-header">
+                            <h3 id="dynamicModalTitle"></h3>
+                            <button onclick="closeModal('dynamicModal')" style="background: none; border: none; font-size: 1.5rem; cursor: pointer;">×</button>
+                        </div>
+                        <div id="dynamicModalBody" style="padding: 1.5rem;"></div>
+                    </div>
+                `;
+                document.body.appendChild(modal);
+            }
+            
+            document.getElementById('dynamicModalTitle').textContent = title;
+            document.getElementById('dynamicModalBody').innerHTML = content;
+            modal.classList.add('active');
         }
         
         // 
