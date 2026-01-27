@@ -29881,6 +29881,7 @@ const promo = await fetch('/api/v1/offers/validate', {
         function previewCampaignEmail(mode) {
             const property = campaignProperties.find(p => p.id == campaignData.property_id);
             const width = mode === 'mobile' ? '375px' : '600px';
+            const modeLabel = mode === 'mobile' ? '📱 Mobile' : '🖥️ Desktop';
             
             const discountText = campaignData.discount_type === 'percent' 
                 ? campaignData.discount_value + '% OFF' 
@@ -29913,24 +29914,37 @@ const promo = await fetch('/api/v1/offers/validate', {
                 '</div>' +
                 '</div></div>';
             
+            // Close campaign wizard modal first to avoid z-index issues
+            const wizardModal = document.getElementById('campaignWizardModal');
+            if (wizardModal) wizardModal.classList.remove('active');
+            
             // Show in modal
             let modal = document.getElementById('emailPreviewModal');
             if (!modal) {
                 modal = document.createElement('div');
                 modal.id = 'emailPreviewModal';
                 modal.className = 'modal';
-                modal.innerHTML = '<div class="modal-content" style="max-width: 90vw; max-height: 90vh; padding: 0;">' +
-                    '<div class="modal-header" style="padding: 1rem; border-bottom: 1px solid #e2e8f0;">' +
-                    '<h3 style="margin: 0;">Email Preview</h3>' +
-                    '<button onclick="closeModal(\'emailPreviewModal\')" style="background: none; border: none; font-size: 1.5rem; cursor: pointer;">×</button>' +
-                    '</div>' +
-                    '<div id="emailPreviewBody" style="overflow: auto; max-height: calc(90vh - 60px);"></div>' +
-                    '</div>';
                 document.body.appendChild(modal);
             }
             
-            document.getElementById('emailPreviewBody').innerHTML = html;
+            modal.innerHTML = '<div class="modal-content" style="max-width: 90vw; max-height: 90vh; padding: 0;">' +
+                '<div class="modal-header" style="padding: 1rem; border-bottom: 1px solid #e2e8f0;">' +
+                '<h3 style="margin: 0;">Email Preview - ' + modeLabel + '</h3>' +
+                '<button onclick="closeEmailPreview()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer;">×</button>' +
+                '</div>' +
+                '<div style="overflow: auto; max-height: calc(90vh - 60px);">' + html + '</div>' +
+                '</div>';
+            
             modal.classList.add('active');
+        }
+        
+        function closeEmailPreview() {
+            const modal = document.getElementById('emailPreviewModal');
+            if (modal) modal.classList.remove('active');
+            
+            // Re-open campaign wizard
+            const wizardModal = document.getElementById('campaignWizardModal');
+            if (wizardModal) wizardModal.classList.add('active');
         }
         
         async function saveCampaign() {
