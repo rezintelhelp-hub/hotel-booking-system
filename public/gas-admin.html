@@ -28914,7 +28914,7 @@ const promo = await fetch('/api/v1/offers/validate', {
         // Connect to social media platform
         function connectTurbine(platform) {
             // For now, show coming soon message
-            showToast(`${platform.charAt(0).toUpperCase() + platform.slice(1)} connection coming soon! OAuth integration required.`, 'info');
+            showNotification(`${platform.charAt(0).toUpperCase() + platform.slice(1)} connection coming soon! OAuth integration required.`, 'info');
             
             // When API is ready, this will redirect to OAuth:
             // window.location.href = `/api/turbines/connect/${platform}`;
@@ -28987,7 +28987,7 @@ const promo = await fetch('/api/v1/offers/validate', {
         
         function disconnectTurbine(id) {
             if (!confirm('Are you sure you want to disconnect this account?')) return;
-            showToast('Disconnect feature coming soon', 'info');
+            showNotification('Disconnect feature coming soon', 'info');
         }
         
         // Open Create Post Modal
@@ -29100,7 +29100,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             const option = offerSelect.options[offerSelect.selectedIndex];
             
             if (!option.value) {
-                showToast('Please select an offer first', 'error');
+                showNotification('Please select an offer first', 'error');
                 return;
             }
             
@@ -29118,9 +29118,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                 document.getElementById('post-content').value = randomTemplate;
                 document.getElementById('post-char-count').textContent = `${randomTemplate.length} / 280`;
                 
-                showToast('Post content generated!', 'success');
+                showNotification('Post content generated!', 'success');
             } catch (e) {
-                showToast('Error generating content', 'error');
+                showNotification('Error generating content', 'error');
             }
         }
         
@@ -29132,12 +29132,12 @@ const promo = await fetch('/api/v1/offers/validate', {
             const scheduledAt = document.getElementById('post-scheduled-at').value;
             
             if (!content.trim()) {
-                showToast('Please enter post content', 'error');
+                showNotification('Please enter post content', 'error');
                 return;
             }
             
             // For now, just show success and close
-            showToast('Post feature coming soon! Post saved as draft.', 'info');
+            showNotification('Post feature coming soon! Post saved as draft.', 'info');
             closeModal('createPostModal');
             
             // When API is ready:
@@ -29299,7 +29299,7 @@ const promo = await fetch('/api/v1/offers/validate', {
         
         function showAvailabilityGaps() {
             if (availabilityGaps.length === 0) {
-                showToast('No availability gaps found', 'info');
+                showNotification('No availability gaps found', 'info');
                 return;
             }
             
@@ -29321,15 +29321,15 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
         
         function openCreateCampaignModal() {
-            showToast('Campaign creation wizard coming soon!', 'info');
+            showNotification('Campaign creation wizard coming soon!', 'info');
         }
         
         function createCampaignFromGap(gap) {
-            showToast(`Creating campaign for ${gap.room_name} (${gap.gap_start} - ${gap.gap_end})`, 'info');
+            showNotification(`Creating campaign for ${gap.room_name} (${gap.gap_start} - ${gap.gap_end})`, 'info');
         }
         
         function editCampaign(id) {
-            showToast('Campaign editor coming soon!', 'info');
+            showNotification('Campaign editor coming soon!', 'info');
         }
         
         async function deleteCampaign(id) {
@@ -29340,13 +29340,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const data = await response.json();
                 
                 if (data.success) {
-                    showToast('Campaign deleted', 'success');
+                    showNotification('Campaign deleted', 'success');
                     loadTurbineCampaigns();
                 } else {
-                    showToast(data.error || 'Failed to delete', 'error');
+                    showNotification(data.error || 'Failed to delete', 'error');
                 }
             } catch (error) {
-                showToast('Error deleting campaign', 'error');
+                showNotification('Error deleting campaign', 'error');
             }
         }
         
@@ -29513,7 +29513,7 @@ const promo = await fetch('/api/v1/offers/validate', {
         async function saveNewContact() {
             const email = document.getElementById('new-contact-email').value;
             if (!email) {
-                showToast('Email is required', 'error');
+                showNotification('Email is required', 'error');
                 return;
             }
             
@@ -29537,19 +29537,19 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 const data = await response.json();
                 if (data.success) {
-                    showToast('Contact added', 'success');
+                    showNotification('Contact added', 'success');
                     closeModal('dynamicModal');
                     loadNetworkContacts();
                 } else {
-                    showToast(data.error || 'Failed to add contact', 'error');
+                    showNotification(data.error || 'Failed to add contact', 'error');
                 }
             } catch (error) {
-                showToast('Error adding contact', 'error');
+                showNotification('Error adding contact', 'error');
             }
         }
         
         function editContact(id) {
-            showToast('Contact editor coming soon!', 'info');
+            showNotification('Contact editor coming soon!', 'info');
         }
         
         async function deleteContact(id) {
@@ -29560,13 +29560,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const data = await response.json();
                 
                 if (data.success) {
-                    showToast('Contact deleted', 'success');
+                    showNotification('Contact deleted', 'success');
                     loadNetworkContacts();
                 } else {
-                    showToast(data.error || 'Failed to delete', 'error');
+                    showNotification(data.error || 'Failed to delete', 'error');
                 }
             } catch (error) {
-                showToast('Error deleting contact', 'error');
+                showNotification('Error deleting contact', 'error');
             }
         }
         
@@ -29653,14 +29653,14 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 const data = await response.json();
                 if (data.success) {
-                    showToast(`Imported ${data.imported} new, updated ${data.updated} existing`, 'success');
+                    showNotification(`Imported ${data.imported} new, updated ${data.updated} existing`, 'success');
                     closeModal('dynamicModal');
                     loadNetworkContacts();
                 } else {
-                    showToast(data.error || 'Import failed', 'error');
+                    showNotification(data.error || 'Import failed', 'error');
                 }
             } catch (error) {
-                showToast('Error importing contacts', 'error');
+                showNotification('Error importing contacts', 'error');
             }
         }
         
@@ -29764,7 +29764,7 @@ const promo = await fetch('/api/v1/offers/validate', {
         async function saveNewTag() {
             const name = document.getElementById('new-tag-name').value;
             if (!name) {
-                showToast('Tag name is required', 'error');
+                showNotification('Tag name is required', 'error');
                 return;
             }
             
@@ -29783,14 +29783,14 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 const data = await response.json();
                 if (data.success) {
-                    showToast('Tag created', 'success');
+                    showNotification('Tag created', 'success');
                     closeModal('dynamicModal');
                     loadNetworkTags();
                 } else {
-                    showToast(data.error || 'Failed to create tag', 'error');
+                    showNotification(data.error || 'Failed to create tag', 'error');
                 }
             } catch (error) {
-                showToast('Error creating tag', 'error');
+                showNotification('Error creating tag', 'error');
             }
         }
         
@@ -29802,13 +29802,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const data = await response.json();
                 
                 if (data.success) {
-                    showToast('Tag deleted', 'success');
+                    showNotification('Tag deleted', 'success');
                     loadNetworkTags();
                 } else {
-                    showToast(data.error || 'Failed to delete', 'error');
+                    showNotification(data.error || 'Failed to delete', 'error');
                 }
             } catch (error) {
-                showToast('Error deleting tag', 'error');
+                showNotification('Error deleting tag', 'error');
             }
         }
         
@@ -29873,7 +29873,7 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
         
         function openCreateSegmentModal() {
-            showToast('Segment builder coming soon!', 'info');
+            showNotification('Segment builder coming soon!', 'info');
         }
         
         async function deleteSegment(id) {
@@ -29884,13 +29884,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const data = await response.json();
                 
                 if (data.success) {
-                    showToast('Segment deleted', 'success');
+                    showNotification('Segment deleted', 'success');
                     loadNetworkSegments();
                 } else {
-                    showToast(data.error || 'Failed to delete', 'error');
+                    showNotification(data.error || 'Failed to delete', 'error');
                 }
             } catch (error) {
-                showToast('Error deleting segment', 'error');
+                showNotification('Error deleting segment', 'error');
             }
         }
         
@@ -30525,7 +30525,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 document.getElementById('bulkEditModal').classList.add('active');
             } catch (error) {
                 console.error('Error opening Bulk Edit modal:', error);
-                showToast('Error opening Bulk Edit: ' + error.message, 'error');
+                showNotification('Error opening Bulk Edit: ' + error.message, 'error');
             }
         }
         
