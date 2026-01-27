@@ -269,6 +269,9 @@
 
         .nav-icon {
             font-size: 1.1rem;
+            width: 1.5rem;
+            text-align: center;
+            flex-shrink: 0;
         }
 
         /* User Profile Section */
@@ -29841,7 +29844,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (!container || !campaignData.property_id) return;
             
             try {
-                const response = await fetch('/api/property-images/' + campaignData.property_id);
+                const response = await fetch('/api/admin/properties/' + campaignData.property_id + '/images');
                 const data = await response.json();
                 
                 if (data.success && data.images && data.images.length > 0) {
