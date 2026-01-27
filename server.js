@@ -37558,11 +37558,11 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
       INSERT INTO properties (
         user_id, account_id, name, display_name, short_description, full_description,
         address, city, country,
-        latitude, longitude, phone, email, currency,
+        latitude, longitude, phone, email, currency, property_type,
         cm_source, cm_property_id, status, created_at
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
-        'elevate', $15, 'active', NOW()
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
+        'elevate', $16, 'active', NOW()
       )
       RETURNING id
     `, [
@@ -37580,6 +37580,7 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
       property.phone || null,
       property.email || null,
       property.currency || 'CHF',
+      property.property_type || 'vacation_rental',
       property.external_id || null
     ]);
     
@@ -37686,7 +37687,7 @@ app.put('/api/elevate/:apiKey/property/:propertyId', async (req, res) => {
     const allowedFields = ['name', 'display_name', 'short_description', 'full_description',
                           'address', 'address_line2', 'city', 'region', 
                           'postcode', 'country', 'latitude', 'longitude', 
-                          'phone', 'email', 'currency', 'timezone'];
+                          'phone', 'email', 'currency', 'timezone', 'property_type'];
     
     // Handle long_description as alias for full_description
     if (updates.long_description !== undefined && updates.full_description === undefined) {
