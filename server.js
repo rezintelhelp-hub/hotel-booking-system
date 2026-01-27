@@ -35728,7 +35728,7 @@ app.post('/api/admin/sync-bookings-to-travellers', async (req, res) => {
     // Get all bookings with guest email
     const bookings = await pool.query(`
       SELECT b.id, b.guest_email, b.guest_phone, b.guest_first_name, b.guest_last_name,
-             b.guest_address, b.guest_country, b.total_price,
+             b.guest_address, b.guest_country, b.grand_total,
              p.account_id, b.property_id, b.check_in
       FROM bookings b
       JOIN properties p ON p.id = b.property_id
@@ -35747,7 +35747,7 @@ app.post('/api/admin/sync-bookings-to-travellers', async (req, res) => {
         last_name: booking.guest_last_name,
         address: booking.guest_address,
         country: booking.guest_country
-      }, booking.account_id, booking.property_id, booking.id, booking.total_price);
+      }, booking.account_id, booking.property_id, booking.id, booking.grand_total);
       
       if (result) {
         if (result.created_at && new Date(result.created_at) > new Date(Date.now() - 5000)) {
