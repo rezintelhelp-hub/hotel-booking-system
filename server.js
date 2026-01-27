@@ -55218,7 +55218,7 @@ app.delete('/api/network/tags/:id', async (req, res) => {
   }
 });
 
-// GET /api/network/contacts - Get contacts with optional filters
+// GET /api/network/contacts - Get contacts with optional filters (from travellers)
 app.get('/api/network/contacts', async (req, res) => {
   try {
     const { account_id, tag_id, search, limit = 100, offset = 0 } = req.query;
@@ -55228,41 +55228,40 @@ app.get('/api/network/contacts', async (req, res) => {
     }
     
     let query = `
-      SELECT c.*, 
-             COALESCE(
-               (SELECT json_agg(json_build_object('id', t.id, 'name', t.name, 'icon', t.icon))
-                FROM network_contact_tags ct
-                JOIN network_tags t ON t.id = ct.tag_id
-                WHERE ct.contact_id = c.id), '[]'
-             ) as tags,
+      SELECT t.id, t.email, t.phone, t.first_name, t.last_name, 
+             t.city, t.country, t.status, t.marketing_opt_in,
+             t.created_at, t.updated_at,
+             tpl.total_bookings, tpl.total_spent, tpl.last_stay_date, tpl.source,
+             tpl.tags, tpl.notes,
              p.name as last_property_name
-      FROM network_contacts c
-      LEFT JOIN properties p ON p.id = c.last_property_id
-      WHERE c.account_id = $1
+      FROM travellers t
+      JOIN traveller_property_links tpl ON tpl.traveller_id = t.id
+      LEFT JOIN properties p ON p.id = tpl.property_id
+      WHERE tpl.account_id = $1
     `;
     const params = [account_id];
     let paramIndex = 2;
     
     if (tag_id) {
-      query += ` AND c.id IN (SELECT contact_id FROM network_contact_tags WHERE tag_id = $${paramIndex})`;
-      params.push(tag_id);
+      query += ` AND tpl.tags @> $${paramIndex}::jsonb`;
+      params.push(JSON.stringify([{id: parseInt(tag_id)}]));
       paramIndex++;
     }
     
     if (search) {
-      query += ` AND (c.email ILIKE $${paramIndex} OR c.first_name ILIKE $${paramIndex} OR c.last_name ILIKE $${paramIndex})`;
+      query += ` AND (t.email ILIKE $${paramIndex} OR t.first_name ILIKE $${paramIndex} OR t.last_name ILIKE $${paramIndex})`;
       params.push(`%${search}%`);
       paramIndex++;
     }
     
-    query += ` ORDER BY c.created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    query += ` ORDER BY tpl.last_stay_date DESC NULLS LAST, t.created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
     params.push(limit, offset);
     
     const result = await pool.query(query, params);
     
     // Get total count
     const countResult = await pool.query(
-      'SELECT COUNT(*) FROM network_contacts WHERE account_id = $1',
+      'SELECT COUNT(*) FROM traveller_property_links WHERE account_id = $1',
       [account_id]
     );
     
@@ -55279,41 +55278,78 @@ app.get('/api/network/contacts', async (req, res) => {
   }
 });
 
-// POST /api/network/contacts - Create single contact
+// GET /api/network/stats - Get contact stats for account
+app.get('/api/network/stats', async (req, res) => {
+  try {
+    const { account_id } = req.query;
+    
+    if (!account_id) {
+      return res.status(400).json({ success: false, error: 'account_id required' });
+    }
+    
+    const stats = await pool.query(`
+      SELECT 
+        COUNT(*) as total_contacts,
+        COUNT(CASE WHEN source = 'booking' OR source = 'gas-lite' THEN 1 END) as from_bookings,
+        COUNT(CASE WHEN source = 'import' OR source = 'manual' THEN 1 END) as from_import,
+        COUNT(CASE WHEN total_bookings > 1 THEN 1 END) as repeat_guests
+      FROM traveller_property_links
+      WHERE account_id = $1
+    `, [account_id]);
+    
+    res.json({ 
+      success: true, 
+      stats: stats.rows[0] || { total_contacts: 0, from_bookings: 0, from_import: 0, repeat_guests: 0 }
+    });
+  } catch (error) {
+    console.error('Get stats error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/network/contacts - Create single contact (adds to travellers)
 app.post('/api/network/contacts', async (req, res) => {
   try {
-    const { account_id, email, first_name, last_name, phone, source, notes, tags } = req.body;
+    const { account_id, email, first_name, last_name, phone, city, country, source, notes, tags } = req.body;
     
     if (!account_id || !email) {
       return res.status(400).json({ success: false, error: 'account_id and email required' });
     }
     
-    const result = await pool.query(`
-      INSERT INTO network_contacts (account_id, email, first_name, last_name, phone, source, notes)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
-      ON CONFLICT (account_id, email) DO UPDATE SET
-        first_name = COALESCE(EXCLUDED.first_name, network_contacts.first_name),
-        last_name = COALESCE(EXCLUDED.last_name, network_contacts.last_name),
-        phone = COALESCE(EXCLUDED.phone, network_contacts.phone),
-        notes = COALESCE(EXCLUDED.notes, network_contacts.notes),
+    // Create or update traveller
+    const travResult = await pool.query(`
+      INSERT INTO travellers (email, first_name, last_name, phone, city, country, status)
+      VALUES ($1, $2, $3, $4, $5, $6, 'lead')
+      ON CONFLICT (email) DO UPDATE SET
+        first_name = COALESCE(NULLIF($2, ''), travellers.first_name),
+        last_name = COALESCE(NULLIF($3, ''), travellers.last_name),
+        phone = COALESCE(NULLIF($4, ''), travellers.phone),
+        city = COALESCE(NULLIF($5, ''), travellers.city),
+        country = COALESCE(NULLIF($6, ''), travellers.country),
         updated_at = NOW()
       RETURNING *
-    `, [account_id, email.toLowerCase(), first_name, last_name, phone, source || 'manual', notes]);
+    `, [email.toLowerCase().trim(), first_name, last_name, phone, city, country]);
     
-    const contact = result.rows[0];
+    const traveller = travResult.rows[0];
     
-    // Add tags if provided
-    if (tags && tags.length > 0) {
-      for (const tagId of tags) {
-        await pool.query(`
-          INSERT INTO network_contact_tags (contact_id, tag_id)
-          VALUES ($1, $2)
-          ON CONFLICT DO NOTHING
-        `, [contact.id, tagId]);
+    // Create link to account
+    const linkResult = await pool.query(`
+      INSERT INTO traveller_property_links (traveller_id, account_id, source, notes, tags)
+      VALUES ($1, $2, $3, $4, $5)
+      ON CONFLICT (traveller_id, account_id) DO UPDATE SET
+        notes = COALESCE($4, traveller_property_links.notes),
+        tags = COALESCE($5, traveller_property_links.tags),
+        updated_at = NOW()
+      RETURNING *
+    `, [traveller.id, account_id, source || 'manual', notes, tags ? JSON.stringify(tags) : '[]']);
+    
+    res.json({ 
+      success: true, 
+      contact: {
+        ...traveller,
+        ...linkResult.rows[0]
       }
-    }
-    
-    res.json({ success: true, contact });
+    });
   } catch (error) {
     console.error('Create contact error:', error);
     res.json({ success: false, error: error.message });
