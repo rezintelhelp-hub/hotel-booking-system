@@ -29345,7 +29345,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                 email_body: '',
                 social_caption: '',
                 include_gas_lite: true,
-                gas_lite_slug: ''
+                gas_lite_slug: '',
+                hero_image_url: '',
+                hero_image_index: undefined,
+                featured_rooms: []
             };
             
             // Prefill from gap if provided
@@ -29433,31 +29436,54 @@ const promo = await fetch('/api/v1/offers/validate', {
             
             // Step 2: Dates & Discount
             else if (campaignWizardStep === 2) {
+                const today = new Date().toISOString().split('T')[0];
                 content = `
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
                         <div>
                             <label style="font-weight: 600; margin-bottom: 0.5rem; display: block;">Start Date *</label>
-                            <input type="date" id="campaign-start" class="form-input" value="${campaignData.start_date}" onchange="campaignData.start_date = this.value">
+                            <div style="position: relative;">
+                                <input type="date" id="campaign-start" class="form-input" 
+                                    min="${today}"
+                                    value="${campaignData.start_date}" 
+                                    onchange="campaignData.start_date = this.value; updateEndDateMin();"
+                                    style="padding: 0.75rem 1rem; font-size: 1rem; border: 2px solid #e2e8f0; border-radius: 8px; width: 100%; cursor: pointer;">
+                            </div>
                         </div>
                         <div>
                             <label style="font-weight: 600; margin-bottom: 0.5rem; display: block;">End Date *</label>
-                            <input type="date" id="campaign-end" class="form-input" value="${campaignData.end_date}" onchange="campaignData.end_date = this.value">
+                            <div style="position: relative;">
+                                <input type="date" id="campaign-end" class="form-input" 
+                                    min="${campaignData.start_date || today}"
+                                    value="${campaignData.end_date}" 
+                                    onchange="campaignData.end_date = this.value"
+                                    style="padding: 0.75rem 1rem; font-size: 1rem; border: 2px solid #e2e8f0; border-radius: 8px; width: 100%; cursor: pointer;">
+                            </div>
                         </div>
                     </div>
+                    ${campaignData.start_date && campaignData.end_date ? `
+                        <div style="background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                            <span style="font-size: 1.25rem;">📅</span>
+                            <span style="color: #166534;">
+                                <strong>${Math.ceil((new Date(campaignData.end_date) - new Date(campaignData.start_date)) / (1000 * 60 * 60 * 24))} nights</strong> 
+                                (${new Date(campaignData.start_date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })} 
+                                → ${new Date(campaignData.end_date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })})
+                            </span>
+                        </div>
+                    ` : ''}
                     <div style="margin-bottom: 1.5rem;">
                         <label style="font-weight: 600; margin-bottom: 0.5rem; display: block;">Minimum Nights</label>
-                        <input type="number" id="campaign-min-nights" class="form-input" min="1" value="${campaignData.min_nights}" onchange="campaignData.min_nights = parseInt(this.value) || 1" style="width: 100px;">
+                        <input type="number" id="campaign-min-nights" class="form-input" min="1" value="${campaignData.min_nights}" onchange="campaignData.min_nights = parseInt(this.value) || 1" style="width: 100px; padding: 0.75rem 1rem; font-size: 1rem; border: 2px solid #e2e8f0; border-radius: 8px;">
                     </div>
                     <div style="margin-bottom: 1.5rem;">
                         <label style="font-weight: 600; margin-bottom: 0.5rem; display: block;">Discount Type</label>
-                        <div style="display: flex; gap: 1rem;">
-                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                        <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; padding: 0.75rem 1rem; border: 2px solid ${campaignData.discount_type === 'percent' ? '#6366f1' : '#e2e8f0'}; border-radius: 8px; background: ${campaignData.discount_type === 'percent' ? '#eef2ff' : 'white'};">
                                 <input type="radio" name="discount-type" value="percent" ${campaignData.discount_type === 'percent' ? 'checked' : ''} onchange="onDiscountTypeChange('percent')"> % Off
                             </label>
-                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; padding: 0.75rem 1rem; border: 2px solid ${campaignData.discount_type === 'fixed' ? '#6366f1' : '#e2e8f0'}; border-radius: 8px; background: ${campaignData.discount_type === 'fixed' ? '#eef2ff' : 'white'};">
                                 <input type="radio" name="discount-type" value="fixed" ${campaignData.discount_type === 'fixed' ? 'checked' : ''} onchange="onDiscountTypeChange('fixed')"> Fixed Amount Off
                             </label>
-                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; padding: 0.75rem 1rem; border: 2px solid ${campaignData.discount_type === 'custom' ? '#6366f1' : '#e2e8f0'}; border-radius: 8px; background: ${campaignData.discount_type === 'custom' ? '#eef2ff' : 'white'};">
                                 <input type="radio" name="discount-type" value="custom" ${campaignData.discount_type === 'custom' ? 'checked' : ''} onchange="onDiscountTypeChange('custom')"> Custom Price
                             </label>
                         </div>
@@ -29466,24 +29492,25 @@ const promo = await fetch('/api/v1/offers/validate', {
                         ${campaignData.discount_type === 'percent' ? `
                             <label style="font-weight: 600; margin-bottom: 0.5rem; display: block;">Discount Percentage</label>
                             <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                <input type="number" id="campaign-discount" class="form-input" min="1" max="100" value="${campaignData.discount_value}" onchange="campaignData.discount_value = parseFloat(this.value)" style="width: 100px;">
-                                <span>%</span>
+                                <input type="number" id="campaign-discount" class="form-input" min="1" max="100" value="${campaignData.discount_value}" onchange="campaignData.discount_value = parseFloat(this.value)" style="width: 100px; padding: 0.75rem 1rem; font-size: 1rem; border: 2px solid #e2e8f0; border-radius: 8px;">
+                                <span style="font-weight: 600; font-size: 1.1rem;">%</span>
                             </div>
                         ` : campaignData.discount_type === 'fixed' ? `
                             <label style="font-weight: 600; margin-bottom: 0.5rem; display: block;">Amount Off Per Night</label>
                             <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                <span>£</span>
-                                <input type="number" id="campaign-discount" class="form-input" min="1" value="${campaignData.discount_value}" onchange="campaignData.discount_value = parseFloat(this.value)" style="width: 100px;">
+                                <span style="font-weight: 600; font-size: 1.1rem;">£</span>
+                                <input type="number" id="campaign-discount" class="form-input" min="1" value="${campaignData.discount_value}" onchange="campaignData.discount_value = parseFloat(this.value)" style="width: 100px; padding: 0.75rem 1rem; font-size: 1rem; border: 2px solid #e2e8f0; border-radius: 8px;">
                             </div>
                         ` : `
                             <label style="font-weight: 600; margin-bottom: 0.5rem; display: block;">Custom Price Per Night</label>
                             <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                <span>£</span>
-                                <input type="number" id="campaign-custom-price" class="form-input" min="1" value="${campaignData.custom_price || ''}" onchange="campaignData.custom_price = parseFloat(this.value)" style="width: 100px;">
+                                <span style="font-weight: 600; font-size: 1.1rem;">£</span>
+                                <input type="number" id="campaign-custom-price" class="form-input" min="1" value="${campaignData.custom_price || ''}" onchange="campaignData.custom_price = parseFloat(this.value)" style="width: 100px; padding: 0.75rem 1rem; font-size: 1rem; border: 2px solid #e2e8f0; border-radius: 8px;">
                             </div>
                         `}
                     </div>
                 `;
+            }
             }
             
             // Step 3: Audience
@@ -29522,11 +29549,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                 `;
             }
             
-            // Step 4: Channels
+            // Step 4: Channels & Email Builder
             else if (campaignWizardStep === 4) {
                 const room = campaignRooms.find(r => r.id == campaignData.room_id);
                 const property = campaignProperties.find(p => p.id == campaignData.property_id);
-                const hasGasLite = campaignData.room_id && room; // Only show GAS Lite option if specific room selected
+                const isPropertyWide = !campaignData.room_id; // All rooms selected
                 
                 content = `
                     <div style="margin-bottom: 1.5rem;">
@@ -29537,99 +29564,121 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 <input type="checkbox" ${campaignData.channels.email ? 'checked' : ''} onchange="campaignData.channels.email = this.checked; renderCampaignWizard();">
                                 <div style="width: 40px; height: 40px; background: #3b82f6; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.25rem;">📧</div>
                                 <div>
-                                    <strong>Email</strong>
+                                    <strong>Email Campaign</strong>
                                     <p style="margin: 0; font-size: 0.85rem; color: #64748b;">Send to your contact list</p>
                                 </div>
                             </label>
-                            <label style="display: flex; align-items: center; gap: 1rem; padding: 1rem; border: 2px solid ${campaignData.channels.facebook ? '#6366f1' : '#e2e8f0'}; border-radius: 8px; cursor: pointer; opacity: 0.5;">
-                                <input type="checkbox" disabled ${campaignData.channels.facebook ? 'checked' : ''}>
+                            <label style="display: flex; align-items: center; gap: 1rem; padding: 1rem; border: 2px solid #e2e8f0; border-radius: 8px; cursor: pointer; opacity: 0.5;">
+                                <input type="checkbox" disabled>
                                 <div style="width: 40px; height: 40px; background: #1877f2; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.25rem;">f</div>
                                 <div>
                                     <strong>Facebook</strong>
-                                    <p style="margin: 0; font-size: 0.85rem; color: #64748b;">Coming soon - Connect your page first</p>
+                                    <p style="margin: 0; font-size: 0.85rem; color: #64748b;">Coming soon</p>
                                 </div>
                             </label>
-                            <label style="display: flex; align-items: center; gap: 1rem; padding: 1rem; border: 2px solid ${campaignData.channels.instagram ? '#6366f1' : '#e2e8f0'}; border-radius: 8px; cursor: pointer; opacity: 0.5;">
-                                <input type="checkbox" disabled ${campaignData.channels.instagram ? 'checked' : ''}>
+                            <label style="display: flex; align-items: center; gap: 1rem; padding: 1rem; border: 2px solid #e2e8f0; border-radius: 8px; cursor: pointer; opacity: 0.5;">
+                                <input type="checkbox" disabled>
                                 <div style="width: 40px; height: 40px; background: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.25rem;">📷</div>
                                 <div>
                                     <strong>Instagram</strong>
-                                    <p style="margin: 0; font-size: 0.85rem; color: #64748b;">Coming soon - Connect your account first</p>
+                                    <p style="margin: 0; font-size: 0.85rem; color: #64748b;">Coming soon</p>
                                 </div>
                             </label>
                         </div>
                     </div>
+                    
                     ${campaignData.channels.email ? `
-                        <div style="background: #f8fafc; border-radius: 8px; padding: 1.5rem; margin-bottom: 1rem;">
-                            <h4 style="margin: 0 0 1rem 0; display: flex; align-items: center; gap: 0.5rem;">📧 Email Content</h4>
+                        <div style="background: #f8fafc; border-radius: 12px; padding: 1.5rem;">
+                            <h4 style="margin: 0 0 1.5rem 0; display: flex; align-items: center; gap: 0.5rem; font-size: 1.1rem;">
+                                📧 Build Your Email
+                            </h4>
                             
-                            <div style="margin-bottom: 1rem;">
+                            <!-- Subject Line -->
+                            <div style="margin-bottom: 1.5rem;">
                                 <label style="font-weight: 600; margin-bottom: 0.5rem; display: block;">Subject Line *</label>
                                 <input type="text" id="campaign-email-subject" class="form-input" 
-                                    placeholder="e.g., Exclusive Offer: ${campaignData.discount_type === 'percent' ? campaignData.discount_value + '% off' : '£' + campaignData.discount_value + ' off'} at ${property?.name || 'our property'}!" 
+                                    placeholder="e.g., ${campaignData.discount_type === 'percent' ? campaignData.discount_value + '% off' : '£' + campaignData.discount_value + ' off'} at ${property?.name || 'our property'} - Limited Time!" 
                                     value="${campaignData.email_subject}" 
-                                    onchange="campaignData.email_subject = this.value">
+                                    onchange="campaignData.email_subject = this.value"
+                                    style="padding: 0.75rem 1rem; font-size: 1rem; border: 2px solid #e2e8f0; border-radius: 8px;">
                             </div>
                             
-                            <div style="margin-bottom: 1rem;">
-                                <label style="font-weight: 600; margin-bottom: 0.5rem; display: block;">Email Body *</label>
-                                
-                                <!-- WYSIWYG Toolbar -->
-                                <div style="display: flex; flex-wrap: wrap; gap: 0.25rem; padding: 0.5rem; background: #f1f5f9; border: 1px solid #e2e8f0; border-bottom: none; border-radius: 8px 8px 0 0;">
-                                    <button type="button" onclick="execEmailCmd('bold')" style="padding: 6px 10px; border: none; background: white; border-radius: 4px; cursor: pointer; font-weight: bold;" title="Bold">B</button>
-                                    <button type="button" onclick="execEmailCmd('italic')" style="padding: 6px 10px; border: none; background: white; border-radius: 4px; cursor: pointer; font-style: italic;" title="Italic">I</button>
-                                    <button type="button" onclick="execEmailCmd('underline')" style="padding: 6px 10px; border: none; background: white; border-radius: 4px; cursor: pointer; text-decoration: underline;" title="Underline">U</button>
-                                    <div style="width: 1px; background: #cbd5e1; margin: 0 4px;"></div>
-                                    <button type="button" onclick="execEmailCmd('insertUnorderedList')" style="padding: 6px 10px; border: none; background: white; border-radius: 4px; cursor: pointer;" title="Bullet List">• List</button>
-                                    <button type="button" onclick="execEmailCmd('insertOrderedList')" style="padding: 6px 10px; border: none; background: white; border-radius: 4px; cursor: pointer;" title="Numbered List">1. List</button>
-                                    <div style="width: 1px; background: #cbd5e1; margin: 0 4px;"></div>
-                                    <button type="button" onclick="execEmailCmd('justifyLeft')" style="padding: 6px 10px; border: none; background: white; border-radius: 4px; cursor: pointer;" title="Align Left">⬛</button>
-                                    <button type="button" onclick="execEmailCmd('justifyCenter')" style="padding: 6px 10px; border: none; background: white; border-radius: 4px; cursor: pointer;" title="Align Center">⬛</button>
-                                    <div style="width: 1px; background: #cbd5e1; margin: 0 4px;"></div>
-                                    <button type="button" onclick="insertEmailLink()" style="padding: 6px 10px; border: none; background: white; border-radius: 4px; cursor: pointer;" title="Insert Link">🔗 Link</button>
-                                    <select onchange="execEmailCmd('fontSize', this.value); this.value='';" style="padding: 4px 8px; border: 1px solid #e2e8f0; border-radius: 4px; background: white; cursor: pointer;">
-                                        <option value="">Size</option>
-                                        <option value="1">Small</option>
-                                        <option value="3">Normal</option>
-                                        <option value="5">Large</option>
-                                        <option value="7">Huge</option>
-                                    </select>
-                                    <input type="color" onchange="execEmailCmd('foreColor', this.value)" value="#000000" style="width: 32px; height: 28px; border: none; cursor: pointer;" title="Text Color">
-                                </div>
-                                
-                                <!-- Editable Area -->
-                                <div id="campaign-email-editor" contenteditable="true" 
-                                    style="min-height: 200px; padding: 1rem; border: 1px solid #e2e8f0; border-radius: 0 0 8px 8px; background: white; outline: none;"
-                                    oninput="campaignData.email_body = this.innerHTML"
-                                >${campaignData.email_body || '<p>Dear Guest,</p><p>We have a special offer just for you!</p><p><br></p><p>Best regards,<br>' + (property?.name || 'The Team') + '</p>'}</div>
-                            </div>
-                            
-                            ${hasGasLite ? `
-                                <div style="background: #ecfdf5; border: 1px solid #10b981; border-radius: 8px; padding: 1rem;">
-                                    <div style="display: flex; align-items: start; gap: 0.75rem;">
-                                        <input type="checkbox" id="include-gas-lite" ${campaignData.include_gas_lite ? 'checked' : ''} 
-                                            onchange="campaignData.include_gas_lite = this.checked" style="margin-top: 3px;">
-                                        <div>
-                                            <label for="include-gas-lite" style="font-weight: 600; cursor: pointer;">Include GAS Lite Booking Link</label>
-                                            <p style="margin: 0.25rem 0 0 0; font-size: 0.85rem; color: #047857;">
-                                                Add a "Book Now" button linking directly to <strong>${room?.name}</strong>'s booking page
-                                            </p>
-                                            <p style="margin: 0.5rem 0 0 0; font-size: 0.8rem; color: #64748b;">
-                                                Link: lite.gas.travel/${campaignData.gas_lite_slug || '[auto-generated]'}
-                                            </p>
-                                        </div>
+                            <!-- Hero Image Selection -->
+                            <div style="margin-bottom: 1.5rem;">
+                                <label style="font-weight: 600; margin-bottom: 0.5rem; display: block;">Hero Image</label>
+                                <p style="color: #64748b; font-size: 0.85rem; margin-bottom: 0.75rem;">Select the main image for your email header</p>
+                                <div id="hero-image-selector" style="display: flex; gap: 0.75rem; overflow-x: auto; padding: 0.5rem 0;">
+                                    <div style="text-align: center; padding: 1rem; color: #64748b;">
+                                        <div class="spinner" style="margin: 0 auto;"></div>
+                                        <p style="margin: 0.5rem 0 0 0; font-size: 0.8rem;">Loading images...</p>
                                     </div>
                                 </div>
-                            ` : `
-                                <div style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 1rem;">
-                                    <p style="margin: 0; font-size: 0.85rem; color: #92400e;">
-                                        <strong>💡 Tip:</strong> Select a specific room in Step 1 to include a direct GAS Lite booking link in your email.
-                                    </p>
+                            </div>
+                            
+                            ${isPropertyWide ? `
+                                <!-- Featured Rooms Selection (for property-wide campaigns) -->
+                                <div style="margin-bottom: 1.5rem;">
+                                    <label style="font-weight: 600; margin-bottom: 0.5rem; display: block;">Featured Rooms</label>
+                                    <p style="color: #64748b; font-size: 0.85rem; margin-bottom: 0.75rem;">Select up to 3 rooms to showcase (with prices)</p>
+                                    <div id="featured-rooms-selector" style="display: flex; flex-direction: column; gap: 0.5rem;">
+                                        ${campaignRooms.map(r => `
+                                            <label style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; border: 2px solid ${(campaignData.featured_rooms || []).includes(r.id) ? '#6366f1' : '#e2e8f0'}; border-radius: 8px; cursor: pointer; background: ${(campaignData.featured_rooms || []).includes(r.id) ? '#eef2ff' : 'white'};">
+                                                <input type="checkbox" value="${r.id}" 
+                                                    ${(campaignData.featured_rooms || []).includes(r.id) ? 'checked' : ''}
+                                                    onchange="toggleFeaturedRoom(${r.id}, this.checked)"
+                                                    ${(campaignData.featured_rooms || []).length >= 3 && !(campaignData.featured_rooms || []).includes(r.id) ? 'disabled' : ''}>
+                                                <div style="flex: 1;">
+                                                    <strong>${r.name}</strong>
+                                                    <span style="color: #64748b; font-size: 0.85rem; margin-left: 0.5rem;">
+                                                        ${r.base_price ? '£' + r.base_price + '/night' : ''}
+                                                    </span>
+                                                </div>
+                                            </label>
+                                        `).join('')}
+                                    </div>
+                                    ${(campaignData.featured_rooms || []).length >= 3 ? '<p style="color: #f59e0b; font-size: 0.8rem; margin-top: 0.5rem;">Maximum 3 rooms selected</p>' : ''}
                                 </div>
-                            `}
+                            ` : ''}
+                            
+                            <!-- Email Body -->
+                            <div style="margin-bottom: 1.5rem;">
+                                <label style="font-weight: 600; margin-bottom: 0.5rem; display: block;">Your Message</label>
+                                <p style="color: #64748b; font-size: 0.85rem; margin-bottom: 0.75rem;">Write a personal message to your guests</p>
+                                
+                                <!-- Simple Toolbar -->
+                                <div style="display: flex; flex-wrap: wrap; gap: 0.25rem; padding: 0.5rem; background: #f1f5f9; border: 2px solid #e2e8f0; border-bottom: none; border-radius: 8px 8px 0 0;">
+                                    <button type="button" onclick="execEmailCmd('bold')" style="padding: 6px 12px; border: none; background: white; border-radius: 4px; cursor: pointer; font-weight: bold;" title="Bold">B</button>
+                                    <button type="button" onclick="execEmailCmd('italic')" style="padding: 6px 12px; border: none; background: white; border-radius: 4px; cursor: pointer; font-style: italic;" title="Italic">I</button>
+                                    <button type="button" onclick="execEmailCmd('underline')" style="padding: 6px 12px; border: none; background: white; border-radius: 4px; cursor: pointer; text-decoration: underline;" title="Underline">U</button>
+                                    <div style="width: 1px; background: #cbd5e1; margin: 0 6px;"></div>
+                                    <button type="button" onclick="execEmailCmd('insertUnorderedList')" style="padding: 6px 12px; border: none; background: white; border-radius: 4px; cursor: pointer;" title="Bullet List">• List</button>
+                                    <button type="button" onclick="insertEmailLink()" style="padding: 6px 12px; border: none; background: white; border-radius: 4px; cursor: pointer;" title="Insert Link">🔗</button>
+                                </div>
+                                
+                                <!-- Editor -->
+                                <div id="campaign-email-editor" contenteditable="true" 
+                                    style="min-height: 150px; padding: 1rem; border: 2px solid #e2e8f0; border-top: none; border-radius: 0 0 8px 8px; background: white; outline: none; line-height: 1.6;"
+                                    oninput="campaignData.email_body = this.innerHTML"
+                                >${campaignData.email_body || '<p>Dear Guest,</p><p>We have an exclusive offer just for you! For a limited time, enjoy <strong>' + (campaignData.discount_type === 'percent' ? campaignData.discount_value + '% off' : '£' + campaignData.discount_value + ' off') + '</strong> when you book between ' + (campaignData.start_date ? new Date(campaignData.start_date).toLocaleDateString('en-GB', {day: 'numeric', month: 'long'}) : '[start date]') + ' and ' + (campaignData.end_date ? new Date(campaignData.end_date).toLocaleDateString('en-GB', {day: 'numeric', month: 'long'}) : '[end date]') + '.</p><p>Don\\'t miss out on this special opportunity!</p><p>Warm regards,<br>' + (property?.name || 'The Team') + '</p>'}</div>
+                            </div>
+                            
+                            <!-- Preview Button -->
+                            <div style="display: flex; gap: 1rem; justify-content: center;">
+                                <button type="button" class="btn btn-secondary" onclick="previewCampaignEmail('mobile')" style="display: flex; align-items: center; gap: 0.5rem;">
+                                    📱 Preview Mobile
+                                </button>
+                                <button type="button" class="btn btn-secondary" onclick="previewCampaignEmail('desktop')" style="display: flex; align-items: center; gap: 0.5rem;">
+                                    🖥️ Preview Desktop
+                                </button>
+                            </div>
                         </div>
                     ` : ''}
                 `;
+                
+                // Load property images after render
+                if (campaignData.channels.email) {
+                    setTimeout(() => loadCampaignPropertyImages(), 100);
+                }
             }
             
             // Step 5: Review
@@ -29795,6 +29844,20 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
         
+        // Update end date minimum when start date changes
+        function updateEndDateMin() {
+            const endInput = document.getElementById('campaign-end');
+            if (endInput && campaignData.start_date) {
+                endInput.min = campaignData.start_date;
+                // If end date is before start date, clear it
+                if (campaignData.end_date && campaignData.end_date < campaignData.start_date) {
+                    campaignData.end_date = '';
+                    endInput.value = '';
+                }
+            }
+            renderCampaignWizard();
+        }
+        
         // WYSIWYG Editor Functions
         function execEmailCmd(command, value = null) {
             document.execCommand(command, false, value);
@@ -29806,6 +29869,185 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (url) {
                 document.execCommand('createLink', false, url);
             }
+        }
+        
+        // Load property images for hero selection
+        let campaignPropertyImages = [];
+        
+        async function loadCampaignPropertyImages() {
+            const container = document.getElementById('hero-image-selector');
+            if (!container || !campaignData.property_id) return;
+            
+            try {
+                const response = await fetch(`/api/property-images/${campaignData.property_id}`);
+                const data = await response.json();
+                
+                if (data.success && data.images && data.images.length > 0) {
+                    campaignPropertyImages = data.images;
+                    
+                    container.innerHTML = campaignPropertyImages.map((img, idx) => `
+                        <div onclick="selectHeroImage(${idx})" style="flex-shrink: 0; cursor: pointer; border: 3px solid ${campaignData.hero_image_index === idx ? '#6366f1' : 'transparent'}; border-radius: 8px; overflow: hidden;">
+                            <img src="${img.url}" style="width: 120px; height: 80px; object-fit: cover; display: block;">
+                        </div>
+                    `).join('');
+                    
+                    // Select first image by default
+                    if (campaignData.hero_image_index === undefined) {
+                        campaignData.hero_image_index = 0;
+                        campaignData.hero_image_url = campaignPropertyImages[0].url;
+                    }
+                } else {
+                    container.innerHTML = `
+                        <div style="text-align: center; padding: 1rem; color: #64748b; width: 100%;">
+                            <p style="margin: 0;">No images found for this property</p>
+                            <a href="#" onclick="navClick(document.querySelector('[data-view=properties]'), 'properties'); closeModal('campaignWizardModal'); return false;" style="color: #6366f1; font-size: 0.85rem;">Upload images in Property Management →</a>
+                        </div>
+                    `;
+                }
+            } catch (e) {
+                container.innerHTML = '<div style="color: #ef4444; padding: 1rem;">Error loading images</div>';
+            }
+        }
+        
+        function selectHeroImage(index) {
+            campaignData.hero_image_index = index;
+            campaignData.hero_image_url = campaignPropertyImages[index]?.url;
+            
+            // Update selection visuals
+            document.querySelectorAll('#hero-image-selector > div').forEach((div, idx) => {
+                div.style.borderColor = idx === index ? '#6366f1' : 'transparent';
+            });
+        }
+        
+        function toggleFeaturedRoom(roomId, checked) {
+            if (!campaignData.featured_rooms) campaignData.featured_rooms = [];
+            
+            if (checked) {
+                if (campaignData.featured_rooms.length < 3) {
+                    campaignData.featured_rooms.push(roomId);
+                }
+            } else {
+                campaignData.featured_rooms = campaignData.featured_rooms.filter(id => id !== roomId);
+            }
+            
+            renderCampaignWizard();
+        }
+        
+        function previewCampaignEmail(mode) {
+            const property = campaignProperties.find(p => p.id == campaignData.property_id);
+            const room = campaignRooms.find(r => r.id == campaignData.room_id);
+            const featuredRooms = (campaignData.featured_rooms || []).map(id => campaignRooms.find(r => r.id === id)).filter(Boolean);
+            const isPropertyWide = !campaignData.room_id;
+            
+            const discountText = campaignData.discount_type === 'percent' 
+                ? campaignData.discount_value + '% OFF' 
+                : campaignData.discount_type === 'fixed' 
+                    ? '£' + campaignData.discount_value + ' OFF' 
+                    : '£' + campaignData.custom_price + '/night';
+            
+            const dateRange = campaignData.start_date && campaignData.end_date
+                ? new Date(campaignData.start_date).toLocaleDateString('en-GB', {day: 'numeric', month: 'short'}) + ' - ' + new Date(campaignData.end_date).toLocaleDateString('en-GB', {day: 'numeric', month: 'short', year: 'numeric'})
+                : 'Date range';
+            
+            const containerWidth = mode === 'mobile' ? '375px' : '600px';
+            
+            const roomCards = isPropertyWide && featuredRooms.length > 0 
+                ? featuredRooms.map(r => {
+                    const originalPrice = r.base_price || 100;
+                    const discountedPrice = campaignData.discount_type === 'percent' 
+                        ? Math.round(originalPrice * (1 - campaignData.discount_value / 100))
+                        : campaignData.discount_type === 'fixed'
+                            ? originalPrice - campaignData.discount_value
+                            : campaignData.custom_price;
+                    return `
+                        <div style="background: white; border-radius: 8px; overflow: hidden; ${mode === 'mobile' ? 'margin-bottom: 12px;' : 'flex: 1; min-width: 150px;'}">
+                            <div style="height: 100px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);"></div>
+                            <div style="padding: 12px;">
+                                <div style="font-weight: 600; font-size: 14px; margin-bottom: 4px;">${r.name}</div>
+                                <div>
+                                    <span style="text-decoration: line-through; color: #94a3b8; font-size: 13px;">£${originalPrice}</span>
+                                    <span style="color: #10b981; font-weight: 700; font-size: 16px; margin-left: 6px;">£${discountedPrice}</span>
+                                    <span style="color: #64748b; font-size: 12px;">/night</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('')
+                : '';
+            
+            const emailHtml = `
+                <div style="background: #f1f5f9; padding: 20px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+                    <div style="max-width: ${containerWidth}; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                        
+                        <!-- Header -->
+                        <div style="background: #1e293b; color: white; padding: 16px; text-align: center;">
+                            <div style="font-size: 18px; font-weight: 600;">${property?.name || 'Property Name'}</div>
+                        </div>
+                        
+                        <!-- Hero Image -->
+                        <div style="height: 200px; background: ${campaignData.hero_image_url ? 'url(' + campaignData.hero_image_url + ') center/cover' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'};">
+                        </div>
+                        
+                        <!-- Offer Banner -->
+                        <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 20px; text-align: center;">
+                            <div style="font-size: 28px; font-weight: 800; margin-bottom: 4px;">${discountText}</div>
+                            <div style="font-size: 14px; opacity: 0.9;">${dateRange}</div>
+                        </div>
+                        
+                        <!-- Body Content -->
+                        <div style="padding: 24px; line-height: 1.6; color: #334155;">
+                            ${campaignData.email_body || '<p>Your message here...</p>'}
+                        </div>
+                        
+                        ${roomCards ? `
+                            <!-- Featured Rooms -->
+                            <div style="padding: 0 24px 24px;">
+                                <div style="font-weight: 600; font-size: 16px; margin-bottom: 12px; color: #1e293b;">Featured Rooms</div>
+                                <div style="display: ${mode === 'mobile' ? 'block' : 'flex'}; gap: 12px;">
+                                    ${roomCards}
+                                </div>
+                            </div>
+                        ` : ''}
+                        
+                        <!-- CTA Button -->
+                        <div style="padding: 0 24px 32px; text-align: center;">
+                            <a href="#" style="display: inline-block; background: #6366f1; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 16px;">
+                                ${isPropertyWide ? 'View All Rooms & Book' : 'Book Now'}
+                            </a>
+                        </div>
+                        
+                        <!-- Footer -->
+                        <div style="background: #f8fafc; padding: 16px 24px; text-align: center; font-size: 12px; color: #64748b; border-top: 1px solid #e2e8f0;">
+                            <div>${property?.address || 'Property Address'}</div>
+                            <div style="margin-top: 8px;">
+                                <a href="#" style="color: #64748b;">Unsubscribe</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Show preview modal
+            let modal = document.getElementById('emailPreviewModal');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'emailPreviewModal';
+                modal.className = 'modal';
+                modal.innerHTML = `
+                    <div class="modal-content" style="max-width: 90vw; max-height: 90vh; overflow: hidden; padding: 0;">
+                        <div class="modal-header" style="padding: 1rem 1.5rem; border-bottom: 1px solid #e2e8f0;">
+                            <h3 style="margin: 0;">Email Preview <span id="preview-mode-label"></span></h3>
+                            <button onclick="closeModal('emailPreviewModal')" style="background: none; border: none; font-size: 1.5rem; cursor: pointer;">×</button>
+                        </div>
+                        <div id="emailPreviewBody" style="overflow: auto; max-height: calc(90vh - 60px);"></div>
+                    </div>
+                `;
+                document.body.appendChild(modal);
+            }
+            
+            document.getElementById('preview-mode-label').textContent = `(${mode === 'mobile' ? '📱 Mobile' : '🖥️ Desktop'})`;
+            document.getElementById('emailPreviewBody').innerHTML = emailHtml;
+            modal.classList.add('active');
         }
         
         async function saveCampaign() {
