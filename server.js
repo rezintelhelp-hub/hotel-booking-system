@@ -8100,6 +8100,67 @@ function generateSessionToken() {
   return crypto.randomBytes(32).toString('hex');
 }
 
+// Find or create a traveller from booking data, and link to account/property
+async function findOrCreateTraveller(pool, guestData, accountId, propertyId, bookingId = null, bookingTotal = 0) {
+  if (!guestData.email) return null;
+  
+  const email = guestData.email.toLowerCase().trim();
+  
+  try {
+    // Check if traveller exists
+    let traveller = await pool.query('SELECT * FROM travellers WHERE email = $1', [email]);
+    
+    if (traveller.rows.length === 0) {
+      // Create new traveller
+      const result = await pool.query(`
+        INSERT INTO travellers (email, phone, first_name, last_name, address, city, country, postal_code, status, marketing_opt_in)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'lead', $9)
+        ON CONFLICT (email) DO UPDATE SET
+          phone = COALESCE(NULLIF($2, ''), travellers.phone),
+          first_name = COALESCE(NULLIF($3, ''), travellers.first_name),
+          last_name = COALESCE(NULLIF($4, ''), travellers.last_name),
+          updated_at = NOW()
+        RETURNING *
+      `, [
+        email,
+        guestData.phone || null,
+        guestData.first_name || guestData.firstName || null,
+        guestData.last_name || guestData.lastName || null,
+        guestData.address || null,
+        guestData.city || null,
+        guestData.country || null,
+        guestData.postal_code || guestData.postalCode || null,
+        guestData.marketing_opt_in || false
+      ]);
+      traveller = result;
+      console.log(`[Traveller] Created new traveller ${result.rows[0].id} for ${email}`);
+    } else {
+      console.log(`[Traveller] Found existing traveller ${traveller.rows[0].id} for ${email}`);
+    }
+    
+    const travellerId = traveller.rows[0].id;
+    
+    // Link to account/property if provided
+    if (accountId) {
+      await pool.query(`
+        INSERT INTO traveller_property_links (traveller_id, account_id, property_id, first_booking_id, total_spent, last_stay_date, source)
+        VALUES ($1, $2, $3, $4, $5, CURRENT_DATE, 'booking')
+        ON CONFLICT (traveller_id, account_id) DO UPDATE SET
+          total_bookings = traveller_property_links.total_bookings + 1,
+          total_spent = traveller_property_links.total_spent + $5,
+          last_stay_date = CURRENT_DATE,
+          updated_at = NOW()
+      `, [travellerId, accountId, propertyId, bookingId, bookingTotal || 0]);
+      console.log(`[Traveller] Linked traveller ${travellerId} to account ${accountId}`);
+    }
+    
+    return traveller.rows[0];
+  } catch (error) {
+    console.error('[Traveller] Error in findOrCreateTraveller:', error.message);
+    return null;
+  }
+}
+
 // Generate unique account code from name
 async function generateAccountCode(pool, name) {
   // Take first 4 chars of name, uppercase, remove non-alphanumeric
@@ -16955,7 +17016,79 @@ app.get('/api/admin/migrate-turbines-network-xK9mP2nL', async (req, res) => {
     `);
     results.push('Created turbine_campaign_stats table');
     
-    // 8. Add some default system tags
+    // 8. Travellers - Central traveller database
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS travellers (
+        id SERIAL PRIMARY KEY,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        phone VARCHAR(50),
+        phone_verified BOOLEAN DEFAULT false,
+        first_name VARCHAR(100),
+        last_name VARCHAR(100),
+        address TEXT,
+        city VARCHAR(100),
+        country VARCHAR(100),
+        postal_code VARCHAR(20),
+        password_hash VARCHAR(255),
+        avatar_url TEXT,
+        preferred_currency VARCHAR(10) DEFAULT 'USD',
+        preferred_language VARCHAR(10) DEFAULT 'en',
+        location_preferences JSONB DEFAULT '[]',
+        interests JSONB DEFAULT '[]',
+        status VARCHAR(20) DEFAULT 'lead',
+        marketing_opt_in BOOLEAN DEFAULT false,
+        last_login_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    results.push('Created travellers table');
+    
+    // 9. Traveller-Account Link (which properties has a traveller booked with)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS traveller_property_links (
+        id SERIAL PRIMARY KEY,
+        traveller_id INTEGER REFERENCES travellers(id) ON DELETE CASCADE,
+        account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
+        property_id INTEGER REFERENCES properties(id) ON DELETE SET NULL,
+        first_booking_id INTEGER,
+        total_bookings INTEGER DEFAULT 1,
+        total_spent DECIMAL(10,2) DEFAULT 0,
+        last_stay_date DATE,
+        source VARCHAR(50),
+        tags JSONB DEFAULT '[]',
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(traveller_id, account_id)
+      )
+    `);
+    results.push('Created traveller_property_links table');
+    
+    // 10. Traveller Experiences (UGC - videos/photos)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS traveller_experiences (
+        id SERIAL PRIMARY KEY,
+        traveller_id INTEGER REFERENCES travellers(id) ON DELETE CASCADE,
+        property_id INTEGER REFERENCES properties(id) ON DELETE CASCADE,
+        room_id INTEGER REFERENCES bookable_units(id) ON DELETE SET NULL,
+        booking_id INTEGER,
+        media_type VARCHAR(20),
+        media_url TEXT,
+        thumbnail_url TEXT,
+        caption TEXT,
+        rating INTEGER,
+        qr_code_used VARCHAR(50),
+        status VARCHAR(20) DEFAULT 'pending',
+        approved_by INTEGER,
+        approved_at TIMESTAMP,
+        view_count INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    results.push('Created traveller_experiences table');
+    
+    // 11. Add some default system tags
     const defaultTags = [
       { name: 'Dog Friendly', category: 'pets', icon: '🐕' },
       { name: 'Cat Friendly', category: 'pets', icon: '🐱' },
@@ -35499,6 +35632,141 @@ app.post('/api/admin/migrate-turbines', async (req, res) => {
     res.json({ success: true, message: 'Turbines migration complete' });
   } catch (error) {
     console.error('Migration error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Migration: Create travellers tables
+app.post('/api/admin/migrate-travellers', async (req, res) => {
+  try {
+    console.log('🔄 Creating travellers tables...');
+    
+    // Travellers table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS travellers (
+        id SERIAL PRIMARY KEY,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        phone VARCHAR(50),
+        phone_verified BOOLEAN DEFAULT false,
+        first_name VARCHAR(100),
+        last_name VARCHAR(100),
+        address TEXT,
+        city VARCHAR(100),
+        country VARCHAR(100),
+        postal_code VARCHAR(20),
+        password_hash VARCHAR(255),
+        avatar_url TEXT,
+        preferred_currency VARCHAR(10) DEFAULT 'USD',
+        preferred_language VARCHAR(10) DEFAULT 'en',
+        location_preferences JSONB DEFAULT '[]',
+        interests JSONB DEFAULT '[]',
+        status VARCHAR(20) DEFAULT 'lead',
+        marketing_opt_in BOOLEAN DEFAULT false,
+        last_login_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    console.log('   ✓ Created travellers table');
+    
+    // Traveller-Account links
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS traveller_property_links (
+        id SERIAL PRIMARY KEY,
+        traveller_id INTEGER REFERENCES travellers(id) ON DELETE CASCADE,
+        account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
+        property_id INTEGER REFERENCES properties(id) ON DELETE SET NULL,
+        first_booking_id INTEGER,
+        total_bookings INTEGER DEFAULT 1,
+        total_spent DECIMAL(10,2) DEFAULT 0,
+        last_stay_date DATE,
+        source VARCHAR(50),
+        tags JSONB DEFAULT '[]',
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(traveller_id, account_id)
+      )
+    `);
+    console.log('   ✓ Created traveller_property_links table');
+    
+    // Traveller experiences (UGC)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS traveller_experiences (
+        id SERIAL PRIMARY KEY,
+        traveller_id INTEGER REFERENCES travellers(id) ON DELETE CASCADE,
+        property_id INTEGER REFERENCES properties(id) ON DELETE CASCADE,
+        room_id INTEGER REFERENCES bookable_units(id) ON DELETE SET NULL,
+        booking_id INTEGER,
+        media_type VARCHAR(20),
+        media_url TEXT,
+        thumbnail_url TEXT,
+        caption TEXT,
+        rating INTEGER,
+        qr_code_used VARCHAR(50),
+        status VARCHAR(20) DEFAULT 'pending',
+        approved_by INTEGER,
+        approved_at TIMESTAMP,
+        view_count INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    console.log('   ✓ Created traveller_experiences table');
+    
+    res.json({ success: true, message: 'Travellers tables created' });
+  } catch (error) {
+    console.error('Migration error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Migration: Sync existing bookings to travellers
+app.post('/api/admin/sync-bookings-to-travellers', async (req, res) => {
+  try {
+    console.log('🔄 Syncing bookings to travellers...');
+    
+    // Get all bookings with guest email
+    const bookings = await pool.query(`
+      SELECT b.id, b.guest_email, b.guest_phone, b.guest_first_name, b.guest_last_name,
+             b.guest_address, b.guest_country, b.total_price,
+             p.account_id, b.property_id, b.check_in
+      FROM bookings b
+      JOIN properties p ON p.id = b.property_id
+      WHERE b.guest_email IS NOT NULL AND b.guest_email != ''
+      ORDER BY b.created_at ASC
+    `);
+    
+    let created = 0;
+    let linked = 0;
+    
+    for (const booking of bookings.rows) {
+      const result = await findOrCreateTraveller(pool, {
+        email: booking.guest_email,
+        phone: booking.guest_phone,
+        first_name: booking.guest_first_name,
+        last_name: booking.guest_last_name,
+        address: booking.guest_address,
+        country: booking.guest_country
+      }, booking.account_id, booking.property_id, booking.id, booking.total_price);
+      
+      if (result) {
+        if (result.created_at && new Date(result.created_at) > new Date(Date.now() - 5000)) {
+          created++;
+        }
+        linked++;
+      }
+    }
+    
+    console.log(`   ✓ Processed ${bookings.rows.length} bookings, created ${created} travellers, ${linked} links`);
+    
+    res.json({ 
+      success: true, 
+      message: `Synced ${bookings.rows.length} bookings`,
+      travellers_created: created,
+      links_created: linked
+    });
+  } catch (error) {
+    console.error('Sync error:', error);
     res.json({ success: false, error: error.message });
   }
 });
