@@ -29374,9 +29374,9 @@ const promo = await fetch('/api/v1/offers/validate', {
         
         async function loadCampaignRooms(propertyId) {
             try {
-                const response = await fetch(`/api/db/rooms?property_id=${propertyId}`);
+                const response = await fetch(`/api/admin/units?property_id=${propertyId}`);
                 const data = await response.json();
-                campaignRooms = data.success ? data.data : [];
+                campaignRooms = data.success ? (data.units || data.data || []) : [];
             } catch (e) {
                 campaignRooms = [];
             }
