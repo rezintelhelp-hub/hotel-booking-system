@@ -29573,19 +29573,35 @@ const promo = await fetch('/api/v1/offers/validate', {
                             
                             <div style="margin-bottom: 1rem;">
                                 <label style="font-weight: 600; margin-bottom: 0.5rem; display: block;">Email Body *</label>
-                                <textarea id="campaign-email-body" class="form-input" rows="6" 
-                                    placeholder="Write your email message here...
-
-Example:
-Dear Guest,
-
-We have a special offer just for you! Book ${room?.name || property?.name || 'your stay'} between ${campaignData.start_date} and ${campaignData.end_date} and receive ${campaignData.discount_type === 'percent' ? campaignData.discount_value + '% off' : '£' + campaignData.discount_value + ' off'}.
-
-${hasGasLite ? '[Book Now Button will be inserted here]' : ''}
-
-Best regards,
-${property?.name || 'The Team'}"
-                                    onchange="campaignData.email_body = this.value">${campaignData.email_body}</textarea>
+                                
+                                <!-- WYSIWYG Toolbar -->
+                                <div style="display: flex; flex-wrap: wrap; gap: 0.25rem; padding: 0.5rem; background: #f1f5f9; border: 1px solid #e2e8f0; border-bottom: none; border-radius: 8px 8px 0 0;">
+                                    <button type="button" onclick="execEmailCmd('bold')" style="padding: 6px 10px; border: none; background: white; border-radius: 4px; cursor: pointer; font-weight: bold;" title="Bold">B</button>
+                                    <button type="button" onclick="execEmailCmd('italic')" style="padding: 6px 10px; border: none; background: white; border-radius: 4px; cursor: pointer; font-style: italic;" title="Italic">I</button>
+                                    <button type="button" onclick="execEmailCmd('underline')" style="padding: 6px 10px; border: none; background: white; border-radius: 4px; cursor: pointer; text-decoration: underline;" title="Underline">U</button>
+                                    <div style="width: 1px; background: #cbd5e1; margin: 0 4px;"></div>
+                                    <button type="button" onclick="execEmailCmd('insertUnorderedList')" style="padding: 6px 10px; border: none; background: white; border-radius: 4px; cursor: pointer;" title="Bullet List">• List</button>
+                                    <button type="button" onclick="execEmailCmd('insertOrderedList')" style="padding: 6px 10px; border: none; background: white; border-radius: 4px; cursor: pointer;" title="Numbered List">1. List</button>
+                                    <div style="width: 1px; background: #cbd5e1; margin: 0 4px;"></div>
+                                    <button type="button" onclick="execEmailCmd('justifyLeft')" style="padding: 6px 10px; border: none; background: white; border-radius: 4px; cursor: pointer;" title="Align Left">⬛</button>
+                                    <button type="button" onclick="execEmailCmd('justifyCenter')" style="padding: 6px 10px; border: none; background: white; border-radius: 4px; cursor: pointer;" title="Align Center">⬛</button>
+                                    <div style="width: 1px; background: #cbd5e1; margin: 0 4px;"></div>
+                                    <button type="button" onclick="insertEmailLink()" style="padding: 6px 10px; border: none; background: white; border-radius: 4px; cursor: pointer;" title="Insert Link">🔗 Link</button>
+                                    <select onchange="execEmailCmd('fontSize', this.value); this.value='';" style="padding: 4px 8px; border: 1px solid #e2e8f0; border-radius: 4px; background: white; cursor: pointer;">
+                                        <option value="">Size</option>
+                                        <option value="1">Small</option>
+                                        <option value="3">Normal</option>
+                                        <option value="5">Large</option>
+                                        <option value="7">Huge</option>
+                                    </select>
+                                    <input type="color" onchange="execEmailCmd('foreColor', this.value)" value="#000000" style="width: 32px; height: 28px; border: none; cursor: pointer;" title="Text Color">
+                                </div>
+                                
+                                <!-- Editable Area -->
+                                <div id="campaign-email-editor" contenteditable="true" 
+                                    style="min-height: 200px; padding: 1rem; border: 1px solid #e2e8f0; border-radius: 0 0 8px 8px; background: white; outline: none;"
+                                    oninput="campaignData.email_body = this.innerHTML"
+                                >${campaignData.email_body || '<p>Dear Guest,</p><p>We have a special offer just for you!</p><p><br></p><p>Best regards,<br>' + (property?.name || 'The Team') + '</p>'}</div>
                             </div>
                             
                             ${hasGasLite ? `
@@ -29776,6 +29792,19 @@ ${property?.name || 'The Team'}"
             if (campaignWizardStep < 5) {
                 campaignWizardStep++;
                 renderCampaignWizard();
+            }
+        }
+        
+        // WYSIWYG Editor Functions
+        function execEmailCmd(command, value = null) {
+            document.execCommand(command, false, value);
+            document.getElementById('campaign-email-editor')?.focus();
+        }
+        
+        function insertEmailLink() {
+            const url = prompt('Enter URL:', 'https://');
+            if (url) {
+                document.execCommand('createLink', false, url);
             }
         }
         
