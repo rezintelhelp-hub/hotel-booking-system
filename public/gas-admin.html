@@ -29851,14 +29851,16 @@ const promo = await fetch('/api/v1/offers/validate', {
                     campaignHeroImages = data.images;
                     let html = '';
                     campaignHeroImages.forEach((img, idx) => {
-                        const isSelected = campaignData.hero_image_url === img.url;
+                        // Try different URL fields - image_url, url, large_url, original_url
+                        const imgUrl = img.image_url || img.url || img.large_url || img.original_url || '';
+                        const isSelected = campaignData.hero_image_url === imgUrl;
                         html += '<div onclick="selectHeroImage(' + idx + ')" style="flex-shrink: 0; cursor: pointer; border: 3px solid ' + (isSelected ? '#6366f1' : 'transparent') + '; border-radius: 8px; overflow: hidden;">';
-                        html += '<img src="' + img.url + '" style="width: 120px; height: 80px; object-fit: cover; display: block;">';
+                        html += '<img src="' + imgUrl + '" style="width: 120px; height: 80px; object-fit: cover; display: block;" onerror="this.parentElement.style.display=\'none\'">';
                         html += '</div>';
                     });
                     container.innerHTML = html;
                 } else {
-                    container.innerHTML = '<div style="color: #64748b; font-size: 0.85rem;">No images found. Upload images in Property Management.</div>';
+                    container.innerHTML = '<div style="color: #64748b; font-size: 0.85rem;">No images found. Upload images in Property Management → Images.</div>';
                 }
             } catch (e) {
                 container.innerHTML = '<div style="color: #64748b; font-size: 0.85rem;">Could not load images</div>';
@@ -29866,7 +29868,8 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
         
         function selectHeroImage(index) {
-            campaignData.hero_image_url = campaignHeroImages[index]?.url || '';
+            const img = campaignHeroImages[index];
+            campaignData.hero_image_url = img?.image_url || img?.url || img?.large_url || img?.original_url || '';
             const container = document.getElementById('hero-image-selector');
             if (container) {
                 container.querySelectorAll('div').forEach((div, idx) => {
