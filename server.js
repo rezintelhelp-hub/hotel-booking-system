@@ -16744,6 +16744,14 @@ app.get('/api/admin/fix-missing-columns-xK9mP2nL', async (req, res) => {
     `);
     results.push('Added booking_webhook_url and webhook_secret to accounts table');
     
+    // Fix partner_tenant_mapping FK to cascade on delete
+    await pool.query('ALTER TABLE partner_tenant_mapping DROP CONSTRAINT IF EXISTS partner_tenant_mapping_gas_account_id_fkey');
+    await pool.query(`
+      ALTER TABLE partner_tenant_mapping ADD CONSTRAINT partner_tenant_mapping_gas_account_id_fkey 
+      FOREIGN KEY (gas_account_id) REFERENCES accounts(id) ON DELETE CASCADE
+    `);
+    results.push('Fixed partner_tenant_mapping.gas_account_id FK to CASCADE');
+    
     res.json({ success: true, message: 'Missing columns added', results });
   } catch (error) {
     console.error('Fix columns error:', error);
