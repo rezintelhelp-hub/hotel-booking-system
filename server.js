@@ -35489,6 +35489,20 @@ app.delete('/api/partner/room-types/:roomTypeId', async (req, res) => {
 // Websites allow tenants to have multiple booking sites
 // Each site can display different rooms/units
 
+// Migration: Add turbine_campaigns columns
+app.post('/api/admin/migrate-turbines', async (req, res) => {
+  try {
+    console.log('🔄 Adding turbine_campaigns columns...');
+    await pool.query(`ALTER TABLE turbine_campaigns ADD COLUMN IF NOT EXISTS offer_code VARCHAR(20) UNIQUE`);
+    await pool.query(`ALTER TABLE turbine_campaigns ADD COLUMN IF NOT EXISTS hero_image_url TEXT`);
+    console.log('   ✓ Added offer_code and hero_image_url columns');
+    res.json({ success: true, message: 'Turbines migration complete' });
+  } catch (error) {
+    console.error('Migration error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Migration: Create websites tables
 app.post('/api/admin/migrate-websites', async (req, res) => {
   try {
