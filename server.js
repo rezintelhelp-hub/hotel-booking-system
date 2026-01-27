@@ -36259,6 +36259,215 @@ app.get('/api/partner/websites/:websiteId/credentials', async (req, res) => {
   }
 });
 
+// GET /api/partner/websites/:websiteId/domain - Get domain status and DNS records
+app.get('/api/partner/websites/:websiteId/domain', async (req, res) => {
+  console.log('=== PARTNER API: GET DOMAIN STATUS ===');
+  
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    
+    const { websiteId } = req.params;
+    
+    // Get website and deployed site info
+    const result = await pool.query(`
+      SELECT w.id, w.name, w.subdomain, ds.id as deployed_site_id, 
+             ds.site_url, ds.custom_domain, ds.status
+      FROM websites w
+      LEFT JOIN deployed_sites ds ON ds.id = w.deployed_site_id
+      JOIN accounts a ON a.id = w.account_id
+      WHERE w.id = $1 AND a.parent_id = $2
+    `, [websiteId, auth.partnerId]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Website not found' });
+    }
+    
+    const website = result.rows[0];
+    const VPS_IP = '72.61.207.109';
+    
+    res.json({
+      success: true,
+      website_id: website.id,
+      website_name: website.name,
+      deployed: !!website.deployed_site_id,
+      current_url: website.site_url || `https://${website.subdomain}.sites.gas.travel`,
+      custom_domain: website.custom_domain || null,
+      custom_domain_configured: !!website.custom_domain,
+      dns_records: {
+        description: 'Add these DNS records to your domain before connecting',
+        records: [
+          { type: 'A', name: '@', value: VPS_IP },
+          { type: 'A', name: 'www', value: VPS_IP }
+        ],
+        note: 'Delete any existing AAAA (IPv6) records for your domain'
+      }
+    });
+    
+  } catch (error) {
+    console.error('Partner API get domain error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/partner/websites/:websiteId/domain - Connect custom domain
+app.put('/api/partner/websites/:websiteId/domain', async (req, res) => {
+  console.log('=== PARTNER API: CONNECT CUSTOM DOMAIN ===');
+  
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    
+    const { websiteId } = req.params;
+    const { domain } = req.body;
+    
+    if (!domain) {
+      return res.status(400).json({ success: false, error: 'domain is required' });
+    }
+    
+    // Clean domain
+    const cleanDomain = domain.toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').replace(/\/$/, '');
+    
+    // Get website and deployed site info
+    const result = await pool.query(`
+      SELECT w.id, w.name, ds.id as deployed_site_id, ds.blog_id
+      FROM websites w
+      LEFT JOIN deployed_sites ds ON ds.id = w.deployed_site_id
+      JOIN accounts a ON a.id = w.account_id
+      WHERE w.id = $1 AND a.parent_id = $2
+    `, [websiteId, auth.partnerId]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Website not found' });
+    }
+    
+    const website = result.rows[0];
+    
+    if (!website.deployed_site_id) {
+      return res.status(400).json({ success: false, error: 'Website must be deployed before connecting a custom domain' });
+    }
+    
+    console.log(`[Partner API] Connecting domain ${cleanDomain} to website ${websiteId} (deployed_site: ${website.deployed_site_id})`);
+    
+    // Call the VPS API to set up Nginx, SSL, and WordPress
+    const SITES_VPS_URL = 'https://sites.gas.travel/gas-api.php';
+    
+    const vpsResponse = await fetch(SITES_VPS_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': process.env.VPS_DEPLOY_API_KEY || 'GAS-DEPLOY-SECRET-2024'
+      },
+      body: JSON.stringify({
+        action: 'connect-custom-domain',
+        blog_id: website.blog_id,
+        domain: cleanDomain
+      })
+    });
+    
+    const vpsData = await vpsResponse.json();
+    console.log(`[Partner API] VPS response:`, vpsData);
+    
+    if (vpsData.success) {
+      // Update the deployed_sites table
+      await pool.query(`
+        UPDATE deployed_sites 
+        SET custom_domain = $1, updated_at = NOW()
+        WHERE id = $2
+      `, [cleanDomain, website.deployed_site_id]);
+      
+      res.json({ 
+        success: true, 
+        website_id: websiteId,
+        domain: cleanDomain,
+        url: `https://${cleanDomain}`,
+        message: 'Custom domain connected successfully. SSL certificate will be provisioned automatically.'
+      });
+    } else {
+      res.json({ success: false, error: vpsData.error || 'Failed to connect domain on VPS' });
+    }
+    
+  } catch (error) {
+    console.error('Partner API connect domain error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// DELETE /api/partner/websites/:websiteId/domain - Remove custom domain
+app.delete('/api/partner/websites/:websiteId/domain', async (req, res) => {
+  console.log('=== PARTNER API: REMOVE CUSTOM DOMAIN ===');
+  
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    
+    const { websiteId } = req.params;
+    
+    // Get website and deployed site info
+    const result = await pool.query(`
+      SELECT w.id, ds.id as deployed_site_id, ds.blog_id, ds.custom_domain
+      FROM websites w
+      LEFT JOIN deployed_sites ds ON ds.id = w.deployed_site_id
+      JOIN accounts a ON a.id = w.account_id
+      WHERE w.id = $1 AND a.parent_id = $2
+    `, [websiteId, auth.partnerId]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Website not found' });
+    }
+    
+    const website = result.rows[0];
+    
+    if (!website.custom_domain) {
+      return res.json({ success: true, message: 'No custom domain configured' });
+    }
+    
+    console.log(`[Partner API] Removing domain ${website.custom_domain} from website ${websiteId}`);
+    
+    // Call the VPS API to remove domain
+    const SITES_VPS_URL = 'https://sites.gas.travel/gas-api.php';
+    
+    const vpsResponse = await fetch(SITES_VPS_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': process.env.VPS_DEPLOY_API_KEY || 'GAS-DEPLOY-SECRET-2024'
+      },
+      body: JSON.stringify({
+        action: 'remove-custom-domain',
+        blog_id: website.blog_id,
+        domain: website.custom_domain
+      })
+    });
+    
+    const vpsData = await vpsResponse.json();
+    console.log(`[Partner API] VPS response:`, vpsData);
+    
+    // Update database regardless of VPS response
+    await pool.query(`
+      UPDATE deployed_sites 
+      SET custom_domain = NULL, updated_at = NOW()
+      WHERE id = $1
+    `, [website.deployed_site_id]);
+    
+    res.json({ 
+      success: true, 
+      website_id: websiteId,
+      message: 'Custom domain removed'
+    });
+    
+  } catch (error) {
+    console.error('Partner API remove domain error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // PUT /api/partner/websites/:websiteId/content/:section - Update website content section
 app.put('/api/partner/websites/:websiteId/content/:section', async (req, res) => {
   console.log('=== PARTNER API: UPDATE CONTENT ===');
