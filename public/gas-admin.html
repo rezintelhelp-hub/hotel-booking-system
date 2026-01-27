@@ -29885,6 +29885,7 @@ const promo = await fetch('/api/v1/offers/validate', {
         
         function previewCampaignEmail(mode) {
             const property = campaignProperties.find(p => p.id == campaignData.property_id);
+            const room = campaignRooms.find(r => r.id == campaignData.room_id);
             const width = mode === 'mobile' ? '375px' : '600px';
             const modeLabel = mode === 'mobile' ? '📱 Mobile' : '🖥️ Desktop';
             
@@ -29892,32 +29893,86 @@ const promo = await fetch('/api/v1/offers/validate', {
                 ? campaignData.discount_value + '% OFF' 
                 : campaignData.discount_type === 'fixed' 
                     ? '£' + campaignData.discount_value + ' OFF' 
-                    : '£' + campaignData.custom_price + '/night';
+                    : 'SPECIAL PRICE';
             
             const dateText = campaignData.start_date && campaignData.end_date
                 ? new Date(campaignData.start_date).toLocaleDateString('en-GB', {day: 'numeric', month: 'short'}) + ' - ' + new Date(campaignData.end_date).toLocaleDateString('en-GB', {day: 'numeric', month: 'short', year: 'numeric'})
                 : '';
             
-            const heroStyle = campaignData.hero_image_url 
-                ? 'background: url(' + campaignData.hero_image_url + ') center/cover;' 
-                : 'background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);';
+            const heroImage = campaignData.hero_image_url || '';
+            const roomName = room?.name || property?.name || 'Room';
+            const location = property?.city ? (property.city + (property.country ? ', ' + property.country : '')) : '';
             
-            const html = '<div style="background: #f1f5f9; padding: 20px; font-family: Arial, sans-serif;">' +
-                '<div style="max-width: ' + width + '; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">' +
-                '<div style="background: #1e293b; color: white; padding: 16px; text-align: center; font-size: 18px; font-weight: 600;">' + (property?.name || 'Property Name') + '</div>' +
-                '<div style="height: 200px; ' + heroStyle + '"></div>' +
-                '<div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 20px; text-align: center;">' +
-                '<div style="font-size: 28px; font-weight: 800;">' + discountText + '</div>' +
-                '<div style="font-size: 14px; opacity: 0.9;">' + dateText + '</div>' +
-                '</div>' +
-                '<div style="padding: 24px; line-height: 1.6; color: #334155;">' + (campaignData.email_body || '<p>Your message here...</p>') + '</div>' +
-                '<div style="padding: 0 24px 32px; text-align: center;">' +
-                '<a href="#" style="display: inline-block; background: #6366f1; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 600;">Book Now</a>' +
-                '</div>' +
-                '<div style="background: #f8fafc; padding: 16px; text-align: center; font-size: 12px; color: #64748b; border-top: 1px solid #e2e8f0;">' +
-                '<a href="#" style="color: #64748b;">Unsubscribe</a>' +
-                '</div>' +
-                '</div></div>';
+            // Mobile layout is single column
+            const isMobile = mode === 'mobile';
+            
+            const html = `
+            <div style="background: #f1f5f9; padding: 20px; font-family: Arial, sans-serif;">
+                <div style="max-width: ${width}; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                    
+                    <!-- Header -->
+                    <div style="background: #1e293b; color: white; padding: 16px; text-align: center; font-size: 18px; font-weight: 600;">
+                        ${property?.name || 'Property Name'}
+                    </div>
+                    
+                    <!-- Hero Image -->
+                    ${heroImage ? `
+                    <div style="height: 200px; background: url('${heroImage}') center/cover;"></div>
+                    ` : `
+                    <div style="height: 200px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);"></div>
+                    `}
+                    
+                    <!-- Offer Banner -->
+                    <div style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; padding: 16px; text-align: center;">
+                        <div style="font-size: 24px; font-weight: 800;">🔥 ${discountText}</div>
+                        <div style="font-size: 13px; opacity: 0.9; margin-top: 4px;">${dateText}</div>
+                    </div>
+                    
+                    <!-- Two Column Section (stacks on mobile) -->
+                    <div style="display: ${isMobile ? 'block' : 'flex'}; gap: 0;">
+                        
+                        <!-- Left: Custom Content -->
+                        <div style="${isMobile ? 'width: 100%;' : 'width: 55%;'} padding: 20px; border-right: ${isMobile ? 'none' : '1px solid #e2e8f0'}; border-bottom: ${isMobile ? '1px solid #e2e8f0' : 'none'};">
+                            <div style="line-height: 1.6; color: #334155; font-size: 14px;">
+                                ${campaignData.email_body || '<p>Your message here...</p>'}
+                            </div>
+                        </div>
+                        
+                        <!-- Right: Lite Card -->
+                        <div style="${isMobile ? 'width: 100%;' : 'width: 45%;'} padding: 16px; background: #f8fafc;">
+                            <div style="background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+                                <!-- Card Image -->
+                                ${heroImage ? `
+                                <div style="height: 120px; background: url('${heroImage}') center/cover; position: relative;">
+                                    <div style="position: absolute; top: 8px; right: 8px; background: #ef4444; color: white; padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: 600;">
+                                        ${discountText}
+                                    </div>
+                                </div>
+                                ` : ''}
+                                
+                                <div style="padding: 12px;">
+                                    <div style="font-size: 11px; color: #64748b; margin-bottom: 2px;">📍 ${location}</div>
+                                    <div style="font-size: 14px; font-weight: 600; color: #1e293b; margin-bottom: 8px;">${roomName}</div>
+                                    
+                                    <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px;">
+                                        ${room?.num_bedrooms ? `<span style="background: #f1f5f9; padding: 3px 8px; border-radius: 4px; font-size: 11px; color: #475569;">🛏️ ${room.num_bedrooms} Bed</span>` : ''}
+                                        ${room?.max_guests ? `<span style="background: #f1f5f9; padding: 3px 8px; border-radius: 4px; font-size: 11px; color: #475569;">👥 ${room.max_guests}</span>` : ''}
+                                    </div>
+                                    
+                                    <a href="#" style="display: block; background: #6366f1; color: white; text-align: center; padding: 10px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 13px;">
+                                        Book Now →
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Footer -->
+                    <div style="background: #f1f5f9; padding: 16px; text-align: center; font-size: 12px; color: #64748b; border-top: 1px solid #e2e8f0;">
+                        <a href="#" style="color: #64748b;">Unsubscribe</a> · Powered by GAS.travel
+                    </div>
+                </div>
+            </div>`;
             
             // Close campaign wizard modal first to avoid z-index issues
             const wizardModal = document.getElementById('campaignWizardModal');
