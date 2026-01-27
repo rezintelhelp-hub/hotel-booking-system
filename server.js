@@ -16805,6 +16805,196 @@ app.get('/api/admin/fix-missing-columns-xK9mP2nL', async (req, res) => {
   }
 });
 
+// MIGRATION: Create Turbines & GAS Network tables - visit once
+app.get('/api/admin/migrate-turbines-network-xK9mP2nL', async (req, res) => {
+  try {
+    const results = [];
+    
+    // 1. Turbine Connections (social media accounts)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS turbine_connections (
+        id SERIAL PRIMARY KEY,
+        account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
+        platform VARCHAR(50) NOT NULL,
+        platform_user_id VARCHAR(255),
+        platform_username VARCHAR(255),
+        access_token TEXT,
+        refresh_token TEXT,
+        token_expires_at TIMESTAMP,
+        page_id VARCHAR(255),
+        page_name VARCHAR(255),
+        status VARCHAR(20) DEFAULT 'active',
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    results.push('Created turbine_connections table');
+    
+    // 2. Tags (for contact interests/preferences)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS network_tags (
+        id SERIAL PRIMARY KEY,
+        account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
+        name VARCHAR(100) NOT NULL,
+        category VARCHAR(50),
+        icon VARCHAR(10),
+        color VARCHAR(7) DEFAULT '#3b82f6',
+        is_system BOOLEAN DEFAULT false,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    results.push('Created network_tags table');
+    
+    // 3. Contacts (CRM)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS network_contacts (
+        id SERIAL PRIMARY KEY,
+        account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
+        email VARCHAR(255) NOT NULL,
+        first_name VARCHAR(100),
+        last_name VARCHAR(100),
+        phone VARCHAR(50),
+        source VARCHAR(50) DEFAULT 'manual',
+        source_details VARCHAR(255),
+        total_bookings INTEGER DEFAULT 0,
+        total_spent DECIMAL(10,2) DEFAULT 0,
+        last_stayed_at DATE,
+        last_property_id INTEGER,
+        notes TEXT,
+        unsubscribed BOOLEAN DEFAULT false,
+        unsubscribed_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(account_id, email)
+      )
+    `);
+    results.push('Created network_contacts table');
+    
+    // 4. Contact Tags (many-to-many)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS network_contact_tags (
+        id SERIAL PRIMARY KEY,
+        contact_id INTEGER REFERENCES network_contacts(id) ON DELETE CASCADE,
+        tag_id INTEGER REFERENCES network_tags(id) ON DELETE CASCADE,
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(contact_id, tag_id)
+      )
+    `);
+    results.push('Created network_contact_tags table');
+    
+    // 5. Segments (saved audience filters)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS network_segments (
+        id SERIAL PRIMARY KEY,
+        account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
+        name VARCHAR(100) NOT NULL,
+        description TEXT,
+        filter_tags INTEGER[],
+        filter_source VARCHAR(50),
+        filter_min_bookings INTEGER,
+        filter_last_stayed_after DATE,
+        filter_last_stayed_before DATE,
+        contact_count INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    results.push('Created network_segments table');
+    
+    // 6. Campaigns
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS turbine_campaigns (
+        id SERIAL PRIMARY KEY,
+        account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
+        name VARCHAR(255) NOT NULL,
+        property_id INTEGER REFERENCES properties(id) ON DELETE SET NULL,
+        room_id INTEGER REFERENCES bookable_units(id) ON DELETE SET NULL,
+        discount_type VARCHAR(20),
+        discount_value DECIMAL(10,2),
+        custom_price DECIMAL(10,2),
+        start_date DATE,
+        end_date DATE,
+        min_nights INTEGER DEFAULT 1,
+        gas_lite_slug VARCHAR(100),
+        target_type VARCHAR(20) DEFAULT 'all',
+        target_tags INTEGER[],
+        target_segment_id INTEGER REFERENCES network_segments(id) ON DELETE SET NULL,
+        channels JSONB DEFAULT '{"email": false, "facebook": false, "instagram": false}',
+        email_subject VARCHAR(255),
+        email_body TEXT,
+        social_caption TEXT,
+        social_image_url TEXT,
+        status VARCHAR(20) DEFAULT 'draft',
+        scheduled_at TIMESTAMP,
+        sent_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    results.push('Created turbine_campaigns table');
+    
+    // 7. Campaign Analytics
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS turbine_campaign_stats (
+        id SERIAL PRIMARY KEY,
+        campaign_id INTEGER REFERENCES turbine_campaigns(id) ON DELETE CASCADE,
+        channel VARCHAR(50),
+        sent_count INTEGER DEFAULT 0,
+        delivered_count INTEGER DEFAULT 0,
+        opened_count INTEGER DEFAULT 0,
+        clicked_count INTEGER DEFAULT 0,
+        booked_count INTEGER DEFAULT 0,
+        revenue DECIMAL(10,2) DEFAULT 0,
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    results.push('Created turbine_campaign_stats table');
+    
+    // 8. Add some default system tags
+    const defaultTags = [
+      { name: 'Dog Friendly', category: 'pets', icon: '🐕' },
+      { name: 'Cat Friendly', category: 'pets', icon: '🐱' },
+      { name: 'Horse Lover', category: 'pets', icon: '🐴' },
+      { name: 'Family', category: 'travel_style', icon: '👨‍👩‍👧‍👦' },
+      { name: 'Couples', category: 'travel_style', icon: '💑' },
+      { name: 'Solo', category: 'travel_style', icon: '🧳' },
+      { name: 'Business', category: 'travel_style', icon: '💼' },
+      { name: 'Hiking', category: 'interests', icon: '🥾' },
+      { name: 'Beach', category: 'interests', icon: '🏖️' },
+      { name: 'Skiing', category: 'interests', icon: '⛷️' },
+      { name: 'Golf', category: 'interests', icon: '⛳' },
+      { name: 'Wine', category: 'interests', icon: '🍷' },
+      { name: 'Spa & Wellness', category: 'interests', icon: '💆' },
+      { name: 'Cycling', category: 'interests', icon: '🚴' },
+      { name: 'Fishing', category: 'interests', icon: '🎣' },
+      { name: 'VIP', category: 'status', icon: '⭐' },
+      { name: 'Repeat Guest', category: 'status', icon: '🔄' },
+      { name: 'Newsletter', category: 'source', icon: '📧' }
+    ];
+    
+    for (const tag of defaultTags) {
+      await pool.query(`
+        INSERT INTO network_tags (account_id, name, category, icon, is_system)
+        VALUES (NULL, $1, $2, $3, true)
+        ON CONFLICT DO NOTHING
+      `, [tag.name, tag.category, tag.icon]);
+    }
+    results.push('Added default system tags');
+    
+    // Create indexes for performance
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_network_contacts_account ON network_contacts(account_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_network_contacts_email ON network_contacts(email)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_turbine_campaigns_account ON turbine_campaigns(account_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_turbine_campaigns_status ON turbine_campaigns(status)`);
+    results.push('Created indexes');
+    
+    res.json({ success: true, message: 'Turbines & GAS Network tables created', results });
+  } catch (error) {
+    console.error('Migration error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // TEMPORARY: Fix foreign key constraints - visit once then remove
 app.get('/api/admin/fix-fk-constraints-xK9mP2nL', async (req, res) => {
   try {
