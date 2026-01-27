@@ -16915,6 +16915,7 @@ app.get('/api/admin/migrate-turbines-network-xK9mP2nL', async (req, res) => {
         start_date DATE,
         end_date DATE,
         min_nights INTEGER DEFAULT 1,
+        offer_code VARCHAR(20) UNIQUE,
         gas_lite_slug VARCHAR(100),
         target_type VARCHAR(20) DEFAULT 'all',
         target_tags INTEGER[],
@@ -16924,6 +16925,7 @@ app.get('/api/admin/migrate-turbines-network-xK9mP2nL', async (req, res) => {
         email_body TEXT,
         social_caption TEXT,
         social_image_url TEXT,
+        hero_image_url TEXT,
         status VARCHAR(20) DEFAULT 'draft',
         scheduled_at TIMESTAMP,
         sent_at TIMESTAMP,
@@ -16931,6 +16933,9 @@ app.get('/api/admin/migrate-turbines-network-xK9mP2nL', async (req, res) => {
         updated_at TIMESTAMP DEFAULT NOW()
       )
     `);
+    // Add new columns if they don't exist
+    await pool.query(`ALTER TABLE turbine_campaigns ADD COLUMN IF NOT EXISTS offer_code VARCHAR(20) UNIQUE`);
+    await pool.query(`ALTER TABLE turbine_campaigns ADD COLUMN IF NOT EXISTS hero_image_url TEXT`);
     results.push('Created turbine_campaigns table');
     
     // 7. Campaign Analytics
@@ -55297,11 +55302,38 @@ app.post('/api/turbines/campaigns', async (req, res) => {
       discount_type, discount_value, custom_price,
       start_date, end_date, min_nights,
       gas_lite_slug, target_type, target_tags, target_segment_id,
-      channels, email_subject, email_body, social_caption, social_image_url
+      channels, email_subject, email_body, social_caption, social_image_url, hero_image_url
     } = req.body;
     
     if (!account_id || !name) {
       return res.status(400).json({ success: false, error: 'account_id and name required' });
+    }
+    
+    // Generate unique offer code (e.g., CAM-X7K9)
+    const generateOfferCode = () => {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // No I, O, 0, 1 to avoid confusion
+      let code = 'CAM-';
+      for (let i = 0; i < 4; i++) {
+        code += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return code;
+    };
+    
+    let offerCode = generateOfferCode();
+    // Ensure uniqueness (try up to 5 times)
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const existing = await pool.query('SELECT 1 FROM turbine_campaigns WHERE offer_code = $1', [offerCode]);
+      if (existing.rows.length === 0) break;
+      offerCode = generateOfferCode();
+    }
+    
+    // Get the GAS Lite slug for the room if not provided
+    let liteSlug = gas_lite_slug;
+    if (!liteSlug && room_id) {
+      const liteRes = await pool.query('SELECT slug FROM gas_lites WHERE room_id = $1 AND active = true LIMIT 1', [room_id]);
+      if (liteRes.rows.length > 0) {
+        liteSlug = liteRes.rows[0].slug;
+      }
     }
     
     const result = await pool.query(`
@@ -55309,19 +55341,26 @@ app.post('/api/turbines/campaigns', async (req, res) => {
         account_id, name, property_id, room_id,
         discount_type, discount_value, custom_price,
         start_date, end_date, min_nights,
-        gas_lite_slug, target_type, target_tags, target_segment_id,
-        channels, email_subject, email_body, social_caption, social_image_url
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+        offer_code, gas_lite_slug, target_type, target_tags, target_segment_id,
+        channels, email_subject, email_body, social_caption, social_image_url, hero_image_url
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
       RETURNING *
     `, [
       account_id, name, property_id, room_id,
       discount_type, discount_value, custom_price,
       start_date, end_date, min_nights,
-      gas_lite_slug, target_type || 'all', target_tags, target_segment_id,
-      JSON.stringify(channels || {}), email_subject, email_body, social_caption, social_image_url
+      offerCode, liteSlug, target_type || 'all', target_tags, target_segment_id,
+      JSON.stringify(channels || {}), email_subject, email_body, social_caption, social_image_url, hero_image_url
     ]);
     
-    res.json({ success: true, campaign: result.rows[0] });
+    const campaign = result.rows[0];
+    
+    // Build the campaign URL
+    if (liteSlug) {
+      campaign.campaign_url = `https://lite.gas.travel/${liteSlug}?offer=${offerCode}`;
+    }
+    
+    res.json({ success: true, campaign });
   } catch (error) {
     console.error('Create campaign error:', error);
     res.json({ success: false, error: error.message });
