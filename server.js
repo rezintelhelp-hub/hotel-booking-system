@@ -16731,6 +16731,26 @@ app.delete('/api/admin/deployed-sites/:id', async (req, res) => {
   }
 });
 
+// TEMPORARY: Add missing columns - visit once then remove
+app.get('/api/admin/fix-missing-columns-xK9mP2nL', async (req, res) => {
+  try {
+    const results = [];
+    
+    // Add booking_webhook_url to accounts table
+    await pool.query(`
+      ALTER TABLE accounts 
+      ADD COLUMN IF NOT EXISTS booking_webhook_url TEXT,
+      ADD COLUMN IF NOT EXISTS webhook_secret TEXT
+    `);
+    results.push('Added booking_webhook_url and webhook_secret to accounts table');
+    
+    res.json({ success: true, message: 'Missing columns added', results });
+  } catch (error) {
+    console.error('Fix columns error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // TEMPORARY: Fix foreign key constraints - visit once then remove
 app.get('/api/admin/fix-fk-constraints-xK9mP2nL', async (req, res) => {
   try {
