@@ -30081,7 +30081,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     : '£' + campaign.custom_price + '/night';
             
             const channels = typeof campaign.channels === 'string' ? JSON.parse(campaign.channels || '{}') : (campaign.channels || {});
-            const emailEnabled = channels.email?.enabled;
+            const emailEnabled = channels.email === true || channels.email?.enabled === true;
             
             let modalHtml = `
                 <div class="modal active" id="campaignDetailsModal" onclick="if(event.target===this)closeModal('campaignDetailsModal')">
