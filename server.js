@@ -55240,10 +55240,7 @@ app.get('/api/network/contacts', async (req, res) => {
       return res.status(400).json({ success: false, error: 'account_id required' });
     }
     
-    console.log('Loading contacts for account:', account_id);
-    
-    // Simple query first
-    const result = await pool.query(`
+    let query = `
       SELECT t.id, t.email, t.phone, t.first_name, t.last_name, 
              t.city, t.country, t.status,
              tpl.total_bookings, tpl.total_spent, tpl.last_stay_date, tpl.source,
@@ -55251,11 +55248,20 @@ app.get('/api/network/contacts', async (req, res) => {
       FROM travellers t
       JOIN traveller_property_links tpl ON tpl.traveller_id = t.id
       WHERE tpl.account_id = $1
-      ORDER BY t.created_at DESC
-      LIMIT $2 OFFSET $3
-    `, [account_id, limit, offset]);
+    `;
+    const params = [account_id];
+    let paramIndex = 2;
     
-    console.log('Found contacts:', result.rows.length);
+    if (search) {
+      query += ` AND (t.email ILIKE $${paramIndex} OR t.first_name ILIKE $${paramIndex} OR t.last_name ILIKE $${paramIndex})`;
+      params.push(`%${search}%`);
+      paramIndex++;
+    }
+    
+    query += ` ORDER BY t.created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    params.push(parseInt(limit), parseInt(offset));
+    
+    const result = await pool.query(query, params);
     
     // Get total count
     const countResult = await pool.query(
