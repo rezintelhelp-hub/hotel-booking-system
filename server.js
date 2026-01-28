@@ -55852,9 +55852,10 @@ app.post('/api/turbines/campaigns/:id/send', async (req, res) => {
     
     const campaign = campaignResult.rows[0];
     
-    // Check if email channel is enabled
+    // Check if email channel is enabled (handle both formats: true or {enabled: true})
     const channels = typeof campaign.channels === 'string' ? JSON.parse(campaign.channels) : campaign.channels;
-    if (!channels?.email?.enabled && !test_email) {
+    const emailEnabled = channels?.email === true || channels?.email?.enabled === true;
+    if (!emailEnabled && !test_email) {
       return res.json({ success: false, error: 'Email channel not enabled for this campaign' });
     }
     
@@ -55900,11 +55901,11 @@ app.post('/api/turbines/campaigns/:id/send', async (req, res) => {
     let roomImageUrl = campaign.hero_image_url;
     if (!roomImageUrl && campaign.room_id) {
       const imgRes = await pool.query(
-        'SELECT url FROM room_images WHERE room_id = $1 ORDER BY sort_order, id LIMIT 1',
+        'SELECT image_url FROM room_images WHERE room_id = $1 ORDER BY display_order, id LIMIT 1',
         [campaign.room_id]
       );
       if (imgRes.rows[0]) {
-        roomImageUrl = imgRes.rows[0].url;
+        roomImageUrl = imgRes.rows[0].image_url;
       }
     }
     
