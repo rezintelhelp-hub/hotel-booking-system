@@ -55886,14 +55886,39 @@ app.post('/api/turbines/campaigns/:id/send', async (req, res) => {
     // Format dates
     const formatDate = (d) => d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
     
-    // Calculate discount display
+    // Calculate discount display (handle both 'percent' and 'percentage')
     let discountText = '';
-    if (campaign.discount_type === 'percentage') {
-      discountText = `${campaign.discount_value}% OFF`;
+    if (campaign.discount_type === 'percent' || campaign.discount_type === 'percentage') {
+      discountText = `${parseFloat(campaign.discount_value).toFixed(0)}% OFF`;
     } else if (campaign.discount_type === 'fixed') {
       discountText = `$${campaign.discount_value} OFF`;
-    } else if (campaign.discount_type === 'custom_price') {
+    } else if (campaign.discount_type === 'custom' || campaign.discount_type === 'custom_price') {
       discountText = `Special Price: $${campaign.custom_price}`;
+    }
+    
+    // Get room image for Lite card
+    let roomImageUrl = campaign.hero_image_url;
+    if (!roomImageUrl && campaign.room_id) {
+      const imgRes = await pool.query(
+        'SELECT url FROM room_images WHERE room_id = $1 ORDER BY sort_order, id LIMIT 1',
+        [campaign.room_id]
+      );
+      if (imgRes.rows[0]) {
+        roomImageUrl = imgRes.rows[0].url;
+      }
+    }
+    
+    // Get room price for Lite card
+    let roomPrice = null;
+    if (campaign.room_id) {
+      const priceRes = await pool.query(`
+        SELECT COALESCE(direct_price, standard_price, cm_price) as price 
+        FROM room_availability WHERE room_id = $1 AND date >= CURRENT_DATE 
+        ORDER BY date LIMIT 1
+      `, [campaign.room_id]);
+      if (priceRes.rows[0]?.price) {
+        roomPrice = parseFloat(priceRes.rows[0].price);
+      }
     }
     
     // Build email HTML
@@ -55907,6 +55932,20 @@ app.post('/api/turbines/campaigns/:id/send', async (req, res) => {
       body = body.replace(/\{\{room_name\}\}/g, campaign.room_name || '');
       body = body.replace(/\{\{discount\}\}/g, discountText);
       
+      // Calculate discounted price
+      let discountedPrice = roomPrice;
+      let originalPrice = roomPrice;
+      if (roomPrice && campaign.discount_value) {
+        if (campaign.discount_type === 'percent' || campaign.discount_type === 'percentage') {
+          discountedPrice = roomPrice * (1 - parseFloat(campaign.discount_value) / 100);
+        } else if (campaign.discount_type === 'fixed') {
+          discountedPrice = roomPrice - parseFloat(campaign.discount_value);
+        }
+      }
+      if (campaign.custom_price) {
+        discountedPrice = parseFloat(campaign.custom_price);
+      }
+      
       return `
 <!DOCTYPE html>
 <html>
@@ -55918,44 +55957,67 @@ app.post('/api/turbines/campaigns/:id/send', async (req, res) => {
 <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5;">
   <div style="max-width: 600px; margin: 0 auto; background: #ffffff;">
     
-    ${campaign.hero_image_url ? `
-    <div style="width: 100%;">
-      <img src="${campaign.hero_image_url}" alt="${campaign.property_name || 'Property'}" style="width: 100%; height: auto; display: block;">
+    ${roomImageUrl ? `
+    <div style="width: 100%; position: relative;">
+      <img src="${roomImageUrl}" alt="${campaign.property_name || 'Property'}" style="width: 100%; height: 250px; object-fit: cover; display: block;">
+      <div style="position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(transparent, rgba(0,0,0,0.7)); padding: 1rem;">
+        <div style="color: white; font-size: 1.25rem; font-weight: bold;">${campaign.property_name || ''}</div>
+        <div style="color: rgba(255,255,255,0.9); font-size: 0.9rem;">${campaign.room_name || ''}</div>
+      </div>
     </div>
     ` : ''}
     
     <!-- Offer Banner -->
     <div style="background: linear-gradient(135deg, #dc2626, #b91c1c); color: white; padding: 1rem; text-align: center;">
-      <div style="font-size: 1.5rem; font-weight: bold;">🔥 ${discountText}</div>
+      <div style="font-size: 1.5rem; font-weight: bold;">🔥 ${discountText || 'SPECIAL OFFER'}</div>
       <div style="font-size: 0.9rem; opacity: 0.9; margin-top: 0.25rem;">
         ${campaign.name} • Valid until ${formatDate(campaign.end_date)}
       </div>
     </div>
     
-    <!-- Content -->
-    <div style="padding: 2rem;">
-      <div style="font-size: 1rem; line-height: 1.6; color: #333;">
-        ${body}
-      </div>
-      
-      ${campaignUrl ? `
-      <div style="text-align: center; margin-top: 2rem;">
-        <a href="${campaignUrl}" style="display: inline-block; background: #2563eb; color: white; padding: 1rem 2rem; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 1.1rem;">
-          Book Now
-        </a>
-      </div>
-      ` : ''}
-      
-      <div style="margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #eee; font-size: 0.85rem; color: #666; text-align: center;">
-        <p>${campaign.property_name || ''}</p>
-        <p style="margin-top: 0.5rem;">${campaign.property_address || ''}</p>
-      </div>
+    <!-- Two Column Layout -->
+    <div style="padding: 1.5rem;">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td valign="top" style="width: 55%; padding-right: 1rem;">
+            <!-- Custom Message -->
+            <div style="font-size: 1rem; line-height: 1.6; color: #333;">
+              ${body}
+            </div>
+          </td>
+          <td valign="top" style="width: 45%;">
+            <!-- Lite Card -->
+            <div style="background: #f8fafc; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0;">
+              ${roomImageUrl ? `
+              <img src="${roomImageUrl}" alt="${campaign.room_name || 'Room'}" style="width: 100%; height: 120px; object-fit: cover;">
+              ` : ''}
+              <div style="padding: 1rem;">
+                <div style="font-weight: 600; color: #1e293b; margin-bottom: 0.5rem;">${campaign.room_name || campaign.property_name || 'Special Offer'}</div>
+                ${originalPrice ? `
+                <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;">
+                  <span style="text-decoration: line-through; color: #94a3b8; font-size: 0.9rem;">$${originalPrice.toFixed(0)}</span>
+                  <span style="color: #16a34a; font-weight: bold; font-size: 1.1rem;">$${discountedPrice.toFixed(0)}</span>
+                  <span style="background: #dc2626; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: bold;">${discountText}</span>
+                </div>
+                ` : ''}
+                ${campaignUrl ? `
+                <a href="${campaignUrl}" style="display: block; background: #2563eb; color: white; padding: 0.75rem; text-decoration: none; border-radius: 6px; font-weight: 600; text-align: center; font-size: 0.9rem;">
+                  Book Now →
+                </a>
+                ` : ''}
+              </div>
+            </div>
+          </td>
+        </tr>
+      </table>
     </div>
     
     <!-- Footer -->
-    <div style="background: #f8f8f8; padding: 1rem; text-align: center; font-size: 0.75rem; color: #999;">
-      <p>You're receiving this because you stayed with us or subscribed to offers.</p>
-      <p style="margin-top: 0.5rem;">
+    <div style="background: #f8f8f8; padding: 1rem; text-align: center; font-size: 0.75rem; color: #999; border-top: 1px solid #e2e8f0;">
+      <p style="margin: 0;">${campaign.property_name || ''}</p>
+      <p style="margin: 0.25rem 0 0 0;">${campaign.property_address || ''}</p>
+      <p style="margin: 1rem 0 0 0;">You're receiving this because you stayed with us or subscribed to offers.</p>
+      <p style="margin: 0.5rem 0 0 0;">
         <a href="#" style="color: #666;">Unsubscribe</a>
       </p>
     </div>
