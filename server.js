@@ -56071,8 +56071,11 @@ app.post('/api/turbines/campaigns/:id/send', async (req, res) => {
       
       // Record in stats
       await pool.query(`
-        INSERT INTO turbine_campaign_stats (campaign_id, channel, metric, value, recorded_at)
-        VALUES ($1, 'email', 'sent', $2, NOW())
+        INSERT INTO turbine_campaign_stats (campaign_id, channel, sent_count, updated_at)
+        VALUES ($1, 'email', $2, NOW())
+        ON CONFLICT (campaign_id, channel) DO UPDATE SET
+          sent_count = turbine_campaign_stats.sent_count + $2,
+          updated_at = NOW()
       `, [id, sent]);
     }
     
