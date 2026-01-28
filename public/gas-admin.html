@@ -30366,20 +30366,26 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
         
         async function deleteContact(id) {
-            if (!confirm('Delete this contact?')) return;
+            if (!confirm('Remove this contact from your list?')) return;
             
             try {
-                const response = await fetch(`/api/network/contacts/${id}`, { method: 'DELETE' });
+                const accountId = selectedAccountId || currentAccount?.id;
+                if (!accountId) {
+                    showNotification('No account selected', 'error');
+                    return;
+                }
+                const response = await fetch(`/api/network/contacts/${id}?account_id=${accountId}`, { method: 'DELETE' });
                 const data = await response.json();
                 
                 if (data.success) {
-                    showNotification('Contact deleted', 'success');
+                    showNotification('Contact removed', 'success');
                     loadNetworkContacts();
                 } else {
-                    showNotification(data.error || 'Failed to delete', 'error');
+                    showNotification(data.error || 'Failed to remove', 'error');
                 }
             } catch (error) {
-                showNotification('Error deleting contact', 'error');
+                console.error('Delete contact error:', error);
+                showNotification('Error removing contact', 'error');
             }
         }
         
