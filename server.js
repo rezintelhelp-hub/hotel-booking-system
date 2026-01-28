@@ -55689,9 +55689,20 @@ app.post('/api/turbines/campaigns', async (req, res) => {
     // Get the GAS Lite slug for the room if not provided
     let liteSlug = gas_lite_slug;
     if (!liteSlug && room_id) {
-      const liteRes = await pool.query('SELECT slug FROM gas_lites WHERE room_id = $1 AND active = true LIMIT 1', [room_id]);
+      // Try gas_lites table first
+      let liteRes = await pool.query('SELECT slug FROM gas_lites WHERE room_id = $1 AND active = true LIMIT 1', [room_id]);
       if (liteRes.rows.length > 0) {
         liteSlug = liteRes.rows[0].slug;
+      } else {
+        // Try deployed_sites table - check if room is in room_ids array
+        liteRes = await pool.query(`
+          SELECT slug FROM deployed_sites 
+          WHERE $1 = ANY(room_ids) 
+          LIMIT 1
+        `, [room_id]);
+        if (liteRes.rows.length > 0) {
+          liteSlug = liteRes.rows[0].slug;
+        }
       }
     }
     
