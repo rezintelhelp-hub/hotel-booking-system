@@ -41558,12 +41558,18 @@ app.post('/api/v1/offers/validate', authenticateApiKey, async (req, res) => {
             });
         }
         
-        // Check offers by promo code
-        const offer = await pool.query(`
-            SELECT o.* FROM offers o
-            JOIN properties p ON o.property_id = p.id
-            WHERE p.client_id = $1 AND o.promo_code = $2 AND o.is_active = true
-        `, [req.clientId, code.toUpperCase()]);
+        // Check offers table (try both code and offer_code columns)
+        let offer;
+        try {
+            offer = await pool.query(`
+                SELECT o.* FROM offers o
+                JOIN properties p ON o.property_id = p.id
+                WHERE p.client_id = $1 AND (o.code = $2 OR o.offer_code = $2) AND o.is_active = true
+            `, [req.clientId, code.toUpperCase()]);
+        } catch (e) {
+            // If column doesn't exist, try without it
+            offer = { rows: [] };
+        }
         
         if (offer.rows.length > 0) {
             const o = offer.rows[0];
@@ -41583,6 +41589,37 @@ app.post('/api/v1/offers/validate', authenticateApiKey, async (req, res) => {
                     id: o.id,
                     name: o.name,
                     discount_type: o.discount_type,
+                    calculated_discount: discount
+                }
+            });
+        }
+        
+        // Check turbine_campaigns by offer_code
+        const campaign = await pool.query(`
+            SELECT c.* FROM turbine_campaigns c
+            JOIN properties p ON p.id = c.property_id
+            WHERE p.account_id = $1 AND c.offer_code = $2 AND c.status != 'cancelled'
+        `, [req.clientId, code.toUpperCase()]);
+        
+        if (campaign.rows.length > 0) {
+            const c = campaign.rows[0];
+            
+            let discount = 0;
+            if (c.discount_type === 'percent' || c.discount_type === 'percentage') {
+                discount = subtotal ? subtotal * (parseFloat(c.discount_value) / 100) : 0;
+            } else if (c.discount_type === 'fixed') {
+                discount = parseFloat(c.discount_value);
+            }
+            
+            return res.json({
+                success: true,
+                valid: true,
+                type: 'campaign',
+                campaign: {
+                    id: c.id,
+                    name: c.name,
+                    discount_type: c.discount_type,
+                    discount_value: c.discount_value,
                     calculated_discount: discount
                 }
             });
