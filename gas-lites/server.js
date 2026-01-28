@@ -251,13 +251,17 @@ app.get('/:slug', async (req, res) => {
     // Check for active offer/campaign
     let activeOffer = null;
     if (offerCode) {
-      // First check regular offers table
-      const offerRes = await pool.query(`
-        SELECT * FROM offers WHERE promo_code = $1 AND active = true
-        AND (valid_from IS NULL OR valid_from <= NOW())
-        AND (valid_until IS NULL OR valid_until >= NOW())
-      `, [offerCode.toUpperCase()]);
-      activeOffer = offerRes.rows[0];
+      // First check regular offers table (try offer_code column)
+      try {
+        const offerRes = await pool.query(`
+          SELECT * FROM offers WHERE offer_code = $1 AND active = true
+          AND (valid_from IS NULL OR valid_from <= NOW())
+          AND (valid_until IS NULL OR valid_until >= NOW())
+        `, [offerCode.toUpperCase()]);
+        activeOffer = offerRes.rows[0];
+      } catch (e) {
+        // Column might not exist, continue to campaigns
+      }
       
       // If not found, check turbine_campaigns (Turbines campaign offers)
       if (!activeOffer) {
@@ -352,13 +356,17 @@ app.get('/:slug/card', async (req, res) => {
     
     let activeOffer = null;
     if (offer) {
-      // First check regular offers table
-      const offerRes = await pool.query(`
-        SELECT * FROM offers WHERE promo_code = $1 AND active = true
-        AND (valid_from IS NULL OR valid_from <= NOW())
-        AND (valid_until IS NULL OR valid_until >= NOW())
-      `, [offer.toUpperCase()]);
-      activeOffer = offerRes.rows[0];
+      // First check regular offers table (try offer_code column)
+      try {
+        const offerRes = await pool.query(`
+          SELECT * FROM offers WHERE offer_code = $1 AND active = true
+          AND (valid_from IS NULL OR valid_from <= NOW())
+          AND (valid_until IS NULL OR valid_until >= NOW())
+        `, [offer.toUpperCase()]);
+        activeOffer = offerRes.rows[0];
+      } catch (e) {
+        // Column might not exist, continue to campaigns
+      }
       
       // If not found, check turbine_campaigns (Turbines campaign offers)
       if (!activeOffer) {
