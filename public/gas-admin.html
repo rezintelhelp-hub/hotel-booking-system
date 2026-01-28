@@ -30074,6 +30074,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                     ? '£' + campaign.discount_value + ' off' 
                     : '£' + campaign.custom_price + '/night';
             
+            const channels = typeof campaign.channels === 'string' ? JSON.parse(campaign.channels || '{}') : (campaign.channels || {});
+            const emailEnabled = channels.email?.enabled;
+            
             let modalHtml = `
                 <div class="modal active" id="campaignDetailsModal" onclick="if(event.target===this)closeModal('campaignDetailsModal')">
                     <div class="modal-content" style="max-width: 600px;">
@@ -30122,8 +30125,20 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 </div>`}
                                 <div style="display: flex; justify-content: space-between; padding-bottom: 0.75rem; border-bottom: 1px solid #e2e8f0;">
                                     <span style="color: #64748b;">Status</span>
-                                    <strong>${campaign.status}</strong>
+                                    <strong>${campaign.status}${campaign.sent_at ? ' (' + new Date(campaign.sent_at).toLocaleDateString() + ')' : ''}</strong>
                                 </div>
+                                
+                                ${emailEnabled ? `
+                                <div style="background: #eff6ff; border: 1px solid #3b82f6; border-radius: 8px; padding: 1rem; margin-top: 0.5rem;">
+                                    <div style="font-weight: 600; margin-bottom: 0.75rem; color: #1e40af;">📧 Email Campaign</div>
+                                    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                                        <button onclick="sendTestEmail(${campaign.id})" class="btn btn-sm btn-secondary">Send Test Email</button>
+                                        <button onclick="sendCampaignEmails(${campaign.id})" class="btn btn-sm" style="background: #2563eb;" ${campaign.status === 'sent' ? 'disabled' : ''}>
+                                            ${campaign.status === 'sent' ? '✓ Sent' : '🚀 Send to All Contacts'}
+                                        </button>
+                                    </div>
+                                </div>
+                                ` : ''}
                             </div>
                             <div style="display: flex; gap: 1rem; margin-top: 1.5rem; justify-content: flex-end;">
                                 <button class="btn btn-secondary" onclick="closeModal('campaignDetailsModal')">Close</button>
@@ -30139,6 +30154,52 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (existing) existing.remove();
             
             document.body.insertAdjacentHTML('beforeend', modalHtml);
+        }
+        
+        async function sendTestEmail(campaignId) {
+            const email = prompt('Enter test email address:');
+            if (!email) return;
+            
+            try {
+                showNotification('Sending test email...', 'info');
+                const response = await fetch(`/api/turbines/campaigns/${campaignId}/send`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ test_email: email })
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification(`Test email sent to ${email}`, 'success');
+                } else {
+                    showNotification(data.error || 'Failed to send', 'error');
+                }
+            } catch (error) {
+                showNotification('Error sending test email', 'error');
+            }
+        }
+        
+        async function sendCampaignEmails(campaignId) {
+            if (!confirm('Send campaign emails to ALL contacts? This cannot be undone.')) return;
+            
+            try {
+                showNotification('Sending campaign emails...', 'info');
+                const response = await fetch(`/api/turbines/campaigns/${campaignId}/send`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification(`Campaign sent! ${data.sent} emails delivered, ${data.failed} failed`, 'success');
+                    closeModal('campaignDetailsModal');
+                    loadTurbineCampaigns();
+                } else {
+                    showNotification(data.error || 'Failed to send', 'error');
+                }
+            } catch (error) {
+                showNotification('Error sending campaign', 'error');
+            }
         }
         
         function editCampaign(id) {
