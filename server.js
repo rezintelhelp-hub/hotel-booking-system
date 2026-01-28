@@ -55781,6 +55781,204 @@ app.delete('/api/turbines/campaigns/:id', async (req, res) => {
   }
 });
 
+// POST /api/turbines/campaigns/:id/send - Send campaign emails to contacts
+app.post('/api/turbines/campaigns/:id/send', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { test_email } = req.body; // Optional - send test to single email
+    
+    // Get campaign details
+    const campaignResult = await pool.query(`
+      SELECT c.*, p.name as property_name, p.address as property_address,
+             bu.name as room_name, a.name as account_name
+      FROM turbine_campaigns c
+      LEFT JOIN properties p ON p.id = c.property_id
+      LEFT JOIN bookable_units bu ON bu.id = c.room_id
+      LEFT JOIN accounts a ON a.id = c.account_id
+      WHERE c.id = $1
+    `, [id]);
+    
+    if (campaignResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Campaign not found' });
+    }
+    
+    const campaign = campaignResult.rows[0];
+    
+    // Check if email channel is enabled
+    const channels = typeof campaign.channels === 'string' ? JSON.parse(campaign.channels) : campaign.channels;
+    if (!channels?.email?.enabled && !test_email) {
+      return res.json({ success: false, error: 'Email channel not enabled for this campaign' });
+    }
+    
+    // Get recipients
+    let recipients = [];
+    if (test_email) {
+      recipients = [{ email: test_email, first_name: 'Test', last_name: 'User' }];
+    } else {
+      // Get contacts linked to this account
+      const contactsResult = await pool.query(`
+        SELECT t.email, t.first_name, t.last_name
+        FROM travellers t
+        JOIN traveller_property_links tpl ON tpl.traveller_id = t.id
+        WHERE tpl.account_id = $1
+        AND t.email IS NOT NULL
+      `, [campaign.account_id]);
+      recipients = contactsResult.rows;
+    }
+    
+    if (recipients.length === 0) {
+      return res.json({ success: false, error: 'No recipients found' });
+    }
+    
+    // Build campaign URL
+    const campaignUrl = campaign.gas_lite_slug 
+      ? `https://lite.gas.travel/${campaign.gas_lite_slug}?offer=${campaign.offer_code}`
+      : null;
+    
+    // Format dates
+    const formatDate = (d) => d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
+    
+    // Calculate discount display
+    let discountText = '';
+    if (campaign.discount_type === 'percentage') {
+      discountText = `${campaign.discount_value}% OFF`;
+    } else if (campaign.discount_type === 'fixed') {
+      discountText = `$${campaign.discount_value} OFF`;
+    } else if (campaign.discount_type === 'custom_price') {
+      discountText = `Special Price: $${campaign.custom_price}`;
+    }
+    
+    // Build email HTML
+    const buildEmailHtml = (recipient) => {
+      const firstName = recipient.first_name || 'Guest';
+      
+      // Replace placeholders in email body
+      let body = campaign.email_body || '';
+      body = body.replace(/\{\{first_name\}\}/g, firstName);
+      body = body.replace(/\{\{property_name\}\}/g, campaign.property_name || '');
+      body = body.replace(/\{\{room_name\}\}/g, campaign.room_name || '');
+      body = body.replace(/\{\{discount\}\}/g, discountText);
+      
+      return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${campaign.email_subject || campaign.name}</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5;">
+  <div style="max-width: 600px; margin: 0 auto; background: #ffffff;">
+    
+    ${campaign.hero_image_url ? `
+    <div style="width: 100%;">
+      <img src="${campaign.hero_image_url}" alt="${campaign.property_name || 'Property'}" style="width: 100%; height: auto; display: block;">
+    </div>
+    ` : ''}
+    
+    <!-- Offer Banner -->
+    <div style="background: linear-gradient(135deg, #dc2626, #b91c1c); color: white; padding: 1rem; text-align: center;">
+      <div style="font-size: 1.5rem; font-weight: bold;">🔥 ${discountText}</div>
+      <div style="font-size: 0.9rem; opacity: 0.9; margin-top: 0.25rem;">
+        ${campaign.name} • Valid until ${formatDate(campaign.end_date)}
+      </div>
+    </div>
+    
+    <!-- Content -->
+    <div style="padding: 2rem;">
+      <div style="font-size: 1rem; line-height: 1.6; color: #333;">
+        ${body}
+      </div>
+      
+      ${campaignUrl ? `
+      <div style="text-align: center; margin-top: 2rem;">
+        <a href="${campaignUrl}" style="display: inline-block; background: #2563eb; color: white; padding: 1rem 2rem; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 1.1rem;">
+          Book Now
+        </a>
+      </div>
+      ` : ''}
+      
+      <div style="margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #eee; font-size: 0.85rem; color: #666; text-align: center;">
+        <p>${campaign.property_name || ''}</p>
+        <p style="margin-top: 0.5rem;">${campaign.property_address || ''}</p>
+      </div>
+    </div>
+    
+    <!-- Footer -->
+    <div style="background: #f8f8f8; padding: 1rem; text-align: center; font-size: 0.75rem; color: #999;">
+      <p>You're receiving this because you stayed with us or subscribed to offers.</p>
+      <p style="margin-top: 0.5rem;">
+        <a href="#" style="color: #666;">Unsubscribe</a>
+      </p>
+    </div>
+  </div>
+</body>
+</html>`;
+    };
+    
+    // Send emails
+    let sent = 0;
+    let failed = 0;
+    const errors = [];
+    
+    for (const recipient of recipients) {
+      try {
+        const html = buildEmailHtml(recipient);
+        const result = await sendEmail({
+          to: recipient.email,
+          subject: campaign.email_subject || `${discountText} - ${campaign.name}`,
+          html: html,
+          from: `${campaign.account_name || 'GAS'} <bookings@mg.gas.travel>`
+        });
+        
+        if (result.success) {
+          sent++;
+        } else {
+          failed++;
+          errors.push({ email: recipient.email, error: result.error });
+        }
+        
+        // Small delay between emails to avoid rate limits
+        if (!test_email) {
+          await new Promise(r => setTimeout(r, 100));
+        }
+      } catch (err) {
+        failed++;
+        errors.push({ email: recipient.email, error: err.message });
+      }
+    }
+    
+    // Update campaign stats
+    if (!test_email) {
+      await pool.query(`
+        UPDATE turbine_campaigns 
+        SET status = 'sent', 
+            sent_at = NOW(),
+            updated_at = NOW()
+        WHERE id = $1
+      `, [id]);
+      
+      // Record in stats
+      await pool.query(`
+        INSERT INTO turbine_campaign_stats (campaign_id, channel, metric, value, recorded_at)
+        VALUES ($1, 'email', 'sent', $2, NOW())
+      `, [id, sent]);
+    }
+    
+    res.json({ 
+      success: true, 
+      sent,
+      failed,
+      total: recipients.length,
+      test: !!test_email,
+      errors: errors.slice(0, 10)
+    });
+  } catch (error) {
+    console.error('Send campaign error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // GET /api/turbines/connections - Get connected social accounts
 app.get('/api/turbines/connections', async (req, res) => {
   try {
