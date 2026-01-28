@@ -55240,37 +55240,22 @@ app.get('/api/network/contacts', async (req, res) => {
       return res.status(400).json({ success: false, error: 'account_id required' });
     }
     
-    let query = `
+    console.log('Loading contacts for account:', account_id);
+    
+    // Simple query first
+    const result = await pool.query(`
       SELECT t.id, t.email, t.phone, t.first_name, t.last_name, 
-             t.city, t.country, t.status, t.marketing_opt_in,
-             t.created_at, t.updated_at,
+             t.city, t.country, t.status,
              tpl.total_bookings, tpl.total_spent, tpl.last_stay_date, tpl.source,
-             tpl.tags, tpl.notes,
-             p.name as last_property_name
+             tpl.tags, tpl.notes
       FROM travellers t
       JOIN traveller_property_links tpl ON tpl.traveller_id = t.id
-      LEFT JOIN properties p ON p.id = tpl.property_id
       WHERE tpl.account_id = $1
-    `;
-    const params = [account_id];
-    let paramIndex = 2;
+      ORDER BY t.created_at DESC
+      LIMIT $2 OFFSET $3
+    `, [account_id, limit, offset]);
     
-    if (tag_id) {
-      query += ` AND tpl.tags @> $${paramIndex}::jsonb`;
-      params.push(JSON.stringify([{id: parseInt(tag_id)}]));
-      paramIndex++;
-    }
-    
-    if (search) {
-      query += ` AND (t.email ILIKE $${paramIndex} OR t.first_name ILIKE $${paramIndex} OR t.last_name ILIKE $${paramIndex})`;
-      params.push(`%${search}%`);
-      paramIndex++;
-    }
-    
-    query += ` ORDER BY tpl.last_stay_date DESC NULLS LAST, t.created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
-    params.push(limit, offset);
-    
-    const result = await pool.query(query, params);
+    console.log('Found contacts:', result.rows.length);
     
     // Get total count
     const countResult = await pool.query(
@@ -55548,10 +55533,6 @@ app.post('/api/network/contacts/import', async (req, res) => {
       error_details: errors.slice(0, 10)
     });
   } catch (error) {
-    console.error('Import contacts error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
     console.error('Import contacts error:', error);
     res.json({ success: false, error: error.message });
   }
