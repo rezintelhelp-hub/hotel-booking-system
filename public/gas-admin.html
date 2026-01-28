@@ -29341,6 +29341,12 @@ const promo = await fetch('/api/v1/offers/validate', {
         let campaignRooms = [];
         
         async function openCreateCampaignModal(prefillGap = null) {
+            // Remove existing modal to ensure fresh state
+            const existingModal = document.getElementById('campaignWizardModal');
+            if (existingModal) {
+                existingModal.remove();
+            }
+            
             // Reset wizard
             campaignWizardStep = 1;
             campaignData = {
