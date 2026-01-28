@@ -20555,6 +20555,9 @@ const promo = await fetch('/api/v1/offers/validate', {
             // Hide master-only sections when viewing a client
             updateMasterOnlyVisibility();
             
+            // Check if this account has a custom site (show/hide menu item)
+            checkCustomSiteAccess();
+            
             // Reload entitlements for selected account
             if (typeof loadAccountEntitlements === 'function') {
                 loadAccountEntitlements();
@@ -20825,6 +20828,10 @@ const promo = await fetch('/api/v1/offers/validate', {
             // Hide banner
             const banner = document.getElementById('agencyFilterBanner');
             if (banner) banner.style.display = 'none';
+            
+            // Hide custom site menu item (master doesn't have one)
+            const customSiteNav = document.getElementById('nav-my-custom-site');
+            if (customSiteNav) customSiteNav.style.display = 'none';
             
             // Show master-only sections again
             updateMasterOnlyVisibility();
