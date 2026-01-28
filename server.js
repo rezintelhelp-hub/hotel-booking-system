@@ -55345,6 +55345,16 @@ app.post('/api/network/contacts', async (req, res) => {
     
     const traveller = travResult.rows[0];
     
+    // Look up full tag details if tags provided
+    let tagObjects = [];
+    if (tags && tags.length > 0) {
+      const tagResult = await pool.query(
+        'SELECT id, name, icon FROM network_tags WHERE id = ANY($1)',
+        [tags]
+      );
+      tagObjects = tagResult.rows;
+    }
+    
     // Create link to account
     const linkResult = await pool.query(`
       INSERT INTO traveller_property_links (traveller_id, account_id, source, notes, tags)
@@ -55354,7 +55364,7 @@ app.post('/api/network/contacts', async (req, res) => {
         tags = COALESCE($5, traveller_property_links.tags),
         updated_at = NOW()
       RETURNING *
-    `, [traveller.id, account_id, source || 'manual', notes, tags ? JSON.stringify(tags) : '[]']);
+    `, [traveller.id, account_id, source || 'manual', notes, JSON.stringify(tagObjects)]);
     
     res.json({ 
       success: true, 
@@ -55409,11 +55419,19 @@ app.put('/api/network/contacts/:id', async (req, res) => {
   }
 });
 
-// DELETE /api/network/contacts/:id - Delete contact
+// DELETE /api/network/contacts/:id - Delete contact link (removes from this account only)
 app.delete('/api/network/contacts/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    await pool.query('DELETE FROM network_contacts WHERE id = $1', [id]);
+    const { account_id } = req.query;
+    
+    // Delete the link between traveller and account, not the traveller itself
+    if (account_id) {
+      await pool.query('DELETE FROM traveller_property_links WHERE traveller_id = $1 AND account_id = $2', [id, account_id]);
+    } else {
+      // Fallback - delete by traveller id (but this removes from all accounts)
+      await pool.query('DELETE FROM traveller_property_links WHERE traveller_id = $1', [id]);
+    }
     res.json({ success: true });
   } catch (error) {
     console.error('Delete contact error:', error);
@@ -55467,6 +55485,16 @@ app.post('/api/network/contacts/import', async (req, res) => {
       return res.status(400).json({ success: false, error: 'account_id and contacts array required' });
     }
     
+    // Look up full tag details if default_tags provided
+    let tagObjects = [];
+    if (default_tags && default_tags.length > 0) {
+      const tagResult = await pool.query(
+        'SELECT id, name, icon FROM network_tags WHERE id = ANY($1)',
+        [default_tags]
+      );
+      tagObjects = tagResult.rows;
+    }
+    
     let imported = 0;
     let updated = 0;
     let errors = [];
@@ -55478,32 +55506,34 @@ app.post('/api/network/contacts/import', async (req, res) => {
       }
       
       try {
-        const result = await pool.query(`
-          INSERT INTO network_contacts (account_id, email, first_name, last_name, phone, source)
-          VALUES ($1, $2, $3, $4, $5, 'import')
-          ON CONFLICT (account_id, email) DO UPDATE SET
-            first_name = COALESCE(EXCLUDED.first_name, network_contacts.first_name),
-            last_name = COALESCE(EXCLUDED.last_name, network_contacts.last_name),
-            phone = COALESCE(EXCLUDED.phone, network_contacts.phone),
+        // Create or update traveller
+        const travResult = await pool.query(`
+          INSERT INTO travellers (email, first_name, last_name, phone, status)
+          VALUES ($1, $2, $3, $4, 'lead')
+          ON CONFLICT (email) DO UPDATE SET
+            first_name = COALESCE(NULLIF($2, ''), travellers.first_name),
+            last_name = COALESCE(NULLIF($3, ''), travellers.last_name),
+            phone = COALESCE(NULLIF($4, ''), travellers.phone),
             updated_at = NOW()
           RETURNING *, (xmax = 0) as is_new
-        `, [account_id, contact.email.toLowerCase(), contact.first_name, contact.last_name, contact.phone]);
+        `, [contact.email.toLowerCase().trim(), contact.first_name, contact.last_name, contact.phone]);
         
-        if (result.rows[0].is_new) {
+        const traveller = travResult.rows[0];
+        const isNew = traveller.is_new;
+        
+        // Create link to account
+        await pool.query(`
+          INSERT INTO traveller_property_links (traveller_id, account_id, source, tags)
+          VALUES ($1, $2, 'import', $3)
+          ON CONFLICT (traveller_id, account_id) DO UPDATE SET
+            tags = COALESCE($3, traveller_property_links.tags),
+            updated_at = NOW()
+        `, [traveller.id, account_id, JSON.stringify(tagObjects)]);
+        
+        if (isNew) {
           imported++;
         } else {
           updated++;
-        }
-        
-        // Add default tags if provided
-        if (default_tags && default_tags.length > 0) {
-          for (const tagId of default_tags) {
-            await pool.query(`
-              INSERT INTO network_contact_tags (contact_id, tag_id)
-              VALUES ($1, $2)
-              ON CONFLICT DO NOTHING
-            `, [result.rows[0].id, tagId]);
-          }
         }
       } catch (err) {
         errors.push({ row: contact, error: err.message });
@@ -55518,6 +55548,10 @@ app.post('/api/network/contacts/import', async (req, res) => {
       error_details: errors.slice(0, 10)
     });
   } catch (error) {
+    console.error('Import contacts error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
     console.error('Import contacts error:', error);
     res.json({ success: false, error: error.message });
   }
