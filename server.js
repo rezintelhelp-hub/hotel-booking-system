@@ -15949,10 +15949,19 @@ const PROVISION_API_KEY = process.env.PROVISION_API_KEY || 'GAS-PROVISION-1df6d2
 // Provision a custom bespoke site (called after DNS is set up)
 app.post('/api/custom-site/provision', async (req, res) => {
   try {
-    const { request_id, slug, site_name, admin_email } = req.body;
+    const { request_id, slug, site_name, admin_email, account_id } = req.body;
     
     if (!slug || !admin_email) {
       return res.json({ success: false, error: 'slug and admin_email required' });
+    }
+    
+    // If request_id provided, get account_id from the request
+    let finalAccountId = account_id;
+    if (request_id && !finalAccountId) {
+      const reqResult = await pool.query('SELECT account_id FROM custom_site_requests WHERE id = $1', [request_id]);
+      if (reqResult.rows.length > 0) {
+        finalAccountId = reqResult.rows[0].account_id;
+      }
     }
     
     // Call the provision API on premium VPS
@@ -15968,12 +15977,15 @@ app.post('/api/custom-site/provision', async (req, res) => {
     const data = await response.json();
     
     if (data.success) {
-      // Save to custom_sites table
+      // Ensure account_id column exists
+      await pool.query(`ALTER TABLE custom_sites ADD COLUMN IF NOT EXISTS account_id INTEGER`).catch(() => {});
+      
+      // Save to custom_sites table with account_id
       try {
         await pool.query(`
-          INSERT INTO custom_sites (slug, domain, site_name, admin_email, credentials, created_at)
-          VALUES ($1, $2, $3, $4, $5, NOW())
-        `, [slug, data.site.domain, site_name, admin_email, JSON.stringify(data.credentials)]);
+          INSERT INTO custom_sites (slug, domain, site_name, admin_email, credentials, account_id, created_at)
+          VALUES ($1, $2, $3, $4, $5, $6, NOW())
+        `, [slug, data.site.domain, site_name, admin_email, JSON.stringify(data.credentials), finalAccountId]);
       } catch (dbError) {
         // Create table if it doesn't exist
         if (dbError.code === '42P01') {
@@ -15985,13 +15997,14 @@ app.post('/api/custom-site/provision', async (req, res) => {
               site_name VARCHAR(255),
               admin_email VARCHAR(255),
               credentials TEXT,
+              account_id INTEGER,
               created_at TIMESTAMP DEFAULT NOW()
             )
           `);
           await pool.query(`
-            INSERT INTO custom_sites (slug, domain, site_name, admin_email, credentials, created_at)
-            VALUES ($1, $2, $3, $4, $5, NOW())
-          `, [slug, data.site.domain, site_name, admin_email, JSON.stringify(data.credentials)]);
+            INSERT INTO custom_sites (slug, domain, site_name, admin_email, credentials, account_id, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6, NOW())
+          `, [slug, data.site.domain, site_name, admin_email, JSON.stringify(data.credentials), finalAccountId]);
         }
       }
       
