@@ -10149,11 +10149,11 @@ const promo = await fetch('/api/v1/offers/validate', {
 
                 <!-- Shortcodes Reference -->
                 <div class="card" style="margin-bottom: 1.5rem;">
-                    <h3 class="card-title" style="margin-bottom: 1rem;"> Shortcode Reference</h3>
+                    <h3 class="card-title" style="margin-bottom: 1rem;">🔧 Shortcode Reference</h3>
                     
                     <!-- Search Bar -->
                     <div style="display: flex; align-items: flex-start; gap: 1rem; padding: 1rem; background: var(--bg-primary); border-radius: 8px; margin-bottom: 0.75rem;">
-                        <div style="background: #dbeafe; width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; flex-shrink: 0;"></div>
+                        <div style="background: #dbeafe; width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; flex-shrink: 0;">🔍</div>
                         <div style="flex: 1; min-width: 0;">
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
                                 <h4 style="margin: 0; font-size: 0.95rem;">Search Bar</h4>
@@ -10170,27 +10170,48 @@ const promo = await fetch('/api/v1/offers/validate', {
                         </div>
                     </div>
 
-                    <!-- Room Listing -->
-                    <div style="display: flex; align-items: flex-start; gap: 1rem; padding: 1rem; background: var(--bg-primary); border-radius: 8px; margin-bottom: 0.75rem;">
-                        <div style="background: #dcfce7; width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; flex-shrink: 0;"></div>
+                    <!-- Featured Rooms (NEW) -->
+                    <div style="display: flex; align-items: flex-start; gap: 1rem; padding: 1rem; background: var(--bg-primary); border-radius: 8px; margin-bottom: 0.75rem; border: 2px solid #f59e0b;">
+                        <div style="background: #fef3c7; width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; flex-shrink: 0;">⭐</div>
                         <div style="flex: 1; min-width: 0;">
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
-                                <h4 style="margin: 0; font-size: 0.95rem;">Room Listing</h4>
+                                <h4 style="margin: 0; font-size: 0.95rem;">Featured Rooms</h4>
+                                <span style="font-size: 0.75rem; background: #f59e0b; color: white; padding: 0.1rem 0.5rem; border-radius: 3px;">Homepage</span>
+                            </div>
+                            <div style="background: #1e293b; border-radius: 4px; padding: 0.5rem 0.75rem; font-family: monospace; font-size: 0.85rem; color: #e2e8f0; display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                                <code>[gas_rooms limit="3" columns="3" show_map="false" show_filters="false"]</code>
+                                <button onclick="copyShortcode('[gas_rooms limit=&quot;3&quot; columns=&quot;3&quot; show_map=&quot;false&quot; show_filters=&quot;false&quot;]')" style="background: #334155; border: none; color: white; padding: 0.25rem 0.6rem; border-radius: 3px; cursor: pointer; font-size: 0.7rem;">Copy</button>
+                            </div>
+                            <div style="font-size: 0.75rem; color: #64748b;">
+                                Clean grid for homepage. Options: <code style="background: #e2e8f0; padding: 0.1rem 0.3rem; border-radius: 2px;">limit="4"</code>
+                                <code style="background: #e2e8f0; padding: 0.1rem 0.3rem; border-radius: 2px; margin-left: 0.25rem;">random="true"</code>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Room Listing -->
+                    <div style="display: flex; align-items: flex-start; gap: 1rem; padding: 1rem; background: var(--bg-primary); border-radius: 8px; margin-bottom: 0.75rem;">
+                        <div style="background: #dcfce7; width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; flex-shrink: 0;">🏠</div>
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
+                                <h4 style="margin: 0; font-size: 0.95rem;">Room Listing (Full)</h4>
                                 <span style="font-size: 0.75rem; color: #64748b;">Book Now page</span>
                             </div>
                             <div style="background: #1e293b; border-radius: 4px; padding: 0.5rem 0.75rem; font-family: monospace; font-size: 0.85rem; color: #e2e8f0; display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                                <code>[gas_rooms property_id="<span id="shortcode-property-id">1</span>"]</code>
-                                <button onclick="copyShortcode('[gas_rooms property_id=&quot;' + (window.currentPropertyId || 1) + '&quot;]')" style="background: #334155; border: none; color: white; padding: 0.25rem 0.6rem; border-radius: 3px; cursor: pointer; font-size: 0.7rem;">Copy</button>
+                                <code>[gas_rooms]</code>
+                                <button onclick="copyShortcode('[gas_rooms]')" style="background: #334155; border: none; color: white; padding: 0.25rem 0.6rem; border-radius: 3px; cursor: pointer; font-size: 0.7rem;">Copy</button>
                             </div>
                             <div style="font-size: 0.75rem; color: #64748b;">
                                 Options: <code style="background: #e2e8f0; padding: 0.1rem 0.3rem; border-radius: 2px;">columns="2"</code>
+                                <code style="background: #e2e8f0; padding: 0.1rem 0.3rem; border-radius: 2px; margin-left: 0.25rem;">show_map="false"</code>
+                                <code style="background: #e2e8f0; padding: 0.1rem 0.3rem; border-radius: 2px; margin-left: 0.25rem;">show_filters="false"</code>
                             </div>
                         </div>
                     </div>
 
                     <!-- Room Detail -->
                     <div style="display: flex; align-items: flex-start; gap: 1rem; padding: 1rem; background: var(--bg-primary); border-radius: 8px; margin-bottom: 0.75rem;">
-                        <div style="background: #fef3c7; width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; flex-shrink: 0;"></div>
+                        <div style="background: #fef3c7; width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; flex-shrink: 0;">🛏️</div>
                         <div style="flex: 1; min-width: 0;">
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
                                 <h4 style="margin: 0; font-size: 0.95rem;">Room Detail Page</h4>
@@ -10201,27 +10222,45 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 <button onclick="copyShortcode('[gas_room]')" style="background: #334155; border: none; color: white; padding: 0.25rem 0.6rem; border-radius: 3px; cursor: pointer; font-size: 0.7rem;">Copy</button>
                             </div>
                             <div style="font-size: 0.75rem; color: #64748b;">
-                                Options: <code style="background: #e2e8f0; padding: 0.1rem 0.3rem; border-radius: 2px;">unit_id="190"</code>
+                                Auto-detects room from URL. Options: <code style="background: #e2e8f0; padding: 0.1rem 0.3rem; border-radius: 2px;">unit_id="123"</code>
                                 <code style="background: #e2e8f0; padding: 0.1rem 0.3rem; border-radius: 2px; margin-left: 0.25rem;">months="3"</code>
                             </div>
                         </div>
                     </div>
 
                     <!-- Compact Booking -->
-                    <div style="display: flex; align-items: flex-start; gap: 1rem; padding: 1rem; background: var(--bg-primary); border-radius: 8px;">
-                        <div style="background: #fce7f3; width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; flex-shrink: 0;"></div>
+                    <div style="display: flex; align-items: flex-start; gap: 1rem; padding: 1rem; background: var(--bg-primary); border-radius: 8px; margin-bottom: 0.75rem;">
+                        <div style="background: #fce7f3; width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; flex-shrink: 0;">📅</div>
                         <div style="flex: 1; min-width: 0;">
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
                                 <h4 style="margin: 0; font-size: 0.95rem;">Compact Booking Widget</h4>
                                 <span style="font-size: 0.75rem; color: #64748b;">Sidebar / Embed</span>
                             </div>
                             <div style="background: #1e293b; border-radius: 4px; padding: 0.5rem 0.75rem; font-family: monospace; font-size: 0.85rem; color: #e2e8f0; display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                                <code>[gas_booking unit_id="190"]</code>
-                                <button onclick="copyShortcode('[gas_booking unit_id=&quot;190&quot;]')" style="background: #334155; border: none; color: white; padding: 0.25rem 0.6rem; border-radius: 3px; cursor: pointer; font-size: 0.7rem;">Copy</button>
+                                <code>[gas_booking unit_id="123"]</code>
+                                <button onclick="copyShortcode('[gas_booking unit_id=&quot;123&quot;]')" style="background: #334155; border: none; color: white; padding: 0.25rem 0.6rem; border-radius: 3px; cursor: pointer; font-size: 0.7rem;">Copy</button>
                             </div>
                             <div style="font-size: 0.75rem; color: #64748b;">
                                 Options: <code style="background: #e2e8f0; padding: 0.1rem 0.3rem; border-radius: 2px;">months="2"</code>
                                 <code style="background: #e2e8f0; padding: 0.1rem 0.3rem; border-radius: 2px; margin-left: 0.25rem;">show_prices="no"</code>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Checkout -->
+                    <div style="display: flex; align-items: flex-start; gap: 1rem; padding: 1rem; background: var(--bg-primary); border-radius: 8px;">
+                        <div style="background: #d1fae5; width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; flex-shrink: 0;">💳</div>
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
+                                <h4 style="margin: 0; font-size: 0.95rem;">Checkout Page</h4>
+                                <span style="font-size: 0.75rem; color: #64748b;">Checkout page</span>
+                            </div>
+                            <div style="background: #1e293b; border-radius: 4px; padding: 0.5rem 0.75rem; font-family: monospace; font-size: 0.85rem; color: #e2e8f0; display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                                <code>[gas_checkout]</code>
+                                <button onclick="copyShortcode('[gas_checkout]')" style="background: #334155; border: none; color: white; padding: 0.25rem 0.6rem; border-radius: 3px; cursor: pointer; font-size: 0.7rem;">Copy</button>
+                            </div>
+                            <div style="font-size: 0.75rem; color: #64748b;">
+                                Handles payment processing. Page slug should be: <code style="background: #e2e8f0; padding: 0.1rem 0.3rem; border-radius: 2px;">checkout</code>
                             </div>
                         </div>
                     </div>
