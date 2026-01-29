@@ -1643,6 +1643,49 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
       .gallery-grid { display: none; }
     }
     
+    /* Mobile responsive fixes */
+    @media (max-width: 600px) {
+      /* Calendar mobile fixes */
+      .calendar-header { flex-direction: column; gap: 8px; }
+      .calendar-months-wrapper { flex-direction: column; gap: 24px; overflow-x: hidden; }
+      .calendar-month-col { min-width: 0; width: 100%; }
+      .calendar-grid { gap: 2px; }
+      .calendar-day { padding: 8px 2px; font-size: 12px; }
+      .calendar-day .price { font-size: 8px; }
+      .cal-nav-btn { margin-top: 0; }
+      
+      /* Booking card mobile fixes */
+      .booking-card { padding: 16px; position: relative; top: 0; }
+      .date-inputs { grid-template-columns: 1fr 1fr; gap: 8px; }
+      .guest-fields { grid-template-columns: 1fr 1fr; gap: 8px; }
+      .date-field input, .guest-field select { padding: 10px 8px; font-size: 14px; }
+      .price-display { text-align: left; }
+      .price-amount { font-size: 24px; }
+      
+      /* Tabs mobile */
+      .tabs-nav { gap: 4px; justify-content: flex-start; overflow-x: auto; flex-wrap: nowrap; padding-bottom: 8px; }
+      .tab-btn { padding: 8px 14px; font-size: 13px; white-space: nowrap; flex-shrink: 0; margin-right: 4px; margin-bottom: 0; }
+      
+      /* Form rows mobile */
+      .form-row { grid-template-columns: 1fr; }
+      
+      /* Room header mobile */
+      .room-title { font-size: 1.4rem; }
+      .room-meta { gap: 12px; }
+      
+      /* General container padding */
+      .container { padding: 0 12px; }
+    }
+    
+    @media (max-width: 400px) {
+      /* Extra small screens */
+      .calendar-day { padding: 6px 1px; font-size: 11px; }
+      .calendar-day .price { font-size: 7px; }
+      .date-inputs { grid-template-columns: 1fr; }
+      .guest-fields { grid-template-columns: 1fr; }
+      .tab-btn { padding: 6px 10px; font-size: 12px; }
+    }
+    
     /* Room Header */
     .room-header { margin-bottom: 24px; }
     .room-title { font-size: 1.75rem; font-weight: 700; color: #1e293b; margin-bottom: 4px; }
