@@ -30344,6 +30344,127 @@ app.delete('/api/admin/amenities/delete-all', async (req, res) => {
   }
 });
 
+// POST /api/admin/amenities/normalize - Add lowercase aliases to all amenities
+app.post('/api/admin/amenities/normalize', async (req, res) => {
+  try {
+    console.log('🔄 Normalizing amenity codes with lowercase aliases...');
+    
+    // Get all amenities
+    const amenities = await pool.query('SELECT id, amenity_code, aliases FROM master_amenities');
+    
+    let updated = 0;
+    let skipped = 0;
+    const changes = [];
+    
+    for (const amenity of amenities.rows) {
+      const code = amenity.amenity_code;
+      const lowercaseCode = code.toLowerCase();
+      
+      // Parse existing aliases
+      let aliases = [];
+      if (amenity.aliases) {
+        if (Array.isArray(amenity.aliases)) {
+          aliases = amenity.aliases;
+        } else if (typeof amenity.aliases === 'string') {
+          try {
+            aliases = JSON.parse(amenity.aliases);
+          } catch (e) {
+            aliases = [amenity.aliases];
+          }
+        }
+      }
+      
+      // Check if lowercase version needs to be added as alias
+      const needsLowercaseAlias = code !== lowercaseCode && !aliases.map(a => a.toLowerCase()).includes(lowercaseCode);
+      
+      // Also add common variations
+      const variations = [];
+      
+      // Add lowercase of code if different
+      if (needsLowercaseAlias) {
+        variations.push(lowercaseCode);
+      }
+      
+      // Add specific common aliases based on code
+      const commonAliases = {
+        'GRILL': ['bbq', 'barbecue', 'barbeque', 'grill_bbq'],
+        'DRYER': ['tumblr', 'tumbler', 'clothes_dryer'],
+        'tumble_dryer': ['tumblr', 'tumbler', 'dryer'],
+        'MICROWAVE': ['micro'],
+        'WIFI': ['wi-fi', 'wireless', 'internet'],
+        'AIR_CONDITIONING': ['ac', 'a/c', 'aircon', 'air_con'],
+        'REFRIGERATOR': ['fridge', 'ref'],
+        'TV': ['television', 'telly'],
+        'POOL': ['swimming_pool'],
+        'HOT_TUB': ['jacuzzi', 'spa', 'hot_tub'],
+        'WASHER': ['washing_machine'],
+        'washing_machine': ['washer'],
+        'PARKING_INCLUDED': ['free_parking', 'parking'],
+        'free_parking': ['parking', 'parking_included'],
+        'HEATING': ['heater', 'heat'],
+        'FIREPLACE': ['fire_place', 'fire'],
+        'BALCONY': ['terrace'],
+        'GARDEN': ['yard', 'backyard'],
+        'KITCHEN': ['kitchenette'],
+        'COFFEE_MAKER': ['coffee_machine', 'coffee'],
+        'coffee_machine': ['coffee_maker', 'coffee'],
+        'HAIR_DRYER': ['hairdryer', 'blow_dryer'],
+        'SMOKE_DETECTOR': ['smoke_alarm'],
+        'CO_DETECTOR': ['carbon_monoxide_detector', 'co_alarm'],
+        'ELEVATOR': ['lift'],
+        'SELF_CHECK_IN': ['self_checkin', 'keyless'],
+        'self_check_in': ['self_checkin', 'keyless'],
+        'pets_allowed': ['pet_friendly', 'dogs_allowed'],
+        'CHILDREN_WELCOME': ['kids_welcome', 'family_friendly'],
+        'DESK': ['workspace', 'work_desk'],
+        'SAUNA': ['steam_room'],
+        'GYM': ['fitness', 'workout_room'],
+        'FITNESS_ROOM': ['gym', 'fitness_center']
+      };
+      
+      if (commonAliases[code]) {
+        for (const alias of commonAliases[code]) {
+          if (!aliases.map(a => a.toLowerCase()).includes(alias.toLowerCase())) {
+            variations.push(alias);
+          }
+        }
+      }
+      
+      if (variations.length > 0) {
+        // Merge with existing aliases
+        const newAliases = [...new Set([...aliases, ...variations])];
+        
+        await pool.query(
+          'UPDATE master_amenities SET aliases = $1 WHERE id = $2',
+          [JSON.stringify(newAliases), amenity.id]
+        );
+        
+        updated++;
+        changes.push({
+          code: code,
+          added_aliases: variations,
+          total_aliases: newAliases.length
+        });
+      } else {
+        skipped++;
+      }
+    }
+    
+    console.log(`✅ Normalized ${updated} amenities, skipped ${skipped}`);
+    
+    res.json({
+      success: true,
+      message: `Normalized ${updated} amenities with lowercase aliases`,
+      updated,
+      skipped,
+      changes
+    });
+  } catch (error) {
+    console.error('Normalize amenities error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Get unmatched amenities (from partner integrations)
 app.get('/api/admin/unmatched-amenities', async (req, res) => {
   try {
