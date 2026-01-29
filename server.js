@@ -1187,14 +1187,6 @@ async function runMigrations() {
       console.log('ℹ️  custom_site_requests.subdomain:', e.message);
     }
     
-    // Add cm_property_id column to gas_sync_properties
-    try {
-      await pool.query(`ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS cm_property_id VARCHAR(100)`);
-      console.log('✅ gas_sync_properties.cm_property_id column ensured');
-    } catch (e) {
-      console.log('ℹ️  gas_sync_properties.cm_property_id:', e.message);
-    }
-    
   } catch (error) {
     console.error('Migration runner error:', error.message);
   }
