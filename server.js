@@ -2437,14 +2437,15 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
     
     let propResult = { rows: [] };
     
-    // First try to find in gas_sync_properties by gas_property_id (for Beds24)
+    // First try to find in gas_sync_properties by id OR gas_property_id (for Beds24)
     try {
       propResult = await pool.query(`
         SELECT sp.id, sp.gas_property_id, sp.external_id as cm_property_id, sp.name,
-               c.id as connection_id, c.adapter_code, c.external_account_id
+               c.id as connection_id, c.adapter_code, c.external_account_id,
+               c.access_token, c.refresh_token, c.credentials
         FROM gas_sync_properties sp
         JOIN gas_sync_connections c ON c.id = sp.connection_id
-        WHERE sp.gas_property_id = $1
+        WHERE sp.id = $1 OR sp.gas_property_id = $1
       `, [syncPropertyId]);
     } catch (e) {
       console.log('gas_sync_properties lookup failed:', e.message);
