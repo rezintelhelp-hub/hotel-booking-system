@@ -51328,6 +51328,115 @@ app.post('/api/gas-sync/connections/:connectionId/refresh-price-linking', async 
   }
 });
 
+// Copy prices from BASE room to all linked rooms (no API calls needed)
+app.post('/api/gas-sync/connections/:id/apply-linked-pricing', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { days = 90 } = req.body;
+    
+    // Find all rooms with price_linking for this connection
+    const roomsResult = await pool.query(`
+      SELECT rt.id, rt.external_id, rt.name, rt.gas_room_id, rt.price_linking,
+             sp.name as property_name
+      FROM gas_sync_room_types rt
+      JOIN gas_sync_properties sp ON rt.sync_property_id = sp.id
+      WHERE sp.connection_id = $1 AND rt.price_linking IS NOT NULL AND rt.gas_room_id IS NOT NULL
+    `, [id]);
+    
+    console.log(`apply-linked-pricing: Found ${roomsResult.rows.length} rooms with price_linking`);
+    
+    if (roomsResult.rows.length === 0) {
+      return res.json({ success: true, message: 'No rooms with price_linking found', updated: 0 });
+    }
+    
+    // Get unique source room IDs
+    const sourceRoomIds = [...new Set(roomsResult.rows.map(r => {
+      const linking = typeof r.price_linking === 'string' ? JSON.parse(r.price_linking) : r.price_linking;
+      return linking.sourceRoomId;
+    }))];
+    
+    console.log(`apply-linked-pricing: Source rooms: ${sourceRoomIds.join(', ')}`);
+    
+    // Find GAS room IDs for source rooms (need to map Beds24 room ID to GAS room ID)
+    const sourceRoomsResult = await pool.query(`
+      SELECT rt.external_id as beds24_room_id, rt.gas_room_id
+      FROM gas_sync_room_types rt
+      WHERE rt.external_id = ANY($1) AND rt.gas_room_id IS NOT NULL
+    `, [sourceRoomIds.map(String)]);
+    
+    const sourceRoomMap = {};
+    for (const row of sourceRoomsResult.rows) {
+      sourceRoomMap[row.beds24_room_id] = row.gas_room_id;
+    }
+    
+    console.log(`apply-linked-pricing: Source room map:`, sourceRoomMap);
+    
+    // Get prices for all source rooms
+    const startDate = new Date().toISOString().split('T')[0];
+    const endDate = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    
+    const sourcePrices = {};
+    for (const [beds24Id, gasRoomId] of Object.entries(sourceRoomMap)) {
+      const pricesResult = await pool.query(`
+        SELECT date, price, available, min_stay
+        FROM room_availability
+        WHERE room_id = $1 AND date >= $2 AND date <= $3
+        ORDER BY date
+      `, [gasRoomId, startDate, endDate]);
+      
+      sourcePrices[beds24Id] = pricesResult.rows;
+      console.log(`apply-linked-pricing: Got ${pricesResult.rows.length} price records for source room ${beds24Id} (GAS ${gasRoomId})`);
+    }
+    
+    // Now copy prices to each linked room
+    let updated = 0;
+    let errors = [];
+    
+    for (const room of roomsResult.rows) {
+      const linking = typeof room.price_linking === 'string' ? JSON.parse(room.price_linking) : room.price_linking;
+      const sourceRoomId = String(linking.sourceRoomId);
+      const prices = sourcePrices[sourceRoomId];
+      
+      if (!prices || prices.length === 0) {
+        errors.push({ room: room.name, error: `No prices found for source room ${sourceRoomId}` });
+        continue;
+      }
+      
+      // Apply offset if any
+      const offsetAmount = linking.offsetAmount || 0;
+      const offsetMultiplier = linking.offsetMultiplier || 1;
+      
+      for (const priceRecord of prices) {
+        const adjustedPrice = (priceRecord.price * offsetMultiplier) + offsetAmount;
+        
+        await pool.query(`
+          INSERT INTO room_availability (room_id, date, price, available, min_stay, updated_at)
+          VALUES ($1, $2, $3, $4, $5, NOW())
+          ON CONFLICT (room_id, date) DO UPDATE SET
+            price = EXCLUDED.price,
+            available = EXCLUDED.available,
+            min_stay = EXCLUDED.min_stay,
+            updated_at = NOW()
+        `, [room.gas_room_id, priceRecord.date, adjustedPrice, priceRecord.available, priceRecord.min_stay]);
+      }
+      
+      updated++;
+      console.log(`apply-linked-pricing: Copied ${prices.length} prices to ${room.name} (offset: +${offsetAmount})`);
+    }
+    
+    res.json({
+      success: true,
+      updated,
+      message: `Copied prices to ${updated} rooms from BASE`,
+      errors: errors.length > 0 ? errors : undefined
+    });
+    
+  } catch (error) {
+    console.error('apply-linked-pricing error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Extract price_linking from raw_data (no API calls needed)
 app.post('/api/gas-sync/connections/:id/extract-price-linking', async (req, res) => {
   try {
