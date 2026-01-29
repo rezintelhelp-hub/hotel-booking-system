@@ -45230,11 +45230,23 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <small style="color: #6b7280; display: block; margin-top: 8px;"> Find this in Beds24: Settings  Account  Account Access</small>
                 </div>
                 ` : ''}
+                ${isBeds24 ? `
+                <hr style="margin: 20px 0;">
+                <h4 style="margin-bottom: 15px;">🔑 Beds24 V2 Token (Invite Code)</h4>
+                <p style="font-size: 0.9rem; color: #64748b; margin-bottom: 12px;">If your V2 token has expired, enter a new Beds24 Invite Code to reconnect:</p>
+                <div class="form-group" style="margin-bottom: 15px;">
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <input type="text" id="settingV2InviteCode" class="form-control" placeholder="Paste new Invite Code here" style="flex: 1;">
+                        <button class="btn" style="background: #059669;" onclick="reconnectV2Token()">🔄 Reconnect</button>
+                    </div>
+                    <small style="color: #6b7280; display: block; margin-top: 8px;">📍 Find this in Beds24: Settings → Account → API → Create Invite Code</small>
+                </div>
+                ` : ''}
                 <hr style="margin: 20px 0;">
                 <button class="btn btn-primary" onclick="saveConnectionSettings()">💾 Save Settings</button>
                 <hr style="margin: 30px 0;">
                 <h4 style="color: #ef4444;">Danger Zone</h4>
-                <button class="btn btn-danger" onclick="deleteConnection(${conn.id}); closeModal('connectionDetailsModal');"> Delete Connection</button>
+                <button class="btn btn-danger" onclick="deleteConnection(${conn.id}); closeModal('connectionDetailsModal');">🗑 Delete Connection</button>
             `;
         }
         
@@ -45263,6 +45275,43 @@ const promo = await fetch('/api/v1/offers/validate', {
                 }
             } catch (error) {
                 showNotification('Failed to save V1 API key', 'error');
+            }
+        }
+        
+        async function reconnectV2Token() {
+            const inviteCode = document.getElementById('settingV2InviteCode').value.trim();
+            if (!inviteCode) {
+                showNotification('Please enter a Beds24 Invite Code', 'error');
+                return;
+            }
+            
+            const btn = event.target;
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '⏳ Connecting...';
+            btn.disabled = true;
+            
+            try {
+                const response = await fetch(`/api/gas-sync/connections/${selectedConnectionId}/reconnect`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ inviteCode: inviteCode })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    showNotification('✅ Beds24 reconnected successfully!', 'success');
+                    document.getElementById('settingV2InviteCode').value = '';
+                    // Reload connections
+                    await loadGasSyncConnections();
+                    // Refresh the settings tab
+                    showConnectionTab('settings');
+                } else {
+                    showNotification(data.error || 'Failed to reconnect', 'error');
+                }
+            } catch (error) {
+                showNotification('Failed to reconnect: ' + error.message, 'error');
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
             }
         }
 
