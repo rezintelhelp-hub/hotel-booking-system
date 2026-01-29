@@ -51328,6 +51328,82 @@ app.post('/api/gas-sync/connections/:connectionId/refresh-price-linking', async 
   }
 });
 
+// Extract price_linking from raw_data (no API calls needed)
+app.post('/api/gas-sync/connections/:id/extract-price-linking', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Get all sync properties for this connection with their raw_data
+    const propsResult = await pool.query(`
+      SELECT id, name, external_id, raw_data 
+      FROM gas_sync_properties 
+      WHERE connection_id = $1
+    `, [id]);
+    
+    console.log(`extract-price-linking: Processing ${propsResult.rows.length} properties for connection ${id}`);
+    
+    let updated = 0;
+    let skipped = 0;
+    const details = [];
+    
+    for (const prop of propsResult.rows) {
+      const rawData = prop.raw_data;
+      if (!rawData?.roomTypes) {
+        skipped++;
+        continue;
+      }
+      
+      for (const rt of rawData.roomTypes) {
+        // Find a priceRule with priceLinking
+        const priceRule = rt.priceRules?.find(pr => pr.priceLinking?.roomId);
+        
+        if (priceRule?.priceLinking) {
+          const priceLinking = {
+            sourceRoomId: priceRule.priceLinking.roomId,
+            priceId: priceRule.priceLinking.priceId || 1,
+            offsetAmount: priceRule.priceLinking.offsetAmount || 0,
+            offsetMultiplier: priceRule.priceLinking.offsetMultiplier || 1
+          };
+          
+          // Update the gas_sync_room_types table
+          const updateResult = await pool.query(`
+            UPDATE gas_sync_room_types 
+            SET price_linking = $1 
+            WHERE external_id = $2
+            RETURNING id, name
+          `, [JSON.stringify(priceLinking), String(rt.id)]);
+          
+          if (updateResult.rows.length > 0) {
+            updated++;
+            details.push({
+              property: prop.name,
+              room: rt.name || updateResult.rows[0].name,
+              roomId: rt.id,
+              linksTo: priceLinking.sourceRoomId,
+              offset: priceLinking.offsetAmount
+            });
+            console.log(`  Updated price_linking for room ${rt.id} (${rt.name}): links to ${priceLinking.sourceRoomId}`);
+          }
+        }
+      }
+    }
+    
+    console.log(`extract-price-linking: Updated ${updated} rooms, skipped ${skipped} properties without roomTypes`);
+    
+    res.json({ 
+      success: true, 
+      updated, 
+      skipped,
+      message: `Extracted price_linking for ${updated} rooms`,
+      details: details.slice(0, 20) // Show first 20 for brevity
+    });
+    
+  } catch (error) {
+    console.error('extract-price-linking error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Get synced reservations for a connection
 app.get('/api/gas-sync/connections/:id/reservations', async (req, res) => {
   try {
