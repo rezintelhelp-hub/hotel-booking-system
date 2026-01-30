@@ -117,7 +117,14 @@ const LITE_TRANSLATIONS = {
     confirmation_sent: 'A confirmation email has been sent.',
     booking_reference: 'Booking Reference',
     not_found: 'Page not found',
-    error: 'Something went wrong'
+    error: 'Something went wrong',
+    loading: 'Loading',
+    payment: 'Payment',
+    country: 'Country',
+    address: 'Address',
+    city: 'City',
+    postcode: 'Postcode',
+    optional: 'optional'
   },
   fr: {
     gallery: 'Galerie',
@@ -182,7 +189,14 @@ const LITE_TRANSLATIONS = {
     confirmation_sent: 'Un email de confirmation a été envoyé.',
     booking_reference: 'Référence',
     not_found: 'Page non trouvée',
-    error: 'Une erreur est survenue'
+    error: 'Une erreur est survenue',
+    loading: 'Chargement',
+    payment: 'Paiement',
+    country: 'Pays',
+    address: 'Adresse',
+    city: 'Ville',
+    postcode: 'Code postal',
+    optional: 'facultatif'
   },
   es: {
     gallery: 'Galería',
@@ -247,7 +261,14 @@ const LITE_TRANSLATIONS = {
     confirmation_sent: 'Se ha enviado un email de confirmación.',
     booking_reference: 'Referencia',
     not_found: 'Página no encontrada',
-    error: 'Algo salió mal'
+    error: 'Algo salió mal',
+    loading: 'Cargando',
+    payment: 'Pago',
+    country: 'País',
+    address: 'Dirección',
+    city: 'Ciudad',
+    postcode: 'Código postal',
+    optional: 'opcional'
   },
   de: {
     gallery: 'Galerie',
@@ -312,7 +333,14 @@ const LITE_TRANSLATIONS = {
     confirmation_sent: 'Bestätigungs-E-Mail wurde gesendet.',
     booking_reference: 'Buchungsnummer',
     not_found: 'Seite nicht gefunden',
-    error: 'Etwas ist schief gelaufen'
+    error: 'Etwas ist schief gelaufen',
+    loading: 'Laden',
+    payment: 'Zahlung',
+    country: 'Land',
+    address: 'Adresse',
+    city: 'Stadt',
+    postcode: 'Postleitzahl',
+    optional: 'optional'
   },
   nl: {
     gallery: 'Galerij',
@@ -377,7 +405,14 @@ const LITE_TRANSLATIONS = {
     confirmation_sent: 'Bevestigingsmail is verzonden.',
     booking_reference: 'Referentie',
     not_found: 'Pagina niet gevonden',
-    error: 'Er ging iets mis'
+    error: 'Er ging iets mis',
+    loading: 'Laden',
+    payment: 'Betaling',
+    country: 'Land',
+    address: 'Adres',
+    city: 'Stad',
+    postcode: 'Postcode',
+    optional: 'optioneel'
   }
 };
 
@@ -2379,9 +2414,9 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
           <h1 class="room-title">${escapeForHTML(title)}</h1>
           <p class="room-subtitle">${escapeForHTML(lite.city || '')}${lite.city && lite.country ? ', ' : ''}${escapeForHTML(lite.country || '')}</p>
           <div class="room-meta">
-            ${lite.max_guests ? `<span class="meta-item"><span class="meta-icon">👤</span> Guests: ${lite.max_guests}</span>` : ''}
-            ${lite.bedroom_count ? `<span class="meta-item"><span class="meta-icon">🛏</span> Bedrooms: ${lite.bedroom_count}</span>` : ''}
-            ${lite.bathroom_count ? `<span class="meta-item"><span class="meta-icon">🚿</span> Bathrooms: ${Math.floor(lite.bathroom_count)}</span>` : ''}
+            ${lite.max_guests ? `<span class="meta-item"><span class="meta-icon">👤</span> ${t('sleeps', lang)}: ${lite.max_guests}</span>` : ''}
+            ${lite.bedroom_count ? `<span class="meta-item"><span class="meta-icon">🛏</span> ${t('bedrooms', lang)}: ${lite.bedroom_count}</span>` : ''}
+            ${lite.bathroom_count ? `<span class="meta-item"><span class="meta-icon">🚿</span> ${t('bathrooms', lang)}: ${Math.floor(lite.bathroom_count)}</span>` : ''}
             ${lite.room_type ? `<span class="meta-item"><span class="meta-icon">🏠</span> ${lite.room_type}</span>` : ''}
           </div>
         </div>
@@ -2576,16 +2611,16 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
             
             <!-- Book Button (at bottom after all options) -->
             <button class="book-btn" id="bookBtn" disabled>
-              <span class="btn-text">Select dates to check availability</span>
-              <span class="btn-loading" style="display:none;">Checking...</span>
+              <span class="btn-text">${t('select_dates', lang)}</span>
+              <span class="btn-loading" style="display:none;">${t('loading', lang) || 'Loading...'}</span>
             </button>
           </div>
           
           <!-- Step 1: Guest Details -->
           <div id="bookingStep1" class="checkout-step" style="display:none;">
             <div class="step-header">
-              <button class="back-btn" onclick="goToStep(0)">← Back</button>
-              <h3>👤 Your Details</h3>
+              <button class="back-btn" onclick="goToStep(0)">← ${t('back', lang)}</button>
+              <h3>👤 ${t('guest_details', lang)}</h3>
             </div>
             <div class="steps-indicator">
               <div class="step active" data-step="1">1</div>
@@ -2596,25 +2631,25 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
             <form id="guestForm" class="guest-form-full">
               <div class="form-row">
                 <div class="form-field">
-                  <label>First Name <span class="required">*</span></label>
+                  <label>${t('first_name', lang)} <span class="required">*</span></label>
                   <input type="text" id="firstName" name="first_name" required placeholder="John">
                 </div>
                 <div class="form-field">
-                  <label>Last Name <span class="required">*</span></label>
+                  <label>${t('last_name', lang)} <span class="required">*</span></label>
                   <input type="text" id="lastName" name="last_name" required placeholder="Smith">
                 </div>
               </div>
               
               <div class="form-row">
                 <div class="form-field full">
-                  <label>Email Address <span class="required">*</span></label>
+                  <label>${t('email', lang)} <span class="required">*</span></label>
                   <input type="email" id="guestEmail" name="email" required placeholder="john@example.com">
                 </div>
               </div>
               
               <div class="form-row">
                 <div class="form-field full">
-                  <label>Confirm Email <span class="required">*</span></label>
+                  <label>${lang === 'en' ? 'Confirm Email' : t('email', lang)} <span class="required">*</span></label>
                   <input type="email" id="confirmEmail" name="confirm_email" required placeholder="john@example.com">
                   <div class="email-match-status"></div>
                 </div>
@@ -2622,11 +2657,11 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
               
               <div class="form-row">
                 <div class="form-field">
-                  <label>Phone Number <span class="required">*</span></label>
+                  <label>${t('phone', lang)} <span class="required">*</span></label>
                   <input type="tel" id="guestPhone" name="phone" required placeholder="+1 555 123 4567">
                 </div>
                 <div class="form-field">
-                  <label>Country</label>
+                  <label>${lang === 'en' ? 'Country' : t('country', lang) || 'Country'}</label>
                   <select id="guestCountry" name="country">
                     <option value="GB">United Kingdom</option>
                     <option value="US">United States</option>
@@ -2646,27 +2681,26 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
               
               <div class="form-row">
                 <div class="form-field full">
-                  <label>Address <span class="optional">(optional)</span></label>
+                  <label>${lang === 'en' ? 'Address' : t('address', lang) || 'Address'} <span class="optional">(${lang === 'en' ? 'optional' : t('optional', lang) || 'optional'})</span></label>
                   <input type="text" id="guestAddress" name="address" placeholder="123 Main Street">
                 </div>
               </div>
               
               <div class="form-row">
                 <div class="form-field">
-                  <label>City <span class="optional">(optional)</span></label>
+                  <label>${lang === 'en' ? 'City' : t('city', lang) || 'City'} <span class="optional">(${lang === 'en' ? 'optional' : t('optional', lang) || 'optional'})</span></label>
                   <input type="text" id="guestCity" name="city" placeholder="London">
                 </div>
                 <div class="form-field">
-                  <label>Postcode <span class="optional">(optional)</span></label>
+                  <label>${lang === 'en' ? 'Postcode' : t('postcode', lang) || 'Postcode'} <span class="optional">(${lang === 'en' ? 'optional' : t('optional', lang) || 'optional'})</span></label>
                   <input type="text" id="guestPostcode" name="postcode" placeholder="SW1A 1AA">
                 </div>
               </div>
               
               <div class="form-row">
                 <div class="form-field full">
-                  <label>Special Requests <span class="optional">(optional)</span></label>
-                  <textarea id="guestNotes" name="notes" rows="3" placeholder="E.g., late check-in, dietary requirements, special occasion..."></textarea>
-                  <p class="field-hint">Special requests are subject to availability and cannot be guaranteed.</p>
+                  <label>${t('special_requests', lang)} <span class="optional">(${lang === 'en' ? 'optional' : t('optional', lang) || 'optional'})</span></label>
+                  <textarea id="guestNotes" name="notes" rows="3" placeholder=""></textarea>
                 </div>
               </div>
               
@@ -2674,23 +2708,23 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
                 <div class="form-field full">
                   <label class="checkbox-label">
                     <input type="checkbox" id="marketingConsent" name="marketing">
-                    <span>Send me special offers and updates (you can unsubscribe anytime)</span>
+                    <span>${lang === 'fr' ? 'Envoyez-moi des offres spéciales et des actualités' : lang === 'es' ? 'Envíame ofertas especiales y novedades' : lang === 'de' ? 'Senden Sie mir Sonderangebote und Updates' : lang === 'nl' ? 'Stuur mij speciale aanbiedingen en updates' : 'Send me special offers and updates'}</span>
                   </label>
                 </div>
               </div>
             </form>
             
             <div class="step-nav">
-              <button class="btn-secondary" onclick="goToStep(0)">← Back</button>
-              <button class="btn-primary" onclick="goToStep(2)">Continue to Payment →</button>
+              <button class="btn-secondary" onclick="goToStep(0)">← ${t('back', lang)}</button>
+              <button class="btn-primary" onclick="goToStep(2)">${t('continue', lang)} →</button>
             </div>
           </div>
           
           <!-- Step 2: Payment -->
           <div id="bookingStep2" class="checkout-step" style="display:none;">
             <div class="step-header">
-              <button class="back-btn" onclick="goToStep(1)">← Back</button>
-              <h3>💳 Payment</h3>
+              <button class="back-btn" onclick="goToStep(1)">← ${t('back', lang)}</button>
+              <h3>💳 ${t('payment', lang) || 'Payment'}</h3>
             </div>
             <div class="steps-indicator">
               <div class="step completed" data-step="1">✓</div>
@@ -2699,15 +2733,15 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
             </div>
             
             <div class="booking-summary-mini">
-              <div class="summary-row"><span>Dates:</span><span id="summaryDates"></span></div>
-              <div class="summary-row"><span>Guests:</span><span id="summaryGuests"></span></div>
-              <div class="summary-row total"><span>Total:</span><span id="summaryTotal"></span></div>
+              <div class="summary-row"><span>${lang === 'fr' ? 'Dates' : lang === 'es' ? 'Fechas' : lang === 'de' ? 'Daten' : lang === 'nl' ? 'Data' : 'Dates'}:</span><span id="summaryDates"></span></div>
+              <div class="summary-row"><span>${t('guests', lang)}:</span><span id="summaryGuests"></span></div>
+              <div class="summary-row total"><span>${t('total', lang)}:</span><span id="summaryTotal"></span></div>
             </div>
             
             <!-- Card Payment Only for GAS Lites -->
             <div id="cardPaymentSection" class="stripe-section">
-              <h4><span class="lock-icon">🔒</span> Secure Card Payment</h4>
-              <div id="stripeLoading" style="text-align:center;padding:20px;color:#64748b;">Loading payment form...</div>
+              <h4><span class="lock-icon">🔒</span> ${lang === 'fr' ? 'Paiement sécurisé' : lang === 'es' ? 'Pago seguro' : lang === 'de' ? 'Sichere Zahlung' : lang === 'nl' ? 'Veilige betaling' : 'Secure Card Payment'}</h4>
+              <div id="stripeLoading" style="text-align:center;padding:20px;color:#64748b;">${t('loading', lang) || 'Loading...'}...</div>
               <div id="card-element" style="display:none;"></div>
               <div id="card-errors" role="alert"></div>
               <div class="stripe-badge">
@@ -2717,15 +2751,15 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
             </div>
             
             <div id="stripeError" class="stripe-error" style="display:none;">
-              <p>⚠️ Card payment is not available for this property.</p>
-              <p style="font-size:13px;color:#64748b;">Please contact the property directly to make a reservation.</p>
+              <p>⚠️ ${lang === 'fr' ? 'Le paiement par carte n\'est pas disponible.' : lang === 'es' ? 'El pago con tarjeta no está disponible.' : lang === 'de' ? 'Kartenzahlung ist nicht verfügbar.' : lang === 'nl' ? 'Kaartbetaling is niet beschikbaar.' : 'Card payment is not available for this property.'}</p>
+              <p style="font-size:13px;color:#64748b;">${lang === 'fr' ? 'Veuillez contacter la propriété directement.' : lang === 'es' ? 'Por favor contacte la propiedad directamente.' : lang === 'de' ? 'Bitte kontaktieren Sie die Unterkunft direkt.' : lang === 'nl' ? 'Neem direct contact op met het verblijf.' : 'Please contact the property directly to make a reservation.'}</p>
             </div>
             
             <div class="step-nav">
-              <button class="btn-secondary" onclick="goToStep(1)">← Back</button>
+              <button class="btn-secondary" onclick="goToStep(1)">← ${t('back', lang)}</button>
               <button class="btn-primary" id="confirmBookingBtn" onclick="submitBooking()">
-                <span class="btn-text">Confirm Booking</span>
-                <span class="btn-loading" style="display:none;">Processing...</span>
+                <span class="btn-text">${t('confirm_booking', lang)}</span>
+                <span class="btn-loading" style="display:none;">${t('loading', lang) || 'Processing'}...</span>
               </button>
             </div>
           </div>
@@ -2734,25 +2768,25 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
           <div id="bookingStep3" class="checkout-step" style="display:none;">
             <div class="confirmation">
               <div class="confirmation-icon">✓</div>
-              <h3>Booking Confirmed!</h3>
+              <h3>${t('booking_confirmed', lang)}</h3>
               <p class="booking-ref" id="confirmationCode"></p>
-              <p class="confirmation-email">Confirmation sent to <strong id="confirmationEmail"></strong></p>
+              <p class="confirmation-email">${lang === 'fr' ? 'Confirmation envoyée à' : lang === 'es' ? 'Confirmación enviada a' : lang === 'de' ? 'Bestätigung gesendet an' : lang === 'nl' ? 'Bevestiging verzonden naar' : 'Confirmation sent to'} <strong id="confirmationEmail"></strong></p>
               
               <div class="confirmation-details">
-                <div class="conf-row"><span>Property:</span><span>${escapeForHTML(title)}</span></div>
-                <div class="conf-row"><span>Check-in:</span><span id="confCheckin"></span></div>
-                <div class="conf-row"><span>Check-out:</span><span id="confCheckout"></span></div>
-                <div class="conf-row"><span>Guests:</span><span id="confGuests"></span></div>
-                <div class="conf-row total"><span>Total:</span><span id="confTotal"></span></div>
+                <div class="conf-row"><span>${lang === 'fr' ? 'Propriété' : lang === 'es' ? 'Propiedad' : lang === 'de' ? 'Unterkunft' : lang === 'nl' ? 'Accommodatie' : 'Property'}:</span><span>${escapeForHTML(title)}</span></div>
+                <div class="conf-row"><span>${t('check_in', lang)}:</span><span id="confCheckin"></span></div>
+                <div class="conf-row"><span>${t('check_out', lang)}:</span><span id="confCheckout"></span></div>
+                <div class="conf-row"><span>${t('guests', lang)}:</span><span id="confGuests"></span></div>
+                <div class="conf-row total"><span>${t('total', lang)}:</span><span id="confTotal"></span></div>
               </div>
               
-              <p class="confirmation-note">The property will contact you with check-in details.</p>
+              <p class="confirmation-note">${lang === 'fr' ? 'La propriété vous contactera avec les détails d\'arrivée.' : lang === 'es' ? 'La propiedad le contactará con los detalles de llegada.' : lang === 'de' ? 'Die Unterkunft wird Sie mit Check-in-Details kontaktieren.' : lang === 'nl' ? 'Het verblijf neemt contact met u op met incheckgegevens.' : 'The property will contact you with check-in details.'}</p>
             </div>
           </div>
           
           <div class="qr-section" id="qrSection">
             <img src="${qrCode}" alt="QR">
-            <div class="qr-text">Scan to view on mobile<br><strong>#${lite.slug}</strong></div>
+            <div class="qr-text">${t('scan_to_book', lang)}<br><strong>#${lite.slug}</strong></div>
           </div>
         </div>
       </div>
