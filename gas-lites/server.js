@@ -124,7 +124,12 @@ const LITE_TRANSLATIONS = {
     address: 'Address',
     city: 'City',
     postcode: 'Postcode',
-    optional: 'optional'
+    optional: 'optional',
+    description: 'Description',
+    more_info: 'More Information',
+    book_nights: 'Book {n} nights',
+    promo_code: 'Have a promo code?',
+    no_amenities: 'No amenities listed.'
   },
   fr: {
     gallery: 'Galerie',
@@ -196,7 +201,12 @@ const LITE_TRANSLATIONS = {
     address: 'Adresse',
     city: 'Ville',
     postcode: 'Code postal',
-    optional: 'facultatif'
+    optional: 'facultatif',
+    description: 'Description',
+    more_info: 'Plus d\'informations',
+    book_nights: 'Réserver {n} nuits',
+    promo_code: 'Avez-vous un code promo?',
+    no_amenities: 'Aucun équipement listé.'
   },
   es: {
     gallery: 'Galería',
@@ -268,7 +278,12 @@ const LITE_TRANSLATIONS = {
     address: 'Dirección',
     city: 'Ciudad',
     postcode: 'Código postal',
-    optional: 'opcional'
+    optional: 'opcional',
+    description: 'Descripción',
+    more_info: 'Más información',
+    book_nights: 'Reservar {n} noches',
+    promo_code: '¿Tienes un código promocional?',
+    no_amenities: 'No hay servicios listados.'
   },
   de: {
     gallery: 'Galerie',
@@ -340,7 +355,12 @@ const LITE_TRANSLATIONS = {
     address: 'Adresse',
     city: 'Stadt',
     postcode: 'Postleitzahl',
-    optional: 'optional'
+    optional: 'optional',
+    description: 'Beschreibung',
+    more_info: 'Mehr Informationen',
+    book_nights: '{n} Nächte buchen',
+    promo_code: 'Haben Sie einen Promo-Code?',
+    no_amenities: 'Keine Ausstattung aufgeführt.'
   },
   nl: {
     gallery: 'Galerij',
@@ -412,7 +432,12 @@ const LITE_TRANSLATIONS = {
     address: 'Adres',
     city: 'Stad',
     postcode: 'Postcode',
-    optional: 'optioneel'
+    optional: 'optioneel',
+    description: 'Beschrijving',
+    more_info: 'Meer informatie',
+    book_nights: '{n} nachten boeken',
+    promo_code: 'Heb je een promotiecode?',
+    no_amenities: 'Geen voorzieningen vermeld.'
   }
 };
 
@@ -1102,23 +1127,30 @@ app.get('/api/pricing/:roomId', async (req, res) => {
       return res.json({ success: false, error: `Minimum stay is ${minStay} nights`, minStay, nights: numNights });
     }
     
-    // Calculate totals
-    const nightlyTotal = nights.reduce((sum, n) => sum + parseFloat(n.price || room.base_price), 0);
+    // Calculate totals - use base_price as fallback if no availability price
+    const basePrice = parseFloat(room.base_price) || 0;
+    const nightlyTotal = nights.reduce((sum, n) => {
+      const nightPrice = n.price !== null && n.price !== undefined ? parseFloat(n.price) : basePrice;
+      return sum + (nightPrice || basePrice);
+    }, 0);
     const cleaningFee = parseFloat(room.cleaning_fee) || 0;
     const totalGuests = parseInt(adults || 1) + parseInt(children || 0);
     const extraGuestFee = 0; // extra_guest_fee column not available
+    
+    // Debug logging
+    console.log('[Pricing] Room', roomId, '- base_price:', basePrice, ', nights:', numNights, ', nightlyTotal:', nightlyTotal);
     
     res.json({
       success: true,
       pricing: {
         nights: numNights,
         minStay: minStay,
-        nightlyRates: nights.map(n => ({ date: n.date, price: parseFloat(n.price) })),
-        nightlyTotal,
+        nightlyRates: nights.map(n => ({ date: n.date, price: parseFloat(n.price) || basePrice })),
+        nightlyTotal: nightlyTotal || (basePrice * numNights),
         cleaningFee,
         extraGuestFee,
-        subtotal: nightlyTotal + cleaningFee + extraGuestFee,
-        avgPerNight: nightlyTotal / numNights
+        subtotal: (nightlyTotal || (basePrice * numNights)) + cleaningFee + extraGuestFee,
+        avgPerNight: (nightlyTotal || (basePrice * numNights)) / numNights
       }
     });
   } catch (error) {
@@ -2003,6 +2035,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+  ${lang !== 'en' ? `<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/${lang === 'es' ? 'es' : lang === 'fr' ? 'fr' : lang === 'de' ? 'de' : lang === 'nl' ? 'nl' : 'default'}.js"></script>` : ''}
   <script src="https://js.stripe.com/v3/"></script>
   <style>
     :root { --accent: ${accent}; }
@@ -2428,7 +2461,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
         
         <div class="tabs">
           <div class="tabs-nav">
-            <button class="tab-btn active" onclick="showTab('description', this)">Description</button>
+            <button class="tab-btn active" onclick="showTab('description', this)">${t('description', lang)}</button>
             <button class="tab-btn" onclick="showTab('availability', this)">${t('available', lang)}</button>
             <button class="tab-btn" onclick="showTab('features', this)">${t('amenities', lang)}</button>
             ${showReviews ? `<button class="tab-btn" onclick="showTab('reviews', this)">${t('reviews', lang)}</button>` : ''}
@@ -2440,7 +2473,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
               ${shortDescription ? `<p>${shortDescription.replace(/\n/g, ' ')}</p>` : ''}
               ${description && description !== shortDescription ? `
                 <details class="more-info">
-                  <summary>More Information</summary>
+                  <summary>${t('more_info', lang)}</summary>
                   <div class="more-content">
                     ${description.split('\n').filter(p => p.trim()).map(p => `<p>${p}</p>`).join('')}
                   </div>
@@ -2479,8 +2512,8 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
                 <button class="cal-nav-btn" onclick="nextMonth()">›</button>
               </div>
               <div class="calendar-legend">
-                <div class="legend-item"><div class="legend-dot" style="background:#dcfce7;"></div> Available</div>
-                <div class="legend-item"><div class="legend-dot" style="background:#ffe4e6;"></div> Unavailable</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#dcfce7;"></div> ${t('available', lang)}</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#ffe4e6;"></div> ${t('unavailable', lang)}</div>
               </div>
             </div>
           </div>
@@ -2603,7 +2636,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
             
             <!-- Voucher toggle -->
             <div class="voucher-section" id="voucherSection" style="display:none;">
-              <div class="voucher-toggle" onclick="toggleVoucherInput()">🎟️ Have a promo code?</div>
+              <div class="voucher-toggle" onclick="toggleVoucherInput()">🎟️ ${t('promo_code', lang)}</div>
               <div class="voucher-input-wrapper" id="voucherInputWrapper" style="display:none;">
                 <div class="voucher-row">
                   <input type="text" id="voucherCode" placeholder="Enter code" class="voucher-input">
@@ -2834,11 +2867,14 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
       
+      const fpLocale = '${lang}' !== 'en' && flatpickr.l10ns['${lang}'] ? '${lang}' : 'default';
+      
       const checkinPicker = flatpickr('#checkin', {
         dateFormat: 'Y-m-d',
         altInput: true,
         altFormat: 'd M Y',
         minDate: 'today',
+        locale: fpLocale,
         onChange: function(selectedDates, dateStr) {
           if (selectedDates[0]) {
             const nextDay = new Date(selectedDates[0]);
@@ -2854,6 +2890,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
         altInput: true,
         altFormat: 'd M Y',
         minDate: tomorrow,
+        locale: fpLocale,
         onChange: function(selectedDates, dateStr) {
           if (selectedDates[0] && document.getElementById('checkin').value) {
             fetchPricing();
@@ -3003,14 +3040,21 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
       const year = displayMonth.getFullYear();
       const month = displayMonth.getMonth();
       
-      monthLabel.textContent = displayMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+      monthLabel.textContent = displayMonth.toLocaleDateString('${lang === 'es' ? 'es-ES' : lang === 'fr' ? 'fr-FR' : lang === 'de' ? 'de-DE' : lang === 'nl' ? 'nl-NL' : 'en-US'}', { month: 'long', year: 'numeric' });
       
       const firstDay = new Date(year, month, 1).getDay();
       const daysInMonth = new Date(year, month + 1, 0).getDate();
       const today = new Date();
       today.setHours(0,0,0,0);
       
-      let html = ['Su','Mo','Tu','We','Th','Fr','Sa'].map(d => '<div class="calendar-day-header">' + d + '</div>').join('');
+      const dayNames = {
+        en: ['Su','Mo','Tu','We','Th','Fr','Sa'],
+        es: ['Do','Lu','Ma','Mi','Ju','Vi','Sá'],
+        fr: ['Di','Lu','Ma','Me','Je','Ve','Sa'],
+        de: ['So','Mo','Di','Mi','Do','Fr','Sa'],
+        nl: ['Zo','Ma','Di','Wo','Do','Vr','Za']
+      };
+      let html = (dayNames['${lang}'] || dayNames.en).map(d => '<div class="calendar-day-header">' + d + '</div>').join('');
       
       for (let i = 0; i < firstDay; i++) html += '<div class="calendar-day empty"></div>';
       
@@ -3080,7 +3124,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
             availMsg.innerHTML = 'ℹ️ ${lang === 'fr' ? 'Séjour minimum' : lang === 'es' ? 'Estancia mínima' : lang === 'de' ? 'Mindestaufenthalt' : lang === 'nl' ? 'Minimaal verblijf' : 'Minimum stay'}: ' + data.pricing.minStay + ' ${t('nights', lang)}';
             availMsg.style.display = 'block';
           }
-          btnText.textContent = '${t('book', lang)} ' + data.pricing.nights + ' ${t('night', lang)}' + (data.pricing.nights > 1 ? '${lang === 'en' ? 's' : ''}' : '') + ' - ' + currency + Math.round(data.pricing.subtotal);
+          btnText.textContent = '${t('book', lang)} ' + data.pricing.nights + ' ' + (data.pricing.nights === 1 ? '${t('night', lang)}' : '${t('nights', lang)}') + ' - ' + currency + Math.round(data.pricing.subtotal);
           bookBtn.disabled = false;
           document.getElementById('voucherSection').style.display = 'block';
           // Load offers, upsells, and taxes
