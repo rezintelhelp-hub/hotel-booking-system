@@ -5021,6 +5021,39 @@ app.post('/api/gas-sync/connections/:id/debug-calendar', async (req, res) => {
   }
 });
 
+// Debug endpoint to check price_linking status for a connection
+app.get('/api/gas-sync/connections/:id/price-linking-status', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Get rooms with price_linking
+    const withLinking = await pool.query(`
+      SELECT rt.id, rt.external_id, rt.name, rt.price_linking, sp.name as property_name
+      FROM gas_sync_room_types rt
+      JOIN gas_sync_properties sp ON sp.id = rt.sync_property_id
+      WHERE sp.connection_id = $1 AND rt.price_linking IS NOT NULL
+    `, [id]);
+    
+    // Get rooms without price_linking
+    const withoutLinking = await pool.query(`
+      SELECT rt.id, rt.external_id, rt.name, sp.name as property_name
+      FROM gas_sync_room_types rt
+      JOIN gas_sync_properties sp ON sp.id = rt.sync_property_id
+      WHERE sp.connection_id = $1 AND rt.price_linking IS NULL
+    `, [id]);
+    
+    res.json({
+      success: true,
+      withPriceLinking: withLinking.rows.length,
+      withoutPriceLinking: withoutLinking.rows.length,
+      linkedRooms: withLinking.rows,
+      unlinkedRooms: withoutLinking.rows.slice(0, 10) // Just first 10
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Fix beds24_room_id for existing rooms (one-time migration)
 app.post('/api/gas-sync/connections/:id/fix-room-ids', async (req, res) => {
   try {
