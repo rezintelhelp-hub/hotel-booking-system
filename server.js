@@ -6906,12 +6906,20 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
     
     if (v1ApiKey && prop.prop_key) {
       try {
+        // First get the room external_ids we need
+        const roomsForV1 = await pool.query(
+          'SELECT id, external_id FROM gas_sync_room_types WHERE sync_property_id = $1',
+          [prop.id]
+        );
+        const roomExternalIds = roomsForV1.rows.map(r => parseInt(r.external_id)).filter(id => !isNaN(id));
+        console.log(`[Content Sync] Requesting V1 texts for room IDs:`, roomExternalIds.join(', '));
+        
         console.log(`[Content Sync] Calling V1 API getPropertyContent for prop_key: ${prop.prop_key}`);
-        // Request texts in multiple languages AND roomIds to get room-level texts
+        // Request texts in multiple languages AND specific roomIds to get room-level texts
         const v1Response = await axios.post('https://api.beds24.com/json/getPropertyContent', {
           authentication: { apiKey: v1ApiKey, propKey: prop.prop_key },
           texts: ['EN', 'FR', 'NL', 'ES', 'DE'],
-          roomIds: true,
+          roomIds: roomExternalIds.length > 0 ? roomExternalIds : true,
           featureCodes: true
         });
         
@@ -6968,21 +6976,49 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
         console.log(`[Content Sync] V1 content top-level keys:`, Object.keys(content).join(', '));
         
         if (content?.texts) {
-          // V1 returns texts as array when multiple languages requested: [{language: 'EN', ...}, {language: 'FR', ...}]
-          const textsArray = Array.isArray(content.texts) ? content.texts : [content.texts];
-          console.log(`[Content Sync] Languages returned:`, textsArray.map(t => t.language || 'default').join(', '));
+          // V1 can return texts in two formats:
+          // 1. Array: [{language: 'EN', propertyDescription1: '...'}, {language: 'FR', propertyDescription1: '...'}]
+          // 2. Object: {propertyDescription1: {EN: '...', FR: '...'}, propertyDescription2: {EN: '...', FR: '...'}}
           
-          // Build multilingual text objects
           const multiLangTexts = {};
-          for (const langTexts of textsArray) {
-            const lang = (langTexts.language || 'en').toLowerCase();
-            // Collect all text fields for this language
-            for (const [key, value] of Object.entries(langTexts)) {
-              if (key === 'language') continue;
-              if (!multiLangTexts[key]) multiLangTexts[key] = {};
-              multiLangTexts[key][lang] = value;
+          
+          if (Array.isArray(content.texts)) {
+            // Format 1: Array of language objects
+            console.log(`[Content Sync] V1 texts is ARRAY with ${content.texts.length} items`);
+            for (const langTexts of content.texts) {
+              const lang = (langTexts.language || 'en').toLowerCase();
+              for (const [key, value] of Object.entries(langTexts)) {
+                if (key === 'language') continue;
+                if (!multiLangTexts[key]) multiLangTexts[key] = {};
+                multiLangTexts[key][lang] = value;
+              }
+            }
+          } else {
+            // Format 2: Object where each field has language keys
+            console.log(`[Content Sync] V1 texts is OBJECT - checking for language keys in values`);
+            for (const [fieldName, fieldValue] of Object.entries(content.texts)) {
+              if (fieldValue && typeof fieldValue === 'object' && !Array.isArray(fieldValue)) {
+                // Check if this looks like {EN: '...', FR: '...'}
+                const keys = Object.keys(fieldValue);
+                const looksLikeLangKeys = keys.some(k => ['EN', 'FR', 'DE', 'ES', 'NL', 'IT', 'PT'].includes(k.toUpperCase()));
+                if (looksLikeLangKeys) {
+                  // Normalize to lowercase keys
+                  multiLangTexts[fieldName] = {};
+                  for (const [lang, text] of Object.entries(fieldValue)) {
+                    multiLangTexts[fieldName][lang.toLowerCase()] = text;
+                  }
+                } else {
+                  // Just a regular object, store as-is with 'en' key
+                  multiLangTexts[fieldName] = { en: typeof fieldValue === 'string' ? fieldValue : JSON.stringify(fieldValue) };
+                }
+              } else if (typeof fieldValue === 'string') {
+                // Plain string - store as 'en'
+                multiLangTexts[fieldName] = { en: fieldValue };
+              }
             }
           }
+          
+          console.log(`[Content Sync] Languages in propertyDescription2:`, multiLangTexts.propertyDescription2 ? Object.keys(multiLangTexts.propertyDescription2).join(',') : 'none');
           
           console.log(`[Content Sync] Text fields found:`, Object.keys(multiLangTexts).filter(k => 
             k.includes('room') || k.includes('display') || k.includes('propertyDescription')
