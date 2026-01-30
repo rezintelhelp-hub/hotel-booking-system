@@ -27080,7 +27080,14 @@ const promo = await fetch('/api/v1/offers/validate', {
         
         async function loadLanguageSettings() {
             try {
-                const response = await fetch(`/api/admin/accounts/${currentUser.account_id}/settings`, {
+                // Get account ID - use selectedAccountId if viewing another account, otherwise currentAccount
+                const accountId = selectedAccountId || currentAccount?.id;
+                if (!accountId) {
+                    console.log('No account ID available for language settings');
+                    return;
+                }
+                
+                const response = await fetch(`/api/admin/accounts/${accountId}/settings`, {
                     headers: authHeaders()
                 });
                 const data = await response.json();
@@ -27156,9 +27163,17 @@ const promo = await fetch('/api/v1/offers/validate', {
             const statusEl = document.getElementById('lang-settings-status');
             statusEl.textContent = 'Saving...';
             
+            // Get account ID
+            const accountId = selectedAccountId || currentAccount?.id;
+            if (!accountId) {
+                statusEl.textContent = '✗ No account selected';
+                statusEl.style.color = '#ef4444';
+                return;
+            }
+            
             try {
                 // Get current full settings first
-                const getResponse = await fetch(`/api/admin/accounts/${currentUser.account_id}/settings`, {
+                const getResponse = await fetch(`/api/admin/accounts/${accountId}/settings`, {
                     headers: authHeaders()
                 });
                 const getData = await getResponse.json();
@@ -27168,7 +27183,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 currentSettings.languages = accountLanguageSettings;
                 
                 // Save
-                const response = await fetch(`/api/admin/accounts/${currentUser.account_id}/settings`, {
+                const response = await fetch(`/api/admin/accounts/${accountId}/settings`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({ settings: currentSettings })
