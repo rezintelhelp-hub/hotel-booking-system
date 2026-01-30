@@ -6997,19 +6997,40 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
             [prop.id]
           );
           
+          // Get roomIds data from V1 response (this is where room-level texts live)
+          const roomIdsData = content.roomIds || {};
+          
           for (const room of rooms.rows) {
-            // Get room-specific texts or fall back to generic
-            const displayName = multiLangTexts[`displayName_${room.external_id}`] || multiLangTexts.displayName || {};
-            const roomDesc = multiLangTexts[`roomDescription1_${room.external_id}`] || multiLangTexts.roomDescription1 || {};
-            const auxText = multiLangTexts[`auxiliaryText_${room.external_id}`] || multiLangTexts.auxiliaryText || {};
+            // First try to get room-specific texts from roomIds (the correct location)
+            const roomIdData = roomIdsData[room.external_id] || {};
+            const roomIdTexts = roomIdData.texts || {};
+            
+            // Room texts in roomIds are already multilingual objects: {EN: "...", FR: "...", ES: "...", NL: "..."}
+            const displayName = roomIdTexts.displayName || multiLangTexts[`displayName_${room.external_id}`] || multiLangTexts.displayName || {};
+            const roomDesc = roomIdTexts.roomDescription1 || multiLangTexts[`roomDescription1_${room.external_id}`] || multiLangTexts.roomDescription1 || {};
+            const auxText = roomIdTexts.auxiliaryText || multiLangTexts[`auxiliaryText_${room.external_id}`] || multiLangTexts.auxiliaryText || {};
+            
+            // Normalize language keys to lowercase
+            const normalizeKeys = (obj) => {
+              if (!obj || typeof obj !== 'object') return {};
+              const result = {};
+              for (const [key, value] of Object.entries(obj)) {
+                result[key.toLowerCase()] = value;
+              }
+              return result;
+            };
+            
+            const displayNameNorm = normalizeKeys(displayName);
+            const roomDescNorm = normalizeKeys(roomDesc);
+            const auxTextNorm = normalizeKeys(auxText);
             
             // Use property descriptions as fallback if room descriptions are empty
-            const shortDesc = Object.keys(roomDesc).length > 0 ? roomDesc : propDesc1;
-            const fullDesc = Object.keys(auxText).length > 0 ? auxText : propDesc2;
+            const shortDesc = Object.keys(roomDescNorm).length > 0 ? roomDescNorm : propDesc1;
+            const fullDesc = Object.keys(auxTextNorm).length > 0 ? auxTextNorm : propDesc2;
             
-            console.log(`[Content Sync] Room ${room.external_id}: displayName langs=${Object.keys(displayName).join(',') || 'none'}, shortDesc langs=${Object.keys(shortDesc).join(',') || 'none'}, fullDesc langs=${Object.keys(fullDesc).join(',') || 'none'}`);
+            console.log(`[Content Sync] Room ${room.external_id}: displayName langs=${Object.keys(displayNameNorm).join(',') || 'none'}, shortDesc langs=${Object.keys(shortDesc).join(',') || 'none'}, fullDesc langs=${Object.keys(fullDesc).join(',') || 'none'}`);
             
-            if (Object.keys(displayName).length > 0 || Object.keys(shortDesc).length > 0 || Object.keys(fullDesc).length > 0) {
+            if (Object.keys(displayNameNorm).length > 0 || Object.keys(shortDesc).length > 0 || Object.keys(fullDesc).length > 0) {
               await pool.query(`
                 UPDATE gas_sync_room_types SET
                   description = COALESCE($1, description),
@@ -7020,9 +7041,9 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
                 // Store first available language as plain description for backwards compat
                 shortDesc.en || shortDesc.fr || shortDesc.nl || shortDesc.es || Object.values(shortDesc)[0] || null,
                 JSON.stringify({ 
-                  displayName, 
-                  roomDescription1: roomDesc,
-                  auxiliaryText: auxText,
+                  displayName: displayNameNorm, 
+                  roomDescription1: roomDescNorm,
+                  auxiliaryText: auxTextNorm,
                   propertyDescription1: propDesc1,
                   propertyDescription2: propDesc2,
                   // Store computed multilingual descriptions
