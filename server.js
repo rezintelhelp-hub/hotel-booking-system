@@ -4924,7 +4924,13 @@ app.post('/api/gas-sync/connections/:id/debug-calendar', async (req, res) => {
     const results = {};
     
     // Build params based on what was provided
-    const calParams = { from: startDate, to: endDate };
+    const calParams = { 
+      startDate: startDate, 
+      endDate: endDate,
+      includeNumAvail: true,
+      includePrices: true,
+      includeMinStay: true
+    };
     if (roomId) calParams.roomId = parseInt(roomId);
     if (propertyId) calParams.propertyId = parseInt(propertyId);
     
@@ -4935,6 +4941,7 @@ app.post('/api/gas-sync/connections/:id/debug-calendar', async (req, res) => {
         headers: { 'token': accessToken }
       });
       results.calendar = calendarResponse.data;
+      results.calendarParams = calParams;  // Include params for debugging
     } catch (e) {
       results.calendar_error = e.response?.data || e.message;
     }
