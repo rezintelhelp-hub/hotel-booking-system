@@ -2731,10 +2731,15 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
       const startDate = new Date().toISOString().split('T')[0];
       const endDate = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
       
+      console.log(`[Beds24 Sync] Price linking map has ${Object.keys(priceLinkingMap).length} entries`);
+      console.log(`[Beds24 Sync] Date range: ${startDate} to ${endDate}`);
+      
       let totalDaysUpdated = 0;
       
       for (const room of roomsResult.rows) {
         try {
+          console.log(`[Beds24 Sync] Processing room ${room.name}, beds24_room_id: ${room.beds24_room_id}`);
+          
           // Fetch calendar from Beds24 V2
           const calResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/calendar', {
             headers: { 'token': accessToken },
@@ -2751,8 +2756,11 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
           const calendarData = calResponse.data.data?.[0]?.calendar || [];
           const hasAnyPrices = calendarData.some(entry => entry.price1);
           
+          console.log(`[Beds24 Sync] ${room.name}: V2 returned ${calendarData.length} entries, hasAnyPrices: ${hasAnyPrices}`);
+          
           // Check if this room has price linking
           const linking = priceLinkingMap[String(room.beds24_room_id)];
+          console.log(`[Beds24 Sync] ${room.name}: linking found: ${!!linking}, key used: ${String(room.beds24_room_id)}`);
           
           // If no prices but has linking, get from BASE in database
           if (!hasAnyPrices && linking) {
