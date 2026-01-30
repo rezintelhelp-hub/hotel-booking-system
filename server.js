@@ -4977,6 +4977,111 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     // Count images for response
     const imageCount = skipImages ? 'skipped' : (syncImages?.rows?.length || 0);
     
+    // Auto-translate room content if account has languages configured
+    let translatedRooms = 0;
+    try {
+      // Get account's configured languages
+      const accountResult = await pool.query(
+        'SELECT settings FROM accounts WHERE id = $1',
+        [prop.account_id]
+      );
+      const accountSettings = accountResult.rows[0]?.settings || {};
+      const supportedLangs = accountSettings.languages?.supported || [];
+      
+      if (supportedLangs.length > 1 && DEEPL_API_KEY) {
+        console.log('link-to-gas: Auto-translating to languages:', supportedLangs.join(', '));
+        
+        // Get all rooms we just synced that need translation
+        const roomsToTranslate = await pool.query(`
+          SELECT id, display_name, short_description, full_description
+          FROM bookable_units
+          WHERE property_id = $1
+        `, [gasPropertyId]);
+        
+        for (const room of roomsToTranslate.rows) {
+          try {
+            // Determine source language from content
+            let sourceLang = 'en';
+            const shortDesc = room.short_description;
+            if (typeof shortDesc === 'object' && shortDesc) {
+              sourceLang = shortDesc._source || (shortDesc.en ? 'en' : shortDesc.fr ? 'fr' : Object.keys(shortDesc).find(k => !k.startsWith('_')) || 'en');
+            }
+            
+            // Check if any supported language is missing
+            const needsTranslation = supportedLangs.some(lang => {
+              if (lang === sourceLang) return false;
+              const hasDisplayName = room.display_name?.[lang];
+              const hasShortDesc = room.short_description?.[lang];
+              return !hasDisplayName || !hasShortDesc;
+            });
+            
+            if (!needsTranslation) continue;
+            
+            // Translate each field
+            const updates = [];
+            const params = [];
+            let paramIndex = 1;
+            
+            // Translate display_name
+            if (room.display_name) {
+              let displayNameObj = room.display_name;
+              if (typeof displayNameObj === 'string') {
+                try { displayNameObj = JSON.parse(displayNameObj); } catch(e) { displayNameObj = { [sourceLang]: displayNameObj }; }
+              }
+              const translated = await translateFieldToLanguages(displayNameObj, sourceLang, supportedLangs);
+              if (translated && Object.keys(translated).length > 0) {
+                updates.push(`display_name = $${paramIndex}::jsonb`);
+                params.push(JSON.stringify(translated));
+                paramIndex++;
+              }
+            }
+            
+            // Translate short_description
+            if (room.short_description) {
+              let shortDescObj = room.short_description;
+              if (typeof shortDescObj === 'string') {
+                try { shortDescObj = JSON.parse(shortDescObj); } catch(e) { shortDescObj = { [sourceLang]: shortDescObj }; }
+              }
+              const translated = await translateFieldToLanguages(shortDescObj, sourceLang, supportedLangs);
+              if (translated && Object.keys(translated).length > 0) {
+                updates.push(`short_description = $${paramIndex}::jsonb`);
+                params.push(JSON.stringify(translated));
+                paramIndex++;
+              }
+            }
+            
+            // Translate full_description
+            if (room.full_description) {
+              let fullDescObj = room.full_description;
+              if (typeof fullDescObj === 'string') {
+                try { fullDescObj = JSON.parse(fullDescObj); } catch(e) { fullDescObj = { [sourceLang]: fullDescObj }; }
+              }
+              const translated = await translateFieldToLanguages(fullDescObj, sourceLang, supportedLangs);
+              if (translated && Object.keys(translated).length > 0) {
+                updates.push(`full_description = $${paramIndex}::jsonb`);
+                params.push(JSON.stringify(translated));
+                paramIndex++;
+              }
+            }
+            
+            if (updates.length > 0) {
+              params.push(room.id);
+              await pool.query(`UPDATE bookable_units SET ${updates.join(', ')}, updated_at = NOW() WHERE id = $${paramIndex}`, params);
+              translatedRooms++;
+            }
+          } catch (roomErr) {
+            console.log('link-to-gas: Translation error for room', room.id, roomErr.message);
+          }
+        }
+        
+        if (translatedRooms > 0) {
+          console.log(`link-to-gas: Auto-translated ${translatedRooms} rooms`);
+        }
+      }
+    } catch (translateErr) {
+      console.log('link-to-gas: Auto-translation error:', translateErr.message);
+    }
+    
     res.json({
       success: true,
       message: 'Property linked to GAS',
@@ -4984,6 +5089,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
       stats: {
         roomsCreated,
         roomsUpdated,
+        roomsTranslated: translatedRooms,
         imagesCreated,
         totalRooms: syncRooms.rows.length,
         totalImages: imageCount
@@ -58694,43 +58800,89 @@ async function processTranslationQueue() {
           AUTO_TRANSLATE_LANGUAGES
         );
         
-        // Translate full_description if exists
-        let translatedFull = unit.full_description;
-        if (unit.full_description && typeof unit.full_description === 'object' && Object.keys(unit.full_description).length > 0) {
-          translatedFull = await translateFieldToLanguages(
-            unit.full_description,
-            sourceLang,
-            AUTO_TRANSLATE_LANGUAGES
-          );
+        // Translate full_description - handle string, object, or null
+        let translatedFull = null;
+        if (unit.full_description) {
+          // Parse if it's a JSON string
+          let fullDescObj = unit.full_description;
+          if (typeof fullDescObj === 'string') {
+            try {
+              fullDescObj = JSON.parse(fullDescObj);
+            } catch (e) {
+              // Plain string - wrap in object
+              fullDescObj = { [sourceLang]: fullDescObj };
+            }
+          }
+          if (fullDescObj && (typeof fullDescObj === 'object' || typeof fullDescObj === 'string')) {
+            translatedFull = await translateFieldToLanguages(
+              fullDescObj,
+              sourceLang,
+              AUTO_TRANSLATE_LANGUAGES
+            );
+          }
         }
         
-        // Translate display_name if exists and is object
-        let translatedDisplayName = unit.display_name;
-        if (unit.display_name && typeof unit.display_name === 'object') {
-          translatedDisplayName = await translateFieldToLanguages(
-            unit.display_name,
-            sourceLang,
-            AUTO_TRANSLATE_LANGUAGES
-          );
+        // Translate display_name - handle string, object, or null
+        let translatedDisplayName = null;
+        if (unit.display_name) {
+          // Parse if it's a JSON string
+          let displayNameObj = unit.display_name;
+          if (typeof displayNameObj === 'string') {
+            try {
+              displayNameObj = JSON.parse(displayNameObj);
+            } catch (e) {
+              // Plain string - wrap in object
+              displayNameObj = { [sourceLang]: displayNameObj };
+            }
+          }
+          if (displayNameObj && (typeof displayNameObj === 'object' || typeof displayNameObj === 'string')) {
+            translatedDisplayName = await translateFieldToLanguages(
+              displayNameObj,
+              sourceLang,
+              AUTO_TRANSLATE_LANGUAGES
+            );
+          }
         }
         
-        // Update the unit
-        await pool.query(`
-          UPDATE bookable_units 
-          SET short_description = $1,
-              full_description = $2,
-              display_name = $3,
-              updated_at = NOW()
-          WHERE id = $4
-        `, [
-          JSON.stringify(translatedShort),
-          translatedFull ? JSON.stringify(translatedFull) : null,
-          translatedDisplayName ? (typeof translatedDisplayName === 'object' ? JSON.stringify(translatedDisplayName) : translatedDisplayName) : unit.display_name,
-          unit.id
-        ]);
+        // Update the unit - only update fields that were translated
+        const updates = [];
+        const params = [];
+        let paramIndex = 1;
+        
+        if (translatedShort && Object.keys(translatedShort).length > 0) {
+          updates.push(`short_description = $${paramIndex}::jsonb`);
+          params.push(JSON.stringify(translatedShort));
+          paramIndex++;
+        }
+        
+        if (translatedFull && Object.keys(translatedFull).length > 0) {
+          updates.push(`full_description = $${paramIndex}::jsonb`);
+          params.push(JSON.stringify(translatedFull));
+          paramIndex++;
+        }
+        
+        if (translatedDisplayName && Object.keys(translatedDisplayName).length > 0) {
+          updates.push(`display_name = $${paramIndex}::jsonb`);
+          params.push(JSON.stringify(translatedDisplayName));
+          paramIndex++;
+        }
+        
+        if (updates.length > 0) {
+          updates.push('updated_at = NOW()');
+          params.push(unit.id);
+          
+          await pool.query(`
+            UPDATE bookable_units 
+            SET ${updates.join(', ')}
+            WHERE id = $${paramIndex}
+          `, params);
+          
+          console.log(`[Translation Worker] ✓ Translated unit ${unit.id} - updated: ${updates.filter(u => !u.includes('updated_at')).map(u => u.split(' ')[0]).join(', ')}`);
+        } else {
+          console.log(`[Translation Worker] ⏭️ Unit ${unit.id} - nothing to translate`);
+        }
         
         translatedCount++;
-        console.log(`[Translation Worker] ✓ Translated unit ${unit.id}`);
         
         // Delay between units to respect rate limits
         await new Promise(resolve => setTimeout(resolve, 500));
@@ -58781,27 +58933,27 @@ async function checkDeepLStatus() {
   }
 }
 
-// Start translation worker (runs every 30 minutes)
+// Start translation worker (runs daily as catch-up - main translation happens on sync)
 function startTranslationWorker() {
   if (!DEEPL_API_KEY) {
     console.log('[Translation Worker] Disabled - no DEEPL_API_KEY configured');
     return;
   }
   
-  console.log('[Translation Worker] Starting - will run every 30 minutes');
+  console.log('[Translation Worker] Starting - will run daily as catch-up (main translation on sync)');
   
   // Check DeepL status on startup
   checkDeepLStatus();
   
-  // Run first batch after 2 minutes (let server fully start)
+  // Run first batch after 5 minutes (let server fully start)
   setTimeout(() => {
     processTranslationQueue();
-  }, 2 * 60 * 1000);
+  }, 5 * 60 * 1000);
   
-  // Then run every 30 minutes
+  // Then run once every 24 hours as catch-up
   setInterval(() => {
     processTranslationQueue();
-  }, 30 * 60 * 1000);
+  }, 24 * 60 * 60 * 1000);
 }
 
 // API endpoint to manually trigger translation
