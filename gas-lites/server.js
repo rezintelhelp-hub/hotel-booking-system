@@ -1099,7 +1099,7 @@ app.get('/api/pricing/:roomId', async (req, res) => {
     // Check min stay
     const minStay = nights[0]?.min_stay || 1;
     if (numNights < minStay) {
-      return res.json({ success: false, error: `Minimum stay is ${minStay} nights` });
+      return res.json({ success: false, error: `Minimum stay is ${minStay} nights`, minStay, nights: numNights });
     }
     
     // Calculate totals
@@ -1112,6 +1112,7 @@ app.get('/api/pricing/:roomId', async (req, res) => {
       success: true,
       pricing: {
         nights: numNights,
+        minStay: minStay,
         nightlyRates: nights.map(n => ({ date: n.date, price: parseFloat(n.price) })),
         nightlyTotal,
         cleaningFee,
@@ -2171,6 +2172,10 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     .guest-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
     .guest-field label { display: block; font-size: 11px; font-weight: 600; color: #64748b; margin-bottom: 4px; text-transform: uppercase; }
     .child-age-hint { font-size: 10px; font-weight: 400; color: #94a3b8; }
+    .availability-msg { padding: 12px; border-radius: 8px; margin-bottom: 12px; font-size: 14px; }
+    .availability-msg.error { background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; }
+    .availability-msg.warning { background: #fffbeb; border: 1px solid #fde68a; color: #b45309; }
+    .availability-msg.info { background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; }
     .book-btn { width: 100%; padding: 16px; background: var(--accent); color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s; }
     .book-btn:hover { filter: brightness(0.95); }
     .book-btn:disabled { background: #cbd5e1; cursor: not-allowed; }
@@ -2565,6 +2570,9 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
               <div class="guest-field"><label>${t('guests', lang)}</label><select id="adults">${[1,2,3,4,5,6,7,8].map(n => `<option value="${n}">${n}</option>`).join('')}</select></div>
               <div class="guest-field"><label>${lang === 'en' ? 'Children' : t('guests', lang)} <span class="child-age-hint">(${lang === 'en' ? 'under 12' : '<12'})</span></label><select id="children">${[0,1,2,3,4,5].map(n => `<option value="${n}">${n}</option>`).join('')}</select></div>
             </div>
+            
+            <!-- Min stay / availability message -->
+            <div id="availabilityMsg" class="availability-msg" style="display:none;"></div>
             
             <!-- Rate Options (shown when offers available) -->
             <div id="rateOptionsSection" class="rate-options-section" style="display:none;">
@@ -3054,6 +3062,8 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
       
       btnText.textContent = 'Checking...';
       bookBtn.disabled = true;
+      const availMsg = document.getElementById('availabilityMsg');
+      availMsg.style.display = 'none';
       
       try {
         const adults = document.getElementById('adults').value;
@@ -3064,7 +3074,13 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
         if (data.success) {
           currentPricing = data.pricing;
           displayPricing();
-          btnText.textContent = 'Book ' + data.pricing.nights + ' night' + (data.pricing.nights > 1 ? 's' : '') + ' - ' + currency + Math.round(data.pricing.subtotal);
+          // Show min stay info if applicable
+          if (data.pricing.minStay > 1) {
+            availMsg.className = 'availability-msg info';
+            availMsg.innerHTML = 'ℹ️ ${lang === 'fr' ? 'Séjour minimum' : lang === 'es' ? 'Estancia mínima' : lang === 'de' ? 'Mindestaufenthalt' : lang === 'nl' ? 'Minimaal verblijf' : 'Minimum stay'}: ' + data.pricing.minStay + ' ${t('nights', lang)}';
+            availMsg.style.display = 'block';
+          }
+          btnText.textContent = '${t('book', lang)} ' + data.pricing.nights + ' ${t('night', lang)}' + (data.pricing.nights > 1 ? '${lang === 'en' ? 's' : ''}' : '') + ' - ' + currency + Math.round(data.pricing.subtotal);
           bookBtn.disabled = false;
           document.getElementById('voucherSection').style.display = 'block';
           // Load offers, upsells, and taxes
@@ -3076,12 +3092,26 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
           document.getElementById('priceBreakdown').style.display = 'none';
           document.getElementById('rateOptionsSection').style.display = 'none';
           document.getElementById('offerBanner').classList.remove('visible');
-          btnText.textContent = data.error || 'Not available';
+          
+          // Show specific error messages
+          if (data.minStay && data.nights) {
+            availMsg.className = 'availability-msg warning';
+            availMsg.innerHTML = '⚠️ ${lang === 'fr' ? 'Séjour minimum' : lang === 'es' ? 'Estancia mínima' : lang === 'de' ? 'Mindestaufenthalt' : lang === 'nl' ? 'Minimaal verblijf' : 'Minimum stay'}: <strong>' + data.minStay + ' ${t('nights', lang)}</strong> (${lang === 'fr' ? 'vous avez sélectionné' : lang === 'es' ? 'ha seleccionado' : lang === 'de' ? 'Sie haben gewählt' : lang === 'nl' ? 'u heeft gekozen' : 'you selected'} ' + data.nights + ')';
+            availMsg.style.display = 'block';
+            btnText.textContent = '${lang === 'fr' ? 'Séjour minimum' : lang === 'es' ? 'Estancia mínima' : lang === 'de' ? 'Mindestaufenthalt' : lang === 'nl' ? 'Minimaal verblijf' : 'Minimum stay'} ' + data.minStay + ' ${t('nights', lang)}';
+          } else if (data.unavailable && data.unavailable.length > 0) {
+            availMsg.className = 'availability-msg error';
+            availMsg.innerHTML = '❌ ${lang === 'fr' ? 'Certaines dates ne sont pas disponibles' : lang === 'es' ? 'Algunas fechas no están disponibles' : lang === 'de' ? 'Einige Daten sind nicht verfügbar' : lang === 'nl' ? 'Sommige datums zijn niet beschikbaar' : 'Some dates are not available'}';
+            availMsg.style.display = 'block';
+            btnText.textContent = '${t('unavailable', lang)}';
+          } else {
+            btnText.textContent = data.error || '${t('unavailable', lang)}';
+          }
           bookBtn.disabled = true;
         }
       } catch (e) {
         console.error('Pricing error:', e);
-        btnText.textContent = 'Error checking availability';
+        btnText.textContent = '${t('error', lang)}';
         bookBtn.disabled = true;
       }
     }
@@ -3169,7 +3199,8 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
       if (!currentPricing) return;
       
       const p = currentPricing;
-      document.getElementById('nightlyRow').innerHTML = '<span>' + currency + Math.round(p.avgPerNight) + ' × ' + p.nights + ' nights</span><span>' + currency + Math.round(p.nightlyTotal) + '</span>';
+      const nightsWord = p.nights === 1 ? '${t('night', lang)}' : '${t('nights', lang)}';
+      document.getElementById('nightlyRow').innerHTML = '<span>' + currency + Math.round(p.avgPerNight) + ' × ' + p.nights + ' ' + nightsWord + '</span><span>' + currency + Math.round(p.nightlyTotal) + '</span>';
       
       const cleaningRow = document.getElementById('cleaningRow');
       if (p.cleaningFee > 0) {
