@@ -8346,6 +8346,63 @@
                     <p>Configure your system</p>
                 </div>
 
+                <!-- Language Settings Card -->
+                <div class="card" style="margin-bottom: 1rem;">
+                    <h3 class="card-title">🌐 Language Settings</h3>
+                    <p style="color: #64748b; margin-top: 0.5rem; margin-bottom: 1rem;">Configure which languages your content will be available in. Content will be auto-translated to selected languages.</p>
+                    
+                    <div style="display: grid; gap: 1rem; max-width: 500px;">
+                        <div class="form-group">
+                            <label class="form-label">Primary Language</label>
+                            <select id="settings-primary-language" class="form-input" onchange="updateLanguageSettings()">
+                                <option value="en">🇬🇧 English</option>
+                                <option value="es">🇪🇸 Español</option>
+                                <option value="fr">🇫🇷 Français</option>
+                                <option value="de">🇩🇪 Deutsch</option>
+                                <option value="nl">🇳🇱 Nederlands</option>
+                                <option value="it">🇮🇹 Italiano</option>
+                                <option value="pt">🇵🇹 Português</option>
+                            </select>
+                            <small style="color: #64748b;">The language you write your content in</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Additional Languages (max 3)</label>
+                            <div id="additional-languages-checkboxes" style="display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 0.5rem;">
+                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                    <input type="checkbox" value="en" class="additional-lang-cb" onchange="updateLanguageSettings()"> 🇬🇧 English
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                    <input type="checkbox" value="es" class="additional-lang-cb" onchange="updateLanguageSettings()"> 🇪🇸 Español
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                    <input type="checkbox" value="fr" class="additional-lang-cb" onchange="updateLanguageSettings()"> 🇫🇷 Français
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                    <input type="checkbox" value="de" class="additional-lang-cb" onchange="updateLanguageSettings()"> 🇩🇪 Deutsch
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                    <input type="checkbox" value="nl" class="additional-lang-cb" onchange="updateLanguageSettings()"> 🇳🇱 Nederlands
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                    <input type="checkbox" value="it" class="additional-lang-cb" onchange="updateLanguageSettings()"> 🇮🇹 Italiano
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                    <input type="checkbox" value="pt" class="additional-lang-cb" onchange="updateLanguageSettings()"> 🇵🇹 Português
+                                </label>
+                            </div>
+                            <small style="color: #64748b; display: block; margin-top: 0.5rem;">Content will be auto-translated to these languages. Other languages will be translated on-demand for visitors.</small>
+                        </div>
+                        
+                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            <button class="btn" onclick="saveLanguageSettings()" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                                💾 Save Language Settings
+                            </button>
+                            <span id="lang-settings-status" style="color: #64748b; font-size: 0.875rem;"></span>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="card">
                     <h3 class="card-title">System Settings</h3>
                     <p style="color: #64748b; margin-top: 0.5rem;">Configure general system preferences, defaults, and behaviors.</p>
@@ -15185,11 +15242,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 <div class="form-group" style="margin-bottom: 1rem;">
                     <label class="form-label">✨ Display Name (shown on website)</label>
                     <div class="lang-tabs" id="display-name-tabs" style="margin-bottom: 8px;">
-                        <button type="button" class="lang-tab active" onclick="switchRoomLang('display_name', 'en', this)">🇬🇧 EN</button>
-                        <button type="button" class="lang-tab" onclick="switchRoomLang('display_name', 'es', this)">🇪🇸 ES</button>
-                        <button type="button" class="lang-tab" onclick="switchRoomLang('display_name', 'fr', this)">🇫🇷 FR</button>
-                        <button type="button" class="lang-tab" onclick="switchRoomLang('display_name', 'de', this)">🇩🇪 DE</button>
-                        <button type="button" class="lang-tab" onclick="switchRoomLang('display_name', 'nl', this)">🇳🇱 NL</button>
+                        <!-- Populated dynamically based on account language settings -->
                     </div>
                     <div style="display: flex; gap: 0.5rem;">
                         <input type="text" class="form-input" id="edit-room-display-name" placeholder="Leave blank to use original name" style="flex: 1;">
@@ -15209,11 +15262,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 <div class="form-group" style="margin-bottom: 1rem;">
                     <label class="form-label">📝 Short Description</label>
                     <div class="lang-tabs" id="short-desc-tabs" style="margin-bottom: 8px;">
-                        <button type="button" class="lang-tab active" onclick="switchRoomLang('short_description', 'en', this)">🇬🇧 EN</button>
-                        <button type="button" class="lang-tab" onclick="switchRoomLang('short_description', 'es', this)">🇪🇸 ES</button>
-                        <button type="button" class="lang-tab" onclick="switchRoomLang('short_description', 'fr', this)">🇫🇷 FR</button>
-                        <button type="button" class="lang-tab" onclick="switchRoomLang('short_description', 'de', this)">🇩🇪 DE</button>
-                        <button type="button" class="lang-tab" onclick="switchRoomLang('short_description', 'nl', this)">🇳🇱 NL</button>
+                        <!-- Populated dynamically -->
                     </div>
                     <div style="display: flex; gap: 0.5rem;">
                         <input type="text" class="form-input" id="edit-room-short-description" placeholder="Brief tagline for listings" style="flex: 1;" maxlength="150">
@@ -15233,11 +15282,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 <div class="form-group" style="margin-bottom: 1rem;">
                     <label class="form-label">📄 Full Description</label>
                     <div class="lang-tabs" id="full-desc-tabs" style="margin-bottom: 8px;">
-                        <button type="button" class="lang-tab active" onclick="switchRoomLang('full_description', 'en', this)">🇬🇧 EN</button>
-                        <button type="button" class="lang-tab" onclick="switchRoomLang('full_description', 'es', this)">🇪🇸 ES</button>
-                        <button type="button" class="lang-tab" onclick="switchRoomLang('full_description', 'fr', this)">🇫🇷 FR</button>
-                        <button type="button" class="lang-tab" onclick="switchRoomLang('full_description', 'de', this)">🇩🇪 DE</button>
-                        <button type="button" class="lang-tab" onclick="switchRoomLang('full_description', 'nl', this)">🇳🇱 NL</button>
+                        <!-- Populated dynamically -->
                     </div>
                     <div style="display: flex; flex-direction: column; gap: 0.5rem;">
                         <textarea class="form-input" id="edit-room-full-description" rows="4" placeholder="Detailed room description for the booking page"></textarea>
@@ -16521,6 +16566,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                     // Load feature entitlements
                     if (typeof loadAccountEntitlements === 'function') {
                         loadAccountEntitlements();
+                    }
+                    // Load language settings
+                    if (typeof loadLanguageSettings === 'function') {
+                        loadLanguageSettings();
                     }
                     // Reload dashboard with correct filters
                     if (typeof loadDashboard === 'function') {
@@ -17927,6 +17976,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 loadPluginLicenses();
             }
             if (viewName === 'integrations') loadIntegrations();
+            if (viewName === 'settings') loadLanguageSettings();
             if (viewName === 'offers') loadOffers();
             if (viewName === 'vouchers') loadVouchers();
             if (viewName === 'upsells') loadUpsells();
@@ -27012,6 +27062,160 @@ const promo = await fetch('/api/v1/offers/validate', {
                 submitBtn.disabled = false;
                 showNotification('Error: ' + error.message, 'error');
             }
+        }
+
+        // ============================================
+        // LANGUAGE SETTINGS
+        // ============================================
+        
+        // Store current language settings
+        let accountLanguageSettings = {
+            primary: 'en',
+            supported: ['en']
+        };
+        
+        async function loadLanguageSettings() {
+            try {
+                const response = await fetch(`/api/admin/accounts/${currentUser.account_id}/settings`, {
+                    headers: authHeaders()
+                });
+                const data = await response.json();
+                
+                if (data.success && data.settings?.languages) {
+                    accountLanguageSettings = data.settings.languages;
+                } else {
+                    // Default settings
+                    accountLanguageSettings = { primary: 'en', supported: ['en'] };
+                }
+                
+                // Update UI
+                document.getElementById('settings-primary-language').value = accountLanguageSettings.primary;
+                
+                // Update checkboxes
+                const checkboxes = document.querySelectorAll('.additional-lang-cb');
+                checkboxes.forEach(cb => {
+                    cb.checked = accountLanguageSettings.supported.includes(cb.value) && cb.value !== accountLanguageSettings.primary;
+                    cb.disabled = cb.value === accountLanguageSettings.primary;
+                    
+                    // Grey out the primary language checkbox
+                    const label = cb.closest('label');
+                    if (label) {
+                        label.style.opacity = cb.value === accountLanguageSettings.primary ? '0.5' : '1';
+                    }
+                });
+                
+            } catch (error) {
+                console.error('Error loading language settings:', error);
+            }
+        }
+        
+        function updateLanguageSettings() {
+            const primary = document.getElementById('settings-primary-language').value;
+            
+            // Get checked additional languages
+            const checkboxes = document.querySelectorAll('.additional-lang-cb');
+            const additionalLangs = [];
+            
+            checkboxes.forEach(cb => {
+                // Disable the primary language checkbox
+                cb.disabled = cb.value === primary;
+                const label = cb.closest('label');
+                if (label) {
+                    label.style.opacity = cb.value === primary ? '0.5' : '1';
+                }
+                
+                // Uncheck if it's the primary
+                if (cb.value === primary) {
+                    cb.checked = false;
+                }
+                
+                if (cb.checked && cb.value !== primary) {
+                    additionalLangs.push(cb.value);
+                }
+            });
+            
+            // Limit to 3 additional languages
+            if (additionalLangs.length > 3) {
+                alert('Maximum 3 additional languages allowed');
+                // Uncheck the last one
+                const lastChecked = [...checkboxes].reverse().find(cb => cb.checked && cb.value !== primary);
+                if (lastChecked) lastChecked.checked = false;
+                return;
+            }
+            
+            // Update local state
+            accountLanguageSettings.primary = primary;
+            accountLanguageSettings.supported = [primary, ...additionalLangs];
+        }
+        
+        async function saveLanguageSettings() {
+            const statusEl = document.getElementById('lang-settings-status');
+            statusEl.textContent = 'Saving...';
+            
+            try {
+                // Get current full settings first
+                const getResponse = await fetch(`/api/admin/accounts/${currentUser.account_id}/settings`, {
+                    headers: authHeaders()
+                });
+                const getData = await getResponse.json();
+                const currentSettings = getData.settings || {};
+                
+                // Merge language settings
+                currentSettings.languages = accountLanguageSettings;
+                
+                // Save
+                const response = await fetch(`/api/admin/accounts/${currentUser.account_id}/settings`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ settings: currentSettings })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    statusEl.textContent = '✓ Saved';
+                    statusEl.style.color = '#10b981';
+                    setTimeout(() => { statusEl.textContent = ''; }, 3000);
+                    
+                    // Update the room editing tabs to reflect new languages
+                    updateAdminLanguageTabs();
+                } else {
+                    statusEl.textContent = '✗ Error: ' + data.error;
+                    statusEl.style.color = '#ef4444';
+                }
+            } catch (error) {
+                console.error('Error saving language settings:', error);
+                statusEl.textContent = '✗ Error saving';
+                statusEl.style.color = '#ef4444';
+            }
+        }
+        
+        // Update language tabs throughout admin based on account settings
+        function updateAdminLanguageTabs() {
+            const supported = accountLanguageSettings.supported || ['en'];
+            
+            // Update all lang-tabs containers
+            document.querySelectorAll('.lang-tabs').forEach(container => {
+                container.querySelectorAll('.lang-tab').forEach(tab => {
+                    const lang = tab.textContent.includes('EN') ? 'en' :
+                                tab.textContent.includes('ES') ? 'es' :
+                                tab.textContent.includes('FR') ? 'fr' :
+                                tab.textContent.includes('DE') ? 'de' :
+                                tab.textContent.includes('NL') ? 'nl' :
+                                tab.textContent.includes('IT') ? 'it' :
+                                tab.textContent.includes('PT') ? 'pt' : 'en';
+                    
+                    tab.style.display = supported.includes(lang) ? '' : 'none';
+                });
+            });
+        }
+        
+        // Get supported languages for current account
+        function getSupportedLanguages() {
+            return accountLanguageSettings.supported || ['en'];
+        }
+        
+        function getPrimaryLanguage() {
+            return accountLanguageSettings.primary || 'en';
         }
 
         async function loadIntegrations() {
@@ -36132,11 +36336,45 @@ const promo = await fetch('/api/v1/offers/validate', {
             document.getElementById('edit-room-full-description').value = roomMultilingualData.full_description[lang] || '';
         }
 
-        // Reset all lang tabs to EN active
+        // Language flag/name mapping
+        const LANG_INFO = {
+            en: { flag: '🇬🇧', name: 'EN' },
+            es: { flag: '🇪🇸', name: 'ES' },
+            fr: { flag: '🇫🇷', name: 'FR' },
+            de: { flag: '🇩🇪', name: 'DE' },
+            nl: { flag: '🇳🇱', name: 'NL' },
+            it: { flag: '🇮🇹', name: 'IT' },
+            pt: { flag: '🇵🇹', name: 'PT' }
+        };
+
+        // Render language tabs based on account settings
+        function renderRoomLangTabs() {
+            const langs = getAccountLanguages();
+            const primaryLang = getAccountPrimaryLanguage();
+            
+            ['display-name-tabs', 'short-desc-tabs', 'full-desc-tabs'].forEach(tabsId => {
+                const container = document.getElementById(tabsId);
+                if (!container) return;
+                
+                const field = tabsId === 'display-name-tabs' ? 'display_name' : 
+                             tabsId === 'short-desc-tabs' ? 'short_description' : 'full_description';
+                
+                container.innerHTML = langs.map((lang, i) => {
+                    const info = LANG_INFO[lang] || { flag: '🏳️', name: lang.toUpperCase() };
+                    const isActive = i === 0;
+                    return `<button type="button" class="lang-tab${isActive ? ' active' : ''}" data-lang="${lang}" onclick="switchRoomLang('${field}', '${lang}', this)">${info.flag} ${info.name}</button>`;
+                }).join('');
+            });
+        }
+
+        // Reset all lang tabs to primary language active
         function resetRoomLangTabs() {
+            const primaryLang = getAccountPrimaryLanguage();
+            currentRoomLang = primaryLang;
+            
             document.querySelectorAll('#editRoomModal .lang-tabs').forEach(tabs => {
                 tabs.querySelectorAll('.lang-tab').forEach(t => {
-                    t.classList.toggle('active', t.textContent.includes('EN'));
+                    t.classList.toggle('active', t.dataset.lang === primaryLang);
                 });
             });
         }
@@ -36149,10 +36387,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const tabs = document.getElementById(tabsId);
                 if (tabs) {
                     tabs.querySelectorAll('.lang-tab').forEach(tab => {
-                        const lang = tab.textContent.includes('EN') ? 'en' :
-                                    tab.textContent.includes('ES') ? 'es' :
-                                    tab.textContent.includes('FR') ? 'fr' :
-                                    tab.textContent.includes('DE') ? 'de' : 'nl';
+                        const lang = tab.dataset.lang;
                         tab.classList.toggle('has-content', !!roomMultilingualData[field][lang]);
                     });
                 }
@@ -36242,13 +36477,17 @@ const promo = await fetch('/api/v1/offers/validate', {
                     roomMultilingualData.short_description = parseMultilingualField(room.short_description);
                     roomMultilingualData.full_description = parseMultilingualField(room.full_description);
                     
-                    // Reset to English tab and load values
-                    currentRoomLang = 'en';
-                    document.getElementById('edit-room-display-name').value = roomMultilingualData.display_name.en || '';
-                    document.getElementById('edit-room-short-description').value = roomMultilingualData.short_description.en || '';
-                    document.getElementById('edit-room-full-description').value = roomMultilingualData.full_description.en || '';
+                    // Render language tabs based on account settings
+                    renderRoomLangTabs();
                     
-                    // Reset all tabs to inactive and set EN as active
+                    // Reset to primary language tab and load values
+                    const primaryLang = getAccountPrimaryLanguage();
+                    currentRoomLang = primaryLang;
+                    document.getElementById('edit-room-display-name').value = roomMultilingualData.display_name[primaryLang] || roomMultilingualData.display_name.en || '';
+                    document.getElementById('edit-room-short-description').value = roomMultilingualData.short_description[primaryLang] || roomMultilingualData.short_description.en || '';
+                    document.getElementById('edit-room-full-description').value = roomMultilingualData.full_description[primaryLang] || roomMultilingualData.full_description.en || '';
+                    
+                    // Reset all tabs to primary language active
                     resetRoomLangTabs();
                     updateRoomLangTabIndicators();
                     
@@ -46309,6 +46548,136 @@ const promo = await fetch('/api/v1/offers/validate', {
                 });
             });
         })();
+
+        // ============================================
+        // LANGUAGE SETTINGS
+        // ============================================
+        
+        // Store for current account's language settings
+        let accountLanguageSettings = {
+            primary_language: 'en',
+            supported_languages: ['en']
+        };
+        
+        // Load language settings when settings view is shown
+        async function loadLanguageSettings() {
+            try {
+                const response = await fetch('/api/account/language-settings', {
+                    headers: authHeaders()
+                });
+                const data = await response.json();
+                
+                if (data.success && data.settings) {
+                    accountLanguageSettings = data.settings;
+                    
+                    // Set primary language dropdown
+                    document.getElementById('settings-primary-language').value = data.settings.primary_language || 'en';
+                    
+                    // Set additional language checkboxes
+                    document.querySelectorAll('.additional-lang-cb').forEach(cb => {
+                        cb.checked = data.settings.supported_languages?.includes(cb.value) && cb.value !== data.settings.primary_language;
+                        // Disable primary language checkbox
+                        cb.disabled = cb.value === data.settings.primary_language;
+                        cb.parentElement.style.opacity = cb.value === data.settings.primary_language ? '0.5' : '1';
+                    });
+                    
+                    updateAdditionalLangLimit();
+                }
+            } catch (e) {
+                console.error('Error loading language settings:', e);
+            }
+        }
+        
+        // Update checkboxes when primary language changes
+        function updateLanguageSettings() {
+            const primaryLang = document.getElementById('settings-primary-language').value;
+            
+            // Update checkbox states
+            document.querySelectorAll('.additional-lang-cb').forEach(cb => {
+                if (cb.value === primaryLang) {
+                    cb.checked = false;
+                    cb.disabled = true;
+                    cb.parentElement.style.opacity = '0.5';
+                } else {
+                    cb.disabled = false;
+                    cb.parentElement.style.opacity = '1';
+                }
+            });
+            
+            updateAdditionalLangLimit();
+        }
+        
+        // Limit to max 3 additional languages
+        function updateAdditionalLangLimit() {
+            const checked = document.querySelectorAll('.additional-lang-cb:checked');
+            const unchecked = document.querySelectorAll('.additional-lang-cb:not(:checked):not(:disabled)');
+            
+            if (checked.length >= 3) {
+                unchecked.forEach(cb => {
+                    cb.disabled = true;
+                    cb.parentElement.style.opacity = '0.5';
+                });
+            } else {
+                unchecked.forEach(cb => {
+                    const primaryLang = document.getElementById('settings-primary-language').value;
+                    if (cb.value !== primaryLang) {
+                        cb.disabled = false;
+                        cb.parentElement.style.opacity = '1';
+                    }
+                });
+            }
+        }
+        
+        // Save language settings
+        async function saveLanguageSettings() {
+            const primaryLang = document.getElementById('settings-primary-language').value;
+            const additionalLangs = Array.from(document.querySelectorAll('.additional-lang-cb:checked')).map(cb => cb.value);
+            
+            // Combine primary + additional (primary always first)
+            const supportedLanguages = [primaryLang, ...additionalLangs.filter(l => l !== primaryLang)];
+            
+            const statusEl = document.getElementById('lang-settings-status');
+            statusEl.textContent = 'Saving...';
+            
+            try {
+                const response = await fetch('/api/account/language-settings', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({
+                        primary_language: primaryLang,
+                        supported_languages: supportedLanguages
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    accountLanguageSettings = {
+                        primary_language: primaryLang,
+                        supported_languages: supportedLanguages
+                    };
+                    statusEl.textContent = '✓ Saved!';
+                    statusEl.style.color = '#10b981';
+                    setTimeout(() => { statusEl.textContent = ''; }, 3000);
+                } else {
+                    statusEl.textContent = '✗ ' + (data.error || 'Error saving');
+                    statusEl.style.color = '#ef4444';
+                }
+            } catch (e) {
+                console.error('Error saving language settings:', e);
+                statusEl.textContent = '✗ Error saving';
+                statusEl.style.color = '#ef4444';
+            }
+        }
+        
+        // Get supported languages for current account (used by room editor etc)
+        function getAccountLanguages() {
+            return accountLanguageSettings.supported_languages || ['en'];
+        }
+        
+        function getAccountPrimaryLanguage() {
+            return accountLanguageSettings.primary_language || 'en';
+        }
     </script>
 
     <!-- GAS Lite Preview Panel - Shows Card -->
