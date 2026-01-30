@@ -7052,68 +7052,71 @@ app.post('/api/gas-sync/tiered-availability-sync', async (req, res) => {
             let calendarData = calResponse.data.data?.[0]?.calendar || [];
             let daysUpdated = 0;
             
-            // If no prices and has price linking, fetch from source room
+            // If no prices and has price linking, get prices from source room in DATABASE
             const hasNoPrices = calendarData.length === 0 || !calendarData.some(e => e.price1);
             if (hasNoPrices && linking) {
-              const cacheKey = `${linking.sourceRoomId}_${startDateStr}_${endDateStr}`;
-              let sourcePriceMap = sourceRoomPriceCache[cacheKey];
+              // Find the GAS room ID for the source Beds24 room
+              const sourceRoomResult = await pool.query(`
+                SELECT rt.gas_room_id 
+                FROM gas_sync_room_types rt
+                JOIN gas_sync_properties sp ON sp.id = rt.sync_property_id
+                WHERE sp.connection_id = $1 AND rt.external_id = $2
+              `, [conn.id, String(linking.sourceRoomId)]);
               
-              if (!sourcePriceMap) {
-                try {
-                  const sourceCalResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/calendar', {
-                    headers: { 'token': accessToken },
-                    params: { 
-                      roomId: linking.sourceRoomId, 
-                      startDate: startDateStr, 
-                      endDate: endDateStr,
-                      includeNumAvail: true,
-                      includePrices: true,
-                      includeMinStay: true
-                    }
-                  });
-                  
-                  const sourceCalendar = sourceCalResponse.data.data?.[0]?.calendar || [];
-                  sourcePriceMap = {};
-                  for (const entry of sourceCalendar) {
-                    if (entry.price1) {
-                      const fromDate = new Date(entry.from);
-                      const toDate = new Date(entry.to);
-                      for (let d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
-                        const dateStr = d.toISOString().split('T')[0];
-                        sourcePriceMap[dateStr] = entry.price1;
-                      }
-                    }
-                  }
-                  sourceRoomPriceCache[cacheKey] = sourcePriceMap;
-                } catch (e) {
-                  sourcePriceMap = {};
+              const sourceGasRoomId = sourceRoomResult.rows[0]?.gas_room_id;
+              
+              if (sourceGasRoomId) {
+                // Get prices from DATABASE for the source room (BASE)
+                const sourcePricesResult = await pool.query(`
+                  SELECT date, cm_price, min_stay
+                  FROM room_availability
+                  WHERE room_id = $1 AND date >= $2 AND date <= $3
+                  ORDER BY date
+                `, [sourceGasRoomId, startDateStr, endDateStr]);
+                
+                const sourcePriceMap = {};
+                for (const row of sourcePricesResult.rows) {
+                  const dateStr = row.date.toISOString().split('T')[0];
+                  sourcePriceMap[dateStr] = { 
+                    price: parseFloat(row.cm_price) || null, 
+                    minStay: row.min_stay || 1 
+                  };
                 }
                 
-                // Rate limit protection after fetching source
-                await new Promise(resolve => setTimeout(resolve, 2000));
-              }
-              
-              // Apply offset
-              const applyOffset = (price) => price ? (price * (linking.offsetMultiplier || 1)) + (linking.offsetAmount || 0) : null;
-              
-              // Expand calendar data with prices from source
-              if (calendarData.length > 0) {
-                const expandedData = [];
-                for (const entry of calendarData) {
-                  const fromDate = new Date(entry.from);
-                  const toDate = new Date(entry.to);
-                  for (let d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
-                    const dateStr = d.toISOString().split('T')[0];
-                    expandedData.push({
-                      from: dateStr,
-                      to: dateStr,
-                      numAvail: entry.numAvail,
-                      minStay: entry.minStay,
-                      price1: entry.price1 || applyOffset(sourcePriceMap[dateStr])
-                    });
+                console.log(`  📊 Found ${Object.keys(sourcePriceMap).length} BASE prices in DB for ${room.name}`);
+                
+                // Apply offset
+                const applyOffset = (price) => price ? (price * (linking.offsetMultiplier || 1)) + (linking.offsetAmount || 0) : null;
+                
+                // Expand calendar data with prices from database
+                if (calendarData.length > 0) {
+                  const expandedData = [];
+                  for (const entry of calendarData) {
+                    const fromDate = new Date(entry.from);
+                    const toDate = new Date(entry.to);
+                    for (let d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
+                      const dateStr = d.toISOString().split('T')[0];
+                      const sourceData = sourcePriceMap[dateStr];
+                      expandedData.push({
+                        from: dateStr,
+                        to: dateStr,
+                        numAvail: entry.numAvail,
+                        minStay: sourceData?.minStay || entry.minStay || 1,
+                        price1: entry.price1 || applyOffset(sourceData?.price)
+                      });
+                    }
                   }
+                  calendarData = expandedData;
+                } else {
+                  // No calendar data at all - create entries from source prices
+                  calendarData = Object.entries(sourcePriceMap).map(([dateStr, data]) => ({
+                    from: dateStr,
+                    to: dateStr,
+                    numAvail: 1, // Assume available if no data
+                    minStay: data.minStay,
+                    price1: applyOffset(data.price)
+                  }));
                 }
-                calendarData = expandedData;
               }
             }
             
