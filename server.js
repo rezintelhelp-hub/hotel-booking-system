@@ -6917,6 +6917,23 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
         const content = v1Response.data?.getPropertyContent?.[0];
         console.log(`[Content Sync] V1 response - has content: ${!!content}, texts type: ${Array.isArray(content?.texts) ? 'array' : typeof content?.texts}`);
         
+        // Log raw structure to understand what Beds24 returns
+        if (content?.texts) {
+          console.log(`[Content Sync] V1 texts raw keys:`, Object.keys(content.texts).slice(0, 10).join(', '));
+          if (Array.isArray(content.texts)) {
+            console.log(`[Content Sync] V1 texts is ARRAY with ${content.texts.length} items`);
+            content.texts.forEach((t, i) => {
+              console.log(`[Content Sync] V1 texts[${i}] language=${t.language}, keys=${Object.keys(t).slice(0, 5).join(',')}`);
+            });
+          } else {
+            console.log(`[Content Sync] V1 texts is OBJECT, language prop=${content.texts.language || 'NONE'}`);
+            // Check if displayName has language keys directly
+            if (content.texts.displayName) {
+              console.log(`[Content Sync] V1 texts.displayName type=${typeof content.texts.displayName}, value=${JSON.stringify(content.texts.displayName).substring(0, 200)}`);
+            }
+          }
+        }
+        
         if (content?.texts) {
           // V1 returns texts as array when multiple languages requested: [{language: 'EN', ...}, {language: 'FR', ...}]
           const textsArray = Array.isArray(content.texts) ? content.texts : [content.texts];
