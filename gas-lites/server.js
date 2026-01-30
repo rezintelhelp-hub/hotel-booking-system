@@ -707,6 +707,7 @@ app.get('/:slug/card', async (req, res) => {
   try {
     const { slug } = req.params;
     const offer = req.query.offer;
+    const lang = req.query.lang || 'en';
     
     const liteResult = await pool.query(`
       SELECT l.*, p.name, p.city, p.country, p.currency, p.short_description,
@@ -815,7 +816,7 @@ app.get('/:slug/card', async (req, res) => {
     const liteUrl = `https://lite.gas.travel/#${slug}`;
     const qrCode = await QRCode.toDataURL(liteUrl, { width: 200, margin: 1 });
     
-    res.send(renderPromoCard({ lite, image, price, offer: activeOffer, qrCode, liteUrl, hasOffers }));
+    res.send(renderPromoCard({ lite, image, price, offer: activeOffer, qrCode, liteUrl, hasOffers, lang }));
   } catch (error) {
     console.error('Card error:', error);
     res.status(500).send(renderError());
@@ -3749,15 +3750,26 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
 </html>`;
 }
 
-function renderPromoCard({ lite, image, price, offer, qrCode, liteUrl, hasOffers }) {
+function renderPromoCard({ lite, image, price, offer, qrCode, liteUrl, hasOffers, lang = 'en' }) {
   // Use custom_title only if it's different from room_name (i.e., truly custom)
   const effectiveCustomTitle = (lite.custom_title && lite.custom_title !== lite.room_name) ? lite.custom_title : null;
   const title = effectiveCustomTitle || lite.display_name || lite.room_name || lite.name;
   const currency = getCurrencySymbol(lite.currency);
   const accent = lite.accent_color || '#3b82f6';
   
-  // Parse short_description if it's JSON
-  let shortDesc = parseDescription(lite.short_description);
+  // Parse short_description if it's JSON - with language support
+  let shortDesc = parseJsonTextField(lite.short_description, lang);
+  if (!shortDesc) shortDesc = parseDescription(lite.short_description);
+  
+  // Card translations
+  const cardT = {
+    en: { bed: 'Bed', beds: 'Beds', bath: 'Bath', baths: 'Baths', upto: 'Up to', night: '/ night', viewRates: 'View rates', viewDetails: 'View Full Details →', scan: 'Scan to view on your phone', specialOffers: 'Special Offers', limitedOffer: 'Limited Time Offer', ends: 'Ends' },
+    es: { bed: 'Dormitorio', beds: 'Dormitorios', bath: 'Baño', baths: 'Baños', upto: 'Hasta', night: '/ noche', viewRates: 'Ver tarifas', viewDetails: 'Ver detalles →', scan: 'Escanea para ver en tu móvil', specialOffers: 'Ofertas especiales', limitedOffer: 'Oferta limitada', ends: 'Termina' },
+    fr: { bed: 'Chambre', beds: 'Chambres', bath: 'Salle de bain', baths: 'Salles de bain', upto: 'Jusqu\'à', night: '/ nuit', viewRates: 'Voir les tarifs', viewDetails: 'Voir les détails →', scan: 'Scannez pour voir sur votre téléphone', specialOffers: 'Offres spéciales', limitedOffer: 'Offre limitée', ends: 'Fin' },
+    de: { bed: 'Schlafzimmer', beds: 'Schlafzimmer', bath: 'Bad', baths: 'Bäder', upto: 'Bis zu', night: '/ Nacht', viewRates: 'Preise ansehen', viewDetails: 'Details ansehen →', scan: 'Scannen um auf dem Handy zu sehen', specialOffers: 'Sonderangebote', limitedOffer: 'Zeitlich begrenztes Angebot', ends: 'Endet' },
+    nl: { bed: 'Slaapkamer', beds: 'Slaapkamers', bath: 'Badkamer', baths: 'Badkamers', upto: 'Tot', night: '/ nacht', viewRates: 'Bekijk tarieven', viewDetails: 'Bekijk details →', scan: 'Scan om op je telefoon te bekijken', specialOffers: 'Speciale aanbiedingen', limitedOffer: 'Tijdelijke aanbieding', ends: 'Eindigt' }
+  };
+  const ct = cardT[lang] || cardT.en;
   
   // Calculate discounted price if offer present
   let originalPrice = price;
@@ -3777,13 +3789,15 @@ function renderPromoCard({ lite, image, price, offer, qrCode, liteUrl, hasOffers
     }
   }
   
-  // Add offer param to liteUrl if offer exists
-  const finalLiteUrl = offer && offer.offer_code 
-    ? liteUrl + '?offer=' + offer.offer_code 
-    : liteUrl;
+  // Add offer and lang params to liteUrl
+  let finalLiteUrl = liteUrl;
+  const urlParams = [];
+  if (offer && offer.offer_code) urlParams.push('offer=' + offer.offer_code);
+  if (lang !== 'en') urlParams.push('lang=' + lang);
+  if (urlParams.length > 0) finalLiteUrl += '?' + urlParams.join('&');
   
   return `<!DOCTYPE html>
-<html lang="en">
+<html lang="${lang}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -3823,7 +3837,7 @@ function renderPromoCard({ lite, image, price, offer, qrCode, liteUrl, hasOffers
   <div class="card">
     <div class="hero">
       ${image ? `<img src="${image}" alt="${escapeForHTML(title)}">` : '<div style="background:#e2e8f0;height:100%;display:flex;align-items:center;justify-content:center;font-size:60px;">🏠</div>'}
-      ${hasOffers && !offer ? '<div class="offer-star">⭐ Special Offers</div>' : ''}
+      ${hasOffers && !offer ? `<div class="offer-star">⭐ ${ct.specialOffers}</div>` : ''}
       <div class="hero-overlay">
         <div class="location">📍 ${escapeForHTML(lite.city || '')}${lite.country ? ', ' + escapeForHTML(lite.country) : ''}</div>
         <h1 class="title">${escapeForHTML(title)}</h1>
@@ -3832,28 +3846,28 @@ function renderPromoCard({ lite, image, price, offer, qrCode, liteUrl, hasOffers
     ${offer ? `
     <div class="offer-banner">
       <div class="offer-banner-text">🔥 ${discountText}</div>
-      <div class="offer-banner-sub">${offer.name || 'Limited Time Offer'}${offer.valid_until ? ' • Ends ' + new Date(offer.valid_until).toLocaleDateString('en-GB', {day: 'numeric', month: 'short'}) : ''}</div>
+      <div class="offer-banner-sub">${offer.name || ct.limitedOffer}${offer.valid_until ? ' • ' + ct.ends + ' ' + new Date(offer.valid_until).toLocaleDateString(lang === 'es' ? 'es-ES' : lang === 'fr' ? 'fr-FR' : lang === 'de' ? 'de-DE' : lang === 'nl' ? 'nl-NL' : 'en-GB', {day: 'numeric', month: 'short'}) : ''}</div>
     </div>
     ` : ''}
     <div class="content">
       ${shortDesc ? `<p class="tagline">${escapeForHTML(shortDesc)}</p>` : ''}
       <div class="features">
-        ${lite.bedroom_count ? `<div class="feature">🛏️ ${lite.bedroom_count} Bed${lite.bedroom_count > 1 ? 's' : ''}</div>` : ''}
-        ${lite.bathroom_count ? `<div class="feature">🚿 ${Math.floor(lite.bathroom_count)} Bath${Math.floor(lite.bathroom_count) > 1 ? 's' : ''}</div>` : ''}
-        ${lite.max_guests ? `<div class="feature">👥 Up to ${lite.max_guests}</div>` : ''}
+        ${lite.bedroom_count ? `<div class="feature">🛏️ ${lite.bedroom_count} ${lite.bedroom_count > 1 ? ct.beds : ct.bed}</div>` : ''}
+        ${lite.bathroom_count ? `<div class="feature">🚿 ${Math.floor(lite.bathroom_count)} ${Math.floor(lite.bathroom_count) > 1 ? ct.baths : ct.bath}</div>` : ''}
+        ${lite.max_guests ? `<div class="feature">👥 ${ct.upto} ${lite.max_guests}</div>` : ''}
       </div>
       <div class="price-row">
         <div>
           ${offer && originalPrice !== discountedPrice ? `<span class="price-original">${currency}${Math.round(originalPrice).toLocaleString()}</span>` : ''}
-          ${price ? `<span class="price">${currency}${Math.round(discountedPrice).toLocaleString()}</span><span style="color:#64748b;font-size:14px;"> / night</span>` : '<span class="price">View rates</span>'}
+          ${price ? `<span class="price">${currency}${Math.round(discountedPrice).toLocaleString()}</span><span style="color:#64748b;font-size:14px;"> ${ct.night}</span>` : `<span class="price">${ct.viewRates}</span>`}
         </div>
         ${lite.average_rating ? `<div style="color:#fbbf24;font-size:16px;">★ ${lite.average_rating}</div>` : ''}
       </div>
-      <a href="${finalLiteUrl}" target="_blank" class="cta">View Full Details →</a>
+      <a href="${finalLiteUrl}" target="_blank" class="cta">${ct.viewDetails}</a>
     </div>
     <div class="qr-section">
       <img src="${qrCode}" alt="QR">
-      <div><div class="qr-text">Scan to view on your phone</div><div class="qr-url">#${lite.slug}</div></div>
+      <div><div class="qr-text">${ct.scan}</div><div class="qr-url">#${lite.slug}</div></div>
     </div>
     <div class="footer">${lite.account_display_name ? `<strong>${escapeForHTML(lite.account_display_name)}</strong> • ` : ''}Powered by GAS.travel</div>
   </div>
