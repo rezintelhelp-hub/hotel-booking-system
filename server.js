@@ -6907,10 +6907,11 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
     if (v1ApiKey && prop.prop_key) {
       try {
         console.log(`[Content Sync] Calling V1 API getPropertyContent for prop_key: ${prop.prop_key}`);
-        // Request texts in multiple languages - EN, FR, NL, ES, DE are common
+        // Request texts in multiple languages AND roomIds to get room-level texts
         const v1Response = await axios.post('https://api.beds24.com/json/getPropertyContent', {
           authentication: { apiKey: v1ApiKey, propKey: prop.prop_key },
           texts: ['EN', 'FR', 'NL', 'ES', 'DE'],
+          roomIds: true,
           featureCodes: true
         });
         
