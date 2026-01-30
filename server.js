@@ -6946,6 +6946,21 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
         }
         if (content?.roomIds) {
           console.log(`[Content Sync] V1 roomIds found:`, typeof content.roomIds, Object.keys(content.roomIds).slice(0, 5).join(', '));
+          // Look inside the first room
+          const firstRoomId = Object.keys(content.roomIds)[0];
+          if (firstRoomId) {
+            const roomData = content.roomIds[firstRoomId];
+            console.log(`[Content Sync] V1 roomIds[${firstRoomId}] keys:`, Object.keys(roomData).join(', '));
+            if (roomData.texts) {
+              console.log(`[Content Sync] V1 roomIds[${firstRoomId}].texts keys:`, Object.keys(roomData.texts).join(', '));
+              if (roomData.texts.displayName) {
+                console.log(`[Content Sync] V1 roomIds[${firstRoomId}].texts.displayName:`, JSON.stringify(roomData.texts.displayName).substring(0, 300));
+              }
+              if (roomData.texts.roomDescription1) {
+                console.log(`[Content Sync] V1 roomIds[${firstRoomId}].texts.roomDescription1 keys:`, typeof roomData.texts.roomDescription1 === 'object' ? Object.keys(roomData.texts.roomDescription1).join(', ') : 'not object');
+              }
+            }
+          }
         }
         
         // Log full content keys to see structure
