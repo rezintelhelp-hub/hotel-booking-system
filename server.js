@@ -6956,11 +6956,48 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
             [prop.id]
           );
           
+          // Also check for room-level texts in roomIds response
+          const roomIdTexts = content.roomIds || {};
+          console.log(`[Content Sync] roomIds in response:`, Object.keys(roomIdTexts).join(', ') || 'none');
+          
           for (const room of rooms.rows) {
-            // Get room-specific texts or fall back to generic
-            const displayName = multiLangTexts[`displayName_${room.external_id}`] || multiLangTexts.displayName || {};
-            const roomDesc = multiLangTexts[`roomDescription1_${room.external_id}`] || multiLangTexts.roomDescription1 || {};
-            const auxText = multiLangTexts[`auxiliaryText_${room.external_id}`] || multiLangTexts.auxiliaryText || {};
+            // Get room-specific texts from roomIds first (this is where displayName lives)
+            let roomDisplayName = {};
+            let roomDesc = {};
+            let auxText = {};
+            
+            // Check if this room's texts are in roomIds
+            const roomData = roomIdTexts[room.external_id];
+            if (roomData?.texts) {
+              // roomData.texts could be array of languages or single object
+              const roomTextsArray = Array.isArray(roomData.texts) ? roomData.texts : [roomData.texts];
+              console.log(`[Content Sync] Room ${room.external_id} has texts in roomIds, langs:`, roomTextsArray.map(t => t.language || 'default').join(', '));
+              
+              for (const langTexts of roomTextsArray) {
+                const lang = (langTexts.language || 'en').toLowerCase();
+                if (langTexts.displayName) {
+                  roomDisplayName[lang] = langTexts.displayName;
+                }
+                if (langTexts.roomDescription1) {
+                  roomDesc[lang] = langTexts.roomDescription1;
+                }
+                if (langTexts.auxiliaryText) {
+                  auxText[lang] = langTexts.auxiliaryText;
+                }
+              }
+            }
+            
+            // Fall back to property-level texts if room-level not found
+            const displayName = Object.keys(roomDisplayName).length > 0 ? roomDisplayName : 
+                               (multiLangTexts[`displayName_${room.external_id}`] || multiLangTexts.displayName || {});
+            
+            // Merge room-level with property-level for descriptions
+            if (Object.keys(roomDesc).length === 0) {
+              roomDesc = multiLangTexts[`roomDescription1_${room.external_id}`] || multiLangTexts.roomDescription1 || {};
+            }
+            if (Object.keys(auxText).length === 0) {
+              auxText = multiLangTexts[`auxiliaryText_${room.external_id}`] || multiLangTexts.auxiliaryText || {};
+            }
             
             // Use property descriptions as fallback if room descriptions are empty
             const shortDesc = Object.keys(roomDesc).length > 0 ? roomDesc : propDesc1;
