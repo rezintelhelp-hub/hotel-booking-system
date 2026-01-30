@@ -38238,6 +38238,7 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
         createdRooms.push({
           external_id: room.external_id || null,
           gas_room_id: newRoom.rows[0].id,
+          unit_id: newRoom.rows[0].id,  // Same as gas_room_id, for clarity
           name: room.name
         });
         
@@ -38447,6 +38448,7 @@ app.post('/api/elevate/:apiKey/property/:propertyId/room', async (req, res) => {
       success: true,
       property_id: gasPropertyId,
       room_id: newRoom.rows[0].id,
+      unit_id: newRoom.rows[0].id,  // Same as room_id, for clarity with room-types endpoint
       external_id: room.external_id || null
     });
     
