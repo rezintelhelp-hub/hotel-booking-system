@@ -27229,11 +27229,11 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
         
         // Get supported languages for current account
-        function getSupportedLanguages() {
+        function getAccountLanguages() {
             return accountLanguageSettings.supported || ['en'];
         }
         
-        function getPrimaryLanguage() {
+        function getAccountPrimaryLanguage() {
             return accountLanguageSettings.primary || 'en';
         }
 
