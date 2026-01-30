@@ -57825,6 +57825,280 @@ app.get('/api/public/client/:clientId/app-settings/:app', async (req, res) => {
 // ============================================
 
 // ============================================
+// LANGUAGE / i18n API ENDPOINTS
+// ============================================
+
+// Load translations from combined file
+let GAS_TRANSLATIONS = {};
+try {
+  GAS_TRANSLATIONS = require('./gas-translations.js');
+  console.log('✓ Loaded translations for languages:', Object.keys(GAS_TRANSLATIONS).join(', '));
+} catch (e) {
+  console.log('⚠ Could not load gas-translations.js, translations will be empty');
+}
+
+// Available languages configuration
+const AVAILABLE_LANGUAGES = [
+  { code: 'en', name: 'English', native_name: 'English', flag: '🇬🇧', rtl: false },
+  { code: 'fr', name: 'French', native_name: 'Français', flag: '🇫🇷', rtl: false },
+  { code: 'es', name: 'Spanish', native_name: 'Español', flag: '🇪🇸', rtl: false },
+  { code: 'de', name: 'German', native_name: 'Deutsch', flag: '🇩🇪', rtl: false },
+  { code: 'nl', name: 'Dutch', native_name: 'Nederlands', flag: '🇳🇱', rtl: false },
+  { code: 'it', name: 'Italian', native_name: 'Italiano', flag: '🇮🇹', rtl: false },
+  { code: 'pt', name: 'Portuguese', native_name: 'Português', flag: '🇵🇹', rtl: false },
+  { code: 'ru', name: 'Russian', native_name: 'Русский', flag: '🇷🇺', rtl: false },
+  { code: 'pl', name: 'Polish', native_name: 'Polski', flag: '🇵🇱', rtl: false },
+  { code: 'cs', name: 'Czech', native_name: 'Čeština', flag: '🇨🇿', rtl: false },
+  { code: 'el', name: 'Greek', native_name: 'Ελληνικά', flag: '🇬🇷', rtl: false },
+  { code: 'tr', name: 'Turkish', native_name: 'Türkçe', flag: '🇹🇷', rtl: false },
+  { code: 'sv', name: 'Swedish', native_name: 'Svenska', flag: '🇸🇪', rtl: false },
+  { code: 'da', name: 'Danish', native_name: 'Dansk', flag: '🇩🇰', rtl: false },
+  { code: 'no', name: 'Norwegian', native_name: 'Norsk', flag: '🇳🇴', rtl: false },
+  { code: 'fi', name: 'Finnish', native_name: 'Suomi', flag: '🇫🇮', rtl: false },
+  { code: 'hu', name: 'Hungarian', native_name: 'Magyar', flag: '🇭🇺', rtl: false },
+  { code: 'ro', name: 'Romanian', native_name: 'Română', flag: '🇷🇴', rtl: false },
+  { code: 'hr', name: 'Croatian', native_name: 'Hrvatski', flag: '🇭🇷', rtl: false },
+  { code: 'zh', name: 'Chinese', native_name: '中文', flag: '🇨🇳', rtl: false },
+  { code: 'ja', name: 'Japanese', native_name: '日本語', flag: '🇯🇵', rtl: false },
+  { code: 'ko', name: 'Korean', native_name: '한국어', flag: '🇰🇷', rtl: false },
+  { code: 'th', name: 'Thai', native_name: 'ไทย', flag: '🇹🇭', rtl: false },
+  { code: 'vi', name: 'Vietnamese', native_name: 'Tiếng Việt', flag: '🇻🇳', rtl: false },
+  { code: 'ar', name: 'Arabic', native_name: 'العربية', flag: '🇸🇦', rtl: true },
+  { code: 'he', name: 'Hebrew', native_name: 'עברית', flag: '🇮🇱', rtl: true }
+];
+
+// Cache for translation files (from database overrides)
+const translationCache = {};
+
+// GET /api/languages - List all available languages
+app.get('/api/languages', async (req, res) => {
+  try {
+    // Check if account has specific language restrictions
+    const { accountId } = req.query;
+    
+    if (accountId) {
+      // Check for account-specific enabled languages
+      const result = await pool.query(
+        'SELECT enabled_languages FROM accounts WHERE id = $1',
+        [accountId]
+      ).catch(() => ({ rows: [] }));
+      
+      if (result.rows.length > 0 && result.rows[0].enabled_languages) {
+        const enabled = result.rows[0].enabled_languages;
+        const filtered = AVAILABLE_LANGUAGES.filter(l => enabled.includes(l.code));
+        return res.json({ success: true, languages: filtered.length > 0 ? filtered : AVAILABLE_LANGUAGES });
+      }
+    }
+    
+    res.json({ success: true, languages: AVAILABLE_LANGUAGES });
+  } catch (error) {
+    console.error('Error getting languages:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/languages/:code - Get translation file for a language
+app.get('/api/languages/:code', async (req, res) => {
+  try {
+    const { code } = req.params;
+    const langCode = code.toLowerCase();
+    
+    // Check if language is valid
+    const langInfo = AVAILABLE_LANGUAGES.find(l => l.code === langCode);
+    if (!langInfo) {
+      return res.status(404).json({ success: false, error: 'Language not found' });
+    }
+    
+    // Check cache first (for database overrides)
+    if (translationCache[langCode]) {
+      return res.json({ 
+        success: true, 
+        ...langInfo,
+        strings: translationCache[langCode]
+      });
+    }
+    
+    // Try to load from database first (for custom translations)
+    const dbResult = await pool.query(
+      'SELECT strings FROM gas_translations WHERE lang_code = $1',
+      [langCode]
+    ).catch(() => ({ rows: [] }));
+    
+    if (dbResult.rows.length > 0) {
+      const strings = dbResult.rows[0].strings;
+      translationCache[langCode] = strings;
+      return res.json({ 
+        success: true, 
+        ...langInfo,
+        strings 
+      });
+    }
+    
+    // Use combined translations file
+    if (GAS_TRANSLATIONS[langCode]) {
+      return res.json({ 
+        success: true, 
+        ...langInfo,
+        strings: GAS_TRANSLATIONS[langCode].strings
+      });
+    }
+    
+    // Fall back to English if language not found
+    if (langCode !== 'en' && GAS_TRANSLATIONS['en']) {
+      return res.json({ 
+        success: true, 
+        ...langInfo,
+        strings: GAS_TRANSLATIONS['en'].strings,
+        fallback: true
+      });
+    }
+    
+    res.status(404).json({ success: false, error: 'Translation file not found' });
+  } catch (error) {
+    console.error('Error getting translation:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/languages/:code - Update/create translations (admin only)
+app.post('/api/languages/:code', async (req, res) => {
+  try {
+    const { code } = req.params;
+    const { strings } = req.body;
+    const langCode = code.toLowerCase();
+    
+    // Check if language is valid
+    if (!AVAILABLE_LANGUAGES.find(l => l.code === langCode)) {
+      return res.status(400).json({ success: false, error: 'Invalid language code' });
+    }
+    
+    // Ensure table exists
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS gas_translations (
+        id SERIAL PRIMARY KEY,
+        lang_code VARCHAR(10) UNIQUE NOT NULL,
+        strings JSONB NOT NULL,
+        updated_at TIMESTAMP DEFAULT NOW(),
+        updated_by INTEGER
+      )
+    `);
+    
+    // Upsert translation
+    await pool.query(`
+      INSERT INTO gas_translations (lang_code, strings, updated_at)
+      VALUES ($1, $2, NOW())
+      ON CONFLICT (lang_code) DO UPDATE SET
+        strings = EXCLUDED.strings,
+        updated_at = NOW()
+    `, [langCode, JSON.stringify(strings)]);
+    
+    // Clear cache
+    delete translationCache[langCode];
+    
+    res.json({ success: true, message: `Translations for ${langCode} updated` });
+  } catch (error) {
+    console.error('Error updating translation:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/public/languages - Public endpoint for websites/widgets
+app.get('/api/public/languages', (req, res) => {
+  // Return languages that have translations in the combined file
+  const availableWithTranslations = AVAILABLE_LANGUAGES.filter(l => 
+    GAS_TRANSLATIONS[l.code] || translationCache[l.code]
+  );
+  
+  // Always include at least English
+  if (availableWithTranslations.length === 0) {
+    availableWithTranslations.push(AVAILABLE_LANGUAGES.find(l => l.code === 'en'));
+  }
+  
+  res.json({ success: true, languages: availableWithTranslations });
+});
+
+// GET /api/public/languages/:code - Public endpoint to get translation
+app.get('/api/public/languages/:code', async (req, res) => {
+  try {
+    const { code } = req.params;
+    const langCode = code.toLowerCase();
+    
+    const langInfo = AVAILABLE_LANGUAGES.find(l => l.code === langCode);
+    if (!langInfo) {
+      return res.status(404).json({ success: false, error: 'Language not found' });
+    }
+    
+    // Check cache (database overrides)
+    if (translationCache[langCode]) {
+      return res.json({ 
+        success: true, 
+        lang: langCode,
+        name: langInfo.name,
+        native_name: langInfo.native_name,
+        flag: langInfo.flag,
+        rtl: langInfo.rtl,
+        strings: translationCache[langCode]
+      });
+    }
+    
+    // Try database
+    const dbResult = await pool.query(
+      'SELECT strings FROM gas_translations WHERE lang_code = $1',
+      [langCode]
+    ).catch(() => ({ rows: [] }));
+    
+    if (dbResult.rows.length > 0) {
+      translationCache[langCode] = dbResult.rows[0].strings;
+      return res.json({ 
+        success: true, 
+        lang: langCode,
+        name: langInfo.name,
+        native_name: langInfo.native_name,
+        flag: langInfo.flag,
+        rtl: langInfo.rtl,
+        strings: dbResult.rows[0].strings
+      });
+    }
+    
+    // Use combined translations file
+    if (GAS_TRANSLATIONS[langCode]) {
+      return res.json({ 
+        success: true, 
+        lang: langCode,
+        name: langInfo.name,
+        native_name: langInfo.native_name,
+        flag: langInfo.flag,
+        rtl: langInfo.rtl,
+        strings: GAS_TRANSLATIONS[langCode].strings
+      });
+    }
+    
+    // Fallback to English
+    if (GAS_TRANSLATIONS['en']) {
+      return res.json({ 
+        success: true, 
+        lang: langCode,
+        name: langInfo.name,
+        native_name: langInfo.native_name,
+        flag: langInfo.flag,
+        rtl: langInfo.rtl,
+        strings: GAS_TRANSLATIONS['en'].strings,
+        fallback: true
+      });
+    }
+    
+    res.status(404).json({ success: false, error: 'Translation not found' });
+  } catch (error) {
+    console.error('Error getting public translation:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================
+// END LANGUAGE API ENDPOINTS
+// ============================================
+
+// ============================================
 // CATCH-ALL HANDLER (must be last route)
 // ============================================
 app.get('*', (req, res) => {
