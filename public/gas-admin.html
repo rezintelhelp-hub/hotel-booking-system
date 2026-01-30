@@ -15228,7 +15228,7 @@ const promo = await fetch('/api/v1/offers/validate', {
         <div class="modal-content" style="border-radius: 16px;">
             <div class="modal-header" style="background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
                 <h3 class="modal-title" style="margin: 0;"> Edit Room</h3>
-                <button class="modal-close" onclick="closeModal('editRoomModal')" style="color: white;"></button>
+                <button class="modal-close" onclick="closeModal('editRoomModal')" style="color: white;">✕</button>
             </div>
             <form id="editRoomForm" onsubmit="return saveRoom(event)">
                 <input type="hidden" id="edit-room-id">
@@ -36515,6 +36515,9 @@ const promo = await fetch('/api/v1/offers/validate', {
 
         async function editRoom(id) {
             try {
+                // Ensure language settings are loaded first
+                await loadLanguageSettings();
+                
                 const response = await fetch(`/api/admin/units/${id}`);
                 const data = await response.json();
                 
@@ -36531,6 +36534,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     roomMultilingualData.full_description = parseMultilingualField(room.full_description);
                     
                     // Render language tabs based on account settings
+                    console.log('editRoom: languages for tabs:', getAccountLanguages());
                     renderRoomLangTabs();
                     
                     // Reset to primary language tab and load values
