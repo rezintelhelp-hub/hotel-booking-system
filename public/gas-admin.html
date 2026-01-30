@@ -36515,6 +36515,9 @@ const promo = await fetch('/api/v1/offers/validate', {
 
         async function editRoom(id) {
             try {
+                // Ensure language settings are loaded before rendering tabs
+                await loadLanguageSettings();
+                
                 const response = await fetch(`/api/admin/units/${id}`);
                 const data = await response.json();
                 
