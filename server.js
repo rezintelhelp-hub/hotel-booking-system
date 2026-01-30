@@ -4991,6 +4991,23 @@ app.post('/api/gas-sync/connections/:id/debug-calendar', async (req, res) => {
       results.offers_error = e.response?.data || e.message;
     }
     
+    // Try properties endpoint with priceRules (to check priceLinking)
+    if (propertyId) {
+      try {
+        const propsResponse = await axios.get('https://beds24.com/api/v2/properties', {
+          params: { 
+            id: parseInt(propertyId),
+            includeAllRooms: true,
+            includePriceRules: true
+          },
+          headers: { 'token': accessToken }
+        });
+        results.propertyWithRules = propsResponse.data;
+      } catch (e) {
+        results.propertyWithRules_error = e.response?.data || e.message;
+      }
+    }
+    
     res.json({ 
       success: true, 
       roomId,
