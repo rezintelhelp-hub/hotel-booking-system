@@ -58270,21 +58270,30 @@ async function processTranslationQueue() {
   
   try {
     // Find bookable_units with missing translations
-    // Look for units where short_description or full_description exists but is missing languages
+    // Look for units where short_description exists but is missing languages
+    // Use jsonb_typeof to check if it's valid JSON first
     const unitsToTranslate = await pool.query(`
       SELECT bu.id, bu.name, bu.display_name, bu.short_description, bu.full_description,
              p.account_id
       FROM bookable_units bu
       JOIN properties p ON p.id = bu.property_id
       WHERE bu.short_description IS NOT NULL 
-        AND bu.short_description != ''
-        AND bu.short_description != '{}'
+        AND bu.short_description::text != ''
+        AND bu.short_description::text != '{}'
+        AND bu.short_description::text != 'null'
         AND (
-          -- Check if missing any of our target languages
-          bu.short_description->>'fr' IS NULL
-          OR bu.short_description->>'es' IS NULL
-          OR bu.short_description->>'de' IS NULL
-          OR bu.short_description->>'nl' IS NULL
+          -- Either it's not JSON (plain string that needs translating)
+          jsonb_typeof(bu.short_description) != 'object'
+          OR (
+            -- Or it's JSON but missing translations
+            jsonb_typeof(bu.short_description) = 'object'
+            AND (
+              bu.short_description->>'fr' IS NULL
+              OR bu.short_description->>'es' IS NULL
+              OR bu.short_description->>'de' IS NULL
+              OR bu.short_description->>'nl' IS NULL
+            )
+          )
         )
       LIMIT 10
     `);
