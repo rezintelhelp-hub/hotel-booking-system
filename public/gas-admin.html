@@ -36515,21 +36515,6 @@ const promo = await fetch('/api/v1/offers/validate', {
 
         async function editRoom(id) {
             try {
-                // Fetch language settings for this account directly
-                const accountId = selectedAccountId || currentAccount?.id;
-                if (accountId) {
-                    try {
-                        const langResponse = await fetch(`/api/admin/accounts/${accountId}/settings`, { headers: authHeaders() });
-                        const langData = await langResponse.json();
-                        if (langData.success && langData.settings?.languages) {
-                            accountLanguageSettings = langData.settings.languages;
-                            console.log('editRoom: Loaded language settings:', accountLanguageSettings);
-                        }
-                    } catch (langErr) {
-                        console.log('editRoom: Could not load language settings:', langErr.message);
-                    }
-                }
-                
                 const response = await fetch(`/api/admin/units/${id}`);
                 const data = await response.json();
                 
@@ -36546,7 +36531,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                     roomMultilingualData.full_description = parseMultilingualField(room.full_description);
                     
                     // Render language tabs based on account settings
-                    console.log('editRoom: languages for tabs:', getAccountLanguages());
                     renderRoomLangTabs();
                     
                     // Reset to primary language tab and load values
