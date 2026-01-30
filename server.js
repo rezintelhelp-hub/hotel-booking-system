@@ -6934,6 +6934,23 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
           }
         }
         
+        // Check for room-level data in V1 response
+        if (content?.roomTypes) {
+          console.log(`[Content Sync] V1 roomTypes found:`, Array.isArray(content.roomTypes) ? content.roomTypes.length + ' rooms' : typeof content.roomTypes);
+          if (Array.isArray(content.roomTypes) && content.roomTypes[0]) {
+            console.log(`[Content Sync] V1 roomTypes[0] keys:`, Object.keys(content.roomTypes[0]).join(', '));
+            if (content.roomTypes[0].texts) {
+              console.log(`[Content Sync] V1 roomTypes[0].texts keys:`, Object.keys(content.roomTypes[0].texts).join(', '));
+            }
+          }
+        }
+        if (content?.roomIds) {
+          console.log(`[Content Sync] V1 roomIds found:`, typeof content.roomIds, Object.keys(content.roomIds).slice(0, 5).join(', '));
+        }
+        
+        // Log full content keys to see structure
+        console.log(`[Content Sync] V1 content top-level keys:`, Object.keys(content).join(', '));
+        
         if (content?.texts) {
           // V1 returns texts as array when multiple languages requested: [{language: 'EN', ...}, {language: 'FR', ...}]
           const textsArray = Array.isArray(content.texts) ? content.texts : [content.texts];
