@@ -3858,13 +3858,25 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
       let shortDescMultilang = roomRawData.short_description || null;
       let fullDescMultilang = roomRawData.full_description || null;
       
+      // Helper to safely strip HTML - handles strings and objects
+      const safeStripHtml = (val) => {
+        if (!val) return '';
+        if (typeof val === 'string') return stripHtml(val);
+        if (typeof val === 'object') {
+          // If it's an object with language keys, return first value
+          const firstVal = Object.values(val).find(v => typeof v === 'string');
+          return firstVal ? stripHtml(firstVal) : '';
+        }
+        return String(val);
+      };
+      
       // If multilingual data exists (from V1 sync), use it directly
       if (shortDescMultilang && typeof shortDescMultilang === 'object' && Object.keys(shortDescMultilang).length > 0) {
         console.log('link-to-gas: Using multilingual short_description from V1 sync, langs:', Object.keys(shortDescMultilang).join(','));
         // Strip HTML from each language
         for (const lang of Object.keys(shortDescMultilang)) {
           if (shortDescMultilang[lang]) {
-            shortDescMultilang[lang] = stripHtml(shortDescMultilang[lang]);
+            shortDescMultilang[lang] = safeStripHtml(shortDescMultilang[lang]);
           }
         }
       } else {
@@ -3874,7 +3886,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
           roomShortDescRaw = propDescription1;
           console.log('link-to-gas: Using propertyDescription1 as short_description fallback');
         }
-        const roomShortDesc = stripHtml(roomShortDescRaw);
+        const roomShortDesc = safeStripHtml(roomShortDescRaw);
         shortDescMultilang = roomShortDesc ? { en: roomShortDesc } : null;
       }
       
@@ -3883,7 +3895,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         // Strip HTML from each language
         for (const lang of Object.keys(fullDescMultilang)) {
           if (fullDescMultilang[lang]) {
-            fullDescMultilang[lang] = stripHtml(fullDescMultilang[lang]);
+            fullDescMultilang[lang] = safeStripHtml(fullDescMultilang[lang]);
           }
         }
       } else {
@@ -3893,7 +3905,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
           roomFullDescRaw = propDescription2;
           console.log('link-to-gas: Using propertyDescription2 as full_description fallback');
         }
-        const roomFullDesc = stripHtml(roomFullDescRaw);
+        const roomFullDesc = safeStripHtml(roomFullDescRaw);
         fullDescMultilang = roomFullDesc ? { en: roomFullDesc } : null;
       }
       
@@ -3902,7 +3914,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
       const roomFullDesc = fullDescMultilang ? (fullDescMultilang.en || fullDescMultilang.fr || Object.values(fullDescMultilang)[0] || '') : '';
       
       // Also strip HTML from displayName just in case
-      displayName = stripHtml(displayName);
+      displayName = safeStripHtml(displayName);
       
       // Log what we found
       console.log('link-to-gas: Room', room.name);
