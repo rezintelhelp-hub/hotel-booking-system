@@ -1491,6 +1491,23 @@
         #credentialFields label { display: block; margin-bottom: 5px; font-weight: 500; }
         #credentialFields input { width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; }
         #credentialFields .help-text { font-size: 12px; color: #6b7280; margin-top: 4px; }
+        
+        /* Multilingual Language Tabs */
+        .lang-tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+        .lang-tab {
+            padding: 4px 10px;
+            border: 1px solid var(--border-color, #e2e8f0);
+            border-radius: 6px;
+            background: var(--bg-secondary, #fff);
+            color: var(--text-secondary, #64748b);
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .lang-tab:hover { background: #e0e7ff; color: #6366f1; }
+        .lang-tab.active { background: #6366f1; color: white; border-color: #6366f1; }
+        .lang-tab.has-content { position: relative; }
+        .lang-tab.has-content::after { content: '✓'; margin-left: 4px; font-size: 9px; }
     </style>
 </head>
 <body>
@@ -15164,27 +15181,47 @@ const promo = await fetch('/api/v1/offers/validate', {
                     </div>
                 </div>
                 
-                <!-- Display Name for Website -->
+                <!-- Display Name for Website - Multilingual -->
                 <div class="form-group" style="margin-bottom: 1rem;">
-                    <label class="form-label"> Display Name (shown on website)</label>
+                    <label class="form-label">✨ Display Name (shown on website)</label>
+                    <div class="lang-tabs" id="display-name-tabs" style="margin-bottom: 8px;">
+                        <button type="button" class="lang-tab active" onclick="switchRoomLang('display_name', 'en', this)">🇬🇧 EN</button>
+                        <button type="button" class="lang-tab" onclick="switchRoomLang('display_name', 'es', this)">🇪🇸 ES</button>
+                        <button type="button" class="lang-tab" onclick="switchRoomLang('display_name', 'fr', this)">🇫🇷 FR</button>
+                        <button type="button" class="lang-tab" onclick="switchRoomLang('display_name', 'de', this)">🇩🇪 DE</button>
+                        <button type="button" class="lang-tab" onclick="switchRoomLang('display_name', 'nl', this)">🇳🇱 NL</button>
+                    </div>
                     <div style="display: flex; gap: 0.5rem;">
                         <input type="text" class="form-input" id="edit-room-display-name" placeholder="Leave blank to use original name" style="flex: 1;">
                         <button type="button" class="btn" onclick="generateRoomDisplayName()" style="white-space: nowrap; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none;">
-                             Generate
+                            ✨ Generate
+                        </button>
+                        <button type="button" class="btn" onclick="translateRoomField('display_name')" style="white-space: nowrap; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none;" title="Auto-translate to other languages">
+                            🌐
                         </button>
                     </div>
                     <div style="font-size: 0.8rem; color: #64748b; margin-top: 0.25rem;">
-                        AI-generated marketing-friendly name for your booking website
+                        Marketing-friendly name - click language tabs to edit translations
                     </div>
                 </div>
                 
-                <!-- Short Description -->
+                <!-- Short Description - Multilingual -->
                 <div class="form-group" style="margin-bottom: 1rem;">
-                    <label class="form-label"> Short Description</label>
+                    <label class="form-label">📝 Short Description</label>
+                    <div class="lang-tabs" id="short-desc-tabs" style="margin-bottom: 8px;">
+                        <button type="button" class="lang-tab active" onclick="switchRoomLang('short_description', 'en', this)">🇬🇧 EN</button>
+                        <button type="button" class="lang-tab" onclick="switchRoomLang('short_description', 'es', this)">🇪🇸 ES</button>
+                        <button type="button" class="lang-tab" onclick="switchRoomLang('short_description', 'fr', this)">🇫🇷 FR</button>
+                        <button type="button" class="lang-tab" onclick="switchRoomLang('short_description', 'de', this)">🇩🇪 DE</button>
+                        <button type="button" class="lang-tab" onclick="switchRoomLang('short_description', 'nl', this)">🇳🇱 NL</button>
+                    </div>
                     <div style="display: flex; gap: 0.5rem;">
                         <input type="text" class="form-input" id="edit-room-short-description" placeholder="Brief tagline for listings" style="flex: 1;" maxlength="150">
                         <button type="button" class="btn" onclick="generateRoomShortDescription()" style="white-space: nowrap; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none;">
-                             Generate
+                            ✨ Generate
+                        </button>
+                        <button type="button" class="btn" onclick="translateRoomField('short_description')" style="white-space: nowrap; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none;" title="Auto-translate to other languages">
+                            🌐
                         </button>
                     </div>
                     <div style="font-size: 0.8rem; color: #64748b; margin-top: 0.25rem;">
@@ -15192,17 +15229,29 @@ const promo = await fetch('/api/v1/offers/validate', {
                     </div>
                 </div>
                 
-                <!-- Full Description -->
+                <!-- Full Description - Multilingual -->
                 <div class="form-group" style="margin-bottom: 1rem;">
-                    <label class="form-label"> Full Description</label>
+                    <label class="form-label">📄 Full Description</label>
+                    <div class="lang-tabs" id="full-desc-tabs" style="margin-bottom: 8px;">
+                        <button type="button" class="lang-tab active" onclick="switchRoomLang('full_description', 'en', this)">🇬🇧 EN</button>
+                        <button type="button" class="lang-tab" onclick="switchRoomLang('full_description', 'es', this)">🇪🇸 ES</button>
+                        <button type="button" class="lang-tab" onclick="switchRoomLang('full_description', 'fr', this)">🇫🇷 FR</button>
+                        <button type="button" class="lang-tab" onclick="switchRoomLang('full_description', 'de', this)">🇩🇪 DE</button>
+                        <button type="button" class="lang-tab" onclick="switchRoomLang('full_description', 'nl', this)">🇳🇱 NL</button>
+                    </div>
                     <div style="display: flex; flex-direction: column; gap: 0.5rem;">
                         <textarea class="form-input" id="edit-room-full-description" rows="4" placeholder="Detailed room description for the booking page"></textarea>
-                        <button type="button" class="btn" onclick="generateRoomFullDescription()" style="align-self: flex-end; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none;">
-                             Generate Full Description
-                        </button>
+                        <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+                            <button type="button" class="btn" onclick="translateRoomField('full_description')" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none;" title="Auto-translate to other languages">
+                                🌐 Translate All
+                            </button>
+                            <button type="button" class="btn" onclick="generateRoomFullDescription()" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none;">
+                                ✨ Generate Full Description
+                            </button>
+                        </div>
                     </div>
                     <div style="font-size: 0.8rem; color: #64748b; margin-top: 0.25rem;">
-                        Detailed description shown on the room booking page
+                        Detailed description shown on booking page - click language tabs to edit
                     </div>
                 </div>
                 
@@ -36028,6 +36077,154 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
 
+        // Store for multilingual room data
+        let roomMultilingualData = {
+            display_name: {},
+            short_description: {},
+            full_description: {}
+        };
+        let currentRoomLang = 'en';
+
+        // Parse multilingual field from various formats
+        function parseMultilingualField(value) {
+            if (!value) return {};
+            if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+                return value;
+            }
+            if (typeof value === 'string') {
+                if (value.trim().startsWith('{')) {
+                    try { return JSON.parse(value); } catch(e) {}
+                }
+                // Plain string - assume it's English
+                return { en: value };
+            }
+            return {};
+        }
+
+        // Switch language tab for room fields
+        function switchRoomLang(field, lang, btn) {
+            // Save current value before switching
+            const inputId = field === 'display_name' ? 'edit-room-display-name' : 
+                           field === 'short_description' ? 'edit-room-short-description' : 
+                           'edit-room-full-description';
+            const input = document.getElementById(inputId);
+            roomMultilingualData[field][currentRoomLang] = input.value;
+            
+            // Update active tab
+            const tabsContainer = btn.parentElement;
+            tabsContainer.querySelectorAll('.lang-tab').forEach(t => t.classList.remove('active'));
+            btn.classList.add('active');
+            
+            // Load new language value
+            currentRoomLang = lang;
+            input.value = roomMultilingualData[field][lang] || '';
+            
+            // Update all field tabs to show same language
+            document.querySelectorAll('.lang-tabs').forEach(tabs => {
+                tabs.querySelectorAll('.lang-tab').forEach(t => {
+                    t.classList.toggle('active', t.textContent.includes(lang.toUpperCase()));
+                });
+            });
+            
+            // Load values for all fields in new language
+            document.getElementById('edit-room-display-name').value = roomMultilingualData.display_name[lang] || '';
+            document.getElementById('edit-room-short-description').value = roomMultilingualData.short_description[lang] || '';
+            document.getElementById('edit-room-full-description').value = roomMultilingualData.full_description[lang] || '';
+        }
+
+        // Reset all lang tabs to EN active
+        function resetRoomLangTabs() {
+            document.querySelectorAll('#editRoomModal .lang-tabs').forEach(tabs => {
+                tabs.querySelectorAll('.lang-tab').forEach(t => {
+                    t.classList.toggle('active', t.textContent.includes('EN'));
+                });
+            });
+        }
+
+        // Update tab indicators to show which languages have content
+        function updateRoomLangTabIndicators() {
+            ['display_name', 'short_description', 'full_description'].forEach(field => {
+                const tabsId = field === 'display_name' ? 'display-name-tabs' : 
+                              field === 'short_description' ? 'short-desc-tabs' : 'full-desc-tabs';
+                const tabs = document.getElementById(tabsId);
+                if (tabs) {
+                    tabs.querySelectorAll('.lang-tab').forEach(tab => {
+                        const lang = tab.textContent.includes('EN') ? 'en' :
+                                    tab.textContent.includes('ES') ? 'es' :
+                                    tab.textContent.includes('FR') ? 'fr' :
+                                    tab.textContent.includes('DE') ? 'de' : 'nl';
+                        tab.classList.toggle('has-content', !!roomMultilingualData[field][lang]);
+                    });
+                }
+            });
+        }
+
+        // Auto-translate a room field using DeepL
+        async function translateRoomField(field) {
+            const inputId = field === 'display_name' ? 'edit-room-display-name' : 
+                           field === 'short_description' ? 'edit-room-short-description' : 
+                           'edit-room-full-description';
+            
+            // Save current value first
+            roomMultilingualData[field][currentRoomLang] = document.getElementById(inputId).value;
+            
+            // Find the source text (prefer EN, then any available)
+            const sourceText = roomMultilingualData[field].en || 
+                              roomMultilingualData[field][currentRoomLang] || 
+                              Object.values(roomMultilingualData[field]).find(v => v);
+            
+            if (!sourceText) {
+                alert('Please enter text in at least one language first');
+                return;
+            }
+            
+            const btn = event.target;
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '⏳';
+            btn.disabled = true;
+            
+            try {
+                const response = await fetch('/api/translate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        text: sourceText,
+                        targetLangs: ['en', 'es', 'fr', 'de', 'nl'].filter(l => l !== currentRoomLang)
+                    })
+                });
+                
+                const result = await response.json();
+                if (result.success && result.translations) {
+                    Object.entries(result.translations).forEach(([lang, text]) => {
+                        if (!roomMultilingualData[field][lang]) {
+                            roomMultilingualData[field][lang] = text;
+                        }
+                    });
+                    // Keep source language
+                    if (!roomMultilingualData[field][currentRoomLang]) {
+                        roomMultilingualData[field][currentRoomLang] = sourceText;
+                    }
+                    updateRoomLangTabIndicators();
+                    alert('Translations added! Click each language tab to review.');
+                } else {
+                    alert('Translation failed: ' + (result.error || 'Unknown error'));
+                }
+            } catch (e) {
+                console.error('Translation error:', e);
+                alert('Translation failed: ' + e.message);
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        // Save current field values before form submission
+        function saveCurrentRoomLangValues() {
+            roomMultilingualData.display_name[currentRoomLang] = document.getElementById('edit-room-display-name').value;
+            roomMultilingualData.short_description[currentRoomLang] = document.getElementById('edit-room-short-description').value;
+            roomMultilingualData.full_description[currentRoomLang] = document.getElementById('edit-room-full-description').value;
+        }
+
         async function editRoom(id) {
             try {
                 const response = await fetch(`/api/admin/units/${id}`);
@@ -36040,32 +36237,20 @@ const promo = await fetch('/api/v1/offers/validate', {
                     // CM Data (read-only display)
                     document.getElementById('edit-room-name').value = room.name || '';
                     
-                    // Display name - handle JSON format {en: "name"}
-                    let displayName = room.display_name || '';
-                    if (typeof displayName === 'object' && displayName !== null) {
-                        displayName = displayName.en || '';
-                    } else if (typeof displayName === 'string' && displayName.startsWith('{')) {
-                        try { displayName = JSON.parse(displayName).en || displayName; } catch(e) {}
-                    }
-                    document.getElementById('edit-room-display-name').value = displayName;
+                    // Parse multilingual fields
+                    roomMultilingualData.display_name = parseMultilingualField(room.display_name);
+                    roomMultilingualData.short_description = parseMultilingualField(room.short_description);
+                    roomMultilingualData.full_description = parseMultilingualField(room.full_description);
                     
-                    // Short description - handle JSON format
-                    let shortDesc = room.short_description || '';
-                    if (typeof shortDesc === 'object' && shortDesc !== null) {
-                        shortDesc = shortDesc.en || '';
-                    } else if (typeof shortDesc === 'string' && shortDesc.startsWith('{')) {
-                        try { shortDesc = JSON.parse(shortDesc).en || shortDesc; } catch(e) {}
-                    }
-                    document.getElementById('edit-room-short-description').value = shortDesc;
+                    // Reset to English tab and load values
+                    currentRoomLang = 'en';
+                    document.getElementById('edit-room-display-name').value = roomMultilingualData.display_name.en || '';
+                    document.getElementById('edit-room-short-description').value = roomMultilingualData.short_description.en || '';
+                    document.getElementById('edit-room-full-description').value = roomMultilingualData.full_description.en || '';
                     
-                    // Full description - handle JSON format
-                    let fullDesc = room.full_description || '';
-                    if (typeof fullDesc === 'object' && fullDesc !== null) {
-                        fullDesc = fullDesc.en || '';
-                    } else if (typeof fullDesc === 'string' && fullDesc.startsWith('{')) {
-                        try { fullDesc = JSON.parse(fullDesc).en || fullDesc; } catch(e) {}
-                    }
-                    document.getElementById('edit-room-full-description').value = fullDesc;
+                    // Reset all tabs to inactive and set EN as active
+                    resetRoomLangTabs();
+                    updateRoomLangTabIndicators();
                     
                     // Editable fields
                     document.getElementById('edit-room-type').value = room.unit_type || 'double';
@@ -36099,11 +36284,23 @@ const promo = await fetch('/api/v1/offers/validate', {
             e.preventDefault();
             const id = document.getElementById('edit-room-id').value;
             
-            // Get all editable fields including descriptions
+            // Save current language values before submitting
+            saveCurrentRoomLangValues();
+            
+            // Clean up empty values from multilingual data
+            const cleanMultilingual = (obj) => {
+                const cleaned = {};
+                Object.entries(obj).forEach(([lang, val]) => {
+                    if (val && val.trim()) cleaned[lang] = val.trim();
+                });
+                return Object.keys(cleaned).length > 0 ? cleaned : null;
+            };
+            
+            // Get all editable fields including multilingual descriptions
             const data = {
-                display_name: document.getElementById('edit-room-display-name').value || null,
-                short_description: document.getElementById('edit-room-short-description').value || null,
-                full_description: document.getElementById('edit-room-full-description').value || null,
+                display_name: cleanMultilingual(roomMultilingualData.display_name),
+                short_description: cleanMultilingual(roomMultilingualData.short_description),
+                full_description: cleanMultilingual(roomMultilingualData.full_description),
                 room_type: document.getElementById('edit-room-type').value,
                 max_guests: parseInt(document.getElementById('edit-room-maxguests').value) || 2,
                 max_adults: parseInt(document.getElementById('edit-room-maxadults').value) || 2,
