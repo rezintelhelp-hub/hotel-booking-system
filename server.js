@@ -3939,6 +3939,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
       // Check if we have multilingual data from V1 sync-content first
       let shortDescMultilang = roomRawData.short_description || null;
       let fullDescMultilang = roomRawData.full_description || null;
+      let displayNameMultilang = roomRawData.displayName || null;
       
       // Helper to safely strip HTML - handles strings and objects
       const safeStripHtml = (val) => {
@@ -3951,6 +3952,22 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         }
         return String(val);
       };
+      
+      // If multilingual displayName exists (from V1 sync), use it
+      if (displayNameMultilang && typeof displayNameMultilang === 'object' && Object.keys(displayNameMultilang).length > 0) {
+        console.log('link-to-gas: Using multilingual displayName from V1 sync, langs:', Object.keys(displayNameMultilang).join(','));
+        // Strip HTML from each language
+        for (const lang of Object.keys(displayNameMultilang)) {
+          if (displayNameMultilang[lang]) {
+            displayNameMultilang[lang] = safeStripHtml(displayNameMultilang[lang]);
+          }
+        }
+      } else if (displayName) {
+        // Fall back to single language from V2/direct extraction
+        displayNameMultilang = { en: safeStripHtml(displayName) };
+      } else {
+        displayNameMultilang = null;
+      }
       
       // If multilingual data exists (from V1 sync), use it directly
       if (shortDescMultilang && typeof shortDescMultilang === 'object' && Object.keys(shortDescMultilang).length > 0) {
@@ -4118,8 +4135,8 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         ]);
         
         // Update text fields separately - columns are JSONB, need {"en": "...", "fr": "..."} format (multilingual)
-        if (displayName) {
-          const jsonVal = JSON.stringify({ en: displayName });
+        if (displayNameMultilang && Object.keys(displayNameMultilang).length > 0) {
+          const jsonVal = JSON.stringify(displayNameMultilang);
           await pool.query('UPDATE bookable_units SET display_name = $1::jsonb WHERE id = $2', [jsonVal, gasRoomId])
             .catch(e => console.log('link-to-gas: display_name update failed:', e.message));
         }
@@ -4170,8 +4187,8 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         gasRoomId = roomResult.rows[0].id;
         
         // Update text fields separately - columns are JSONB, need {"en": "...", "fr": "..."} format (multilingual)
-        if (displayName) {
-          const jsonVal = JSON.stringify({ en: displayName });
+        if (displayNameMultilang && Object.keys(displayNameMultilang).length > 0) {
+          const jsonVal = JSON.stringify(displayNameMultilang);
           await pool.query('UPDATE bookable_units SET display_name = $1::jsonb WHERE id = $2', [jsonVal, gasRoomId])
             .catch(e => console.log('link-to-gas: display_name update failed:', e.message));
         }
