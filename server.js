@@ -3854,21 +3854,52 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
       
       // Beds24 roomDescription1 (Room Description) → GAS short_description (for listings)
       // Fallback to propertyDescription1 if room description is empty
-      let roomShortDescRaw = getText(texts.roomDescription1) || getText(roomRawData.description) || '';
-      if (!roomShortDescRaw && propDescription1) {
-        roomShortDescRaw = propDescription1;
-        console.log('link-to-gas: Using propertyDescription1 as short_description fallback');
-      }
-      const roomShortDesc = stripHtml(roomShortDescRaw);
+      // Check if we have multilingual data from V1 sync-content first
+      let shortDescMultilang = roomRawData.short_description || null;
+      let fullDescMultilang = roomRawData.full_description || null;
       
-      // Beds24 auxiliaryText (Auxiliary Text) → GAS full_description (long description)
-      // Fallback to propertyDescription2 if auxiliary text is empty
-      let roomFullDescRaw = getText(texts.auxiliaryText) || getText(roomRawData.fullDescription) || '';
-      if (!roomFullDescRaw && propDescription2) {
-        roomFullDescRaw = propDescription2;
-        console.log('link-to-gas: Using propertyDescription2 as full_description fallback');
+      // If multilingual data exists (from V1 sync), use it directly
+      if (shortDescMultilang && typeof shortDescMultilang === 'object' && Object.keys(shortDescMultilang).length > 0) {
+        console.log('link-to-gas: Using multilingual short_description from V1 sync, langs:', Object.keys(shortDescMultilang).join(','));
+        // Strip HTML from each language
+        for (const lang of Object.keys(shortDescMultilang)) {
+          if (shortDescMultilang[lang]) {
+            shortDescMultilang[lang] = stripHtml(shortDescMultilang[lang]);
+          }
+        }
+      } else {
+        // Fall back to V2 data (single language)
+        let roomShortDescRaw = getText(texts.roomDescription1) || getText(roomRawData.description) || '';
+        if (!roomShortDescRaw && propDescription1) {
+          roomShortDescRaw = propDescription1;
+          console.log('link-to-gas: Using propertyDescription1 as short_description fallback');
+        }
+        const roomShortDesc = stripHtml(roomShortDescRaw);
+        shortDescMultilang = roomShortDesc ? { en: roomShortDesc } : null;
       }
-      const roomFullDesc = stripHtml(roomFullDescRaw);
+      
+      if (fullDescMultilang && typeof fullDescMultilang === 'object' && Object.keys(fullDescMultilang).length > 0) {
+        console.log('link-to-gas: Using multilingual full_description from V1 sync, langs:', Object.keys(fullDescMultilang).join(','));
+        // Strip HTML from each language
+        for (const lang of Object.keys(fullDescMultilang)) {
+          if (fullDescMultilang[lang]) {
+            fullDescMultilang[lang] = stripHtml(fullDescMultilang[lang]);
+          }
+        }
+      } else {
+        // Fall back to V2 data (single language)
+        let roomFullDescRaw = getText(texts.auxiliaryText) || getText(roomRawData.fullDescription) || '';
+        if (!roomFullDescRaw && propDescription2) {
+          roomFullDescRaw = propDescription2;
+          console.log('link-to-gas: Using propertyDescription2 as full_description fallback');
+        }
+        const roomFullDesc = stripHtml(roomFullDescRaw);
+        fullDescMultilang = roomFullDesc ? { en: roomFullDesc } : null;
+      }
+      
+      // For backwards compat, extract single-lang versions
+      const roomShortDesc = shortDescMultilang ? (shortDescMultilang.en || shortDescMultilang.fr || Object.values(shortDescMultilang)[0] || '') : '';
+      const roomFullDesc = fullDescMultilang ? (fullDescMultilang.en || fullDescMultilang.fr || Object.values(fullDescMultilang)[0] || '') : '';
       
       // Also strip HTML from displayName just in case
       displayName = stripHtml(displayName);
@@ -3876,8 +3907,8 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
       // Log what we found
       console.log('link-to-gas: Room', room.name);
       console.log('  - displayName:', displayName || '(empty)');
-      console.log('  - shortDesc (roomDescription1):', roomShortDesc?.substring(0, 100) || '(empty)');
-      console.log('  - fullDesc (auxiliaryText):', roomFullDesc?.substring(0, 100) || '(empty)');
+      console.log('  - shortDesc langs:', shortDescMultilang ? Object.keys(shortDescMultilang).join(',') : '(empty)');
+      console.log('  - fullDesc langs:', fullDescMultilang ? Object.keys(fullDescMultilang).join(',') : '(empty)');
       
       const roomType = getText(texts.accommodationType) || getText(roomRawData.accommodationType) || '';
       
@@ -3992,19 +4023,19 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
           prop.adapter_code === 'beds24' ? parseInt(room.external_id) : null
         ]);
         
-        // Update text fields separately - columns are JSONB, need {"en": "..."} format
+        // Update text fields separately - columns are JSONB, need {"en": "...", "fr": "..."} format (multilingual)
         if (displayName) {
           const jsonVal = JSON.stringify({ en: displayName });
           await pool.query('UPDATE bookable_units SET display_name = $1::jsonb WHERE id = $2', [jsonVal, gasRoomId])
             .catch(e => console.log('link-to-gas: display_name update failed:', e.message));
         }
-        if (roomShortDesc) {
-          const jsonVal = JSON.stringify({ en: roomShortDesc });
+        if (shortDescMultilang && Object.keys(shortDescMultilang).length > 0) {
+          const jsonVal = JSON.stringify(shortDescMultilang);
           await pool.query('UPDATE bookable_units SET short_description = $1::jsonb WHERE id = $2', [jsonVal, gasRoomId])
             .catch(e => console.log('link-to-gas: short_description update failed:', e.message));
         }
-        if (roomFullDesc) {
-          const jsonVal = JSON.stringify({ en: roomFullDesc });
+        if (fullDescMultilang && Object.keys(fullDescMultilang).length > 0) {
+          const jsonVal = JSON.stringify(fullDescMultilang);
           await pool.query('UPDATE bookable_units SET full_description = $1::jsonb WHERE id = $2', [jsonVal, gasRoomId])
             .catch(e => console.log('link-to-gas: full_description update failed:', e.message));
         }
@@ -4044,19 +4075,19 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         ]);
         gasRoomId = roomResult.rows[0].id;
         
-        // Update text fields separately - columns are JSONB, need {"en": "..."} format
+        // Update text fields separately - columns are JSONB, need {"en": "...", "fr": "..."} format (multilingual)
         if (displayName) {
           const jsonVal = JSON.stringify({ en: displayName });
           await pool.query('UPDATE bookable_units SET display_name = $1::jsonb WHERE id = $2', [jsonVal, gasRoomId])
             .catch(e => console.log('link-to-gas: display_name update failed:', e.message));
         }
-        if (roomShortDesc) {
-          const jsonVal = JSON.stringify({ en: roomShortDesc });
+        if (shortDescMultilang && Object.keys(shortDescMultilang).length > 0) {
+          const jsonVal = JSON.stringify(shortDescMultilang);
           await pool.query('UPDATE bookable_units SET short_description = $1::jsonb WHERE id = $2', [jsonVal, gasRoomId])
             .catch(e => console.log('link-to-gas: short_description update failed:', e.message));
         }
-        if (roomFullDesc) {
-          const jsonVal = JSON.stringify({ en: roomFullDesc });
+        if (fullDescMultilang && Object.keys(fullDescMultilang).length > 0) {
+          const jsonVal = JSON.stringify(fullDescMultilang);
           await pool.query('UPDATE bookable_units SET full_description = $1::jsonb WHERE id = $2', [jsonVal, gasRoomId])
             .catch(e => console.log('link-to-gas: full_description update failed:', e.message));
         }
@@ -6602,29 +6633,60 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
     if (v1ApiKey && prop.prop_key) {
       try {
         console.log(`[Content Sync] Calling V1 API getPropertyContent for prop_key: ${prop.prop_key}`);
+        // Request texts in multiple languages - EN, FR, NL, ES, DE are common
         const v1Response = await axios.post('https://api.beds24.com/json/getPropertyContent', {
           authentication: { apiKey: v1ApiKey, propKey: prop.prop_key },
-          texts: true,
+          texts: ['EN', 'FR', 'NL', 'ES', 'DE'],
           featureCodes: true
         });
         
         const content = v1Response.data?.getPropertyContent?.[0];
-        console.log(`[Content Sync] V1 response - has content: ${!!content}, has texts: ${!!content?.texts}`);
+        console.log(`[Content Sync] V1 response - has content: ${!!content}, texts type: ${Array.isArray(content?.texts) ? 'array' : typeof content?.texts}`);
+        
         if (content?.texts) {
-          const roomTexts = content.texts;
-          console.log(`[Content Sync] Text keys found:`, Object.keys(roomTexts).filter(k => k.includes('room') || k.includes('display')).join(', '));
+          // V1 returns texts as array when multiple languages requested: [{language: 'EN', ...}, {language: 'FR', ...}]
+          const textsArray = Array.isArray(content.texts) ? content.texts : [content.texts];
+          console.log(`[Content Sync] Languages returned:`, textsArray.map(t => t.language || 'default').join(', '));
+          
+          // Build multilingual text objects
+          const multiLangTexts = {};
+          for (const langTexts of textsArray) {
+            const lang = (langTexts.language || 'en').toLowerCase();
+            // Collect all text fields for this language
+            for (const [key, value] of Object.entries(langTexts)) {
+              if (key === 'language') continue;
+              if (!multiLangTexts[key]) multiLangTexts[key] = {};
+              multiLangTexts[key][lang] = value;
+            }
+          }
+          
+          console.log(`[Content Sync] Text fields found:`, Object.keys(multiLangTexts).filter(k => 
+            k.includes('room') || k.includes('display') || k.includes('propertyDescription')
+          ).join(', '));
+          
+          // Extract property-level descriptions for fallback
+          const propDesc1 = multiLangTexts.propertyDescription1 || {};
+          const propDesc2 = multiLangTexts.propertyDescription2 || {};
+          console.log(`[Content Sync] Property descriptions - desc1 langs: ${Object.keys(propDesc1).join(',') || 'none'}, desc2 langs: ${Object.keys(propDesc2).join(',') || 'none'}`);
+          
           const rooms = await pool.query(
             'SELECT id, external_id FROM gas_sync_room_types WHERE sync_property_id = $1',
             [prop.id]
           );
           
           for (const room of rooms.rows) {
-            const displayName = roomTexts[`displayName_${room.external_id}`] || roomTexts.displayName;
-            const roomDesc = roomTexts[`roomDescription1_${room.external_id}`] || roomTexts.roomDescription1;
+            // Get room-specific texts or fall back to generic
+            const displayName = multiLangTexts[`displayName_${room.external_id}`] || multiLangTexts.displayName || {};
+            const roomDesc = multiLangTexts[`roomDescription1_${room.external_id}`] || multiLangTexts.roomDescription1 || {};
+            const auxText = multiLangTexts[`auxiliaryText_${room.external_id}`] || multiLangTexts.auxiliaryText || {};
             
-            console.log(`[Content Sync] Room ${room.external_id}: displayName=${displayName ? 'YES' : 'NO'}, roomDesc=${roomDesc ? 'YES' : 'NO'}`);
+            // Use property descriptions as fallback if room descriptions are empty
+            const shortDesc = Object.keys(roomDesc).length > 0 ? roomDesc : propDesc1;
+            const fullDesc = Object.keys(auxText).length > 0 ? auxText : propDesc2;
             
-            if (displayName || roomDesc) {
+            console.log(`[Content Sync] Room ${room.external_id}: displayName langs=${Object.keys(displayName).join(',') || 'none'}, shortDesc langs=${Object.keys(shortDesc).join(',') || 'none'}, fullDesc langs=${Object.keys(fullDesc).join(',') || 'none'}`);
+            
+            if (Object.keys(displayName).length > 0 || Object.keys(shortDesc).length > 0 || Object.keys(fullDesc).length > 0) {
               await pool.query(`
                 UPDATE gas_sync_room_types SET
                   description = COALESCE($1, description),
@@ -6632,8 +6694,18 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
                   synced_at = NOW()
                 WHERE id = $3
               `, [
-                roomDesc,
-                JSON.stringify({ displayName, roomDescription1: roomDesc }),
+                // Store first available language as plain description for backwards compat
+                shortDesc.en || shortDesc.fr || shortDesc.nl || shortDesc.es || Object.values(shortDesc)[0] || null,
+                JSON.stringify({ 
+                  displayName, 
+                  roomDescription1: roomDesc,
+                  auxiliaryText: auxText,
+                  propertyDescription1: propDesc1,
+                  propertyDescription2: propDesc2,
+                  // Store computed multilingual descriptions
+                  short_description: shortDesc,
+                  full_description: fullDesc
+                }),
                 room.id
               ]);
               roomsUpdated++;
