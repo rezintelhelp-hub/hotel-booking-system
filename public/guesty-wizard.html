@@ -9,25 +9,25 @@
         
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-            background: linear-gradient(135deg, #f0f4ff 0%, #e8f0fe 100%);
+            background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%);
             min-height: 100vh;
             padding: 20px;
         }
         
         .back-link {
-            color: rgba(37, 99, 235, 0.8);
+            color: rgba(255,255,255,0.8);
             text-decoration: none;
             font-size: 0.9rem;
             margin-bottom: 1rem;
             display: inline-block;
         }
         
-        .back-link:hover { color: #2563EB; }
+        .back-link:hover { color: white; }
         
         .wizard-container {
             background: #fff;
             border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.1);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.15);
             width: 100%;
             max-width: 650px;
             margin: 0 auto;
@@ -187,7 +187,7 @@
             color: white;
         }
         
-        .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4); }
+        .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
         .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
         
         .btn-secondary {
@@ -216,8 +216,8 @@
         .error-message.show { display: block; }
         
         .info-box {
-            background: linear-gradient(135deg, #f0f7ff 0%, #e8f2ff 100%);
-            border: 1px solid #bdd4f0;
+            background: linear-gradient(135deg, #f8f9fa 0%, #f0f0f0 100%);
+            border: 1px solid #e0e0e0;
             border-radius: 12px;
             padding: 20px;
             margin: 20px 0;
@@ -232,27 +232,52 @@
         .info-box ol {
             color: #666;
             font-size: 0.9rem;
-            padding-left: 20px;
+            padding-left: 1.2em;
+            line-height: 1.8;
         }
         
-        .info-box li { margin-bottom: 8px; }
-        .info-box li strong { color: #2c3e50; }
-        
-        .tip-box {
-            background: #fffbeb;
-            border: 1px solid #fcd34d;
-            border-radius: 8px;
-            padding: 12px;
-            margin-top: 16px;
-            font-size: 0.85rem;
-            color: #92400e;
+        .info-box ol li {
+            margin-bottom: 4px;
         }
         
-        .tip-box strong { color: #78350f; }
+        .info-box a {
+            color: #2563EB;
+            font-weight: 500;
+        }
+        
+        .calry-note {
+            text-align: center;
+            font-size: 0.8rem;
+            color: #95a5a6;
+            margin-top: 20px;
+        }
+        
+        .calry-note::before {
+            content: "🔒 ";
+        }
+        
+        .connect-cta {
+            text-align: center;
+            padding: 20px 0;
+        }
+        
+        .connect-cta p {
+            color: #7f8c8d;
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+        }
+        
+        .connect-loading {
+            display: none;
+            color: #7f8c8d;
+            font-size: 0.9rem;
+        }
+        
+        .connect-loading.show { display: block; }
         
         .success-box {
             text-align: center;
-            padding: 20px;
+            padding: 30px 0;
         }
         
         .success-icon {
@@ -273,55 +298,30 @@
             border-radius: 12px;
             padding: 20px;
             margin-top: 20px;
-            text-align: left;
         }
         
         .summary-row {
             display: flex;
             justify-content: space-between;
-            padding: 12px 0;
+            padding: 10px 0;
             border-bottom: 1px solid #eee;
         }
         
         .summary-row:last-child { border-bottom: none; }
+        
         .summary-label { color: #7f8c8d; }
         .summary-value { font-weight: 600; color: #2c3e50; }
-        
-        .spinner {
-            width: 24px;
-            height: 24px;
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #2563EB;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 10px;
-        }
-        
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        
-        .loading {
-            text-align: center;
-            padding: 20px;
-            display: none;
-        }
-        
-        .loading.show { display: block; }
         
         .hidden { display: none !important; }
     </style>
 </head>
 <body>
-    <div style="max-width: 700px; margin: 0 auto;">
-        <a href="/connect-cm.html" class="back-link">← Back to Channel Managers</a>
-    </div>
+    <a href="/connect-cm.html" class="back-link">← Back to Channel Managers</a>
     
     <div class="wizard-container">
         <div class="wizard-header">
             <h1>
-                <span class="header-icon">🏨</span>
+                <div class="header-icon">🏘️</div>
                 Connect to Guesty
             </h1>
             <p>Set up your channel manager integration in minutes</p>
@@ -340,14 +340,14 @@
                 <h2>Welcome to GAS</h2>
                 <p class="step-description">Login or create an account to get started</p>
                 
-                <div id="step1-error" class="error-message"></div>
+                <div class="error-message" id="step1-error"></div>
                 
                 <div class="auth-tabs">
                     <button class="auth-tab active" onclick="showAuthTab('login')">Login</button>
                     <button class="auth-tab" onclick="showAuthTab('register')">Register</button>
                 </div>
                 
-                <div class="auth-form active" id="loginForm">
+                <div id="loginForm" class="auth-form active">
                     <div class="form-group">
                         <label>Email</label>
                         <input type="email" id="login-email" placeholder="your@email.com">
@@ -358,10 +358,10 @@
                     </div>
                 </div>
                 
-                <div class="auth-form" id="registerForm">
+                <div id="registerForm" class="auth-form">
                     <div class="form-group">
                         <label>Business Name</label>
-                        <input type="text" id="reg-business" placeholder="Your Property Company">
+                        <input type="text" id="reg-business" placeholder="Your Property Name">
                     </div>
                     <div class="form-group">
                         <label>Email</label>
@@ -369,35 +369,28 @@
                     </div>
                     <div class="form-group">
                         <label>Password</label>
-                        <input type="password" id="reg-password" placeholder="Choose a password">
+                        <input type="password" id="reg-password" placeholder="••••••••">
                     </div>
                 </div>
             </div>
             
-            <!-- Step 2: API Key Instructions -->
+            <!-- Step 2: Instructions -->
             <div class="step" id="step2">
                 <h2>Connect to Guesty</h2>
                 <p class="step-description">Follow these steps to get your API key</p>
                 
-                <div id="step2-error" class="error-message"></div>
-                
                 <div class="info-box">
                     <h4>📋 How to get your API Key:</h4>
                     <ol>
-                        <li>Log in to your <a href="https://app.guesty.com" target="_blank" style="color: #2563EB;"><strong>Guesty Dashboard</strong></a></li>
-                        <li>Click the <strong>mode selector</strong> in the top navigation</li>
-                        <li>Select <strong>"Setup mode"</strong></li>
-                        <li>Go to <strong>Integrations → API</strong></li>
-                        <li>Hover over <strong>"API Support"</strong> on the left</li>
-                        <li>Click the <strong>three dots (...)</strong> menu</li>
-                        <li>Click <strong>"Generate API Key"</strong></li>
-                        <li>Copy the key - you'll enter it next</li>
+                        <li>Log in to your <a href="https://app.guesty.com" target="_blank"><strong>Guesty Dashboard</strong></a></li>
+                        <li>Go to <strong>Integrations → Open API</strong></li>
+                        <li>Click <strong>Create New Integration</strong></li>
+                        <li>Copy your <strong>API Key</strong> and <strong>Secret</strong></li>
+                        <li>You'll enter them in the next step</li>
                     </ol>
                 </div>
                 
-                <div class="tip-box">
-                    <strong>💡 Tip:</strong> Make sure you're in <strong>Setup mode</strong> (not Live mode) to access the API settings.
-                </div>
+                <p class="calry-note">Your credentials are handled securely by Calry</p>
             </div>
             
             <!-- Step 3: Connect -->
@@ -405,20 +398,19 @@
                 <h2>Authorize Connection</h2>
                 <p class="step-description">Click below to securely connect your Guesty account</p>
                 
-                <div id="step3-error" class="error-message"></div>
+                <div class="error-message" id="step3-error"></div>
                 
-                <div style="text-align: center; padding: 20px 0;">
-                    <p style="margin-bottom: 20px; color: #666;">
-                        You'll be redirected to enter your Guesty API key securely.
-                    </p>
+                <div class="connect-cta">
+                    <p>You'll be redirected to enter your Guesty API key securely.</p>
                     
-                    <button class="btn btn-primary" onclick="openCalryLink()" style="width: 100%; justify-content: center; padding: 18px;" id="connect-btn">
-                        🔗 Connect to Guesty
-                    </button>
+                    <div id="connect-btn">
+                        <button class="btn btn-primary" onclick="openCalryLink()">
+                            🔗 Connect to Guesty
+                        </button>
+                    </div>
                     
-                    <div class="loading" id="connect-loading">
-                        <div class="spinner"></div>
-                        <p>Preparing secure connection...</p>
+                    <div id="connect-loading" class="connect-loading">
+                        Preparing secure connection...
                     </div>
                     
                     <p style="margin-top: 15px; font-size: 0.85rem; color: #95a5a6;">
@@ -464,6 +456,9 @@
     </div>
 
     <script>
+        const CM_ID = 'guesty';
+        const CM_NAME = 'Guesty';
+        
         let currentStep = 1;
         let gasAccountId = null;
         let calryLinkUrl = null;
@@ -573,7 +568,7 @@
                 
                 if (data.success && data.account) {
                     gasAccountId = data.account.id;
-                    localStorage.setItem('gas_guesty_account', JSON.stringify(data.account));
+                    localStorage.setItem('gas_' + CM_ID + '_account', JSON.stringify(data.account));
                     return true;
                 } else {
                     showError('step1-error', data.error || 'Login failed');
@@ -599,14 +594,14 @@
                 const response = await fetch('https://api.gas.travel/api/accounts', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name: business, email, password, business_name: business })
+                    body: JSON.stringify({ name: business, email, password, business_name: business, cm_type: CM_ID })
                 });
                 
                 const data = await response.json();
                 
                 if (data.success && data.account) {
                     gasAccountId = data.account.id;
-                    localStorage.setItem('gas_guesty_account', JSON.stringify(data.account));
+                    localStorage.setItem('gas_' + CM_ID + '_account', JSON.stringify(data.account));
                     return true;
                 } else {
                     showError('step1-error', data.error || 'Registration failed');
@@ -621,7 +616,7 @@
         async function prepareCalryLink() {
             try {
                 const finalRedirect = encodeURIComponent(window.location.origin + window.location.pathname);
-                const response = await fetch(`https://api.gas.travel/api/calry/link/start?pms=guesty&account_id=${gasAccountId}&final_redirect=${finalRedirect}`);
+                const response = await fetch(`https://api.gas.travel/api/calry/link/start?pms=${CM_ID}&account_id=${gasAccountId}&final_redirect=${finalRedirect}`);
                 const data = await response.json();
                 
                 if (data.success && data.link_url) {
@@ -648,7 +643,7 @@
             if (e.key === 'Enter' && currentStep < 3) nextStep();
         });
         
-        console.log('🏨 Guesty Wizard loaded');
+        console.log('🏘️ Guesty Wizard loaded');
     </script>
 </body>
 </html>

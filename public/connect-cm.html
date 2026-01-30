@@ -113,35 +113,11 @@
             position: relative;
         }
         
-        .cm-card.soon {
-            opacity: 0.6;
-            cursor: default;
-        }
-        
-        .cm-card.soon:hover {
-            border-color: var(--border);
-            transform: none;
-            box-shadow: none;
-        }
-        
-        .soon-badge {
-            position: absolute;
-            top: 8px;
-            right: 8px;
-            background: #94a3b8;
-            color: white;
-            font-size: 0.65rem;
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-weight: 600;
-        }
-        
-        .cm-card.ready:hover {
+        .cm-card:hover {
             border-color: var(--primary);
             transform: translateY(-2px);
             box-shadow: 0 8px 25px rgba(0,0,0,0.1);
         }
-        
 
         .cm-logo {
             width: 60px;
@@ -179,7 +155,7 @@
         .cm-smoobu { background: linear-gradient(135deg, #ff6b35, #f7931e); }
         .cm-lodgify { background: linear-gradient(135deg, #E8545B, #D94952); }
         .cm-guesty { background: linear-gradient(135deg, #2563EB, #1D4ED8); }
-        .cm-hostfully { background: linear-gradient(135deg, #7c3aed, #6d28d9); }
+        .cm-hostfully { background: linear-gradient(135deg, #4A90D9, #2E5C8A); }
         .cm-ownerrez { background: linear-gradient(135deg, #8b5cf6, #7c3aed); }
         .cm-hospitable { background: linear-gradient(135deg, #f59e0b, #d97706); }
         .cm-tokeet { background: linear-gradient(135deg, #3b82f6, #2563eb); }
@@ -192,6 +168,20 @@
         .cm-streamline { background: linear-gradient(135deg, #6366f1, #4f46e5); }
         .cm-track { background: linear-gradient(135deg, #10b981, #059669); }
         .cm-apaleo { background: linear-gradient(135deg, #f43f5e, #e11d48); }
+        .cm-escapia { background: linear-gradient(135deg, #7c3aed, #6d28d9); }
+        .cm-zeevou { background: linear-gradient(135deg, #0ea5e9, #0284c7); }
+        .cm-rms { background: linear-gradient(135deg, #dc2626, #b91c1c); }
+        .cm-resly { background: linear-gradient(135deg, #059669, #047857); }
+        .cm-hostex { background: linear-gradient(135deg, #7c3aed, #5b21b6); }
+        .cm-elina { background: linear-gradient(135deg, #0891b2, #0e7490); }
+        .cm-direct { background: linear-gradient(135deg, #475569, #334155); }
+        .cm-fantasticstay { background: linear-gradient(135deg, #f472b6, #ec4899); }
+        .cm-guestwisely { background: linear-gradient(135deg, #22c55e, #16a34a); }
+        .cm-hosttools { background: linear-gradient(135deg, #8b5cf6, #7c3aed); }
+        .cm-rentalwise { background: linear-gradient(135deg, #0ea5e9, #0284c7); }
+        .cm-yourrentals { background: linear-gradient(135deg, #f97316, #ea580c); }
+        .cm-avaibook { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+        .cm-other { background: linear-gradient(135deg, #667eea, #764ba2); }
         .cm-default { background: linear-gradient(135deg, #64748b, #475569); }
     </style>
 </head>
@@ -211,159 +201,125 @@
             <input type="text" id="searchInput" placeholder="🔍 Search channel managers...">
         </div>
         
-        <div id="readySection">
+        <div id="cmSection">
             <div class="section-title">⚡ Available Integrations</div>
-            <div class="cm-grid" id="readyGrid"></div>
-        </div>
-        
-        <div id="soonSection">
-            <div class="section-title">🔜 Coming Soon</div>
-            <div class="cm-grid" id="soonGrid"></div>
+            <div class="cm-grid" id="cmGrid"></div>
         </div>
         
         <div id="noResults" class="no-results" style="display: none;">
             <p>No channel managers found matching your search.</p>
-            <p style="margin-top: 0.5rem;">Can't find yours? <a href="mailto:support@gas.travel">Contact us</a></p>
+            <p style="margin-top: 0.5rem;">Can't find yours? Select "Other / Not Listed" below</p>
         </div>
     </main>
     
     <script>
-        // Channel Manager configurations
+        // Channel Manager configurations - ALL READY
         const channelManagers = [
             // Direct integrations (GAS native)
-            { id: 'beds24', name: 'Beds24', type: 'direct', desc: 'Channel Manager', color: 'beds24', ready: true },
-            { id: 'booking-automation', name: 'Booking Automation', type: 'direct', desc: 'Channel Manager', color: 'beds24', ready: true },
-            { id: 'hostaway', name: 'Hostaway', type: 'direct', desc: 'Property Management', color: 'hostaway', ready: true },
+            { id: 'beds24', name: 'Beds24', desc: 'Channel Manager', color: 'beds24' },
+            { id: 'booking-automation', name: 'Booking Automation', desc: 'Channel Manager', color: 'beds24' },
+            { id: 'hostaway', name: 'Hostaway', desc: 'Property Management', color: 'hostaway' },
             
-            // Calry integrations with dedicated wizards
-            { id: 'smoobu', name: 'Smoobu', type: 'wizard', desc: 'Channel Manager', color: 'smoobu', ready: true },
-            { id: 'lodgify', name: 'Lodgify', type: 'wizard', desc: 'Vacation Rental', color: 'lodgify', ready: true },
-            { id: 'guesty', name: 'Guesty', type: 'wizard', desc: 'Property Management', color: 'guesty', ready: true },
-            { id: 'cloudbeds', name: 'Cloudbeds', type: 'wizard', desc: 'Hotel PMS', color: 'cloudbeds', ready: true },
+            // Calry integrations - all with dedicated wizards
+            { id: 'apaleo', name: 'Apaleo', desc: 'Hotel PMS', color: 'apaleo' },
+            { id: 'avaibook', name: 'AvaiBook', desc: 'Vacation Rental', color: 'avaibook' },
+            { id: 'avantio', name: 'Avantio', desc: 'Vacation Rental', color: 'avantio' },
+            { id: 'bookingsync', name: 'BookingSync', desc: 'Channel Manager', color: 'bookingsync' },
+            { id: 'cloudbeds', name: 'Cloudbeds', desc: 'Hotel PMS', color: 'cloudbeds' },
+            { id: 'direct', name: 'Direct Software', desc: 'Property Management', color: 'direct' },
+            { id: 'elina', name: 'Elina', desc: 'Property Management', color: 'elina' },
+            { id: 'escapia', name: 'Escapia', desc: 'Vacation Rental', color: 'escapia' },
+            { id: 'fantasticstay', name: 'FantasticStay', desc: 'Property Management', color: 'fantasticstay' },
+            { id: 'guesty', name: 'Guesty', desc: 'Property Management', color: 'guesty' },
+            { id: 'guestwisely', name: 'GuestWisely', desc: 'Property Management', color: 'guestwisely' },
+            { id: 'hospitable', name: 'Hospitable', desc: 'Automation', color: 'hospitable' },
+            { id: 'hostex', name: 'Hostex', desc: 'Property Management', color: 'hostex' },
+            { id: 'hostfully', name: 'Hostfully', desc: 'Property Management', color: 'hostfully' },
+            { id: 'hostify', name: 'Hostify', desc: 'Property Management', color: 'hostify' },
+            { id: 'hosttools', name: 'Host Tools', desc: 'Automation', color: 'hosttools' },
+            { id: 'lodgify', name: 'Lodgify', desc: 'Vacation Rental', color: 'lodgify' },
+            { id: 'mews', name: 'Mews', desc: 'Hotel PMS', color: 'mews' },
+            { id: 'ownerrez', name: 'OwnerRez', desc: 'Vacation Rental', color: 'ownerrez' },
+            { id: 'rentalwise', name: 'RentalWise', desc: 'Property Management', color: 'rentalwise' },
+            { id: 'resly', name: 'Resly', desc: 'Property Management', color: 'resly' },
+            { id: 'rms', name: 'RMS Cloud', desc: 'Hotel PMS', color: 'rms' },
+            { id: 'smoobu', name: 'Smoobu', desc: 'Channel Manager', color: 'smoobu' },
+            { id: 'streamline', name: 'Streamline', desc: 'Vacation Rental', color: 'streamline' },
+            { id: 'tokeet', name: 'Tokeet', desc: 'Channel Manager', color: 'tokeet' },
+            { id: 'track', name: 'Track', desc: 'Hospitality PMS', color: 'track' },
+            { id: 'uplisting', name: 'Uplisting', desc: 'Property Management', color: 'uplisting' },
+            { id: 'yourrentals', name: 'Your.Rentals', desc: 'Channel Manager', color: 'yourrentals' },
+            { id: 'zeevou', name: 'Zeevou', desc: 'Property Management', color: 'zeevou' },
             
-            // Coming soon - from Calry supported list
-            { id: 'apaleo', name: 'Apaleo', type: 'soon', desc: 'Hotel PMS', color: 'apaleo', ready: false },
-            { id: 'avaibook', name: 'AvaiBook', type: 'soon', desc: 'Vacation Rental', color: 'default', ready: false },
-            { id: 'avantio', name: 'Avantio', type: 'soon', desc: 'Vacation Rental', color: 'avantio', ready: false },
-            { id: 'bookingsync', name: 'BookingSync (Smily)', type: 'soon', desc: 'Channel Manager', color: 'bookingsync', ready: false },
-            { id: 'direct-software', name: 'Direct Software', type: 'soon', desc: 'Property Management', color: 'default', ready: false },
-            { id: 'elina', name: 'Elina', type: 'soon', desc: 'Property Management', color: 'default', ready: false },
-            { id: 'escapia', name: 'Escapia', type: 'soon', desc: 'Vacation Rental', color: 'default', ready: false },
-            { id: 'fantasticstay', name: 'FantasticStay', type: 'soon', desc: 'Property Management', color: 'default', ready: false },
-            { id: 'guestwisely', name: 'GuestWisely', type: 'soon', desc: 'Property Management', color: 'default', ready: false },
-            { id: 'hospitable', name: 'Hospitable', type: 'soon', desc: 'Automation', color: 'hospitable', ready: false },
-            { id: 'hostex', name: 'Hostex', type: 'soon', desc: 'Property Management', color: 'default', ready: false },
-            { id: 'hostfully', name: 'Hostfully', type: 'soon', desc: 'Property Management', color: 'hostfully', ready: false },
-            { id: 'hostify', name: 'Hostify', type: 'soon', desc: 'Property Management', color: 'hostify', ready: false },
-            { id: 'host-tools', name: 'Host Tools', type: 'soon', desc: 'Automation', color: 'default', ready: false },
-            { id: 'mews', name: 'Mews', type: 'soon', desc: 'Hotel PMS', color: 'mews', ready: false },
-            { id: 'ownerrez', name: 'OwnerRez', type: 'soon', desc: 'Vacation Rental', color: 'ownerrez', ready: false },
-            { id: 'rentalwise', name: 'RentalWise', type: 'soon', desc: 'Property Management', color: 'default', ready: false },
-            { id: 'rentalsunited', name: 'RentalsUnited', type: 'soon', desc: 'Channel Manager', color: 'default', ready: false },
-            { id: 'resly', name: 'Resly', type: 'soon', desc: 'Property Management', color: 'default', ready: false },
-            { id: 'rms-cloud', name: 'RMS Cloud', type: 'soon', desc: 'Hotel PMS', color: 'default', ready: false },
-            { id: 'streamline', name: 'Streamline', type: 'soon', desc: 'Vacation Rental', color: 'streamline', ready: false },
-            { id: 'tokeet', name: 'Tokeet', type: 'soon', desc: 'Channel Manager', color: 'tokeet', ready: false },
-            { id: 'track', name: 'Track', type: 'soon', desc: 'Hospitality PMS', color: 'track', ready: false },
-            { id: 'uplisting', name: 'Uplisting', type: 'soon', desc: 'Property Management', color: 'uplisting', ready: false },
-            { id: 'your-rentals', name: 'Your.Rentals', type: 'soon', desc: 'Channel Manager', color: 'default', ready: false },
-            { id: 'zeevou', name: 'Zeevou', type: 'soon', desc: 'Property Management', color: 'default', ready: false },
+            // Other / Not Listed - always at the end
+            { id: 'other', name: 'Other / Not Listed', desc: 'Request Integration', color: 'other' },
         ];
+        
+        // Sort alphabetically but keep "Other" at the end
+        channelManagers.sort((a, b) => {
+            if (a.id === 'other') return 1;
+            if (b.id === 'other') return -1;
+            return a.name.localeCompare(b.name);
+        });
         
         // Render a CM card
         function renderCard(cm) {
-            const isReady = cm.ready;
             return `
-                <div class="cm-card ${isReady ? 'ready' : 'soon'}" onclick="${isReady ? `selectCM('${cm.id}')` : 'void(0)'}">
-                    ${!isReady ? '<span class="soon-badge">Coming Soon</span>' : ''}
-                    <div class="cm-logo cm-${cm.color || 'default'}">${cm.name.substring(0, 2).toUpperCase()}</div>
+                <div class="cm-card" onclick="selectCM('${cm.id}')">
+                    <div class="cm-logo cm-${cm.color || 'default'}">${cm.id === 'other' ? '?' : cm.name.substring(0, 2).toUpperCase()}</div>
                     <div class="cm-name">${cm.name}</div>
                     <div class="cm-desc">${cm.desc}</div>
                 </div>
             `;
         }
         
-        // Render grids
-        function renderGrids(filter = '') {
+        // Render grid
+        function renderGrid(filter = '') {
             const searchTerm = filter.toLowerCase();
             const filtered = channelManagers.filter(cm => 
                 cm.name.toLowerCase().includes(searchTerm) ||
                 cm.desc.toLowerCase().includes(searchTerm)
             );
             
-            const ready = filtered.filter(cm => cm.ready);
-            const soon = filtered.filter(cm => !cm.ready);
-            
-            const readyGrid = document.getElementById('readyGrid');
-            const soonGrid = document.getElementById('soonGrid');
-            const readySection = document.getElementById('readySection');
-            const soonSection = document.getElementById('soonSection');
+            const cmGrid = document.getElementById('cmGrid');
+            const cmSection = document.getElementById('cmSection');
             const noResults = document.getElementById('noResults');
             
             if (filtered.length === 0) {
-                readySection.style.display = 'none';
-                soonSection.style.display = 'none';
+                cmSection.style.display = 'none';
                 noResults.style.display = 'block';
                 return;
             }
             
             noResults.style.display = 'none';
-            
-            if (ready.length > 0) {
-                readySection.style.display = 'block';
-                readyGrid.innerHTML = ready.map(renderCard).join('');
-            } else {
-                readySection.style.display = 'none';
-            }
-            
-            if (soon.length > 0) {
-                soonSection.style.display = 'block';
-                soonGrid.innerHTML = soon.map(renderCard).join('');
-            } else {
-                soonSection.style.display = 'none';
-            }
+            cmSection.style.display = 'block';
+            cmGrid.innerHTML = filtered.map(renderCard).join('');
         }
         
-        // Select CM - route to appropriate wizard
+        // Select CM - route to wizard
         function selectCM(id) {
-            const cm = channelManagers.find(c => c.id === id);
-            if (!cm || !cm.ready) return;
-            
-            // Route based on type
-            switch (cm.type) {
-                case 'direct':
-                    // Direct integrations - Booking Automation uses Beds24 wizard
-                    if (id === 'booking-automation') {
-                        window.location.href = `/booking-automation-wizard.html`;
-                    } else {
-                        window.location.href = `/${id}-wizard.html`;
-                    }
-                    break;
-                    
-                case 'wizard':
-                    // Calry CMs with dedicated wizards
-                    window.location.href = `/${id}-wizard.html`;
-                    break;
-                    
-                case 'calry':
-                    // Generic Calry flow
-                    window.location.href = `/cm-wizard.html?cm=${id}`;
-                    break;
-                    
-                default:
-                    window.location.href = `/cm-wizard.html?cm=${id}`;
+            // Special cases
+            if (id === 'booking-automation') {
+                window.location.href = '/booking-automation-wizard.html';
+                return;
             }
+            
+            if (id === 'other') {
+                window.location.href = '/other-cm-wizard.html';
+                return;
+            }
+            
+            // All others go to their dedicated wizard
+            window.location.href = `/${id}-wizard.html`;
         }
         
         // Search handler
         document.getElementById('searchInput').addEventListener('input', (e) => {
-            renderGrids(e.target.value);
+            renderGrid(e.target.value);
         });
         
-        // Initialize
-        renderGrids();
-        
-        console.log('🔗 CM Selector loaded');
+        // Initial render
+        renderGrid();
     </script>
 </body>
 </html>

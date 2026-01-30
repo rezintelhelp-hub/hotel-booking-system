@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Connect to Smoobu - GAS</title>
+    <title>Connect to Hostex - GAS</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-            background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);
+            background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%);
             min-height: 100vh;
             padding: 20px;
         }
@@ -35,7 +35,7 @@
         }
         
         .wizard-header {
-            background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);
+            background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%);
             color: #fff;
             padding: 25px 30px;
             text-align: center;
@@ -84,7 +84,7 @@
             transition: all 0.3s;
         }
         
-        .step-dot.active { background: #ff6b35; }
+        .step-dot.active { background: #7c3aed; }
         .step-dot.completed { background: #27ae60; }
         
         .wizard-content {
@@ -103,7 +103,7 @@
         .step h2 {
             font-size: 1.3rem;
             font-weight: 600;
-            color: #ff6b35;
+            color: #7c3aed;
             margin-bottom: 8px;
         }
         
@@ -133,8 +133,8 @@
         }
         
         .auth-tab.active {
-            color: #ff6b35;
-            border-bottom-color: #ff6b35;
+            color: #7c3aed;
+            border-bottom-color: #7c3aed;
             font-weight: 500;
         }
         
@@ -165,7 +165,7 @@
         
         .form-group input:focus {
             outline: none;
-            border-color: #ff6b35;
+            border-color: #7c3aed;
             background: #fff;
         }
         
@@ -183,7 +183,7 @@
         }
         
         .btn-primary {
-            background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);
+            background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%);
             color: white;
         }
         
@@ -224,7 +224,7 @@
         }
         
         .info-box h4 {
-            color: #ff6b35;
+            color: #7c3aed;
             margin-bottom: 12px;
             font-size: 1rem;
         }
@@ -241,7 +241,7 @@
         }
         
         .info-box a {
-            color: #ff6b35;
+            color: #7c3aed;
             font-weight: 500;
         }
         
@@ -321,8 +321,8 @@
     <div class="wizard-container">
         <div class="wizard-header">
             <h1>
-                <div class="header-icon">🏘️</div>
-                Connect to Smoobu
+                <div class="header-icon">🏡</div>
+                Connect to Hostex
             </h1>
             <p>Set up your channel manager integration in minutes</p>
         </div>
@@ -376,14 +376,14 @@
             
             <!-- Step 2: Instructions -->
             <div class="step" id="step2">
-                <h2>Connect to Smoobu</h2>
+                <h2>Connect to Hostex</h2>
                 <p class="step-description">Follow these steps to get your API key</p>
                 
                 <div class="info-box">
                     <h4>📋 How to get your API Key:</h4>
                     <ol>
-                        <li>Log in to your <a href="https://login.smoobu.com" target="_blank"><strong>Smoobu Dashboard</strong></a></li>
-                        <li>Go to <strong>Settings → API Settings</strong></li>
+                        <li>Log in to your <a href="https://app.hostex.io" target="_blank"><strong>Hostex Dashboard</strong></a></li>
+                        <li>Go to <strong>Settings → API</strong></li>
                         <li>Copy your <strong>API Key</strong></li>
                         <li>You'll enter it in the next step</li>
                     </ol>
@@ -395,16 +395,16 @@
             <!-- Step 3: Connect -->
             <div class="step" id="step3">
                 <h2>Authorize Connection</h2>
-                <p class="step-description">Click below to securely connect your Smoobu account</p>
+                <p class="step-description">Click below to securely connect your Hostex account</p>
                 
                 <div class="error-message" id="step3-error"></div>
                 
                 <div class="connect-cta">
-                    <p>You'll be redirected to enter your Smoobu API key securely.</p>
+                    <p>You'll be redirected to enter your Hostex API key securely.</p>
                     
                     <div id="connect-btn">
                         <button class="btn btn-primary" onclick="openCalryLink()">
-                            🔗 Connect to Smoobu
+                            🔗 Connect to Hostex
                         </button>
                     </div>
                     
@@ -423,7 +423,7 @@
                 <div class="success-box">
                     <div class="success-icon">✓</div>
                     <h2 style="color: #2c3e50;">Connection Complete!</h2>
-                    <p class="step-description">Your Smoobu properties have been imported</p>
+                    <p class="step-description">Your Hostex properties have been imported</p>
                 </div>
                 
                 <div class="summary-table">
@@ -437,7 +437,7 @@
                     </div>
                     <div class="summary-row">
                         <span class="summary-label">Channel Manager</span>
-                        <span class="summary-value">Smoobu</span>
+                        <span class="summary-value">Hostex</span>
                     </div>
                     <div class="summary-row">
                         <span class="summary-label">Sync Status</span>
@@ -455,8 +455,8 @@
     </div>
 
     <script>
-        const CM_ID = 'smoobu';
-        const CM_NAME = 'Smoobu';
+        const CM_ID = 'hostex';
+        const CM_NAME = 'Hostex';
         
         let currentStep = 1;
         let gasAccountId = null;
@@ -642,7 +642,7 @@
             if (e.key === 'Enter' && currentStep < 3) nextStep();
         });
         
-        console.log('🏘️ Smoobu Wizard loaded');
+        console.log('🏡 Hostex Wizard loaded');
     </script>
 </body>
 </html>
