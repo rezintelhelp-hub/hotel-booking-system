@@ -36515,8 +36515,20 @@ const promo = await fetch('/api/v1/offers/validate', {
 
         async function editRoom(id) {
             try {
-                // Ensure language settings are loaded first
-                await loadLanguageSettings();
+                // Fetch language settings for this account directly
+                const accountId = selectedAccountId || currentAccount?.id;
+                if (accountId) {
+                    try {
+                        const langResponse = await fetch(`/api/admin/accounts/${accountId}/settings`, { headers: authHeaders() });
+                        const langData = await langResponse.json();
+                        if (langData.success && langData.settings?.languages) {
+                            accountLanguageSettings = langData.settings.languages;
+                            console.log('editRoom: Loaded language settings:', accountLanguageSettings);
+                        }
+                    } catch (langErr) {
+                        console.log('editRoom: Could not load language settings:', langErr.message);
+                    }
+                }
                 
                 const response = await fetch(`/api/admin/units/${id}`);
                 const data = await response.json();
