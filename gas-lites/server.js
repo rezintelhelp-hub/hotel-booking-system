@@ -32,16 +32,18 @@ const pool = new Pool({
 });
 
 // Helper to parse JSON text fields (display_name, short_description, etc.)
-function parseJsonTextField(value) {
+// Now supports multilingual - pass language code to get specific language
+function parseJsonTextField(value, lang = 'en') {
   if (!value) return '';
   try {
     if (typeof value === 'object') {
       // Already an object (JSONB returned as object)
-      return value.en || value.EN || Object.values(value)[0] || '';
+      // Try requested language first, then en, then any value
+      return value[lang] || value[lang.toUpperCase()] || value.en || value.EN || Object.values(value)[0] || '';
     } else if (typeof value === 'string' && value.trim().startsWith('{')) {
       // JSON string
       const parsed = JSON.parse(value);
-      return parsed.en || parsed.EN || Object.values(parsed)[0] || value;
+      return parsed[lang] || parsed[lang.toUpperCase()] || parsed.en || parsed.EN || Object.values(parsed)[0] || value;
     } else {
       return String(value);
     }
@@ -49,6 +51,350 @@ function parseJsonTextField(value) {
     return String(value);
   }
 }
+
+// Embedded translations for GAS Lites (subset of full translations)
+const LITE_TRANSLATIONS = {
+  en: {
+    gallery: 'Gallery',
+    amenities: 'Amenities', 
+    reviews: 'Reviews',
+    location: 'Location',
+    book: 'Book',
+    check_in: 'Check-in',
+    check_out: 'Check-out',
+    guests: 'Guests',
+    guest: 'guest',
+    guests_plural: 'guests',
+    per_night: 'per night',
+    nights: 'nights',
+    night: 'night',
+    total: 'Total',
+    book_now: 'Book Now',
+    request_booking: 'Request Booking',
+    select_dates: 'Select your dates',
+    available: 'Available',
+    unavailable: 'Unavailable',
+    min_stay: 'Min stay',
+    price_from: 'From',
+    bedrooms: 'Bedrooms',
+    bathrooms: 'Bathrooms',
+    sleeps: 'Sleeps',
+    house_rules: 'House Rules',
+    policies: 'Policies',
+    cancellation: 'Cancellation Policy',
+    pets_allowed: 'Pets allowed',
+    no_pets: 'No pets',
+    smoking_allowed: 'Smoking allowed', 
+    no_smoking: 'No smoking',
+    children_welcome: 'Children welcome',
+    view_all_photos: 'View all photos',
+    contact_host: 'Contact Host',
+    share: 'Share',
+    save: 'Save',
+    scan_to_book: 'Scan to book direct',
+    powered_by: 'Powered by',
+    select_language: 'Language',
+    booking_details: 'Booking Details',
+    your_stay: 'Your Stay',
+    price_breakdown: 'Price Breakdown',
+    base_price: 'Base price',
+    cleaning_fee: 'Cleaning fee',
+    service_fee: 'Service fee',
+    taxes: 'Taxes & fees',
+    discount: 'Discount',
+    continue: 'Continue',
+    back: 'Back',
+    confirm_booking: 'Confirm Booking',
+    guest_details: 'Guest Details',
+    first_name: 'First Name',
+    last_name: 'Last Name',
+    email: 'Email',
+    phone: 'Phone',
+    special_requests: 'Special Requests',
+    terms_agree: 'I agree to the',
+    terms_conditions: 'Terms & Conditions',
+    booking_confirmed: 'Booking Confirmed!',
+    confirmation_sent: 'A confirmation email has been sent.',
+    booking_reference: 'Booking Reference',
+    not_found: 'Page not found',
+    error: 'Something went wrong'
+  },
+  fr: {
+    gallery: 'Galerie',
+    amenities: 'Équipements',
+    reviews: 'Avis',
+    location: 'Localisation',
+    book: 'Réserver',
+    check_in: 'Arrivée',
+    check_out: 'Départ',
+    guests: 'Voyageurs',
+    guest: 'voyageur',
+    guests_plural: 'voyageurs',
+    per_night: 'par nuit',
+    nights: 'nuits',
+    night: 'nuit',
+    total: 'Total',
+    book_now: 'Réserver',
+    request_booking: 'Demande de réservation',
+    select_dates: 'Sélectionnez vos dates',
+    available: 'Disponible',
+    unavailable: 'Indisponible',
+    min_stay: 'Séjour min.',
+    price_from: 'À partir de',
+    bedrooms: 'Chambres',
+    bathrooms: 'Salles de bain',
+    sleeps: 'Couchages',
+    house_rules: 'Règlement',
+    policies: 'Conditions',
+    cancellation: 'Politique d\'annulation',
+    pets_allowed: 'Animaux acceptés',
+    no_pets: 'Animaux non acceptés',
+    smoking_allowed: 'Fumeurs acceptés',
+    no_smoking: 'Non-fumeur',
+    children_welcome: 'Enfants bienvenus',
+    view_all_photos: 'Voir toutes les photos',
+    contact_host: 'Contacter l\'hôte',
+    share: 'Partager',
+    save: 'Sauvegarder',
+    scan_to_book: 'Scannez pour réserver',
+    powered_by: 'Propulsé par',
+    select_language: 'Langue',
+    booking_details: 'Détails de réservation',
+    your_stay: 'Votre séjour',
+    price_breakdown: 'Détail du prix',
+    base_price: 'Prix de base',
+    cleaning_fee: 'Frais de ménage',
+    service_fee: 'Frais de service',
+    taxes: 'Taxes',
+    discount: 'Réduction',
+    continue: 'Continuer',
+    back: 'Retour',
+    confirm_booking: 'Confirmer la réservation',
+    guest_details: 'Coordonnées',
+    first_name: 'Prénom',
+    last_name: 'Nom',
+    email: 'Email',
+    phone: 'Téléphone',
+    special_requests: 'Demandes spéciales',
+    terms_agree: 'J\'accepte les',
+    terms_conditions: 'Conditions générales',
+    booking_confirmed: 'Réservation confirmée !',
+    confirmation_sent: 'Un email de confirmation a été envoyé.',
+    booking_reference: 'Référence',
+    not_found: 'Page non trouvée',
+    error: 'Une erreur est survenue'
+  },
+  es: {
+    gallery: 'Galería',
+    amenities: 'Servicios',
+    reviews: 'Opiniones',
+    location: 'Ubicación',
+    book: 'Reservar',
+    check_in: 'Entrada',
+    check_out: 'Salida',
+    guests: 'Huéspedes',
+    guest: 'huésped',
+    guests_plural: 'huéspedes',
+    per_night: 'por noche',
+    nights: 'noches',
+    night: 'noche',
+    total: 'Total',
+    book_now: 'Reservar',
+    request_booking: 'Solicitar reserva',
+    select_dates: 'Selecciona tus fechas',
+    available: 'Disponible',
+    unavailable: 'No disponible',
+    min_stay: 'Estancia mín.',
+    price_from: 'Desde',
+    bedrooms: 'Dormitorios',
+    bathrooms: 'Baños',
+    sleeps: 'Capacidad',
+    house_rules: 'Normas',
+    policies: 'Políticas',
+    cancellation: 'Política de cancelación',
+    pets_allowed: 'Mascotas permitidas',
+    no_pets: 'No se admiten mascotas',
+    smoking_allowed: 'Se permite fumar',
+    no_smoking: 'No fumadores',
+    children_welcome: 'Niños bienvenidos',
+    view_all_photos: 'Ver todas las fotos',
+    contact_host: 'Contactar anfitrión',
+    share: 'Compartir',
+    save: 'Guardar',
+    scan_to_book: 'Escanea para reservar',
+    powered_by: 'Powered by',
+    select_language: 'Idioma',
+    booking_details: 'Detalles de reserva',
+    your_stay: 'Tu estancia',
+    price_breakdown: 'Desglose del precio',
+    base_price: 'Precio base',
+    cleaning_fee: 'Limpieza',
+    service_fee: 'Servicio',
+    taxes: 'Impuestos',
+    discount: 'Descuento',
+    continue: 'Continuar',
+    back: 'Atrás',
+    confirm_booking: 'Confirmar reserva',
+    guest_details: 'Datos del huésped',
+    first_name: 'Nombre',
+    last_name: 'Apellidos',
+    email: 'Email',
+    phone: 'Teléfono',
+    special_requests: 'Peticiones especiales',
+    terms_agree: 'Acepto los',
+    terms_conditions: 'Términos y condiciones',
+    booking_confirmed: '¡Reserva confirmada!',
+    confirmation_sent: 'Se ha enviado un email de confirmación.',
+    booking_reference: 'Referencia',
+    not_found: 'Página no encontrada',
+    error: 'Algo salió mal'
+  },
+  de: {
+    gallery: 'Galerie',
+    amenities: 'Ausstattung',
+    reviews: 'Bewertungen',
+    location: 'Lage',
+    book: 'Buchen',
+    check_in: 'Check-in',
+    check_out: 'Check-out',
+    guests: 'Gäste',
+    guest: 'Gast',
+    guests_plural: 'Gäste',
+    per_night: 'pro Nacht',
+    nights: 'Nächte',
+    night: 'Nacht',
+    total: 'Gesamt',
+    book_now: 'Jetzt buchen',
+    request_booking: 'Buchungsanfrage',
+    select_dates: 'Datum wählen',
+    available: 'Verfügbar',
+    unavailable: 'Nicht verfügbar',
+    min_stay: 'Min. Aufenthalt',
+    price_from: 'Ab',
+    bedrooms: 'Schlafzimmer',
+    bathrooms: 'Badezimmer',
+    sleeps: 'Schläft',
+    house_rules: 'Hausordnung',
+    policies: 'Richtlinien',
+    cancellation: 'Stornierungsbedingungen',
+    pets_allowed: 'Haustiere erlaubt',
+    no_pets: 'Keine Haustiere',
+    smoking_allowed: 'Rauchen erlaubt',
+    no_smoking: 'Nichtraucher',
+    children_welcome: 'Kinder willkommen',
+    view_all_photos: 'Alle Fotos',
+    contact_host: 'Gastgeber kontaktieren',
+    share: 'Teilen',
+    save: 'Speichern',
+    scan_to_book: 'Scannen zum Buchen',
+    powered_by: 'Powered by',
+    select_language: 'Sprache',
+    booking_details: 'Buchungsdetails',
+    your_stay: 'Ihr Aufenthalt',
+    price_breakdown: 'Preisdetails',
+    base_price: 'Grundpreis',
+    cleaning_fee: 'Reinigung',
+    service_fee: 'Service',
+    taxes: 'Steuern',
+    discount: 'Rabatt',
+    continue: 'Weiter',
+    back: 'Zurück',
+    confirm_booking: 'Buchung bestätigen',
+    guest_details: 'Gästeinformationen',
+    first_name: 'Vorname',
+    last_name: 'Nachname',
+    email: 'E-Mail',
+    phone: 'Telefon',
+    special_requests: 'Besondere Wünsche',
+    terms_agree: 'Ich akzeptiere die',
+    terms_conditions: 'AGB',
+    booking_confirmed: 'Buchung bestätigt!',
+    confirmation_sent: 'Bestätigungs-E-Mail wurde gesendet.',
+    booking_reference: 'Buchungsnummer',
+    not_found: 'Seite nicht gefunden',
+    error: 'Etwas ist schief gelaufen'
+  },
+  nl: {
+    gallery: 'Galerij',
+    amenities: 'Voorzieningen',
+    reviews: 'Beoordelingen',
+    location: 'Locatie',
+    book: 'Boek',
+    check_in: 'Inchecken',
+    check_out: 'Uitchecken',
+    guests: 'Gasten',
+    guest: 'gast',
+    guests_plural: 'gasten',
+    per_night: 'per nacht',
+    nights: 'nachten',
+    night: 'nacht',
+    total: 'Totaal',
+    book_now: 'Boek nu',
+    request_booking: 'Boeking aanvragen',
+    select_dates: 'Selecteer data',
+    available: 'Beschikbaar',
+    unavailable: 'Niet beschikbaar',
+    min_stay: 'Min. verblijf',
+    price_from: 'Vanaf',
+    bedrooms: 'Slaapkamers',
+    bathrooms: 'Badkamers',
+    sleeps: 'Slaapt',
+    house_rules: 'Huisregels',
+    policies: 'Voorwaarden',
+    cancellation: 'Annuleringsvoorwaarden',
+    pets_allowed: 'Huisdieren toegestaan',
+    no_pets: 'Geen huisdieren',
+    smoking_allowed: 'Roken toegestaan',
+    no_smoking: 'Niet roken',
+    children_welcome: 'Kinderen welkom',
+    view_all_photos: 'Alle foto\'s',
+    contact_host: 'Contact gastheer',
+    share: 'Delen',
+    save: 'Opslaan',
+    scan_to_book: 'Scan om te boeken',
+    powered_by: 'Powered by',
+    select_language: 'Taal',
+    booking_details: 'Boekingsgegevens',
+    your_stay: 'Uw verblijf',
+    price_breakdown: 'Prijsspecificatie',
+    base_price: 'Basisprijs',
+    cleaning_fee: 'Schoonmaak',
+    service_fee: 'Service',
+    taxes: 'Belastingen',
+    discount: 'Korting',
+    continue: 'Doorgaan',
+    back: 'Terug',
+    confirm_booking: 'Boeking bevestigen',
+    guest_details: 'Gastgegevens',
+    first_name: 'Voornaam',
+    last_name: 'Achternaam',
+    email: 'E-mail',
+    phone: 'Telefoon',
+    special_requests: 'Speciale verzoeken',
+    terms_agree: 'Ik ga akkoord met de',
+    terms_conditions: 'Algemene voorwaarden',
+    booking_confirmed: 'Boeking bevestigd!',
+    confirmation_sent: 'Bevestigingsmail is verzonden.',
+    booking_reference: 'Referentie',
+    not_found: 'Pagina niet gevonden',
+    error: 'Er ging iets mis'
+  }
+};
+
+// Get translation for a key
+function t(key, lang = 'en') {
+  const translations = LITE_TRANSLATIONS[lang] || LITE_TRANSLATIONS.en;
+  return translations[key] || LITE_TRANSLATIONS.en[key] || key;
+}
+
+// Available languages for the switcher
+const AVAILABLE_LANGUAGES = [
+  { code: 'en', name: 'English', flag: '🇬🇧' },
+  { code: 'fr', name: 'Français', flag: '🇫🇷' },
+  { code: 'es', name: 'Español', flag: '🇪🇸' },
+  { code: 'de', name: 'Deutsch', flag: '🇩🇪' },
+  { code: 'nl', name: 'Nederlands', flag: '🇳🇱' }
+];
 
 async function ensureLitesTable() {
   await pool.query(`
@@ -117,6 +463,7 @@ app.get('/:slug', async (req, res) => {
   try {
     const { slug } = req.params;
     const offerCode = req.query.offer;
+    const lang = (req.query.lang || 'en').toLowerCase().substring(0, 2); // Get language, default to en
     
     // Get lite config with all related data
     const liteResult = await pool.query(`
@@ -161,7 +508,7 @@ app.get('/:slug', async (req, res) => {
     });
     
     // Parse display_name from JSON
-    lite.display_name = parseJsonTextField(lite.display_name_raw);
+    lite.display_name = parseJsonTextField(lite.display_name_raw, lang);
     
     const propertyId = lite.property_id;
     const roomId = lite.room_id;
@@ -285,7 +632,7 @@ app.get('/:slug', async (req, res) => {
     res.send(renderFullPage({ 
       lite, images, amenities, reviews, availability, 
       todayPrice, qrCode, liteUrl, showReviews,
-      roomId, propertyId, accountId, activeOffer
+      roomId, propertyId, accountId, activeOffer, lang
     }));
   } catch (error) {
     console.error('Lite page error:', error);
@@ -1504,24 +1851,44 @@ function renderError(msg) {
   <div style="text-align:center"><h1>⚠️ Error</h1><p>${msg||'Please try again.'}</p></div></body></html>`;
 }
 
-function renderFullPage({ lite, images, amenities, reviews, availability, todayPrice, qrCode, liteUrl, showReviews, roomId, propertyId, accountId, activeOffer }) {
+function renderFullPage({ lite, images, amenities, reviews, availability, todayPrice, qrCode, liteUrl, showReviews, roomId, propertyId, accountId, activeOffer, lang = 'en' }) {
+  // Validate language
+  if (!LITE_TRANSLATIONS[lang]) lang = 'en';
+  
   // Use custom_title only if it's different from room_name (i.e., truly custom)
   const effectiveCustomTitle = (lite.custom_title && lite.custom_title !== lite.room_name) ? lite.custom_title : null;
   const title = effectiveCustomTitle || lite.display_name || lite.room_name || lite.property_name;
   
-  // Short description for intro/tagline
+  // Short description for intro/tagline - with language support
   const rawShortDesc = lite.room_short_desc || lite.property_short_desc || '';
-  const shortDescription = parseDescription(rawShortDesc);
+  const shortDescription = parseDescription(typeof rawShortDesc === 'object' ? (rawShortDesc[lang] || rawShortDesc.en || Object.values(rawShortDesc)[0]) : rawShortDesc);
   
-  // Full description for details tab
+  // Full description for details tab - with language support
   const rawFullDesc = lite.room_full_desc || lite.property_full_desc || lite.property_desc || rawShortDesc || '';
-  const description = parseDescription(rawFullDesc);
+  const description = parseDescription(typeof rawFullDesc === 'object' ? (rawFullDesc[lang] || rawFullDesc.en || Object.values(rawFullDesc)[0]) : rawFullDesc);
   
   const currency = getCurrencySymbol(lite.currency);
   const currencyCode = lite.currency || 'USD';
   let price = todayPrice;
   let originalPrice = null;
   const accent = lite.accent_color || '#3b82f6';
+  
+  // Build language switcher URL helper
+  const currentSlug = lite.slug;
+  const langSwitcherHtml = `
+    <div class="lang-switcher" style="position: fixed; top: 12px; right: 12px; z-index: 1000;">
+      <select id="langSelect" onchange="changeLanguage(this.value)" style="padding: 8px 12px; border-radius: 8px; border: 1px solid #e2e8f0; background: white; font-size: 14px; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+        ${AVAILABLE_LANGUAGES.map(l => `<option value="${l.code}" ${l.code === lang ? 'selected' : ''}>${l.flag} ${l.name}</option>`).join('')}
+      </select>
+    </div>
+    <script>
+      function changeLanguage(langCode) {
+        const url = new URL(window.location.href);
+        url.searchParams.set('lang', langCode);
+        window.location.href = url.toString();
+      }
+    </script>
+  `;
   
   // Apply offer discount if present
   let offerBannerHtml = '';
@@ -1588,7 +1955,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
   })));
 
   return `<!DOCTYPE html>
-<html lang="en">
+<html lang="${lang}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -1607,6 +1974,10 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     body { font-family: 'Inter', system-ui, sans-serif; color: #1e293b; line-height: 1.6; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
     .page-wrapper { background: #f8fafc; margin: 0 auto; max-width: 1400px; min-height: 100vh; box-shadow: 0 0 60px rgba(0,0,0,0.3); }
     .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+    
+    /* Language Switcher */
+    .lang-switcher { position: fixed; top: 12px; right: 12px; z-index: 1000; }
+    .lang-switcher select { padding: 8px 12px; border-radius: 8px; border: 1px solid #e2e8f0; background: white; font-size: 14px; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
     
     /* Header */
     .header { background: white; border-bottom: 1px solid #e2e8f0; padding: 12px 40px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; }
@@ -1953,6 +2324,20 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
   </style>
 </head>
 <body>
+  <!-- Language Switcher -->
+  <div class="lang-switcher">
+    <select id="langSelect" onchange="changeLanguage(this.value)">
+      ${AVAILABLE_LANGUAGES.map(l => `<option value="${l.code}" ${l.code === lang ? 'selected' : ''}>${l.flag} ${l.name}</option>`).join('')}
+    </select>
+  </div>
+  <script>
+    function changeLanguage(langCode) {
+      const url = new URL(window.location.href);
+      url.searchParams.set('lang', langCode);
+      window.location.href = url.toString();
+    }
+  </script>
+  
   <div class="page-wrapper">
   ${offerBannerHtml}
   <header class="header">
@@ -2004,10 +2389,10 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
         <div class="tabs">
           <div class="tabs-nav">
             <button class="tab-btn active" onclick="showTab('description', this)">Description</button>
-            <button class="tab-btn" onclick="showTab('availability', this)">Availability</button>
-            <button class="tab-btn" onclick="showTab('features', this)">Features</button>
-            ${showReviews ? `<button class="tab-btn" onclick="showTab('reviews', this)">Reviews</button>` : ''}
-            <button class="tab-btn" onclick="showTab('terms', this)">Terms</button>
+            <button class="tab-btn" onclick="showTab('availability', this)">${t('available', lang)}</button>
+            <button class="tab-btn" onclick="showTab('features', this)">${t('amenities', lang)}</button>
+            ${showReviews ? `<button class="tab-btn" onclick="showTab('reviews', this)">${t('reviews', lang)}</button>` : ''}
+            <button class="tab-btn" onclick="showTab('terms', this)">${t('policies', lang)}</button>
           </div>
           
           <div class="tab-content active" id="tab-description">
@@ -2135,15 +2520,15 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
             
             <div class="price-display">
               ${originalPrice && originalPrice !== price ? `<span style="text-decoration: line-through; color: #94a3b8; font-size: 1rem; margin-right: 8px;">${currency}${Math.round(originalPrice).toLocaleString()}</span>` : ''}
-              ${price ? `<span class="price-amount" ${originalPrice ? 'style="color: #10b981;"' : ''}>${currency}${Math.round(price).toLocaleString()}</span><span class="price-period"> / night</span>` : '<span class="price-amount">Check availability</span>'}
+              ${price ? `<span class="price-amount" ${originalPrice ? 'style="color: #10b981;"' : ''}>${currency}${Math.round(price).toLocaleString()}</span><span class="price-period"> / ${t('night', lang)}</span>` : `<span class="price-amount">${t('select_dates', lang)}</span>`}
             </div>
             <div class="date-inputs">
-              <div class="date-field"><label>Check-in</label><input type="text" id="checkin" placeholder="Select date" readonly></div>
-              <div class="date-field"><label>Check-out</label><input type="text" id="checkout" placeholder="Select date" readonly></div>
+              <div class="date-field"><label>${t('check_in', lang)}</label><input type="text" id="checkin" placeholder="${t('select_dates', lang)}" readonly></div>
+              <div class="date-field"><label>${t('check_out', lang)}</label><input type="text" id="checkout" placeholder="${t('select_dates', lang)}" readonly></div>
             </div>
             <div class="guest-fields">
-              <div class="guest-field"><label>Adults</label><select id="adults">${[1,2,3,4,5,6,7,8].map(n => `<option value="${n}">${n}</option>`).join('')}</select></div>
-              <div class="guest-field"><label>Children <span class="child-age-hint">(under 12)</span></label><select id="children">${[0,1,2,3,4,5].map(n => `<option value="${n}">${n}</option>`).join('')}</select></div>
+              <div class="guest-field"><label>${t('guests', lang)}</label><select id="adults">${[1,2,3,4,5,6,7,8].map(n => `<option value="${n}">${n}</option>`).join('')}</select></div>
+              <div class="guest-field"><label>${lang === 'en' ? 'Children' : t('guests', lang)} <span class="child-age-hint">(${lang === 'en' ? 'under 12' : '<12'})</span></label><select id="children">${[0,1,2,3,4,5].map(n => `<option value="${n}">${n}</option>`).join('')}</select></div>
             </div>
             
             <!-- Rate Options (shown when offers available) -->
@@ -2154,13 +2539,13 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
             
             <!-- Price breakdown -->
             <div id="priceBreakdown" class="price-breakdown" style="display:none;">
-              <h4>Price Details</h4>
+              <h4>${t('price_breakdown', lang)}</h4>
               <div class="breakdown-row" id="nightlyRow"><span></span><span></span></div>
-              <div class="breakdown-row" id="cleaningRow" style="display:none;"><span>Cleaning fee</span><span></span></div>
+              <div class="breakdown-row" id="cleaningRow" style="display:none;"><span>${t('cleaning_fee', lang)}</span><span></span></div>
               <div class="breakdown-row" id="upsellsRow" style="display:none;"><span>Extras</span><span></span></div>
               <div class="breakdown-row discount" id="discountRow" style="display:none;"><span></span><span></span></div>
               <div id="taxesContainer"></div>
-              <div class="breakdown-total"><span>Total</span><span id="totalAmount"></span></div>
+              <div class="breakdown-total"><span>${t('total', lang)}</span><span id="totalAmount"></span></div>
               <div id="depositSection" class="deposit-section" style="display:none;">
                 <div class="deposit-row"><span>Due now (deposit)</span><span id="depositAmount"></span></div>
                 <div class="deposit-row balance"><span>Balance due later</span><span id="balanceAmount"></span></div>
