@@ -523,7 +523,19 @@ app.get('/:slug', async (req, res) => {
   try {
     const { slug } = req.params;
     const offerCode = req.query.offer;
-    const lang = (req.query.lang || 'en').toLowerCase().substring(0, 2); // Get language, default to en
+    
+    // Language priority: 1) query param, 2) Accept-Language header, 3) default 'en'
+    let lang = 'en';
+    if (req.query.lang) {
+      lang = req.query.lang.toLowerCase().substring(0, 2);
+    } else {
+      // Try to detect from Accept-Language header
+      const acceptLang = req.headers['accept-language'] || '';
+      const browserLang = acceptLang.split(',')[0]?.split('-')[0]?.toLowerCase();
+      if (['en', 'es', 'fr', 'de', 'nl'].includes(browserLang)) {
+        lang = browserLang;
+      }
+    }
     
     // Get lite config with all related data
     const liteResult = await pool.query(`
@@ -707,7 +719,18 @@ app.get('/:slug/card', async (req, res) => {
   try {
     const { slug } = req.params;
     const offer = req.query.offer;
-    const lang = req.query.lang || 'en';
+    
+    // Language priority: 1) query param, 2) Accept-Language header, 3) default 'en'
+    let lang = 'en';
+    if (req.query.lang) {
+      lang = req.query.lang.toLowerCase().substring(0, 2);
+    } else {
+      const acceptLang = req.headers['accept-language'] || '';
+      const browserLang = acceptLang.split(',')[0]?.split('-')[0]?.toLowerCase();
+      if (['en', 'es', 'fr', 'de', 'nl'].includes(browserLang)) {
+        lang = browserLang;
+      }
+    }
     
     const liteResult = await pool.query(`
       SELECT l.*, p.name, p.city, p.country, p.currency, p.short_description,
@@ -3830,7 +3853,8 @@ function renderPromoCard({ lite, image, price, offer, qrCode, liteUrl, hasOffers
     .qr-section img { width: 70px; height: 70px; }
     .qr-text { font-size: 12px; color: #64748b; }
     .qr-url { font-weight: 600; color: #1e293b; }
-    .footer { text-align: center; padding: 12px; font-size: 12px; color: #94a3b8; background: #f1f5f9; }
+    .footer { text-align: center; padding: 12px; font-size: 12px; color: #94a3b8; background: #f1f5f9; display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; }
+    .lang-switch { background: white; border: 1px solid #e2e8f0; border-radius: 6px; padding: 4px 8px; font-size: 11px; cursor: pointer; color: #64748b; }
   </style>
 </head>
 <body>
@@ -3869,8 +3893,24 @@ function renderPromoCard({ lite, image, price, offer, qrCode, liteUrl, hasOffers
       <img src="${qrCode}" alt="QR">
       <div><div class="qr-text">${ct.scan}</div><div class="qr-url">#${lite.slug}</div></div>
     </div>
-    <div class="footer">${lite.account_display_name ? `<strong>${escapeForHTML(lite.account_display_name)}</strong> • ` : ''}Powered by GAS.travel</div>
+    <div class="footer">
+      ${lite.account_display_name ? `<strong>${escapeForHTML(lite.account_display_name)}</strong> • ` : ''}Powered by GAS.travel
+      <select class="lang-switch" onchange="switchLang(this.value)">
+        <option value="en" ${lang === 'en' ? 'selected' : ''}>🇬🇧 EN</option>
+        <option value="es" ${lang === 'es' ? 'selected' : ''}>🇪🇸 ES</option>
+        <option value="fr" ${lang === 'fr' ? 'selected' : ''}>🇫🇷 FR</option>
+        <option value="de" ${lang === 'de' ? 'selected' : ''}>🇩🇪 DE</option>
+        <option value="nl" ${lang === 'nl' ? 'selected' : ''}>🇳🇱 NL</option>
+      </select>
+    </div>
   </div>
+  <script>
+    function switchLang(newLang) {
+      const url = new URL(window.location.href);
+      url.searchParams.set('lang', newLang);
+      window.location.href = url.toString();
+    }
+  </script>
 </body>
 </html>`;
 }
