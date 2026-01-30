@@ -27230,7 +27230,10 @@ const promo = await fetch('/api/v1/offers/validate', {
         
         // Get supported languages for current account
         function getAccountLanguages() {
-            return accountLanguageSettings.supported || ['en'];
+            // Default to all 5 languages if not configured
+            return accountLanguageSettings.supported?.length > 0 
+                ? accountLanguageSettings.supported 
+                : ['en', 'es', 'fr', 'de', 'nl'];
         }
         
         function getAccountPrimaryLanguage() {
@@ -35274,7 +35277,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                         <div class="modal-content" style="max-width: 600px; border-radius: 16px;">
                             <div class="modal-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
                                 <h3 style="margin: 0;"> Payment Details</h3>
-                                <button class="close-btn" onclick="this.closest('.modal').remove()" style="color: white; background: none; border: none; font-size: 1.5rem; cursor: pointer;"></button>
+                                <button class="close-btn" onclick="this.closest('.modal').remove()" style="color: white; background: none; border: none; font-size: 1.5rem; cursor: pointer;">✕</button>
                             </div>
                             <div class="modal-body">
                                 ${html}
@@ -36315,11 +36318,42 @@ const promo = await fetch('/api/v1/offers/validate', {
                 return value;
             }
             if (typeof value === 'string') {
-                if (value.trim().startsWith('{')) {
-                    try { return JSON.parse(value); } catch(e) {}
+                let str = value.trim();
+                
+                // Keep trying to parse until we get an object (handles multiple levels of encoding)
+                let attempts = 0;
+                while (typeof str === 'string' && attempts < 5) {
+                    attempts++;
+                    // If it starts with quote + brace, it's encoded JSON
+                    if (str.startsWith('"{') || str.startsWith('"\\')) {
+                        try { 
+                            str = JSON.parse(str);
+                            continue;
+                        } catch(e) { break; }
+                    }
+                    // If it starts with brace, try to parse as JSON
+                    if (str.startsWith('{')) {
+                        try { 
+                            const parsed = JSON.parse(str);
+                            if (typeof parsed === 'object' && parsed !== null) {
+                                return parsed;
+                            }
+                            str = parsed;
+                        } catch(e) { break; }
+                    } else {
+                        break;
+                    }
                 }
+                
+                // If we ended up with an object, return it
+                if (typeof str === 'object' && str !== null && !Array.isArray(str)) {
+                    return str;
+                }
+                
                 // Plain string - assume it's English
-                return { en: value };
+                if (typeof str === 'string' && str.trim()) {
+                    return { en: str };
+                }
             }
             return {};
         }
