@@ -8676,6 +8676,94 @@ app.get('/api/accounts/me', async (req, res) => {
   }
 });
 
+// Get account language settings
+app.get('/api/account/language-settings', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.json({ success: false, error: 'No token provided' });
+    }
+    
+    const token = authHeader.split(' ')[1];
+    const session = await pool.query(
+      'SELECT account_id FROM account_sessions WHERE token = $1 AND expires_at > NOW()',
+      [token]
+    );
+    
+    if (session.rows.length === 0) {
+      return res.json({ success: false, error: 'Invalid session' });
+    }
+    
+    const account = await pool.query(
+      'SELECT settings FROM accounts WHERE id = $1',
+      [session.rows[0].account_id]
+    );
+    
+    if (account.rows.length === 0) {
+      return res.json({ success: false, error: 'Account not found' });
+    }
+    
+    const settings = account.rows[0].settings || {};
+    
+    res.json({
+      success: true,
+      settings: {
+        primary_language: settings.primary_language || 'en',
+        supported_languages: settings.supported_languages || ['en']
+      }
+    });
+  } catch (error) {
+    console.error('Get language settings error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Update account language settings
+app.put('/api/account/language-settings', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.json({ success: false, error: 'No token provided' });
+    }
+    
+    const token = authHeader.split(' ')[1];
+    const session = await pool.query(
+      'SELECT account_id FROM account_sessions WHERE token = $1 AND expires_at > NOW()',
+      [token]
+    );
+    
+    if (session.rows.length === 0) {
+      return res.json({ success: false, error: 'Invalid session' });
+    }
+    
+    const accountId = session.rows[0].account_id;
+    const { primary_language, supported_languages } = req.body;
+    
+    // Validate
+    const validLangs = ['en', 'es', 'fr', 'de', 'nl', 'it', 'pt', 'pl', 'ru', 'ja', 'zh'];
+    if (!validLangs.includes(primary_language)) {
+      return res.json({ success: false, error: 'Invalid primary language' });
+    }
+    
+    if (!Array.isArray(supported_languages) || supported_languages.length > 4) {
+      return res.json({ success: false, error: 'Supported languages must be an array of max 4 languages' });
+    }
+    
+    // Update settings JSONB field
+    await pool.query(`
+      UPDATE accounts 
+      SET settings = COALESCE(settings, '{}'::jsonb) || $1::jsonb,
+          updated_at = NOW()
+      WHERE id = $2
+    `, [JSON.stringify({ primary_language, supported_languages }), accountId]);
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Update language settings error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Logout endpoint
 app.post('/api/accounts/logout', async (req, res) => {
   try {
