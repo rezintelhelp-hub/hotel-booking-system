@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register Your Interest - GAS</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .back-link {
+            color: rgba(255,255,255,0.8);
+            text-decoration: none;
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+            display: inline-block;
+        }
+        
+        .back-link:hover { color: white; }
+        
+        .wizard-container {
+            background: #fff;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+            width: 100%;
+            max-width: 650px;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        
+        .wizard-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            padding: 25px 30px;
+            text-align: center;
+        }
+        
+        .wizard-header h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+        }
+        
+        .wizard-header p {
+            opacity: 0.9;
+            font-size: 0.9rem;
+        }
+        
+        .header-icon {
+            width: 36px;
+            height: 36px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+        }
+        
+        .steps-indicator {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .step-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #ddd;
+            transition: all 0.3s;
+        }
+        
+        .step-dot.active { background: #667eea; }
+        .step-dot.completed { background: #27ae60; }
+        
+        .wizard-content {
+            padding: 30px 40px;
+            min-height: 380px;
+        }
+        
+        .step { display: none; }
+        .step.active { display: block; animation: fadeIn 0.3s ease; }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .step h2 {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: #667eea;
+            margin-bottom: 8px;
+        }
+        
+        .step-description {
+            color: #7f8c8d;
+            font-size: 0.9rem;
+            margin-bottom: 24px;
+        }
+        
+        .form-group {
+            margin-bottom: 16px;
+        }
+        
+        .form-group label {
+            display: block;
+            font-weight: 500;
+            color: #2c3e50;
+            margin-bottom: 6px;
+            font-size: 0.9rem;
+        }
+        
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px 14px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 1rem;
+            transition: border-color 0.2s;
+            background: #f8f9fa;
+            font-family: inherit;
+        }
+        
+        .form-group textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+        
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            background: #fff;
+        }
+        
+        .form-group small {
+            display: block;
+            margin-top: 4px;
+            color: #95a5a6;
+            font-size: 0.8rem;
+        }
+        
+        .btn {
+            padding: 14px 28px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4); }
+        .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+        
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #666;
+        }
+        
+        .wizard-footer {
+            display: flex;
+            justify-content: space-between;
+            padding: 20px 40px;
+            background: #f8f9fa;
+            border-top: 1px solid #eee;
+        }
+        
+        .error-message {
+            background: #fee;
+            color: #c00;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            font-size: 0.9rem;
+            display: none;
+        }
+        
+        .error-message.show { display: block; }
+        
+        .info-box {
+            background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
+            border: 1px solid #c4b5fd;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        
+        .info-box h4 {
+            color: #667eea;
+            margin-bottom: 12px;
+            font-size: 1rem;
+        }
+        
+        .info-box p {
+            color: #666;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+        
+        .success-box {
+            text-align: center;
+            padding: 30px 0;
+        }
+        
+        .success-icon {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+            font-size: 2.5rem;
+            color: white;
+        }
+        
+        .summary-table {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .summary-row:last-child { border-bottom: none; }
+        
+        .summary-label { color: #7f8c8d; }
+        .summary-value { font-weight: 600; color: #2c3e50; }
+        
+        .cm-options {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin: 16px 0;
+        }
+        
+        .cm-option {
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+            font-size: 0.9rem;
+        }
+        
+        .cm-option:hover {
+            border-color: #667eea;
+            background: #f5f3ff;
+        }
+        
+        .cm-option.selected {
+            border-color: #667eea;
+            background: #667eea;
+            color: white;
+        }
+        
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+    <a href="/connect-cm.html" class="back-link">← Back to Channel Managers</a>
+    
+    <div class="wizard-container">
+        <div class="wizard-header">
+            <h1>
+                <div class="header-icon">📋</div>
+                Register Your Interest
+            </h1>
+            <p>Tell us about your property management setup</p>
+        </div>
+        
+        <div class="steps-indicator">
+            <div class="step-dot active" id="dot1"></div>
+            <div class="step-dot" id="dot2"></div>
+            <div class="step-dot" id="dot3"></div>
+        </div>
+        
+        <div class="wizard-content">
+            <!-- Step 1: Account Details -->
+            <div class="step active" id="step1">
+                <h2>Your Details</h2>
+                <p class="step-description">Create your GAS account</p>
+                
+                <div class="error-message" id="step1-error"></div>
+                
+                <div class="form-group">
+                    <label>Business Name *</label>
+                    <input type="text" id="business-name" placeholder="Your Property or Company Name">
+                </div>
+                
+                <div class="form-group">
+                    <label>Your Name *</label>
+                    <input type="text" id="contact-name" placeholder="Full Name">
+                </div>
+                
+                <div class="form-group">
+                    <label>Email *</label>
+                    <input type="email" id="email" placeholder="your@email.com">
+                </div>
+                
+                <div class="form-group">
+                    <label>Password *</label>
+                    <input type="password" id="password" placeholder="Create a password">
+                    <small>Minimum 6 characters</small>
+                </div>
+                
+                <div class="form-group">
+                    <label>Phone (Optional)</label>
+                    <input type="tel" id="phone" placeholder="+1 234 567 8900">
+                </div>
+            </div>
+            
+            <!-- Step 2: Channel Manager Info -->
+            <div class="step" id="step2">
+                <h2>Your Setup</h2>
+                <p class="step-description">Tell us about your property management system</p>
+                
+                <div class="error-message" id="step2-error"></div>
+                
+                <div class="form-group">
+                    <label>Which Channel Manager / PMS do you use?</label>
+                    <select id="cm-select">
+                        <option value="">-- Select an option --</option>
+                        <option value="none">I don't use a Channel Manager</option>
+                        <option value="other">Other (not listed)</option>
+                        <optgroup label="Popular Systems">
+                            <option value="guesty">Guesty</option>
+                            <option value="cloudbeds">Cloudbeds</option>
+                            <option value="mews">Mews</option>
+                            <option value="ownerrez">OwnerRez</option>
+                            <option value="streamline">Streamline</option>
+                            <option value="track">Track</option>
+                            <option value="escapia">Escapia</option>
+                            <option value="rentals_united">Rentals United</option>
+                        </optgroup>
+                        <optgroup label="All Systems">
+                            <option value="apaleo">Apaleo</option>
+                            <option value="avaibook">AvaiBook</option>
+                            <option value="avantio">Avantio</option>
+                            <option value="bookingsync">BookingSync</option>
+                            <option value="direct">Direct Software</option>
+                            <option value="elina">Elina</option>
+                            <option value="guestwisely">GuestWisely</option>
+                            <option value="hospitable">Hospitable</option>
+                            <option value="hostex">Hostex</option>
+                            <option value="hostify">Hostify</option>
+                            <option value="hosttools">Host Tools</option>
+                            <option value="rentalwise">RentalWise</option>
+                            <option value="resly">Resly</option>
+                            <option value="rms">RMS Cloud</option>
+                            <option value="tokeet">Tokeet</option>
+                            <option value="uplisting">Uplisting</option>
+                            <option value="your_rentals">Your.Rentals</option>
+                            <option value="zeevou">Zeevou</option>
+                            <option value="fantastic_stay">Fantastic Stay</option>
+                        </optgroup>
+                    </select>
+                </div>
+                
+                <div class="form-group hidden" id="other-cm-group">
+                    <label>Please specify your Channel Manager</label>
+                    <input type="text" id="other-cm" placeholder="Enter the name of your system">
+                </div>
+                
+                <div class="form-group">
+                    <label>Number of Properties</label>
+                    <select id="num-properties">
+                        <option value="1">1 property</option>
+                        <option value="2-5">2-5 properties</option>
+                        <option value="6-10">6-10 properties</option>
+                        <option value="11-25">11-25 properties</option>
+                        <option value="26-50">26-50 properties</option>
+                        <option value="50+">50+ properties</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>Additional Notes (Optional)</label>
+                    <textarea id="notes" placeholder="Tell us more about your requirements..."></textarea>
+                </div>
+            </div>
+            
+            <!-- Step 3: Success -->
+            <div class="step" id="step3">
+                <div class="success-box">
+                    <div class="success-icon">✓</div>
+                    <h2 style="color: #2c3e50;">Registration Complete!</h2>
+                    <p class="step-description">We've created your account and recorded your interest</p>
+                </div>
+                
+                <div class="info-box">
+                    <h4>What happens next?</h4>
+                    <p>Our team will review your request and contact you within 24-48 hours. In the meantime, you can explore the GAS platform and we can build a custom website for your properties.</p>
+                </div>
+                
+                <div class="summary-table">
+                    <div class="summary-row">
+                        <span class="summary-label">Business Name</span>
+                        <span class="summary-value" id="summary-business">-</span>
+                    </div>
+                    <div class="summary-row">
+                        <span class="summary-label">Channel Manager</span>
+                        <span class="summary-value" id="summary-cm">-</span>
+                    </div>
+                    <div class="summary-row">
+                        <span class="summary-label">Properties</span>
+                        <span class="summary-value" id="summary-properties">-</span>
+                    </div>
+                    <div class="summary-row">
+                        <span class="summary-label">Status</span>
+                        <span class="summary-value" style="color: #f39c12;">⏳ Pending Review</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="wizard-footer">
+            <button class="btn btn-secondary hidden" id="btn-back" onclick="prevStep()">← Back</button>
+            <div></div>
+            <button class="btn btn-primary" id="btn-next" onclick="nextStep()">Next →</button>
+        </div>
+    </div>
+
+    <script>
+        let currentStep = 1;
+        let gasAccountId = null;
+
+        // Show/hide other CM field
+        document.getElementById('cm-select').addEventListener('change', function() {
+            const otherGroup = document.getElementById('other-cm-group');
+            if (this.value === 'other') {
+                otherGroup.classList.remove('hidden');
+            } else {
+                otherGroup.classList.add('hidden');
+            }
+        });
+
+        function updateStep() {
+            document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+            document.getElementById(`step${currentStep}`).classList.add('active');
+            
+            for (let i = 1; i <= 3; i++) {
+                const dot = document.getElementById(`dot${i}`);
+                dot.classList.remove('active', 'completed');
+                if (i < currentStep) dot.classList.add('completed');
+                if (i === currentStep) dot.classList.add('active');
+            }
+            
+            document.getElementById('btn-back').classList.toggle('hidden', currentStep === 1);
+            
+            if (currentStep === 3) {
+                document.getElementById('btn-next').textContent = 'Go to Dashboard →';
+            } else {
+                document.getElementById('btn-next').textContent = 'Next →';
+            }
+        }
+
+        function showError(elementId, message) {
+            const el = document.getElementById(elementId);
+            el.textContent = message;
+            el.classList.add('show');
+        }
+
+        function clearErrors() {
+            document.querySelectorAll('.error-message').forEach(el => el.classList.remove('show'));
+        }
+
+        async function nextStep() {
+            clearErrors();
+            
+            if (currentStep === 1) {
+                const success = await createAccount();
+                if (!success) return;
+            }
+            
+            if (currentStep === 2) {
+                const success = await submitInterest();
+                if (!success) return;
+            }
+            
+            if (currentStep === 3) {
+                window.location.href = 'https://admin.gas.travel/';
+                return;
+            }
+            
+            currentStep++;
+            updateStep();
+        }
+
+        function prevStep() {
+            if (currentStep > 1) {
+                currentStep--;
+                updateStep();
+            }
+        }
+
+        async function createAccount() {
+            const businessName = document.getElementById('business-name').value.trim();
+            const contactName = document.getElementById('contact-name').value.trim();
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value;
+            const phone = document.getElementById('phone').value.trim();
+            
+            if (!businessName || !contactName || !email || !password) {
+                showError('step1-error', 'Please fill in all required fields');
+                return false;
+            }
+            
+            if (password.length < 6) {
+                showError('step1-error', 'Password must be at least 6 characters');
+                return false;
+            }
+            
+            try {
+                const response = await fetch('https://api.gas.travel/api/accounts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        name: businessName, 
+                        email, 
+                        password, 
+                        business_name: businessName,
+                        contact_name: contactName,
+                        phone: phone,
+                        status: 'pending_integration'
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success && data.account) {
+                    gasAccountId = data.account.id;
+                    localStorage.setItem('gas_other_account', JSON.stringify(data.account));
+                    return true;
+                } else {
+                    showError('step1-error', data.error || 'Registration failed');
+                    return false;
+                }
+            } catch (error) {
+                showError('step1-error', 'Connection error: ' + error.message);
+                return false;
+            }
+        }
+
+        async function submitInterest() {
+            const cmSelect = document.getElementById('cm-select').value;
+            const otherCm = document.getElementById('other-cm').value.trim();
+            const numProperties = document.getElementById('num-properties').value;
+            const notes = document.getElementById('notes').value.trim();
+            
+            if (!cmSelect) {
+                showError('step2-error', 'Please select your channel manager');
+                return false;
+            }
+            
+            if (cmSelect === 'other' && !otherCm) {
+                showError('step2-error', 'Please specify your channel manager');
+                return false;
+            }
+            
+            const channelManager = cmSelect === 'other' ? otherCm : cmSelect;
+            
+            try {
+                // Save interest to API
+                const response = await fetch('https://api.gas.travel/api/cm-interest', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        account_id: gasAccountId,
+                        channel_manager: channelManager,
+                        num_properties: numProperties,
+                        notes: notes
+                    })
+                });
+                
+                const data = await response.json();
+                
+                // Update summary
+                document.getElementById('summary-business').textContent = document.getElementById('business-name').value;
+                document.getElementById('summary-cm').textContent = channelManager === 'none' ? 'No CM' : channelManager;
+                document.getElementById('summary-properties').textContent = numProperties;
+                
+                return true;
+            } catch (error) {
+                // Still proceed even if API fails - account is created
+                document.getElementById('summary-business').textContent = document.getElementById('business-name').value;
+                document.getElementById('summary-cm').textContent = channelManager === 'none' ? 'No CM' : channelManager;
+                document.getElementById('summary-properties').textContent = numProperties;
+                return true;
+            }
+        }
+
+        updateStep();
+        
+        document.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && currentStep < 3) nextStep();
+        });
+        
+        console.log('📋 Other CM Registration loaded');
+    </script>
+</body>
+</html>
