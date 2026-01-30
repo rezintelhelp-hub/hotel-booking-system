@@ -58754,6 +58754,47 @@ app.get('/api/admin/deepl-usage', async (req, res) => {
   }
 });
 
+// Simple translate API for admin UI
+app.post('/api/translate', async (req, res) => {
+  try {
+    const { text, targetLangs = ['en', 'es', 'fr', 'de', 'nl'], sourceLang } = req.body;
+    
+    if (!text || text.trim().length === 0) {
+      return res.json({ success: false, error: 'No text to translate' });
+    }
+    
+    if (!DEEPL_API_KEY) {
+      return res.json({ success: false, error: 'DeepL not configured' });
+    }
+    
+    // Detect source language if not provided
+    const detectedSource = sourceLang || 'en';
+    
+    const translations = {};
+    translations[detectedSource] = text; // Keep original
+    
+    // Translate to each target language (except source)
+    for (const lang of targetLangs) {
+      if (lang === detectedSource) continue;
+      
+      try {
+        const translated = await translateWithDeepL(text, detectedSource, lang);
+        if (translated) {
+          translations[lang] = translated;
+        }
+      } catch (e) {
+        console.error(`Translation to ${lang} failed:`, e.message);
+      }
+    }
+    
+    res.json({ success: true, translations });
+    
+  } catch (error) {
+    console.error('Translate API error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // ============================================
 // END DEEPL TRANSLATION WORKER
 // ============================================
