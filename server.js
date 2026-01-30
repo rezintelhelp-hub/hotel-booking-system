@@ -56925,6 +56925,22 @@ async function runTieredSync() {
         continue;
       }
       
+      // Load price linking map for this connection
+      const priceLinkingMap = {};
+      const linkingResult = await pool.query(`
+        SELECT rt.external_id, rt.price_linking
+        FROM gas_sync_room_types rt
+        JOIN gas_sync_properties sp ON sp.id = rt.sync_property_id
+        WHERE sp.connection_id = $1 AND rt.price_linking IS NOT NULL
+      `, [conn.id]);
+      for (const row of linkingResult.rows) {
+        if (row.price_linking) {
+          priceLinkingMap[row.external_id] = typeof row.price_linking === 'string' 
+            ? JSON.parse(row.price_linking) 
+            : row.price_linking;
+        }
+      }
+      
       // Get rooms that need syncing for each tier
       for (const tier of SYNC_TIERS) {
         const tierColumn = `tier${tier.tier}_synced_at`;
@@ -56947,15 +56963,13 @@ async function runTieredSync() {
         
         console.log(`⏰ [Tiered Sync] Tier ${tier.tier} (${tier.name}): ${roomsResult.rows.length} rooms due`);
         
-        // Get V1 credentials from connection for fallback
-        const credentials = typeof conn.credentials === 'string' ? JSON.parse(conn.credentials || '{}') : (conn.credentials || {});
-        const v1ApiKey = credentials.v1ApiKey || credentials.apiKey;
-        
         for (const room of roomsResult.rows) {
           try {
             // Calculate date range for this tier
             const startDate = new Date(now.getTime() + tier.startDay * 24 * 60 * 60 * 1000);
             const endDate = new Date(now.getTime() + tier.endDay * 24 * 60 * 60 * 1000);
+            const startDateStr = startDate.toISOString().split('T')[0];
+            const endDateStr = endDate.toISOString().split('T')[0];
             
             // Get prop_key for this room's property
             const propKeyResult = await pool.query(`
@@ -56981,16 +56995,67 @@ async function runTieredSync() {
             const calendarData = calResponse.data.data?.[0]?.calendar || [];
             let daysUpdated = 0;
             
-            // Check if V2 returned any prices (not just availability)
+            // Check if V2 returned any prices
             const hasAnyPrices = calendarData.some(entry => entry.price1 || entry.price);
             
-            // NOTE: V1 fallback removed from background sync - too many API calls
-            // V1 is only used in manual property-level sync (sync-prices endpoint)
-            // If V2 has no prices, just log and skip
-            if (!hasAnyPrices) {
-              console.log(`  ⏭️ ${room.name}: V2 returned no prices, skipping (use manual sync for V1)`);
-            } else {
-              // Process V2 calendar data
+            // Check if this room has price linking
+            const linking = priceLinkingMap[room.beds24_room_id];
+            
+            // If no prices but has price linking, get prices from BASE in database
+            if (!hasAnyPrices && linking) {
+              // Find the GAS room ID for the source room (BASE)
+              const sourceRoomResult = await pool.query(`
+                SELECT rt.gas_room_id 
+                FROM gas_sync_room_types rt
+                JOIN gas_sync_properties sp ON sp.id = rt.sync_property_id
+                WHERE sp.connection_id = $1 AND rt.external_id = $2
+              `, [conn.id, String(linking.sourceRoomId)]);
+              
+              const sourceGasRoomId = sourceRoomResult.rows[0]?.gas_room_id;
+              
+              if (sourceGasRoomId) {
+                // Get BASE prices from database
+                const sourcePricesResult = await pool.query(`
+                  SELECT date, cm_price, min_stay
+                  FROM room_availability
+                  WHERE room_id = $1 AND date >= $2 AND date <= $3 AND cm_price IS NOT NULL
+                  ORDER BY date
+                `, [sourceGasRoomId, startDateStr, endDateStr]);
+                
+                if (sourcePricesResult.rows.length > 0) {
+                  const multiplier = linking.offsetMultiplier || 1;
+                  const offset = linking.offsetAmount || 0;
+                  
+                  console.log(`  📊 Applying ${sourcePricesResult.rows.length} BASE prices to ${room.name} (x${multiplier})`);
+                  
+                  // Save prices to this linked room
+                  for (const row of sourcePricesResult.rows) {
+                    const dateStr = row.date.toISOString().split('T')[0];
+                    const basePrice = parseFloat(row.cm_price);
+                    const linkedPrice = (basePrice * multiplier) + offset;
+                    const minStay = row.min_stay || 1;
+                    
+                    await pool.query(`
+                      INSERT INTO room_availability (room_id, date, cm_price, direct_price, min_stay, cm_min_stay, source, updated_at)
+                      VALUES ($1, $2, $3, $3, $4, $4, 'beds24-linked', NOW())
+                      ON CONFLICT (room_id, date) 
+                      DO UPDATE SET 
+                        cm_price = $3,
+                        direct_price = $3,
+                        min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $4 END,
+                        cm_min_stay = $4,
+                        source = 'beds24-linked',
+                        updated_at = NOW()
+                    `, [room.gas_room_id, dateStr, linkedPrice, minStay]);
+                    
+                    daysUpdated++;
+                  }
+                } else {
+                  console.log(`  ⚠️ ${room.name}: No BASE prices found in DB for date range`);
+                }
+              }
+            } else if (hasAnyPrices) {
+              // Process V2 calendar data normally
               for (const entry of calendarData) {
                 const fromDate = new Date(entry.from);
                 const toDate = new Date(entry.to);
@@ -57018,6 +57083,8 @@ async function runTieredSync() {
                   daysUpdated++;
                 }
               }
+            } else {
+              console.log(`  ⏭️ ${room.name}: No prices and no linking configured`);
             }
             
             // Update tier sync timestamp
