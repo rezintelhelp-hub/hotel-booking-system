@@ -91,7 +91,10 @@ try {
       { code: 'beds24', name: 'Beds24', description: 'PMS + Channel Manager' },
       { code: 'calry', name: 'Calry', description: 'Unified API' },
       { code: 'hostaway', name: 'Hostaway', description: 'Vacation Rental Software' },
-      { code: 'smoobu', name: 'Smoobu', description: 'Channel Manager' }
+      { code: 'smoobu', name: 'Smoobu', description: 'Channel Manager' },
+      { code: 'hostfully', name: 'Hostfully', description: 'Property Management Platform' },
+      { code: 'lodgify', name: 'Lodgify', description: 'Vacation Rental Software' },
+      { code: 'other', name: 'Other / Not Listed', description: 'Request integration' }
     ],
     viaCalry: []
   });
@@ -107,6 +110,41 @@ const EMAIL_FROM = process.env.EMAIL_FROM || 'bookings@mg.gas.travel';
 const CALRY_API_TOKEN = process.env.CALRY_API_TOKEN;
 const CALRY_WORKSPACE_ID = process.env.CALRY_WORKSPACE_ID;
 const CALRY_API_BASE = 'https://prod.calry.app/api/v2/vrs';
+
+// Calry Integration Account IDs - maps PMS name to their Calry integration ID
+const CALRY_INTEGRATION_IDS = {
+  'fantastic_stay': 'c475f29c-cbb0-4266-a9f0-d65b41e186ab',
+  'apaleo': '520e2d7a-ae33-4d29-8ede-6521579cdc27',
+  'avaibook': 'a8d5719c-9317-4b38-8771-6bcf4a829827',
+  'avantio': '89d0d70d-1ba7-489e-bb93-5249eaf165cb',
+  'beds24': 'b4010939-f85c-4a7e-ae01-a21a516878d8',
+  'bookingsync': 'f2d800c7-269c-41a8-b520-f255b6a127d6',
+  'cloudbeds': '8c438104-f636-40a9-b49f-af2810b64aae',
+  'direct': '8bc944e7-cddd-4806-8b38-112355c59a58',
+  'elina': '0f1236ba-6f5c-407c-87a5-94082392a2d4',
+  'escapia': '61458422-9599-4061-8ecb-a794c6dae62b',
+  'guestwisely': 'ee775ed1-3e34-4029-b9fd-858144c97464',
+  'guesty': 'd403dcaa-a50e-411b-8aac-6137b22d81c5',
+  'hospitable': '19cc30f0-f245-412c-aca5-f6d8e0da7088',
+  'hosttools': '76abdaee-cadf-497d-9885-e507afa06fed',
+  'hostaway': '1b523646-ca1d-4ecc-a942-90a3e667dad8',
+  'hostex': '67498bb1-2d63-4c28-b972-b56ee1dc8ec2',
+  'hostfully': 'c01768cb-26b4-4817-99ca-99f9bc53117a',
+  'hostify': '502e5eea-ebc5-4d73-b434-3d8b5b14b24e',
+  'lodgify': '5f9f15ae-ae8f-4cd3-8822-993ca59bf142',
+  'mews': 'f34f1e78-7f18-4b2a-9ef2-20a6505d14d7',
+  'ownerrez': 'd8c7cf66-e299-4bee-b2cb-773a73b0dbe5',
+  'rentalwise': 'b34aa1c6-6423-4a05-aa08-1b84ce248841',
+  'resly': '5c75a17d-ca5d-4c56-839a-b2ae5fa47b21',
+  'rms': 'ccb540e8-385f-41c0-a95e-08c148deac58',
+  'smoobu': '468a377c-ba36-4534-95a3-ca4d21890c80',
+  'streamline': 'ed4b9227-03b2-4a3f-81f4-5971187c2d90',
+  'tokeet': 'a189a99e-9ae1-4393-8852-41de62770a95',
+  'track': 'b280a5fe-6a84-4db7-8947-e4ada72b79b3',
+  'uplisting': '8fec689e-5590-43cc-b193-74c3b2bb25c6',
+  'your_rentals': '15227a83-01f2-4e83-9ffd-0e402f6211e6',
+  'zeevou': '0b414fc5-7bf5-4438-a6d9-3d655fa2189f'
+};
 
 // Send email via Mailgun API
 async function sendEmail({ to, subject, html, from = EMAIL_FROM }) {
@@ -9875,15 +9913,17 @@ app.get('/api/accounts/:id', async (req, res) => {
 // Create new account
 app.post('/api/accounts', async (req, res) => {
   try {
-    const { name, email, phone, account_code, role, status, password } = req.body;
+    const { name, email, phone, account_code, role, status, password, contact_name, cm_type } = req.body;
     
     if (!name) {
       return res.json({ success: false, error: 'Account name is required' });
     }
     
-    // Ensure account_code and password_hash columns exist
+    // Ensure account_code, password_hash, and cm_type columns exist
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS account_code VARCHAR(20)`).catch(() => {});
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS password_hash VARCHAR(255)`).catch(() => {});
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS contact_name VARCHAR(255)`).catch(() => {});
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS cm_type VARCHAR(100)`).catch(() => {});
     
     // Hash password if provided
     let passwordHash = null;
@@ -9893,10 +9933,10 @@ app.post('/api/accounts', async (req, res) => {
     }
     
     const result = await pool.query(`
-      INSERT INTO accounts (name, email, phone, account_code, role, status, password_hash, created_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+      INSERT INTO accounts (name, email, phone, account_code, role, status, password_hash, contact_name, cm_type, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
       RETURNING *
-    `, [name, email || null, phone || null, account_code || null, role || 'agency_admin', status || 'active', passwordHash]);
+    `, [name, email || null, phone || null, account_code || null, role || 'agency_admin', status || 'active', passwordHash, contact_name || null, cm_type || null]);
     
     const account = result.rows[0];
     
@@ -9928,6 +9968,88 @@ app.post('/api/accounts', async (req, res) => {
   } catch (error) {
     console.error('Create account error:', error);
     res.json({ success: false, error: error.message });
+  }
+});
+
+// Record CM interest from Other CM wizard
+app.post('/api/cm-interest', async (req, res) => {
+  try {
+    const { account_id, channel_manager, num_properties, notes } = req.body;
+    
+    if (!account_id) {
+      return res.json({ success: false, error: 'Account ID is required' });
+    }
+    
+    // Create table if needed
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS cm_interest (
+        id SERIAL PRIMARY KEY,
+        account_id INTEGER REFERENCES accounts(id),
+        channel_manager VARCHAR(100),
+        num_properties VARCHAR(50),
+        notes TEXT,
+        status VARCHAR(50) DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    // Insert interest record
+    const result = await pool.query(`
+      INSERT INTO cm_interest (account_id, channel_manager, num_properties, notes)
+      VALUES ($1, $2, $3, $4)
+      RETURNING *
+    `, [account_id, channel_manager, num_properties, notes]);
+    
+    // Update account cm_type
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS cm_type VARCHAR(100)`).catch(() => {});
+    await pool.query(`
+      UPDATE accounts SET cm_type = $1 WHERE id = $2
+    `, [channel_manager, account_id]);
+    
+    res.json({ success: true, interest: result.rows[0] });
+  } catch (error) {
+    console.error('CM interest error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get CM interest records (admin)
+app.get('/api/cm-interest', async (req, res) => {
+  try {
+    const { status } = req.query;
+    
+    let query = `
+      SELECT ci.*, a.name as account_name, a.email
+      FROM cm_interest ci
+      JOIN accounts a ON ci.account_id = a.id
+    `;
+    
+    if (status) {
+      query += ` WHERE ci.status = $1`;
+    }
+    
+    query += ` ORDER BY ci.created_at DESC`;
+    
+    const result = status 
+      ? await pool.query(query, [status])
+      : await pool.query(query);
+    
+    res.json({ success: true, interests: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get Calry integration ID for a PMS
+app.get('/api/calry/integration-id/:pms', (req, res) => {
+  const pms = req.params.pms.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+  const integrationId = CALRY_INTEGRATION_IDS[pms];
+  
+  if (integrationId) {
+    res.json({ success: true, pms, integrationId });
+  } else {
+    res.json({ success: false, error: 'PMS not found', availablePms: Object.keys(CALRY_INTEGRATION_IDS) });
   }
 });
 
@@ -50487,7 +50609,10 @@ app.get('/api/gas-sync/adapters', async (req, res) => {
         { id: 1, code: 'beds24', name: 'Beds24', description: 'PMS + Channel Manager', auth_type: 'oauth2', capabilities: ['properties', 'room_types', 'availability', 'rates', 'reservations', 'images'], is_active: true },
         { id: 2, code: 'calry', name: 'Calry', description: 'Unified API for 40+ PMS', auth_type: 'api_key', capabilities: ['properties', 'room_types', 'availability', 'rates', 'reservations'], is_active: true },
         { id: 3, code: 'hostaway', name: 'Hostaway', description: 'Vacation Rental Software', auth_type: 'api_key', capabilities: ['properties', 'reservations', 'availability'], is_active: true },
-        { id: 4, code: 'smoobu', name: 'Smoobu', description: 'Channel Manager', auth_type: 'api_key', capabilities: ['properties', 'reservations', 'availability'], is_active: true }
+        { id: 4, code: 'smoobu', name: 'Smoobu', description: 'Channel Manager', auth_type: 'api_key', capabilities: ['properties', 'reservations', 'availability'], is_active: true },
+        { id: 5, code: 'hostfully', name: 'Hostfully', description: 'Property Management Platform', auth_type: 'api_key', capabilities: ['properties', 'room_types', 'availability', 'rates', 'reservations'], is_active: true },
+        { id: 6, code: 'lodgify', name: 'Lodgify', description: 'Vacation Rental Software', auth_type: 'api_key', capabilities: ['properties', 'room_types', 'availability', 'rates', 'reservations'], is_active: true },
+        { id: 7, code: 'other', name: 'Other / Not Listed', description: 'Request integration for unlisted PMS', auth_type: 'contact', capabilities: [], is_active: true }
       ];
       return res.json({ success: true, adapters: defaultAdapters });
     }
@@ -50500,7 +50625,10 @@ app.get('/api/gas-sync/adapters', async (req, res) => {
       { id: 1, code: 'beds24', name: 'Beds24', description: 'PMS + Channel Manager', auth_type: 'oauth2', capabilities: ['properties', 'room_types', 'availability', 'rates', 'reservations', 'images'], is_active: true },
       { id: 2, code: 'calry', name: 'Calry', description: 'Unified API for 40+ PMS', auth_type: 'api_key', capabilities: ['properties', 'room_types', 'availability', 'rates', 'reservations'], is_active: true },
       { id: 3, code: 'hostaway', name: 'Hostaway', description: 'Vacation Rental Software', auth_type: 'api_key', capabilities: ['properties', 'reservations', 'availability'], is_active: true },
-      { id: 4, code: 'smoobu', name: 'Smoobu', description: 'Channel Manager', auth_type: 'api_key', capabilities: ['properties', 'reservations', 'availability'], is_active: true }
+      { id: 4, code: 'smoobu', name: 'Smoobu', description: 'Channel Manager', auth_type: 'api_key', capabilities: ['properties', 'reservations', 'availability'], is_active: true },
+      { id: 5, code: 'hostfully', name: 'Hostfully', description: 'Property Management Platform', auth_type: 'api_key', capabilities: ['properties', 'room_types', 'availability', 'rates', 'reservations'], is_active: true },
+      { id: 6, code: 'lodgify', name: 'Lodgify', description: 'Vacation Rental Software', auth_type: 'api_key', capabilities: ['properties', 'room_types', 'availability', 'rates', 'reservations'], is_active: true },
+      { id: 7, code: 'other', name: 'Other / Not Listed', description: 'Request integration for unlisted PMS', auth_type: 'contact', capabilities: [], is_active: true }
     ];
     res.json({ success: true, adapters: defaultAdapters });
   }
