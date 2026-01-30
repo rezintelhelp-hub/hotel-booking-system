@@ -3837,11 +3837,14 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         displayName = getText(texts.displayName) || '';
       }
       
-      // Helper to strip HTML tags and decode entities
+      // Helper to strip HTML tags, script tags, and decode entities
       function stripHtml(html) {
         if (!html) return '';
         return html
-          .replace(/<[^>]*>/g, '') // Remove HTML tags
+          .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '') // Remove script tags and content
+          .replace(/var\s+script\s*=\s*document\.createElement[^;]*;[^}]*appendChild\([^)]*\);?/gi, '') // Remove inline script injection
+          .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '') // Remove style tags and content
+          .replace(/<[^>]*>/g, '') // Remove remaining HTML tags
           .replace(/&nbsp;/g, ' ')
           .replace(/&amp;/g, '&')
           .replace(/&lt;/g, '<')
