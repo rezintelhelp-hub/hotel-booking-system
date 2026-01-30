@@ -7146,6 +7146,66 @@ app.post('/api/gas-sync/tiered-availability-sync', async (req, res) => {
               }
             }
             
+            // ===== PUSH PRICES TO LINKED ROOMS =====
+            // If this room has prices (like BASE), find all rooms linked to it and copy prices
+            const hasSourcePrices = calendarData.some(e => e.price1);
+            if (hasSourcePrices) {
+              // Find all rooms that link to this room
+              const linkedRoomsResult = await pool.query(`
+                SELECT rt.gas_room_id, rt.price_linking, rt.name
+                FROM gas_sync_room_types rt
+                JOIN gas_sync_properties sp ON sp.id = rt.sync_property_id
+                WHERE sp.connection_id = $1 
+                  AND rt.gas_room_id IS NOT NULL
+                  AND rt.price_linking->>'sourceRoomId' = $2
+              `, [conn.id, String(beds24RoomId)]);
+              
+              if (linkedRoomsResult.rows.length > 0) {
+                console.log(`  → Pushing prices to ${linkedRoomsResult.rows.length} linked rooms`);
+                
+                for (const linkedRoom of linkedRoomsResult.rows) {
+                  const linking = typeof linkedRoom.price_linking === 'string' 
+                    ? JSON.parse(linkedRoom.price_linking) 
+                    : linkedRoom.price_linking;
+                  const multiplier = linking.offsetMultiplier || 1;
+                  const offset = linking.offsetAmount || 0;
+                  
+                  let linkedDays = 0;
+                  for (const entry of calendarData) {
+                    const fromDate = new Date(entry.from);
+                    const toDate = new Date(entry.to);
+                    
+                    for (let d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
+                      const dateStr = d.toISOString().split('T')[0];
+                      const basePrice = entry.price1 || null;
+                      const linkedPrice = basePrice ? (basePrice * multiplier) + offset : null;
+                      const minStay = entry.minStay || 1;
+                      
+                      // Only update price if we have one - don't overwrite availability
+                      if (linkedPrice) {
+                        await pool.query(`
+                          INSERT INTO room_availability (room_id, date, cm_price, direct_price, min_stay, cm_min_stay, source, updated_at)
+                          VALUES ($1, $2, $3, $3, $4, $4, 'beds24-linked', NOW())
+                          ON CONFLICT (room_id, date) 
+                          DO UPDATE SET 
+                            cm_price = $3,
+                            direct_price = $3,
+                            min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $4 END,
+                            cm_min_stay = $4,
+                            source = 'beds24-linked',
+                            updated_at = NOW()
+                        `, [linkedRoom.gas_room_id, dateStr, linkedPrice, minStay]);
+                        linkedDays++;
+                      }
+                    }
+                  }
+                  console.log(`    ✓ ${linkedRoom.name}: ${linkedDays} days`);
+                  results.totalDaysUpdated += linkedDays;
+                }
+              }
+            }
+            // ===== END PUSH PRICES TO LINKED ROOMS =====
+            
             // Update tier sync timestamp
             await pool.query(`UPDATE gas_sync_room_types SET ${tierColumn} = NOW() WHERE id = $1`, [room.id]);
             
