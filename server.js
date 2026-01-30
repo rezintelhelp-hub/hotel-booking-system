@@ -30780,7 +30780,10 @@ app.get('/api/admin/units/:id', async (req, res) => {
     const result = await pool.query('SELECT * FROM bookable_units WHERE id = $1', [id]);
     
     if (result.rows.length > 0) {
-      res.json({ success: true, data: result.rows[0] });
+      const unit = result.rows[0];
+      console.log(`GET /api/admin/units/${id} - full_description type:`, typeof unit.full_description, 
+        'value preview:', unit.full_description ? JSON.stringify(unit.full_description).substring(0, 200) : 'NULL');
+      res.json({ success: true, data: unit });
     } else {
       res.json({ success: false, error: 'Unit not found' });
     }
