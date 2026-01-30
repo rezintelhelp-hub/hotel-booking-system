@@ -56749,6 +56749,9 @@ app.listen(PORT, '0.0.0.0', async () => {
   
   // Start internal tiered availability sync scheduler
   startTieredSyncScheduler();
+  
+  // Start translation worker (auto-translate missing languages)
+  startTranslationWorker();
 });
 
 // =====================================================
@@ -58098,6 +58101,386 @@ app.get('/api/public/languages/:code', async (req, res) => {
 
 // ============================================
 // END LANGUAGE API ENDPOINTS
+// ============================================
+
+// ============================================
+// DEEPL TRANSLATION WORKER
+// ============================================
+
+const DEEPL_API_KEY = process.env.DEEPL_API_KEY;
+const DEEPL_API_URL = DEEPL_API_KEY && DEEPL_API_KEY.endsWith(':fx') 
+  ? 'https://api-free.deepl.com/v2/translate'
+  : 'https://api.deepl.com/v2/translate';
+
+// Languages we auto-translate to
+const AUTO_TRANSLATE_LANGUAGES = ['en', 'fr', 'es', 'de', 'nl'];
+
+// DeepL language codes (some differ from our codes)
+const DEEPL_LANG_MAP = {
+  'en': 'EN',
+  'fr': 'FR', 
+  'es': 'ES',
+  'de': 'DE',
+  'nl': 'NL',
+  'it': 'IT',
+  'pt': 'PT-PT',
+  'pl': 'PL',
+  'ru': 'RU',
+  'ja': 'JA',
+  'zh': 'ZH'
+};
+
+/**
+ * Translate text using DeepL API
+ */
+async function translateWithDeepL(text, sourceLang, targetLang) {
+  if (!DEEPL_API_KEY) {
+    console.log('[DeepL] No API key configured');
+    return null;
+  }
+  
+  if (!text || text.trim().length === 0) {
+    return '';
+  }
+  
+  // Don't translate if source and target are the same
+  if (sourceLang === targetLang) {
+    return text;
+  }
+  
+  try {
+    const response = await fetch(DEEPL_API_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `DeepL-Auth-Key ${DEEPL_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        text: [text],
+        source_lang: DEEPL_LANG_MAP[sourceLang] || sourceLang.toUpperCase(),
+        target_lang: DEEPL_LANG_MAP[targetLang] || targetLang.toUpperCase()
+      })
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[DeepL] API error ${response.status}:`, errorText);
+      return null;
+    }
+    
+    const data = await response.json();
+    if (data.translations && data.translations[0]) {
+      return data.translations[0].text;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('[DeepL] Translation error:', error.message);
+    return null;
+  }
+}
+
+/**
+ * Translate a multilingual field object to missing languages
+ * @param {Object|string} fieldValue - Current field value (could be string or {en: "...", fr: "..."})
+ * @param {string} sourceLang - Source language code
+ * @param {string[]} targetLangs - Target language codes to translate to
+ * @returns {Object} - Multilingual object with translations
+ */
+async function translateFieldToLanguages(fieldValue, sourceLang = 'en', targetLangs = AUTO_TRANSLATE_LANGUAGES) {
+  // Parse existing value
+  let existing = {};
+  let sourceText = '';
+  
+  if (typeof fieldValue === 'string') {
+    // Plain string - assume it's the source language
+    try {
+      if (fieldValue.trim().startsWith('{')) {
+        existing = JSON.parse(fieldValue);
+        sourceText = existing[sourceLang] || existing.en || Object.values(existing)[0] || '';
+      } else {
+        sourceText = fieldValue;
+        existing[sourceLang] = fieldValue;
+      }
+    } catch (e) {
+      sourceText = fieldValue;
+      existing[sourceLang] = fieldValue;
+    }
+  } else if (typeof fieldValue === 'object' && fieldValue !== null) {
+    existing = { ...fieldValue };
+    sourceText = existing[sourceLang] || existing.en || Object.values(existing).find(v => typeof v === 'string' && v) || '';
+  }
+  
+  if (!sourceText || sourceText.trim().length === 0) {
+    return existing;
+  }
+  
+  // Track metadata
+  if (!existing._source) {
+    existing._source = sourceLang;
+  }
+  if (!existing._auto) {
+    existing._auto = [];
+  }
+  
+  // Translate to each missing target language
+  for (const targetLang of targetLangs) {
+    // Skip if already has this language (and not auto-translated or manual override exists)
+    if (existing[targetLang] && !existing._auto?.includes(targetLang)) {
+      continue;
+    }
+    
+    // Skip source language
+    if (targetLang === sourceLang) {
+      continue;
+    }
+    
+    const translated = await translateWithDeepL(sourceText, sourceLang, targetLang);
+    if (translated) {
+      existing[targetLang] = translated;
+      if (!existing._auto.includes(targetLang)) {
+        existing._auto.push(targetLang);
+      }
+    }
+    
+    // Small delay to avoid rate limiting
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  
+  return existing;
+}
+
+/**
+ * Process translation queue - find and translate untranslated content
+ */
+async function processTranslationQueue() {
+  if (!DEEPL_API_KEY) {
+    console.log('[Translation Worker] No DeepL API key - skipping');
+    return;
+  }
+  
+  console.log('[Translation Worker] Starting translation batch...');
+  
+  try {
+    // Find bookable_units with missing translations
+    // Look for units where short_description or full_description exists but is missing languages
+    const unitsToTranslate = await pool.query(`
+      SELECT bu.id, bu.name, bu.display_name, bu.short_description, bu.full_description,
+             p.account_id
+      FROM bookable_units bu
+      JOIN properties p ON p.id = bu.property_id
+      WHERE bu.short_description IS NOT NULL 
+        AND bu.short_description != ''
+        AND bu.short_description != '{}'
+        AND (
+          -- Check if missing any of our target languages
+          bu.short_description->>'fr' IS NULL
+          OR bu.short_description->>'es' IS NULL
+          OR bu.short_description->>'de' IS NULL
+          OR bu.short_description->>'nl' IS NULL
+        )
+      LIMIT 10
+    `);
+    
+    console.log(`[Translation Worker] Found ${unitsToTranslate.rows.length} units needing translation`);
+    
+    let translatedCount = 0;
+    
+    for (const unit of unitsToTranslate.rows) {
+      try {
+        console.log(`[Translation Worker] Translating unit ${unit.id}: ${unit.name}`);
+        
+        // Determine source language (check what we have)
+        let sourceLang = 'en';
+        const shortDesc = unit.short_description;
+        if (typeof shortDesc === 'object') {
+          if (shortDesc._source) {
+            sourceLang = shortDesc._source;
+          } else if (shortDesc.en) {
+            sourceLang = 'en';
+          } else if (shortDesc.fr) {
+            sourceLang = 'fr';
+          } else {
+            // Use first available language
+            const firstLang = Object.keys(shortDesc).find(k => !k.startsWith('_') && shortDesc[k]);
+            if (firstLang) sourceLang = firstLang;
+          }
+        }
+        
+        // Translate short_description
+        const translatedShort = await translateFieldToLanguages(
+          unit.short_description, 
+          sourceLang, 
+          AUTO_TRANSLATE_LANGUAGES
+        );
+        
+        // Translate full_description if exists
+        let translatedFull = unit.full_description;
+        if (unit.full_description && typeof unit.full_description === 'object' && Object.keys(unit.full_description).length > 0) {
+          translatedFull = await translateFieldToLanguages(
+            unit.full_description,
+            sourceLang,
+            AUTO_TRANSLATE_LANGUAGES
+          );
+        }
+        
+        // Translate display_name if exists and is object
+        let translatedDisplayName = unit.display_name;
+        if (unit.display_name && typeof unit.display_name === 'object') {
+          translatedDisplayName = await translateFieldToLanguages(
+            unit.display_name,
+            sourceLang,
+            AUTO_TRANSLATE_LANGUAGES
+          );
+        }
+        
+        // Update the unit
+        await pool.query(`
+          UPDATE bookable_units 
+          SET short_description = $1,
+              full_description = $2,
+              display_name = $3,
+              updated_at = NOW()
+          WHERE id = $4
+        `, [
+          JSON.stringify(translatedShort),
+          translatedFull ? JSON.stringify(translatedFull) : null,
+          translatedDisplayName ? (typeof translatedDisplayName === 'object' ? JSON.stringify(translatedDisplayName) : translatedDisplayName) : unit.display_name,
+          unit.id
+        ]);
+        
+        translatedCount++;
+        console.log(`[Translation Worker] ✓ Translated unit ${unit.id}`);
+        
+        // Delay between units to respect rate limits
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+      } catch (unitError) {
+        console.error(`[Translation Worker] Error translating unit ${unit.id}:`, unitError.message);
+      }
+    }
+    
+    console.log(`[Translation Worker] Completed - translated ${translatedCount} units`);
+    
+  } catch (error) {
+    console.error('[Translation Worker] Error:', error.message);
+  }
+}
+
+/**
+ * Check DeepL API status and usage
+ */
+async function checkDeepLStatus() {
+  if (!DEEPL_API_KEY) {
+    console.log('[DeepL] No API key configured');
+    return null;
+  }
+  
+  try {
+    const usageUrl = DEEPL_API_KEY.endsWith(':fx')
+      ? 'https://api-free.deepl.com/v2/usage'
+      : 'https://api.deepl.com/v2/usage';
+      
+    const response = await fetch(usageUrl, {
+      headers: {
+        'Authorization': `DeepL-Auth-Key ${DEEPL_API_KEY}`
+      }
+    });
+    
+    if (!response.ok) {
+      console.error('[DeepL] Failed to get usage:', response.status);
+      return null;
+    }
+    
+    const data = await response.json();
+    console.log(`[DeepL] Usage: ${data.character_count?.toLocaleString() || 0} / ${data.character_limit?.toLocaleString() || 'unlimited'} characters`);
+    return data;
+  } catch (error) {
+    console.error('[DeepL] Error checking status:', error.message);
+    return null;
+  }
+}
+
+// Start translation worker (runs every 30 minutes)
+function startTranslationWorker() {
+  if (!DEEPL_API_KEY) {
+    console.log('[Translation Worker] Disabled - no DEEPL_API_KEY configured');
+    return;
+  }
+  
+  console.log('[Translation Worker] Starting - will run every 30 minutes');
+  
+  // Check DeepL status on startup
+  checkDeepLStatus();
+  
+  // Run first batch after 2 minutes (let server fully start)
+  setTimeout(() => {
+    processTranslationQueue();
+  }, 2 * 60 * 1000);
+  
+  // Then run every 30 minutes
+  setInterval(() => {
+    processTranslationQueue();
+  }, 30 * 60 * 1000);
+}
+
+// API endpoint to manually trigger translation
+app.post('/api/admin/translate-unit/:unitId', async (req, res) => {
+  try {
+    const { unitId } = req.params;
+    const { targetLangs } = req.body;
+    
+    const unit = await pool.query(
+      'SELECT * FROM bookable_units WHERE id = $1',
+      [unitId]
+    );
+    
+    if (unit.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Unit not found' });
+    }
+    
+    const u = unit.rows[0];
+    const langs = targetLangs || AUTO_TRANSLATE_LANGUAGES;
+    
+    // Translate short_description
+    const translatedShort = await translateFieldToLanguages(u.short_description, 'en', langs);
+    
+    // Translate full_description
+    const translatedFull = u.full_description 
+      ? await translateFieldToLanguages(u.full_description, 'en', langs)
+      : null;
+    
+    // Update
+    await pool.query(`
+      UPDATE bookable_units 
+      SET short_description = $1, full_description = $2, updated_at = NOW()
+      WHERE id = $3
+    `, [JSON.stringify(translatedShort), translatedFull ? JSON.stringify(translatedFull) : null, unitId]);
+    
+    res.json({ 
+      success: true, 
+      short_description: translatedShort,
+      full_description: translatedFull
+    });
+    
+  } catch (error) {
+    console.error('Manual translate error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// API endpoint to check DeepL usage
+app.get('/api/admin/deepl-usage', async (req, res) => {
+  const usage = await checkDeepLStatus();
+  if (usage) {
+    res.json({ success: true, ...usage });
+  } else {
+    res.status(500).json({ success: false, error: 'Could not get DeepL usage' });
+  }
+});
+
+// ============================================
+// END DEEPL TRANSLATION WORKER
 // ============================================
 
 // ============================================
