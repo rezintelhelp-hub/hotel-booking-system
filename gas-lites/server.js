@@ -524,19 +524,6 @@ app.get('/:slug', async (req, res) => {
     const { slug } = req.params;
     const offerCode = req.query.offer;
     
-    // Language priority: 1) query param, 2) Accept-Language header, 3) default 'en'
-    let lang = 'en';
-    if (req.query.lang) {
-      lang = req.query.lang.toLowerCase().substring(0, 2);
-    } else {
-      // Try to detect from Accept-Language header
-      const acceptLang = req.headers['accept-language'] || '';
-      const browserLang = acceptLang.split(',')[0]?.split('-')[0]?.toLowerCase();
-      if (['en', 'es', 'fr', 'de', 'nl'].includes(browserLang)) {
-        lang = browserLang;
-      }
-    }
-    
     // Get lite config with all related data
     const liteResult = await pool.query(`
       SELECT l.*, 
@@ -572,11 +559,34 @@ app.get('/:slug', async (req, res) => {
     
     const lite = liteResult.rows[0];
     
+    // Get account's supported languages
+    const accountSettings = typeof lite.account_settings === 'string' 
+      ? JSON.parse(lite.account_settings) 
+      : (lite.account_settings || {});
+    const supportedLangs = accountSettings.languages?.supported || ['en', 'es', 'fr', 'de', 'nl'];
+    const primaryLang = accountSettings.languages?.primary || 'en';
+    
+    // Language priority: 1) query param, 2) Accept-Language header, 3) primary language
+    let lang = primaryLang;
+    if (req.query.lang) {
+      lang = req.query.lang.toLowerCase().substring(0, 2);
+    } else {
+      // Try to detect from Accept-Language header
+      const acceptLang = req.headers['accept-language'] || '';
+      const browserLang = acceptLang.split(',')[0]?.split('-')[0]?.toLowerCase();
+      // If browser lang is supported, use it; otherwise use primary
+      if (supportedLangs.includes(browserLang)) {
+        lang = browserLang;
+      }
+    }
+    
     // Debug account info
     console.log('Lite account info:', {
       slug: lite.slug,
       account_id: lite.account_id,
-      account_display_name: lite.account_display_name
+      account_display_name: lite.account_display_name,
+      supportedLangs,
+      requestedLang: lang
     });
     
     // Parse display_name from JSON
@@ -704,7 +714,7 @@ app.get('/:slug', async (req, res) => {
     res.send(renderFullPage({ 
       lite, images, amenities, reviews, availability, 
       todayPrice, qrCode, liteUrl, showReviews,
-      roomId, propertyId, accountId, activeOffer, lang
+      roomId, propertyId, accountId, activeOffer, lang, supportedLangs
     }));
   } catch (error) {
     console.error('Lite page error:', error);
@@ -1943,7 +1953,7 @@ function renderError(msg) {
   <div style="text-align:center"><h1>⚠️ Error</h1><p>${msg||'Please try again.'}</p></div></body></html>`;
 }
 
-function renderFullPage({ lite, images, amenities, reviews, availability, todayPrice, qrCode, liteUrl, showReviews, roomId, propertyId, accountId, activeOffer, lang = 'en' }) {
+function renderFullPage({ lite, images, amenities, reviews, availability, todayPrice, qrCode, liteUrl, showReviews, roomId, propertyId, accountId, activeOffer, lang = 'en', supportedLangs = ['en', 'es', 'fr', 'de', 'nl'] }) {
   // Validate language
   if (!LITE_TRANSLATIONS[lang]) lang = 'en';
   
@@ -1965,12 +1975,15 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
   let originalPrice = null;
   const accent = lite.accent_color || '#3b82f6';
   
+  // Filter AVAILABLE_LANGUAGES to only show supported ones
+  const displayLanguages = AVAILABLE_LANGUAGES.filter(l => supportedLangs.includes(l.code));
+  
   // Build language switcher URL helper
   const currentSlug = lite.slug;
-  const langSwitcherHtml = `
+  const langSwitcherHtml = displayLanguages.length > 1 ? `
     <div class="lang-switcher" style="position: fixed; top: 12px; right: 12px; z-index: 1000;">
       <select id="langSelect" onchange="changeLanguage(this.value)" style="padding: 8px 12px; border-radius: 8px; border: 1px solid #e2e8f0; background: white; font-size: 14px; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-        ${AVAILABLE_LANGUAGES.map(l => `<option value="${l.code}" ${l.code === lang ? 'selected' : ''}>${l.flag} ${l.name}</option>`).join('')}
+        ${displayLanguages.map(l => `<option value="${l.code}" ${l.code === lang ? 'selected' : ''}>${l.flag} ${l.name}</option>`).join('')}
       </select>
     </div>
     <script>
@@ -1980,7 +1993,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
         window.location.href = url.toString();
       }
     </script>
-  `;
+  ` : '';
   
   // Apply offer discount if present
   let offerBannerHtml = '';
@@ -2424,7 +2437,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
   <!-- Language Switcher -->
   <div class="lang-switcher">
     <select id="langSelect" onchange="changeLanguage(this.value)">
-      ${AVAILABLE_LANGUAGES.map(l => `<option value="${l.code}" ${l.code === lang ? 'selected' : ''}>${l.flag} ${l.name}</option>`).join('')}
+      ${displayLanguages.map(l => `<option value="${l.code}" ${l.code === lang ? 'selected' : ''}>${l.flag} ${l.name}</option>`).join('')}
     </select>
   </div>
   <script>
