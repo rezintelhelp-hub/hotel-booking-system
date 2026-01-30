@@ -7061,10 +7061,17 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
             const roomDescNorm = normalizeKeys(roomDesc);
             const auxTextNorm = normalizeKeys(auxText);
             
-            // Use property descriptions as fallback if room descriptions are empty
-            const shortDesc = Object.keys(roomDescNorm).length > 0 ? roomDescNorm : propDesc1;
-            const fullDesc = Object.keys(auxTextNorm).length > 0 ? auxTextNorm : propDesc2;
+            // Helper to check if object has any non-empty string values
+            const hasContent = (obj) => {
+              if (!obj || typeof obj !== 'object') return false;
+              return Object.values(obj).some(v => typeof v === 'string' && v.trim().length > 0);
+            };
             
+            // Use property descriptions as fallback if room descriptions are empty
+            const shortDesc = hasContent(roomDescNorm) ? roomDescNorm : propDesc1;
+            const fullDesc = hasContent(auxTextNorm) ? auxTextNorm : propDesc2;
+            
+            console.log(`[Content Sync] Room ${room.external_id}: auxText hasContent=${hasContent(auxTextNorm)}, using propDesc2 for fullDesc=${!hasContent(auxTextNorm)}`);
             console.log(`[Content Sync] Room ${room.external_id}: displayName langs=${Object.keys(displayNameNorm).join(',') || 'none'}, shortDesc langs=${Object.keys(shortDesc).join(',') || 'none'}, fullDesc langs=${Object.keys(fullDesc).join(',') || 'none'}`);
             
             if (Object.keys(displayNameNorm).length > 0 || Object.keys(shortDesc).length > 0 || Object.keys(fullDesc).length > 0) {
@@ -59043,27 +59050,22 @@ async function checkDeepLStatus() {
   }
 }
 
-// Start translation worker (runs daily as catch-up - main translation happens on sync)
+// Start translation worker - DISABLED automatic scheduling
+// On-demand translation via /api/translate endpoint still works
 function startTranslationWorker() {
   if (!DEEPL_API_KEY) {
     console.log('[Translation Worker] Disabled - no DEEPL_API_KEY configured');
     return;
   }
   
-  console.log('[Translation Worker] Starting - will run daily as catch-up (main translation on sync)');
+  console.log('[Translation Worker] Auto-scheduling DISABLED - use 🌐 button for on-demand translation');
+  console.log('[Translation Worker] DeepL API available for manual translation requests');
   
   // Check DeepL status on startup
   checkDeepLStatus();
   
-  // Run first batch after 5 minutes (let server fully start)
-  setTimeout(() => {
-    processTranslationQueue();
-  }, 5 * 60 * 1000);
-  
-  // Then run once every 24 hours as catch-up
-  setInterval(() => {
-    processTranslationQueue();
-  }, 24 * 60 * 60 * 1000);
+  // NO automatic scheduling - translation only happens when user clicks translate button
+  // The /api/translate endpoint remains available for on-demand use
 }
 
 // API endpoint to manually trigger translation
