@@ -44264,7 +44264,12 @@ const GAS_TRANSLATIONS = {
         "last_name": "Last Name",
         "email": "Email",
         "phone": "Phone",
-        "special_requests": "Special Requests"
+        "special_requests": "Special Requests",
+        "minimum": "Minimum",
+        "required": "required",
+        "you_selected": "You selected",
+        "choose_longer": "Please choose a longer stay.",
+        "guest": "guest"
       },
       "guest_details": {
         "guest_details": "Guest Details",
@@ -44513,7 +44518,12 @@ const GAS_TRANSLATIONS = {
         "last_name": "Nom",
         "email": "E-mail",
         "phone": "Téléphone",
-        "special_requests": "Demandes spéciales"
+        "special_requests": "Demandes spéciales",
+        "minimum": "Minimum",
+        "required": "requis",
+        "you_selected": "Vous avez sélectionné",
+        "choose_longer": "Veuillez choisir un séjour plus long.",
+        "guest": "voyageur"
       },
       "guest_details": {
         "guest_details": "Informations voyageur",
@@ -44762,7 +44772,12 @@ const GAS_TRANSLATIONS = {
         "last_name": "Apellidos",
         "email": "Correo electrónico",
         "phone": "Teléfono",
-        "special_requests": "Peticiones especiales"
+        "special_requests": "Peticiones especiales",
+        "minimum": "Mínimo",
+        "required": "requerido",
+        "you_selected": "Has seleccionado",
+        "choose_longer": "Por favor elige una estancia más larga.",
+        "guest": "huésped"
       },
       "guest_details": {
         "guest_details": "Datos del huésped",
@@ -45011,7 +45026,12 @@ const GAS_TRANSLATIONS = {
         "last_name": "Achternaam",
         "email": "E-mail",
         "phone": "Telefoon",
-        "special_requests": "Speciale verzoeken"
+        "special_requests": "Speciale verzoeken",
+        "minimum": "Minimaal",
+        "required": "vereist",
+        "you_selected": "U heeft geselecteerd",
+        "choose_longer": "Kies alstublieft een langer verblijf.",
+        "guest": "gast"
       },
       "guest_details": {
         "guest_details": "Gastgegevens",
@@ -45033,6 +45053,7 @@ const GAS_TRANSLATIONS = {
         "pay_at_property": "Betalen bij accommodatie",
         "pay_at_property_desc": "Betaal bij aankomst - nu geen betaling nodig",
         "pay_by_card": "Betalen met kaart",
+        "not_available_property": "Niet beschikbaar voor deze accommodatie",
         "card_number": "Kaartnummer",
         "card_details": "Kaartgegevens",
         "expiry_date": "Vervaldatum",
@@ -45259,7 +45280,12 @@ const GAS_TRANSLATIONS = {
         "last_name": "Nachname",
         "email": "E-Mail",
         "phone": "Telefon",
-        "special_requests": "Besondere Wünsche"
+        "special_requests": "Besondere Wünsche",
+        "minimum": "Mindestens",
+        "required": "erforderlich",
+        "you_selected": "Sie haben gewählt",
+        "choose_longer": "Bitte wählen Sie einen längeren Aufenthalt.",
+        "guest": "Gast"
       },
       "guest_details": {
         "guest_details": "Gästedaten",
