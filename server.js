@@ -28517,13 +28517,25 @@ app.get('/api/webhooks/smoobu', (req, res) => {
 // Get all offers
 app.get('/api/admin/offers', async (req, res) => {
   try {
-    const result = await pool.query(`
+    const { account_id } = req.query;
+    
+    let query = `
       SELECT o.*, p.name as property_name, bu.name as room_name
       FROM offers o
       LEFT JOIN properties p ON o.property_id = p.id
       LEFT JOIN bookable_units bu ON o.room_id = bu.id
-      ORDER BY o.priority DESC, o.created_at DESC
-    `);
+    `;
+    const params = [];
+    
+    // Filter by account_id if provided
+    if (account_id) {
+      query += ` WHERE o.account_id = $1`;
+      params.push(account_id);
+    }
+    
+    query += ` ORDER BY o.priority DESC, o.created_at DESC`;
+    
+    const result = await pool.query(query, params);
     res.json({ success: true, data: result.rows });
   } catch (error) {
     res.json({ success: false, error: error.message });
