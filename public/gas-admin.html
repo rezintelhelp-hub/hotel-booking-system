@@ -14671,6 +14671,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                         <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">
                             Tax Name <span style="color: #ef4444;">*</span>
                         </label>
+                        <div class="lang-tabs" id="tax-name-tabs" style="margin-bottom: 0.5rem;"></div>
                         <input type="text" id="tax-name" class="form-input" placeholder="e.g., City Tourist Tax, Taxe de Sjour" required
                             style="padding: 0.75rem; border-radius: 8px;">
                     </div>
@@ -14916,6 +14917,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                         <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">
                             Rule Name
                         </label>
+                        <div class="lang-tabs" id="deposit-rule-name-tabs" style="margin-bottom: 0.5rem;"></div>
                         <input type="text" id="deposit-rule-name" class="form-input" placeholder="e.g., Standard Deposit, Peak Season"
                             style="padding: 0.75rem; border-radius: 8px;">
                     </div>
@@ -36573,6 +36575,47 @@ const promo = await fetch('/api/v1/offers/validate', {
             return str.charAt(0).toUpperCase() + str.slice(1);
         }
         
+        // Deposit rule multilingual data storage
+        let depositRuleMultilingualData = { name: {} };
+        let currentDepositRuleLang = 'en';
+        
+        // Render deposit rule language tabs
+        function renderDepositRuleLangTabs() {
+            const langs = getAccountLanguages();
+            const primaryLang = getAccountPrimaryLanguage();
+            
+            const sortedLangs = [...langs].sort((a, b) => {
+                if (a === primaryLang) return -1;
+                if (b === primaryLang) return 1;
+                return 0;
+            });
+            
+            const container = document.getElementById('deposit-rule-name-tabs');
+            if (!container) return;
+            
+            container.innerHTML = sortedLangs.map(lang => {
+                const info = LANG_INFO[lang] || { flag: '🏳️', name: lang.toUpperCase() };
+                const isActive = lang === currentDepositRuleLang;
+                const isPrimary = lang === primaryLang;
+                const hasContent = !!depositRuleMultilingualData.name[lang];
+                return `<button type="button" class="lang-tab${isActive ? ' active' : ''}${isPrimary ? ' primary' : ''}${hasContent ? ' has-content' : ''}" data-lang="${lang}" onclick="switchDepositRuleLang('${lang}', this)">${info.flag} ${info.name}${hasContent ? ' ✓' : ''}</button>`;
+            }).join('');
+        }
+        
+        // Switch deposit rule language tab
+        function switchDepositRuleLang(lang, btn) {
+            depositRuleMultilingualData.name[currentDepositRuleLang] = document.getElementById('deposit-rule-name').value;
+            
+            document.querySelectorAll('#deposit-rule-name-tabs .lang-tab').forEach(t => {
+                t.classList.toggle('active', t.dataset.lang === lang);
+            });
+            
+            currentDepositRuleLang = lang;
+            document.getElementById('deposit-rule-name').value = depositRuleMultilingualData.name[lang] || '';
+            
+            renderDepositRuleLangTabs();
+        }
+        
         function openAddDepositRuleModal() {
             const selectValue = document.getElementById('deposit-rules-property-select').value;
             if (!selectValue) {
@@ -36583,9 +36626,16 @@ const promo = await fetch('/api/v1/offers/validate', {
             const isAccountLevel = selectValue === 'all';
             const defaultName = isAccountLevel ? 'Account Default Deposit' : 'Standard Deposit';
             
+            // Reset multilingual data
+            depositRuleMultilingualData = { name: {} };
+            currentDepositRuleLang = getAccountPrimaryLanguage();
+            depositRuleMultilingualData.name[currentDepositRuleLang] = defaultName;
+            
             document.getElementById('deposit-rule-id').value = '';
             document.getElementById('deposit-rule-property-id').value = selectValue;
             document.getElementById('deposit-rule-name').value = defaultName;
+            renderDepositRuleLangTabs();
+            
             document.getElementById('deposit-type').value = 'percentage';
             document.getElementById('deposit-percentage').value = '30';
             document.getElementById('deposit-fixed-amount').value = '';
@@ -36723,7 +36773,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                     const rule = data.rule;
                     document.getElementById('deposit-rule-id').value = rule.id;
                     document.getElementById('deposit-rule-property-id').value = rule.property_id;
-                    document.getElementById('deposit-rule-name').value = rule.rule_name || '';
+                    
+                    // Parse multilingual name
+                    depositRuleMultilingualData.name = parseMultilingualField(rule.rule_name);
+                    currentDepositRuleLang = getAccountPrimaryLanguage();
+                    document.getElementById('deposit-rule-name').value = depositRuleMultilingualData.name[currentDepositRuleLang] || depositRuleMultilingualData.name.en || '';
+                    renderDepositRuleLangTabs();
+                    
                     document.getElementById('deposit-type').value = rule.deposit_type || 'percentage';
                     document.getElementById('deposit-percentage').value = rule.deposit_percentage || 30;
                     document.getElementById('deposit-fixed-amount').value = rule.deposit_fixed_amount || '';
@@ -36746,8 +36802,14 @@ const promo = await fetch('/api/v1/offers/validate', {
             const selectValue = document.getElementById('deposit-rule-property-id').value;
             const isAccountLevel = selectValue === 'all';
             
+            // Save current language value
+            depositRuleMultilingualData.name[currentDepositRuleLang] = document.getElementById('deposit-rule-name').value;
+            
+            // Build multilingual name
+            const nameData = Object.keys(depositRuleMultilingualData.name).length > 0 ? depositRuleMultilingualData.name : { en: document.getElementById('deposit-rule-name').value };
+            
             const data = {
-                rule_name: document.getElementById('deposit-rule-name').value,
+                rule_name: nameData,
                 deposit_type: document.getElementById('deposit-type').value,
                 deposit_percentage: parseFloat(document.getElementById('deposit-percentage').value) || 30,
                 deposit_fixed_amount: parseFloat(document.getElementById('deposit-fixed-amount').value) || null,
@@ -36950,11 +37012,57 @@ const promo = await fetch('/api/v1/offers/validate', {
             container.innerHTML = html;
         }
         
+        // Tax multilingual data storage
+        let taxMultilingualData = { name: {} };
+        let currentTaxLang = 'en';
+        
+        // Render tax language tabs
+        function renderTaxLangTabs() {
+            const langs = getAccountLanguages();
+            const primaryLang = getAccountPrimaryLanguage();
+            
+            const sortedLangs = [...langs].sort((a, b) => {
+                if (a === primaryLang) return -1;
+                if (b === primaryLang) return 1;
+                return 0;
+            });
+            
+            const container = document.getElementById('tax-name-tabs');
+            if (!container) return;
+            
+            container.innerHTML = sortedLangs.map(lang => {
+                const info = LANG_INFO[lang] || { flag: '🏳️', name: lang.toUpperCase() };
+                const isActive = lang === currentTaxLang;
+                const isPrimary = lang === primaryLang;
+                const hasContent = !!taxMultilingualData.name[lang];
+                return `<button type="button" class="lang-tab${isActive ? ' active' : ''}${isPrimary ? ' primary' : ''}${hasContent ? ' has-content' : ''}" data-lang="${lang}" onclick="switchTaxLang('${lang}', this)">${info.flag} ${info.name}${hasContent ? ' ✓' : ''}</button>`;
+            }).join('');
+        }
+        
+        // Switch tax language tab
+        function switchTaxLang(lang, btn) {
+            taxMultilingualData.name[currentTaxLang] = document.getElementById('tax-name').value;
+            
+            document.querySelectorAll('#tax-name-tabs .lang-tab').forEach(t => {
+                t.classList.toggle('active', t.dataset.lang === lang);
+            });
+            
+            currentTaxLang = lang;
+            document.getElementById('tax-name').value = taxMultilingualData.name[lang] || '';
+            
+            renderTaxLangTabs();
+        }
+        
         async function openAddTaxModal() {
             document.getElementById('tax-form').reset();
             document.getElementById('tax-id').value = '';
             document.getElementById('tax-modal-title').innerHTML = ' Add Tourist Tax';
             document.getElementById('tax-active').checked = true;
+            
+            // Reset multilingual data
+            taxMultilingualData = { name: {} };
+            currentTaxLang = getAccountPrimaryLanguage();
+            renderTaxLangTabs();
             
             // Pre-select the property from the page filter
             const selectedProperty = document.getElementById('taxes-property-select')?.value;
@@ -37061,7 +37169,13 @@ const promo = await fetch('/api/v1/offers/validate', {
             await loadTaxPropertiesForModal();
             
             document.getElementById('tax-id').value = tax.id;
-            document.getElementById('tax-name').value = tax.name || '';
+            
+            // Parse multilingual name
+            taxMultilingualData.name = parseMultilingualField(tax.name);
+            currentTaxLang = getAccountPrimaryLanguage();
+            document.getElementById('tax-name').value = taxMultilingualData.name[currentTaxLang] || taxMultilingualData.name.en || '';
+            renderTaxLangTabs();
+            
             document.getElementById('tax-country').value = normalizeCountryCode(tax.country) || '';
             document.getElementById('tax-amount-type').value = tax.amount_type || 'fixed';
             document.getElementById('tax-currency').value = tax.currency || 'EUR';
@@ -37091,11 +37205,17 @@ const promo = await fetch('/api/v1/offers/validate', {
         async function saveTax() {
             const id = document.getElementById('tax-id').value;
             
+            // Save current language value
+            taxMultilingualData.name[currentTaxLang] = document.getElementById('tax-name').value;
+            
             // Get account_id from current account
             const accountId = currentAccount?.id;
             
+            // Build multilingual name
+            const nameData = Object.keys(taxMultilingualData.name).length > 0 ? taxMultilingualData.name : { en: document.getElementById('tax-name').value };
+            
             const taxData = {
-                name: document.getElementById('tax-name').value,
+                name: nameData,
                 country: document.getElementById('tax-country').value || null,
                 amount_type: document.getElementById('tax-amount-type').value,
                 currency: document.getElementById('tax-currency').value,
