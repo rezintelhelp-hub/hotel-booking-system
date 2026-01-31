@@ -18141,11 +18141,14 @@ const promo = await fetch('/api/v1/offers/validate', {
         
         // Render language tabs for a Website Builder field based on account settings
         function renderWbLangTabs(section, field, containerId) {
+            console.log('renderWbLangTabs called:', { section, field, containerId });
             const container = document.getElementById(containerId);
+            console.log('Container found:', container);
             if (!container) return;
             
             const langs = getAccountLanguages();
             const primaryLang = getAccountPrimaryLanguage();
+            console.log('Languages:', { langs, primaryLang });
             const langInfo = { en: { flag: '🇬🇧', name: 'EN' }, fr: { flag: '🇫🇷', name: 'FR' }, es: { flag: '🇪🇸', name: 'ES' }, nl: { flag: '🇳🇱', name: 'NL' }, de: { flag: '🇩🇪', name: 'DE' }, it: { flag: '🇮🇹', name: 'IT' }, pt: { flag: '🇵🇹', name: 'PT' }, ru: { flag: '🇷🇺', name: 'RU' }, zh: { flag: '🇨🇳', name: 'ZH' }, ja: { flag: '🇯🇵', name: 'JA' } };
             
             initWbMultilingual(section, field);
@@ -18158,6 +18161,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             }).join('');
             html += `<button type="button" class="btn" onclick="translateWbField('${section}', '${field}')" style="margin-left: auto; padding: 0.25rem 0.5rem; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; font-size: 0.75rem;" title="Auto-translate">🌐</button>`;
             
+            console.log('Setting innerHTML:', html);
             container.innerHTML = html;
         }
         
