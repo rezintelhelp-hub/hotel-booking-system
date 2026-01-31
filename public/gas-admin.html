@@ -2202,7 +2202,7 @@
                                 <label class="form-label">Supported Languages <span style="color: #64748b; font-weight: normal;">(select up to 4)</span></label>
                                 <div id="settingsSupportedLanguages" style="display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 0.5rem;">
                                     <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; padding: 0.5rem 0.75rem; border: 1px solid #e2e8f0; border-radius: 8px;">
-                                        <input type="checkbox" value="en" class="settings-lang-checkbox" checked disabled>
+                                        <input type="checkbox" value="en" class="settings-lang-checkbox">
                                         <span>🇬🇧 English</span>
                                     </label>
                                     <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; padding: 0.5rem 0.75rem; border: 1px solid #e2e8f0; border-radius: 8px;">
@@ -20597,20 +20597,18 @@ const promo = await fetch('/api/v1/offers/validate', {
                     const primarySelect = document.getElementById('settingsPrimaryLanguage');
                     if (primarySelect) {
                         primarySelect.value = data.primary_language || 'en';
+                        
+                        // Add change listener to update checkboxes when primary changes
+                        primarySelect.onchange = function() {
+                            updateLanguageCheckboxes(this.value, data.supported_languages || []);
+                        };
                     }
                     
-                    // Set supported language checkboxes
-                    const checkboxes = document.querySelectorAll('.settings-lang-checkbox');
-                    checkboxes.forEach(cb => {
-                        if (cb.value === 'en') {
-                            cb.checked = true;
-                            cb.disabled = true;
-                        } else {
-                            cb.checked = (data.supported_languages || []).includes(cb.value);
-                        }
-                    });
+                    // Set checkboxes based on primary and supported languages
+                    updateLanguageCheckboxes(data.primary_language || 'en', data.supported_languages || ['en']);
                     
                     // Add listener to limit to 4 selections
+                    const checkboxes = document.querySelectorAll('.settings-lang-checkbox');
                     checkboxes.forEach(cb => {
                         cb.onchange = function() {
                             const checked = document.querySelectorAll('.settings-lang-checkbox:checked');
@@ -20624,6 +20622,22 @@ const promo = await fetch('/api/v1/offers/validate', {
             } catch (error) {
                 console.error('Error loading account settings:', error);
             }
+        }
+        
+        // Update language checkboxes based on primary language selection
+        function updateLanguageCheckboxes(primaryLang, supportedLangs) {
+            const checkboxes = document.querySelectorAll('.settings-lang-checkbox');
+            checkboxes.forEach(cb => {
+                if (cb.value === primaryLang) {
+                    // Primary language is always checked and disabled
+                    cb.checked = true;
+                    cb.disabled = true;
+                } else {
+                    // Other languages - enable and check if in supported list
+                    cb.disabled = false;
+                    cb.checked = supportedLangs.includes(cb.value);
+                }
+            });
         }
         
         // Save Account Settings
