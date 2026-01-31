@@ -18168,7 +18168,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const info = langInfo[lang] || { flag: '🏳️', name: lang.toUpperCase() };
                 const isActive = lang === primaryLang;
                 const isPrimary = lang === primaryLang;
-                return `<button type="button" class="lang-tab${isActive ? ' active' : ''}${isPrimary ? ' primary' : ''}" data-lang="${lang}" onclick="switchWbLang('${section}', '${field}', '${lang}', this)" title="${isPrimary ? 'Primary language - translate from here' : ''}">${info.flag} ${info.name}</button>`;
+                const hasContent = !!wbMultilingual[section][field][lang]?.trim();
+                return `<button type="button" class="lang-tab${isActive ? ' active' : ''}${isPrimary ? ' primary' : ''}${hasContent ? ' has-content' : ''}" data-lang="${lang}" onclick="switchWbLang('${section}', '${field}', '${lang}', this)" title="${isPrimary ? 'Primary language - translate from here' : ''}">${info.flag} ${info.name}</button>`;
             }).join('');
             html += `<button type="button" class="btn" onclick="translateWbField('${section}', '${field}')" style="margin-left: auto; padding: 0.25rem 0.5rem; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; font-size: 0.75rem;" title="Translate from primary language (${langInfo[primaryLang]?.name || primaryLang.toUpperCase()}) to other languages">🌐</button>`;
             
@@ -18193,24 +18194,38 @@ const promo = await fetch('/api/v1/offers/validate', {
             initWbMultilingual(section, field);
             
             const inputId = wbFieldToId[section]?.[field];
-            if (!inputId) return;
+            if (!inputId) {
+                console.log('switchWbLang: No input ID for', section, field);
+                return;
+            }
             
             const input = document.getElementById(inputId);
-            if (!input) return;
+            if (!input) {
+                console.log('switchWbLang: Input not found:', inputId);
+                return;
+            }
             
-            // Save current value
-            wbMultilingual[section][field][currentWbLang[section][field]] = input.value;
+            // Save current value before switching
+            const currentValue = input.value;
+            const currentLang = currentWbLang[section][field];
+            wbMultilingual[section][field][currentLang] = currentValue;
+            console.log('switchWbLang: Saved', currentLang, '=', currentValue, 'for', section, field);
+            
+            // Switch to new language
             currentWbLang[section][field] = lang;
             
             // Load new language value
             input.value = wbMultilingual[section][field][lang] || '';
+            console.log('switchWbLang: Loaded', lang, '=', input.value, 'for', section, field);
+            console.log('switchWbLang: wbMultilingual now:', JSON.stringify(wbMultilingual[section][field]));
             
             // Update tab states
-            const tabsId = `wb-${section}-${field.replace('_', '-')}-tabs`;
+            const tabsId = `wb-${section}-${field.replace(/_/g, '-')}-tabs`;
             document.querySelectorAll(`#${tabsId} .lang-tab`).forEach(t => {
                 t.classList.toggle('active', t.dataset.lang === lang);
                 t.classList.toggle('has-content', !!wbMultilingual[section][field][t.dataset.lang]?.trim());
             });
+        }
         }
         
         async function translateWbField(section, field) {
@@ -18291,15 +18306,30 @@ const promo = await fetch('/api/v1/offers/validate', {
                 'page-rooms': ['title', 'subtitle'],
                 'page-about': ['menu_title', 'title', 'subtitle', 'content_title', 'content']
             };
+            const primaryLang = getAccountPrimaryLanguage();
+            
             (fields[section] || []).forEach(field => {
                 initWbMultilingual(section, field);
                 const mlKey = `${field}_ml`;
                 if (data[mlKey] && typeof data[mlKey] === 'object') {
                     console.log('Loading multilingual for', field, ':', data[mlKey]);
-                    wbMultilingual[section][field] = { ...wbMultilingual[section][field], ...data[mlKey] };
+                    wbMultilingual[section][field] = { ...data[mlKey] };
                 } else if (data[field]) {
-                    wbMultilingual[section][field][getAccountPrimaryLanguage()] = data[field];
+                    // Legacy: single value, assume it's the primary language
+                    wbMultilingual[section][field][primaryLang] = data[field];
                 }
+                
+                // Set the input field value to the primary language content
+                const inputId = wbFieldToId[section]?.[field];
+                if (inputId) {
+                    const input = document.getElementById(inputId);
+                    if (input) {
+                        const primaryValue = wbMultilingual[section][field][primaryLang] || '';
+                        input.value = primaryValue;
+                        console.log('Set input', inputId, 'to primary lang value:', primaryValue);
+                    }
+                }
+                
                 // Render tabs and update indicators
                 const tabsId = `wb-${section}-${field.replace(/_/g, '-')}-tabs`;
                 renderWbLangTabs(section, field, tabsId);
