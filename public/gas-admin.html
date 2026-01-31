@@ -13534,6 +13534,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                             <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">
                                 Display Name <span style="color: #ef4444;">*</span>
                             </label>
+                            <div class="lang-tabs" id="voucher-name-tabs" style="margin-bottom: 0.5rem;">
+                                <button type="button" class="lang-tab active" data-lang="en" onclick="switchVoucherLang('name', 'en', this)">🇬🇧 EN</button>
+                                <button type="button" class="lang-tab" data-lang="fr" onclick="switchVoucherLang('name', 'fr', this)">🇫🇷 FR</button>
+                                <button type="button" class="lang-tab" data-lang="es" onclick="switchVoucherLang('name', 'es', this)">🇪🇸 ES</button>
+                                <button type="button" class="lang-tab" data-lang="nl" onclick="switchVoucherLang('name', 'nl', this)">🇳🇱 NL</button>
+                                <button type="button" class="lang-tab" data-lang="de" onclick="switchVoucherLang('name', 'de', this)">🇩🇪 DE</button>
+                            </div>
                             <input type="text" id="voucher-name" class="form-input" placeholder="e.g., Winter Sale 20%" required
                                 style="padding: 0.75rem; border-radius: 8px;">
                         </div>
@@ -13541,7 +13548,27 @@ const promo = await fetch('/api/v1/offers/validate', {
                     
                     <div class="form-group" style="margin-bottom: 1.25rem;">
                         <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">Description</label>
+                        <div class="lang-tabs" id="voucher-desc-tabs" style="margin-bottom: 0.5rem;">
+                            <button type="button" class="lang-tab active" data-lang="en" onclick="switchVoucherLang('description', 'en', this)">🇬🇧 EN</button>
+                            <button type="button" class="lang-tab" data-lang="fr" onclick="switchVoucherLang('description', 'fr', this)">🇫🇷 FR</button>
+                            <button type="button" class="lang-tab" data-lang="es" onclick="switchVoucherLang('description', 'es', this)">🇪🇸 ES</button>
+                            <button type="button" class="lang-tab" data-lang="nl" onclick="switchVoucherLang('description', 'nl', this)">🇳🇱 NL</button>
+                            <button type="button" class="lang-tab" data-lang="de" onclick="switchVoucherLang('description', 'de', this)">🇩🇪 DE</button>
+                        </div>
                         <textarea id="voucher-description" class="form-input" placeholder="Get 20% off your winter stay" rows="2"
+                            style="padding: 0.75rem; border-radius: 8px;"></textarea>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 1.25rem;">
+                        <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">Terms & Conditions</label>
+                        <div class="lang-tabs" id="voucher-terms-tabs" style="margin-bottom: 0.5rem;">
+                            <button type="button" class="lang-tab active" data-lang="en" onclick="switchVoucherLang('terms', 'en', this)">🇬🇧 EN</button>
+                            <button type="button" class="lang-tab" data-lang="fr" onclick="switchVoucherLang('terms', 'fr', this)">🇫🇷 FR</button>
+                            <button type="button" class="lang-tab" data-lang="es" onclick="switchVoucherLang('terms', 'es', this)">🇪🇸 ES</button>
+                            <button type="button" class="lang-tab" data-lang="nl" onclick="switchVoucherLang('terms', 'nl', this)">🇳🇱 NL</button>
+                            <button type="button" class="lang-tab" data-lang="de" onclick="switchVoucherLang('terms', 'de', this)">🇩🇪 DE</button>
+                        </div>
+                        <textarea id="voucher-terms" class="form-input" placeholder="Cannot be combined with other offers. Valid for new bookings only." rows="2"
                             style="padding: 0.75rem; border-radius: 8px;"></textarea>
                     </div>
                     
@@ -13685,6 +13712,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                         <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">
                             Upsell Name <span style="color: #ef4444;">*</span>
                         </label>
+                        <div class="lang-tabs" id="upsell-name-tabs" style="margin-bottom: 0.5rem;">
+                            <button type="button" class="lang-tab active" data-lang="en" onclick="switchUpsellLang('name', 'en', this)">🇬🇧 EN</button>
+                            <button type="button" class="lang-tab" data-lang="fr" onclick="switchUpsellLang('name', 'fr', this)">🇫🇷 FR</button>
+                            <button type="button" class="lang-tab" data-lang="es" onclick="switchUpsellLang('name', 'es', this)">🇪🇸 ES</button>
+                            <button type="button" class="lang-tab" data-lang="nl" onclick="switchUpsellLang('name', 'nl', this)">🇳🇱 NL</button>
+                            <button type="button" class="lang-tab" data-lang="de" onclick="switchUpsellLang('name', 'de', this)">🇩🇪 DE</button>
+                        </div>
                         <input type="text" id="upsell-name" class="form-input" placeholder="e.g., Champagne on arrival" required
                             style="padding: 0.75rem; border-radius: 8px;">
                     </div>
@@ -13693,6 +13727,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                         <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">
                             Description
                         </label>
+                        <div class="lang-tabs" id="upsell-desc-tabs" style="margin-bottom: 0.5rem;">
+                            <button type="button" class="lang-tab active" data-lang="en" onclick="switchUpsellLang('description', 'en', this)">🇬🇧 EN</button>
+                            <button type="button" class="lang-tab" data-lang="fr" onclick="switchUpsellLang('description', 'fr', this)">🇫🇷 FR</button>
+                            <button type="button" class="lang-tab" data-lang="es" onclick="switchUpsellLang('description', 'es', this)">🇪🇸 ES</button>
+                            <button type="button" class="lang-tab" data-lang="nl" onclick="switchUpsellLang('description', 'nl', this)">🇳🇱 NL</button>
+                            <button type="button" class="lang-tab" data-lang="de" onclick="switchUpsellLang('description', 'de', this)">🇩🇪 DE</button>
+                        </div>
                         <textarea id="upsell-description" class="form-input" rows="2" placeholder="Bottle of premium champagne waiting in your room"
                             style="padding: 0.75rem; border-radius: 8px;"></textarea>
                     </div>
@@ -33806,6 +33847,62 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
         
+        // Voucher multilingual data storage
+        let voucherMultilingual = {
+            name: { en: '', fr: '', es: '', nl: '', de: '' },
+            description: { en: '', fr: '', es: '', nl: '', de: '' },
+            terms: { en: '', fr: '', es: '', nl: '', de: '' }
+        };
+        let currentVoucherLang = { name: 'en', description: 'en', terms: 'en' };
+        
+        function switchVoucherLang(field, lang, btn) {
+            const fieldId = field === 'name' ? 'voucher-name' : (field === 'description' ? 'voucher-description' : 'voucher-terms');
+            const tabsId = field === 'name' ? 'voucher-name-tabs' : (field === 'description' ? 'voucher-desc-tabs' : 'voucher-terms-tabs');
+            
+            voucherMultilingual[field][currentVoucherLang[field]] = document.getElementById(fieldId).value;
+            currentVoucherLang[field] = lang;
+            document.getElementById(fieldId).value = voucherMultilingual[field][lang] || '';
+            
+            document.querySelectorAll(`#${tabsId} .lang-tab`).forEach(t => {
+                t.classList.toggle('active', t.dataset.lang === lang);
+                const hasContent = voucherMultilingual[field][t.dataset.lang]?.trim();
+                t.classList.toggle('has-content', !!hasContent);
+            });
+        }
+        
+        function resetVoucherLangTabs() {
+            voucherMultilingual = { name: { en: '', fr: '', es: '', nl: '', de: '' }, description: { en: '', fr: '', es: '', nl: '', de: '' }, terms: { en: '', fr: '', es: '', nl: '', de: '' } };
+            currentVoucherLang = { name: 'en', description: 'en', terms: 'en' };
+            ['voucher-name-tabs', 'voucher-desc-tabs', 'voucher-terms-tabs'].forEach(tabsId => {
+                const el = document.getElementById(tabsId);
+                if (el) el.querySelectorAll('.lang-tab').forEach(t => { t.classList.toggle('active', t.dataset.lang === 'en'); t.classList.remove('has-content'); });
+            });
+        }
+        
+        function loadVoucherMultilingual(voucher) {
+            if (voucher.name_ml && typeof voucher.name_ml === 'object') voucherMultilingual.name = { ...voucherMultilingual.name, ...voucher.name_ml };
+            else if (voucher.name) voucherMultilingual.name.en = voucher.name;
+            if (voucher.description_ml && typeof voucher.description_ml === 'object') voucherMultilingual.description = { ...voucherMultilingual.description, ...voucher.description_ml };
+            else if (voucher.description) voucherMultilingual.description.en = voucher.description;
+            if (voucher.terms_ml && typeof voucher.terms_ml === 'object') voucherMultilingual.terms = { ...voucherMultilingual.terms, ...voucher.terms_ml };
+            
+            ['name', 'description', 'terms'].forEach(field => {
+                const tabsId = field === 'name' ? 'voucher-name-tabs' : (field === 'description' ? 'voucher-desc-tabs' : 'voucher-terms-tabs');
+                const el = document.getElementById(tabsId);
+                if (el) el.querySelectorAll('.lang-tab').forEach(t => { t.classList.toggle('has-content', !!voucherMultilingual[field][t.dataset.lang]?.trim()); });
+            });
+        }
+        
+        function getVoucherMultilingualData() {
+            voucherMultilingual.name[currentVoucherLang.name] = document.getElementById('voucher-name').value;
+            voucherMultilingual.description[currentVoucherLang.description] = document.getElementById('voucher-description').value;
+            const termsEl = document.getElementById('voucher-terms');
+            if (termsEl) voucherMultilingual.terms[currentVoucherLang.terms] = termsEl.value;
+            
+            const cleanObj = (obj) => { const r = {}; for (const [k, v] of Object.entries(obj)) { if (v && v.trim()) r[k] = v.trim(); } return Object.keys(r).length > 0 ? r : null; };
+            return { name_ml: cleanObj(voucherMultilingual.name), description_ml: cleanObj(voucherMultilingual.description), terms_ml: cleanObj(voucherMultilingual.terms) };
+        }
+        
         async function editVoucher(id) {
             try {
                 const response = await fetch(`/api/admin/vouchers/${id}`);
@@ -33813,10 +33910,15 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 if (data.success && data.data) {
                     const voucher = data.data;
+                    resetVoucherLangTabs();
+                    loadVoucherMultilingual(voucher);
+                    
                     document.getElementById('voucher-id').value = voucher.id;
                     document.getElementById('voucher-code').value = voucher.code || '';
-                    document.getElementById('voucher-name').value = voucher.name || '';
-                    document.getElementById('voucher-description').value = voucher.description || '';
+                    document.getElementById('voucher-name').value = voucherMultilingual.name.en || voucher.name || '';
+                    document.getElementById('voucher-description').value = voucherMultilingual.description.en || voucher.description || '';
+                    const termsEl = document.getElementById('voucher-terms');
+                    if (termsEl) termsEl.value = voucherMultilingual.terms.en || '';
                     document.getElementById('voucher-discount-type').value = voucher.discount_type || 'percentage';
                     document.getElementById('voucher-discount-value').value = voucher.discount_value || '';
                     document.getElementById('voucher-valid-from').value = voucher.valid_from || '';
@@ -33853,10 +33955,16 @@ const promo = await fetch('/api/v1/offers/validate', {
             const isExternal = document.querySelector('input[name="voucher-provider-type"]:checked').value === 'external';
             const vendorId = isExternal ? document.getElementById('voucher-vendor').value || null : null;
             
+            // Get multilingual data
+            const mlData = getVoucherMultilingualData();
+            
             const voucherData = {
                 code: document.getElementById('voucher-code').value,
-                name: document.getElementById('voucher-name').value,
-                description: document.getElementById('voucher-description').value,
+                name: mlData.name_ml?.en || document.getElementById('voucher-name').value,
+                description: mlData.description_ml?.en || document.getElementById('voucher-description').value,
+                name_ml: mlData.name_ml,
+                description_ml: mlData.description_ml,
+                terms_ml: mlData.terms_ml,
                 discount_type: document.getElementById('voucher-discount-type').value,
                 discount_value: parseFloat(document.getElementById('voucher-discount-value').value),
                 valid_from: document.getElementById('voucher-valid-from').value || null,
@@ -34203,13 +34311,63 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
         
+        // Upsell multilingual data storage
+        let upsellMultilingual = { name: { en: '', fr: '', es: '', nl: '', de: '' }, description: { en: '', fr: '', es: '', nl: '', de: '' } };
+        let currentUpsellLang = { name: 'en', description: 'en' };
+        
+        function switchUpsellLang(field, lang, btn) {
+            const fieldId = field === 'name' ? 'upsell-name' : 'upsell-description';
+            const tabsId = field === 'name' ? 'upsell-name-tabs' : 'upsell-desc-tabs';
+            
+            upsellMultilingual[field][currentUpsellLang[field]] = document.getElementById(fieldId).value;
+            currentUpsellLang[field] = lang;
+            document.getElementById(fieldId).value = upsellMultilingual[field][lang] || '';
+            
+            document.querySelectorAll(`#${tabsId} .lang-tab`).forEach(t => {
+                t.classList.toggle('active', t.dataset.lang === lang);
+                t.classList.toggle('has-content', !!upsellMultilingual[field][t.dataset.lang]?.trim());
+            });
+        }
+        
+        function resetUpsellLangTabs() {
+            upsellMultilingual = { name: { en: '', fr: '', es: '', nl: '', de: '' }, description: { en: '', fr: '', es: '', nl: '', de: '' } };
+            currentUpsellLang = { name: 'en', description: 'en' };
+            ['upsell-name-tabs', 'upsell-desc-tabs'].forEach(tabsId => {
+                const el = document.getElementById(tabsId);
+                if (el) el.querySelectorAll('.lang-tab').forEach(t => { t.classList.toggle('active', t.dataset.lang === 'en'); t.classList.remove('has-content'); });
+            });
+        }
+        
+        function loadUpsellMultilingual(upsell) {
+            if (upsell.name_ml && typeof upsell.name_ml === 'object') upsellMultilingual.name = { ...upsellMultilingual.name, ...upsell.name_ml };
+            else if (upsell.name) upsellMultilingual.name.en = upsell.name;
+            if (upsell.description_ml && typeof upsell.description_ml === 'object') upsellMultilingual.description = { ...upsellMultilingual.description, ...upsell.description_ml };
+            else if (upsell.description) upsellMultilingual.description.en = upsell.description;
+            
+            ['name', 'description'].forEach(field => {
+                const tabsId = field === 'name' ? 'upsell-name-tabs' : 'upsell-desc-tabs';
+                const el = document.getElementById(tabsId);
+                if (el) el.querySelectorAll('.lang-tab').forEach(t => { t.classList.toggle('has-content', !!upsellMultilingual[field][t.dataset.lang]?.trim()); });
+            });
+        }
+        
+        function getUpsellMultilingualData() {
+            upsellMultilingual.name[currentUpsellLang.name] = document.getElementById('upsell-name').value;
+            upsellMultilingual.description[currentUpsellLang.description] = document.getElementById('upsell-description').value;
+            const cleanObj = (obj) => { const r = {}; for (const [k, v] of Object.entries(obj)) { if (v && v.trim()) r[k] = v.trim(); } return Object.keys(r).length > 0 ? r : null; };
+            return { name_ml: cleanObj(upsellMultilingual.name), description_ml: cleanObj(upsellMultilingual.description) };
+        }
+        
         async function editUpsell(id) {
             const upsell = upsellsData.find(u => u.id === id);
             if (!upsell) return;
             
+            resetUpsellLangTabs();
+            loadUpsellMultilingual(upsell);
+            
             document.getElementById('upsell-id').value = upsell.id;
-            document.getElementById('upsell-name').value = upsell.name || '';
-            document.getElementById('upsell-description').value = upsell.description || '';
+            document.getElementById('upsell-name').value = upsellMultilingual.name.en || upsell.name || '';
+            document.getElementById('upsell-description').value = upsellMultilingual.description.en || upsell.description || '';
             document.getElementById('upsell-price').value = upsell.price || '';
             document.getElementById('upsell-charge-type').value = upsell.charge_type || 'per_booking';
             document.getElementById('upsell-max-qty').value = upsell.max_quantity || '';
@@ -34280,9 +34438,14 @@ const promo = await fetch('/api/v1/offers/validate', {
             const isExternal = document.querySelector('input[name="upsell-provider-type"]:checked').value === 'external';
             const vendorId = isExternal ? document.getElementById('upsell-vendor').value || null : null;
             
+            // Get multilingual data
+            const mlData = getUpsellMultilingualData();
+            
             const upsellData = {
-                name: document.getElementById('upsell-name').value,
-                description: document.getElementById('upsell-description').value,
+                name: mlData.name_ml?.en || document.getElementById('upsell-name').value,
+                description: mlData.description_ml?.en || document.getElementById('upsell-description').value,
+                name_ml: mlData.name_ml,
+                description_ml: mlData.description_ml,
                 price: parseFloat(document.getElementById('upsell-price').value),
                 charge_type: document.getElementById('upsell-charge-type').value,
                 max_quantity: parseInt(document.getElementById('upsell-max-qty').value) || null,
@@ -34308,6 +34471,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 if (data.success) {
                     closeModal('addUpsellModal');
+                    resetUpsellLangTabs();
                     loadUpsellsForProperty();
                 } else {
                     alert('Error: ' + data.error);
