@@ -14022,6 +14022,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                         <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">
                             Offer Name <span style="color: #ef4444;">*</span>
                         </label>
+                        <div class="lang-tabs" id="offer-name-tabs" style="margin-bottom: 0.5rem;"></div>
                         <input type="text" id="offer-name" class="form-input" placeholder="e.g., Early Bird Discount" required
                             style="padding: 0.75rem; border-radius: 8px; font-size: 1rem;">
                     </div>
@@ -14031,6 +14032,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                         <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">
                             Description <span style="color: #9ca3af; font-weight: normal;">(shown to guests)</span>
                         </label>
+                        <div class="lang-tabs" id="offer-description-tabs" style="margin-bottom: 0.5rem;"></div>
                         <textarea id="offer-description" class="form-input" rows="2" placeholder="Book 30 days in advance and save!"
                             style="padding: 0.75rem; border-radius: 8px; font-size: 0.95rem; resize: vertical;"></textarea>
                     </div>
@@ -33321,6 +33323,61 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
         
+        // Offer multilingual data storage
+        let offerMultilingualData = {
+            name: {},
+            description: {}
+        };
+        let currentOfferLang = 'en';
+        
+        // Render offer language tabs
+        function renderOfferLangTabs() {
+            const langs = getAccountLanguages();
+            const primaryLang = getAccountPrimaryLanguage();
+            
+            // Sort so primary is first
+            const sortedLangs = [...langs].sort((a, b) => {
+                if (a === primaryLang) return -1;
+                if (b === primaryLang) return 1;
+                return 0;
+            });
+            
+            ['offer-name-tabs', 'offer-description-tabs'].forEach(tabsId => {
+                const container = document.getElementById(tabsId);
+                if (!container) return;
+                
+                const field = tabsId === 'offer-name-tabs' ? 'name' : 'description';
+                
+                container.innerHTML = sortedLangs.map(lang => {
+                    const info = LANG_INFO[lang] || { flag: '🏳️', name: lang.toUpperCase() };
+                    const isActive = lang === currentOfferLang;
+                    const isPrimary = lang === primaryLang;
+                    const hasContent = !!offerMultilingualData[field][lang];
+                    return `<button type="button" class="lang-tab${isActive ? ' active' : ''}${isPrimary ? ' primary' : ''}${hasContent ? ' has-content' : ''}" data-lang="${lang}" onclick="switchOfferLang('${field}', '${lang}', this)">${info.flag} ${info.name}${hasContent ? ' ✓' : ''}</button>`;
+                }).join('');
+            });
+        }
+        
+        // Switch offer language tab
+        function switchOfferLang(field, lang, btn) {
+            // Save current values
+            offerMultilingualData.name[currentOfferLang] = document.getElementById('offer-name').value;
+            offerMultilingualData.description[currentOfferLang] = document.getElementById('offer-description').value;
+            
+            // Update active tabs for both fields
+            document.querySelectorAll('#offer-name-tabs .lang-tab, #offer-description-tabs .lang-tab').forEach(t => {
+                t.classList.toggle('active', t.dataset.lang === lang);
+            });
+            
+            // Load new language values
+            currentOfferLang = lang;
+            document.getElementById('offer-name').value = offerMultilingualData.name[lang] || '';
+            document.getElementById('offer-description').value = offerMultilingualData.description[lang] || '';
+            
+            // Update has-content indicators
+            renderOfferLangTabs();
+        }
+        
         function openAddOfferModal() {
             document.getElementById('offer-form').reset();
             document.getElementById('offer-id').value = '';
@@ -33330,6 +33387,11 @@ const promo = await fetch('/api/v1/offers/validate', {
             document.getElementById('offer-price-per-night').value = '';
             togglePricePerNightField();
             updateOfferToggleVisual(document.getElementById('offer-active'));
+            
+            // Reset multilingual data
+            offerMultilingualData = { name: {}, description: {} };
+            currentOfferLang = getAccountPrimaryLanguage();
+            renderOfferLangTabs();
             
             // Reset all check-in/check-out day checkboxes to checked
             ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'].forEach(day => {
@@ -33520,8 +33582,21 @@ const promo = await fetch('/api/v1/offers/validate', {
                 if (data.success && data.data) {
                     const offer = data.data;
                     document.getElementById('offer-id').value = offer.id;
-                    document.getElementById('offer-name').value = offer.name || '';
-                    document.getElementById('offer-description').value = offer.description || '';
+                    
+                    // Parse multilingual name and description
+                    offerMultilingualData.name = parseMultilingualField(offer.name);
+                    offerMultilingualData.description = parseMultilingualField(offer.description);
+                    
+                    // Set current language to primary
+                    currentOfferLang = getAccountPrimaryLanguage();
+                    
+                    // Display primary language values
+                    document.getElementById('offer-name').value = offerMultilingualData.name[currentOfferLang] || offerMultilingualData.name.en || '';
+                    document.getElementById('offer-description').value = offerMultilingualData.description[currentOfferLang] || offerMultilingualData.description.en || '';
+                    
+                    // Render language tabs
+                    renderOfferLangTabs();
+                    
                     document.getElementById('offer-discount-type').value = offer.discount_type || 'percentage';
                     document.getElementById('offer-discount-value').value = offer.discount_value || '';
                     document.getElementById('offer-min-nights').value = offer.min_nights || '';
@@ -33600,6 +33675,10 @@ const promo = await fetch('/api/v1/offers/validate', {
         async function saveOffer() {
             const id = document.getElementById('offer-id').value;
             
+            // Save current language values before submitting
+            offerMultilingualData.name[currentOfferLang] = document.getElementById('offer-name').value;
+            offerMultilingualData.description[currentOfferLang] = document.getElementById('offer-description').value;
+            
             // Get selected properties and rooms from checkboxes
             const selectedPropertyIds = getSelectedOfferProperties();
             const selectedRoomIds = getSelectedOfferRooms();
@@ -33619,9 +33698,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                 }
             }
             
+            // Build multilingual name/description - save as JSON objects
+            const nameData = Object.keys(offerMultilingualData.name).length > 0 ? offerMultilingualData.name : { en: document.getElementById('offer-name').value };
+            const descData = Object.keys(offerMultilingualData.description).length > 0 ? offerMultilingualData.description : { en: document.getElementById('offer-description').value };
+            
             const offerData = {
-                name: document.getElementById('offer-name').value,
-                description: document.getElementById('offer-description').value,
+                name: nameData,
+                description: descData,
                 discount_type: document.getElementById('offer-discount-type').value,
                 discount_value: parseFloat(document.getElementById('offer-discount-value').value),
                 price_per_night: parseFloat(document.getElementById('offer-price-per-night').value) || null,
