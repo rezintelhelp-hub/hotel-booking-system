@@ -16623,9 +16623,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                     if (typeof loadAccountEntitlements === 'function') {
                         loadAccountEntitlements();
                     }
-                    // Load language settings
+                    // Load language settings (await to ensure ready before any UI loads)
                     if (typeof loadLanguageSettings === 'function') {
-                        loadLanguageSettings();
+                        await loadLanguageSettings();
                     }
                     // Reload dashboard with correct filters
                     if (typeof loadDashboard === 'function') {
@@ -16654,6 +16654,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                     // Load feature entitlements
                     if (typeof loadAccountEntitlements === 'function') {
                         loadAccountEntitlements();
+                    }
+                    // Load language settings
+                    if (typeof loadLanguageSettings === 'function') {
+                        await loadLanguageSettings();
                     }
                     if (typeof loadDashboard === 'function') {
                         loadDashboard();
