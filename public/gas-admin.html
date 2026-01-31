@@ -29473,6 +29473,12 @@ const promo = await fetch('/api/v1/offers/validate', {
                     rooms.forEach(r => {
                         roomSelect.innerHTML += `<option value="${r.id}" data-property-id="${r.property_id}">${r.name}</option>`;
                     });
+                    
+                    // Auto-select if only one room
+                    if (rooms.length === 1) {
+                        roomSelect.value = rooms[0].id;
+                        loadOffersPricingGrid();
+                    }
                 }
             } catch (error) {
                 console.error('Error loading rooms:', error);
