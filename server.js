@@ -44178,6 +44178,603 @@ app.get('/api/public/upsells/:unitId', async (req, res) => {
 // =========================================================
 // PUBLIC API - OFFERS, UPSELLS & PREMIUM FEATURES
 // =========================================================
+// UI TRANSLATIONS API
+// =========================================================
+
+// Translations data - comprehensive UI strings for all supported languages
+const GAS_TRANSLATIONS = {
+  "en": {
+    "lang": "en",
+    "name": "English",
+    "flag": "🇬🇧",
+    "strings": {
+      "common": {
+        "loading": "Loading...",
+        "error": "Error",
+        "success": "Success",
+        "save": "Save",
+        "cancel": "Cancel",
+        "close": "Close",
+        "back": "Back",
+        "next": "Next",
+        "submit": "Submit",
+        "confirm": "Confirm",
+        "search": "Search",
+        "filter": "Filter",
+        "sort": "Sort",
+        "all": "All",
+        "from": "From",
+        "to": "To",
+        "per": "per",
+        "total": "Total",
+        "available": "Available",
+        "unavailable": "Unavailable"
+      },
+      "booking": {
+        "book_now": "Book Now",
+        "view_book": "View & Book",
+        "check_availability": "Check Availability",
+        "check_in": "Check-in",
+        "check_out": "Check-out",
+        "select_dates": "Select Dates",
+        "nights": "nights",
+        "night": "night",
+        "guests": "Guests",
+        "guest": "guest",
+        "adults": "Adults",
+        "children": "Children",
+        "price_per_night": "per night",
+        "price_from": "From",
+        "total_price": "Total Price",
+        "cleaning_fee": "Cleaning Fee",
+        "service_fee": "Service Fee",
+        "taxes": "Taxes",
+        "discount": "Discount",
+        "promo_code": "Promo Code",
+        "apply": "Apply",
+        "min_stay": "Minimum stay",
+        "max_guests": "Maximum guests",
+        "not_available": "Not available for selected dates",
+        "continue_booking": "Continue Booking",
+        "confirm_booking": "Confirm Booking",
+        "booking_confirmed": "Booking Confirmed",
+        "booking_reference": "Booking Reference"
+      },
+      "guest_details": {
+        "guest_details": "Guest Details",
+        "first_name": "First Name",
+        "last_name": "Last Name",
+        "email": "Email",
+        "phone": "Phone",
+        "country": "Country",
+        "special_requests": "Special Requests",
+        "arrival_time": "Estimated Arrival Time",
+        "terms_agree": "I agree to the",
+        "terms_conditions": "Terms and Conditions",
+        "privacy_policy": "Privacy Policy"
+      },
+      "payment": {
+        "payment": "Payment",
+        "pay_now": "Pay Now",
+        "pay_deposit": "Pay Deposit",
+        "card_number": "Card Number",
+        "expiry_date": "Expiry Date",
+        "cvv": "CVV",
+        "cardholder_name": "Cardholder Name",
+        "payment_secure": "Your payment is secure",
+        "payment_processing": "Processing payment..."
+      },
+      "property": {
+        "property": "Property",
+        "properties": "Properties",
+        "description": "Description",
+        "amenities": "Amenities",
+        "features": "Features",
+        "location": "Location",
+        "reviews": "Reviews",
+        "house_rules": "House Rules",
+        "bedrooms": "bedrooms",
+        "bedroom": "bedroom",
+        "bathrooms": "bathrooms",
+        "bathroom": "bathroom",
+        "beds": "beds",
+        "bed": "bed"
+      },
+      "filters": {
+        "sort_by": "Sort By",
+        "default": "Default",
+        "price_low": "Price: Low to High",
+        "price_high": "Price: High to Low",
+        "location": "Location",
+        "all_locations": "All Locations",
+        "amenities": "Amenities",
+        "select_amenities": "Select Amenities",
+        "clear_filters": "Clear Filters"
+      },
+      "calendar": {
+        "today": "Today",
+        "mon": "Mon", "tue": "Tue", "wed": "Wed", "thu": "Thu", "fri": "Fri", "sat": "Sat", "sun": "Sun"
+      }
+    }
+  },
+  "fr": {
+    "lang": "fr",
+    "name": "Français",
+    "flag": "🇫🇷",
+    "strings": {
+      "common": {
+        "loading": "Chargement...",
+        "error": "Erreur",
+        "success": "Succès",
+        "save": "Enregistrer",
+        "cancel": "Annuler",
+        "close": "Fermer",
+        "back": "Retour",
+        "next": "Suivant",
+        "submit": "Envoyer",
+        "confirm": "Confirmer",
+        "search": "Rechercher",
+        "filter": "Filtrer",
+        "sort": "Trier",
+        "all": "Tous",
+        "from": "De",
+        "to": "À",
+        "per": "par",
+        "total": "Total",
+        "available": "Disponible",
+        "unavailable": "Indisponible"
+      },
+      "booking": {
+        "book_now": "Réserver",
+        "view_book": "Voir & Réserver",
+        "check_availability": "Vérifier la disponibilité",
+        "check_in": "Arrivée",
+        "check_out": "Départ",
+        "select_dates": "Sélectionner les dates",
+        "nights": "nuits",
+        "night": "nuit",
+        "guests": "Voyageurs",
+        "guest": "voyageur",
+        "adults": "Adultes",
+        "children": "Enfants",
+        "price_per_night": "par nuit",
+        "price_from": "À partir de",
+        "total_price": "Prix total",
+        "cleaning_fee": "Frais de ménage",
+        "service_fee": "Frais de service",
+        "taxes": "Taxes",
+        "discount": "Réduction",
+        "promo_code": "Code promo",
+        "apply": "Appliquer",
+        "min_stay": "Séjour minimum",
+        "max_guests": "Capacité maximale",
+        "not_available": "Non disponible pour les dates sélectionnées",
+        "continue_booking": "Continuer la réservation",
+        "confirm_booking": "Confirmer la réservation",
+        "booking_confirmed": "Réservation confirmée",
+        "booking_reference": "Référence de réservation"
+      },
+      "guest_details": {
+        "guest_details": "Informations voyageur",
+        "first_name": "Prénom",
+        "last_name": "Nom",
+        "email": "E-mail",
+        "phone": "Téléphone",
+        "country": "Pays",
+        "special_requests": "Demandes spéciales",
+        "arrival_time": "Heure d'arrivée estimée",
+        "terms_agree": "J'accepte les",
+        "terms_conditions": "Conditions générales",
+        "privacy_policy": "Politique de confidentialité"
+      },
+      "payment": {
+        "payment": "Paiement",
+        "pay_now": "Payer maintenant",
+        "pay_deposit": "Payer l'acompte",
+        "card_number": "Numéro de carte",
+        "expiry_date": "Date d'expiration",
+        "cvv": "CVV",
+        "cardholder_name": "Nom du titulaire",
+        "payment_secure": "Votre paiement est sécurisé",
+        "payment_processing": "Traitement du paiement..."
+      },
+      "property": {
+        "property": "Propriété",
+        "properties": "Propriétés",
+        "description": "Description",
+        "amenities": "Équipements",
+        "features": "Caractéristiques",
+        "location": "Emplacement",
+        "reviews": "Avis",
+        "house_rules": "Règlement intérieur",
+        "bedrooms": "chambres",
+        "bedroom": "chambre",
+        "bathrooms": "salles de bain",
+        "bathroom": "salle de bain",
+        "beds": "lits",
+        "bed": "lit"
+      },
+      "filters": {
+        "sort_by": "Trier par",
+        "default": "Par défaut",
+        "price_low": "Prix croissant",
+        "price_high": "Prix décroissant",
+        "location": "Emplacement",
+        "all_locations": "Tous les emplacements",
+        "amenities": "Équipements",
+        "select_amenities": "Sélectionner équipements",
+        "clear_filters": "Effacer les filtres"
+      },
+      "calendar": {
+        "today": "Aujourd'hui",
+        "mon": "Lun", "tue": "Mar", "wed": "Mer", "thu": "Jeu", "fri": "Ven", "sat": "Sam", "sun": "Dim"
+      }
+    }
+  },
+  "es": {
+    "lang": "es",
+    "name": "Español",
+    "flag": "🇪🇸",
+    "strings": {
+      "common": {
+        "loading": "Cargando...",
+        "error": "Error",
+        "success": "Éxito",
+        "save": "Guardar",
+        "cancel": "Cancelar",
+        "close": "Cerrar",
+        "back": "Atrás",
+        "next": "Siguiente",
+        "submit": "Enviar",
+        "confirm": "Confirmar",
+        "search": "Buscar",
+        "filter": "Filtrar",
+        "sort": "Ordenar",
+        "all": "Todos",
+        "from": "Desde",
+        "to": "Hasta",
+        "per": "por",
+        "total": "Total",
+        "available": "Disponible",
+        "unavailable": "No disponible"
+      },
+      "booking": {
+        "book_now": "Reservar",
+        "view_book": "Ver y Reservar",
+        "check_availability": "Comprobar disponibilidad",
+        "check_in": "Llegada",
+        "check_out": "Salida",
+        "select_dates": "Seleccionar fechas",
+        "nights": "noches",
+        "night": "noche",
+        "guests": "Huéspedes",
+        "guest": "huésped",
+        "adults": "Adultos",
+        "children": "Niños",
+        "price_per_night": "por noche",
+        "price_from": "Desde",
+        "total_price": "Precio total",
+        "cleaning_fee": "Tarifa de limpieza",
+        "service_fee": "Tarifa de servicio",
+        "taxes": "Impuestos",
+        "discount": "Descuento",
+        "promo_code": "Código promocional",
+        "apply": "Aplicar",
+        "min_stay": "Estancia mínima",
+        "max_guests": "Capacidad máxima",
+        "not_available": "No disponible para las fechas seleccionadas",
+        "continue_booking": "Continuar reserva",
+        "confirm_booking": "Confirmar reserva",
+        "booking_confirmed": "Reserva confirmada",
+        "booking_reference": "Referencia de reserva"
+      },
+      "guest_details": {
+        "guest_details": "Datos del huésped",
+        "first_name": "Nombre",
+        "last_name": "Apellidos",
+        "email": "Correo electrónico",
+        "phone": "Teléfono",
+        "country": "País",
+        "special_requests": "Peticiones especiales",
+        "arrival_time": "Hora estimada de llegada",
+        "terms_agree": "Acepto los",
+        "terms_conditions": "Términos y condiciones",
+        "privacy_policy": "Política de privacidad"
+      },
+      "payment": {
+        "payment": "Pago",
+        "pay_now": "Pagar ahora",
+        "pay_deposit": "Pagar depósito",
+        "card_number": "Número de tarjeta",
+        "expiry_date": "Fecha de caducidad",
+        "cvv": "CVV",
+        "cardholder_name": "Nombre del titular",
+        "payment_secure": "Su pago es seguro",
+        "payment_processing": "Procesando pago..."
+      },
+      "property": {
+        "property": "Propiedad",
+        "properties": "Propiedades",
+        "description": "Descripción",
+        "amenities": "Servicios",
+        "features": "Características",
+        "location": "Ubicación",
+        "reviews": "Opiniones",
+        "house_rules": "Normas de la casa",
+        "bedrooms": "dormitorios",
+        "bedroom": "dormitorio",
+        "bathrooms": "baños",
+        "bathroom": "baño",
+        "beds": "camas",
+        "bed": "cama"
+      },
+      "filters": {
+        "sort_by": "Ordenar por",
+        "default": "Por defecto",
+        "price_low": "Precio: menor a mayor",
+        "price_high": "Precio: mayor a menor",
+        "location": "Ubicación",
+        "all_locations": "Todas las ubicaciones",
+        "amenities": "Servicios",
+        "select_amenities": "Seleccionar servicios",
+        "clear_filters": "Borrar filtros"
+      },
+      "calendar": {
+        "today": "Hoy",
+        "mon": "Lun", "tue": "Mar", "wed": "Mié", "thu": "Jue", "fri": "Vie", "sat": "Sáb", "sun": "Dom"
+      }
+    }
+  },
+  "nl": {
+    "lang": "nl",
+    "name": "Nederlands",
+    "flag": "🇳🇱",
+    "strings": {
+      "common": {
+        "loading": "Laden...",
+        "error": "Fout",
+        "success": "Gelukt",
+        "save": "Opslaan",
+        "cancel": "Annuleren",
+        "close": "Sluiten",
+        "back": "Terug",
+        "next": "Volgende",
+        "submit": "Verzenden",
+        "confirm": "Bevestigen",
+        "search": "Zoeken",
+        "filter": "Filteren",
+        "sort": "Sorteren",
+        "all": "Alle",
+        "from": "Van",
+        "to": "Tot",
+        "per": "per",
+        "total": "Totaal",
+        "available": "Beschikbaar",
+        "unavailable": "Niet beschikbaar"
+      },
+      "booking": {
+        "book_now": "Boek nu",
+        "view_book": "Bekijk & Boek",
+        "check_availability": "Beschikbaarheid controleren",
+        "check_in": "Inchecken",
+        "check_out": "Uitchecken",
+        "select_dates": "Selecteer data",
+        "nights": "nachten",
+        "night": "nacht",
+        "guests": "Gasten",
+        "guest": "gast",
+        "adults": "Volwassenen",
+        "children": "Kinderen",
+        "price_per_night": "per nacht",
+        "price_from": "Vanaf",
+        "total_price": "Totaalprijs",
+        "cleaning_fee": "Schoonmaakkosten",
+        "service_fee": "Servicekosten",
+        "taxes": "Belastingen",
+        "discount": "Korting",
+        "promo_code": "Promotiecode",
+        "apply": "Toepassen",
+        "min_stay": "Minimale verblijfsduur",
+        "max_guests": "Maximaal aantal gasten",
+        "not_available": "Niet beschikbaar voor geselecteerde data",
+        "continue_booking": "Doorgaan met boeken",
+        "confirm_booking": "Boeking bevestigen",
+        "booking_confirmed": "Boeking bevestigd",
+        "booking_reference": "Boekingsreferentie"
+      },
+      "guest_details": {
+        "guest_details": "Gastgegevens",
+        "first_name": "Voornaam",
+        "last_name": "Achternaam",
+        "email": "E-mail",
+        "phone": "Telefoon",
+        "country": "Land",
+        "special_requests": "Speciale verzoeken",
+        "arrival_time": "Geschatte aankomsttijd",
+        "terms_agree": "Ik ga akkoord met de",
+        "terms_conditions": "Algemene voorwaarden",
+        "privacy_policy": "Privacybeleid"
+      },
+      "payment": {
+        "payment": "Betaling",
+        "pay_now": "Nu betalen",
+        "pay_deposit": "Aanbetaling doen",
+        "card_number": "Kaartnummer",
+        "expiry_date": "Vervaldatum",
+        "cvv": "CVV",
+        "cardholder_name": "Naam kaarthouder",
+        "payment_secure": "Uw betaling is beveiligd",
+        "payment_processing": "Betaling wordt verwerkt..."
+      },
+      "property": {
+        "property": "Accommodatie",
+        "properties": "Accommodaties",
+        "description": "Beschrijving",
+        "amenities": "Voorzieningen",
+        "features": "Kenmerken",
+        "location": "Locatie",
+        "reviews": "Beoordelingen",
+        "house_rules": "Huisregels",
+        "bedrooms": "slaapkamers",
+        "bedroom": "slaapkamer",
+        "bathrooms": "badkamers",
+        "bathroom": "badkamer",
+        "beds": "bedden",
+        "bed": "bed"
+      },
+      "filters": {
+        "sort_by": "Sorteren op",
+        "default": "Standaard",
+        "price_low": "Prijs: laag naar hoog",
+        "price_high": "Prijs: hoog naar laag",
+        "location": "Locatie",
+        "all_locations": "Alle locaties",
+        "amenities": "Voorzieningen",
+        "select_amenities": "Selecteer voorzieningen",
+        "clear_filters": "Filters wissen"
+      },
+      "calendar": {
+        "today": "Vandaag",
+        "mon": "Ma", "tue": "Di", "wed": "Wo", "thu": "Do", "fri": "Vr", "sat": "Za", "sun": "Zo"
+      }
+    }
+  },
+  "de": {
+    "lang": "de",
+    "name": "Deutsch",
+    "flag": "🇩🇪",
+    "strings": {
+      "common": {
+        "loading": "Laden...",
+        "error": "Fehler",
+        "success": "Erfolg",
+        "save": "Speichern",
+        "cancel": "Abbrechen",
+        "close": "Schließen",
+        "back": "Zurück",
+        "next": "Weiter",
+        "submit": "Absenden",
+        "confirm": "Bestätigen",
+        "search": "Suchen",
+        "filter": "Filtern",
+        "sort": "Sortieren",
+        "all": "Alle",
+        "from": "Von",
+        "to": "Bis",
+        "per": "pro",
+        "total": "Gesamt",
+        "available": "Verfügbar",
+        "unavailable": "Nicht verfügbar"
+      },
+      "booking": {
+        "book_now": "Jetzt buchen",
+        "view_book": "Ansehen & Buchen",
+        "check_availability": "Verfügbarkeit prüfen",
+        "check_in": "Anreise",
+        "check_out": "Abreise",
+        "select_dates": "Daten auswählen",
+        "nights": "Nächte",
+        "night": "Nacht",
+        "guests": "Gäste",
+        "guest": "Gast",
+        "adults": "Erwachsene",
+        "children": "Kinder",
+        "price_per_night": "pro Nacht",
+        "price_from": "Ab",
+        "total_price": "Gesamtpreis",
+        "cleaning_fee": "Reinigungsgebühr",
+        "service_fee": "Servicegebühr",
+        "taxes": "Steuern",
+        "discount": "Rabatt",
+        "promo_code": "Aktionscode",
+        "apply": "Anwenden",
+        "min_stay": "Mindestaufenthalt",
+        "max_guests": "Maximale Gästeanzahl",
+        "not_available": "Für ausgewählte Daten nicht verfügbar",
+        "continue_booking": "Buchung fortsetzen",
+        "confirm_booking": "Buchung bestätigen",
+        "booking_confirmed": "Buchung bestätigt",
+        "booking_reference": "Buchungsreferenz"
+      },
+      "guest_details": {
+        "guest_details": "Gästedaten",
+        "first_name": "Vorname",
+        "last_name": "Nachname",
+        "email": "E-Mail",
+        "phone": "Telefon",
+        "country": "Land",
+        "special_requests": "Besondere Wünsche",
+        "arrival_time": "Geschätzte Ankunftszeit",
+        "terms_agree": "Ich akzeptiere die",
+        "terms_conditions": "Allgemeinen Geschäftsbedingungen",
+        "privacy_policy": "Datenschutzrichtlinie"
+      },
+      "payment": {
+        "payment": "Zahlung",
+        "pay_now": "Jetzt bezahlen",
+        "pay_deposit": "Anzahlung leisten",
+        "card_number": "Kartennummer",
+        "expiry_date": "Ablaufdatum",
+        "cvv": "CVV",
+        "cardholder_name": "Name des Karteninhabers",
+        "payment_secure": "Ihre Zahlung ist sicher",
+        "payment_processing": "Zahlung wird verarbeitet..."
+      },
+      "property": {
+        "property": "Unterkunft",
+        "properties": "Unterkünfte",
+        "description": "Beschreibung",
+        "amenities": "Ausstattung",
+        "features": "Merkmale",
+        "location": "Lage",
+        "reviews": "Bewertungen",
+        "house_rules": "Hausordnung",
+        "bedrooms": "Schlafzimmer",
+        "bedroom": "Schlafzimmer",
+        "bathrooms": "Badezimmer",
+        "bathroom": "Badezimmer",
+        "beds": "Betten",
+        "bed": "Bett"
+      },
+      "filters": {
+        "sort_by": "Sortieren nach",
+        "default": "Standard",
+        "price_low": "Preis: aufsteigend",
+        "price_high": "Preis: absteigend",
+        "location": "Lage",
+        "all_locations": "Alle Standorte",
+        "amenities": "Ausstattung",
+        "select_amenities": "Ausstattung auswählen",
+        "clear_filters": "Filter löschen"
+      },
+      "calendar": {
+        "today": "Heute",
+        "mon": "Mo", "tue": "Di", "wed": "Mi", "thu": "Do", "fri": "Fr", "sat": "Sa", "sun": "So"
+      }
+    }
+  }
+};
+
+// Get UI translations for a specific language
+app.get('/api/public/translations/:lang', (req, res) => {
+  const { lang } = req.params;
+  const translations = GAS_TRANSLATIONS[lang] || GAS_TRANSLATIONS['en'];
+  res.json({ success: true, translations });
+});
+
+// Get all available translations
+app.get('/api/public/translations', (req, res) => {
+  const available = Object.keys(GAS_TRANSLATIONS).map(lang => ({
+    code: lang,
+    name: GAS_TRANSLATIONS[lang].name,
+    flag: GAS_TRANSLATIONS[lang].flag
+  }));
+  res.json({ success: true, available, translations: GAS_TRANSLATIONS });
+});
+
+// =========================================================
+// PUBLIC CLIENT API ENDPOINTS
+// =========================================================
 
 // Get all rooms for a client (public - for WordPress plugin)
 app.get('/api/public/client/:clientId/rooms', async (req, res) => {
