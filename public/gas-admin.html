@@ -1506,6 +1506,9 @@
         }
         .lang-tab:hover { background: #e0e7ff; color: #6366f1; }
         .lang-tab.active { background: #6366f1; color: white; border-color: #6366f1; }
+        .lang-tab.primary { border-bottom: 2px solid #f59e0b; }
+        .lang-tab.primary::before { content: '★ '; font-size: 10px; color: #f59e0b; }
+        .lang-tab.active.primary::before { color: #fde047; }
         .lang-tab.has-content { position: relative; }
         .lang-tab.has-content::after { content: '✓'; margin-left: 4px; font-size: 9px; }
     </style>
@@ -18164,9 +18167,10 @@ const promo = await fetch('/api/v1/offers/validate', {
             let html = langs.map(lang => {
                 const info = langInfo[lang] || { flag: '🏳️', name: lang.toUpperCase() };
                 const isActive = lang === primaryLang;
-                return `<button type="button" class="lang-tab${isActive ? ' active' : ''}" data-lang="${lang}" onclick="switchWbLang('${section}', '${field}', '${lang}', this)">${info.flag} ${info.name}</button>`;
+                const isPrimary = lang === primaryLang;
+                return `<button type="button" class="lang-tab${isActive ? ' active' : ''}${isPrimary ? ' primary' : ''}" data-lang="${lang}" onclick="switchWbLang('${section}', '${field}', '${lang}', this)" title="${isPrimary ? 'Primary language - translate from here' : ''}">${info.flag} ${info.name}</button>`;
             }).join('');
-            html += `<button type="button" class="btn" onclick="translateWbField('${section}', '${field}')" style="margin-left: auto; padding: 0.25rem 0.5rem; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; font-size: 0.75rem;" title="Auto-translate">🌐</button>`;
+            html += `<button type="button" class="btn" onclick="translateWbField('${section}', '${field}')" style="margin-left: auto; padding: 0.25rem 0.5rem; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; font-size: 0.75rem;" title="Translate from primary language (${langInfo[primaryLang]?.name || primaryLang.toUpperCase()}) to other languages">🌐</button>`;
             
             container.innerHTML = html;
         }
@@ -18218,53 +18222,48 @@ const promo = await fetch('/api/v1/offers/validate', {
             const input = document.getElementById(inputId);
             if (!input) return;
             
-            // Save current value
+            // Save current value first
             wbMultilingual[section][field][currentWbLang[section][field]] = input.value;
             
-            // Find source text - use current language value, or find any non-empty value
-            const currentLang = currentWbLang[section][field];
-            const sourceText = wbMultilingual[section][field][currentLang] || 
-                              Object.values(wbMultilingual[section][field]).find(v => v && v.trim());
+            // Always translate FROM the primary language
+            const primaryLang = getAccountPrimaryLanguage();
+            const sourceText = wbMultilingual[section][field][primaryLang];
             
-            if (!sourceText) { alert('Please enter text in at least one language first'); return; }
+            if (!sourceText || !sourceText.trim()) { 
+                const langInfo = { en: 'English', fr: 'French', es: 'Spanish', nl: 'Dutch', de: 'German', it: 'Italian', pt: 'Portuguese' };
+                alert(`Please enter text in ${langInfo[primaryLang] || primaryLang.toUpperCase()} (your primary language) first, then click translate.`); 
+                return; 
+            }
             
             const btn = event.target;
             const originalText = btn.innerHTML;
             btn.innerHTML = '⏳';
             btn.disabled = true;
             
-            // Translate to ALL languages that don't have content yet (including primary if empty)
+            // Translate to ALL other languages
             const allLangs = getAccountLanguages();
-            const langsNeedingTranslation = allLangs.filter(l => {
-                // Skip the language we're translating FROM
-                if (l === currentLang) return false;
-                // Include any language that's empty
-                return !wbMultilingual[section][field][l]?.trim();
-            });
-            
-            if (langsNeedingTranslation.length === 0) {
-                alert('All languages already have content. Clear a language tab to re-translate.');
-                btn.innerHTML = originalText;
-                btn.disabled = false;
-                return;
-            }
+            const targetLangs = allLangs.filter(l => l !== primaryLang);
             
             try {
                 const response = await fetch('/api/translate', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text: sourceText, targetLangs: langsNeedingTranslation, sourceLang: currentLang })
+                    body: JSON.stringify({ text: sourceText, targetLangs, sourceLang: primaryLang })
                 });
                 const result = await response.json();
                 if (result.success && result.translations) {
                     Object.entries(result.translations).forEach(([lang, text]) => {
-                        // Set translation for any empty language
-                        if (!wbMultilingual[section][field][lang]?.trim()) {
-                            wbMultilingual[section][field][lang] = text;
-                        }
+                        wbMultilingual[section][field][lang] = text;
                     });
+                    // Update tab indicators
                     const tabsId = `wb-${section}-${field.replace(/_/g, '-')}-tabs`;
-                    document.querySelectorAll(`#${tabsId} .lang-tab`).forEach(t => { t.classList.toggle('has-content', !!wbMultilingual[section][field][t.dataset.lang]?.trim()); });
+                    document.querySelectorAll(`#${tabsId} .lang-tab`).forEach(t => { 
+                        t.classList.toggle('has-content', !!wbMultilingual[section][field][t.dataset.lang]?.trim()); 
+                    });
+                    // If currently viewing a translated tab, update the input
+                    if (currentWbLang[section][field] !== primaryLang) {
+                        input.value = wbMultilingual[section][field][currentWbLang[section][field]] || '';
+                    }
                     alert('Translations added! Click each language tab to review.');
                 } else {
                     alert('Translation failed: ' + (result.error || 'Unknown error'));
