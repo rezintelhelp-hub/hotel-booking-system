@@ -27517,6 +27517,8 @@ const promo = await fetch('/api/v1/offers/validate', {
             try {
                 // Get account ID - use selectedAccountId if viewing another account, otherwise currentAccount
                 const accountId = selectedAccountId || currentAccount?.id;
+                console.log('loadLanguageSettings called with accountId:', accountId, 'selectedAccountId:', selectedAccountId, 'currentAccount?.id:', currentAccount?.id);
+                
                 if (!accountId) {
                     console.log('No account ID available for language settings');
                     return;
@@ -27526,12 +27528,15 @@ const promo = await fetch('/api/v1/offers/validate', {
                     headers: authHeaders()
                 });
                 const data = await response.json();
+                console.log('Language settings from server for account', accountId, ':', data);
                 
                 if (data.success && data.settings?.languages) {
                     accountLanguageSettings = { ...data.settings.languages, _loaded: true };
+                    console.log('Loaded language settings:', accountLanguageSettings);
                 } else {
                     // Default settings
                     accountLanguageSettings = { primary: 'en', supported: ['en'], _loaded: true };
+                    console.log('No language settings found, using defaults');
                 }
                 
                 // Update UI if elements exist
