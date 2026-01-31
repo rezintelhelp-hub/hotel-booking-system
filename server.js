@@ -59415,8 +59415,9 @@ app.post('/api/translate', async (req, res) => {
       return res.json({ success: false, error: 'No text to translate' });
     }
     
-    if (!DEEPL_API_KEY) {
-      return res.json({ success: false, error: 'DeepL not configured' });
+    // Check if we have any translation service configured
+    if (!GEMINI_API_KEY && !DEEPL_API_KEY) {
+      return res.json({ success: false, error: 'No translation service configured (need Gemini or DeepL API key)' });
     }
     
     // Detect source language if not provided
