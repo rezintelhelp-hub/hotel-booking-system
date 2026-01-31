@@ -58777,7 +58777,8 @@ app.get('/api/public/languages/:code', async (req, res) => {
 // ============================================
 
 // ============================================
-// DEEPL TRANSLATION WORKER
+// ============================================
+// TRANSLATION WORKER (Gemini + DeepL fallback)
 // ============================================
 
 const DEEPL_API_KEY = process.env.DEEPL_API_KEY;
@@ -58785,8 +58786,26 @@ const DEEPL_API_URL = DEEPL_API_KEY && DEEPL_API_KEY.endsWith(':fx')
   ? 'https://api-free.deepl.com/v2/translate'
   : 'https://api.deepl.com/v2/translate';
 
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent';
+
 // Languages we auto-translate to
 const AUTO_TRANSLATE_LANGUAGES = ['en', 'fr', 'es', 'de', 'nl'];
+
+// Language names for Gemini prompts
+const LANGUAGE_NAMES = {
+  'en': 'English',
+  'fr': 'French', 
+  'es': 'Spanish',
+  'de': 'German',
+  'nl': 'Dutch',
+  'it': 'Italian',
+  'pt': 'Portuguese',
+  'pl': 'Polish',
+  'ru': 'Russian',
+  'ja': 'Japanese',
+  'zh': 'Chinese'
+};
 
 // DeepL language codes (some differ from our codes)
 const DEEPL_LANG_MAP = {
@@ -58804,7 +58823,67 @@ const DEEPL_LANG_MAP = {
 };
 
 /**
- * Translate text using DeepL API
+ * Translate text using Gemini API (primary - much cheaper)
+ */
+async function translateWithGemini(text, sourceLang, targetLang) {
+  if (!GEMINI_API_KEY) {
+    console.log('[Gemini] No API key configured');
+    return null;
+  }
+  
+  if (!text || text.trim().length === 0) {
+    return '';
+  }
+  
+  if (sourceLang === targetLang) {
+    return text;
+  }
+  
+  const sourceName = LANGUAGE_NAMES[sourceLang] || sourceLang;
+  const targetName = LANGUAGE_NAMES[targetLang] || targetLang;
+  
+  try {
+    const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: `Translate the following text from ${sourceName} to ${targetName}. Return ONLY the translated text, no explanations or notes:\n\n${text}`
+          }]
+        }],
+        generationConfig: {
+          temperature: 0.1,
+          maxOutputTokens: 2048
+        }
+      })
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[Gemini] API error ${response.status}:`, errorText);
+      return null;
+    }
+    
+    const data = await response.json();
+    if (data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) {
+      const translated = data.candidates[0].content.parts[0].text.trim();
+      console.log(`[Gemini] Translated ${sourceLang}->${targetLang}: "${text.substring(0, 50)}..." -> "${translated.substring(0, 50)}..."`);
+      return translated;
+    }
+    
+    console.error('[Gemini] Unexpected response format:', JSON.stringify(data).substring(0, 200));
+    return null;
+  } catch (error) {
+    console.error('[Gemini] Translation error:', error.message);
+    return null;
+  }
+}
+
+/**
+ * Translate text using DeepL API (fallback)
  */
 async function translateWithDeepL(text, sourceLang, targetLang) {
   if (!DEEPL_API_KEY) {
@@ -58843,6 +58922,7 @@ async function translateWithDeepL(text, sourceLang, targetLang) {
     
     const data = await response.json();
     if (data.translations && data.translations[0]) {
+      console.log(`[DeepL] Translated ${sourceLang}->${targetLang}: "${text.substring(0, 50)}..."`);
       return data.translations[0].text;
     }
     
@@ -58851,6 +58931,22 @@ async function translateWithDeepL(text, sourceLang, targetLang) {
     console.error('[DeepL] Translation error:', error.message);
     return null;
   }
+}
+
+/**
+ * Translate text - tries Gemini first (cheaper), falls back to DeepL
+ */
+async function translateText(text, sourceLang, targetLang) {
+  // Try Gemini first (much cheaper: $0.10/1M tokens vs DeepL $25/1M chars)
+  let result = await translateWithGemini(text, sourceLang, targetLang);
+  
+  // Fall back to DeepL if Gemini fails
+  if (result === null && DEEPL_API_KEY) {
+    console.log('[Translation] Gemini failed, falling back to DeepL');
+    result = await translateWithDeepL(text, sourceLang, targetLang);
+  }
+  
+  return result;
 }
 
 /**
@@ -58908,7 +59004,7 @@ async function translateFieldToLanguages(fieldValue, sourceLang = 'en', targetLa
       continue;
     }
     
-    const translated = await translateWithDeepL(sourceText, sourceLang, targetLang);
+    const translated = await translateText(sourceText, sourceLang, targetLang);
     if (translated) {
       existing[targetLang] = translated;
       if (!existing._auto.includes(targetLang)) {
@@ -58927,12 +59023,12 @@ async function translateFieldToLanguages(fieldValue, sourceLang = 'en', targetLa
  * Process translation queue - find and translate untranslated content
  */
 async function processTranslationQueue() {
-  if (!DEEPL_API_KEY) {
-    console.log('[Translation Worker] No DeepL API key - skipping');
+  if (!GEMINI_API_KEY && !DEEPL_API_KEY) {
+    console.log('[Translation Worker] No translation API key configured - skipping');
     return;
   }
   
-  console.log('[Translation Worker] Starting translation batch...');
+  console.log('[Translation Worker] Starting translation batch (using ' + (GEMINI_API_KEY ? 'Gemini' : 'DeepL') + ')...');
   
   try {
     // Find bookable_units with missing translations
@@ -59226,7 +59322,7 @@ app.post('/api/translate', async (req, res) => {
       if (lang === detectedSource) continue;
       
       try {
-        const translated = await translateWithDeepL(text, detectedSource, lang);
+        const translated = await translateText(text, detectedSource, lang);
         if (translated) {
           translations[lang] = translated;
         }
@@ -59244,7 +59340,7 @@ app.post('/api/translate', async (req, res) => {
 });
 
 // ============================================
-// END DEEPL TRANSLATION WORKER
+// END TRANSLATION WORKER
 // ============================================
 
 // ============================================
