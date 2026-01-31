@@ -19176,6 +19176,9 @@ const promo = await fetch('/api/v1/offers/validate', {
             const websiteId = selectedWebsiteId;
             const clientId = getClientId() || localStorage.getItem('gas_selected_client_id');
             
+            // Initialize language tabs for this section
+            initWbSectionLangTabs(section);
+            
             // Update website selectors when loading a section
             updateWebsiteSelectors();
             
@@ -19261,6 +19264,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                         valueEl.textContent = data.settings[key];
                     }
                 });
+                
+                // Load multilingual data for this section
+                loadWbMultilingual(section, data.settings);
             }
         }
         
