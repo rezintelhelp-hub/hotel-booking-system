@@ -59211,14 +59211,7 @@ app.get('/api/public/client/:clientId/app-settings/:app', async (req, res) => {
 // LANGUAGE / i18n API ENDPOINTS
 // ============================================
 
-// Load translations from combined file
-let GAS_TRANSLATIONS = {};
-try {
-  GAS_TRANSLATIONS = require('./gas-translations.js');
-  console.log('✓ Loaded translations for languages:', Object.keys(GAS_TRANSLATIONS).join(', '));
-} catch (e) {
-  console.log('⚠ Could not load gas-translations.js, translations will be empty');
-}
+// GAS_TRANSLATIONS is already defined above at line ~44185
 
 // Available languages configuration
 const AVAILABLE_LANGUAGES = [
