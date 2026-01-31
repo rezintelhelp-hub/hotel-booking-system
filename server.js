@@ -8988,10 +8988,8 @@ app.get('/api/account/language-settings', async (req, res) => {
     
     res.json({
       success: true,
-      settings: {
-        primary_language: settings.primary_language || 'en',
-        supported_languages: settings.supported_languages || ['en']
-      }
+      primary_language: settings.primary_language || 'en',
+      supported_languages: settings.supported_languages || ['en']
     });
   } catch (error) {
     console.error('Get language settings error:', error);
