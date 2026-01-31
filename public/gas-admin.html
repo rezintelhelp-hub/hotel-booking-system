@@ -91,6 +91,107 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
 
+        /* Translation Tabs Styles */
+        .translation-field-wrapper {
+            position: relative;
+        }
+        .translation-tabs {
+            display: flex;
+            gap: 2px;
+            margin-bottom: 6px;
+            background: #f1f5f9;
+            border-radius: 8px;
+            padding: 3px;
+            width: fit-content;
+        }
+        .translation-tab {
+            padding: 4px 10px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            border: none;
+            background: transparent;
+            color: #64748b;
+            cursor: pointer;
+            border-radius: 6px;
+            transition: all 0.15s ease;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .translation-tab:hover {
+            background: #e2e8f0;
+            color: #475569;
+        }
+        .translation-tab.active {
+            background: #7c3aed;
+            color: white;
+        }
+        .translation-tab .flag {
+            font-size: 0.85rem;
+        }
+        .translation-input-group {
+            position: relative;
+        }
+        .translation-input {
+            display: none;
+        }
+        .translation-input.active {
+            display: block;
+        }
+        .translation-textarea.active {
+            display: block;
+        }
+        .translation-indicator {
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 0.7rem;
+            color: #94a3b8;
+            background: #f1f5f9;
+            padding: 2px 6px;
+            border-radius: 4px;
+            pointer-events: none;
+        }
+        .translation-status {
+            display: flex;
+            gap: 4px;
+            margin-top: 4px;
+        }
+        .translation-status-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #e2e8f0;
+        }
+        .translation-status-dot.filled {
+            background: #10b981;
+        }
+        .translation-status-dot.empty {
+            background: #f59e0b;
+        }
+        /* Auto-translate button */
+        .auto-translate-btn {
+            font-size: 0.7rem;
+            padding: 2px 8px;
+            background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .auto-translate-btn:hover {
+            opacity: 0.9;
+        }
+        .auto-translate-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
             background: var(--bg-primary);
@@ -1491,26 +1592,6 @@
         #credentialFields label { display: block; margin-bottom: 5px; font-weight: 500; }
         #credentialFields input { width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; }
         #credentialFields .help-text { font-size: 12px; color: #6b7280; margin-top: 4px; }
-        
-        /* Multilingual Language Tabs */
-        .lang-tabs { display: flex; gap: 4px; flex-wrap: wrap; }
-        .lang-tab {
-            padding: 4px 10px;
-            border: 1px solid var(--border-color, #e2e8f0);
-            border-radius: 6px;
-            background: var(--bg-secondary, #fff);
-            color: var(--text-secondary, #64748b);
-            font-size: 11px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        .lang-tab:hover { background: #e0e7ff; color: #6366f1; }
-        .lang-tab.active { background: #6366f1; color: white; border-color: #6366f1; }
-        .lang-tab.primary { border-bottom: 2px solid #f59e0b; }
-        .lang-tab.primary::before { content: '★ '; font-size: 10px; color: #f59e0b; }
-        .lang-tab.active.primary::before { color: #fde047; }
-        .lang-tab.has-content { position: relative; }
-        .lang-tab.has-content::after { content: '✓'; margin-left: 4px; font-size: 9px; }
     </style>
 </head>
 <body>
@@ -1573,10 +1654,6 @@
                     <a class="nav-item" data-view="my-account" href="#" onclick="navClick(this, 'my-account'); return false;">
                         <span class="nav-icon">👤</span>
                         <span>My Account</span>
-                    </a>
-                    <a class="nav-item" data-view="settings" href="#" onclick="navClick(this, 'settings'); return false;">
-                        <span class="nav-icon">⚙️</span>
-                        <span>Settings</span>
                     </a>
                     <a class="nav-item" data-view="accounts" href="#" onclick="navClick(this, 'accounts'); return false;">
                         <span class="nav-icon">📋</span>
@@ -2926,14 +3003,6 @@
                                 </div>
                                 <div class="form-group" style="margin-top: 1rem;">
                                     <label class="form-label">Additional Rules/Notes</label>
-                                    <div class="lang-tabs" id="terms-rules-tabs" style="margin-bottom: 0.5rem;">
-                                        <button type="button" class="lang-tab active" data-lang="en" onclick="switchTermsLang('rules', 'en', this)">🇬🇧 EN</button>
-                                        <button type="button" class="lang-tab" data-lang="fr" onclick="switchTermsLang('rules', 'fr', this)">🇫🇷 FR</button>
-                                        <button type="button" class="lang-tab" data-lang="es" onclick="switchTermsLang('rules', 'es', this)">🇪🇸 ES</button>
-                                        <button type="button" class="lang-tab" data-lang="nl" onclick="switchTermsLang('rules', 'nl', this)">🇳🇱 NL</button>
-                                        <button type="button" class="lang-tab" data-lang="de" onclick="switchTermsLang('rules', 'de', this)">🇩🇪 DE</button>
-                                        <button type="button" class="btn" onclick="translateTermsField('rules')" style="margin-left: auto; padding: 0.25rem 0.5rem; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; font-size: 0.75rem;" title="Auto-translate to other languages">🌐</button>
-                                    </div>
                                     <textarea class="form-input" id="terms-additional-rules" rows="3" placeholder="Any other house rules not covered above..."></textarea>
                                 </div>
                             </div>
@@ -2946,14 +3015,6 @@
                             <div class="card-body">
                                 <div class="form-group">
                                     <label class="form-label">Cancellation Policy</label>
-                                    <div class="lang-tabs" id="terms-cancellation-tabs" style="margin-bottom: 0.5rem;">
-                                        <button type="button" class="lang-tab active" data-lang="en" onclick="switchTermsLang('cancellation', 'en', this)">🇬🇧 EN</button>
-                                        <button type="button" class="lang-tab" data-lang="fr" onclick="switchTermsLang('cancellation', 'fr', this)">🇫🇷 FR</button>
-                                        <button type="button" class="lang-tab" data-lang="es" onclick="switchTermsLang('cancellation', 'es', this)">🇪🇸 ES</button>
-                                        <button type="button" class="lang-tab" data-lang="nl" onclick="switchTermsLang('cancellation', 'nl', this)">🇳🇱 NL</button>
-                                        <button type="button" class="lang-tab" data-lang="de" onclick="switchTermsLang('cancellation', 'de', this)">🇩🇪 DE</button>
-                                        <button type="button" class="btn" onclick="translateTermsField('cancellation')" style="margin-left: auto; padding: 0.25rem 0.5rem; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; font-size: 0.75rem;" title="Auto-translate to other languages">🌐</button>
-                                    </div>
                                     <textarea class="form-input" id="terms-cancellation-policy" rows="4" placeholder="e.g., Free cancellation up to 48 hours before check-in. Cancellations within 48 hours will be charged for the first night. No-shows will be charged the full booking amount."></textarea>
                                     <p style="color: #64748b; font-size: 0.85rem; margin-top: 0.5rem;">This will be displayed on the room page under the Terms tab.</p>
                                 </div>
@@ -4952,12 +5013,10 @@
                                 <div class="card-body">
                                     <div class="form-group">
                                         <label class="form-label">Page Title</label>
-                                        <div class="lang-tabs" id="wb-page-rooms-title-tabs" style="margin-bottom: 0.5rem;"></div>
                                         <input type="text" class="form-input" id="wb-page-rooms-title" placeholder="e.g., Our Rooms & Suites" value="Book Your Stay">
                                     </div>
                                     <div class="form-group">
                                         <label class="form-label">Subtitle</label>
-                                        <div class="lang-tabs" id="wb-page-rooms-subtitle-tabs" style="margin-bottom: 0.5rem;"></div>
                                         <input type="text" class="form-input" id="wb-page-rooms-subtitle" placeholder="e.g., Find your perfect accommodation">
                                     </div>
                                 </div>
@@ -5094,25 +5153,62 @@
                             
                             <!-- Page Header Section -->
                             <div class="card" style="margin-bottom: 1.5rem;">
-                                <div class="card-header"><h3>📄 Page Header</h3></div>
+                                <div class="card-header"><h3>📄 Page Header <span style="font-size: 0.75rem; color: #8b5cf6; font-weight: normal;">🌐 Multilingual</span></h3></div>
                                 <div class="card-body">
                                     <div class="form-group">
-                                        <label class="form-label">Menu Title <small style="color: #64748b;">(appears in navigation menu)</small></label>
-                                        <div class="lang-tabs" id="wb-page-about-menu-title-tabs" style="margin-bottom: 0.5rem;"></div>
-                                        <input type="text" class="form-input" id="wb-page-about-menu-title" placeholder="e.g., About Us" value="About Us" style="flex: 1;">
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label">Page Title <small style="color: #64748b;">(displayed on page hero)</small></label>
-                                        <div class="lang-tabs" id="wb-page-about-title-tabs" style="margin-bottom: 0.5rem;"></div>
-                                        <div style="display: flex; gap: 8px;">
-                                            <input type="text" class="form-input" id="wb-page-about-title" placeholder="e.g., R Apartments, Villa Talang" value="" style="flex: 1;">
-                                            <button type="button" class="btn" onclick="generatePageAboutTitle()" style="background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%); white-space: nowrap;">✨ Generate</button>
+                                        <label class="form-label">Menu Title <small style="color: #64748b;">(appears in navigation menu)</small> <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                                        <div class="translation-field-wrapper" data-translation-group="wb-page-about-menu-title">
+                                            <div class="translation-tabs">
+                                                <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-about-menu-title', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                                <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-about-menu-title', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                                <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-about-menu-title', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                                <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-about-menu-title', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                                <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-about-menu-title')" title="Auto-translate">✨</button>
+                                            </div>
+                                            <div class="translation-input-group">
+                                                <input type="text" class="form-input translation-input active" id="wb-page-about-menu-title-en" data-lang="en" placeholder="e.g., About Us" value="About Us">
+                                                <input type="text" class="form-input translation-input" id="wb-page-about-menu-title-fr" data-lang="fr" placeholder="À Propos">
+                                                <input type="text" class="form-input translation-input" id="wb-page-about-menu-title-es" data-lang="es" placeholder="Acerca de">
+                                                <input type="text" class="form-input translation-input" id="wb-page-about-menu-title-nl" data-lang="nl" placeholder="Over Ons">
+                                            </div>
                                         </div>
                                     </div>
                                     <div class="form-group">
-                                        <label class="form-label">Page Subtitle</label>
-                                        <div class="lang-tabs" id="wb-page-about-subtitle-tabs" style="margin-bottom: 0.5rem;"></div>
-                                        <input type="text" class="form-input" id="wb-page-about-subtitle" placeholder="e.g., Learn more about our story and values">
+                                        <label class="form-label">Page Title <small style="color: #64748b;">(displayed on page hero)</small> <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                                        <div class="translation-field-wrapper" data-translation-group="wb-page-about-title">
+                                            <div class="translation-tabs">
+                                                <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-about-title', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                                <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-about-title', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                                <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-about-title', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                                <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-about-title', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                                <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-about-title')" title="Auto-translate">✨</button>
+                                            </div>
+                                            <div class="translation-input-group" style="display: flex; gap: 8px;">
+                                                <input type="text" class="form-input translation-input active" id="wb-page-about-title-en" data-lang="en" placeholder="e.g., About Our Property" style="flex: 1;">
+                                                <input type="text" class="form-input translation-input" id="wb-page-about-title-fr" data-lang="fr" placeholder="À Propos de Notre Propriété" style="flex: 1;">
+                                                <input type="text" class="form-input translation-input" id="wb-page-about-title-es" data-lang="es" placeholder="Sobre Nuestra Propiedad" style="flex: 1;">
+                                                <input type="text" class="form-input translation-input" id="wb-page-about-title-nl" data-lang="nl" placeholder="Over Ons Verblijf" style="flex: 1;">
+                                                <button type="button" class="btn" onclick="generatePageAboutTitle()" style="background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%); white-space: nowrap;">✨ Generate</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Page Subtitle <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                                        <div class="translation-field-wrapper" data-translation-group="wb-page-about-subtitle">
+                                            <div class="translation-tabs">
+                                                <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-about-subtitle', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                                <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-about-subtitle', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                                <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-about-subtitle', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                                <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-about-subtitle', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                                <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-about-subtitle')" title="Auto-translate">✨</button>
+                                            </div>
+                                            <div class="translation-input-group">
+                                                <input type="text" class="form-input translation-input active" id="wb-page-about-subtitle-en" data-lang="en" placeholder="e.g., Learn more about our story and values">
+                                                <input type="text" class="form-input translation-input" id="wb-page-about-subtitle-fr" data-lang="fr" placeholder="Découvrez notre histoire et nos valeurs">
+                                                <input type="text" class="form-input translation-input" id="wb-page-about-subtitle-es" data-lang="es" placeholder="Conozca nuestra historia y valores">
+                                                <input type="text" class="form-input translation-input" id="wb-page-about-subtitle-nl" data-lang="nl" placeholder="Ontdek ons verhaal en waarden">
+                                            </div>
+                                        </div>
                                     </div>
                                     <div class="form-group">
                                         <label class="form-label">Header Background Image</label>
@@ -5147,12 +5243,10 @@
                                 <div class="card-body">
                                     <div class="form-group">
                                         <label class="form-label">Content Title (H2)</label>
-                                        <div class="lang-tabs" id="wb-page-about-content-title-tabs" style="margin-bottom: 0.5rem;"></div>
                                         <input type="text" class="form-input" id="wb-page-about-content-title" placeholder="e.g., Our Story, Welcome, About Us">
                                     </div>
                                     <div class="form-group">
                                         <label class="form-label">Main Content</label>
-                                        <div class="lang-tabs" id="wb-page-about-content-tabs" style="margin-bottom: 0.5rem;"></div>
                                         <textarea class="form-textarea" id="wb-page-about-content" rows="8" placeholder="Tell your story here... You can write multiple paragraphs about your property, your team, your values, and what makes you unique."></textarea>
                                         <button type="button" class="btn" onclick="generatePageAboutContent()" style="background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%); margin-top: 8px;">✨ Generate About Content</button>
                                     </div>
@@ -6074,13 +6168,31 @@
                         </div>
                         <div class="form-group">
                             <label class="form-label">Site Name (if no logo)</label>
-                            <div class="lang-tabs" id="wb-header-site-name-tabs" style="margin-bottom: 0.5rem;"></div>
                             <input type="text" class="form-input" id="wb-header-site-name" placeholder="e.g., The Grand Hotel">
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Tagline</label>
-                            <div class="lang-tabs" id="wb-header-tagline-tabs" style="margin-bottom: 0.5rem;"></div>
-                            <input type="text" class="form-input" id="wb-header-tagline" placeholder="e.g., Luxury Accommodation Since 1985">
+                            <label class="form-label">Tagline <span style="font-size: 0.75rem; color: #8b5cf6;">🌐 Multilingual</span></label>
+                            <div class="translation-field-wrapper" data-translation-group="wb-header-tagline">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-header-tagline', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-header-tagline', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-header-tagline', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-header-tagline', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-header-tagline')" title="Auto-translate from English">✨ Translate</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <input type="text" class="form-input translation-input active" id="wb-header-tagline-en" data-lang="en" placeholder="e.g., Luxury Accommodation Since 1985">
+                                    <input type="text" class="form-input translation-input" id="wb-header-tagline-fr" data-lang="fr" placeholder="e.g., Hébergement de Luxe Depuis 1985">
+                                    <input type="text" class="form-input translation-input" id="wb-header-tagline-es" data-lang="es" placeholder="e.g., Alojamiento de Lujo Desde 1985">
+                                    <input type="text" class="form-input translation-input" id="wb-header-tagline-nl" data-lang="nl" placeholder="e.g., Luxe Accommodatie Sinds 1985">
+                                </div>
+                                <div class="translation-status" title="Translation status">
+                                    <span class="translation-status-dot empty" title="English"></span>
+                                    <span class="translation-status-dot empty" title="French"></span>
+                                    <span class="translation-status-dot empty" title="Spanish"></span>
+                                    <span class="translation-status-dot empty" title="Dutch"></span>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -6126,8 +6238,22 @@
                                 </div>
                             </div>
                             <div class="form-group">
-                                <label class="form-label">CTA Button Text</label>
-                                <input type="text" class="form-input" id="wb-header-cta-button-text" value="Book Now" placeholder="Book Now">
+                                <label class="form-label">CTA Button Text <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                                <div class="translation-field-wrapper" data-translation-group="wb-header-cta-button-text">
+                                    <div class="translation-tabs">
+                                        <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-header-cta-button-text', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                        <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-header-cta-button-text', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                        <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-header-cta-button-text', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                        <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-header-cta-button-text', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                        <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-header-cta-button-text')" title="Auto-translate from English">✨ Translate</button>
+                                    </div>
+                                    <div class="translation-input-group">
+                                        <input type="text" class="form-input translation-input active" id="wb-header-cta-button-text-en" data-lang="en" value="Book Now" placeholder="Book Now">
+                                        <input type="text" class="form-input translation-input" id="wb-header-cta-button-text-fr" data-lang="fr" placeholder="Réserver">
+                                        <input type="text" class="form-input translation-input" id="wb-header-cta-button-text-es" data-lang="es" placeholder="Reservar">
+                                        <input type="text" class="form-input translation-input" id="wb-header-cta-button-text-nl" data-lang="nl" placeholder="Boeken">
+                                    </div>
+                                </div>
                             </div>
                             <div class="form-group">
                                 <label class="form-label">CTA Button Text Color</label>
@@ -6235,23 +6361,74 @@
 
                 <!-- Hero Content Card -->
                 <div class="card">
-                    <div class="card-header"><h3>Hero Content</h3></div>
+                    <div class="card-header"><h3>Hero Content <span style="font-size: 0.75rem; color: #8b5cf6; font-weight: normal;">🌐 Multilingual fields below</span></h3></div>
                     <div class="card-body">
                         <div class="form-group">
-                            <label class="form-label">Headline</label>
-                            <div class="lang-tabs" id="wb-hero-headline-tabs" style="margin-bottom: 0.5rem;"></div>
-                            <input type="text" class="form-input" id="wb-hero-headline" placeholder="e.g., Welcome to Paradise">
+                            <label class="form-label">Headline <span style="font-size: 0.75rem; color: #8b5cf6;">🌐 Multilingual</span></label>
+                            <div class="translation-field-wrapper" data-translation-group="wb-hero-headline">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-hero-headline', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-hero-headline', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-hero-headline', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-hero-headline', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-hero-headline')" title="Auto-translate from English">✨ Translate</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <input type="text" class="form-input translation-input active" id="wb-hero-headline-en" data-lang="en" placeholder="e.g., Welcome to Paradise">
+                                    <input type="text" class="form-input translation-input" id="wb-hero-headline-fr" data-lang="fr" placeholder="e.g., Bienvenue au Paradis">
+                                    <input type="text" class="form-input translation-input" id="wb-hero-headline-es" data-lang="es" placeholder="e.g., Bienvenido al Paraíso">
+                                    <input type="text" class="form-input translation-input" id="wb-hero-headline-nl" data-lang="nl" placeholder="e.g., Welkom in het Paradijs">
+                                </div>
+                                <div class="translation-status" title="Translation status">
+                                    <span class="translation-status-dot empty" title="English"></span>
+                                    <span class="translation-status-dot empty" title="French"></span>
+                                    <span class="translation-status-dot empty" title="Spanish"></span>
+                                    <span class="translation-status-dot empty" title="Dutch"></span>
+                                </div>
+                            </div>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Subheadline</label>
-                            <div class="lang-tabs" id="wb-hero-subheadline-tabs" style="margin-bottom: 0.5rem;"></div>
-                            <input type="text" class="form-input" id="wb-hero-subheadline" placeholder="e.g., Experience luxury in the heart of the countryside">
+                            <label class="form-label">Subheadline <span style="font-size: 0.75rem; color: #8b5cf6;">🌐 Multilingual</span></label>
+                            <div class="translation-field-wrapper" data-translation-group="wb-hero-subheadline">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-hero-subheadline', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-hero-subheadline', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-hero-subheadline', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-hero-subheadline', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-hero-subheadline')" title="Auto-translate from English">✨ Translate</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <input type="text" class="form-input translation-input active" id="wb-hero-subheadline-en" data-lang="en" placeholder="e.g., Experience luxury in the heart of the countryside">
+                                    <input type="text" class="form-input translation-input" id="wb-hero-subheadline-fr" data-lang="fr" placeholder="e.g., Vivez le luxe au cœur de la campagne">
+                                    <input type="text" class="form-input translation-input" id="wb-hero-subheadline-es" data-lang="es" placeholder="e.g., Vive el lujo en el corazón del campo">
+                                    <input type="text" class="form-input translation-input" id="wb-hero-subheadline-nl" data-lang="nl" placeholder="e.g., Ervaar luxe in het hart van het platteland">
+                                </div>
+                                <div class="translation-status" title="Translation status">
+                                    <span class="translation-status-dot empty" title="English"></span>
+                                    <span class="translation-status-dot empty" title="French"></span>
+                                    <span class="translation-status-dot empty" title="Spanish"></span>
+                                    <span class="translation-status-dot empty" title="Dutch"></span>
+                                </div>
+                            </div>
                         </div>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                             <div class="form-group">
-                                <label class="form-label">Badge Text</label>
-                                <div class="lang-tabs" id="wb-hero-button-text-tabs" style="margin-bottom: 0.5rem;"></div>
-                                <input type="text" class="form-input" id="wb-hero-button-text" placeholder="e.g., Welcome to Paradise">
+                                <label class="form-label">Badge Text <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                                <div class="translation-field-wrapper" data-translation-group="wb-hero-button-text">
+                                    <div class="translation-tabs">
+                                        <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-hero-button-text', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                        <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-hero-button-text', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                        <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-hero-button-text', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                        <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-hero-button-text', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                        <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-hero-button-text')" title="Auto-translate from English">✨ Translate</button>
+                                    </div>
+                                    <div class="translation-input-group">
+                                        <input type="text" class="form-input translation-input active" id="wb-hero-button-text-en" data-lang="en" placeholder="e.g., Book Direct & Save">
+                                        <input type="text" class="form-input translation-input" id="wb-hero-button-text-fr" data-lang="fr" placeholder="e.g., Réservez Direct & Économisez">
+                                        <input type="text" class="form-input translation-input" id="wb-hero-button-text-es" data-lang="es" placeholder="e.g., Reserve Directo y Ahorre">
+                                        <input type="text" class="form-input translation-input" id="wb-hero-button-text-nl" data-lang="nl" placeholder="e.g., Boek Direct & Bespaar">
+                                    </div>
+                                </div>
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Badge Link (optional)</label>
@@ -6451,20 +6628,60 @@
 
                 <!-- Trust Badges Card -->
                 <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header"><h3>Trust Badges</h3></div>
+                    <div class="card-header"><h3>Trust Badges <span style="font-size: 0.75rem; color: #8b5cf6; font-weight: normal;">🌐 Multilingual</span></h3></div>
                     <div class="card-body">
-                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
-                            <div class="form-group">
-                                <label class="form-label">Badge 1</label>
-                                <input type="text" class="form-input" id="wb-hero-trust-1" value="Instant Booking">
+                        <div class="form-group">
+                            <label class="form-label">Badge 1 <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                            <div class="translation-field-wrapper" data-translation-group="wb-hero-trust-1">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-hero-trust-1', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-hero-trust-1', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-hero-trust-1', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-hero-trust-1', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-hero-trust-1')" title="Auto-translate from English">✨ Translate</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <input type="text" class="form-input translation-input active" id="wb-hero-trust-1-en" data-lang="en" value="Instant Booking" placeholder="Instant Booking">
+                                    <input type="text" class="form-input translation-input" id="wb-hero-trust-1-fr" data-lang="fr" placeholder="Réservation Instantanée">
+                                    <input type="text" class="form-input translation-input" id="wb-hero-trust-1-es" data-lang="es" placeholder="Reserva Instantánea">
+                                    <input type="text" class="form-input translation-input" id="wb-hero-trust-1-nl" data-lang="nl" placeholder="Direct Boeken">
+                                </div>
                             </div>
-                            <div class="form-group">
-                                <label class="form-label">Badge 2</label>
-                                <input type="text" class="form-input" id="wb-hero-trust-2" value="Best Price Guarantee">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Badge 2 <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                            <div class="translation-field-wrapper" data-translation-group="wb-hero-trust-2">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-hero-trust-2', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-hero-trust-2', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-hero-trust-2', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-hero-trust-2', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-hero-trust-2')" title="Auto-translate from English">✨ Translate</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <input type="text" class="form-input translation-input active" id="wb-hero-trust-2-en" data-lang="en" value="Best Price Guarantee" placeholder="Best Price Guarantee">
+                                    <input type="text" class="form-input translation-input" id="wb-hero-trust-2-fr" data-lang="fr" placeholder="Meilleur Prix Garanti">
+                                    <input type="text" class="form-input translation-input" id="wb-hero-trust-2-es" data-lang="es" placeholder="Mejor Precio Garantizado">
+                                    <input type="text" class="form-input translation-input" id="wb-hero-trust-2-nl" data-lang="nl" placeholder="Beste Prijs Garantie">
+                                </div>
                             </div>
-                            <div class="form-group">
-                                <label class="form-label">Badge 3</label>
-                                <input type="text" class="form-input" id="wb-hero-trust-3" value="24/7 Support">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Badge 3 <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                            <div class="translation-field-wrapper" data-translation-group="wb-hero-trust-3">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-hero-trust-3', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-hero-trust-3', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-hero-trust-3', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-hero-trust-3', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-hero-trust-3')" title="Auto-translate from English">✨ Translate</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <input type="text" class="form-input translation-input active" id="wb-hero-trust-3-en" data-lang="en" value="24/7 Support" placeholder="24/7 Support">
+                                    <input type="text" class="form-input translation-input" id="wb-hero-trust-3-fr" data-lang="fr" placeholder="Assistance 24h/24">
+                                    <input type="text" class="form-input translation-input" id="wb-hero-trust-3-es" data-lang="es" placeholder="Soporte 24/7">
+                                    <input type="text" class="form-input translation-input" id="wb-hero-trust-3-nl" data-lang="nl" placeholder="24/7 Ondersteuning">
+                                </div>
                             </div>
                         </div>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
@@ -6556,7 +6773,7 @@
                 </div>
 
                 <div class="card">
-                    <div class="card-header"><h3>Content</h3></div>
+                    <div class="card-header"><h3>Content <span style="font-size: 0.75rem; color: #8b5cf6; font-weight: normal;">🌐 Multilingual</span></h3></div>
                     <div class="card-body">
                         <div class="form-group">
                             <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
@@ -6564,30 +6781,101 @@
                             </label>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Title</label>
-                            <div class="lang-tabs" id="wb-intro-title-tabs" style="margin-bottom: 0.5rem;"></div>
-                            <div style="display: flex; gap: 8px;">
-                                <input type="text" class="form-input" id="wb-intro-title" placeholder="e.g., Welcome to Our Property" style="flex: 1;">
-                                <button type="button" class="btn" onclick="generateIntroTitle()" style="background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%); white-space: nowrap;">✨ Generate</button>
+                            <label class="form-label">Title <span style="font-size: 0.75rem; color: #8b5cf6;">🌐 Multilingual</span></label>
+                            <div class="translation-field-wrapper" data-translation-group="wb-intro-title">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-intro-title', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-intro-title', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-intro-title', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-intro-title', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-intro-title')" title="Auto-translate from English">✨ Translate</button>
+                                </div>
+                                <div class="translation-input-group" style="display: flex; gap: 8px;">
+                                    <input type="text" class="form-input translation-input active" id="wb-intro-title-en" data-lang="en" placeholder="e.g., Welcome to Our Property" style="flex: 1;">
+                                    <input type="text" class="form-input translation-input" id="wb-intro-title-fr" data-lang="fr" placeholder="e.g., Bienvenue" style="flex: 1;">
+                                    <input type="text" class="form-input translation-input" id="wb-intro-title-es" data-lang="es" placeholder="e.g., Bienvenidos" style="flex: 1;">
+                                    <input type="text" class="form-input translation-input" id="wb-intro-title-nl" data-lang="nl" placeholder="e.g., Welkom" style="flex: 1;">
+                                    <button type="button" class="btn" onclick="generateIntroTitle()" style="background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%); white-space: nowrap;">✨ Generate</button>
+                                </div>
                             </div>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Text</label>
-                            <div class="lang-tabs" id="wb-intro-text-tabs" style="margin-bottom: 0.5rem;"></div>
-                            <textarea class="form-textarea" id="wb-intro-text" rows="4" placeholder="Welcome text about your property..."></textarea>
+                            <label class="form-label">Text <span style="font-size: 0.75rem; color: #8b5cf6;">🌐 Multilingual</span></label>
+                            <div class="translation-field-wrapper" data-translation-group="wb-intro-text">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-intro-text', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-intro-text', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-intro-text', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-intro-text', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-intro-text')" title="Auto-translate from English">✨ Translate</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <textarea class="form-textarea translation-input active" id="wb-intro-text-en" data-lang="en" rows="4" placeholder="Welcome text about your property..."></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-intro-text-fr" data-lang="fr" rows="4" placeholder="Texte de bienvenue..."></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-intro-text-es" data-lang="es" rows="4" placeholder="Texto de bienvenida..."></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-intro-text-nl" data-lang="nl" rows="4" placeholder="Welkomsttekst..."></textarea>
+                                </div>
+                            </div>
                             <button type="button" class="btn" onclick="generateIntroText()" style="background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%); margin-top: 8px;">✨ Generate Intro Text</button>
                         </div>
                     </div>
                 </div>
 
                 <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header"><h3>Button (Optional)</h3></div>
+                    <div class="card-header"><h3>Styling</h3></div>
                     <div class="card-body">
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                             <div class="form-group">
-                                <label class="form-label">Button Text</label>
-                                <div class="lang-tabs" id="wb-intro-btn-text-tabs" style="margin-bottom: 0.5rem;"></div>
-                                <input type="text" class="form-input" id="wb-intro-btn-text" placeholder="e.g., Learn More">
+                                <label class="form-label">Background Color</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color" id="wb-intro-bg-picker" value="#ffffff" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-intro-bg').value = this.value">
+                                    <input type="text" class="form-input" id="wb-intro-bg" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-intro-bg-picker')">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Text Color</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color" id="wb-intro-text-color-picker" value="#1e293b" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-intro-text-color').value = this.value">
+                                    <input type="text" class="form-input" id="wb-intro-text-color" value="#1e293b" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-intro-text-color-picker')">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Title Size: <span id="wb-intro-title-size-value">36</span>px</label>
+                                <input type="range" id="wb-intro-title-size" min="24" max="72" value="36" style="width: 100%;" oninput="document.getElementById('wb-intro-title-size-value').textContent = this.value">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Text Size: <span id="wb-intro-text-size-value">18</span>px</label>
+                                <input type="range" id="wb-intro-text-size" min="14" max="24" value="18" style="width: 100%;" oninput="document.getElementById('wb-intro-text-size-value').textContent = this.value">
+                            </div>
+                        </div>
+                        <div class="form-group" style="margin-top: 1rem;">
+                            <label class="form-label">Max Width: <span id="wb-intro-max-width-value">800</span>px</label>
+                            <input type="range" id="wb-intro-max-width" min="600" max="1200" value="800" style="width: 100%;" oninput="document.getElementById('wb-intro-max-width-value').textContent = this.value">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header"><h3>Button (Optional) <span style="font-size: 0.75rem; color: #8b5cf6; font-weight: normal;">🌐</span></h3></div>
+                    <div class="card-body">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Button Text <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                                <div class="translation-field-wrapper" data-translation-group="wb-intro-btn-text">
+                                    <div class="translation-tabs">
+                                        <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-intro-btn-text', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                        <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-intro-btn-text', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                        <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-intro-btn-text', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                        <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-intro-btn-text', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                        <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-intro-btn-text')" title="Auto-translate">✨</button>
+                                    </div>
+                                    <div class="translation-input-group">
+                                        <input type="text" class="form-input translation-input active" id="wb-intro-btn-text-en" data-lang="en" placeholder="e.g., Learn More">
+                                        <input type="text" class="form-input translation-input" id="wb-intro-btn-text-fr" data-lang="fr" placeholder="En savoir plus">
+                                        <input type="text" class="form-input translation-input" id="wb-intro-btn-text-es" data-lang="es" placeholder="Saber más">
+                                        <input type="text" class="form-input translation-input" id="wb-intro-btn-text-nl" data-lang="nl" placeholder="Meer informatie">
+                                    </div>
+                                </div>
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Button URL</label>
@@ -6663,17 +6951,43 @@
                 </div>
 
                 <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header"><h3>Content</h3></div>
+                    <div class="card-header"><h3>Content <span style="font-size: 0.75rem; color: #8b5cf6; font-weight: normal;">🌐 Multilingual</span></h3></div>
                     <div class="card-body">
                         <div class="form-group">
-                            <label class="form-label">Section Title</label>
-                            <div class="lang-tabs" id="wb-featured-title-tabs" style="margin-bottom: 0.5rem;"></div>
-                            <input type="text" class="form-input" id="wb-featured-title" value="Featured Properties" placeholder="e.g., Our Rooms">
+                            <label class="form-label">Section Title <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                            <div class="translation-field-wrapper" data-translation-group="wb-featured-title">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-featured-title', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-featured-title', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-featured-title', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-featured-title', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-featured-title')" title="Auto-translate">✨ Translate</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <input type="text" class="form-input translation-input active" id="wb-featured-title-en" data-lang="en" value="Featured Properties" placeholder="e.g., Our Rooms">
+                                    <input type="text" class="form-input translation-input" id="wb-featured-title-fr" data-lang="fr" placeholder="Nos Chambres">
+                                    <input type="text" class="form-input translation-input" id="wb-featured-title-es" data-lang="es" placeholder="Nuestras Habitaciones">
+                                    <input type="text" class="form-input translation-input" id="wb-featured-title-nl" data-lang="nl" placeholder="Onze Kamers">
+                                </div>
+                            </div>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Section Subtitle</label>
-                            <div class="lang-tabs" id="wb-featured-subtitle-tabs" style="margin-bottom: 0.5rem;"></div>
-                            <textarea class="form-textarea" id="wb-featured-subtitle" rows="2" placeholder="e.g., Discover our handpicked selection...">Discover our handpicked selection of stunning vacation rentals.</textarea>
+                            <label class="form-label">Section Subtitle <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                            <div class="translation-field-wrapper" data-translation-group="wb-featured-subtitle">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-featured-subtitle', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-featured-subtitle', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-featured-subtitle', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-featured-subtitle', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-featured-subtitle')" title="Auto-translate">✨ Translate</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <textarea class="form-textarea translation-input active" id="wb-featured-subtitle-en" data-lang="en" rows="2" placeholder="e.g., Discover our handpicked selection...">Discover our handpicked selection of stunning vacation rentals.</textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-featured-subtitle-fr" data-lang="fr" rows="2" placeholder="Découvrez notre sélection..."></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-featured-subtitle-es" data-lang="es" rows="2" placeholder="Descubra nuestra selección..."></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-featured-subtitle-nl" data-lang="nl" rows="2" placeholder="Ontdek onze selectie..."></textarea>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -6733,7 +7047,6 @@
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                             <div class="form-group">
                                 <label class="form-label">Button Text</label>
-                                <div class="lang-tabs" id="wb-featured-btn-text-tabs" style="margin-bottom: 0.5rem;"></div>
                                 <input type="text" class="form-input" id="wb-featured-btn-text" value="View All Properties">
                             </div>
                             <div class="form-group">
@@ -6817,12 +7130,10 @@
                             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
                                 <div class="form-group">
                                     <label class="form-label">Section Title</label>
-                                    <div class="lang-tabs" id="wb-reviews-title-tabs" style="margin-bottom: 0.5rem;"></div>
                                     <input type="text" class="form-input" id="wb-reviews-title" value="What Our Guests Say">
                                 </div>
                                 <div class="form-group">
                                     <label class="form-label">Section Subtitle</label>
-                                    <div class="lang-tabs" id="wb-reviews-subtitle-tabs" style="margin-bottom: 0.5rem;"></div>
                                     <input type="text" class="form-input" id="wb-reviews-subtitle" value="Real reviews from real guests">
                                 </div>
                             </div>
@@ -6985,7 +7296,7 @@
                 </div>
 
                 <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header"><h3>Content</h3></div>
+                    <div class="card-header"><h3>Content <span style="font-size: 0.75rem; color: #8b5cf6; font-weight: normal;">🌐 Multilingual</span></h3></div>
                     <div class="card-body">
                         <div class="form-group">
                             <label class="form-label">Image</label>
@@ -6996,17 +7307,41 @@
                             <input type="hidden" id="wb-about-image-url">
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Title</label>
-                            <div class="lang-tabs" id="wb-about-title-tabs" style="margin-bottom: 0.5rem;"></div>
-                            <div style="display: flex; gap: 8px;">
-                                <input type="text" class="form-input" id="wb-about-title" value="Experience Luxury & Comfort" style="flex: 1;">
-                                <button type="button" class="btn" onclick="generateAboutTitle()" style="background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%); white-space: nowrap;">✨ Generate</button>
+                            <label class="form-label">Title <span style="font-size: 0.75rem; color: #8b5cf6;">🌐 Multilingual</span></label>
+                            <div class="translation-field-wrapper" data-translation-group="wb-about-title">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-about-title', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-about-title', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-about-title', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-about-title', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-about-title')" title="Auto-translate">✨ Translate</button>
+                                </div>
+                                <div class="translation-input-group" style="display: flex; gap: 8px;">
+                                    <input type="text" class="form-input translation-input active" id="wb-about-title-en" data-lang="en" value="Experience Luxury & Comfort" style="flex: 1;">
+                                    <input type="text" class="form-input translation-input" id="wb-about-title-fr" data-lang="fr" placeholder="Vivez le Luxe & Confort" style="flex: 1;">
+                                    <input type="text" class="form-input translation-input" id="wb-about-title-es" data-lang="es" placeholder="Vive el Lujo y Confort" style="flex: 1;">
+                                    <input type="text" class="form-input translation-input" id="wb-about-title-nl" data-lang="nl" placeholder="Ervaar Luxe & Comfort" style="flex: 1;">
+                                    <button type="button" class="btn" onclick="generateAboutTitle()" style="background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%); white-space: nowrap;">✨ Generate</button>
+                                </div>
                             </div>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Text</label>
-                            <div class="lang-tabs" id="wb-about-text-tabs" style="margin-bottom: 0.5rem;"></div>
-                            <textarea class="form-textarea" id="wb-about-text" rows="4">Our carefully curated collection of vacation rentals offers the perfect blend of luxury, comfort, and convenience.</textarea>
+                            <label class="form-label">Text <span style="font-size: 0.75rem; color: #8b5cf6;">🌐 Multilingual</span></label>
+                            <div class="translation-field-wrapper" data-translation-group="wb-about-text">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-about-text', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-about-text', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-about-text', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-about-text', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-about-text')" title="Auto-translate">✨ Translate</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <textarea class="form-textarea translation-input active" id="wb-about-text-en" data-lang="en" rows="4">Our carefully curated collection of vacation rentals offers the perfect blend of luxury, comfort, and convenience.</textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-about-text-fr" data-lang="fr" rows="4" placeholder="Notre collection soigneusement sélectionnée..."></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-about-text-es" data-lang="es" rows="4" placeholder="Nuestra cuidada selección..."></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-about-text-nl" data-lang="nl" rows="4" placeholder="Onze zorgvuldig samengestelde collectie..."></textarea>
+                                </div>
+                            </div>
                             <button type="button" class="btn" onclick="generateAboutText()" style="background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%); margin-top: 8px;">✨ Generate About Text</button>
                         </div>
                         <div class="form-group">
@@ -7132,7 +7467,7 @@
                 </div>
 
                 <div class="card">
-                    <div class="card-header"><h3>Content</h3></div>
+                    <div class="card-header"><h3>Content <span style="font-size: 0.75rem; color: #8b5cf6; font-weight: normal;">🌐 Multilingual</span></h3></div>
                     <div class="card-body">
                         <div class="form-group">
                             <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
@@ -7140,14 +7475,40 @@
                             </label>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Title</label>
-                            <div class="lang-tabs" id="wb-cta-title-tabs" style="margin-bottom: 0.5rem;"></div>
-                            <input type="text" class="form-input" id="wb-cta-title" value="Ready to Book Your Stay?">
+                            <label class="form-label">Title <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                            <div class="translation-field-wrapper" data-translation-group="wb-cta-title">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-cta-title', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-cta-title', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-cta-title', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-cta-title', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-cta-title')" title="Auto-translate">✨ Translate</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <input type="text" class="form-input translation-input active" id="wb-cta-title-en" data-lang="en" value="Ready to Book Your Stay?">
+                                    <input type="text" class="form-input translation-input" id="wb-cta-title-fr" data-lang="fr" placeholder="Prêt à Réserver Votre Séjour ?">
+                                    <input type="text" class="form-input translation-input" id="wb-cta-title-es" data-lang="es" placeholder="¿Listo para Reservar su Estancia?">
+                                    <input type="text" class="form-input translation-input" id="wb-cta-title-nl" data-lang="nl" placeholder="Klaar om te Boeken?">
+                                </div>
+                            </div>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Text</label>
-                            <div class="lang-tabs" id="wb-cta-text-tabs" style="margin-bottom: 0.5rem;"></div>
-                            <textarea class="form-textarea" id="wb-cta-text" rows="2">Find your perfect vacation rental today and create memories that last a lifetime.</textarea>
+                            <label class="form-label">Text <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                            <div class="translation-field-wrapper" data-translation-group="wb-cta-text">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-cta-text', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-cta-text', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-cta-text', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-cta-text', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-cta-text')" title="Auto-translate">✨ Translate</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <textarea class="form-textarea translation-input active" id="wb-cta-text-en" data-lang="en" rows="2">Find your perfect vacation rental today and create memories that last a lifetime.</textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-cta-text-fr" data-lang="fr" rows="2" placeholder="Trouvez votre location idéale..."></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-cta-text-es" data-lang="es" rows="2" placeholder="Encuentre su alquiler perfecto..."></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-cta-text-nl" data-lang="nl" rows="2" placeholder="Vind uw perfecte vakantiewoning..."></textarea>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -7183,13 +7544,26 @@
                 </div>
 
                 <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header"><h3>Button</h3></div>
+                    <div class="card-header"><h3>Button <span style="font-size: 0.75rem; color: #8b5cf6; font-weight: normal;">🌐</span></h3></div>
                     <div class="card-body">
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                             <div class="form-group">
-                                <label class="form-label">Button Text</label>
-                                <div class="lang-tabs" id="wb-cta-btn-text-tabs" style="margin-bottom: 0.5rem;"></div>
-                                <input type="text" class="form-input" id="wb-cta-btn-text" value="Browse Properties">
+                                <label class="form-label">Button Text <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                                <div class="translation-field-wrapper" data-translation-group="wb-cta-btn-text">
+                                    <div class="translation-tabs">
+                                        <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-cta-btn-text', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                        <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-cta-btn-text', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                        <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-cta-btn-text', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                        <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-cta-btn-text', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                        <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-cta-btn-text')" title="Auto-translate">✨</button>
+                                    </div>
+                                    <div class="translation-input-group">
+                                        <input type="text" class="form-input translation-input active" id="wb-cta-btn-text-en" data-lang="en" value="Browse Properties">
+                                        <input type="text" class="form-input translation-input" id="wb-cta-btn-text-fr" data-lang="fr" placeholder="Voir les Propriétés">
+                                        <input type="text" class="form-input translation-input" id="wb-cta-btn-text-es" data-lang="es" placeholder="Ver Propiedades">
+                                        <input type="text" class="form-input translation-input" id="wb-cta-btn-text-nl" data-lang="nl" placeholder="Bekijk Accommodaties">
+                                    </div>
+                                </div>
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Button URL</label>
@@ -7254,9 +7628,22 @@
                             </div>
                         </div>
                         <div class="form-group" style="margin-top: 1rem;">
-                            <label class="form-label">Copyright Text</label>
-                            <div class="lang-tabs" id="wb-footer-copyright-tabs" style="margin-bottom: 0.5rem;"></div>
-                            <input type="text" class="form-input" id="wb-footer-copyright" value=" 2025 All rights reserved.">
+                            <label class="form-label">Copyright Text <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                            <div class="translation-field-wrapper" data-translation-group="wb-footer-copyright">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-footer-copyright', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-footer-copyright', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-footer-copyright', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-footer-copyright', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-footer-copyright')" title="Auto-translate">✨</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <input type="text" class="form-input translation-input active" id="wb-footer-copyright-en" data-lang="en" value="© 2025 All rights reserved.">
+                                    <input type="text" class="form-input translation-input" id="wb-footer-copyright-fr" data-lang="fr" placeholder="© 2025 Tous droits réservés.">
+                                    <input type="text" class="form-input translation-input" id="wb-footer-copyright-es" data-lang="es" placeholder="© 2025 Todos los derechos reservados.">
+                                    <input type="text" class="form-input translation-input" id="wb-footer-copyright-nl" data-lang="nl" placeholder="© 2025 Alle rechten voorbehouden.">
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -8359,63 +8746,6 @@
                 <div class="header">
                     <h2>Settings</h2>
                     <p>Configure your system</p>
-                </div>
-
-                <!-- Language Settings Card -->
-                <div class="card" style="margin-bottom: 1rem;">
-                    <h3 class="card-title">🌐 Language Settings</h3>
-                    <p style="color: #64748b; margin-top: 0.5rem; margin-bottom: 1rem;">Configure which languages your content will be available in. Content will be auto-translated to selected languages.</p>
-                    
-                    <div style="display: grid; gap: 1rem; max-width: 500px;">
-                        <div class="form-group">
-                            <label class="form-label">Primary Language</label>
-                            <select id="settings-primary-language" class="form-input" onchange="updateLanguageSettings()">
-                                <option value="en">🇬🇧 English</option>
-                                <option value="es">🇪🇸 Español</option>
-                                <option value="fr">🇫🇷 Français</option>
-                                <option value="de">🇩🇪 Deutsch</option>
-                                <option value="nl">🇳🇱 Nederlands</option>
-                                <option value="it">🇮🇹 Italiano</option>
-                                <option value="pt">🇵🇹 Português</option>
-                            </select>
-                            <small style="color: #64748b;">The language you write your content in</small>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label class="form-label">Additional Languages (max 3)</label>
-                            <div id="additional-languages-checkboxes" style="display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 0.5rem;">
-                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                                    <input type="checkbox" value="en" class="additional-lang-cb" onchange="updateLanguageSettings()"> 🇬🇧 English
-                                </label>
-                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                                    <input type="checkbox" value="es" class="additional-lang-cb" onchange="updateLanguageSettings()"> 🇪🇸 Español
-                                </label>
-                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                                    <input type="checkbox" value="fr" class="additional-lang-cb" onchange="updateLanguageSettings()"> 🇫🇷 Français
-                                </label>
-                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                                    <input type="checkbox" value="de" class="additional-lang-cb" onchange="updateLanguageSettings()"> 🇩🇪 Deutsch
-                                </label>
-                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                                    <input type="checkbox" value="nl" class="additional-lang-cb" onchange="updateLanguageSettings()"> 🇳🇱 Nederlands
-                                </label>
-                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                                    <input type="checkbox" value="it" class="additional-lang-cb" onchange="updateLanguageSettings()"> 🇮🇹 Italiano
-                                </label>
-                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                                    <input type="checkbox" value="pt" class="additional-lang-cb" onchange="updateLanguageSettings()"> 🇵🇹 Português
-                                </label>
-                            </div>
-                            <small style="color: #64748b; display: block; margin-top: 0.5rem;">Content will be auto-translated to these languages. Other languages will be translated on-demand for visitors.</small>
-                        </div>
-                        
-                        <div style="display: flex; gap: 0.5rem; align-items: center;">
-                            <button class="btn" onclick="saveLanguageSettings()" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
-                                💾 Save Language Settings
-                            </button>
-                            <span id="lang-settings-status" style="color: #64748b; font-size: 0.875rem;"></span>
-                        </div>
-                    </div>
                 </div>
 
                 <div class="card">
@@ -13545,13 +13875,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                             <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">
                                 Display Name <span style="color: #ef4444;">*</span>
                             </label>
-                            <div class="lang-tabs" id="voucher-name-tabs" style="margin-bottom: 0.5rem;">
-                                <button type="button" class="lang-tab active" data-lang="en" onclick="switchVoucherLang('name', 'en', this)">🇬🇧 EN</button>
-                                <button type="button" class="lang-tab" data-lang="fr" onclick="switchVoucherLang('name', 'fr', this)">🇫🇷 FR</button>
-                                <button type="button" class="lang-tab" data-lang="es" onclick="switchVoucherLang('name', 'es', this)">🇪🇸 ES</button>
-                                <button type="button" class="lang-tab" data-lang="nl" onclick="switchVoucherLang('name', 'nl', this)">🇳🇱 NL</button>
-                                <button type="button" class="lang-tab" data-lang="de" onclick="switchVoucherLang('name', 'de', this)">🇩🇪 DE</button>
-                            </div>
                             <input type="text" id="voucher-name" class="form-input" placeholder="e.g., Winter Sale 20%" required
                                 style="padding: 0.75rem; border-radius: 8px;">
                         </div>
@@ -13559,27 +13882,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     
                     <div class="form-group" style="margin-bottom: 1.25rem;">
                         <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">Description</label>
-                        <div class="lang-tabs" id="voucher-desc-tabs" style="margin-bottom: 0.5rem;">
-                            <button type="button" class="lang-tab active" data-lang="en" onclick="switchVoucherLang('description', 'en', this)">🇬🇧 EN</button>
-                            <button type="button" class="lang-tab" data-lang="fr" onclick="switchVoucherLang('description', 'fr', this)">🇫🇷 FR</button>
-                            <button type="button" class="lang-tab" data-lang="es" onclick="switchVoucherLang('description', 'es', this)">🇪🇸 ES</button>
-                            <button type="button" class="lang-tab" data-lang="nl" onclick="switchVoucherLang('description', 'nl', this)">🇳🇱 NL</button>
-                            <button type="button" class="lang-tab" data-lang="de" onclick="switchVoucherLang('description', 'de', this)">🇩🇪 DE</button>
-                        </div>
                         <textarea id="voucher-description" class="form-input" placeholder="Get 20% off your winter stay" rows="2"
-                            style="padding: 0.75rem; border-radius: 8px;"></textarea>
-                    </div>
-                    
-                    <div class="form-group" style="margin-bottom: 1.25rem;">
-                        <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">Terms & Conditions</label>
-                        <div class="lang-tabs" id="voucher-terms-tabs" style="margin-bottom: 0.5rem;">
-                            <button type="button" class="lang-tab active" data-lang="en" onclick="switchVoucherLang('terms', 'en', this)">🇬🇧 EN</button>
-                            <button type="button" class="lang-tab" data-lang="fr" onclick="switchVoucherLang('terms', 'fr', this)">🇫🇷 FR</button>
-                            <button type="button" class="lang-tab" data-lang="es" onclick="switchVoucherLang('terms', 'es', this)">🇪🇸 ES</button>
-                            <button type="button" class="lang-tab" data-lang="nl" onclick="switchVoucherLang('terms', 'nl', this)">🇳🇱 NL</button>
-                            <button type="button" class="lang-tab" data-lang="de" onclick="switchVoucherLang('terms', 'de', this)">🇩🇪 DE</button>
-                        </div>
-                        <textarea id="voucher-terms" class="form-input" placeholder="Cannot be combined with other offers. Valid for new bookings only." rows="2"
                             style="padding: 0.75rem; border-radius: 8px;"></textarea>
                     </div>
                     
@@ -13723,13 +14026,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                         <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">
                             Upsell Name <span style="color: #ef4444;">*</span>
                         </label>
-                        <div class="lang-tabs" id="upsell-name-tabs" style="margin-bottom: 0.5rem;">
-                            <button type="button" class="lang-tab active" data-lang="en" onclick="switchUpsellLang('name', 'en', this)">🇬🇧 EN</button>
-                            <button type="button" class="lang-tab" data-lang="fr" onclick="switchUpsellLang('name', 'fr', this)">🇫🇷 FR</button>
-                            <button type="button" class="lang-tab" data-lang="es" onclick="switchUpsellLang('name', 'es', this)">🇪🇸 ES</button>
-                            <button type="button" class="lang-tab" data-lang="nl" onclick="switchUpsellLang('name', 'nl', this)">🇳🇱 NL</button>
-                            <button type="button" class="lang-tab" data-lang="de" onclick="switchUpsellLang('name', 'de', this)">🇩🇪 DE</button>
-                        </div>
                         <input type="text" id="upsell-name" class="form-input" placeholder="e.g., Champagne on arrival" required
                             style="padding: 0.75rem; border-radius: 8px;">
                     </div>
@@ -13738,13 +14034,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                         <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">
                             Description
                         </label>
-                        <div class="lang-tabs" id="upsell-desc-tabs" style="margin-bottom: 0.5rem;">
-                            <button type="button" class="lang-tab active" data-lang="en" onclick="switchUpsellLang('description', 'en', this)">🇬🇧 EN</button>
-                            <button type="button" class="lang-tab" data-lang="fr" onclick="switchUpsellLang('description', 'fr', this)">🇫🇷 FR</button>
-                            <button type="button" class="lang-tab" data-lang="es" onclick="switchUpsellLang('description', 'es', this)">🇪🇸 ES</button>
-                            <button type="button" class="lang-tab" data-lang="nl" onclick="switchUpsellLang('description', 'nl', this)">🇳🇱 NL</button>
-                            <button type="button" class="lang-tab" data-lang="de" onclick="switchUpsellLang('description', 'de', this)">🇩🇪 DE</button>
-                        </div>
                         <textarea id="upsell-description" class="form-input" rows="2" placeholder="Bottle of premium champagne waiting in your room"
                             style="padding: 0.75rem; border-radius: 8px;"></textarea>
                     </div>
@@ -15280,7 +15569,7 @@ const promo = await fetch('/api/v1/offers/validate', {
         <div class="modal-content" style="border-radius: 16px;">
             <div class="modal-header" style="background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
                 <h3 class="modal-title" style="margin: 0;"> Edit Room</h3>
-                <button class="modal-close" onclick="closeModal('editRoomModal')" style="color: white;">✕</button>
+                <button class="modal-close" onclick="closeModal('editRoomModal')" style="color: white;"></button>
             </div>
             <form id="editRoomForm" onsubmit="return saveRoom(event)">
                 <input type="hidden" id="edit-room-id">
@@ -15294,39 +15583,27 @@ const promo = await fetch('/api/v1/offers/validate', {
                     </div>
                 </div>
                 
-                <!-- Display Name for Website - Multilingual -->
+                <!-- Display Name for Website -->
                 <div class="form-group" style="margin-bottom: 1rem;">
-                    <label class="form-label">✨ Display Name (shown on website)</label>
-                    <div class="lang-tabs" id="display-name-tabs" style="margin-bottom: 8px;">
-                        <!-- Populated dynamically based on account language settings -->
-                    </div>
+                    <label class="form-label"> Display Name (shown on website)</label>
                     <div style="display: flex; gap: 0.5rem;">
                         <input type="text" class="form-input" id="edit-room-display-name" placeholder="Leave blank to use original name" style="flex: 1;">
                         <button type="button" class="btn" onclick="generateRoomDisplayName()" style="white-space: nowrap; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none;">
-                            ✨ Generate
-                        </button>
-                        <button type="button" class="btn" onclick="translateRoomField('display_name')" style="white-space: nowrap; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none;" title="Auto-translate to other languages">
-                            🌐
+                             Generate
                         </button>
                     </div>
                     <div style="font-size: 0.8rem; color: #64748b; margin-top: 0.25rem;">
-                        Marketing-friendly name - click language tabs to edit translations
+                        AI-generated marketing-friendly name for your booking website
                     </div>
                 </div>
                 
-                <!-- Short Description - Multilingual -->
+                <!-- Short Description -->
                 <div class="form-group" style="margin-bottom: 1rem;">
-                    <label class="form-label">📝 Short Description</label>
-                    <div class="lang-tabs" id="short-desc-tabs" style="margin-bottom: 8px;">
-                        <!-- Populated dynamically -->
-                    </div>
+                    <label class="form-label"> Short Description</label>
                     <div style="display: flex; gap: 0.5rem;">
                         <input type="text" class="form-input" id="edit-room-short-description" placeholder="Brief tagline for listings" style="flex: 1;" maxlength="150">
                         <button type="button" class="btn" onclick="generateRoomShortDescription()" style="white-space: nowrap; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none;">
-                            ✨ Generate
-                        </button>
-                        <button type="button" class="btn" onclick="translateRoomField('short_description')" style="white-space: nowrap; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none;" title="Auto-translate to other languages">
-                            🌐
+                             Generate
                         </button>
                     </div>
                     <div style="font-size: 0.8rem; color: #64748b; margin-top: 0.25rem;">
@@ -15334,25 +15611,17 @@ const promo = await fetch('/api/v1/offers/validate', {
                     </div>
                 </div>
                 
-                <!-- Full Description - Multilingual -->
+                <!-- Full Description -->
                 <div class="form-group" style="margin-bottom: 1rem;">
-                    <label class="form-label">📄 Full Description</label>
-                    <div class="lang-tabs" id="full-desc-tabs" style="margin-bottom: 8px;">
-                        <!-- Populated dynamically -->
-                    </div>
+                    <label class="form-label"> Full Description</label>
                     <div style="display: flex; flex-direction: column; gap: 0.5rem;">
                         <textarea class="form-input" id="edit-room-full-description" rows="4" placeholder="Detailed room description for the booking page"></textarea>
-                        <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
-                            <button type="button" class="btn" onclick="translateRoomField('full_description')" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none;" title="Auto-translate to other languages">
-                                🌐 Translate All
-                            </button>
-                            <button type="button" class="btn" onclick="generateRoomFullDescription()" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none;">
-                                ✨ Generate Full Description
-                            </button>
-                        </div>
+                        <button type="button" class="btn" onclick="generateRoomFullDescription()" style="align-self: flex-end; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none;">
+                             Generate Full Description
+                        </button>
                     </div>
                     <div style="font-size: 0.8rem; color: #64748b; margin-top: 0.25rem;">
-                        Detailed description shown on booking page - click language tabs to edit
+                        Detailed description shown on the room booking page
                     </div>
                 </div>
                 
@@ -16623,10 +16892,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                     if (typeof loadAccountEntitlements === 'function') {
                         loadAccountEntitlements();
                     }
-                    // Load language settings (await to ensure ready before any UI loads)
-                    if (typeof loadLanguageSettings === 'function') {
-                        await loadLanguageSettings();
-                    }
                     // Reload dashboard with correct filters
                     if (typeof loadDashboard === 'function') {
                         loadDashboard();
@@ -16654,10 +16919,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                     // Load feature entitlements
                     if (typeof loadAccountEntitlements === 'function') {
                         loadAccountEntitlements();
-                    }
-                    // Load language settings
-                    if (typeof loadLanguageSettings === 'function') {
-                        await loadLanguageSettings();
                     }
                     if (typeof loadDashboard === 'function') {
                         loadDashboard();
@@ -18036,7 +18297,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                 loadPluginLicenses();
             }
             if (viewName === 'integrations') loadIntegrations();
-            if (viewName === 'settings') loadLanguageSettings();
             if (viewName === 'offers') loadOffers();
             if (viewName === 'vouchers') loadVouchers();
             if (viewName === 'upsells') loadUpsells();
@@ -18142,266 +18402,202 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
 
         // =========================================================
+        // TRANSLATION HELPER FUNCTIONS
+        // =========================================================
+        
+        const SUPPORTED_LANGUAGES = [
+            { code: 'en', name: 'English', flag: '🇬🇧' },
+            { code: 'fr', name: 'Français', flag: '🇫🇷' },
+            { code: 'es', name: 'Español', flag: '🇪🇸' },
+            { code: 'nl', name: 'Nederlands', flag: '🇳🇱' }
+        ];
+        
+        // Current active language for translation tabs
+        let currentTranslationLang = 'en';
+        
+        // Switch translation tab for a specific field group
+        function switchTranslationTab(fieldGroup, lang) {
+            const wrapper = document.querySelector(`[data-translation-group="${fieldGroup}"]`);
+            if (!wrapper) return;
+            
+            // Update tab states
+            wrapper.querySelectorAll('.translation-tab').forEach(tab => {
+                tab.classList.toggle('active', tab.dataset.lang === lang);
+            });
+            
+            // Update input visibility
+            wrapper.querySelectorAll('.translation-input, .translation-textarea').forEach(input => {
+                input.classList.toggle('active', input.dataset.lang === lang);
+            });
+            
+            // Store current lang for this group
+            wrapper.dataset.currentLang = lang;
+        }
+        
+        // Switch all translation tabs on a page to a specific language
+        function switchAllTranslationTabs(lang) {
+            currentTranslationLang = lang;
+            document.querySelectorAll('[data-translation-group]').forEach(wrapper => {
+                switchTranslationTab(wrapper.dataset.translationGroup, lang);
+            });
+            
+            // Update global language selector if exists
+            const globalSelector = document.getElementById('global-translation-lang');
+            if (globalSelector) globalSelector.value = lang;
+        }
+        
+        // Generate translation tabs HTML for a field
+        function generateTranslationField(fieldId, fieldType = 'input', placeholder = '', rows = 3, currentValues = {}) {
+            const isTextarea = fieldType === 'textarea';
+            
+            let html = `<div class="translation-field-wrapper" data-translation-group="${fieldId}">`;
+            
+            // Tab bar with all languages
+            html += `<div class="translation-tabs">`;
+            SUPPORTED_LANGUAGES.forEach((lang, idx) => {
+                const isActive = idx === 0 ? 'active' : '';
+                html += `<button type="button" class="translation-tab ${isActive}" data-lang="${lang.code}" onclick="switchTranslationTab('${fieldId}', '${lang.code}')">
+                    <span class="flag">${lang.flag}</span>${lang.code.toUpperCase()}
+                </button>`;
+            });
+            html += `<button type="button" class="auto-translate-btn" onclick="autoTranslateField('${fieldId}')" title="Auto-translate from English">✨ Translate</button>`;
+            html += `</div>`;
+            
+            // Input fields for each language
+            html += `<div class="translation-input-group">`;
+            SUPPORTED_LANGUAGES.forEach((lang, idx) => {
+                const isActive = idx === 0 ? 'active' : '';
+                const value = currentValues[lang.code] || '';
+                const inputId = `${fieldId}-${lang.code}`;
+                
+                if (isTextarea) {
+                    html += `<textarea class="form-textarea translation-input ${isActive}" id="${inputId}" data-lang="${lang.code}" placeholder="${placeholder}" rows="${rows}">${value}</textarea>`;
+                } else {
+                    html += `<input type="text" class="form-input translation-input ${isActive}" id="${inputId}" data-lang="${lang.code}" placeholder="${placeholder}" value="${value}">`;
+                }
+            });
+            html += `</div>`;
+            
+            // Status dots showing which languages have content
+            html += `<div class="translation-status" title="Translation status">`;
+            SUPPORTED_LANGUAGES.forEach(lang => {
+                const hasValue = currentValues[lang.code] && currentValues[lang.code].trim() !== '';
+                html += `<span class="translation-status-dot ${hasValue ? 'filled' : 'empty'}" title="${lang.name}: ${hasValue ? 'Filled' : 'Empty'}"></span>`;
+            });
+            html += `</div>`;
+            
+            html += `</div>`;
+            return html;
+        }
+        
+        // Auto-translate a field from English to other languages
+        async function autoTranslateField(fieldId) {
+            const wrapper = document.querySelector(`[data-translation-group="${fieldId}"]`);
+            if (!wrapper) return;
+            
+            const enInput = wrapper.querySelector(`[data-lang="en"]`);
+            if (!enInput || !enInput.value.trim()) {
+                showNotification('Please enter English text first', 'warning');
+                return;
+            }
+            
+            const sourceText = enInput.value.trim();
+            const btn = wrapper.querySelector('.auto-translate-btn');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '⏳ Translating...';
+            
+            try {
+                const response = await fetch('/api/admin/translate-text', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({
+                        text: sourceText,
+                        source_lang: 'en',
+                        target_langs: ['fr', 'es', 'nl']
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success && data.translations) {
+                    // Fill in the translated values
+                    Object.entries(data.translations).forEach(([lang, text]) => {
+                        const input = wrapper.querySelector(`[data-lang="${lang}"]`);
+                        if (input) input.value = text;
+                    });
+                    
+                    // Update status dots
+                    updateTranslationStatus(fieldId);
+                    showNotification('Translations generated!', 'success');
+                } else {
+                    showNotification('Translation failed: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (error) {
+                console.error('Translation error:', error);
+                showNotification('Translation error. Please try again.', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }
+        
+        // Update translation status dots for a field
+        function updateTranslationStatus(fieldId) {
+            const wrapper = document.querySelector(`[data-translation-group="${fieldId}"]`);
+            if (!wrapper) return;
+            
+            const dots = wrapper.querySelectorAll('.translation-status-dot');
+            SUPPORTED_LANGUAGES.forEach((lang, idx) => {
+                const input = wrapper.querySelector(`[data-lang="${lang.code}"]`);
+                const hasValue = input && input.value.trim() !== '';
+                dots[idx].classList.toggle('filled', hasValue);
+                dots[idx].classList.toggle('empty', !hasValue);
+            });
+        }
+        
+        // Collect all translation values for a field
+        function getTranslationValues(fieldId) {
+            const wrapper = document.querySelector(`[data-translation-group="${fieldId}"]`);
+            if (!wrapper) return {};
+            
+            const values = {};
+            SUPPORTED_LANGUAGES.forEach(lang => {
+                const input = wrapper.querySelector(`[data-lang="${lang.code}"]`);
+                if (input && input.value.trim()) {
+                    values[lang.code] = input.value.trim();
+                }
+            });
+            return values;
+        }
+        
+        // Set translation values for a field from stored data
+        function setTranslationValues(fieldId, values) {
+            const wrapper = document.querySelector(`[data-translation-group="${fieldId}"]`);
+            if (!wrapper || !values) return;
+            
+            // Handle both object format {en: "...", fr: "..."} and legacy string format
+            if (typeof values === 'string') {
+                // Legacy: single value goes to English
+                const enInput = wrapper.querySelector(`[data-lang="en"]`);
+                if (enInput) enInput.value = values;
+            } else if (typeof values === 'object') {
+                SUPPORTED_LANGUAGES.forEach(lang => {
+                    const input = wrapper.querySelector(`[data-lang="${lang.code}"]`);
+                    if (input && values[lang.code]) {
+                        input.value = values[lang.code];
+                    }
+                });
+            }
+            
+            updateTranslationStatus(fieldId);
+        }
+        
+        // =========================================================
         // WEBSITE BUILDER FUNCTIONS
         // =========================================================
         
-        // Website Builder multilingual data storage
-        let wbMultilingual = {};
-        let currentWbLang = {};
-        
-        function initWbMultilingual(section, field) {
-            if (!wbMultilingual[section]) wbMultilingual[section] = {};
-            if (!wbMultilingual[section][field]) wbMultilingual[section][field] = {};
-            if (!currentWbLang[section]) currentWbLang[section] = {};
-            if (!currentWbLang[section][field]) currentWbLang[section][field] = getAccountPrimaryLanguage();
-        }
-        
-        // Render language tabs for a Website Builder field based on account settings
-        function renderWbLangTabs(section, field, containerId) {
-            const container = document.getElementById(containerId);
-            if (!container) return;
-            
-            const langs = getAccountLanguages();
-            const primaryLang = getAccountPrimaryLanguage();
-            const langInfo = { en: { flag: '🇬🇧', name: 'EN' }, fr: { flag: '🇫🇷', name: 'FR' }, es: { flag: '🇪🇸', name: 'ES' }, nl: { flag: '🇳🇱', name: 'NL' }, de: { flag: '🇩🇪', name: 'DE' }, it: { flag: '🇮🇹', name: 'IT' }, pt: { flag: '🇵🇹', name: 'PT' }, ru: { flag: '🇷🇺', name: 'RU' }, zh: { flag: '🇨🇳', name: 'ZH' }, ja: { flag: '🇯🇵', name: 'JA' } };
-            
-            initWbMultilingual(section, field);
-            currentWbLang[section][field] = primaryLang;
-            
-            let html = langs.map(lang => {
-                const info = langInfo[lang] || { flag: '🏳️', name: lang.toUpperCase() };
-                const isActive = lang === primaryLang;
-                const isPrimary = lang === primaryLang;
-                const hasContent = !!wbMultilingual[section][field][lang]?.trim();
-                return `<button type="button" class="lang-tab${isActive ? ' active' : ''}${isPrimary ? ' primary' : ''}${hasContent ? ' has-content' : ''}" data-lang="${lang}" onclick="switchWbLang('${section}', '${field}', '${lang}', this)" title="${isPrimary ? 'Primary language - translate from here' : ''}">${info.flag} ${info.name}</button>`;
-            }).join('');
-            html += `<button type="button" class="btn" onclick="translateWbField('${section}', '${field}')" style="margin-left: auto; padding: 0.25rem 0.5rem; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; font-size: 0.75rem;" title="Translate from primary language (${langInfo[primaryLang]?.name || primaryLang.toUpperCase()}) to other languages">🌐</button>`;
-            
-            container.innerHTML = html;
-        }
-        
-        // Field ID mapping for WB sections
-        const wbFieldToId = {
-            'header': { 'site_name': 'wb-header-site-name', 'tagline': 'wb-header-tagline' },
-            'hero': { 'headline': 'wb-hero-headline', 'subheadline': 'wb-hero-subheadline', 'button_text': 'wb-hero-button-text' },
-            'intro': { 'title': 'wb-intro-title', 'text': 'wb-intro-text', 'btn_text': 'wb-intro-btn-text' },
-            'about': { 'title': 'wb-about-title', 'text': 'wb-about-text' },
-            'cta': { 'title': 'wb-cta-title', 'text': 'wb-cta-text', 'btn_text': 'wb-cta-btn-text' },
-            'featured': { 'title': 'wb-featured-title', 'subtitle': 'wb-featured-subtitle', 'btn_text': 'wb-featured-btn-text' },
-            'reviews': { 'title': 'wb-reviews-title', 'subtitle': 'wb-reviews-subtitle' },
-            'footer': { 'copyright': 'wb-footer-copyright' },
-            'page-rooms': { 'title': 'wb-page-rooms-title', 'subtitle': 'wb-page-rooms-subtitle' },
-            'page-about': { 'menu_title': 'wb-page-about-menu-title', 'title': 'wb-page-about-title', 'subtitle': 'wb-page-about-subtitle', 'content_title': 'wb-page-about-content-title', 'content': 'wb-page-about-content' }
-        };
-        
-        function switchWbLang(section, field, lang, btn) {
-            initWbMultilingual(section, field);
-            
-            const inputId = wbFieldToId[section]?.[field];
-            if (!inputId) {
-                console.log('switchWbLang: No input ID for', section, field);
-                return;
-            }
-            
-            const input = document.getElementById(inputId);
-            if (!input) {
-                console.log('switchWbLang: Input not found:', inputId);
-                return;
-            }
-            
-            // Save current value before switching
-            const currentValue = input.value;
-            const currentLang = currentWbLang[section][field];
-            wbMultilingual[section][field][currentLang] = currentValue;
-            console.log('switchWbLang: Saved', currentLang, '=', currentValue, 'for', section, field);
-            
-            // Switch to new language
-            currentWbLang[section][field] = lang;
-            
-            // Load new language value
-            input.value = wbMultilingual[section][field][lang] || '';
-            console.log('switchWbLang: Loaded', lang, '=', input.value, 'for', section, field);
-            console.log('switchWbLang: wbMultilingual now:', JSON.stringify(wbMultilingual[section][field]));
-            
-            // Update tab states
-            const tabsId = `wb-${section}-${field.replace(/_/g, '-')}-tabs`;
-            document.querySelectorAll(`#${tabsId} .lang-tab`).forEach(t => {
-                t.classList.toggle('active', t.dataset.lang === lang);
-                t.classList.toggle('has-content', !!wbMultilingual[section][field][t.dataset.lang]?.trim());
-            });
-        }
-        
-        async function translateWbField(section, field) {
-            initWbMultilingual(section, field);
-            
-            const inputId = wbFieldToId[section]?.[field];
-            if (!inputId) return;
-            
-            const input = document.getElementById(inputId);
-            if (!input) return;
-            
-            // Save current value first
-            wbMultilingual[section][field][currentWbLang[section][field]] = input.value;
-            
-            // Always translate FROM the primary language
-            const primaryLang = getAccountPrimaryLanguage();
-            const sourceText = wbMultilingual[section][field][primaryLang];
-            
-            if (!sourceText || !sourceText.trim()) { 
-                const langInfo = { en: 'English', fr: 'French', es: 'Spanish', nl: 'Dutch', de: 'German', it: 'Italian', pt: 'Portuguese' };
-                alert(`Please enter text in ${langInfo[primaryLang] || primaryLang.toUpperCase()} (your primary language) first, then click translate.`); 
-                return; 
-            }
-            
-            const btn = event.target;
-            const originalText = btn.innerHTML;
-            btn.innerHTML = '⏳';
-            btn.disabled = true;
-            
-            // Translate to ALL other languages
-            const allLangs = getAccountLanguages();
-            const targetLangs = allLangs.filter(l => l !== primaryLang);
-            
-            try {
-                const response = await fetch('/api/translate', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text: sourceText, targetLangs, sourceLang: primaryLang })
-                });
-                const result = await response.json();
-                if (result.success && result.translations) {
-                    Object.entries(result.translations).forEach(([lang, text]) => {
-                        wbMultilingual[section][field][lang] = text;
-                    });
-                    // Update tab indicators
-                    const tabsId = `wb-${section}-${field.replace(/_/g, '-')}-tabs`;
-                    document.querySelectorAll(`#${tabsId} .lang-tab`).forEach(t => { 
-                        t.classList.toggle('has-content', !!wbMultilingual[section][field][t.dataset.lang]?.trim()); 
-                    });
-                    // If currently viewing a translated tab, update the input
-                    if (currentWbLang[section][field] !== primaryLang) {
-                        input.value = wbMultilingual[section][field][currentWbLang[section][field]] || '';
-                    }
-                    alert('Translations added! Click each language tab to review.');
-                } else {
-                    alert('Translation failed: ' + (result.error || 'Unknown error'));
-                }
-            } catch (e) {
-                alert('Translation failed: ' + e.message);
-            } finally {
-                btn.innerHTML = originalText;
-                btn.disabled = false;
-            }
-        }
-        
-        function loadWbMultilingual(section, data) {
-            console.log('loadWbMultilingual for', section, ':', data);
-            if (!data) return;
-            const fields = {
-                'header': ['site_name', 'tagline'],
-                'hero': ['headline', 'subheadline', 'button_text'],
-                'intro': ['title', 'text', 'btn_text'],
-                'about': ['title', 'text'],
-                'cta': ['title', 'text', 'btn_text'],
-                'featured': ['title', 'subtitle', 'btn_text'],
-                'reviews': ['title', 'subtitle'],
-                'footer': ['copyright'],
-                'page-rooms': ['title', 'subtitle'],
-                'page-about': ['menu_title', 'title', 'subtitle', 'content_title', 'content']
-            };
-            const primaryLang = getAccountPrimaryLanguage();
-            
-            (fields[section] || []).forEach(field => {
-                initWbMultilingual(section, field);
-                const mlKey = `${field}_ml`;
-                if (data[mlKey] && typeof data[mlKey] === 'object') {
-                    console.log('Loading multilingual for', field, ':', data[mlKey]);
-                    wbMultilingual[section][field] = { ...data[mlKey] };
-                } else if (data[field]) {
-                    // Legacy: single value, assume it's the primary language
-                    wbMultilingual[section][field][primaryLang] = data[field];
-                }
-                
-                // Set the input field value to the primary language content
-                const inputId = wbFieldToId[section]?.[field];
-                if (inputId) {
-                    const input = document.getElementById(inputId);
-                    if (input) {
-                        const primaryValue = wbMultilingual[section][field][primaryLang] || '';
-                        input.value = primaryValue;
-                        console.log('Set input', inputId, 'to primary lang value:', primaryValue);
-                    }
-                }
-                
-                // Render tabs and update indicators
-                const tabsId = `wb-${section}-${field.replace(/_/g, '-')}-tabs`;
-                renderWbLangTabs(section, field, tabsId);
-            });
-        }
-        
-        function getWbMultilingualData(section) {
-            const result = {};
-            const fields = {
-                'header': ['site_name', 'tagline'],
-                'hero': ['headline', 'subheadline', 'button_text'],
-                'intro': ['title', 'text', 'btn_text'],
-                'about': ['title', 'text'],
-                'cta': ['title', 'text', 'btn_text'],
-                'featured': ['title', 'subtitle', 'btn_text'],
-                'reviews': ['title', 'subtitle'],
-                'footer': ['copyright'],
-                'page-rooms': ['title', 'subtitle'],
-                'page-about': ['menu_title', 'title', 'subtitle', 'content_title', 'content']
-            };
-            (fields[section] || []).forEach(field => {
-                initWbMultilingual(section, field);
-                const inputId = wbFieldToId[section]?.[field];
-                if (inputId) {
-                    const input = document.getElementById(inputId);
-                    if (input) wbMultilingual[section][field][currentWbLang[section][field]] = input.value;
-                }
-                const mlObj = wbMultilingual[section][field];
-                const cleanObj = {};
-                for (const [k, v] of Object.entries(mlObj)) { if (v && v.trim()) cleanObj[k] = v.trim(); }
-                if (Object.keys(cleanObj).length > 0) {
-                    result[`${field}_ml`] = cleanObj;
-                    result[field] = cleanObj.en || cleanObj[getAccountPrimaryLanguage()] || Object.values(cleanObj)[0] || '';
-                }
-            });
-            console.log('getWbMultilingualData for', section, ':', result);
-            return result;
-        }
-        
-        // Initialize WB language tabs when section loads
-        function initWbSectionLangTabs(section) {
-            const fields = {
-                'header': ['site_name', 'tagline'],
-                'hero': ['headline', 'subheadline', 'button_text'],
-                'intro': ['title', 'text', 'btn_text'],
-                'about': ['title', 'text'],
-                'cta': ['title', 'text', 'btn_text'],
-                'featured': ['title', 'subtitle', 'btn_text'],
-                'reviews': ['title', 'subtitle'],
-                'footer': ['copyright'],
-                'page-rooms': ['title', 'subtitle'],
-                'page-about': ['menu_title', 'title', 'subtitle', 'content_title', 'content']
-            };
-            (fields[section] || []).forEach(field => {
-                const tabsId = `wb-${section}-${field.replace(/_/g, '-')}-tabs`;
-                renderWbLangTabs(section, field, tabsId);
-            });
-        }
-        
         async function loadWebsiteBuilderSection(section) {
             try {
-                // Ensure language settings are loaded before initializing tabs
-                if (!accountLanguageSettings._loaded) {
-                    await loadLanguageSettings();
-                }
-                
-                // Initialize language tabs for this section
-                initWbSectionLangTabs(section);
-                
                 // Determine which container to update - editor panel (visible) or original view
                 const editorPanelMap = {
                     'header': 'wb-header',
@@ -18581,9 +18777,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                     if (section === 'reviews') {
                         toggleReviewsAppFields();
                     }
-                    
-                    // Load multilingual data for this section
-                    loadWbMultilingual(section, data.settings);
                 } else {
                     console.log(`No saved ${section} settings, using template defaults`);
                 }
@@ -19218,10 +19411,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                     }
                 }
                 
-                // Add multilingual data to settings
-                const mlData = getWbMultilingualData(section);
-                Object.assign(settings, mlData);
-                
                 console.log(`Saving ${section} for deployed site ${selectedDeployedSiteId}:`, settings);
                 
                 // Use NEW clean endpoint
@@ -19257,9 +19446,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                     showNotification('Error: ' + (data.error || 'Failed to save'), 'error');
                 }
                 
-                // Re-initialize language tabs after save (they may have been reset)
-                initWbSectionLangTabs(section);
-                
             } catch (error) {
                 console.error('Error saving website section:', error);
                 showNotification('Error saving. Please try again.', 'error');
@@ -19275,14 +19461,6 @@ const promo = await fetch('/api/v1/offers/validate', {
         async function loadWebsiteSection(section) {
             const websiteId = selectedWebsiteId;
             const clientId = getClientId() || localStorage.getItem('gas_selected_client_id');
-            
-            // Ensure language settings are loaded before initializing tabs
-            if (!accountLanguageSettings._loaded) {
-                await loadLanguageSettings();
-            }
-            
-            // Initialize language tabs for this section
-            initWbSectionLangTabs(section);
             
             // Update website selectors when loading a section
             updateWebsiteSelectors();
@@ -19369,9 +19547,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                         valueEl.textContent = data.settings[key];
                     }
                 });
-                
-                // Load multilingual data for this section
-                loadWbMultilingual(section, data.settings);
             }
         }
         
@@ -21035,11 +21210,6 @@ const promo = await fetch('/api/v1/offers/validate', {
             // Reload entitlements for selected account
             if (typeof loadAccountEntitlements === 'function') {
                 loadAccountEntitlements();
-            }
-            
-            // Reload language settings for selected account
-            if (typeof loadLanguageSettings === 'function') {
-                loadLanguageSettings();
             }
             
             // Navigate to dashboard with new filter
@@ -24059,10 +24229,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                 quiet_hours_until: document.getElementById('terms-quiet-until')?.value,
                 no_outside_guests: document.getElementById('terms-no-outside-guests')?.checked,
                 id_required: document.getElementById('terms-id-required')?.checked,
-                additional_rules: termsMultilingual.rules.en || document.getElementById('terms-additional-rules')?.value,
+                additional_rules: document.getElementById('terms-additional-rules')?.value,
                 
-                cancellation_policy: termsMultilingual.cancellation.en || document.getElementById('terms-cancellation-policy')?.value || null,
-                ...getTermsMultilingualData()
+                cancellation_policy: document.getElementById('terms-cancellation-policy')?.value || null
             };
             
             // Also save room amenities if a room is selected
@@ -24100,104 +24269,6 @@ const promo = await fetch('/api/v1/offers/validate', {
             } catch (error) {
                 console.error('Error saving amenities:', error);
                 alert('Error saving changes');
-            }
-        }
-        
-        // Terms multilingual data storage
-        let termsMultilingual = {
-            rules: { en: '', fr: '', es: '', nl: '', de: '' },
-            cancellation: { en: '', fr: '', es: '', nl: '', de: '' }
-        };
-        let currentTermsLang = { rules: 'en', cancellation: 'en' };
-        
-        function switchTermsLang(field, lang, btn) {
-            const fieldId = field === 'rules' ? 'terms-additional-rules' : 'terms-cancellation-policy';
-            const tabsId = field === 'rules' ? 'terms-rules-tabs' : 'terms-cancellation-tabs';
-            
-            // Save current value
-            termsMultilingual[field][currentTermsLang[field]] = document.getElementById(fieldId).value;
-            currentTermsLang[field] = lang;
-            
-            // Load new language value
-            document.getElementById(fieldId).value = termsMultilingual[field][lang] || '';
-            
-            // Update tab states
-            document.querySelectorAll(`#${tabsId} .lang-tab`).forEach(t => {
-                t.classList.toggle('active', t.dataset.lang === lang);
-                t.classList.toggle('has-content', !!termsMultilingual[field][t.dataset.lang]?.trim());
-            });
-        }
-        
-        function resetTermsLangTabs() {
-            termsMultilingual = { rules: { en: '', fr: '', es: '', nl: '', de: '' }, cancellation: { en: '', fr: '', es: '', nl: '', de: '' } };
-            currentTermsLang = { rules: 'en', cancellation: 'en' };
-            ['terms-rules-tabs', 'terms-cancellation-tabs'].forEach(tabsId => {
-                const el = document.getElementById(tabsId);
-                if (el) el.querySelectorAll('.lang-tab').forEach(t => { t.classList.toggle('active', t.dataset.lang === 'en'); t.classList.remove('has-content'); });
-            });
-        }
-        
-        function loadTermsMultilingual(terms) {
-            resetTermsLangTabs();
-            if (terms.additional_rules_ml && typeof terms.additional_rules_ml === 'object') {
-                termsMultilingual.rules = { ...termsMultilingual.rules, ...terms.additional_rules_ml };
-            } else if (terms.additional_rules) {
-                termsMultilingual.rules.en = terms.additional_rules;
-            }
-            if (terms.cancellation_policy_ml && typeof terms.cancellation_policy_ml === 'object') {
-                termsMultilingual.cancellation = { ...termsMultilingual.cancellation, ...terms.cancellation_policy_ml };
-            } else if (terms.cancellation_policy) {
-                termsMultilingual.cancellation.en = terms.cancellation_policy;
-            }
-            // Update tab indicators
-            ['rules', 'cancellation'].forEach(field => {
-                const tabsId = field === 'rules' ? 'terms-rules-tabs' : 'terms-cancellation-tabs';
-                const el = document.getElementById(tabsId);
-                if (el) el.querySelectorAll('.lang-tab').forEach(t => { t.classList.toggle('has-content', !!termsMultilingual[field][t.dataset.lang]?.trim()); });
-            });
-        }
-        
-        function getTermsMultilingualData() {
-            termsMultilingual.rules[currentTermsLang.rules] = document.getElementById('terms-additional-rules').value;
-            termsMultilingual.cancellation[currentTermsLang.cancellation] = document.getElementById('terms-cancellation-policy').value;
-            const cleanObj = (obj) => { const r = {}; for (const [k, v] of Object.entries(obj)) { if (v && v.trim()) r[k] = v.trim(); } return Object.keys(r).length > 0 ? r : null; };
-            return { additional_rules_ml: cleanObj(termsMultilingual.rules), cancellation_policy_ml: cleanObj(termsMultilingual.cancellation) };
-        }
-        
-        async function translateTermsField(field) {
-            const fieldId = field === 'rules' ? 'terms-additional-rules' : 'terms-cancellation-policy';
-            termsMultilingual[field][currentTermsLang[field]] = document.getElementById(fieldId).value;
-            
-            const sourceText = termsMultilingual[field].en || termsMultilingual[field][currentTermsLang[field]] || Object.values(termsMultilingual[field]).find(v => v);
-            if (!sourceText) { alert('Please enter text in at least one language first'); return; }
-            
-            const btn = event.target;
-            const originalText = btn.innerHTML;
-            btn.innerHTML = '⏳';
-            btn.disabled = true;
-            
-            try {
-                const response = await fetch('/api/translate', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text: sourceText, targetLangs: ['en', 'es', 'fr', 'de', 'nl'].filter(l => l !== currentTermsLang[field]) })
-                });
-                const result = await response.json();
-                if (result.success && result.translations) {
-                    Object.entries(result.translations).forEach(([lang, text]) => {
-                        if (!termsMultilingual[field][lang]) termsMultilingual[field][lang] = text;
-                    });
-                    const tabsId = field === 'rules' ? 'terms-rules-tabs' : 'terms-cancellation-tabs';
-                    document.querySelectorAll(`#${tabsId} .lang-tab`).forEach(t => { t.classList.toggle('has-content', !!termsMultilingual[field][t.dataset.lang]?.trim()); });
-                    alert('Translations added! Click each language tab to review.');
-                } else {
-                    alert('Translation failed: ' + (result.error || 'Unknown error'));
-                }
-            } catch (e) {
-                alert('Translation failed: ' + e.message);
-            } finally {
-                btn.innerHTML = originalText;
-                btn.disabled = false;
             }
         }
         
@@ -24274,11 +24345,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                     if (terms.quiet_hours_until) document.getElementById('terms-quiet-until').value = terms.quiet_hours_until;
                     if (terms.no_outside_guests) document.getElementById('terms-no-outside-guests').checked = true;
                     if (terms.id_required) document.getElementById('terms-id-required').checked = true;
-                    
-                    // Load multilingual rules and cancellation
-                    loadTermsMultilingual(terms);
-                    document.getElementById('terms-additional-rules').value = termsMultilingual.rules.en || terms.additional_rules || '';
-                    document.getElementById('terms-cancellation-policy').value = termsMultilingual.cancellation.en || terms.cancellation_policy || '';
+                    if (terms.additional_rules) document.getElementById('terms-additional-rules').value = terms.additional_rules;
+                    if (terms.cancellation_policy) document.getElementById('terms-cancellation-policy').value = terms.cancellation_policy;
                     
                     // Beds (using bed_type from database) - OLD FORMAT
                     // Only load into old UI if container exists
@@ -27505,185 +27573,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                 submitBtn.disabled = false;
                 showNotification('Error: ' + error.message, 'error');
             }
-        }
-
-        // ============================================
-        // LANGUAGE SETTINGS
-        // ============================================
-        
-        // Store current language settings
-        let accountLanguageSettings = {
-            primary: 'en',
-            supported: ['en'],
-            _loaded: false  // Flag to track if loaded from server
-        };
-        
-        async function loadLanguageSettings() {
-            try {
-                // Get account ID - use selectedAccountId if viewing another account, otherwise currentAccount
-                const accountId = selectedAccountId || currentAccount?.id;
-                console.log('loadLanguageSettings called with accountId:', accountId, 'selectedAccountId:', selectedAccountId, 'currentAccount?.id:', currentAccount?.id);
-                
-                if (!accountId) {
-                    console.log('No account ID available for language settings');
-                    return;
-                }
-                
-                const response = await fetch(`/api/admin/accounts/${accountId}/settings`, {
-                    headers: authHeaders()
-                });
-                const data = await response.json();
-                console.log('Language settings from server for account', accountId, ':', data);
-                
-                if (data.success && data.settings?.languages) {
-                    accountLanguageSettings = { ...data.settings.languages, _loaded: true };
-                    console.log('Loaded language settings:', accountLanguageSettings);
-                } else {
-                    // Default settings
-                    accountLanguageSettings = { primary: 'en', supported: ['en'], _loaded: true };
-                    console.log('No language settings found, using defaults');
-                }
-                
-                // Update UI if elements exist
-                const primaryLangEl = document.getElementById('settings-primary-language');
-                if (primaryLangEl) primaryLangEl.value = accountLanguageSettings.primary;
-                
-                // Update checkboxes
-                const checkboxes = document.querySelectorAll('.additional-lang-cb');
-                checkboxes.forEach(cb => {
-                    cb.checked = accountLanguageSettings.supported.includes(cb.value) && cb.value !== accountLanguageSettings.primary;
-                    cb.disabled = cb.value === accountLanguageSettings.primary;
-                    
-                    // Grey out the primary language checkbox
-                    const label = cb.closest('label');
-                    if (label) {
-                        label.style.opacity = cb.value === accountLanguageSettings.primary ? '0.5' : '1';
-                    }
-                });
-                
-            } catch (error) {
-                console.error('Error loading language settings:', error);
-            }
-        }
-        
-        function updateLanguageSettings() {
-            const primary = document.getElementById('settings-primary-language').value;
-            
-            // Get checked additional languages
-            const checkboxes = document.querySelectorAll('.additional-lang-cb');
-            const additionalLangs = [];
-            
-            checkboxes.forEach(cb => {
-                // Disable the primary language checkbox
-                cb.disabled = cb.value === primary;
-                const label = cb.closest('label');
-                if (label) {
-                    label.style.opacity = cb.value === primary ? '0.5' : '1';
-                }
-                
-                // Uncheck if it's the primary
-                if (cb.value === primary) {
-                    cb.checked = false;
-                }
-                
-                if (cb.checked && cb.value !== primary) {
-                    additionalLangs.push(cb.value);
-                }
-            });
-            
-            // Limit to 3 additional languages
-            if (additionalLangs.length > 3) {
-                alert('Maximum 3 additional languages allowed');
-                // Uncheck the last one
-                const lastChecked = [...checkboxes].reverse().find(cb => cb.checked && cb.value !== primary);
-                if (lastChecked) lastChecked.checked = false;
-                return;
-            }
-            
-            // Update local state
-            accountLanguageSettings.primary = primary;
-            accountLanguageSettings.supported = [primary, ...additionalLangs];
-        }
-        
-        async function saveLanguageSettings() {
-            const statusEl = document.getElementById('lang-settings-status');
-            statusEl.textContent = 'Saving...';
-            
-            // Get account ID
-            const accountId = selectedAccountId || currentAccount?.id;
-            if (!accountId) {
-                statusEl.textContent = '✗ No account selected';
-                statusEl.style.color = '#ef4444';
-                return;
-            }
-            
-            try {
-                // Get current full settings first
-                const getResponse = await fetch(`/api/admin/accounts/${accountId}/settings`, {
-                    headers: authHeaders()
-                });
-                const getData = await getResponse.json();
-                const currentSettings = getData.settings || {};
-                
-                // Merge language settings
-                currentSettings.languages = accountLanguageSettings;
-                
-                // Save
-                const response = await fetch(`/api/admin/accounts/${accountId}/settings`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                    body: JSON.stringify({ settings: currentSettings })
-                });
-                
-                const data = await response.json();
-                if (data.success) {
-                    statusEl.textContent = '✓ Saved';
-                    statusEl.style.color = '#10b981';
-                    setTimeout(() => { statusEl.textContent = ''; }, 3000);
-                    
-                    // Update the room editing tabs to reflect new languages
-                    updateAdminLanguageTabs();
-                } else {
-                    statusEl.textContent = '✗ Error: ' + data.error;
-                    statusEl.style.color = '#ef4444';
-                }
-            } catch (error) {
-                console.error('Error saving language settings:', error);
-                statusEl.textContent = '✗ Error saving';
-                statusEl.style.color = '#ef4444';
-            }
-        }
-        
-        // Update language tabs throughout admin based on account settings
-        function updateAdminLanguageTabs() {
-            const supported = accountLanguageSettings.supported || ['en'];
-            
-            // Update all lang-tabs containers
-            document.querySelectorAll('.lang-tabs').forEach(container => {
-                container.querySelectorAll('.lang-tab').forEach(tab => {
-                    const lang = tab.textContent.includes('EN') ? 'en' :
-                                tab.textContent.includes('ES') ? 'es' :
-                                tab.textContent.includes('FR') ? 'fr' :
-                                tab.textContent.includes('DE') ? 'de' :
-                                tab.textContent.includes('NL') ? 'nl' :
-                                tab.textContent.includes('IT') ? 'it' :
-                                tab.textContent.includes('PT') ? 'pt' : 'en';
-                    
-                    tab.style.display = supported.includes(lang) ? '' : 'none';
-                });
-            });
-        }
-        
-        // Get supported languages for current account
-        function getAccountLanguages() {
-            // Default to all 5 languages if not configured
-            return accountLanguageSettings.supported?.length > 0 
-                ? accountLanguageSettings.supported 
-                : ['en', 'es', 'fr', 'de', 'nl'];
-        }
-        
-        function getAccountPrimaryLanguage() {
-            return accountLanguageSettings.primary || 'en';
         }
 
         async function loadIntegrations() {
@@ -34252,62 +34141,6 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
         
-        // Voucher multilingual data storage
-        let voucherMultilingual = {
-            name: { en: '', fr: '', es: '', nl: '', de: '' },
-            description: { en: '', fr: '', es: '', nl: '', de: '' },
-            terms: { en: '', fr: '', es: '', nl: '', de: '' }
-        };
-        let currentVoucherLang = { name: 'en', description: 'en', terms: 'en' };
-        
-        function switchVoucherLang(field, lang, btn) {
-            const fieldId = field === 'name' ? 'voucher-name' : (field === 'description' ? 'voucher-description' : 'voucher-terms');
-            const tabsId = field === 'name' ? 'voucher-name-tabs' : (field === 'description' ? 'voucher-desc-tabs' : 'voucher-terms-tabs');
-            
-            voucherMultilingual[field][currentVoucherLang[field]] = document.getElementById(fieldId).value;
-            currentVoucherLang[field] = lang;
-            document.getElementById(fieldId).value = voucherMultilingual[field][lang] || '';
-            
-            document.querySelectorAll(`#${tabsId} .lang-tab`).forEach(t => {
-                t.classList.toggle('active', t.dataset.lang === lang);
-                const hasContent = voucherMultilingual[field][t.dataset.lang]?.trim();
-                t.classList.toggle('has-content', !!hasContent);
-            });
-        }
-        
-        function resetVoucherLangTabs() {
-            voucherMultilingual = { name: { en: '', fr: '', es: '', nl: '', de: '' }, description: { en: '', fr: '', es: '', nl: '', de: '' }, terms: { en: '', fr: '', es: '', nl: '', de: '' } };
-            currentVoucherLang = { name: 'en', description: 'en', terms: 'en' };
-            ['voucher-name-tabs', 'voucher-desc-tabs', 'voucher-terms-tabs'].forEach(tabsId => {
-                const el = document.getElementById(tabsId);
-                if (el) el.querySelectorAll('.lang-tab').forEach(t => { t.classList.toggle('active', t.dataset.lang === 'en'); t.classList.remove('has-content'); });
-            });
-        }
-        
-        function loadVoucherMultilingual(voucher) {
-            if (voucher.name_ml && typeof voucher.name_ml === 'object') voucherMultilingual.name = { ...voucherMultilingual.name, ...voucher.name_ml };
-            else if (voucher.name) voucherMultilingual.name.en = voucher.name;
-            if (voucher.description_ml && typeof voucher.description_ml === 'object') voucherMultilingual.description = { ...voucherMultilingual.description, ...voucher.description_ml };
-            else if (voucher.description) voucherMultilingual.description.en = voucher.description;
-            if (voucher.terms_ml && typeof voucher.terms_ml === 'object') voucherMultilingual.terms = { ...voucherMultilingual.terms, ...voucher.terms_ml };
-            
-            ['name', 'description', 'terms'].forEach(field => {
-                const tabsId = field === 'name' ? 'voucher-name-tabs' : (field === 'description' ? 'voucher-desc-tabs' : 'voucher-terms-tabs');
-                const el = document.getElementById(tabsId);
-                if (el) el.querySelectorAll('.lang-tab').forEach(t => { t.classList.toggle('has-content', !!voucherMultilingual[field][t.dataset.lang]?.trim()); });
-            });
-        }
-        
-        function getVoucherMultilingualData() {
-            voucherMultilingual.name[currentVoucherLang.name] = document.getElementById('voucher-name').value;
-            voucherMultilingual.description[currentVoucherLang.description] = document.getElementById('voucher-description').value;
-            const termsEl = document.getElementById('voucher-terms');
-            if (termsEl) voucherMultilingual.terms[currentVoucherLang.terms] = termsEl.value;
-            
-            const cleanObj = (obj) => { const r = {}; for (const [k, v] of Object.entries(obj)) { if (v && v.trim()) r[k] = v.trim(); } return Object.keys(r).length > 0 ? r : null; };
-            return { name_ml: cleanObj(voucherMultilingual.name), description_ml: cleanObj(voucherMultilingual.description), terms_ml: cleanObj(voucherMultilingual.terms) };
-        }
-        
         async function editVoucher(id) {
             try {
                 const response = await fetch(`/api/admin/vouchers/${id}`);
@@ -34315,15 +34148,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 if (data.success && data.data) {
                     const voucher = data.data;
-                    resetVoucherLangTabs();
-                    loadVoucherMultilingual(voucher);
-                    
                     document.getElementById('voucher-id').value = voucher.id;
                     document.getElementById('voucher-code').value = voucher.code || '';
-                    document.getElementById('voucher-name').value = voucherMultilingual.name.en || voucher.name || '';
-                    document.getElementById('voucher-description').value = voucherMultilingual.description.en || voucher.description || '';
-                    const termsEl = document.getElementById('voucher-terms');
-                    if (termsEl) termsEl.value = voucherMultilingual.terms.en || '';
+                    document.getElementById('voucher-name').value = voucher.name || '';
+                    document.getElementById('voucher-description').value = voucher.description || '';
                     document.getElementById('voucher-discount-type').value = voucher.discount_type || 'percentage';
                     document.getElementById('voucher-discount-value').value = voucher.discount_value || '';
                     document.getElementById('voucher-valid-from').value = voucher.valid_from || '';
@@ -34360,16 +34188,10 @@ const promo = await fetch('/api/v1/offers/validate', {
             const isExternal = document.querySelector('input[name="voucher-provider-type"]:checked').value === 'external';
             const vendorId = isExternal ? document.getElementById('voucher-vendor').value || null : null;
             
-            // Get multilingual data
-            const mlData = getVoucherMultilingualData();
-            
             const voucherData = {
                 code: document.getElementById('voucher-code').value,
-                name: mlData.name_ml?.en || document.getElementById('voucher-name').value,
-                description: mlData.description_ml?.en || document.getElementById('voucher-description').value,
-                name_ml: mlData.name_ml,
-                description_ml: mlData.description_ml,
-                terms_ml: mlData.terms_ml,
+                name: document.getElementById('voucher-name').value,
+                description: document.getElementById('voucher-description').value,
                 discount_type: document.getElementById('voucher-discount-type').value,
                 discount_value: parseFloat(document.getElementById('voucher-discount-value').value),
                 valid_from: document.getElementById('voucher-valid-from').value || null,
@@ -34716,63 +34538,13 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
         
-        // Upsell multilingual data storage
-        let upsellMultilingual = { name: { en: '', fr: '', es: '', nl: '', de: '' }, description: { en: '', fr: '', es: '', nl: '', de: '' } };
-        let currentUpsellLang = { name: 'en', description: 'en' };
-        
-        function switchUpsellLang(field, lang, btn) {
-            const fieldId = field === 'name' ? 'upsell-name' : 'upsell-description';
-            const tabsId = field === 'name' ? 'upsell-name-tabs' : 'upsell-desc-tabs';
-            
-            upsellMultilingual[field][currentUpsellLang[field]] = document.getElementById(fieldId).value;
-            currentUpsellLang[field] = lang;
-            document.getElementById(fieldId).value = upsellMultilingual[field][lang] || '';
-            
-            document.querySelectorAll(`#${tabsId} .lang-tab`).forEach(t => {
-                t.classList.toggle('active', t.dataset.lang === lang);
-                t.classList.toggle('has-content', !!upsellMultilingual[field][t.dataset.lang]?.trim());
-            });
-        }
-        
-        function resetUpsellLangTabs() {
-            upsellMultilingual = { name: { en: '', fr: '', es: '', nl: '', de: '' }, description: { en: '', fr: '', es: '', nl: '', de: '' } };
-            currentUpsellLang = { name: 'en', description: 'en' };
-            ['upsell-name-tabs', 'upsell-desc-tabs'].forEach(tabsId => {
-                const el = document.getElementById(tabsId);
-                if (el) el.querySelectorAll('.lang-tab').forEach(t => { t.classList.toggle('active', t.dataset.lang === 'en'); t.classList.remove('has-content'); });
-            });
-        }
-        
-        function loadUpsellMultilingual(upsell) {
-            if (upsell.name_ml && typeof upsell.name_ml === 'object') upsellMultilingual.name = { ...upsellMultilingual.name, ...upsell.name_ml };
-            else if (upsell.name) upsellMultilingual.name.en = upsell.name;
-            if (upsell.description_ml && typeof upsell.description_ml === 'object') upsellMultilingual.description = { ...upsellMultilingual.description, ...upsell.description_ml };
-            else if (upsell.description) upsellMultilingual.description.en = upsell.description;
-            
-            ['name', 'description'].forEach(field => {
-                const tabsId = field === 'name' ? 'upsell-name-tabs' : 'upsell-desc-tabs';
-                const el = document.getElementById(tabsId);
-                if (el) el.querySelectorAll('.lang-tab').forEach(t => { t.classList.toggle('has-content', !!upsellMultilingual[field][t.dataset.lang]?.trim()); });
-            });
-        }
-        
-        function getUpsellMultilingualData() {
-            upsellMultilingual.name[currentUpsellLang.name] = document.getElementById('upsell-name').value;
-            upsellMultilingual.description[currentUpsellLang.description] = document.getElementById('upsell-description').value;
-            const cleanObj = (obj) => { const r = {}; for (const [k, v] of Object.entries(obj)) { if (v && v.trim()) r[k] = v.trim(); } return Object.keys(r).length > 0 ? r : null; };
-            return { name_ml: cleanObj(upsellMultilingual.name), description_ml: cleanObj(upsellMultilingual.description) };
-        }
-        
         async function editUpsell(id) {
             const upsell = upsellsData.find(u => u.id === id);
             if (!upsell) return;
             
-            resetUpsellLangTabs();
-            loadUpsellMultilingual(upsell);
-            
             document.getElementById('upsell-id').value = upsell.id;
-            document.getElementById('upsell-name').value = upsellMultilingual.name.en || upsell.name || '';
-            document.getElementById('upsell-description').value = upsellMultilingual.description.en || upsell.description || '';
+            document.getElementById('upsell-name').value = upsell.name || '';
+            document.getElementById('upsell-description').value = upsell.description || '';
             document.getElementById('upsell-price').value = upsell.price || '';
             document.getElementById('upsell-charge-type').value = upsell.charge_type || 'per_booking';
             document.getElementById('upsell-max-qty').value = upsell.max_quantity || '';
@@ -34843,14 +34615,9 @@ const promo = await fetch('/api/v1/offers/validate', {
             const isExternal = document.querySelector('input[name="upsell-provider-type"]:checked').value === 'external';
             const vendorId = isExternal ? document.getElementById('upsell-vendor').value || null : null;
             
-            // Get multilingual data
-            const mlData = getUpsellMultilingualData();
-            
             const upsellData = {
-                name: mlData.name_ml?.en || document.getElementById('upsell-name').value,
-                description: mlData.description_ml?.en || document.getElementById('upsell-description').value,
-                name_ml: mlData.name_ml,
-                description_ml: mlData.description_ml,
+                name: document.getElementById('upsell-name').value,
+                description: document.getElementById('upsell-description').value,
                 price: parseFloat(document.getElementById('upsell-price').value),
                 charge_type: document.getElementById('upsell-charge-type').value,
                 max_quantity: parseInt(document.getElementById('upsell-max-qty').value) || null,
@@ -34876,7 +34643,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 if (data.success) {
                     closeModal('addUpsellModal');
-                    resetUpsellLangTabs();
                     loadUpsellsForProperty();
                 } else {
                     alert('Error: ' + data.error);
@@ -35846,7 +35612,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                         <div class="modal-content" style="max-width: 600px; border-radius: 16px;">
                             <div class="modal-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
                                 <h3 style="margin: 0;"> Payment Details</h3>
-                                <button class="close-btn" onclick="this.closest('.modal').remove()" style="color: white; background: none; border: none; font-size: 1.5rem; cursor: pointer;">✕</button>
+                                <button class="close-btn" onclick="this.closest('.modal').remove()" style="color: white; background: none; border: none; font-size: 1.5rem; cursor: pointer;"></button>
                             </div>
                             <div class="modal-body">
                                 ${html}
@@ -36872,221 +36638,8 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
 
-        // Store for multilingual room data
-        let roomMultilingualData = {
-            display_name: {},
-            short_description: {},
-            full_description: {}
-        };
-        let currentRoomLang = 'en';
-
-        // Parse multilingual field from various formats
-        function parseMultilingualField(value) {
-            if (!value) return {};
-            if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-                return value;
-            }
-            if (typeof value === 'string') {
-                let str = value.trim();
-                
-                // Keep trying to parse until we get an object (handles multiple levels of encoding)
-                let attempts = 0;
-                while (typeof str === 'string' && attempts < 5) {
-                    attempts++;
-                    // If it starts with quote + brace, it's encoded JSON
-                    if (str.startsWith('"{') || str.startsWith('"\\')) {
-                        try { 
-                            str = JSON.parse(str);
-                            continue;
-                        } catch(e) { break; }
-                    }
-                    // If it starts with brace, try to parse as JSON
-                    if (str.startsWith('{')) {
-                        try { 
-                            const parsed = JSON.parse(str);
-                            if (typeof parsed === 'object' && parsed !== null) {
-                                return parsed;
-                            }
-                            str = parsed;
-                        } catch(e) { break; }
-                    } else {
-                        break;
-                    }
-                }
-                
-                // If we ended up with an object, return it
-                if (typeof str === 'object' && str !== null && !Array.isArray(str)) {
-                    return str;
-                }
-                
-                // Plain string - assume it's English
-                if (typeof str === 'string' && str.trim()) {
-                    return { en: str };
-                }
-            }
-            return {};
-        }
-
-        // Switch language tab for room fields
-        function switchRoomLang(field, lang, btn) {
-            // Save current value before switching
-            const inputId = field === 'display_name' ? 'edit-room-display-name' : 
-                           field === 'short_description' ? 'edit-room-short-description' : 
-                           'edit-room-full-description';
-            const input = document.getElementById(inputId);
-            roomMultilingualData[field][currentRoomLang] = input.value;
-            
-            // Update active tab
-            const tabsContainer = btn.parentElement;
-            tabsContainer.querySelectorAll('.lang-tab').forEach(t => t.classList.remove('active'));
-            btn.classList.add('active');
-            
-            // Load new language value
-            currentRoomLang = lang;
-            input.value = roomMultilingualData[field][lang] || '';
-            
-            // Update all field tabs to show same language
-            document.querySelectorAll('.lang-tabs').forEach(tabs => {
-                tabs.querySelectorAll('.lang-tab').forEach(t => {
-                    t.classList.toggle('active', t.textContent.includes(lang.toUpperCase()));
-                });
-            });
-            
-            // Load values for all fields in new language
-            document.getElementById('edit-room-display-name').value = roomMultilingualData.display_name[lang] || '';
-            document.getElementById('edit-room-short-description').value = roomMultilingualData.short_description[lang] || '';
-            document.getElementById('edit-room-full-description').value = roomMultilingualData.full_description[lang] || '';
-        }
-
-        // Language flag/name mapping
-        const LANG_INFO = {
-            en: { flag: '🇬🇧', name: 'EN' },
-            es: { flag: '🇪🇸', name: 'ES' },
-            fr: { flag: '🇫🇷', name: 'FR' },
-            de: { flag: '🇩🇪', name: 'DE' },
-            nl: { flag: '🇳🇱', name: 'NL' },
-            it: { flag: '🇮🇹', name: 'IT' },
-            pt: { flag: '🇵🇹', name: 'PT' }
-        };
-
-        // Render language tabs based on account settings
-        function renderRoomLangTabs() {
-            const langs = getAccountLanguages();
-            const primaryLang = getAccountPrimaryLanguage();
-            
-            ['display-name-tabs', 'short-desc-tabs', 'full-desc-tabs'].forEach(tabsId => {
-                const container = document.getElementById(tabsId);
-                if (!container) return;
-                
-                const field = tabsId === 'display-name-tabs' ? 'display_name' : 
-                             tabsId === 'short-desc-tabs' ? 'short_description' : 'full_description';
-                
-                container.innerHTML = langs.map((lang, i) => {
-                    const info = LANG_INFO[lang] || { flag: '🏳️', name: lang.toUpperCase() };
-                    const isActive = i === 0;
-                    return `<button type="button" class="lang-tab${isActive ? ' active' : ''}" data-lang="${lang}" onclick="switchRoomLang('${field}', '${lang}', this)">${info.flag} ${info.name}</button>`;
-                }).join('');
-            });
-        }
-
-        // Reset all lang tabs to primary language active
-        function resetRoomLangTabs() {
-            const primaryLang = getAccountPrimaryLanguage();
-            currentRoomLang = primaryLang;
-            
-            document.querySelectorAll('#editRoomModal .lang-tabs').forEach(tabs => {
-                tabs.querySelectorAll('.lang-tab').forEach(t => {
-                    t.classList.toggle('active', t.dataset.lang === primaryLang);
-                });
-            });
-        }
-
-        // Update tab indicators to show which languages have content
-        function updateRoomLangTabIndicators() {
-            ['display_name', 'short_description', 'full_description'].forEach(field => {
-                const tabsId = field === 'display_name' ? 'display-name-tabs' : 
-                              field === 'short_description' ? 'short-desc-tabs' : 'full-desc-tabs';
-                const tabs = document.getElementById(tabsId);
-                if (tabs) {
-                    tabs.querySelectorAll('.lang-tab').forEach(tab => {
-                        const lang = tab.dataset.lang;
-                        tab.classList.toggle('has-content', !!roomMultilingualData[field][lang]);
-                    });
-                }
-            });
-        }
-
-        // Auto-translate a room field using DeepL
-        async function translateRoomField(field) {
-            const inputId = field === 'display_name' ? 'edit-room-display-name' : 
-                           field === 'short_description' ? 'edit-room-short-description' : 
-                           'edit-room-full-description';
-            
-            // Save current value first
-            roomMultilingualData[field][currentRoomLang] = document.getElementById(inputId).value;
-            
-            // Find the source text (prefer EN, then any available)
-            const sourceText = roomMultilingualData[field].en || 
-                              roomMultilingualData[field][currentRoomLang] || 
-                              Object.values(roomMultilingualData[field]).find(v => v);
-            
-            if (!sourceText) {
-                alert('Please enter text in at least one language first');
-                return;
-            }
-            
-            const btn = event.target;
-            const originalText = btn.innerHTML;
-            btn.innerHTML = '⏳';
-            btn.disabled = true;
-            
-            try {
-                const response = await fetch('/api/translate', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        text: sourceText,
-                        targetLangs: ['en', 'es', 'fr', 'de', 'nl'].filter(l => l !== currentRoomLang)
-                    })
-                });
-                
-                const result = await response.json();
-                if (result.success && result.translations) {
-                    Object.entries(result.translations).forEach(([lang, text]) => {
-                        if (!roomMultilingualData[field][lang]) {
-                            roomMultilingualData[field][lang] = text;
-                        }
-                    });
-                    // Keep source language
-                    if (!roomMultilingualData[field][currentRoomLang]) {
-                        roomMultilingualData[field][currentRoomLang] = sourceText;
-                    }
-                    updateRoomLangTabIndicators();
-                    alert('Translations added! Click each language tab to review.');
-                } else {
-                    alert('Translation failed: ' + (result.error || 'Unknown error'));
-                }
-            } catch (e) {
-                console.error('Translation error:', e);
-                alert('Translation failed: ' + e.message);
-            } finally {
-                btn.innerHTML = originalText;
-                btn.disabled = false;
-            }
-        }
-
-        // Save current field values before form submission
-        function saveCurrentRoomLangValues() {
-            roomMultilingualData.display_name[currentRoomLang] = document.getElementById('edit-room-display-name').value;
-            roomMultilingualData.short_description[currentRoomLang] = document.getElementById('edit-room-short-description').value;
-            roomMultilingualData.full_description[currentRoomLang] = document.getElementById('edit-room-full-description').value;
-        }
-
         async function editRoom(id) {
             try {
-                // Ensure language settings are loaded before rendering tabs
-                await loadLanguageSettings();
-                
                 const response = await fetch(`/api/admin/units/${id}`);
                 const data = await response.json();
                 
@@ -37097,24 +36650,32 @@ const promo = await fetch('/api/v1/offers/validate', {
                     // CM Data (read-only display)
                     document.getElementById('edit-room-name').value = room.name || '';
                     
-                    // Parse multilingual fields
-                    roomMultilingualData.display_name = parseMultilingualField(room.display_name);
-                    roomMultilingualData.short_description = parseMultilingualField(room.short_description);
-                    roomMultilingualData.full_description = parseMultilingualField(room.full_description);
+                    // Display name - handle JSON format {en: "name"}
+                    let displayName = room.display_name || '';
+                    if (typeof displayName === 'object' && displayName !== null) {
+                        displayName = displayName.en || '';
+                    } else if (typeof displayName === 'string' && displayName.startsWith('{')) {
+                        try { displayName = JSON.parse(displayName).en || displayName; } catch(e) {}
+                    }
+                    document.getElementById('edit-room-display-name').value = displayName;
                     
-                    // Render language tabs based on account settings
-                    renderRoomLangTabs();
+                    // Short description - handle JSON format
+                    let shortDesc = room.short_description || '';
+                    if (typeof shortDesc === 'object' && shortDesc !== null) {
+                        shortDesc = shortDesc.en || '';
+                    } else if (typeof shortDesc === 'string' && shortDesc.startsWith('{')) {
+                        try { shortDesc = JSON.parse(shortDesc).en || shortDesc; } catch(e) {}
+                    }
+                    document.getElementById('edit-room-short-description').value = shortDesc;
                     
-                    // Reset to primary language tab and load values
-                    const primaryLang = getAccountPrimaryLanguage();
-                    currentRoomLang = primaryLang;
-                    document.getElementById('edit-room-display-name').value = roomMultilingualData.display_name[primaryLang] || roomMultilingualData.display_name.en || '';
-                    document.getElementById('edit-room-short-description').value = roomMultilingualData.short_description[primaryLang] || roomMultilingualData.short_description.en || '';
-                    document.getElementById('edit-room-full-description').value = roomMultilingualData.full_description[primaryLang] || roomMultilingualData.full_description.en || '';
-                    
-                    // Reset all tabs to primary language active
-                    resetRoomLangTabs();
-                    updateRoomLangTabIndicators();
+                    // Full description - handle JSON format
+                    let fullDesc = room.full_description || '';
+                    if (typeof fullDesc === 'object' && fullDesc !== null) {
+                        fullDesc = fullDesc.en || '';
+                    } else if (typeof fullDesc === 'string' && fullDesc.startsWith('{')) {
+                        try { fullDesc = JSON.parse(fullDesc).en || fullDesc; } catch(e) {}
+                    }
+                    document.getElementById('edit-room-full-description').value = fullDesc;
                     
                     // Editable fields
                     document.getElementById('edit-room-type').value = room.unit_type || 'double';
@@ -37148,29 +36709,11 @@ const promo = await fetch('/api/v1/offers/validate', {
             e.preventDefault();
             const id = document.getElementById('edit-room-id').value;
             
-            // Save current language values before submitting
-            saveCurrentRoomLangValues();
-            
-            console.log('Before clean - roomMultilingualData:', JSON.stringify(roomMultilingualData));
-            console.log('currentRoomLang:', currentRoomLang);
-            console.log('Input values - display_name:', document.getElementById('edit-room-display-name').value);
-            console.log('Input values - short_description:', document.getElementById('edit-room-short-description').value);
-            console.log('Input values - full_description:', document.getElementById('edit-room-full-description').value);
-            
-            // Clean up empty values from multilingual data
-            const cleanMultilingual = (obj) => {
-                const cleaned = {};
-                Object.entries(obj).forEach(([lang, val]) => {
-                    if (val && typeof val === 'string' && val.trim()) cleaned[lang] = val.trim();
-                });
-                return Object.keys(cleaned).length > 0 ? cleaned : null;
-            };
-            
-            // Get all editable fields including multilingual descriptions
+            // Get all editable fields including descriptions
             const data = {
-                display_name: cleanMultilingual(roomMultilingualData.display_name),
-                short_description: cleanMultilingual(roomMultilingualData.short_description),
-                full_description: cleanMultilingual(roomMultilingualData.full_description),
+                display_name: document.getElementById('edit-room-display-name').value || null,
+                short_description: document.getElementById('edit-room-short-description').value || null,
+                full_description: document.getElementById('edit-room-full-description').value || null,
                 room_type: document.getElementById('edit-room-type').value,
                 max_guests: parseInt(document.getElementById('edit-room-maxguests').value) || 2,
                 max_adults: parseInt(document.getElementById('edit-room-maxadults').value) || 2,
@@ -37178,8 +36721,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                 quantity: document.getElementById('edit-room-quantity').value || 1,
                 status: document.getElementById('edit-room-status').value
             };
-            
-            console.log('Sending data:', JSON.stringify(data));
             
             try {
                 // Update room fields
@@ -37190,13 +36731,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                 });
                 
                 const result = await response.json();
-                console.log('Server response:', JSON.stringify(result));
                 if (result.success) {
-                    showNotification('Room saved!', 'success');
-                    // Don't close modal - user may want to continue editing translations
-                    // Update tab indicators to show saved content
-                    updateRoomLangTabIndicators();
-                    loadRoomsForProperty(); // Refresh list in background
+                    showNotification('Room updated successfully!', 'success');
+                    closeModal('editRoomModal');
+                    loadRoomsForProperty();
                 } else {
                     alert('Error updating room: ' + result.error);
                 }
@@ -47184,11 +46722,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                 });
             });
         })();
-
-        // ============================================
-        // LANGUAGE SETTINGS
-        // ============================================
-        
     </script>
 
     <!-- GAS Lite Preview Panel - Shows Card -->
