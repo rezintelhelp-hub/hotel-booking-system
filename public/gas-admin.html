@@ -20501,7 +20501,7 @@ const promo = await fetch('/api/v1/offers/validate', {
         // Load and populate language settings UI
         async function loadLanguageSettingsUI() {
             try {
-                const response = await fetch('/api/account/language-settings');
+                const response = await fetch('/api/account/language-settings', { headers: authHeaders() });
                 const data = await response.json();
                 
                 if (data.success) {
@@ -20585,7 +20585,7 @@ const promo = await fetch('/api/v1/offers/validate', {
         // Load Account Settings page
         async function loadAccountSettings() {
             try {
-                const response = await fetch('/api/account/language-settings');
+                const response = await fetch('/api/account/language-settings', { headers: authHeaders() });
                 const data = await response.json();
                 
                 if (data.success) {
@@ -37576,7 +37576,7 @@ const promo = await fetch('/api/v1/offers/validate', {
         async function loadLanguageSettings() {
             if (window.accountLanguageSettings) return;
             try {
-                const response = await fetch('/api/account/language-settings');
+                const response = await fetch('/api/account/language-settings', { headers: authHeaders() });
                 const data = await response.json();
                 if (data.success) {
                     window.accountLanguageSettings = {
