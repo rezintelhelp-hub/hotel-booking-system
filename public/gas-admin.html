@@ -18316,6 +18316,14 @@ const promo = await fetch('/api/v1/offers/validate', {
         
         async function loadWebsiteBuilderSection(section) {
             try {
+                // Ensure language settings are loaded before initializing tabs
+                if (!accountLanguageSettings.supported || accountLanguageSettings.supported.length === 0) {
+                    await loadLanguageSettings();
+                }
+                
+                // Initialize language tabs for this section
+                initWbSectionLangTabs(section);
+                
                 // Determine which container to update - editor panel (visible) or original view
                 const editorPanelMap = {
                     'header': 'wb-header',
@@ -18495,6 +18503,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                     if (section === 'reviews') {
                         toggleReviewsAppFields();
                     }
+                    
+                    // Load multilingual data for this section
+                    loadWbMultilingual(section, data.settings);
                 } else {
                     console.log(`No saved ${section} settings, using template defaults`);
                 }
