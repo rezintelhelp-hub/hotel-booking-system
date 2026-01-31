@@ -44210,7 +44210,11 @@ const GAS_TRANSLATIONS = {
         "available": "Available",
         "unavailable": "Unavailable",
         "under": "under",
-        "more_info": "More Information"
+        "more_info": "More Information",
+        "apply": "Apply",
+        "and": "and",
+        "processing": "Processing...",
+        "coming_soon": "Coming soon"
       },
       "booking": {
         "book_now": "Book Now",
@@ -44279,12 +44283,19 @@ const GAS_TRANSLATIONS = {
         "payment": "Payment",
         "pay_now": "Pay Now",
         "pay_deposit": "Pay Deposit",
+        "pay_at_property": "Pay at Property",
+        "pay_at_property_desc": "Pay when you arrive - no payment needed now",
+        "pay_by_card": "Pay by Card",
         "card_number": "Card Number",
+        "card_details": "Card Details",
         "expiry_date": "Expiry Date",
         "cvv": "CVV",
         "cardholder_name": "Cardholder Name",
-        "payment_secure": "Your payment is secure",
-        "payment_processing": "Processing payment..."
+        "payment_secure": "Your payment is secured by Stripe",
+        "payment_processing": "Processing payment...",
+        "deposit_amount": "Deposit Amount",
+        "balance_due": "Balance due at check-in",
+        "deposit_info": "A deposit will be charged now. The remaining balance is due at check-in."
       },
       "property": {
         "property": "Property",
@@ -44397,6 +44408,7 @@ const GAS_TRANSLATIONS = {
         "offer_discount": "Offer Discount",
         "your_extras": "Your Extras",
         "promo_code": "Promo Code",
+        "enter_promo": "Enter promo code",
         "taxes_fees": "Taxes & Fees",
         "includes_taxes": "Includes all taxes and fees",
         "cancellation_policy": "Cancellation Policy",
@@ -44404,7 +44416,11 @@ const GAS_TRANSLATIONS = {
         "until_48h": "until 48 hours before check-in.",
         "non_refundable": "Non-refundable.",
         "cannot_cancel": "This rate cannot be cancelled or modified.",
-        "please_enter_details": "Please enter your details. We'll send the booking confirmation to your email."
+        "please_enter_details": "Please enter your details. We'll send the booking confirmation to your email.",
+        "enhance_stay": "Enhance Your Stay",
+        "add_extras_text": "Add extras to make your stay even more special.",
+        "no_extras": "No extras available for this booking.",
+        "continue_payment": "Continue to Payment"
       }
     }
   },
@@ -44881,7 +44897,11 @@ const GAS_TRANSLATIONS = {
         "available": "Beschikbaar",
         "unavailable": "Niet beschikbaar",
         "under": "onder",
-        "more_info": "Meer informatie"
+        "more_info": "Meer informatie",
+        "apply": "Toepassen",
+        "and": "en",
+        "processing": "Bezig...",
+        "coming_soon": "Binnenkort beschikbaar"
       },
       "booking": {
         "book_now": "Boek nu",
@@ -44950,12 +44970,19 @@ const GAS_TRANSLATIONS = {
         "payment": "Betaling",
         "pay_now": "Nu betalen",
         "pay_deposit": "Aanbetaling doen",
+        "pay_at_property": "Betalen bij accommodatie",
+        "pay_at_property_desc": "Betaal bij aankomst - nu geen betaling nodig",
+        "pay_by_card": "Betalen met kaart",
         "card_number": "Kaartnummer",
+        "card_details": "Kaartgegevens",
         "expiry_date": "Vervaldatum",
         "cvv": "CVV",
         "cardholder_name": "Naam kaarthouder",
-        "payment_secure": "Uw betaling is beveiligd",
-        "payment_processing": "Betaling wordt verwerkt..."
+        "payment_secure": "Uw betaling is beveiligd door Stripe",
+        "payment_processing": "Betaling wordt verwerkt...",
+        "deposit_amount": "Aanbetaling",
+        "balance_due": "Restbedrag bij inchecken",
+        "deposit_info": "Nu wordt een aanbetaling afgeschreven. Het resterende bedrag is bij inchecken verschuldigd."
       },
       "property": {
         "property": "Accommodatie",
@@ -45067,6 +45094,7 @@ const GAS_TRANSLATIONS = {
         "offer_discount": "Aanbiedingskorting",
         "your_extras": "Uw extra's",
         "promo_code": "Promotiecode",
+        "enter_promo": "Voer promotiecode in",
         "taxes_fees": "Belastingen & kosten",
         "includes_taxes": "Inclusief alle belastingen en kosten",
         "cancellation_policy": "Annuleringsbeleid",
@@ -45074,7 +45102,11 @@ const GAS_TRANSLATIONS = {
         "until_48h": "tot 48 uur voor inchecken.",
         "non_refundable": "Niet-restitueerbaar.",
         "cannot_cancel": "Dit tarief kan niet worden geannuleerd of gewijzigd.",
-        "please_enter_details": "Vul uw gegevens in. We sturen de boekingsbevestiging naar uw e-mailadres."
+        "please_enter_details": "Vul uw gegevens in. We sturen de boekingsbevestiging naar uw e-mailadres.",
+        "enhance_stay": "Verbeter uw verblijf",
+        "add_extras_text": "Voeg extra's toe om uw verblijf nog specialer te maken.",
+        "no_extras": "Geen extra's beschikbaar voor deze boeking.",
+        "continue_payment": "Doorgaan naar betaling"
       }
     }
   },
@@ -45304,11 +45336,46 @@ const GAS_TRANSLATIONS = {
   }
 };
 
+// Helper function to deep merge objects, filling missing keys from source
+function fillMissingTranslations(target, source) {
+  const result = JSON.parse(JSON.stringify(target)); // Deep clone
+  
+  for (const category in source) {
+    if (!result[category]) {
+      result[category] = {};
+    }
+    for (const key in source[category]) {
+      if (result[category][key] === undefined) {
+        // Mark missing translations with English value (prefixed for debugging if needed)
+        result[category][key] = source[category][key];
+      }
+    }
+  }
+  return result;
+}
+
 // Get UI translations for a specific language
 app.get('/api/public/translations/:lang', (req, res) => {
   const { lang } = req.params;
-  const translations = GAS_TRANSLATIONS[lang] || GAS_TRANSLATIONS['en'];
-  res.json({ success: true, translations });
+  const englishStrings = GAS_TRANSLATIONS['en']?.strings || {};
+  
+  if (GAS_TRANSLATIONS[lang]) {
+    // Fill any missing keys from English
+    const filledStrings = fillMissingTranslations(
+      GAS_TRANSLATIONS[lang].strings || {},
+      englishStrings
+    );
+    res.json({ 
+      success: true, 
+      translations: {
+        ...GAS_TRANSLATIONS[lang],
+        strings: filledStrings
+      }
+    });
+  } else {
+    // Return English as fallback
+    res.json({ success: true, translations: GAS_TRANSLATIONS['en'] });
+  }
 });
 
 // Get all available translations
