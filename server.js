@@ -30910,10 +30910,17 @@ app.put('/api/admin/units/:id', async (req, res) => {
       id
     ]);
     
-    // Update display_name separately if provided (save as JSON for JSONB column)
+    // Update display_name separately if provided (handles both string and object)
     if (display_name !== undefined) {
       try {
-        const jsonValue = display_name && display_name.trim() ? JSON.stringify({ en: display_name.trim() }) : null;
+        let jsonValue = null;
+        if (display_name && typeof display_name === 'object') {
+          // Already a multilingual object
+          jsonValue = JSON.stringify(display_name);
+        } else if (display_name && typeof display_name === 'string' && display_name.trim()) {
+          // Plain string - wrap in object
+          jsonValue = JSON.stringify({ en: display_name.trim() });
+        }
         await pool.query(
           `UPDATE bookable_units SET display_name = $1 WHERE id = $2`,
           [jsonValue, id]
@@ -30923,10 +30930,15 @@ app.put('/api/admin/units/:id', async (req, res) => {
       }
     }
     
-    // Update short_description separately if provided (save as JSON for JSONB column)
+    // Update short_description separately if provided (handles both string and object)
     if (short_description !== undefined) {
       try {
-        const jsonValue = short_description ? JSON.stringify({ en: short_description }) : null;
+        let jsonValue = null;
+        if (short_description && typeof short_description === 'object') {
+          jsonValue = JSON.stringify(short_description);
+        } else if (short_description && typeof short_description === 'string') {
+          jsonValue = JSON.stringify({ en: short_description });
+        }
         await pool.query(
           `UPDATE bookable_units SET short_description = $1 WHERE id = $2`,
           [jsonValue, id]
@@ -30936,10 +30948,15 @@ app.put('/api/admin/units/:id', async (req, res) => {
       }
     }
     
-    // Update full_description separately if provided (save as JSON for JSONB column)
+    // Update full_description separately if provided (handles both string and object)
     if (full_description !== undefined) {
       try {
-        const jsonValue = full_description ? JSON.stringify({ en: full_description }) : null;
+        let jsonValue = null;
+        if (full_description && typeof full_description === 'object') {
+          jsonValue = JSON.stringify(full_description);
+        } else if (full_description && typeof full_description === 'string') {
+          jsonValue = JSON.stringify({ en: full_description });
+        }
         await pool.query(
           `UPDATE bookable_units SET full_description = $1 WHERE id = $2`,
           [jsonValue, id]
