@@ -18221,7 +18221,11 @@ const promo = await fetch('/api/v1/offers/validate', {
             // Save current value
             wbMultilingual[section][field][currentWbLang[section][field]] = input.value;
             
-            const sourceText = wbMultilingual[section][field].en || wbMultilingual[section][field][currentWbLang[section][field]] || Object.values(wbMultilingual[section][field]).find(v => v);
+            // Find source text - use current language value, or find any non-empty value
+            const currentLang = currentWbLang[section][field];
+            const sourceText = wbMultilingual[section][field][currentLang] || 
+                              Object.values(wbMultilingual[section][field]).find(v => v && v.trim());
+            
             if (!sourceText) { alert('Please enter text in at least one language first'); return; }
             
             const btn = event.target;
@@ -18229,20 +18233,37 @@ const promo = await fetch('/api/v1/offers/validate', {
             btn.innerHTML = '⏳';
             btn.disabled = true;
             
-            const targetLangs = getAccountLanguages().filter(l => l !== currentWbLang[section][field]);
+            // Translate to ALL languages that don't have content yet (including primary if empty)
+            const allLangs = getAccountLanguages();
+            const langsNeedingTranslation = allLangs.filter(l => {
+                // Skip the language we're translating FROM
+                if (l === currentLang) return false;
+                // Include any language that's empty
+                return !wbMultilingual[section][field][l]?.trim();
+            });
+            
+            if (langsNeedingTranslation.length === 0) {
+                alert('All languages already have content. Clear a language tab to re-translate.');
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+                return;
+            }
             
             try {
                 const response = await fetch('/api/translate', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text: sourceText, targetLangs })
+                    body: JSON.stringify({ text: sourceText, targetLangs: langsNeedingTranslation, sourceLang: currentLang })
                 });
                 const result = await response.json();
                 if (result.success && result.translations) {
                     Object.entries(result.translations).forEach(([lang, text]) => {
-                        if (!wbMultilingual[section][field][lang]) wbMultilingual[section][field][lang] = text;
+                        // Set translation for any empty language
+                        if (!wbMultilingual[section][field][lang]?.trim()) {
+                            wbMultilingual[section][field][lang] = text;
+                        }
                     });
-                    const tabsId = `wb-${section}-${field.replace('_', '-')}-tabs`;
+                    const tabsId = `wb-${section}-${field.replace(/_/g, '-')}-tabs`;
                     document.querySelectorAll(`#${tabsId} .lang-tab`).forEach(t => { t.classList.toggle('has-content', !!wbMultilingual[section][field][t.dataset.lang]?.trim()); });
                     alert('Translations added! Click each language tab to review.');
                 } else {
@@ -18339,7 +18360,7 @@ const promo = await fetch('/api/v1/offers/validate', {
         async function loadWebsiteBuilderSection(section) {
             try {
                 // Ensure language settings are loaded before initializing tabs
-                if (!accountLanguageSettings.supported || accountLanguageSettings.supported.length === 0) {
+                if (!accountLanguageSettings._loaded) {
                     await loadLanguageSettings();
                 }
                 
@@ -19221,7 +19242,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             const clientId = getClientId() || localStorage.getItem('gas_selected_client_id');
             
             // Ensure language settings are loaded before initializing tabs
-            if (!accountLanguageSettings.supported || accountLanguageSettings.supported.length === 0) {
+            if (!accountLanguageSettings._loaded) {
                 await loadLanguageSettings();
             }
             
@@ -27453,7 +27474,8 @@ const promo = await fetch('/api/v1/offers/validate', {
         // Store current language settings
         let accountLanguageSettings = {
             primary: 'en',
-            supported: ['en']
+            supported: ['en'],
+            _loaded: false  // Flag to track if loaded from server
         };
         
         async function loadLanguageSettings() {
@@ -27471,14 +27493,15 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const data = await response.json();
                 
                 if (data.success && data.settings?.languages) {
-                    accountLanguageSettings = data.settings.languages;
+                    accountLanguageSettings = { ...data.settings.languages, _loaded: true };
                 } else {
                     // Default settings
-                    accountLanguageSettings = { primary: 'en', supported: ['en'] };
+                    accountLanguageSettings = { primary: 'en', supported: ['en'], _loaded: true };
                 }
                 
-                // Update UI
-                document.getElementById('settings-primary-language').value = accountLanguageSettings.primary;
+                // Update UI if elements exist
+                const primaryLangEl = document.getElementById('settings-primary-language');
+                if (primaryLangEl) primaryLangEl.value = accountLanguageSettings.primary;
                 
                 // Update checkboxes
                 const checkboxes = document.querySelectorAll('.additional-lang-cb');
