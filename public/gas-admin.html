@@ -4949,10 +4949,12 @@
                                 <div class="card-body">
                                     <div class="form-group">
                                         <label class="form-label">Page Title</label>
+                                        <div class="lang-tabs" id="wb-page-rooms-title-tabs" style="margin-bottom: 0.5rem;"></div>
                                         <input type="text" class="form-input" id="wb-page-rooms-title" placeholder="e.g., Our Rooms & Suites" value="Book Your Stay">
                                     </div>
                                     <div class="form-group">
                                         <label class="form-label">Subtitle</label>
+                                        <div class="lang-tabs" id="wb-page-rooms-subtitle-tabs" style="margin-bottom: 0.5rem;"></div>
                                         <input type="text" class="form-input" id="wb-page-rooms-subtitle" placeholder="e.g., Find your perfect accommodation">
                                     </div>
                                 </div>
@@ -5093,10 +5095,12 @@
                                 <div class="card-body">
                                     <div class="form-group">
                                         <label class="form-label">Menu Title <small style="color: #64748b;">(appears in navigation menu)</small></label>
+                                        <div class="lang-tabs" id="wb-page-about-menu-title-tabs" style="margin-bottom: 0.5rem;"></div>
                                         <input type="text" class="form-input" id="wb-page-about-menu-title" placeholder="e.g., About Us" value="About Us" style="flex: 1;">
                                     </div>
                                     <div class="form-group">
                                         <label class="form-label">Page Title <small style="color: #64748b;">(displayed on page hero)</small></label>
+                                        <div class="lang-tabs" id="wb-page-about-title-tabs" style="margin-bottom: 0.5rem;"></div>
                                         <div style="display: flex; gap: 8px;">
                                             <input type="text" class="form-input" id="wb-page-about-title" placeholder="e.g., R Apartments, Villa Talang" value="" style="flex: 1;">
                                             <button type="button" class="btn" onclick="generatePageAboutTitle()" style="background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%); white-space: nowrap;">✨ Generate</button>
@@ -5104,6 +5108,7 @@
                                     </div>
                                     <div class="form-group">
                                         <label class="form-label">Page Subtitle</label>
+                                        <div class="lang-tabs" id="wb-page-about-subtitle-tabs" style="margin-bottom: 0.5rem;"></div>
                                         <input type="text" class="form-input" id="wb-page-about-subtitle" placeholder="e.g., Learn more about our story and values">
                                     </div>
                                     <div class="form-group">
@@ -5139,10 +5144,12 @@
                                 <div class="card-body">
                                     <div class="form-group">
                                         <label class="form-label">Content Title (H2)</label>
+                                        <div class="lang-tabs" id="wb-page-about-content-title-tabs" style="margin-bottom: 0.5rem;"></div>
                                         <input type="text" class="form-input" id="wb-page-about-content-title" placeholder="e.g., Our Story, Welcome, About Us">
                                     </div>
                                     <div class="form-group">
                                         <label class="form-label">Main Content</label>
+                                        <div class="lang-tabs" id="wb-page-about-content-tabs" style="margin-bottom: 0.5rem;"></div>
                                         <textarea class="form-textarea" id="wb-page-about-content" rows="8" placeholder="Tell your story here... You can write multiple paragraphs about your property, your team, your values, and what makes you unique."></textarea>
                                         <button type="button" class="btn" onclick="generatePageAboutContent()" style="background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%); margin-top: 8px;">✨ Generate About Content</button>
                                     </div>
@@ -6064,10 +6071,12 @@
                         </div>
                         <div class="form-group">
                             <label class="form-label">Site Name (if no logo)</label>
+                            <div class="lang-tabs" id="wb-header-site-name-tabs" style="margin-bottom: 0.5rem;"></div>
                             <input type="text" class="form-input" id="wb-header-site-name" placeholder="e.g., The Grand Hotel">
                         </div>
                         <div class="form-group">
                             <label class="form-label">Tagline</label>
+                            <div class="lang-tabs" id="wb-header-tagline-tabs" style="margin-bottom: 0.5rem;"></div>
                             <input type="text" class="form-input" id="wb-header-tagline" placeholder="e.g., Luxury Accommodation Since 1985">
                         </div>
                     </div>
@@ -7243,6 +7252,7 @@
                         </div>
                         <div class="form-group" style="margin-top: 1rem;">
                             <label class="form-label">Copyright Text</label>
+                            <div class="lang-tabs" id="wb-footer-copyright-tabs" style="margin-bottom: 0.5rem;"></div>
                             <input type="text" class="form-input" id="wb-footer-copyright" value=" 2025 All rights reserved.">
                         </div>
                     </div>
@@ -18141,14 +18151,11 @@ const promo = await fetch('/api/v1/offers/validate', {
         
         // Render language tabs for a Website Builder field based on account settings
         function renderWbLangTabs(section, field, containerId) {
-            console.log('renderWbLangTabs called:', { section, field, containerId });
             const container = document.getElementById(containerId);
-            console.log('Container found:', container);
             if (!container) return;
             
             const langs = getAccountLanguages();
             const primaryLang = getAccountPrimaryLanguage();
-            console.log('Languages:', { langs, primaryLang });
             const langInfo = { en: { flag: '🇬🇧', name: 'EN' }, fr: { flag: '🇫🇷', name: 'FR' }, es: { flag: '🇪🇸', name: 'ES' }, nl: { flag: '🇳🇱', name: 'NL' }, de: { flag: '🇩🇪', name: 'DE' }, it: { flag: '🇮🇹', name: 'IT' }, pt: { flag: '🇵🇹', name: 'PT' }, ru: { flag: '🇷🇺', name: 'RU' }, zh: { flag: '🇨🇳', name: 'ZH' }, ja: { flag: '🇯🇵', name: 'JA' } };
             
             initWbMultilingual(section, field);
@@ -18161,18 +18168,21 @@ const promo = await fetch('/api/v1/offers/validate', {
             }).join('');
             html += `<button type="button" class="btn" onclick="translateWbField('${section}', '${field}')" style="margin-left: auto; padding: 0.25rem 0.5rem; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; font-size: 0.75rem;" title="Auto-translate">🌐</button>`;
             
-            console.log('Setting innerHTML:', html);
             container.innerHTML = html;
         }
         
         // Field ID mapping for WB sections
         const wbFieldToId = {
+            'header': { 'site_name': 'wb-header-site-name', 'tagline': 'wb-header-tagline' },
             'hero': { 'headline': 'wb-hero-headline', 'subheadline': 'wb-hero-subheadline', 'button_text': 'wb-hero-button-text' },
             'intro': { 'title': 'wb-intro-title', 'text': 'wb-intro-text', 'btn_text': 'wb-intro-btn-text' },
             'about': { 'title': 'wb-about-title', 'text': 'wb-about-text' },
             'cta': { 'title': 'wb-cta-title', 'text': 'wb-cta-text', 'btn_text': 'wb-cta-btn-text' },
             'featured': { 'title': 'wb-featured-title', 'subtitle': 'wb-featured-subtitle', 'btn_text': 'wb-featured-btn-text' },
-            'reviews': { 'title': 'wb-reviews-title', 'subtitle': 'wb-reviews-subtitle' }
+            'reviews': { 'title': 'wb-reviews-title', 'subtitle': 'wb-reviews-subtitle' },
+            'footer': { 'copyright': 'wb-footer-copyright' },
+            'page-rooms': { 'title': 'wb-page-rooms-title', 'subtitle': 'wb-page-rooms-subtitle' },
+            'page-about': { 'menu_title': 'wb-page-about-menu-title', 'title': 'wb-page-about-title', 'subtitle': 'wb-page-about-subtitle', 'content_title': 'wb-page-about-content-title', 'content': 'wb-page-about-content' }
         };
         
         function switchWbLang(section, field, lang, btn) {
@@ -18249,12 +18259,16 @@ const promo = await fetch('/api/v1/offers/validate', {
         function loadWbMultilingual(section, data) {
             if (!data) return;
             const fields = {
+                'header': ['site_name', 'tagline'],
                 'hero': ['headline', 'subheadline', 'button_text'],
                 'intro': ['title', 'text', 'btn_text'],
                 'about': ['title', 'text'],
                 'cta': ['title', 'text', 'btn_text'],
                 'featured': ['title', 'subtitle', 'btn_text'],
-                'reviews': ['title', 'subtitle']
+                'reviews': ['title', 'subtitle'],
+                'footer': ['copyright'],
+                'page-rooms': ['title', 'subtitle'],
+                'page-about': ['menu_title', 'title', 'subtitle', 'content_title', 'content']
             };
             (fields[section] || []).forEach(field => {
                 initWbMultilingual(section, field);
@@ -18265,7 +18279,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     wbMultilingual[section][field][getAccountPrimaryLanguage()] = data[field];
                 }
                 // Render tabs and update indicators
-                const tabsId = `wb-${section}-${field.replace('_', '-')}-tabs`;
+                const tabsId = `wb-${section}-${field.replace(/_/g, '-')}-tabs`;
                 renderWbLangTabs(section, field, tabsId);
             });
         }
@@ -18273,12 +18287,16 @@ const promo = await fetch('/api/v1/offers/validate', {
         function getWbMultilingualData(section) {
             const result = {};
             const fields = {
+                'header': ['site_name', 'tagline'],
                 'hero': ['headline', 'subheadline', 'button_text'],
                 'intro': ['title', 'text', 'btn_text'],
                 'about': ['title', 'text'],
                 'cta': ['title', 'text', 'btn_text'],
                 'featured': ['title', 'subtitle', 'btn_text'],
-                'reviews': ['title', 'subtitle']
+                'reviews': ['title', 'subtitle'],
+                'footer': ['copyright'],
+                'page-rooms': ['title', 'subtitle'],
+                'page-about': ['menu_title', 'title', 'subtitle', 'content_title', 'content']
             };
             (fields[section] || []).forEach(field => {
                 initWbMultilingual(section, field);
@@ -18301,15 +18319,19 @@ const promo = await fetch('/api/v1/offers/validate', {
         // Initialize WB language tabs when section loads
         function initWbSectionLangTabs(section) {
             const fields = {
+                'header': ['site_name', 'tagline'],
                 'hero': ['headline', 'subheadline', 'button_text'],
                 'intro': ['title', 'text', 'btn_text'],
                 'about': ['title', 'text'],
                 'cta': ['title', 'text', 'btn_text'],
                 'featured': ['title', 'subtitle', 'btn_text'],
-                'reviews': ['title', 'subtitle']
+                'reviews': ['title', 'subtitle'],
+                'footer': ['copyright'],
+                'page-rooms': ['title', 'subtitle'],
+                'page-about': ['menu_title', 'title', 'subtitle', 'content_title', 'content']
             };
             (fields[section] || []).forEach(field => {
-                const tabsId = `wb-${section}-${field.replace('_', '-')}-tabs`;
+                const tabsId = `wb-${section}-${field.replace(/_/g, '-')}-tabs`;
                 renderWbLangTabs(section, field, tabsId);
             });
         }
