@@ -48519,6 +48519,13 @@ app.get('/api/setup-content-ideas', async (req, res) => {
         await pool.query(`ALTER TABLE attractions ADD COLUMN IF NOT EXISTS meta_description VARCHAR(300)`);
         await pool.query(`ALTER TABLE attractions ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMP`);
         
+        // Add multilingual columns to attractions
+        await pool.query(`ALTER TABLE attractions ADD COLUMN IF NOT EXISTS name_ml JSONB`);
+        await pool.query(`ALTER TABLE attractions ADD COLUMN IF NOT EXISTS short_description_ml JSONB`);
+        await pool.query(`ALTER TABLE attractions ADD COLUMN IF NOT EXISTS description_ml JSONB`);
+        await pool.query(`ALTER TABLE attractions ADD COLUMN IF NOT EXISTS meta_title_ml JSONB`);
+        await pool.query(`ALTER TABLE attractions ADD COLUMN IF NOT EXISTS meta_description_ml JSONB`);
+        
         res.json({ success: true, message: 'Content ideas table created + FAQ schema columns added to blog_posts and attractions' });
     } catch (error) {
         res.json({ success: false, error: error.message });
@@ -49494,7 +49501,9 @@ app.post('/api/admin/attractions', async (req, res) => {
             address, city, distance_text, distance_value, latitude, longitude, google_maps_url,
             category, phone, website_url, opening_hours, price_range, rating,
             meta_title, meta_description,
-            is_featured, is_published, display_order
+            is_featured, is_published, display_order,
+            // Multilingual fields
+            name_ml, short_description_ml, description_ml, meta_title_ml, meta_description_ml
         } = req.body;
         
         // Get client_id from property's account_id (same relationship used by booking system)
@@ -49525,15 +49534,21 @@ app.post('/api/admin/attractions', async (req, res) => {
                 client_id, property_id, name, slug, description, short_description, featured_image_url,
                 address, city, distance_text, distance_value, latitude, longitude, google_maps_url,
                 category, phone, website_url, opening_hours, price_range, rating,
-                meta_title, meta_description, is_featured, is_published, display_order
+                meta_title, meta_description, is_featured, is_published, display_order,
+                name_ml, short_description_ml, description_ml, meta_title_ml, meta_description_ml
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30)
             RETURNING *
         `, [
             client_id, property_id, name, finalSlug, description, short_description, featured_image_url,
             address, city, distance_text, distance_value, latitude, longitude, google_maps_url,
             category, phone, website_url, opening_hours, price_range, rating,
-            meta_title, meta_description, is_featured || false, is_published !== false, display_order || 0
+            meta_title, meta_description, is_featured || false, is_published !== false, display_order || 0,
+            name_ml ? JSON.stringify(name_ml) : null,
+            short_description_ml ? JSON.stringify(short_description_ml) : null,
+            description_ml ? JSON.stringify(description_ml) : null,
+            meta_title_ml ? JSON.stringify(meta_title_ml) : null,
+            meta_description_ml ? JSON.stringify(meta_description_ml) : null
         ]);
         
         res.json({ success: true, attraction: result.rows[0] });
@@ -49554,7 +49569,9 @@ app.put('/api/admin/attractions/:id', async (req, res) => {
             property_id, name, slug, description, short_description, featured_image_url,
             address, city, distance_text, distance_value, latitude, longitude, google_maps_url,
             category, phone, website_url, opening_hours, price_range, rating,
-            meta_title, meta_description, is_featured, is_published, display_order
+            meta_title, meta_description, is_featured, is_published, display_order,
+            // Multilingual fields
+            name_ml, short_description_ml, description_ml, meta_title_ml, meta_description_ml
         } = req.body;
         
         const result = await pool.query(`
@@ -49583,14 +49600,25 @@ app.put('/api/admin/attractions/:id', async (req, res) => {
                 is_featured = COALESCE($22, is_featured),
                 is_published = COALESCE($23, is_published),
                 display_order = COALESCE($24, display_order),
+                name_ml = $25,
+                short_description_ml = $26,
+                description_ml = $27,
+                meta_title_ml = $28,
+                meta_description_ml = $29,
                 updated_at = NOW()
-            WHERE id = $25
+            WHERE id = $30
             RETURNING *
         `, [
             property_id, name, slug, description, short_description, featured_image_url,
             address, city, distance_text, distance_value, latitude, longitude, google_maps_url,
             category, phone, website_url, opening_hours, price_range, rating,
-            meta_title, meta_description, is_featured, is_published, display_order, id
+            meta_title, meta_description, is_featured, is_published, display_order,
+            name_ml ? JSON.stringify(name_ml) : null,
+            short_description_ml ? JSON.stringify(short_description_ml) : null,
+            description_ml ? JSON.stringify(description_ml) : null,
+            meta_title_ml ? JSON.stringify(meta_title_ml) : null,
+            meta_description_ml ? JSON.stringify(meta_description_ml) : null,
+            id
         ]);
         
         res.json({ success: true, attraction: result.rows[0] });
@@ -50264,12 +50292,13 @@ app.get('/api/public/client/:clientId/blog/:slug', async (req, res) => {
 app.get('/api/public/client/:clientId/attractions', async (req, res) => {
     try {
         const { clientId } = req.params;
-        const { category, limit } = req.query;
+        const { category, limit, lang = 'en' } = req.query;
         
         // Join to properties and filter by account_id - same pattern as rooms API
         let query = `
             SELECT a.id, a.name, a.slug, a.short_description, a.featured_image_url, a.category,
                    a.address, a.city, a.distance_text, a.rating, a.price_range,
+                   a.name_ml, a.short_description_ml, a.meta_title_ml, a.meta_description_ml,
                    p.name as property_name
             FROM attractions a
             JOIN properties p ON a.property_id = p.id
@@ -50295,7 +50324,17 @@ app.get('/api/public/client/:clientId/attractions', async (req, res) => {
         }
         
         const result = await pool.query(query, params);
-        res.json({ success: true, attractions: result.rows });
+        
+        // Apply language-specific content
+        const attractions = result.rows.map(a => ({
+            ...a,
+            name: a.name_ml?.[lang] || a.name_ml?.en || a.name,
+            short_description: a.short_description_ml?.[lang] || a.short_description_ml?.en || a.short_description,
+            meta_title: a.meta_title_ml?.[lang] || a.meta_title_ml?.en || a.meta_title,
+            meta_description: a.meta_description_ml?.[lang] || a.meta_description_ml?.en || a.meta_description
+        }));
+        
+        res.json({ success: true, attractions });
     } catch (error) {
         res.json({ success: false, error: error.message });
     }
@@ -50305,6 +50344,8 @@ app.get('/api/public/client/:clientId/attractions', async (req, res) => {
 app.get('/api/public/client/:clientId/attractions/:slug', async (req, res) => {
     try {
         const { clientId, slug } = req.params;
+        const { lang = 'en' } = req.query;
+        
         const result = await pool.query(`
             SELECT a.*, p.name as property_name
             FROM attractions a
@@ -50323,8 +50364,18 @@ app.get('/api/public/client/:clientId/attractions/:slug', async (req, res) => {
             ORDER BY is_primary DESC, display_order
         `, [result.rows[0].id]);
         
-        const attraction = result.rows[0];
-        attraction.images = imagesResult.rows;
+        const a = result.rows[0];
+        
+        // Apply language-specific content
+        const attraction = {
+            ...a,
+            name: a.name_ml?.[lang] || a.name_ml?.en || a.name,
+            short_description: a.short_description_ml?.[lang] || a.short_description_ml?.en || a.short_description,
+            description: a.description_ml?.[lang] || a.description_ml?.en || a.description,
+            meta_title: a.meta_title_ml?.[lang] || a.meta_title_ml?.en || a.meta_title,
+            meta_description: a.meta_description_ml?.[lang] || a.meta_description_ml?.en || a.meta_description,
+            images: imagesResult.rows
+        };
         
         res.json({ success: true, attraction });
     } catch (error) {
