@@ -18278,6 +18278,7 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
         
         function loadWbMultilingual(section, data) {
+            console.log('loadWbMultilingual for', section, ':', data);
             if (!data) return;
             const fields = {
                 'header': ['site_name', 'tagline'],
@@ -18295,6 +18296,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 initWbMultilingual(section, field);
                 const mlKey = `${field}_ml`;
                 if (data[mlKey] && typeof data[mlKey] === 'object') {
+                    console.log('Loading multilingual for', field, ':', data[mlKey]);
                     wbMultilingual[section][field] = { ...wbMultilingual[section][field], ...data[mlKey] };
                 } else if (data[field]) {
                     wbMultilingual[section][field][getAccountPrimaryLanguage()] = data[field];
@@ -18334,6 +18336,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     result[field] = cleanObj.en || cleanObj[getAccountPrimaryLanguage()] || Object.values(cleanObj)[0] || '';
                 }
             });
+            console.log('getWbMultilingualData for', section, ':', result);
             return result;
         }
         
