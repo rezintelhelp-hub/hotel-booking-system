@@ -36787,9 +36787,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const result = await response.json();
                 console.log('Server response:', JSON.stringify(result));
                 if (result.success) {
-                    showNotification('Room updated successfully!', 'success');
-                    closeModal('editRoomModal');
-                    loadRoomsForProperty();
+                    showNotification('Room saved!', 'success');
+                    // Don't close modal - user may want to continue editing translations
+                    // Update tab indicators to show saved content
+                    updateRoomLangTabIndicators();
+                    loadRoomsForProperty(); // Refresh list in background
                 } else {
                     alert('Error updating room: ' + result.error);
                 }
