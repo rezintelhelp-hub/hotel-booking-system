@@ -875,6 +875,18 @@ async function runMigrations() {
       console.log('ℹ️  blog_posts enhanced columns:', blogEnhanceError.message);
     }
     
+    // Multilingual columns for blog_posts
+    try {
+      await pool.query(`ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS title_ml JSONB`);
+      await pool.query(`ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS excerpt_ml JSONB`);
+      await pool.query(`ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS content_ml JSONB`);
+      await pool.query(`ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS meta_title_ml JSONB`);
+      await pool.query(`ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS meta_description_ml JSONB`);
+      console.log('✅ blog_posts multilingual columns ensured');
+    } catch (blogMlError) {
+      console.log('ℹ️  blog_posts multilingual columns:', blogMlError.message);
+    }
+    
     // Property images table and columns
     try {
       await pool.query(`
@@ -47691,7 +47703,9 @@ app.post('/api/admin/blog', async (req, res) => {
             meta_title, meta_description,
             author_name, author_image_url,
             read_time_minutes, is_featured, is_published, published_at,
-            scheduled_at, ai_generated, source_keyword, language
+            scheduled_at, ai_generated, source_keyword, language,
+            // Multilingual fields
+            title_ml, excerpt_ml, content_ml, meta_title_ml, meta_description_ml
         } = req.body;
         
         console.log('Blog POST received:', { property_id, title });
@@ -47722,54 +47736,29 @@ app.post('/api/admin/blog', async (req, res) => {
         // Generate slug if not provided
         const finalSlug = slug || title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
         
-        // Check if faq_schema column exists
-        let hasFaqSchema = true;
-        try {
-            await pool.query("SELECT faq_schema FROM blog_posts LIMIT 1");
-        } catch (e) {
-            hasFaqSchema = false;
-        }
-        
-        let result;
-        if (hasFaqSchema) {
-            result = await pool.query(`
-                INSERT INTO blog_posts (
-                    client_id, property_id, title, slug, excerpt, content, featured_image_url,
-                    category, tags, meta_title, meta_description,
-                    author_name, author_image_url, read_time_minutes,
-                    is_featured, is_published, published_at,
-                    scheduled_at, ai_generated, source_keyword, language, faq_schema, event_date
-                )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
-                RETURNING *
-            `, [
-                client_id, property_id || null, title, finalSlug, excerpt, content, featured_image_url,
-                category, tags || [], meta_title, meta_description,
-                author_name, author_image_url, read_time_minutes || 5,
-                is_featured || false, is_published === true, is_published === true ? (published_at || new Date()) : null,
-                scheduled_at || null, ai_generated || false, source_keyword || null, language || 'en',
-                req.body.faq_schema || null, req.body.event_date || null
-            ]);
-        } else {
-            result = await pool.query(`
-                INSERT INTO blog_posts (
-                    client_id, property_id, title, slug, excerpt, content, featured_image_url,
-                    category, tags, meta_title, meta_description,
-                    author_name, author_image_url, read_time_minutes,
-                    is_featured, is_published, published_at,
-                    scheduled_at, ai_generated, source_keyword, language, event_date
-                )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
-                RETURNING *
-            `, [
-                client_id, property_id || null, title, finalSlug, excerpt, content, featured_image_url,
-                category, tags || [], meta_title, meta_description,
-                author_name, author_image_url, read_time_minutes || 5,
-                is_featured || false, is_published === true, is_published === true ? (published_at || new Date()) : null,
-                scheduled_at || null, ai_generated || false, source_keyword || null, language || 'en',
-                req.body.event_date || null
-            ]);
-        }
+        const result = await pool.query(`
+            INSERT INTO blog_posts (
+                client_id, property_id, title, slug, excerpt, content, featured_image_url,
+                category, tags, meta_title, meta_description,
+                author_name, author_image_url, read_time_minutes,
+                is_featured, is_published, published_at,
+                scheduled_at, ai_generated, source_keyword, language,
+                title_ml, excerpt_ml, content_ml, meta_title_ml, meta_description_ml
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
+            RETURNING *
+        `, [
+            client_id, property_id || null, title, finalSlug, excerpt, content, featured_image_url,
+            category, tags || [], meta_title, meta_description,
+            author_name, author_image_url, read_time_minutes || 5,
+            is_featured || false, is_published === true, is_published === true ? (published_at || new Date()) : null,
+            scheduled_at || null, ai_generated || false, source_keyword || null, language || 'en',
+            title_ml ? JSON.stringify(title_ml) : null,
+            excerpt_ml ? JSON.stringify(excerpt_ml) : null,
+            content_ml ? JSON.stringify(content_ml) : null,
+            meta_title_ml ? JSON.stringify(meta_title_ml) : null,
+            meta_description_ml ? JSON.stringify(meta_description_ml) : null
+        ]);
         
         res.json({ success: true, post: result.rows[0] });
     } catch (error) {
@@ -47792,7 +47781,9 @@ app.put('/api/admin/blog/:id', async (req, res) => {
             category, tags,
             meta_title, meta_description,
             author_name, author_image_url,
-            read_time_minutes, is_featured, is_published, published_at
+            read_time_minutes, is_featured, is_published, published_at,
+            // Multilingual fields
+            title_ml, excerpt_ml, content_ml, meta_title_ml, meta_description_ml
         } = req.body;
         
         const result = await pool.query(`
@@ -47813,14 +47804,25 @@ app.put('/api/admin/blog/:id', async (req, res) => {
                 is_featured = COALESCE($14, is_featured),
                 is_published = COALESCE($15, is_published),
                 published_at = COALESCE($16, published_at),
+                title_ml = $17,
+                excerpt_ml = $18,
+                content_ml = $19,
+                meta_title_ml = $20,
+                meta_description_ml = $21,
                 updated_at = NOW()
-            WHERE id = $17
+            WHERE id = $22
             RETURNING *
         `, [
             property_id, title, slug, excerpt, content, featured_image_url,
             category, tags, meta_title, meta_description,
             author_name, author_image_url, read_time_minutes,
-            is_featured, is_published, published_at, id
+            is_featured, is_published, published_at,
+            title_ml ? JSON.stringify(title_ml) : null,
+            excerpt_ml ? JSON.stringify(excerpt_ml) : null,
+            content_ml ? JSON.stringify(content_ml) : null,
+            meta_title_ml ? JSON.stringify(meta_title_ml) : null,
+            meta_description_ml ? JSON.stringify(meta_description_ml) : null,
+            id
         ]);
         
         res.json({ success: true, post: result.rows[0] });
@@ -50163,14 +50165,15 @@ app.get('/api/public/client/:clientId/page/:pageType', async (req, res) => {
 app.get('/api/public/client/:clientId/blog', async (req, res) => {
     try {
         const { clientId } = req.params;
-        const { category, property_id, limit = 10, offset = 0 } = req.query;
+        const { category, property_id, limit = 10, offset = 0, lang = 'en' } = req.query;
         
-        console.log('Public blog API called:', { clientId, property_id, category, limit });
+        console.log('Public blog API called:', { clientId, property_id, category, limit, lang });
         
         // Join to properties and filter by account_id - same pattern as rooms API
         let query = `
             SELECT bp.id, bp.title, bp.slug, bp.excerpt, bp.featured_image_url, bp.category, 
                    bp.author_name, bp.read_time_minutes, bp.published_at, bp.client_id, bp.property_id,
+                   bp.title_ml, bp.excerpt_ml, bp.meta_title_ml, bp.meta_description_ml,
                    p.name as property_name
             FROM blog_posts bp
             JOIN properties p ON bp.property_id = p.id
@@ -50202,9 +50205,20 @@ app.get('/api/public/client/:clientId/blog', async (req, res) => {
         
         const result = await pool.query(query, params);
         
-        console.log('Public blog results:', result.rows.length, 'posts found');
+        // Apply language-specific content
+        const posts = result.rows.map(post => {
+            return {
+                ...post,
+                title: post.title_ml?.[lang] || post.title_ml?.en || post.title,
+                excerpt: post.excerpt_ml?.[lang] || post.excerpt_ml?.en || post.excerpt,
+                meta_title: post.meta_title_ml?.[lang] || post.meta_title_ml?.en || post.meta_title,
+                meta_description: post.meta_description_ml?.[lang] || post.meta_description_ml?.en || post.meta_description
+            };
+        });
         
-        res.json({ success: true, posts: result.rows });
+        console.log('Public blog results:', posts.length, 'posts found');
+        
+        res.json({ success: true, posts });
     } catch (error) {
         console.error('Public blog API error:', error);
         res.json({ success: false, error: error.message });
@@ -50215,6 +50229,8 @@ app.get('/api/public/client/:clientId/blog', async (req, res) => {
 app.get('/api/public/client/:clientId/blog/:slug', async (req, res) => {
     try {
         const { clientId, slug } = req.params;
+        const { lang = 'en' } = req.query;
+        
         const result = await pool.query(`
             SELECT bp.*, p.name as property_name
             FROM blog_posts bp
@@ -50226,7 +50242,19 @@ app.get('/api/public/client/:clientId/blog/:slug', async (req, res) => {
             return res.status(404).json({ success: false, error: 'Post not found' });
         }
         
-        res.json({ success: true, post: result.rows[0] });
+        const post = result.rows[0];
+        
+        // Apply language-specific content
+        const localizedPost = {
+            ...post,
+            title: post.title_ml?.[lang] || post.title_ml?.en || post.title,
+            excerpt: post.excerpt_ml?.[lang] || post.excerpt_ml?.en || post.excerpt,
+            content: post.content_ml?.[lang] || post.content_ml?.en || post.content,
+            meta_title: post.meta_title_ml?.[lang] || post.meta_title_ml?.en || post.meta_title,
+            meta_description: post.meta_description_ml?.[lang] || post.meta_description_ml?.en || post.meta_description
+        };
+        
+        res.json({ success: true, post: localizedPost });
     } catch (error) {
         res.json({ success: false, error: error.message });
     }
