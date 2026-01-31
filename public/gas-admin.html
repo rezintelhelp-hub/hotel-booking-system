@@ -2923,6 +2923,14 @@
                                 </div>
                                 <div class="form-group" style="margin-top: 1rem;">
                                     <label class="form-label">Additional Rules/Notes</label>
+                                    <div class="lang-tabs" id="terms-rules-tabs" style="margin-bottom: 0.5rem;">
+                                        <button type="button" class="lang-tab active" data-lang="en" onclick="switchTermsLang('rules', 'en', this)">🇬🇧 EN</button>
+                                        <button type="button" class="lang-tab" data-lang="fr" onclick="switchTermsLang('rules', 'fr', this)">🇫🇷 FR</button>
+                                        <button type="button" class="lang-tab" data-lang="es" onclick="switchTermsLang('rules', 'es', this)">🇪🇸 ES</button>
+                                        <button type="button" class="lang-tab" data-lang="nl" onclick="switchTermsLang('rules', 'nl', this)">🇳🇱 NL</button>
+                                        <button type="button" class="lang-tab" data-lang="de" onclick="switchTermsLang('rules', 'de', this)">🇩🇪 DE</button>
+                                        <button type="button" class="btn" onclick="translateTermsField('rules')" style="margin-left: auto; padding: 0.25rem 0.5rem; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; font-size: 0.75rem;" title="Auto-translate to other languages">🌐</button>
+                                    </div>
                                     <textarea class="form-input" id="terms-additional-rules" rows="3" placeholder="Any other house rules not covered above..."></textarea>
                                 </div>
                             </div>
@@ -2935,6 +2943,14 @@
                             <div class="card-body">
                                 <div class="form-group">
                                     <label class="form-label">Cancellation Policy</label>
+                                    <div class="lang-tabs" id="terms-cancellation-tabs" style="margin-bottom: 0.5rem;">
+                                        <button type="button" class="lang-tab active" data-lang="en" onclick="switchTermsLang('cancellation', 'en', this)">🇬🇧 EN</button>
+                                        <button type="button" class="lang-tab" data-lang="fr" onclick="switchTermsLang('cancellation', 'fr', this)">🇫🇷 FR</button>
+                                        <button type="button" class="lang-tab" data-lang="es" onclick="switchTermsLang('cancellation', 'es', this)">🇪🇸 ES</button>
+                                        <button type="button" class="lang-tab" data-lang="nl" onclick="switchTermsLang('cancellation', 'nl', this)">🇳🇱 NL</button>
+                                        <button type="button" class="lang-tab" data-lang="de" onclick="switchTermsLang('cancellation', 'de', this)">🇩🇪 DE</button>
+                                        <button type="button" class="btn" onclick="translateTermsField('cancellation')" style="margin-left: auto; padding: 0.25rem 0.5rem; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; font-size: 0.75rem;" title="Auto-translate to other languages">🌐</button>
+                                    </div>
                                     <textarea class="form-input" id="terms-cancellation-policy" rows="4" placeholder="e.g., Free cancellation up to 48 hours before check-in. Cancellations within 48 hours will be charged for the first night. No-shows will be charged the full booking amount."></textarea>
                                     <p style="color: #64748b; font-size: 0.85rem; margin-top: 0.5rem;">This will be displayed on the room page under the Terms tab.</p>
                                 </div>
@@ -23763,9 +23779,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                 quiet_hours_until: document.getElementById('terms-quiet-until')?.value,
                 no_outside_guests: document.getElementById('terms-no-outside-guests')?.checked,
                 id_required: document.getElementById('terms-id-required')?.checked,
-                additional_rules: document.getElementById('terms-additional-rules')?.value,
+                additional_rules: termsMultilingual.rules.en || document.getElementById('terms-additional-rules')?.value,
                 
-                cancellation_policy: document.getElementById('terms-cancellation-policy')?.value || null
+                cancellation_policy: termsMultilingual.cancellation.en || document.getElementById('terms-cancellation-policy')?.value || null,
+                ...getTermsMultilingualData()
             };
             
             // Also save room amenities if a room is selected
@@ -23803,6 +23820,104 @@ const promo = await fetch('/api/v1/offers/validate', {
             } catch (error) {
                 console.error('Error saving amenities:', error);
                 alert('Error saving changes');
+            }
+        }
+        
+        // Terms multilingual data storage
+        let termsMultilingual = {
+            rules: { en: '', fr: '', es: '', nl: '', de: '' },
+            cancellation: { en: '', fr: '', es: '', nl: '', de: '' }
+        };
+        let currentTermsLang = { rules: 'en', cancellation: 'en' };
+        
+        function switchTermsLang(field, lang, btn) {
+            const fieldId = field === 'rules' ? 'terms-additional-rules' : 'terms-cancellation-policy';
+            const tabsId = field === 'rules' ? 'terms-rules-tabs' : 'terms-cancellation-tabs';
+            
+            // Save current value
+            termsMultilingual[field][currentTermsLang[field]] = document.getElementById(fieldId).value;
+            currentTermsLang[field] = lang;
+            
+            // Load new language value
+            document.getElementById(fieldId).value = termsMultilingual[field][lang] || '';
+            
+            // Update tab states
+            document.querySelectorAll(`#${tabsId} .lang-tab`).forEach(t => {
+                t.classList.toggle('active', t.dataset.lang === lang);
+                t.classList.toggle('has-content', !!termsMultilingual[field][t.dataset.lang]?.trim());
+            });
+        }
+        
+        function resetTermsLangTabs() {
+            termsMultilingual = { rules: { en: '', fr: '', es: '', nl: '', de: '' }, cancellation: { en: '', fr: '', es: '', nl: '', de: '' } };
+            currentTermsLang = { rules: 'en', cancellation: 'en' };
+            ['terms-rules-tabs', 'terms-cancellation-tabs'].forEach(tabsId => {
+                const el = document.getElementById(tabsId);
+                if (el) el.querySelectorAll('.lang-tab').forEach(t => { t.classList.toggle('active', t.dataset.lang === 'en'); t.classList.remove('has-content'); });
+            });
+        }
+        
+        function loadTermsMultilingual(terms) {
+            resetTermsLangTabs();
+            if (terms.additional_rules_ml && typeof terms.additional_rules_ml === 'object') {
+                termsMultilingual.rules = { ...termsMultilingual.rules, ...terms.additional_rules_ml };
+            } else if (terms.additional_rules) {
+                termsMultilingual.rules.en = terms.additional_rules;
+            }
+            if (terms.cancellation_policy_ml && typeof terms.cancellation_policy_ml === 'object') {
+                termsMultilingual.cancellation = { ...termsMultilingual.cancellation, ...terms.cancellation_policy_ml };
+            } else if (terms.cancellation_policy) {
+                termsMultilingual.cancellation.en = terms.cancellation_policy;
+            }
+            // Update tab indicators
+            ['rules', 'cancellation'].forEach(field => {
+                const tabsId = field === 'rules' ? 'terms-rules-tabs' : 'terms-cancellation-tabs';
+                const el = document.getElementById(tabsId);
+                if (el) el.querySelectorAll('.lang-tab').forEach(t => { t.classList.toggle('has-content', !!termsMultilingual[field][t.dataset.lang]?.trim()); });
+            });
+        }
+        
+        function getTermsMultilingualData() {
+            termsMultilingual.rules[currentTermsLang.rules] = document.getElementById('terms-additional-rules').value;
+            termsMultilingual.cancellation[currentTermsLang.cancellation] = document.getElementById('terms-cancellation-policy').value;
+            const cleanObj = (obj) => { const r = {}; for (const [k, v] of Object.entries(obj)) { if (v && v.trim()) r[k] = v.trim(); } return Object.keys(r).length > 0 ? r : null; };
+            return { additional_rules_ml: cleanObj(termsMultilingual.rules), cancellation_policy_ml: cleanObj(termsMultilingual.cancellation) };
+        }
+        
+        async function translateTermsField(field) {
+            const fieldId = field === 'rules' ? 'terms-additional-rules' : 'terms-cancellation-policy';
+            termsMultilingual[field][currentTermsLang[field]] = document.getElementById(fieldId).value;
+            
+            const sourceText = termsMultilingual[field].en || termsMultilingual[field][currentTermsLang[field]] || Object.values(termsMultilingual[field]).find(v => v);
+            if (!sourceText) { alert('Please enter text in at least one language first'); return; }
+            
+            const btn = event.target;
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '⏳';
+            btn.disabled = true;
+            
+            try {
+                const response = await fetch('/api/translate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: sourceText, targetLangs: ['en', 'es', 'fr', 'de', 'nl'].filter(l => l !== currentTermsLang[field]) })
+                });
+                const result = await response.json();
+                if (result.success && result.translations) {
+                    Object.entries(result.translations).forEach(([lang, text]) => {
+                        if (!termsMultilingual[field][lang]) termsMultilingual[field][lang] = text;
+                    });
+                    const tabsId = field === 'rules' ? 'terms-rules-tabs' : 'terms-cancellation-tabs';
+                    document.querySelectorAll(`#${tabsId} .lang-tab`).forEach(t => { t.classList.toggle('has-content', !!termsMultilingual[field][t.dataset.lang]?.trim()); });
+                    alert('Translations added! Click each language tab to review.');
+                } else {
+                    alert('Translation failed: ' + (result.error || 'Unknown error'));
+                }
+            } catch (e) {
+                alert('Translation failed: ' + e.message);
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
             }
         }
         
@@ -23879,8 +23994,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                     if (terms.quiet_hours_until) document.getElementById('terms-quiet-until').value = terms.quiet_hours_until;
                     if (terms.no_outside_guests) document.getElementById('terms-no-outside-guests').checked = true;
                     if (terms.id_required) document.getElementById('terms-id-required').checked = true;
-                    if (terms.additional_rules) document.getElementById('terms-additional-rules').value = terms.additional_rules;
-                    if (terms.cancellation_policy) document.getElementById('terms-cancellation-policy').value = terms.cancellation_policy;
+                    
+                    // Load multilingual rules and cancellation
+                    loadTermsMultilingual(terms);
+                    document.getElementById('terms-additional-rules').value = termsMultilingual.rules.en || terms.additional_rules || '';
+                    document.getElementById('terms-cancellation-policy').value = termsMultilingual.cancellation.en || terms.cancellation_policy || '';
                     
                     // Beds (using bed_type from database) - OLD FORMAT
                     // Only load into old UI if container exists
