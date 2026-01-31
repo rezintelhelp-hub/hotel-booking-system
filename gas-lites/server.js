@@ -2033,14 +2033,14 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
   amenities.forEach(a => {
     const cat = a.category || 'General';
     if (!amenByCategory[cat]) amenByCategory[cat] = [];
-    // Parse amenity name if it's JSON
+    // Parse amenity name if it's JSON - use selected language
     let name = a.amenity_name;
     if (typeof name === 'object') {
-      name = name.en || name.EN || Object.values(name)[0] || '';
+      name = name[lang] || name.en || name.EN || Object.values(name)[0] || '';
     } else if (typeof name === 'string' && name.trim().startsWith('{')) {
       try {
         const parsed = JSON.parse(name);
-        name = parsed.en || parsed.EN || Object.values(parsed)[0] || name;
+        name = parsed[lang] || parsed.en || parsed.EN || Object.values(parsed)[0] || name;
       } catch (e) {}
     }
     amenByCategory[cat].push({ ...a, amenity_name: name });
