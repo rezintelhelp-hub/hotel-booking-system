@@ -21037,6 +21037,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                 loadAccountEntitlements();
             }
             
+            // Reload language settings for selected account
+            if (typeof loadLanguageSettings === 'function') {
+                loadLanguageSettings();
+            }
+            
             // Navigate to dashboard with new filter
             showView('dashboard');
         }
