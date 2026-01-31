@@ -12927,6 +12927,13 @@ app.get('/api/setup-database', async (req, res) => {
     await pool.query(`ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS times_used INTEGER DEFAULT 0`);
     await pool.query(`ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS min_nights INTEGER DEFAULT 1`);
     
+    // Multilingual support for vouchers
+    await pool.query(`ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS name_ml JSONB`);
+    await pool.query(`ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS description_ml JSONB`);
+    await pool.query(`ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS terms_ml JSONB`);
+    await pool.query(`UPDATE vouchers SET name_ml = jsonb_build_object('en', name) WHERE name_ml IS NULL AND name IS NOT NULL`);
+    await pool.query(`UPDATE vouchers SET description_ml = jsonb_build_object('en', description) WHERE description_ml IS NULL AND description IS NOT NULL`);
+    
     // Create voucher_uses table to track usage
     await pool.query(`
       CREATE TABLE IF NOT EXISTS voucher_uses (
@@ -12964,6 +12971,12 @@ app.get('/api/setup-database', async (req, res) => {
     await pool.query(`ALTER TABLE upsells ADD COLUMN IF NOT EXISTS room_ids TEXT`);
     await pool.query(`ALTER TABLE upsells ADD COLUMN IF NOT EXISTS image_url TEXT`);
     await pool.query(`ALTER TABLE upsells ADD COLUMN IF NOT EXISTS category VARCHAR(50)`);
+    
+    // Multilingual support for upsells
+    await pool.query(`ALTER TABLE upsells ADD COLUMN IF NOT EXISTS name_ml JSONB`);
+    await pool.query(`ALTER TABLE upsells ADD COLUMN IF NOT EXISTS description_ml JSONB`);
+    await pool.query(`UPDATE upsells SET name_ml = jsonb_build_object('en', name) WHERE name_ml IS NULL AND name IS NOT NULL`);
+    await pool.query(`UPDATE upsells SET description_ml = jsonb_build_object('en', description) WHERE description_ml IS NULL AND description IS NOT NULL`);
     
     // Create fees table
     await pool.query(`
@@ -28781,7 +28794,8 @@ app.get('/api/admin/vouchers/:id', async (req, res) => {
 app.post('/api/admin/vouchers', async (req, res) => {
   try {
     const {
-      code, name, description,
+      code, name, description, terms,
+      name_ml, description_ml, terms_ml,
       discount_type, discount_value, applies_to,
       min_nights, min_total, max_uses, single_use_per_guest,
       property_ids, room_ids,
@@ -28789,18 +28803,25 @@ app.post('/api/admin/vouchers', async (req, res) => {
       is_external, vendor_id
     } = req.body;
     
+    // Handle multilingual fields
+    const nameJson = name_ml ? JSON.stringify(name_ml) : (name ? JSON.stringify({ en: name }) : null);
+    const descJson = description_ml ? JSON.stringify(description_ml) : (description ? JSON.stringify({ en: description }) : null);
+    const termsJson = terms_ml ? JSON.stringify(terms_ml) : (terms ? JSON.stringify({ en: terms }) : null);
+    const englishName = name_ml?.en || name || '';
+    const englishDesc = description_ml?.en || description || '';
+    
     const result = await pool.query(`
       INSERT INTO vouchers (
-        code, name, description,
+        code, name, description, name_ml, description_ml, terms_ml,
         discount_type, discount_value, applies_to,
         min_nights, min_total, max_uses, single_use_per_guest,
         property_ids, room_ids,
         valid_from, valid_until, active,
         is_external, vendor_id
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+      ) VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6::jsonb, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
       RETURNING *
     `, [
-      code.toUpperCase(), name, description,
+      code.toUpperCase(), englishName, englishDesc, nameJson, descJson, termsJson,
       discount_type || 'percentage', discount_value, applies_to || 'total',
       min_nights || 1, min_total || null, max_uses || null, single_use_per_guest || false,
       property_ids || null, room_ids || null,
@@ -28830,19 +28851,28 @@ app.put('/api/admin/vouchers/:id', async (req, res) => {
       is_external, vendor_id
     } = req.body;
     
+    // Handle multilingual fields
+    const nameJson = req.body.name_ml ? JSON.stringify(req.body.name_ml) : (name ? JSON.stringify({ en: name }) : null);
+    const descJson = req.body.description_ml ? JSON.stringify(req.body.description_ml) : (description ? JSON.stringify({ en: description }) : null);
+    const termsJson = req.body.terms_ml ? JSON.stringify(req.body.terms_ml) : null;
+    const englishName = req.body.name_ml?.en || name || '';
+    const englishDesc = req.body.description_ml?.en || description || '';
+    
     const result = await pool.query(`
       UPDATE vouchers SET
         code = $1, name = $2, description = $3,
-        discount_type = $4, discount_value = $5, applies_to = $6,
-        min_nights = $7, min_total = $8, max_uses = $9, single_use_per_guest = $10,
-        property_ids = $11, room_ids = $12,
-        valid_from = $13, valid_until = $14, active = $15,
-        is_external = $16, vendor_id = $17,
+        name_ml = $4::jsonb, description_ml = $5::jsonb, terms_ml = $6::jsonb,
+        discount_type = $7, discount_value = $8, applies_to = $9,
+        min_nights = $10, min_total = $11, max_uses = $12, single_use_per_guest = $13,
+        property_ids = $14, room_ids = $15,
+        valid_from = $16, valid_until = $17, active = $18,
+        is_external = $19, vendor_id = $20,
         updated_at = NOW()
-      WHERE id = $18
+      WHERE id = $21
       RETURNING *
     `, [
-      code.toUpperCase(), name, description,
+      code.toUpperCase(), englishName, englishDesc,
+      nameJson, descJson, termsJson,
       discount_type, discount_value, applies_to,
       min_nights, min_total || null, max_uses || null, single_use_per_guest,
       property_ids || null, room_ids || null,
@@ -29404,13 +29434,19 @@ app.get('/api/admin/upsells', async (req, res) => {
 
 app.post('/api/admin/upsells', async (req, res) => {
   try {
-    const { name, description, price, charge_type, max_quantity, property_id, room_id, room_ids, active, is_external, vendor_id } = req.body;
+    const { name, description, name_ml, description_ml, price, charge_type, max_quantity, property_id, room_id, room_ids, active, is_external, vendor_id } = req.body;
+    
+    // Handle multilingual fields
+    const nameJson = name_ml ? JSON.stringify(name_ml) : (name ? JSON.stringify({ en: name }) : null);
+    const descJson = description_ml ? JSON.stringify(description_ml) : (description ? JSON.stringify({ en: description }) : null);
+    const englishName = name_ml?.en || name || '';
+    const englishDesc = description_ml?.en || description || '';
     
     const result = await pool.query(`
-      INSERT INTO upsells (name, description, price, charge_type, max_quantity, property_id, room_id, room_ids, active, is_external, vendor_id)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      INSERT INTO upsells (name, description, name_ml, description_ml, price, charge_type, max_quantity, property_id, room_id, room_ids, active, is_external, vendor_id)
+      VALUES ($1, $2, $3::jsonb, $4::jsonb, $5, $6, $7, $8, $9, $10, $11, $12, $13)
       RETURNING *
-    `, [name, description, price, charge_type || 'per_booking', max_quantity, property_id, room_id, room_ids, active !== false, is_external || false, vendor_id || null]);
+    `, [englishName, englishDesc, nameJson, descJson, price, charge_type || 'per_booking', max_quantity, property_id, room_id, room_ids, active !== false, is_external || false, vendor_id || null]);
     
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
@@ -29420,25 +29456,33 @@ app.post('/api/admin/upsells', async (req, res) => {
 
 app.put('/api/admin/upsells/:id', async (req, res) => {
   try {
-    const { name, description, price, charge_type, max_quantity, property_id, room_id, room_ids, active, is_external, vendor_id } = req.body;
+    const { name, description, name_ml, description_ml, price, charge_type, max_quantity, property_id, room_id, room_ids, active, is_external, vendor_id } = req.body;
+    
+    // Handle multilingual fields
+    const nameJson = name_ml ? JSON.stringify(name_ml) : (name ? JSON.stringify({ en: name }) : null);
+    const descJson = description_ml ? JSON.stringify(description_ml) : (description ? JSON.stringify({ en: description }) : null);
+    const englishName = name_ml?.en || name || '';
+    const englishDesc = description_ml?.en || description || '';
     
     const result = await pool.query(`
       UPDATE upsells SET
         name = COALESCE($1, name),
         description = COALESCE($2, description),
-        price = COALESCE($3, price),
-        charge_type = COALESCE($4, charge_type),
-        max_quantity = $5,
-        property_id = $6,
-        room_id = $7,
-        room_ids = $8,
-        active = COALESCE($9, active),
-        is_external = COALESCE($10, is_external),
-        vendor_id = $11,
+        name_ml = COALESCE($3::jsonb, name_ml),
+        description_ml = COALESCE($4::jsonb, description_ml),
+        price = COALESCE($5, price),
+        charge_type = COALESCE($6, charge_type),
+        max_quantity = $7,
+        property_id = $8,
+        room_id = $9,
+        room_ids = $10,
+        active = COALESCE($11, active),
+        is_external = COALESCE($12, is_external),
+        vendor_id = $13,
         updated_at = NOW()
-      WHERE id = $12
+      WHERE id = $14
       RETURNING *
-    `, [name, description, price, charge_type, max_quantity, property_id, room_id, room_ids, active, is_external, vendor_id, req.params.id]);
+    `, [englishName, englishDesc, nameJson, descJson, price, charge_type, max_quantity, property_id, room_id, room_ids, active, is_external, vendor_id, req.params.id]);
     
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
