@@ -17401,11 +17401,11 @@ const promo = await fetch('/api/v1/offers/validate', {
 
     <!-- Attraction Modal -->
     <div id="attractionModal" class="modal" onclick="if(event.target === this) closeModal('attractionModal')">
-        <div class="modal-content" style="max-width: 800px; max-height: 90vh; overflow-y: auto; border-radius: 16px;">
+        <div class="modal-content" style="max-width: 900px; max-height: 90vh; overflow-y: auto; border-radius: 16px;">
             <div class="modal-header" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
                 <div>
-                    <h3 id="attraction-modal-title" style="margin: 0;"> Add Attraction</h3>
-                    <p style="margin: 0.25rem 0 0; opacity: 0.9; font-size: 0.85rem;">Help guests discover things to do nearby</p>
+                    <h3 id="attraction-modal-title" style="margin: 0;">📍 Add Attraction</h3>
+                    <p style="margin: 0.25rem 0 0; opacity: 0.9; font-size: 0.85rem;">Help guests discover things to do nearby <span style="background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 4px; font-size: 0.75rem;">🌐 Multilingual</span></p>
                 </div>
                 <button class="modal-close" onclick="closeModal('attractionModal')" style="color: white;">&times;</button>
             </div>
@@ -17426,43 +17426,56 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <div id="attraction-ai-section" style="margin-bottom: 1rem; padding: 1rem; background: linear-gradient(135deg, #ede9fe 0%, #ddd6fe 100%); border-radius: 8px; border: 1px solid #c4b5fd;">
                         <div style="display: flex; justify-content: space-between; align-items: center;">
                             <div>
-                                <strong style="color: #5b21b6;"> AI Assistant</strong>
+                                <strong style="color: #5b21b6;">✨ AI Assistant</strong>
                                 <p style="margin: 0.25rem 0 0; font-size: 0.85rem; color: #6d28d9;">Auto-fill details based on attraction name</p>
                             </div>
                             <button type="button" class="btn" onclick="aiGenerateAttractionDetails()" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">
-                                 AI Fill Details
+                                🤖 AI Fill Details
                             </button>
                         </div>
                     </div>
                     
-                    <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1rem;">
-                        <div class="form-group">
-                            <label class="form-label">Attraction Name *</label>
-                            <input type="text" class="form-input" id="attraction-name" required placeholder="e.g., Liverpool Cathedral">
+                    <!-- Name - Multilingual -->
+                    <div class="form-group">
+                        <label class="form-label">Attraction Name * <span style="font-size: 0.75rem; color: #8b5cf6;">🌐 Multilingual</span></label>
+                        <div class="translation-field-wrapper" data-translation-group="attraction-name">
+                            <div class="translation-tabs">
+                                <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('attraction-name', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('attraction-name', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('attraction-name', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('attraction-name', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                <button type="button" class="auto-translate-btn" onclick="autoTranslateField('attraction-name')" title="Auto-translate from English">✨</button>
+                            </div>
+                            <div class="translation-input-group">
+                                <input type="text" class="form-input translation-input active" id="attraction-name-en" data-lang="en" required placeholder="e.g., Liverpool Cathedral">
+                                <input type="text" class="form-input translation-input" id="attraction-name-fr" data-lang="fr" placeholder="Cathédrale de Liverpool">
+                                <input type="text" class="form-input translation-input" id="attraction-name-es" data-lang="es" placeholder="Catedral de Liverpool">
+                                <input type="text" class="form-input translation-input" id="attraction-name-nl" data-lang="nl" placeholder="Kathedraal van Liverpool">
+                            </div>
                         </div>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
                         <div class="form-group">
                             <label class="form-label">Distance from Property *</label>
                             <input type="text" class="form-input" id="attraction-distance" required placeholder="e.g., 5 min walk">
                         </div>
-                    </div>
-                    
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                         <div class="form-group">
                             <label class="form-label">Category *</label>
                             <select class="form-input" id="attraction-category" required>
                                 <option value="">Select category...</option>
-                                <option value="museums"> Museums & Galleries</option>
-                                <option value="landmarks"> Historic Sites & Landmarks</option>
-                                <option value="parks"> Parks & Gardens</option>
-                                <option value="beaches"> Beaches</option>
-                                <option value="entertainment"> Entertainment</option>
-                                <option value="shopping"> Shopping</option>
-                                <option value="restaurants"> Restaurants & Dining</option>
-                                <option value="cafes"> Cafes & Coffee</option>
-                                <option value="nightlife"> Nightlife & Bars</option>
-                                <option value="sports"> Sports & Activities</option>
-                                <option value="nature"> Nature & Outdoors</option>
-                                <option value="family"> Family Fun</option>
+                                <option value="museums">🏛 Museums & Galleries</option>
+                                <option value="landmarks">🏰 Historic Sites & Landmarks</option>
+                                <option value="parks">🌳 Parks & Gardens</option>
+                                <option value="beaches">🏖 Beaches</option>
+                                <option value="entertainment">🎭 Entertainment</option>
+                                <option value="shopping">🛍 Shopping</option>
+                                <option value="restaurants">🍽 Restaurants & Dining</option>
+                                <option value="cafes">☕ Cafes & Coffee</option>
+                                <option value="nightlife">🍸 Nightlife & Bars</option>
+                                <option value="sports">⚽ Sports & Activities</option>
+                                <option value="nature">🌲 Nature & Outdoors</option>
+                                <option value="family">👨‍👩‍👧 Family Fun</option>
                             </select>
                         </div>
                         <div class="form-group">
@@ -17470,51 +17483,76 @@ const promo = await fetch('/api/v1/offers/validate', {
                             <select class="form-input" id="attraction-price">
                                 <option value="">Select...</option>
                                 <option value="Free">Free</option>
-                                <option value=""> Budget</option>
-                                <option value=""> Mid-range</option>
-                                <option value=""> Premium</option>
+                                <option value="$">💰 Budget</option>
+                                <option value="$$">💰💰 Mid-range</option>
+                                <option value="$$$">💰💰💰 Premium</option>
                             </select>
                         </div>
                     </div>
                     
+                    <!-- Short Description - Multilingual -->
                     <div class="form-group">
-                        <label class="form-label">Short Description * <span style="font-weight: normal; color: #6b7280;">(for cards, 1-2 sentences)</span></label>
-                        <textarea class="form-input" id="attraction-short-desc" rows="2" required placeholder="Brief description that will appear on attraction cards..."></textarea>
+                        <label class="form-label">Short Description * <span style="font-weight: normal; color: #6b7280;">(for cards)</span> <span style="font-size: 0.75rem; color: #8b5cf6;">🌐 Multilingual</span></label>
+                        <div class="translation-field-wrapper" data-translation-group="attraction-short-desc">
+                            <div class="translation-tabs">
+                                <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('attraction-short-desc', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('attraction-short-desc', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('attraction-short-desc', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('attraction-short-desc', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                <button type="button" class="auto-translate-btn" onclick="autoTranslateField('attraction-short-desc')" title="Auto-translate from English">✨</button>
+                            </div>
+                            <div class="translation-input-group">
+                                <textarea class="form-input translation-input active" id="attraction-short-desc-en" data-lang="en" rows="2" required placeholder="Brief description for attraction cards..."></textarea>
+                                <textarea class="form-input translation-input" id="attraction-short-desc-fr" data-lang="fr" rows="2" placeholder="Brève description..."></textarea>
+                                <textarea class="form-input translation-input" id="attraction-short-desc-es" data-lang="es" rows="2" placeholder="Breve descripción..."></textarea>
+                                <textarea class="form-input translation-input" id="attraction-short-desc-nl" data-lang="nl" rows="2" placeholder="Korte beschrijving..."></textarea>
+                            </div>
+                        </div>
                     </div>
                     
+                    <!-- Full Description - Multilingual -->
                     <div class="form-group">
-                        <label class="form-label">Full Description <span style="font-weight: normal; color: #6b7280;">(optional, for detail page)</span></label>
-                        <textarea class="form-input" id="attraction-description" rows="4" placeholder="Detailed description mentioning why guests from your property would enjoy this..."></textarea>
+                        <label class="form-label">Full Description <span style="font-weight: normal; color: #6b7280;">(for detail page)</span> <span style="font-size: 0.75rem; color: #8b5cf6;">🌐 Multilingual</span></label>
+                        <div class="translation-field-wrapper" data-translation-group="attraction-description">
+                            <div class="translation-tabs">
+                                <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('attraction-description', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('attraction-description', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('attraction-description', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('attraction-description', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                <button type="button" class="auto-translate-btn" onclick="autoTranslateField('attraction-description')" title="Auto-translate from English">✨</button>
+                            </div>
+                            <div class="translation-input-group">
+                                <textarea class="form-input translation-input active" id="attraction-description-en" data-lang="en" rows="4" placeholder="Detailed description..."></textarea>
+                                <textarea class="form-input translation-input" id="attraction-description-fr" data-lang="fr" rows="4" placeholder="Description détaillée..."></textarea>
+                                <textarea class="form-input translation-input" id="attraction-description-es" data-lang="es" rows="4" placeholder="Descripción detallada..."></textarea>
+                                <textarea class="form-input translation-input" id="attraction-description-nl" data-lang="nl" rows="4" placeholder="Gedetailleerde beschrijving..."></textarea>
+                            </div>
+                        </div>
                     </div>
                     
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                         <div class="form-group">
-                            <label class="form-label">Featured Image URL <span style="font-weight: normal; color: #6b7280;">(optional)</span></label>
-                            <input type="url" class="form-input" id="attraction-image" placeholder="https://...">
-                            <small style="color: #6b7280;">Paste URL or leave blank</small>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Website URL <span style="font-weight: normal; color: #6b7280;">(optional)</span></label>
+                            <label class="form-label">Website URL</label>
                             <input type="url" class="form-input" id="attraction-website" placeholder="https://...">
                         </div>
-                    </div>
-                    
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                         <div class="form-group">
-                            <label class="form-label">Address <span style="font-weight: normal; color: #6b7280;">(optional)</span></label>
-                            <input type="text" class="form-input" id="attraction-address" placeholder="Full address">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Google Maps URL <span style="font-weight: normal; color: #6b7280;">(optional)</span></label>
+                            <label class="form-label">Google Maps URL</label>
                             <input type="url" class="form-input" id="attraction-maps-url" placeholder="https://maps.google.com/...">
                         </div>
                     </div>
                     
-                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="form-group">
+                            <label class="form-label">Address</label>
+                            <input type="text" class="form-input" id="attraction-address" placeholder="Full address">
+                        </div>
                         <div class="form-group">
                             <label class="form-label">Typical Duration</label>
                             <input type="text" class="form-input" id="attraction-duration" placeholder="e.g., 1-2 hours">
                         </div>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                         <div class="form-group">
                             <label class="form-label">Display Order</label>
                             <input type="number" class="form-input" id="attraction-order" min="0" value="0">
@@ -17529,19 +17567,18 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <div class="form-group">
                         <label class="form-label">Featured Image</label>
                         <div style="display: flex; gap: 0.5rem; align-items: center;">
-                            <button type="button" class="btn btn-secondary" onclick="document.getElementById('attraction-image-upload').click()" style="white-space: nowrap;"> Upload Image</button>
+                            <button type="button" class="btn btn-secondary" onclick="document.getElementById('attraction-image-upload').click()" style="white-space: nowrap;">📷 Upload Image</button>
                             <input type="file" id="attraction-image-upload" accept="image/*" style="display: none;" onchange="uploadAttractionImage(this)">
                             <span style="color: #64748b;">or</span>
                             <input type="text" class="form-input" id="attraction-image" placeholder="Paste image URL" style="flex: 1;">
                         </div>
-                        <p style="font-size: 0.8rem; color: #64748b; margin-top: 0.25rem;"> Upload your own image or paste a URL</p>
                     </div>
                     
                     <!-- Scheduling Options -->
                     <div style="background: #f8fafc; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
                         <label style="font-weight: 600; display: flex; align-items: center; gap: 0.5rem;">
                             <input type="checkbox" id="attraction-schedule" onchange="toggleAttractionSchedule()" />
-                             Schedule for later
+                            📅 Schedule for later
                         </label>
                         <div id="attraction-schedule-options" style="display: none; margin-top: 1rem;">
                             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
@@ -17560,31 +17597,63 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <!-- Hidden field for published state -->
                     <input type="hidden" id="attraction-published" value="false">
                     
-                    <!-- SEO Section -->
+                    <!-- SEO Section - Multilingual -->
                     <div style="background: #f0fdf4; padding: 1rem; border-radius: 8px; border: 1px solid #86efac; margin-top: 1rem;">
-                        <h4 style="margin: 0 0 0.75rem; color: #166534; font-size: 0.9rem;"> SEO Settings</h4>
+                        <h4 style="margin: 0 0 0.75rem; color: #166534; font-size: 0.9rem;">🔍 SEO Settings <span style="font-size: 0.75rem; color: #8b5cf6; font-weight: normal;">🌐 Multilingual</span></h4>
+                        
+                        <!-- Meta Title - Multilingual -->
                         <div class="form-group" style="margin-bottom: 0.75rem;">
                             <label class="form-label" style="font-size: 0.85rem;">Meta Title</label>
-                            <input type="text" class="form-input" id="attraction-meta-title" placeholder="SEO title (50-60 chars)">
+                            <div class="translation-field-wrapper" data-translation-group="attraction-meta-title">
+                                <div class="translation-tabs" style="font-size: 0.75rem;">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('attraction-meta-title', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('attraction-meta-title', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('attraction-meta-title', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('attraction-meta-title', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('attraction-meta-title')" title="Auto-translate">✨</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <input type="text" class="form-input translation-input active" id="attraction-meta-title-en" data-lang="en" placeholder="SEO title (50-60 chars)" style="font-size: 0.85rem;">
+                                    <input type="text" class="form-input translation-input" id="attraction-meta-title-fr" data-lang="fr" placeholder="Titre SEO français" style="font-size: 0.85rem;">
+                                    <input type="text" class="form-input translation-input" id="attraction-meta-title-es" data-lang="es" placeholder="Título SEO español" style="font-size: 0.85rem;">
+                                    <input type="text" class="form-input translation-input" id="attraction-meta-title-nl" data-lang="nl" placeholder="SEO titel Nederlands" style="font-size: 0.85rem;">
+                                </div>
+                            </div>
                         </div>
+                        
+                        <!-- Meta Description - Multilingual -->
                         <div class="form-group" style="margin-bottom: 0.75rem;">
                             <label class="form-label" style="font-size: 0.85rem;">Meta Description</label>
-                            <textarea class="form-input" id="attraction-meta-description" rows="2" placeholder="SEO description (150-160 chars)"></textarea>
+                            <div class="translation-field-wrapper" data-translation-group="attraction-meta-description">
+                                <div class="translation-tabs" style="font-size: 0.75rem;">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('attraction-meta-description', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('attraction-meta-description', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('attraction-meta-description', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('attraction-meta-description', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('attraction-meta-description')" title="Auto-translate">✨</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <textarea class="form-input translation-input active" id="attraction-meta-description-en" data-lang="en" rows="2" placeholder="SEO description (150-160 chars)" style="font-size: 0.85rem;"></textarea>
+                                    <textarea class="form-input translation-input" id="attraction-meta-description-fr" data-lang="fr" rows="2" placeholder="Description SEO français" style="font-size: 0.85rem;"></textarea>
+                                    <textarea class="form-input translation-input" id="attraction-meta-description-es" data-lang="es" rows="2" placeholder="Descripción SEO español" style="font-size: 0.85rem;"></textarea>
+                                    <textarea class="form-input translation-input" id="attraction-meta-description-nl" data-lang="nl" rows="2" placeholder="SEO beschrijving Nederlands" style="font-size: 0.85rem;"></textarea>
+                                </div>
+                            </div>
                         </div>
+                        
                         <div class="form-group" style="margin: 0;">
                             <label class="form-label" style="font-size: 0.85rem;">FAQ Schema (JSON-LD)</label>
                             <textarea class="form-input" id="attraction-faq-schema" rows="3" style="font-family: monospace; font-size: 0.8rem;" placeholder="Generated by AI or paste your own"></textarea>
-                            <p style="font-size: 0.75rem; color: #64748b; margin-top: 0.25rem;"> Add this to your page's &lt;head&gt; section for rich FAQ snippets in Google</p>
                         </div>
                     </div>
                 </form>
             </div>
             <div class="modal-footer" style="display: flex; justify-content: space-between; padding: 1rem 1.5rem; border-top: 1px solid #e2e8f0;">
-                <button type="button" class="btn btn-secondary" id="attraction-delete-btn" onclick="deleteAttraction()" style="background: #fee2e2; color: #dc2626; border-color: #fecaca; display: none;"> Delete</button>
+                <button type="button" class="btn btn-secondary" id="attraction-delete-btn" onclick="deleteAttraction()" style="background: #fee2e2; color: #dc2626; border-color: #fecaca; display: none;">🗑 Delete</button>
                 <div style="display: flex; gap: 0.5rem;">
                     <button type="button" class="btn" onclick="saveAttractionAsDraft()" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">💾 Save as Draft</button>
-                    <button type="button" class="btn" onclick="saveAttractionAndPublish()" style="background: #10b981;"> Publish</button>
-                    <button type="button" class="btn btn-secondary" onclick="closeModal('attractionModal')"> Back</button>
+                    <button type="button" class="btn" onclick="saveAttractionAndPublish()" style="background: #10b981;">✅ Publish</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('attractionModal')">← Back</button>
                 </div>
             </div>
         </div>
@@ -39895,6 +39964,16 @@ const promo = await fetch('/api/v1/offers/validate', {
             document.getElementById('attraction-delete-btn').style.display = 'none';
             document.getElementById('attraction-published').checked = false; // Default to draft for new attractions
             
+            // Reset all multilingual fields
+            ['attraction-name', 'attraction-short-desc', 'attraction-description', 'attraction-meta-title', 'attraction-meta-description'].forEach(field => {
+                ['en', 'fr', 'es', 'nl'].forEach(lang => {
+                    const el = document.getElementById(`${field}-${lang}`);
+                    if (el) el.value = '';
+                });
+                // Reset to English tab
+                switchTranslationTab(field, 'en');
+            });
+            
             // Populate property dropdown in modal
             await populatePropertySelect('attraction-property-id');
             
@@ -39905,15 +39984,12 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
             
             if (attraction) {
-                document.getElementById('attraction-modal-title').textContent = ' Edit Attraction';
+                document.getElementById('attraction-modal-title').textContent = '✏️ Edit Attraction';
                 document.getElementById('attraction-id').value = attraction.id;
                 document.getElementById('attraction-property-id').value = attraction.property_id || '';
-                document.getElementById('attraction-name').value = attraction.name || '';
                 document.getElementById('attraction-slug').value = attraction.slug || '';
                 document.getElementById('attraction-category').value = attraction.category || '';
                 document.getElementById('attraction-distance').value = attraction.distance_text || '';
-                document.getElementById('attraction-short-desc').value = attraction.short_description || '';
-                document.getElementById('attraction-description').value = attraction.description || '';
                 document.getElementById('attraction-image').value = attraction.featured_image_url || '';
                 document.getElementById('attraction-website').value = attraction.website_url || '';
                 document.getElementById('attraction-address').value = attraction.address || '';
@@ -39922,8 +39998,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                 document.getElementById('attraction-duration').value = attraction.duration || '';
                 document.getElementById('attraction-order').value = attraction.display_order || 0;
                 document.getElementById('attraction-published').value = attraction.is_published ? 'true' : 'false';
-                document.getElementById('attraction-meta-title').value = attraction.meta_title || '';
-                document.getElementById('attraction-meta-description').value = attraction.meta_description || '';
+                
+                // Load multilingual fields
+                populateMultilingualField('attraction-name', attraction.name_ml, attraction.name);
+                populateMultilingualField('attraction-short-desc', attraction.short_description_ml, attraction.short_description);
+                populateMultilingualField('attraction-description', attraction.description_ml, attraction.description);
+                populateMultilingualField('attraction-meta-title', attraction.meta_title_ml, attraction.meta_title);
+                populateMultilingualField('attraction-meta-description', attraction.meta_description_ml, attraction.meta_description);
                 
                 // Handle schedule
                 if (attraction.scheduled_at) {
@@ -39939,7 +40020,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 document.getElementById('attraction-delete-btn').style.display = 'block';
             } else {
-                document.getElementById('attraction-modal-title').textContent = ' Add Attraction';
+                document.getElementById('attraction-modal-title').textContent = '📍 Add Attraction';
                 document.getElementById('attraction-schedule').checked = false;
                 document.getElementById('attraction-schedule-options').style.display = 'none';
             }
@@ -39965,18 +40046,28 @@ const promo = await fetch('/api/v1/offers/validate', {
         async function saveAttraction(shouldPublish = false) {
             const id = document.getElementById('attraction-id').value;
             const propertyId = document.getElementById('attraction-property-id').value;
-            const name = document.getElementById('attraction-name').value.trim();
             const category = document.getElementById('attraction-category').value;
-            const shortDesc = document.getElementById('attraction-short-desc').value.trim();
             const distance = document.getElementById('attraction-distance').value.trim();
+            
+            // Get multilingual fields
+            const nameMl = collectMultilingualField('attraction-name');
+            const shortDescMl = collectMultilingualField('attraction-short-desc');
+            const descriptionMl = collectMultilingualField('attraction-description');
+            const metaTitleMl = collectMultilingualField('attraction-meta-title');
+            const metaDescriptionMl = collectMultilingualField('attraction-meta-description');
             
             if (!propertyId) {
                 showNotification('Please select a property', 'error');
                 return;
             }
             
-            if (!name || !category || !shortDesc || !distance) {
-                showNotification('Name, category, short description and distance are required', 'error');
+            if (!nameMl || !nameMl.en) {
+                showNotification('English name is required', 'error');
+                return;
+            }
+            
+            if (!category || !shortDescMl || !shortDescMl.en || !distance) {
+                showNotification('Category, short description (English) and distance are required', 'error');
                 return;
             }
             
@@ -40008,12 +40099,22 @@ const promo = await fetch('/api/v1/offers/validate', {
             
             const attractionData = {
                 property_id: parseInt(propertyId),
-                name: name,
+                // Legacy fields (English version for backwards compatibility)
+                name: nameMl.en || '',
+                short_description: shortDescMl.en || '',
+                description: descriptionMl?.en || '',
+                meta_title: metaTitleMl?.en || '',
+                meta_description: metaDescriptionMl?.en || '',
+                // Multilingual fields
+                name_ml: nameMl,
+                short_description_ml: shortDescMl,
+                description_ml: descriptionMl,
+                meta_title_ml: metaTitleMl,
+                meta_description_ml: metaDescriptionMl,
+                // Other fields
                 slug: document.getElementById('attraction-slug').value.trim() || null,
                 category: category,
                 distance_text: distance,
-                short_description: shortDesc,
-                description: document.getElementById('attraction-description').value.trim(),
                 featured_image_url: document.getElementById('attraction-image').value.trim(),
                 website_url: document.getElementById('attraction-website').value.trim(),
                 address: document.getElementById('attraction-address').value.trim(),
@@ -40023,8 +40124,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                 display_order: parseInt(document.getElementById('attraction-order').value) || 0,
                 is_published: shouldPublish,
                 scheduled_at: scheduledAt,
-                meta_title: document.getElementById('attraction-meta-title').value.trim(),
-                meta_description: document.getElementById('attraction-meta-description').value.trim(),
                 faq_schema: faqSchema,
                 client_id: getClientId()
             };
