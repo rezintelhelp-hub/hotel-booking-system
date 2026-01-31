@@ -44420,7 +44420,15 @@ const GAS_TRANSLATIONS = {
         "enhance_stay": "Enhance Your Stay",
         "add_extras_text": "Add extras to make your stay even more special.",
         "no_extras": "No extras available for this booking.",
-        "continue_payment": "Continue to Payment"
+        "continue_payment": "Continue to Payment",
+        "continue_extras": "Continue to Extras",
+        "back_to_room": "Back to Room",
+        "secure_booking": "Secure Booking",
+        "instant_confirmation": "Instant Confirmation",
+        "support_24_7": "24/7 Support",
+        "special_requests_placeholder": "E.g., late check-in, dietary requirements, special occasion...",
+        "special_requests_hint": "Special requests are subject to availability and cannot be guaranteed.",
+        "marketing_opt_in": "Send me special offers and updates (you can unsubscribe anytime)"
       }
     }
   },
@@ -44451,7 +44459,11 @@ const GAS_TRANSLATIONS = {
         "available": "Disponible",
         "unavailable": "Indisponible",
         "under": "moins de",
-        "more_info": "Plus d'informations"
+        "more_info": "Plus d'informations",
+        "apply": "Appliquer",
+        "and": "et",
+        "processing": "Traitement en cours...",
+        "coming_soon": "Bientôt disponible"
       },
       "booking": {
         "book_now": "Réserver",
@@ -44520,12 +44532,20 @@ const GAS_TRANSLATIONS = {
         "payment": "Paiement",
         "pay_now": "Payer maintenant",
         "pay_deposit": "Payer l'acompte",
+        "pay_at_property": "Payer sur place",
+        "pay_at_property_desc": "Payez à votre arrivée - aucun paiement requis maintenant",
+        "pay_by_card": "Payer par carte",
+        "not_available_property": "Non disponible pour cette propriété",
         "card_number": "Numéro de carte",
+        "card_details": "Détails de la carte",
         "expiry_date": "Date d'expiration",
         "cvv": "CVV",
         "cardholder_name": "Nom du titulaire",
-        "payment_secure": "Votre paiement est sécurisé",
-        "payment_processing": "Traitement du paiement..."
+        "payment_secure": "Votre paiement est sécurisé par Stripe",
+        "payment_processing": "Traitement du paiement...",
+        "deposit_amount": "Montant de l'acompte",
+        "balance_due": "Solde dû à l'arrivée",
+        "deposit_info": "Un acompte sera prélevé maintenant. Le solde est dû à l'arrivée."
       },
       "property": {
         "property": "Propriété",
@@ -44614,6 +44634,7 @@ const GAS_TRANSLATIONS = {
       },
       "checkout": {
         "your_booking": "Votre réservation",
+        "your_rooms": "Vos chambres",
         "guest_details": "Informations voyageur",
         "your_details": "Vos informations",
         "extras": "Suppléments",
@@ -44636,6 +44657,7 @@ const GAS_TRANSLATIONS = {
         "offer_discount": "Réduction offre",
         "your_extras": "Vos suppléments",
         "promo_code": "Code promo",
+        "enter_promo": "Entrez le code promo",
         "taxes_fees": "Taxes et frais",
         "includes_taxes": "Toutes taxes et frais inclus",
         "cancellation_policy": "Politique d'annulation",
@@ -44643,7 +44665,19 @@ const GAS_TRANSLATIONS = {
         "until_48h": "jusqu'à 48 heures avant l'arrivée.",
         "non_refundable": "Non remboursable.",
         "cannot_cancel": "Ce tarif ne peut être annulé ou modifié.",
-        "please_enter_details": "Veuillez entrer vos informations. Nous vous enverrons la confirmation de réservation par e-mail."
+        "please_enter_details": "Veuillez entrer vos informations. Nous vous enverrons la confirmation de réservation par e-mail.",
+        "enhance_stay": "Améliorez votre séjour",
+        "add_extras_text": "Ajoutez des suppléments pour rendre votre séjour encore plus spécial.",
+        "no_extras": "Aucun supplément disponible pour cette réservation.",
+        "continue_payment": "Continuer vers le paiement",
+        "continue_extras": "Continuer vers les suppléments",
+        "back_to_room": "Retour à la chambre",
+        "secure_booking": "Réservation sécurisée",
+        "instant_confirmation": "Confirmation instantanée",
+        "support_24_7": "Assistance 24h/24",
+        "special_requests_placeholder": "Ex: arrivée tardive, régime alimentaire, occasion spéciale...",
+        "special_requests_hint": "Les demandes spéciales sont soumises à disponibilité et ne peuvent être garanties.",
+        "marketing_opt_in": "M'envoyer des offres spéciales et actualités (désabonnement possible à tout moment)"
       }
     }
   },
@@ -44674,7 +44708,11 @@ const GAS_TRANSLATIONS = {
         "available": "Disponible",
         "unavailable": "No disponible",
         "under": "menores de",
-        "more_info": "Más información"
+        "more_info": "Más información",
+        "apply": "Aplicar",
+        "and": "y",
+        "processing": "Procesando...",
+        "coming_soon": "Próximamente"
       },
       "booking": {
         "book_now": "Reservar",
@@ -44743,12 +44781,20 @@ const GAS_TRANSLATIONS = {
         "payment": "Pago",
         "pay_now": "Pagar ahora",
         "pay_deposit": "Pagar depósito",
+        "pay_at_property": "Pagar en el alojamiento",
+        "pay_at_property_desc": "Paga cuando llegues - no se necesita pago ahora",
+        "pay_by_card": "Pagar con tarjeta",
+        "not_available_property": "No disponible para esta propiedad",
         "card_number": "Número de tarjeta",
+        "card_details": "Datos de la tarjeta",
         "expiry_date": "Fecha de caducidad",
         "cvv": "CVV",
         "cardholder_name": "Nombre del titular",
-        "payment_secure": "Su pago es seguro",
-        "payment_processing": "Procesando pago..."
+        "payment_secure": "Tu pago está protegido por Stripe",
+        "payment_processing": "Procesando pago...",
+        "deposit_amount": "Importe del depósito",
+        "balance_due": "Saldo pendiente a la llegada",
+        "deposit_info": "Se cobrará un depósito ahora. El saldo restante se paga a la llegada."
       },
       "property": {
         "property": "Propiedad",
@@ -44837,6 +44883,7 @@ const GAS_TRANSLATIONS = {
       },
       "checkout": {
         "your_booking": "Tu reserva",
+        "your_rooms": "Tus habitaciones",
         "guest_details": "Datos del huésped",
         "your_details": "Tus datos",
         "extras": "Extras",
@@ -44859,6 +44906,7 @@ const GAS_TRANSLATIONS = {
         "offer_discount": "Descuento oferta",
         "your_extras": "Tus extras",
         "promo_code": "Código promocional",
+        "enter_promo": "Introduce el código promocional",
         "taxes_fees": "Impuestos y tasas",
         "includes_taxes": "Incluye todos los impuestos y tasas",
         "cancellation_policy": "Política de cancelación",
@@ -44866,7 +44914,19 @@ const GAS_TRANSLATIONS = {
         "until_48h": "hasta 48 horas antes de la llegada.",
         "non_refundable": "No reembolsable.",
         "cannot_cancel": "Esta tarifa no puede cancelarse ni modificarse.",
-        "please_enter_details": "Introduce tus datos. Te enviaremos la confirmación de la reserva por correo electrónico."
+        "please_enter_details": "Introduce tus datos. Te enviaremos la confirmación de la reserva por correo electrónico.",
+        "enhance_stay": "Mejora tu estancia",
+        "add_extras_text": "Añade extras para hacer tu estancia aún más especial.",
+        "no_extras": "No hay extras disponibles para esta reserva.",
+        "continue_payment": "Continuar al pago",
+        "continue_extras": "Continuar a extras",
+        "back_to_room": "Volver a la habitación",
+        "secure_booking": "Reserva segura",
+        "instant_confirmation": "Confirmación instantánea",
+        "support_24_7": "Soporte 24/7",
+        "special_requests_placeholder": "Ej: llegada tardía, requisitos dietéticos, ocasión especial...",
+        "special_requests_hint": "Las peticiones especiales están sujetas a disponibilidad y no pueden garantizarse.",
+        "marketing_opt_in": "Enviadme ofertas especiales y novedades (puedes cancelar en cualquier momento)"
       }
     }
   },
@@ -45106,7 +45166,15 @@ const GAS_TRANSLATIONS = {
         "enhance_stay": "Verbeter uw verblijf",
         "add_extras_text": "Voeg extra's toe om uw verblijf nog specialer te maken.",
         "no_extras": "Geen extra's beschikbaar voor deze boeking.",
-        "continue_payment": "Doorgaan naar betaling"
+        "continue_payment": "Doorgaan naar betaling",
+        "continue_extras": "Doorgaan naar extra's",
+        "back_to_room": "Terug naar kamer",
+        "secure_booking": "Veilig boeken",
+        "instant_confirmation": "Directe bevestiging",
+        "support_24_7": "24/7 ondersteuning",
+        "special_requests_placeholder": "Bijv. late aankomst, dieetwensen, speciale gelegenheid...",
+        "special_requests_hint": "Speciale verzoeken zijn afhankelijk van beschikbaarheid en kunnen niet worden gegarandeerd.",
+        "marketing_opt_in": "Stuur mij speciale aanbiedingen en updates (u kunt zich op elk moment afmelden)"
       }
     }
   },
@@ -45137,7 +45205,11 @@ const GAS_TRANSLATIONS = {
         "available": "Verfügbar",
         "unavailable": "Nicht verfügbar",
         "under": "unter",
-        "more_info": "Mehr Informationen"
+        "more_info": "Mehr Informationen",
+        "apply": "Anwenden",
+        "and": "und",
+        "processing": "Wird verarbeitet...",
+        "coming_soon": "Demnächst verfügbar"
       },
       "booking": {
         "book_now": "Jetzt buchen",
@@ -45206,12 +45278,20 @@ const GAS_TRANSLATIONS = {
         "payment": "Zahlung",
         "pay_now": "Jetzt bezahlen",
         "pay_deposit": "Anzahlung leisten",
+        "pay_at_property": "Vor Ort bezahlen",
+        "pay_at_property_desc": "Bezahlen Sie bei Ankunft - jetzt keine Zahlung erforderlich",
+        "pay_by_card": "Mit Karte bezahlen",
+        "not_available_property": "Nicht verfügbar für diese Unterkunft",
         "card_number": "Kartennummer",
+        "card_details": "Kartendetails",
         "expiry_date": "Ablaufdatum",
         "cvv": "CVV",
         "cardholder_name": "Name des Karteninhabers",
-        "payment_secure": "Ihre Zahlung ist sicher",
-        "payment_processing": "Zahlung wird verarbeitet..."
+        "payment_secure": "Ihre Zahlung ist durch Stripe gesichert",
+        "payment_processing": "Zahlung wird verarbeitet...",
+        "deposit_amount": "Anzahlungsbetrag",
+        "balance_due": "Restbetrag bei Anreise fällig",
+        "deposit_info": "Jetzt wird eine Anzahlung berechnet. Der Restbetrag ist bei Anreise fällig."
       },
       "property": {
         "property": "Unterkunft",
@@ -45323,6 +45403,7 @@ const GAS_TRANSLATIONS = {
         "offer_discount": "Angebotsrabatt",
         "your_extras": "Ihre Extras",
         "promo_code": "Aktionscode",
+        "enter_promo": "Aktionscode eingeben",
         "taxes_fees": "Steuern und Gebühren",
         "includes_taxes": "Inklusive aller Steuern und Gebühren",
         "cancellation_policy": "Stornierungsbedingungen",
@@ -45330,7 +45411,19 @@ const GAS_TRANSLATIONS = {
         "until_48h": "bis 48 Stunden vor Anreise.",
         "non_refundable": "Nicht erstattungsfähig.",
         "cannot_cancel": "Dieser Tarif kann nicht storniert oder geändert werden.",
-        "please_enter_details": "Bitte geben Sie Ihre Daten ein. Wir senden Ihnen die Buchungsbestätigung per E-Mail."
+        "please_enter_details": "Bitte geben Sie Ihre Daten ein. Wir senden Ihnen die Buchungsbestätigung per E-Mail.",
+        "enhance_stay": "Verbessern Sie Ihren Aufenthalt",
+        "add_extras_text": "Fügen Sie Extras hinzu, um Ihren Aufenthalt noch besonderer zu machen.",
+        "no_extras": "Keine Extras für diese Buchung verfügbar.",
+        "continue_payment": "Weiter zur Zahlung",
+        "continue_extras": "Weiter zu Extras",
+        "back_to_room": "Zurück zum Zimmer",
+        "secure_booking": "Sichere Buchung",
+        "instant_confirmation": "Sofortige Bestätigung",
+        "support_24_7": "24/7 Support",
+        "special_requests_placeholder": "Z.B. späte Anreise, Ernährungsbedürfnisse, besonderer Anlass...",
+        "special_requests_hint": "Besondere Wünsche sind von der Verfügbarkeit abhängig und können nicht garantiert werden.",
+        "marketing_opt_in": "Senden Sie mir Sonderangebote und Updates (Sie können sich jederzeit abmelden)"
       }
     }
   }
