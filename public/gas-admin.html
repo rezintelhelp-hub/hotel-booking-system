@@ -19162,6 +19162,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                     }
                 }
                 
+                // Add multilingual data to settings
+                const mlData = getWbMultilingualData(section);
+                Object.assign(settings, mlData);
+                
                 console.log(`Saving ${section} for deployed site ${selectedDeployedSiteId}:`, settings);
                 
                 // Use NEW clean endpoint
@@ -19196,6 +19200,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                 } else {
                     showNotification('Error: ' + (data.error || 'Failed to save'), 'error');
                 }
+                
+                // Re-initialize language tabs after save (they may have been reset)
+                initWbSectionLangTabs(section);
                 
             } catch (error) {
                 console.error('Error saving website section:', error);
