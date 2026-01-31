@@ -18226,7 +18226,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                 t.classList.toggle('has-content', !!wbMultilingual[section][field][t.dataset.lang]?.trim());
             });
         }
-        }
         
         async function translateWbField(section, field) {
             initWbMultilingual(section, field);
