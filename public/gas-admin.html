@@ -36746,11 +36746,17 @@ const promo = await fetch('/api/v1/offers/validate', {
             // Save current language values before submitting
             saveCurrentRoomLangValues();
             
+            console.log('Before clean - roomMultilingualData:', JSON.stringify(roomMultilingualData));
+            console.log('currentRoomLang:', currentRoomLang);
+            console.log('Input values - display_name:', document.getElementById('edit-room-display-name').value);
+            console.log('Input values - short_description:', document.getElementById('edit-room-short-description').value);
+            console.log('Input values - full_description:', document.getElementById('edit-room-full-description').value);
+            
             // Clean up empty values from multilingual data
             const cleanMultilingual = (obj) => {
                 const cleaned = {};
                 Object.entries(obj).forEach(([lang, val]) => {
-                    if (val && val.trim()) cleaned[lang] = val.trim();
+                    if (val && typeof val === 'string' && val.trim()) cleaned[lang] = val.trim();
                 });
                 return Object.keys(cleaned).length > 0 ? cleaned : null;
             };
@@ -36768,6 +36774,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                 status: document.getElementById('edit-room-status').value
             };
             
+            console.log('Sending data:', JSON.stringify(data));
+            
             try {
                 // Update room fields
                 const response = await fetch(`/api/admin/units/${id}`, {
@@ -36777,6 +36785,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 });
                 
                 const result = await response.json();
+                console.log('Server response:', JSON.stringify(result));
                 if (result.success) {
                     showNotification('Room updated successfully!', 'success');
                     closeModal('editRoomModal');
