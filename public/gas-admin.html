@@ -20600,7 +20600,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                         
                         // Add change listener to update checkboxes when primary changes
                         primarySelect.onchange = function() {
-                            updateLanguageCheckboxes(this.value, data.supported_languages || []);
+                            // Get currently checked languages
+                            const currentChecked = Array.from(document.querySelectorAll('.settings-lang-checkbox:checked'))
+                                .map(cb => cb.value);
+                            updateLanguageCheckboxes(this.value, currentChecked);
                         };
                     }
                     
@@ -37361,6 +37364,13 @@ const promo = await fetch('/api/v1/offers/validate', {
             const langs = getAccountLanguages();
             const primaryLang = getAccountPrimaryLanguage();
             
+            // Sort languages so primary is first
+            const sortedLangs = [...langs].sort((a, b) => {
+                if (a === primaryLang) return -1;
+                if (b === primaryLang) return 1;
+                return 0;
+            });
+            
             ['display-name-tabs', 'short-desc-tabs', 'full-desc-tabs'].forEach(tabsId => {
                 const container = document.getElementById(tabsId);
                 if (!container) return;
@@ -37368,7 +37378,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const field = tabsId === 'display-name-tabs' ? 'display_name' : 
                              tabsId === 'short-desc-tabs' ? 'short_description' : 'full_description';
                 
-                container.innerHTML = langs.map((lang, i) => {
+                container.innerHTML = sortedLangs.map((lang, i) => {
                     const info = LANG_INFO[lang] || { flag: '🏳️', name: lang.toUpperCase() };
                     const isActive = lang === currentRoomLang;
                     const isPrimary = lang === primaryLang;
