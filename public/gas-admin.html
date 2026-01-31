@@ -17203,11 +17203,11 @@ const promo = await fetch('/api/v1/offers/validate', {
 
     <!-- Blog Post Modal -->
     <div id="blogModal" class="modal" onclick="if(event.target === this) closeModal('blogModal')">
-        <div class="modal-content" style="max-width: 900px; max-height: 90vh; overflow-y: auto; border-radius: 16px;">
+        <div class="modal-content" style="max-width: 1000px; max-height: 90vh; overflow-y: auto; border-radius: 16px;">
             <div class="modal-header" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
                 <div>
                     <h3 id="blog-modal-title" style="margin: 0;"> New Blog Post</h3>
-                    <p style="margin: 0.25rem 0 0; opacity: 0.9; font-size: 0.85rem;">Create engaging content for your guests</p>
+                    <p style="margin: 0.25rem 0 0; opacity: 0.9; font-size: 0.85rem;">Create engaging content for your guests <span style="background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 4px; font-size: 0.75rem;">🌐 Multilingual</span></p>
                 </div>
                 <button class="modal-close" onclick="closeModal('blogModal')" style="color: white;">&times;</button>
             </div>
@@ -17227,9 +17227,24 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem;">
                         <!-- Left Column: Content -->
                         <div>
+                            <!-- Title - Multilingual -->
                             <div class="form-group">
-                                <label class="form-label">Title *</label>
-                                <input type="text" class="form-input" id="blog-title" required placeholder="Enter a compelling title...">
+                                <label class="form-label">Title * <span style="font-size: 0.75rem; color: #8b5cf6;">🌐 Multilingual</span></label>
+                                <div class="translation-field-wrapper" data-translation-group="blog-title">
+                                    <div class="translation-tabs">
+                                        <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('blog-title', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                        <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('blog-title', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                        <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('blog-title', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                        <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('blog-title', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                        <button type="button" class="auto-translate-btn" onclick="autoTranslateField('blog-title')" title="Auto-translate from English">✨</button>
+                                    </div>
+                                    <div class="translation-input-group">
+                                        <input type="text" class="form-input translation-input active" id="blog-title-en" data-lang="en" required placeholder="Enter a compelling title...">
+                                        <input type="text" class="form-input translation-input" id="blog-title-fr" data-lang="fr" placeholder="Titre en français...">
+                                        <input type="text" class="form-input translation-input" id="blog-title-es" data-lang="es" placeholder="Título en español...">
+                                        <input type="text" class="form-input translation-input" id="blog-title-nl" data-lang="nl" placeholder="Titel in het Nederlands...">
+                                    </div>
+                                </div>
                             </div>
                             
                             <div class="form-group">
@@ -17238,23 +17253,53 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 <small style="color: #64748b;">Leave blank to auto-generate from title</small>
                             </div>
                             
+                            <!-- Excerpt - Multilingual -->
                             <div class="form-group">
-                                <label class="form-label">Excerpt</label>
-                                <textarea class="form-input" id="blog-excerpt" rows="2" placeholder="A short summary for listings and SEO..."></textarea>
+                                <label class="form-label">Excerpt <span style="font-size: 0.75rem; color: #8b5cf6;">🌐 Multilingual</span></label>
+                                <div class="translation-field-wrapper" data-translation-group="blog-excerpt">
+                                    <div class="translation-tabs">
+                                        <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('blog-excerpt', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                        <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('blog-excerpt', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                        <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('blog-excerpt', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                        <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('blog-excerpt', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                        <button type="button" class="auto-translate-btn" onclick="autoTranslateField('blog-excerpt')" title="Auto-translate from English">✨</button>
+                                    </div>
+                                    <div class="translation-input-group">
+                                        <textarea class="form-input translation-input active" id="blog-excerpt-en" data-lang="en" rows="2" placeholder="A short summary for listings and SEO..."></textarea>
+                                        <textarea class="form-input translation-input" id="blog-excerpt-fr" data-lang="fr" rows="2" placeholder="Un court résumé..."></textarea>
+                                        <textarea class="form-input translation-input" id="blog-excerpt-es" data-lang="es" rows="2" placeholder="Un breve resumen..."></textarea>
+                                        <textarea class="form-input translation-input" id="blog-excerpt-nl" data-lang="nl" rows="2" placeholder="Een korte samenvatting..."></textarea>
+                                    </div>
+                                </div>
                             </div>
                             
+                            <!-- Content - Multilingual -->
                             <div class="form-group">
-                                <label class="form-label">Content *</label>
-                                <div style="border: 1px solid var(--border); border-radius: 8px; overflow: hidden;">
-                                    <div style="background: #f8fafc; padding: 0.5rem; border-bottom: 1px solid var(--border); display: flex; gap: 0.25rem; flex-wrap: wrap;">
-                                        <button type="button" onclick="formatBlogText('bold')" style="padding: 0.25rem 0.5rem; border: 1px solid #ddd; background: white; border-radius: 4px; cursor: pointer;" title="Bold"><b>B</b></button>
-                                        <button type="button" onclick="formatBlogText('italic')" style="padding: 0.25rem 0.5rem; border: 1px solid #ddd; background: white; border-radius: 4px; cursor: pointer;" title="Italic"><i>I</i></button>
-                                        <button type="button" onclick="formatBlogText('h2')" style="padding: 0.25rem 0.5rem; border: 1px solid #ddd; background: white; border-radius: 4px; cursor: pointer;" title="Heading">H2</button>
-                                        <button type="button" onclick="formatBlogText('h3')" style="padding: 0.25rem 0.5rem; border: 1px solid #ddd; background: white; border-radius: 4px; cursor: pointer;" title="Subheading">H3</button>
-                                        <button type="button" onclick="formatBlogText('ul')" style="padding: 0.25rem 0.5rem; border: 1px solid #ddd; background: white; border-radius: 4px; cursor: pointer;" title="Bullet List"> List</button>
-                                        <button type="button" onclick="formatBlogText('link')" style="padding: 0.25rem 0.5rem; border: 1px solid #ddd; background: white; border-radius: 4px; cursor: pointer;" title="Link"></button>
+                                <label class="form-label">Content * <span style="font-size: 0.75rem; color: #8b5cf6;">🌐 Multilingual</span></label>
+                                <div class="translation-field-wrapper" data-translation-group="blog-content">
+                                    <div class="translation-tabs">
+                                        <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('blog-content', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                        <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('blog-content', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                        <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('blog-content', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                        <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('blog-content', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                        <button type="button" class="auto-translate-btn" onclick="autoTranslateField('blog-content')" title="Auto-translate from English">✨</button>
                                     </div>
-                                    <textarea class="form-input" id="blog-content" rows="12" required placeholder="Write your blog post content here... Use the formatting buttons above or write HTML directly." style="border: none; border-radius: 0; font-family: monospace;"></textarea>
+                                    <div style="border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-top: 0.5rem;">
+                                        <div style="background: #f8fafc; padding: 0.5rem; border-bottom: 1px solid var(--border); display: flex; gap: 0.25rem; flex-wrap: wrap;">
+                                            <button type="button" onclick="formatBlogText('bold')" style="padding: 0.25rem 0.5rem; border: 1px solid #ddd; background: white; border-radius: 4px; cursor: pointer;" title="Bold"><b>B</b></button>
+                                            <button type="button" onclick="formatBlogText('italic')" style="padding: 0.25rem 0.5rem; border: 1px solid #ddd; background: white; border-radius: 4px; cursor: pointer;" title="Italic"><i>I</i></button>
+                                            <button type="button" onclick="formatBlogText('h2')" style="padding: 0.25rem 0.5rem; border: 1px solid #ddd; background: white; border-radius: 4px; cursor: pointer;" title="Heading">H2</button>
+                                            <button type="button" onclick="formatBlogText('h3')" style="padding: 0.25rem 0.5rem; border: 1px solid #ddd; background: white; border-radius: 4px; cursor: pointer;" title="Subheading">H3</button>
+                                            <button type="button" onclick="formatBlogText('ul')" style="padding: 0.25rem 0.5rem; border: 1px solid #ddd; background: white; border-radius: 4px; cursor: pointer;" title="Bullet List">• List</button>
+                                            <button type="button" onclick="formatBlogText('link')" style="padding: 0.25rem 0.5rem; border: 1px solid #ddd; background: white; border-radius: 4px; cursor: pointer;" title="Link">🔗</button>
+                                        </div>
+                                        <div class="translation-input-group">
+                                            <textarea class="form-input translation-input active" id="blog-content-en" data-lang="en" rows="10" required placeholder="Write your blog post content here..." style="border: none; border-radius: 0; font-family: monospace;"></textarea>
+                                            <textarea class="form-input translation-input" id="blog-content-fr" data-lang="fr" rows="10" placeholder="Rédigez votre contenu ici..." style="border: none; border-radius: 0; font-family: monospace;"></textarea>
+                                            <textarea class="form-input translation-input" id="blog-content-es" data-lang="es" rows="10" placeholder="Escriba su contenido aquí..." style="border: none; border-radius: 0; font-family: monospace;"></textarea>
+                                            <textarea class="form-input translation-input" id="blog-content-nl" data-lang="nl" rows="10" placeholder="Schrijf uw inhoud hier..." style="border: none; border-radius: 0; font-family: monospace;"></textarea>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -17296,15 +17341,48 @@ const promo = await fetch('/api/v1/offers/validate', {
                             
                             <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #e2e8f0;">
                             
+                            <!-- SEO Settings - Multilingual -->
                             <div style="background: #f0fdf4; padding: 1rem; border-radius: 8px; border: 1px solid #86efac;">
-                                <h4 style="margin: 0 0 0.75rem; color: #166534; font-size: 0.9rem;"> SEO Settings</h4>
+                                <h4 style="margin: 0 0 0.75rem; color: #166534; font-size: 0.9rem;">🔍 SEO Settings <span style="font-size: 0.75rem; color: #8b5cf6; font-weight: normal;">🌐 Multilingual</span></h4>
+                                
+                                <!-- Meta Title - Multilingual -->
                                 <div class="form-group" style="margin-bottom: 0.75rem;">
                                     <label class="form-label" style="font-size: 0.85rem;">Meta Title</label>
-                                    <input type="text" class="form-input" id="blog-meta-title" placeholder="SEO title (50-60 chars)">
+                                    <div class="translation-field-wrapper" data-translation-group="blog-meta-title">
+                                        <div class="translation-tabs" style="font-size: 0.75rem;">
+                                            <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('blog-meta-title', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                            <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('blog-meta-title', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                            <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('blog-meta-title', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                            <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('blog-meta-title', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                            <button type="button" class="auto-translate-btn" onclick="autoTranslateField('blog-meta-title')" title="Auto-translate">✨</button>
+                                        </div>
+                                        <div class="translation-input-group">
+                                            <input type="text" class="form-input translation-input active" id="blog-meta-title-en" data-lang="en" placeholder="SEO title (50-60 chars)" style="font-size: 0.85rem;">
+                                            <input type="text" class="form-input translation-input" id="blog-meta-title-fr" data-lang="fr" placeholder="Titre SEO français" style="font-size: 0.85rem;">
+                                            <input type="text" class="form-input translation-input" id="blog-meta-title-es" data-lang="es" placeholder="Título SEO español" style="font-size: 0.85rem;">
+                                            <input type="text" class="form-input translation-input" id="blog-meta-title-nl" data-lang="nl" placeholder="SEO titel Nederlands" style="font-size: 0.85rem;">
+                                        </div>
+                                    </div>
                                 </div>
+                                
+                                <!-- Meta Description - Multilingual -->
                                 <div class="form-group" style="margin: 0;">
                                     <label class="form-label" style="font-size: 0.85rem;">Meta Description</label>
-                                    <textarea class="form-input" id="blog-meta-description" rows="2" placeholder="SEO description (150-160 chars)"></textarea>
+                                    <div class="translation-field-wrapper" data-translation-group="blog-meta-description">
+                                        <div class="translation-tabs" style="font-size: 0.75rem;">
+                                            <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('blog-meta-description', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                            <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('blog-meta-description', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                            <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('blog-meta-description', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                            <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('blog-meta-description', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                            <button type="button" class="auto-translate-btn" onclick="autoTranslateField('blog-meta-description')" title="Auto-translate">✨</button>
+                                        </div>
+                                        <div class="translation-input-group">
+                                            <textarea class="form-input translation-input active" id="blog-meta-description-en" data-lang="en" rows="2" placeholder="SEO description (150-160 chars)" style="font-size: 0.85rem;"></textarea>
+                                            <textarea class="form-input translation-input" id="blog-meta-description-fr" data-lang="fr" rows="2" placeholder="Description SEO français" style="font-size: 0.85rem;"></textarea>
+                                            <textarea class="form-input translation-input" id="blog-meta-description-es" data-lang="es" rows="2" placeholder="Descripción SEO español" style="font-size: 0.85rem;"></textarea>
+                                            <textarea class="form-input translation-input" id="blog-meta-description-nl" data-lang="nl" rows="2" placeholder="SEO beschrijving Nederlands" style="font-size: 0.85rem;"></textarea>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -17312,7 +17390,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 </form>
             </div>
             <div class="modal-footer" style="display: flex; justify-content: space-between; padding: 1rem 1.5rem; border-top: 1px solid #e2e8f0;">
-                <button type="button" class="btn btn-secondary" id="blog-delete-btn" onclick="deleteBlogPost()" style="background: #fee2e2; color: #dc2626; border-color: #fecaca; display: none;"> Delete</button>
+                <button type="button" class="btn btn-secondary" id="blog-delete-btn" onclick="deleteBlogPost()" style="background: #fee2e2; color: #dc2626; border-color: #fecaca; display: none;">🗑 Delete</button>
                 <div style="display: flex; gap: 0.5rem;">
                     <button type="button" class="btn btn-secondary" onclick="closeModal('blogModal')">Cancel</button>
                     <button type="button" class="btn" onclick="saveBlogPost()" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Post</button>
@@ -39432,6 +39510,16 @@ const promo = await fetch('/api/v1/offers/validate', {
             document.getElementById('blog-delete-btn').style.display = 'none';
             document.getElementById('blog-image-preview').innerHTML = '';
             
+            // Reset all multilingual fields
+            ['blog-title', 'blog-excerpt', 'blog-content', 'blog-meta-title', 'blog-meta-description'].forEach(field => {
+                ['en', 'fr', 'es', 'nl'].forEach(lang => {
+                    const el = document.getElementById(`${field}-${lang}`);
+                    if (el) el.value = '';
+                });
+                // Reset to English tab
+                switchTranslationTab(field, 'en');
+            });
+            
             // Populate property dropdown in modal
             await populatePropertySelect('blog-property-id');
             
@@ -39445,30 +39533,65 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
             
             if (post) {
-                document.getElementById('blog-modal-title').textContent = ' Edit Blog Post';
+                document.getElementById('blog-modal-title').textContent = '✏️ Edit Blog Post';
                 document.getElementById('blog-id').value = post.id;
                 document.getElementById('blog-property-id').value = post.property_id || '';
-                document.getElementById('blog-title').value = post.title || '';
                 document.getElementById('blog-slug').value = post.slug || '';
-                document.getElementById('blog-excerpt').value = post.excerpt || '';
-                document.getElementById('blog-content').value = post.content || '';
                 document.getElementById('blog-featured-image').value = post.featured_image_url || '';
                 document.getElementById('blog-category').value = post.category || '';
                 document.getElementById('blog-author').value = post.author_name || '';
                 document.getElementById('blog-read-time').value = post.read_time_minutes || '';
                 document.getElementById('blog-published').checked = post.is_published;
-                document.getElementById('blog-meta-title').value = post.meta_title || '';
-                document.getElementById('blog-meta-description').value = post.meta_description || '';
                 document.getElementById('blog-delete-btn').style.display = 'block';
+                
+                // Load multilingual fields
+                populateMultilingualField('blog-title', post.title_ml, post.title);
+                populateMultilingualField('blog-excerpt', post.excerpt_ml, post.excerpt);
+                populateMultilingualField('blog-content', post.content_ml, post.content);
+                populateMultilingualField('blog-meta-title', post.meta_title_ml, post.meta_title);
+                populateMultilingualField('blog-meta-description', post.meta_description_ml, post.meta_description);
                 
                 if (post.featured_image_url) {
                     document.getElementById('blog-image-preview').innerHTML = `<img src="${post.featured_image_url}" style="width: 100%; max-height: 150px; object-fit: cover; border-radius: 8px;">`;
                 }
             } else {
-                document.getElementById('blog-modal-title').textContent = ' New Blog Post';
+                document.getElementById('blog-modal-title').textContent = '📝 New Blog Post';
             }
             
             openModal('blogModal');
+        }
+        
+        // Helper to populate multilingual field from _ml object or legacy string
+        function populateMultilingualField(fieldId, mlObject, legacyValue) {
+            const langs = ['en', 'fr', 'es', 'nl'];
+            
+            if (mlObject && typeof mlObject === 'object') {
+                langs.forEach(lang => {
+                    const el = document.getElementById(`${fieldId}-${lang}`);
+                    if (el) el.value = mlObject[lang] || '';
+                });
+            } else if (legacyValue) {
+                // Put legacy value in English field
+                const enEl = document.getElementById(`${fieldId}-en`);
+                if (enEl) enEl.value = legacyValue;
+            }
+        }
+        
+        // Helper to collect multilingual field values
+        function collectMultilingualField(fieldId) {
+            const langs = ['en', 'fr', 'es', 'nl'];
+            const result = {};
+            let hasValue = false;
+            
+            langs.forEach(lang => {
+                const el = document.getElementById(`${fieldId}-${lang}`);
+                if (el && el.value.trim()) {
+                    result[lang] = el.value.trim();
+                    hasValue = true;
+                }
+            });
+            
+            return hasValue ? result : null;
         }
         
         // Load blog categories for the Edit Blog Post modal
@@ -39587,32 +39710,47 @@ const promo = await fetch('/api/v1/offers/validate', {
         async function saveBlogPost() {
             const id = document.getElementById('blog-id').value;
             const propertyId = document.getElementById('blog-property-id').value;
-            const title = document.getElementById('blog-title').value.trim();
-            const content = document.getElementById('blog-content').value.trim();
+            
+            // Get multilingual title (at minimum English is required)
+            const titleMl = collectMultilingualField('blog-title');
+            const contentMl = collectMultilingualField('blog-content');
             
             if (!propertyId) {
                 showNotification('Please select a property', 'error');
                 return;
             }
             
-            if (!title || !content) {
-                showNotification('Title and content are required', 'error');
+            if (!titleMl || !titleMl.en) {
+                showNotification('English title is required', 'error');
+                return;
+            }
+            
+            if (!contentMl || !contentMl.en) {
+                showNotification('English content is required', 'error');
                 return;
             }
             
             const postData = {
                 property_id: parseInt(propertyId),
-                title: title,
+                // Legacy fields (English version for backwards compatibility)
+                title: titleMl.en || '',
+                excerpt: collectMultilingualField('blog-excerpt')?.en || '',
+                content: contentMl.en || '',
+                meta_title: collectMultilingualField('blog-meta-title')?.en || '',
+                meta_description: collectMultilingualField('blog-meta-description')?.en || '',
+                // Multilingual fields
+                title_ml: titleMl,
+                excerpt_ml: collectMultilingualField('blog-excerpt'),
+                content_ml: contentMl,
+                meta_title_ml: collectMultilingualField('blog-meta-title'),
+                meta_description_ml: collectMultilingualField('blog-meta-description'),
+                // Other fields
                 slug: document.getElementById('blog-slug').value.trim() || null,
-                excerpt: document.getElementById('blog-excerpt').value.trim(),
-                content: content,
                 featured_image_url: document.getElementById('blog-featured-image').value.trim(),
                 category: document.getElementById('blog-category').value,
                 author_name: document.getElementById('blog-author').value.trim(),
                 read_time_minutes: parseInt(document.getElementById('blog-read-time').value) || null,
                 is_published: document.getElementById('blog-published').checked,
-                meta_title: document.getElementById('blog-meta-title').value.trim(),
-                meta_description: document.getElementById('blog-meta-description').value.trim(),
                 client_id: getClientId()
             };
             
