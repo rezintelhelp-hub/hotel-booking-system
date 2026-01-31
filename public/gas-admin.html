@@ -19176,6 +19176,11 @@ const promo = await fetch('/api/v1/offers/validate', {
             const websiteId = selectedWebsiteId;
             const clientId = getClientId() || localStorage.getItem('gas_selected_client_id');
             
+            // Ensure language settings are loaded before initializing tabs
+            if (!accountLanguageSettings.supported || accountLanguageSettings.supported.length === 0) {
+                await loadLanguageSettings();
+            }
+            
             // Initialize language tabs for this section
             initWbSectionLangTabs(section);
             
