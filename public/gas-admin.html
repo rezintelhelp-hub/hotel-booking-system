@@ -8873,6 +8873,71 @@
                     </div>
                 </div>
 
+                <!-- Language Settings -->
+                <div class="card" style="margin-top: 1.5rem;">
+                    <div class="card-header">
+                        <h3 class="card-title">🌐 Language Settings</h3>
+                    </div>
+                    <div style="padding: 1rem 0;">
+                        <p style="color: #64748b; margin-bottom: 1rem;">Configure which languages your website and booking system will support. Translations will be available for room descriptions, website content, and booking labels.</p>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                            <div>
+                                <label class="form-label">Primary Language</label>
+                                <select id="primaryLanguage" class="form-select" style="width: 100%;">
+                                    <option value="en">🇬🇧 English</option>
+                                    <option value="fr">🇫🇷 Français</option>
+                                    <option value="es">🇪🇸 Español</option>
+                                    <option value="de">🇩🇪 Deutsch</option>
+                                    <option value="nl">🇳🇱 Nederlands</option>
+                                    <option value="it">🇮🇹 Italiano</option>
+                                    <option value="pt">🇵🇹 Português</option>
+                                </select>
+                                <small style="color: #64748b; display: block; margin-top: 0.25rem;">Default language for your website</small>
+                            </div>
+                            
+                            <div>
+                                <label class="form-label">Supported Languages <span style="color: #64748b; font-weight: normal;">(max 4)</span></label>
+                                <div id="supportedLanguagesCheckboxes" style="display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 0.5rem;">
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="checkbox" value="en" class="supported-lang-checkbox" checked disabled>
+                                        <span>🇬🇧 EN</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="checkbox" value="fr" class="supported-lang-checkbox">
+                                        <span>🇫🇷 FR</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="checkbox" value="es" class="supported-lang-checkbox">
+                                        <span>🇪🇸 ES</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="checkbox" value="de" class="supported-lang-checkbox">
+                                        <span>🇩🇪 DE</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="checkbox" value="nl" class="supported-lang-checkbox">
+                                        <span>🇳🇱 NL</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="checkbox" value="it" class="supported-lang-checkbox">
+                                        <span>🇮🇹 IT</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="checkbox" value="pt" class="supported-lang-checkbox">
+                                        <span>🇵🇹 PT</span>
+                                    </label>
+                                </div>
+                                <small style="color: #64748b; display: block; margin-top: 0.5rem;">Select languages your guests can view your site in</small>
+                            </div>
+                        </div>
+                        
+                        <button class="btn" onclick="saveLanguageSettings()" style="margin-top: 1rem;">
+                            💾 Save Language Settings
+                        </button>
+                    </div>
+                </div>
+
                 <!-- Master Admin Only: Create Master Admin -->
                 <div id="createMasterAdminSection" class="card" style="display: none; margin-top: 1.5rem;">
                     <div class="card-header">
@@ -20343,10 +20408,97 @@ const promo = await fetch('/api/v1/offers/validate', {
                     } else {
                         document.getElementById('agencyManagementSection').style.display = 'none';
                     }
+                    
+                    // Load language settings
+                    loadLanguageSettingsUI();
                 }
             } catch (error) {
                 console.error('Error loading my account:', error);
                 showNotification('Error loading account details', 'error');
+            }
+        }
+        
+        // Load and populate language settings UI
+        async function loadLanguageSettingsUI() {
+            try {
+                const response = await fetch('/api/account/language-settings');
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Store globally
+                    window.accountLanguageSettings = {
+                        primary_language: data.primary_language || 'en',
+                        supported_languages: data.supported_languages || ['en']
+                    };
+                    
+                    // Set primary language dropdown
+                    const primarySelect = document.getElementById('primaryLanguage');
+                    if (primarySelect) {
+                        primarySelect.value = data.primary_language || 'en';
+                    }
+                    
+                    // Set supported language checkboxes
+                    const checkboxes = document.querySelectorAll('.supported-lang-checkbox');
+                    checkboxes.forEach(cb => {
+                        if (cb.value === 'en') {
+                            cb.checked = true;
+                            cb.disabled = true; // English always required
+                        } else {
+                            cb.checked = (data.supported_languages || []).includes(cb.value);
+                        }
+                    });
+                    
+                    // Add event listener to limit to 4 selections
+                    checkboxes.forEach(cb => {
+                        cb.addEventListener('change', function() {
+                            const checked = document.querySelectorAll('.supported-lang-checkbox:checked');
+                            if (checked.length > 4) {
+                                this.checked = false;
+                                showNotification('Maximum 4 languages allowed', 'warning');
+                            }
+                        });
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading language settings:', error);
+            }
+        }
+        
+        // Save language settings
+        async function saveLanguageSettings() {
+            const primaryLanguage = document.getElementById('primaryLanguage').value;
+            const supportedLanguages = Array.from(document.querySelectorAll('.supported-lang-checkbox:checked'))
+                .map(cb => cb.value);
+            
+            // Ensure primary language is in supported
+            if (!supportedLanguages.includes(primaryLanguage)) {
+                supportedLanguages.push(primaryLanguage);
+            }
+            
+            try {
+                const response = await fetch('/api/account/language-settings', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({
+                        primary_language: primaryLanguage,
+                        supported_languages: supportedLanguages
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    // Update global settings
+                    window.accountLanguageSettings = {
+                        primary_language: primaryLanguage,
+                        supported_languages: supportedLanguages
+                    };
+                    showNotification('Language settings saved!', 'success');
+                } else {
+                    showNotification('Error: ' + (data.error || 'Failed to save'), 'error');
+                }
+            } catch (error) {
+                console.error('Error saving language settings:', error);
+                showNotification('Error saving language settings', 'error');
             }
         }
         
