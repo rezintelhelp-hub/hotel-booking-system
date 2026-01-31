@@ -31164,6 +31164,84 @@ app.delete('/api/admin/amenities/:id', async (req, res) => {
   }
 });
 
+// Batch translate all master amenities
+app.post('/api/admin/amenities/translate-all', async (req, res) => {
+  try {
+    const targetLangs = req.body.languages || ['fr', 'es', 'de', 'nl'];
+    
+    // Get all amenities
+    const amenities = await pool.query('SELECT id, amenity_code, amenity_name FROM master_amenities WHERE is_active = true');
+    
+    console.log(`[Translate Amenities] Starting batch translation of ${amenities.rows.length} amenities to ${targetLangs.join(', ')}`);
+    
+    let translated = 0;
+    let skipped = 0;
+    let errors = 0;
+    
+    for (const amenity of amenities.rows) {
+      try {
+        // Parse current name
+        let nameObj = {};
+        if (typeof amenity.amenity_name === 'object' && amenity.amenity_name !== null) {
+          nameObj = amenity.amenity_name;
+        } else if (typeof amenity.amenity_name === 'string') {
+          try {
+            nameObj = JSON.parse(amenity.amenity_name);
+          } catch (e) {
+            nameObj = { en: amenity.amenity_name };
+          }
+        }
+        
+        // Get English name as source
+        const englishName = nameObj.en || amenity.amenity_code.replace(/_/g, ' ');
+        if (!englishName) {
+          skipped++;
+          continue;
+        }
+        
+        // Translate to each target language
+        let updated = false;
+        for (const lang of targetLangs) {
+          if (!nameObj[lang]) {
+            const translatedText = await translateText(englishName, 'en', lang);
+            if (translatedText) {
+              nameObj[lang] = translatedText;
+              updated = true;
+              console.log(`[Translate] ${amenity.amenity_code}: ${englishName} -> ${lang}: ${translatedText}`);
+            }
+            // Small delay to avoid rate limiting
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+        }
+        
+        if (updated) {
+          await pool.query(
+            'UPDATE master_amenities SET amenity_name = $1::jsonb WHERE id = $2',
+            [JSON.stringify(nameObj), amenity.id]
+          );
+          translated++;
+        } else {
+          skipped++;
+        }
+      } catch (e) {
+        console.error(`[Translate] Error translating ${amenity.amenity_code}:`, e.message);
+        errors++;
+      }
+    }
+    
+    console.log(`[Translate Amenities] Complete: ${translated} translated, ${skipped} skipped, ${errors} errors`);
+    
+    res.json({
+      success: true,
+      message: `Translated ${translated} amenities`,
+      stats: { translated, skipped, errors, total: amenities.rows.length }
+    });
+  } catch (error) {
+    console.error('Batch translate amenities error:', error.message);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Delete ALL amenities
 app.delete('/api/admin/amenities/delete-all', async (req, res) => {
   try {
