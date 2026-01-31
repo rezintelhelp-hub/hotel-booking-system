@@ -44293,7 +44293,32 @@ const GAS_TRANSLATIONS = {
       },
       "calendar": {
         "today": "Today",
-        "mon": "Mon", "tue": "Tue", "wed": "Wed", "thu": "Thu", "fri": "Fri", "sat": "Sat", "sun": "Sun"
+        "mon": "Mon", "tue": "Tue", "wed": "Wed", "thu": "Thu", "fri": "Fri", "sat": "Sat", "sun": "Sun",
+        "january": "January", "february": "February", "march": "March", "april": "April",
+        "may": "May", "june": "June", "july": "July", "august": "August",
+        "september": "September", "october": "October", "november": "November", "december": "December"
+      },
+      "checkout": {
+        "your_booking": "Your Booking",
+        "guest_details": "Guest Details",
+        "your_details": "Your Details",
+        "extras": "Extras",
+        "payment": "Payment",
+        "first_name": "First Name",
+        "last_name": "Last Name",
+        "email_address": "Email Address",
+        "confirm_email": "Confirm Email",
+        "phone_number": "Phone Number",
+        "country": "Country",
+        "address": "Address",
+        "city": "City",
+        "postcode": "Postcode",
+        "optional": "optional",
+        "price_details": "Price Details",
+        "total": "Total",
+        "nights": "nights",
+        "standard_rate": "Standard Rate",
+        "please_enter_details": "Please enter your details. We'll send the booking confirmation to your email."
       }
     }
   },
@@ -44407,7 +44432,32 @@ const GAS_TRANSLATIONS = {
       },
       "calendar": {
         "today": "Aujourd'hui",
-        "mon": "Lun", "tue": "Mar", "wed": "Mer", "thu": "Jeu", "fri": "Ven", "sat": "Sam", "sun": "Dim"
+        "mon": "Lun", "tue": "Mar", "wed": "Mer", "thu": "Jeu", "fri": "Ven", "sat": "Sam", "sun": "Dim",
+        "january": "Janvier", "february": "Février", "march": "Mars", "april": "Avril",
+        "may": "Mai", "june": "Juin", "july": "Juillet", "august": "Août",
+        "september": "Septembre", "october": "Octobre", "november": "Novembre", "december": "Décembre"
+      },
+      "checkout": {
+        "your_booking": "Votre réservation",
+        "guest_details": "Informations voyageur",
+        "your_details": "Vos informations",
+        "extras": "Suppléments",
+        "payment": "Paiement",
+        "first_name": "Prénom",
+        "last_name": "Nom",
+        "email_address": "Adresse e-mail",
+        "confirm_email": "Confirmer l'e-mail",
+        "phone_number": "Numéro de téléphone",
+        "country": "Pays",
+        "address": "Adresse",
+        "city": "Ville",
+        "postcode": "Code postal",
+        "optional": "facultatif",
+        "price_details": "Détails du prix",
+        "total": "Total",
+        "nights": "nuits",
+        "standard_rate": "Tarif standard",
+        "please_enter_details": "Veuillez entrer vos informations. Nous vous enverrons la confirmation de réservation par e-mail."
       }
     }
   },
@@ -44521,7 +44571,32 @@ const GAS_TRANSLATIONS = {
       },
       "calendar": {
         "today": "Hoy",
-        "mon": "Lun", "tue": "Mar", "wed": "Mié", "thu": "Jue", "fri": "Vie", "sat": "Sáb", "sun": "Dom"
+        "mon": "Lun", "tue": "Mar", "wed": "Mié", "thu": "Jue", "fri": "Vie", "sat": "Sáb", "sun": "Dom",
+        "january": "Enero", "february": "Febrero", "march": "Marzo", "april": "Abril",
+        "may": "Mayo", "june": "Junio", "july": "Julio", "august": "Agosto",
+        "september": "Septiembre", "october": "Octubre", "november": "Noviembre", "december": "Diciembre"
+      },
+      "checkout": {
+        "your_booking": "Tu reserva",
+        "guest_details": "Datos del huésped",
+        "your_details": "Tus datos",
+        "extras": "Extras",
+        "payment": "Pago",
+        "first_name": "Nombre",
+        "last_name": "Apellidos",
+        "email_address": "Correo electrónico",
+        "confirm_email": "Confirmar correo",
+        "phone_number": "Teléfono",
+        "country": "País",
+        "address": "Dirección",
+        "city": "Ciudad",
+        "postcode": "Código postal",
+        "optional": "opcional",
+        "price_details": "Detalles del precio",
+        "total": "Total",
+        "nights": "noches",
+        "standard_rate": "Tarifa estándar",
+        "please_enter_details": "Introduce tus datos. Te enviaremos la confirmación de la reserva por correo electrónico."
       }
     }
   },
@@ -44635,7 +44710,32 @@ const GAS_TRANSLATIONS = {
       },
       "calendar": {
         "today": "Vandaag",
-        "mon": "Ma", "tue": "Di", "wed": "Wo", "thu": "Do", "fri": "Vr", "sat": "Za", "sun": "Zo"
+        "mon": "Ma", "tue": "Di", "wed": "Wo", "thu": "Do", "fri": "Vr", "sat": "Za", "sun": "Zo",
+        "january": "Januari", "february": "Februari", "march": "Maart", "april": "April",
+        "may": "Mei", "june": "Juni", "july": "Juli", "august": "Augustus",
+        "september": "September", "october": "Oktober", "november": "November", "december": "December"
+      },
+      "checkout": {
+        "your_booking": "Uw boeking",
+        "guest_details": "Gastgegevens",
+        "your_details": "Uw gegevens",
+        "extras": "Extra's",
+        "payment": "Betaling",
+        "first_name": "Voornaam",
+        "last_name": "Achternaam",
+        "email_address": "E-mailadres",
+        "confirm_email": "E-mail bevestigen",
+        "phone_number": "Telefoonnummer",
+        "country": "Land",
+        "address": "Adres",
+        "city": "Stad",
+        "postcode": "Postcode",
+        "optional": "optioneel",
+        "price_details": "Prijsdetails",
+        "total": "Totaal",
+        "nights": "nachten",
+        "standard_rate": "Standaardtarief",
+        "please_enter_details": "Vul uw gegevens in. We sturen de boekingsbevestiging naar uw e-mailadres."
       }
     }
   },
@@ -44749,7 +44849,32 @@ const GAS_TRANSLATIONS = {
       },
       "calendar": {
         "today": "Heute",
-        "mon": "Mo", "tue": "Di", "wed": "Mi", "thu": "Do", "fri": "Fr", "sat": "Sa", "sun": "So"
+        "mon": "Mo", "tue": "Di", "wed": "Mi", "thu": "Do", "fri": "Fr", "sat": "Sa", "sun": "So",
+        "january": "Januar", "february": "Februar", "march": "März", "april": "April",
+        "may": "Mai", "june": "Juni", "july": "Juli", "august": "August",
+        "september": "September", "october": "Oktober", "november": "November", "december": "Dezember"
+      },
+      "checkout": {
+        "your_booking": "Ihre Buchung",
+        "guest_details": "Gästedaten",
+        "your_details": "Ihre Daten",
+        "extras": "Extras",
+        "payment": "Zahlung",
+        "first_name": "Vorname",
+        "last_name": "Nachname",
+        "email_address": "E-Mail-Adresse",
+        "confirm_email": "E-Mail bestätigen",
+        "phone_number": "Telefonnummer",
+        "country": "Land",
+        "address": "Adresse",
+        "city": "Stadt",
+        "postcode": "Postleitzahl",
+        "optional": "optional",
+        "price_details": "Preisdetails",
+        "total": "Gesamt",
+        "nights": "Nächte",
+        "standard_rate": "Standardpreis",
+        "please_enter_details": "Bitte geben Sie Ihre Daten ein. Wir senden Ihnen die Buchungsbestätigung per E-Mail."
       }
     }
   }
