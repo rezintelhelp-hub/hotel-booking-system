@@ -677,6 +677,31 @@ app.get('/:slug', async (req, res) => {
     const liteUrl = `https://lite.gas.travel/#${slug}`;
     const qrCode = await QRCode.toDataURL(liteUrl, { width: 150, margin: 1 });
     
+    // Get property_terms for multilingual house rules and cancellation policy
+    try {
+      const termsRes = await pool.query(
+        'SELECT additional_rules, additional_rules_ml, cancellation_policy, cancellation_policy_ml FROM property_terms WHERE property_id = $1',
+        [propertyId]
+      );
+      if (termsRes.rows[0]) {
+        const pt = termsRes.rows[0];
+        // Apply multilingual house rules
+        if (pt.additional_rules_ml && typeof pt.additional_rules_ml === 'object') {
+          lite.house_rules = pt.additional_rules_ml[lang] || pt.additional_rules_ml.en || pt.additional_rules || lite.house_rules;
+        } else if (pt.additional_rules) {
+          lite.house_rules = pt.additional_rules;
+        }
+        // Apply multilingual cancellation policy
+        if (pt.cancellation_policy_ml && typeof pt.cancellation_policy_ml === 'object') {
+          lite.cancellation_policy = pt.cancellation_policy_ml[lang] || pt.cancellation_policy_ml.en || pt.cancellation_policy || lite.cancellation_policy;
+        } else if (pt.cancellation_policy) {
+          lite.cancellation_policy = pt.cancellation_policy;
+        }
+      }
+    } catch (e) {
+      console.log('Property terms not found, using property defaults');
+    }
+    
     // Check for active offer/campaign
     let activeOffer = null;
     if (offerCode) {
@@ -2578,31 +2603,31 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
           
           <div class="tab-content" id="tab-terms">
             <div class="accordion-item">
-              <button class="accordion-header" onclick="toggleAccordion(this)"><span>General Terms</span><span class="accordion-icon">+</span></button>
+              <button class="accordion-header" onclick="toggleAccordion(this)"><span>${t('policies', lang)}</span><span class="accordion-icon">+</span></button>
               <div class="accordion-content">
                 <ul class="terms-list">
-                  <li><strong>Check-in:</strong> ${lite.check_in_time || '3:00 PM'}</li>
-                  <li><strong>Check-out:</strong> ${lite.check_out_time || '11:00 AM'}</li>
-                  <li><strong>Children:</strong> ${lite.children_allowed ? 'Children of all ages welcome' : 'Not suitable for children'}</li>
-                  <li><strong>Events:</strong> ${lite.events_allowed ? 'Events allowed' : 'No events or parties'}</li>
+                  <li><strong>${t('check_in', lang)}:</strong> ${lite.check_in_time || '3:00 PM'}</li>
+                  <li><strong>${t('check_out', lang)}:</strong> ${lite.check_out_time || '11:00 AM'}</li>
+                  <li><strong>${t('children', lang) || 'Children'}:</strong> ${lite.children_allowed ? t('children_welcome', lang) || 'Children of all ages welcome' : t('no_children', lang) || 'Not suitable for children'}</li>
+                  <li><strong>${t('events', lang) || 'Events'}:</strong> ${lite.events_allowed ? t('events_allowed', lang) || 'Events allowed' : t('no_events', lang) || 'No events or parties'}</li>
                 </ul>
               </div>
             </div>
             <div class="accordion-item">
-              <button class="accordion-header" onclick="toggleAccordion(this)"><span>House Rules</span><span class="accordion-icon">+</span></button>
+              <button class="accordion-header" onclick="toggleAccordion(this)"><span>${t('house_rules', lang)}</span><span class="accordion-icon">+</span></button>
               <div class="accordion-content">
                 <ul class="terms-list">
-                  <li><strong>Smoking:</strong> ${lite.smoking_allowed ? 'Smoking allowed' : 'No smoking'}</li>
-                  <li><strong>Pets:</strong> ${lite.pets_allowed ? 'Pets allowed' : 'No pets allowed'}</li>
-                  ${lite.quiet_hours_start ? `<li><strong>Quiet hours:</strong> ${lite.quiet_hours_start} - ${lite.quiet_hours_end || '08:00'}</li>` : ''}
+                  <li><strong>${t('smoking', lang) || 'Smoking'}:</strong> ${lite.smoking_allowed ? t('smoking_allowed', lang) || 'Smoking allowed' : t('no_smoking', lang) || 'No smoking'}</li>
+                  <li><strong>${t('pets', lang) || 'Pets'}:</strong> ${lite.pets_allowed ? t('pets_allowed', lang) || 'Pets allowed' : t('no_pets', lang) || 'No pets allowed'}</li>
+                  ${lite.quiet_hours_start ? `<li><strong>${t('quiet_hours', lang) || 'Quiet hours'}:</strong> ${lite.quiet_hours_start} - ${lite.quiet_hours_end || '08:00'}</li>` : ''}
                 </ul>
                 ${lite.house_rules ? `<div class="house-rules-text">${parseDescription(lite.house_rules)}</div>` : ''}
               </div>
             </div>
             <div class="accordion-item">
-              <button class="accordion-header" onclick="toggleAccordion(this)"><span>Cancellation Policy</span><span class="accordion-icon">+</span></button>
+              <button class="accordion-header" onclick="toggleAccordion(this)"><span>${t('cancellation', lang)}</span><span class="accordion-icon">+</span></button>
               <div class="accordion-content">
-                <p class="policy-type">${lite.cancellation_policy || 'Contact host for cancellation policy'}</p>
+                <p class="policy-type">${lite.cancellation_policy || t('contact_for_cancellation', lang) || 'Contact host for cancellation policy'}</p>
               </div>
             </div>
           </div>
