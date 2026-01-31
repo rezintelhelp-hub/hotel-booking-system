@@ -60779,6 +60779,45 @@ app.post('/api/translate', async (req, res) => {
   }
 });
 
+// Admin translate-text endpoint for website builder
+app.post('/api/admin/translate-text', async (req, res) => {
+  try {
+    const { text, source_lang = 'en', target_langs = ['fr', 'es', 'nl'] } = req.body;
+    
+    if (!text || text.trim().length === 0) {
+      return res.json({ success: false, error: 'No text to translate' });
+    }
+    
+    // Check if we have any translation service configured
+    if (!GEMINI_API_KEY && !DEEPL_API_KEY) {
+      return res.json({ success: false, error: 'No translation service configured (need Gemini or DeepL API key)' });
+    }
+    
+    const translations = {};
+    
+    // Translate to each target language
+    for (const lang of target_langs) {
+      if (lang === source_lang) continue;
+      
+      try {
+        const translated = await translateText(text, source_lang, lang);
+        if (translated) {
+          translations[lang] = translated;
+        }
+      } catch (e) {
+        console.error(`Translation to ${lang} failed:`, e.message);
+        // Continue with other languages even if one fails
+      }
+    }
+    
+    res.json({ success: true, translations });
+    
+  } catch (error) {
+    console.error('Admin translate-text API error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // ============================================
 // END TRANSLATION WORKER
 // ============================================
