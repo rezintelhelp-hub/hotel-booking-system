@@ -20340,6 +20340,28 @@ const promo = await fetch('/api/v1/offers/validate', {
                     });
                 }
                 
+                // For hero section, also collect from editor-homepage-hero (contains menu-title fields)
+                if (section === 'hero') {
+                    const homepageHeroContainer = document.getElementById('editor-homepage-hero');
+                    if (homepageHeroContainer) {
+                        homepageHeroContainer.querySelectorAll(`[id^="${prefix}"]`).forEach(el => {
+                            const key = el.id.replace(prefix, '');
+                            if (key.endsWith('-picker') || key.endsWith('-value') || key.endsWith('-preview')) {
+                                return;
+                            }
+                            if (el.type === 'checkbox') {
+                                settings[key] = el.checked;
+                            } else if (el.type === 'file') {
+                                // Skip file inputs
+                            } else if (el.value !== undefined) {
+                                if (el.value !== '' || !settings[key]) {
+                                    settings[key] = el.value;
+                                }
+                            }
+                        });
+                    }
+                }
+                
                 // Collect FAQs if this section has them
                 const faqSection = section.replace('page-', '');
                 const faqs = getFAQsFromSection(faqSection);
