@@ -761,7 +761,7 @@ app.get('/:slug/card', async (req, res) => {
              bu.name as room_name, bu.display_name as display_name_raw,
              bu.num_bedrooms as bedroom_count, bu.num_bathrooms as bathroom_count, bu.max_guests, bu.base_price,
              COALESCE(a.business_name, a.name, pa.business_name, pa.name) as account_display_name,
-             COALESCE(l.account_id, p.account_id) as effective_account_id
+             COALESCE(a.settings, pa.settings) as account_settings
       FROM gas_lites l
       JOIN properties p ON l.property_id = p.id
       LEFT JOIN bookable_units bu ON l.room_id = bu.id
@@ -777,7 +777,9 @@ app.get('/:slug/card', async (req, res) => {
     const lite = liteResult.rows[0];
     
     // Get account's supported languages
-    const accountSettings = await getAccountSettings(lite.effective_account_id);
+    const accountSettings = typeof lite.account_settings === 'string' 
+      ? JSON.parse(lite.account_settings) 
+      : (lite.account_settings || {});
     const supportedLangs = accountSettings.languages?.supported || ['en'];
     const primaryLang = accountSettings.languages?.primary || 'en';
     
