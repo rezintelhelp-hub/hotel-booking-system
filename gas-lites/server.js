@@ -755,24 +755,13 @@ app.get('/:slug/card', async (req, res) => {
     const { slug } = req.params;
     const offer = req.query.offer;
     
-    // Language priority: 1) query param, 2) Accept-Language header, 3) default 'en'
-    let lang = 'en';
-    if (req.query.lang) {
-      lang = req.query.lang.toLowerCase().substring(0, 2);
-    } else {
-      const acceptLang = req.headers['accept-language'] || '';
-      const browserLang = acceptLang.split(',')[0]?.split('-')[0]?.toLowerCase();
-      if (['en', 'es', 'fr', 'de', 'nl'].includes(browserLang)) {
-        lang = browserLang;
-      }
-    }
-    
     const liteResult = await pool.query(`
       SELECT l.*, p.name, p.city, p.country, p.currency, p.short_description,
              p.average_rating, p.pets_allowed, p.children_allowed,
              bu.name as room_name, bu.display_name as display_name_raw,
              bu.num_bedrooms as bedroom_count, bu.num_bathrooms as bathroom_count, bu.max_guests, bu.base_price,
-             COALESCE(a.business_name, a.name, pa.business_name, pa.name) as account_display_name
+             COALESCE(a.business_name, a.name, pa.business_name, pa.name) as account_display_name,
+             COALESCE(l.account_id, p.account_id) as effective_account_id
       FROM gas_lites l
       JOIN properties p ON l.property_id = p.id
       LEFT JOIN bookable_units bu ON l.room_id = bu.id
@@ -786,6 +775,23 @@ app.get('/:slug/card', async (req, res) => {
     }
     
     const lite = liteResult.rows[0];
+    
+    // Get account's supported languages
+    const accountSettings = await getAccountSettings(lite.effective_account_id);
+    const supportedLangs = accountSettings.languages?.supported || ['en'];
+    const primaryLang = accountSettings.languages?.primary || 'en';
+    
+    // Language priority: 1) query param, 2) Accept-Language header, 3) primary language
+    let lang = primaryLang;
+    if (req.query.lang) {
+      lang = req.query.lang.toLowerCase().substring(0, 2);
+    } else {
+      const acceptLang = req.headers['accept-language'] || '';
+      const browserLang = acceptLang.split(',')[0]?.split('-')[0]?.toLowerCase();
+      if (supportedLangs.includes(browserLang)) {
+        lang = browserLang;
+      }
+    }
     
     // Parse display_name from JSON
     lite.display_name = parseJsonTextField(lite.display_name_raw);
@@ -874,7 +880,7 @@ app.get('/:slug/card', async (req, res) => {
     const liteUrl = `https://lite.gas.travel/#${slug}`;
     const qrCode = await QRCode.toDataURL(liteUrl, { width: 200, margin: 1 });
     
-    res.send(renderPromoCard({ lite, image, price, offer: activeOffer, qrCode, liteUrl, hasOffers, lang }));
+    res.send(renderPromoCard({ lite, image, price, offer: activeOffer, qrCode, liteUrl, hasOffers, lang, supportedLangs }));
   } catch (error) {
     console.error('Card error:', error);
     res.status(500).send(renderError());
@@ -3811,7 +3817,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
 </html>`;
 }
 
-function renderPromoCard({ lite, image, price, offer, qrCode, liteUrl, hasOffers, lang = 'en' }) {
+function renderPromoCard({ lite, image, price, offer, qrCode, liteUrl, hasOffers, lang = 'en', supportedLangs = ['en'] }) {
   // Use custom_title only if it's different from room_name (i.e., truly custom)
   const effectiveCustomTitle = (lite.custom_title && lite.custom_title !== lite.room_name) ? lite.custom_title : null;
   const title = effectiveCustomTitle || lite.display_name || lite.room_name || lite.name;
@@ -3934,11 +3940,7 @@ function renderPromoCard({ lite, image, price, offer, qrCode, liteUrl, hasOffers
     <div class="footer">
       ${lite.account_display_name ? `<strong>${escapeForHTML(lite.account_display_name)}</strong> • ` : ''}Powered by GAS.travel
       <select class="lang-switch" onchange="switchLang(this.value)">
-        <option value="en" ${lang === 'en' ? 'selected' : ''}>🇬🇧 EN</option>
-        <option value="es" ${lang === 'es' ? 'selected' : ''}>🇪🇸 ES</option>
-        <option value="fr" ${lang === 'fr' ? 'selected' : ''}>🇫🇷 FR</option>
-        <option value="de" ${lang === 'de' ? 'selected' : ''}>🇩🇪 DE</option>
-        <option value="nl" ${lang === 'nl' ? 'selected' : ''}>🇳🇱 NL</option>
+        ${AVAILABLE_LANGUAGES.filter(l => supportedLangs.includes(l.code)).map(l => `<option value="${l.code}" ${l.code === lang ? 'selected' : ''}>${l.flag} ${l.code.toUpperCase()}</option>`).join('')}
       </select>
     </div>
   </div>
