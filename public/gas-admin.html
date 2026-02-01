@@ -42161,14 +42161,28 @@ const promo = await fetch('/api/v1/offers/validate', {
                     
                     showNotification('AI details loaded! Translating...', 'success');
                     
-                    // Auto-translate all multilingual fields
+                    // Auto-translate all multilingual fields directly via API
                     const fieldsToTranslate = ['attraction-name', 'attraction-short-desc', 'attraction-description', 'attraction-meta-title', 'attraction-meta-description'];
                     for (const field of fieldsToTranslate) {
-                        const wrapper = document.querySelector(`[data-translation-group="${field}"]`);
-                        const enInput = wrapper?.querySelector('[data-lang="en"]');
-                        if (enInput && enInput.value.trim()) {
+                        const enEl = document.getElementById(`${field}-en`);
+                        if (enEl && enEl.value.trim()) {
                             try {
-                                await autoTranslateField(field);
+                                const transResponse = await fetch('/api/admin/translate-text', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                                    body: JSON.stringify({
+                                        text: enEl.value.trim(),
+                                        source_lang: 'en',
+                                        target_langs: ['fr', 'es', 'nl']
+                                    })
+                                });
+                                const transData = await transResponse.json();
+                                if (transData.success && transData.translations) {
+                                    Object.entries(transData.translations).forEach(([lang, text]) => {
+                                        const input = document.getElementById(`${field}-${lang}`);
+                                        if (input) input.value = text;
+                                    });
+                                }
                             } catch (e) {
                                 console.log('Translation skipped for', field);
                             }
