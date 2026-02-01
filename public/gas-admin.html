@@ -4983,19 +4983,19 @@
                                 <div class="card-body">
                                     <div class="form-group">
                                         <label class="form-label">Menu Title <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
-                                        <div class="translation-field-wrapper" data-translation-group="wb-hero-menu-title">
+                                        <div class="translation-field-wrapper" data-translation-group="wb-page-home-menu-title">
                                             <div class="translation-tabs">
-                                                <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-hero-menu-title', 'en')"><span class="flag">🇬🇧</span>EN</button>
-                                                <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-hero-menu-title', 'fr')"><span class="flag">🇫🇷</span>FR</button>
-                                                <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-hero-menu-title', 'es')"><span class="flag">🇪🇸</span>ES</button>
-                                                <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-hero-menu-title', 'nl')"><span class="flag">🇳🇱</span>NL</button>
-                                                <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-hero-menu-title')" title="Auto-translate">✨</button>
+                                                <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-home-menu-title', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                                <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-home-menu-title', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                                <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-home-menu-title', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                                <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-home-menu-title', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                                <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-home-menu-title')" title="Auto-translate">✨</button>
                                             </div>
                                             <div class="translation-input-group">
-                                                <input type="text" class="form-input translation-input active" id="wb-hero-menu-title-en" data-lang="en" placeholder="e.g., Home" value="Home">
-                                                <input type="text" class="form-input translation-input" id="wb-hero-menu-title-fr" data-lang="fr" placeholder="Accueil">
-                                                <input type="text" class="form-input translation-input" id="wb-hero-menu-title-es" data-lang="es" placeholder="Inicio">
-                                                <input type="text" class="form-input translation-input" id="wb-hero-menu-title-nl" data-lang="nl" placeholder="Home">
+                                                <input type="text" class="form-input translation-input active" id="wb-page-home-menu-title-en" data-lang="en" placeholder="e.g., Home" value="Home">
+                                                <input type="text" class="form-input translation-input" id="wb-page-home-menu-title-fr" data-lang="fr" placeholder="Accueil">
+                                                <input type="text" class="form-input translation-input" id="wb-page-home-menu-title-es" data-lang="es" placeholder="Inicio">
+                                                <input type="text" class="form-input translation-input" id="wb-page-home-menu-title-nl" data-lang="nl" placeholder="Home">
                                             </div>
                                         </div>
                                     </div>
@@ -20268,11 +20268,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                     'styles': 'editor-styles-content'
                 };
                 
-                // Additional containers that may have fields for a section
-                const additionalContainers = {
-                    'hero': 'editor-homepage-hero'  // Menu title fields are here
-                };
-                
                 const clonedContainerId = clonedPanelMap[section];
                 const clonedContainer = clonedContainerId ? document.getElementById(clonedContainerId) : null;
                 
@@ -20343,29 +20338,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                             }
                         }
                     });
-                }
-                
-                // Also collect from additional containers (e.g., editor-homepage-hero for menu titles)
-                const additionalContainerId = additionalContainers[section];
-                if (additionalContainerId) {
-                    const additionalContainer = document.getElementById(additionalContainerId);
-                    if (additionalContainer) {
-                        additionalContainer.querySelectorAll(`[id^="${prefix}"]`).forEach(el => {
-                            const key = el.id.replace(prefix, '');
-                            if (key.endsWith('-picker') || key.endsWith('-value') || key.endsWith('-preview')) {
-                                return;
-                            }
-                            if (el.type === 'checkbox') {
-                                settings[key] = el.checked;
-                            } else if (el.type === 'file') {
-                                // Skip file inputs
-                            } else if (el.value !== undefined) {
-                                if (el.value !== '' || !settings[key]) {
-                                    settings[key] = el.value;
-                                }
-                            }
-                        });
-                    }
                 }
                 
                 // Collect FAQs if this section has them
