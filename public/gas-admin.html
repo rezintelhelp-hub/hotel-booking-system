@@ -20268,6 +20268,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                     'styles': 'editor-styles-content'
                 };
                 
+                // Additional containers that may have fields for a section
+                const additionalContainers = {
+                    'hero': 'editor-homepage-hero'  // Menu title fields are here
+                };
+                
                 const clonedContainerId = clonedPanelMap[section];
                 const clonedContainer = clonedContainerId ? document.getElementById(clonedContainerId) : null;
                 
@@ -20338,6 +20343,29 @@ const promo = await fetch('/api/v1/offers/validate', {
                             }
                         }
                     });
+                }
+                
+                // Also collect from additional containers (e.g., editor-homepage-hero for menu titles)
+                const additionalContainerId = additionalContainers[section];
+                if (additionalContainerId) {
+                    const additionalContainer = document.getElementById(additionalContainerId);
+                    if (additionalContainer) {
+                        additionalContainer.querySelectorAll(`[id^="${prefix}"]`).forEach(el => {
+                            const key = el.id.replace(prefix, '');
+                            if (key.endsWith('-picker') || key.endsWith('-value') || key.endsWith('-preview')) {
+                                return;
+                            }
+                            if (el.type === 'checkbox') {
+                                settings[key] = el.checked;
+                            } else if (el.type === 'file') {
+                                // Skip file inputs
+                            } else if (el.value !== undefined) {
+                                if (el.value !== '' || !settings[key]) {
+                                    settings[key] = el.value;
+                                }
+                            }
+                        });
+                    }
                 }
                 
                 // Collect FAQs if this section has them
