@@ -42006,8 +42006,8 @@ const promo = await fetch('/api/v1/offers/validate', {
             // Open attraction modal with pre-filled data
             await openAttractionModal();
             
-            document.getElementById('attraction-name').value = suggestion.title || '';
-            document.getElementById('attraction-short-desc').value = suggestion.description || '';
+            document.getElementById('attraction-name-en').value = suggestion.title || '';
+            document.getElementById('attraction-short-desc-en').value = suggestion.description || '';
             if (suggestion.property_id) {
                 document.getElementById('attraction-property-id').value = suggestion.property_id;
             }
@@ -42075,7 +42075,7 @@ const promo = await fetch('/api/v1/offers/validate', {
         
         // Keep AI generate attraction details function
         async function aiGenerateAttractionDetails() {
-            const name = document.getElementById('attraction-name').value.trim();
+            const name = document.getElementById('attraction-name-en').value.trim();
             const propertyId = document.getElementById('attraction-property-id').value;
             
             if (!name) {
@@ -42124,11 +42124,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                 if (data.success && data.attraction) {
                     const a = data.attraction;
                     
-                    if (!document.getElementById('attraction-short-desc').value && a.short_description) {
-                        document.getElementById('attraction-short-desc').value = a.short_description;
+                    if (!document.getElementById('attraction-short-desc-en').value && a.short_description) {
+                        document.getElementById('attraction-short-desc-en').value = a.short_description;
                     }
-                    if (!document.getElementById('attraction-description').value && a.description) {
-                        document.getElementById('attraction-description').value = a.description;
+                    if (!document.getElementById('attraction-description-en').value && a.description) {
+                        document.getElementById('attraction-description-en').value = a.description;
                     }
                     if (!document.getElementById('attraction-category').value && a.category) {
                         document.getElementById('attraction-category').value = a.category;
@@ -42149,10 +42149,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                         document.getElementById('attraction-duration').value = a.duration;
                     }
                     if (a.meta_title) {
-                        document.getElementById('attraction-meta-title').value = a.meta_title;
+                        document.getElementById('attraction-meta-title-en').value = a.meta_title;
                     }
                     if (a.meta_description) {
-                        document.getElementById('attraction-meta-description').value = a.meta_description;
+                        document.getElementById('attraction-meta-description-en').value = a.meta_description;
                     }
                     if (a.faq_schema) {
                         const schemaScript = '<scr' + 'ipt type="application/ld+json">\n' + JSON.stringify(a.faq_schema, null, 2) + '\n<\/scr' + 'ipt>';
