@@ -43085,33 +43085,137 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const data = await response.json();
                 
                 if (data.success) {
-                    // Fill in the form
-                    document.getElementById('ai-blog-title').value = data.blog.title || '';
-                    document.getElementById('ai-blog-excerpt').value = data.blog.excerpt || '';
-                    document.getElementById('ai-blog-content').value = data.blog.content || '';
-                    document.getElementById('ai-blog-meta-title').value = data.blog.meta_title || '';
-                    document.getElementById('ai-blog-meta-desc').value = data.blog.meta_description || '';
+                    // Store values for auto-save
+                    const blogTitle = data.blog.title || '';
+                    const blogExcerpt = data.blog.excerpt || '';
+                    const blogContent = data.blog.content || '';
+                    const blogMetaTitle = data.blog.meta_title || '';
+                    const blogMetaDesc = data.blog.meta_description || '';
+                    const blogFaqSchema = data.blog.faq_schema || null;
+                    const blogPropertyId = data.blog.property_id || propertyId || '';
                     
-                    // Fill FAQ schema
-                    if (data.blog.faq_schema) {
-                        const schemaScript = '<scr' + 'ipt type="application/ld+json">\n' + JSON.stringify(data.blog.faq_schema, null, 2) + '\n<\/scr' + 'ipt>';
-                        document.getElementById('ai-blog-faq-schema').value = schemaScript;
-                    } else {
-                        document.getElementById('ai-blog-faq-schema').value = '(No FAQ schema generated)';
+                    showNotification('Blog generated! Saving and translating...', 'success');
+                    document.getElementById('ai-blog-loading').querySelector('div').textContent = 'Saving and translating...';
+                    
+                    // Auto-save as draft immediately
+                    let clientId = null;
+                    if (blogPropertyId) {
+                        try {
+                            const propResponse = await fetch(`/api/db/properties/${blogPropertyId}`);
+                            const propData = await propResponse.json();
+                            if (propData.success && propData.data) {
+                                clientId = propData.data.client_id;
+                            }
+                        } catch (e) {}
+                    }
+                    if (!clientId) clientId = 1;
+                    
+                    const blogData = {
+                        title: blogTitle,
+                        slug: blogTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, ''),
+                        excerpt: blogExcerpt,
+                        content: blogContent,
+                        meta_title: blogMetaTitle,
+                        meta_description: blogMetaDesc,
+                        title_ml: { en: blogTitle },
+                        excerpt_ml: { en: blogExcerpt },
+                        content_ml: { en: blogContent },
+                        meta_title_ml: { en: blogMetaTitle },
+                        meta_description_ml: { en: blogMetaDesc },
+                        category: 'General',
+                        is_published: false,
+                        client_id: clientId,
+                        property_id: blogPropertyId || null,
+                        ai_generated: true,
+                        source_keyword: keyword || null,
+                        language: language || 'en',
+                        faq_schema: blogFaqSchema
+                    };
+                    
+                    const saveResponse = await fetch('/api/admin/blog', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                        body: JSON.stringify(blogData)
+                    });
+                    const saveData = await saveResponse.json();
+                    
+                    if (!saveData.success) {
+                        throw new Error(saveData.error || 'Failed to save blog');
                     }
                     
-                    // Store property info for saving
-                    document.getElementById('ai-blog-property-id').value = data.blog.property_id || propertyId || '';
-                    document.getElementById('ai-blog-property-id').dataset.language = language;
-                    document.getElementById('ai-blog-property-id').dataset.faqSchema = JSON.stringify(data.blog.faq_schema || null);
-                    // Keep event_date for saving to blog_posts
-                    document.getElementById('ai-blog-property-id').dataset.eventDate = eventDate;
+                    const postId = saveData.post.id;
                     
-                    // Show result
-                    document.getElementById('ai-blog-loading').style.display = 'none';
-                    document.getElementById('ai-blog-result').style.display = 'block';
+                    // Auto-translate all fields
+                    const fieldsToTranslate = {
+                        title_ml: blogTitle,
+                        excerpt_ml: blogExcerpt,
+                        content_ml: blogContent,
+                        meta_title_ml: blogMetaTitle,
+                        meta_description_ml: blogMetaDesc
+                    };
                     
-                    showNotification('Blog post generated!', 'success');
+                    const translatedMl = {};
+                    for (const [mlField, enText] of Object.entries(fieldsToTranslate)) {
+                        if (enText && enText.trim()) {
+                            try {
+                                const transResponse = await fetch('/api/admin/translate-text', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                                    body: JSON.stringify({
+                                        text: enText.trim(),
+                                        source_lang: 'en',
+                                        target_langs: ['fr', 'es', 'nl']
+                                    })
+                                });
+                                const transData = await transResponse.json();
+                                if (transData.success && transData.translations) {
+                                    translatedMl[mlField] = { en: enText, ...transData.translations };
+                                }
+                            } catch (e) {
+                                translatedMl[mlField] = { en: enText };
+                            }
+                        }
+                    }
+                    
+                    // Update post with translations
+                    if (Object.keys(translatedMl).length > 0) {
+                        try {
+                            await fetch(`/api/admin/blog/${postId}`, {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                                body: JSON.stringify(translatedMl)
+                            });
+                        } catch (e) {}
+                    }
+                    
+                    // Mark content idea as used if applicable
+                    const contentIdeaId = document.getElementById('ai-blog-property-id')?.dataset?.contentIdeaId;
+                    if (contentIdeaId) {
+                        try {
+                            await fetch(`/api/admin/content-ideas/${contentIdeaId}/status`, {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                                body: JSON.stringify({ status: 'used' })
+                            });
+                        } catch (e) {}
+                    }
+                    
+                    // Close AI modal and open the multilingual blog editor
+                    closeAiBlogModal();
+                    showNotification('Blog saved and translated! Opening editor...', 'success');
+                    
+                    // Open the blog editor with the saved post
+                    try {
+                        const editResponse = await fetch(`/api/admin/blog/${postId}`, { headers: authHeaders() });
+                        const editData = await editResponse.json();
+                        if (editData.success && editData.post) {
+                            openBlogModal(editData.post);
+                        }
+                    } catch (e) {
+                        // Fallback - just refresh the list
+                        showView('app-blog');
+                        loadBlogByTab();
+                    }
                 } else {
                     throw new Error(data.error || 'Failed to generate blog');
                 }
