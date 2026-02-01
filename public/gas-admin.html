@@ -42159,7 +42159,22 @@ const promo = await fetch('/api/v1/offers/validate', {
                         document.getElementById('attraction-faq-schema').value = schemaScript;
                     }
                     
-                    showNotification('AI details loaded!', 'success');
+                    showNotification('AI details loaded! Translating...', 'success');
+                    
+                    // Auto-translate all multilingual fields
+                    const fieldsToTranslate = ['attraction-name', 'attraction-short-desc', 'attraction-description', 'attraction-meta-title', 'attraction-meta-description'];
+                    for (const field of fieldsToTranslate) {
+                        const wrapper = document.querySelector(`[data-translation-group="${field}"]`);
+                        const enInput = wrapper?.querySelector('[data-lang="en"]');
+                        if (enInput && enInput.value.trim()) {
+                            try {
+                                await autoTranslateField(field);
+                            } catch (e) {
+                                console.log('Translation skipped for', field);
+                            }
+                        }
+                    }
+                    showNotification('AI details loaded and translated!', 'success');
                 } else {
                     showNotification(data.error || 'AI generation failed', 'error');
                 }
@@ -43165,6 +43180,12 @@ const promo = await fetch('/api/v1/offers/validate', {
                 content: document.getElementById('ai-blog-content').value,
                 meta_title: document.getElementById('ai-blog-meta-title').value,
                 meta_description: document.getElementById('ai-blog-meta-desc').value,
+                // Multilingual fields - store English as default
+                title_ml: { en: document.getElementById('ai-blog-title').value },
+                excerpt_ml: { en: document.getElementById('ai-blog-excerpt').value },
+                content_ml: { en: document.getElementById('ai-blog-content').value },
+                meta_title_ml: { en: document.getElementById('ai-blog-meta-title').value },
+                meta_description_ml: { en: document.getElementById('ai-blog-meta-desc').value },
                 category: blogCategory,
                 featured_image_url: document.getElementById('ai-blog-image')?.value || null,
                 is_published: publish,
