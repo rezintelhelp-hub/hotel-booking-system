@@ -43225,11 +43225,58 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const data = await response.json();
                 
                 if (data.success) {
+                    const postId = data.post.id;
                     let message = publish ? 'Blog published!' : 'Blog saved as draft';
                     if (scheduledAt) {
                         message = `Blog scheduled for ${new Date(scheduledAt).toLocaleString()}`;
                     }
-                    showNotification(message, 'success');
+                    showNotification(message + ' Translating...', 'success');
+                    
+                    // Auto-translate all text fields
+                    const fieldsToTranslate = {
+                        title_ml: blogData.title,
+                        excerpt_ml: blogData.excerpt,
+                        content_ml: blogData.content,
+                        meta_title_ml: blogData.meta_title,
+                        meta_description_ml: blogData.meta_description
+                    };
+                    
+                    const translatedMl = {};
+                    for (const [mlField, enText] of Object.entries(fieldsToTranslate)) {
+                        if (enText && enText.trim()) {
+                            try {
+                                const transResponse = await fetch('/api/admin/translate-text', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                                    body: JSON.stringify({
+                                        text: enText.trim(),
+                                        source_lang: 'en',
+                                        target_langs: ['fr', 'es', 'nl']
+                                    })
+                                });
+                                const transData = await transResponse.json();
+                                if (transData.success && transData.translations) {
+                                    translatedMl[mlField] = { en: enText, ...transData.translations };
+                                }
+                            } catch (e) {
+                                console.log('Translation skipped for', mlField);
+                                translatedMl[mlField] = { en: enText };
+                            }
+                        }
+                    }
+                    
+                    // Update the post with translations
+                    if (Object.keys(translatedMl).length > 0) {
+                        try {
+                            await fetch(`/api/admin/blog/${postId}`, {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                                body: JSON.stringify(translatedMl)
+                            });
+                        } catch (e) {
+                            console.log('Could not update translations:', e);
+                        }
+                    }
                     
                     // Auto-mark content idea as used if this came from Ideas Library
                     const contentIdeaId = propertyIdEl.dataset.contentIdeaId;
@@ -43249,6 +43296,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     // Switch to Blog view and refresh
                     showView('app-blog');
                     loadBlogByTab();
+                    showNotification('Blog saved and translated!', 'success');
                 } else {
                     throw new Error(data.error || 'Failed to save blog');
                 }
