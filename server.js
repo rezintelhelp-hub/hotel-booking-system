@@ -3560,11 +3560,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS postal_code VARCHAR(20)');
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS state VARCHAR(100)');
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS show_on_portfolio BOOLEAN DEFAULT true');
-    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS display_subtitle VARCHAR(255)');
-    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS display_line_1 VARCHAR(255)');
-    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS display_line_2 VARCHAR(255)');
-    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS display_line_3 VARCHAR(255)');
-    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS display_line_4 VARCHAR(255)');
+    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS portfolio_display JSONB DEFAULT \'{}\'::jsonb');
     
     // Fix: Ensure country column is wide enough for full country names
     await pool.query('ALTER TABLE properties ALTER COLUMN country TYPE VARCHAR(100)').catch(() => {});
@@ -19903,8 +19899,7 @@ app.put('/api/db/properties/:id', async (req, res) => {
     const { 
       name, description, address, city, country, property_type, status,
       district, state, zip_code, latitude, longitude, account_id, currency,
-      display_name, show_on_portfolio, display_subtitle,
-      display_line_1, display_line_2, display_line_3, display_line_4
+      display_name, show_on_portfolio, portfolio_display
     } = req.body;
 
     // If only account_id provided, do simple update
@@ -19916,38 +19911,83 @@ app.put('/api/db/properties/:id', async (req, res) => {
       return res.json({ success: true, data: result.rows[0] });
     }
 
-    const result = await pool.query(
-      `UPDATE properties SET 
-        name = COALESCE($1, name), 
-        description = COALESCE($2, description), 
-        address = COALESCE($3, address), 
-        city = COALESCE($4, city), 
-        country = COALESCE($5, country), 
-        property_type = COALESCE($6, property_type),
-        status = COALESCE($7, status),
-        state = COALESCE($8, state),
-        latitude = COALESCE($9, latitude),
-        longitude = COALESCE($10, longitude),
-        account_id = COALESCE($11, account_id),
-        currency = COALESCE($12, currency),
-        district = COALESCE($13, district),
-        zip_code = COALESCE($14, zip_code),
-        display_name = $15,
-        show_on_portfolio = COALESCE($16, show_on_portfolio),
-        display_subtitle = $17,
-        display_line_1 = $18,
-        display_line_2 = $19,
-        display_line_3 = $20,
-        display_line_4 = $21,
-        updated_at = NOW()
-      WHERE id = $22
-      RETURNING *`,
-      [name, description, address, city, country, property_type, status,
-       state, latitude, longitude, account_id, currency, district, zip_code,
-       display_name || null, show_on_portfolio,
-       display_subtitle || null, display_line_1 || null, display_line_2 || null,
-       display_line_3 || null, display_line_4 || null, id]
-    );
+    // If only show_on_portfolio provided, do simple update
+    if (show_on_portfolio !== undefined && Object.keys(req.body).length === 1) {
+      try {
+        const result = await pool.query(
+          'UPDATE properties SET show_on_portfolio = $1, updated_at = NOW() WHERE id = $2 RETURNING *',
+          [show_on_portfolio, id]
+        );
+        return res.json({ success: true, data: result.rows[0] });
+      } catch (colErr) {
+        if (colErr.message && colErr.message.includes('does not exist')) {
+          return res.json({ success: true, data: { id }, message: 'Column not yet migrated' });
+        }
+        throw colErr;
+      }
+    }
+
+    let result;
+    try {
+      result = await pool.query(
+        `UPDATE properties SET 
+          name = COALESCE($1, name), 
+          description = COALESCE($2, description), 
+          address = COALESCE($3, address), 
+          city = COALESCE($4, city), 
+          country = COALESCE($5, country), 
+          property_type = COALESCE($6, property_type),
+          status = COALESCE($7, status),
+          state = COALESCE($8, state),
+          latitude = COALESCE($9, latitude),
+          longitude = COALESCE($10, longitude),
+          account_id = COALESCE($11, account_id),
+          currency = COALESCE($12, currency),
+          district = COALESCE($13, district),
+          zip_code = COALESCE($14, zip_code),
+          display_name = $15,
+          show_on_portfolio = COALESCE($16, show_on_portfolio),
+          portfolio_display = COALESCE($17::jsonb, portfolio_display),
+          updated_at = NOW()
+        WHERE id = $18
+        RETURNING *`,
+        [name, description, address, city, country, property_type, status,
+         state, latitude, longitude, account_id, currency, district, zip_code,
+         display_name || null, show_on_portfolio,
+         portfolio_display ? JSON.stringify(portfolio_display) : null, id]
+      );
+    } catch (queryErr) {
+      // Fallback if new columns don't exist yet (pre-migration)
+      if (queryErr.message && queryErr.message.includes('does not exist')) {
+        console.log('Falling back to base property update (new columns not yet migrated)');
+        result = await pool.query(
+          `UPDATE properties SET 
+            name = COALESCE($1, name), 
+            description = COALESCE($2, description), 
+            address = COALESCE($3, address), 
+            city = COALESCE($4, city), 
+            country = COALESCE($5, country), 
+            property_type = COALESCE($6, property_type),
+            status = COALESCE($7, status),
+            state = COALESCE($8, state),
+            latitude = COALESCE($9, latitude),
+            longitude = COALESCE($10, longitude),
+            account_id = COALESCE($11, account_id),
+            currency = COALESCE($12, currency),
+            district = COALESCE($13, district),
+            zip_code = COALESCE($14, zip_code),
+            display_name = $15,
+            updated_at = NOW()
+          WHERE id = $16
+          RETURNING *`,
+          [name, description, address, city, country, property_type, status,
+           state, latitude, longitude, account_id, currency, district, zip_code,
+           display_name || null, id]
+        );
+      } else {
+        throw queryErr;
+      }
+    }
 
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
@@ -46273,11 +46313,7 @@ app.get('/api/public/client/:clientId/properties', async (req, res) => {
         p.longitude,
         p.currency,
         p.website_url,
-        p.display_subtitle,
-        p.display_line_1,
-        p.display_line_2,
-        p.display_line_3,
-        p.display_line_4,
+        p.portfolio_display,
         
         -- Primary image: try property_images first, then fall back to first room image
         COALESCE(
@@ -46381,11 +46417,7 @@ app.get('/api/public/client/:clientId/properties', async (req, res) => {
         longitude: prop.longitude,
         currency: prop.currency,
         primary_image: prop.primary_image || null,
-        display_subtitle: prop.display_subtitle,
-        display_line_1: prop.display_line_1,
-        display_line_2: prop.display_line_2,
-        display_line_3: prop.display_line_3,
-        display_line_4: prop.display_line_4,
+        portfolio_display: prop.portfolio_display || {},
         room_count: parseInt(prop.room_count) || 0,
         min_price: prop.min_price ? parseFloat(prop.min_price) : null,
         max_price: prop.max_price ? parseFloat(prop.max_price) : null,
