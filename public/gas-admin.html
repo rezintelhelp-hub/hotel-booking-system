@@ -8743,9 +8743,14 @@
                             <h2>🔑 Plugin Licenses</h2>
                             <p class="subtitle">Manage plugin licenses and display settings</p>
                         </div>
-                        <button class="btn" onclick="loadPluginLicenses()" style="background: var(--primary);">
-                            🔄 Refresh
-                        </button>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button class="btn" onclick="showCreateLicenseModal()" style="background: #10b981; color: white;">
+                                ➕ Create License
+                            </button>
+                            <button class="btn" onclick="loadPluginLicenses()" style="background: var(--primary);">
+                                🔄 Refresh
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -27891,6 +27896,82 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
         
         // Plugin Licenses Management
+        function showCreateLicenseModal() {
+            const acctId = selectedAccountId || '';
+            const modalHtml = `
+                <div id="createLicenseModal" style="position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;">
+                    <div style="background: white; border-radius: 12px; padding: 2rem; width: 480px; max-width: 90vw;">
+                        <h3 style="margin: 0 0 1.5rem 0;">🔑 Create Plugin License</h3>
+                        <div style="display: flex; flex-direction: column; gap: 1rem;">
+                            <div>
+                                <label style="font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 0.25rem;">Account ID</label>
+                                <input type="number" id="create-license-account-id" class="form-input" value="${acctId}" placeholder="e.g. 98">
+                            </div>
+                            <div>
+                                <label style="font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 0.25rem;">Email</label>
+                                <input type="email" id="create-license-email" class="form-input" placeholder="client@example.com">
+                            </div>
+                            <div>
+                                <label style="font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 0.25rem;">Product</label>
+                                <select id="create-license-product" class="form-input">
+                                    <option value="gas-booking-plugin">GAS Booking Plugin</option>
+                                    <option value="gas-properties-plugin">GAS Properties Plugin</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1.5rem;">
+                            <button class="btn btn-secondary" onclick="document.getElementById('createLicenseModal').remove()">Cancel</button>
+                            <button class="btn" id="create-license-btn" onclick="createLicense()" style="background: #10b981; color: white;">Create License</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+        }
+        
+        async function createLicense() {
+            const accountId = document.getElementById('create-license-account-id').value;
+            const email = document.getElementById('create-license-email').value;
+            const product = document.getElementById('create-license-product').value;
+            
+            if (!email) {
+                showNotification('Email is required', 'error');
+                return;
+            }
+            
+            const btn = document.getElementById('create-license-btn');
+            btn.textContent = 'Creating...';
+            btn.disabled = true;
+            
+            try {
+                const response = await fetch('/api/plugin-license/create', {
+                    method: 'POST',
+                    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        account_id: accountId ? parseInt(accountId) : null,
+                        email: email,
+                        product: product,
+                        room_ids: [],
+                        display_settings: {}
+                    })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    showNotification('License created: ' + data.license_key, 'success');
+                    document.getElementById('createLicenseModal').remove();
+                    loadPluginLicenses();
+                } else {
+                    showNotification('Error: ' + (data.error || 'Failed'), 'error');
+                    btn.textContent = 'Create License';
+                    btn.disabled = false;
+                }
+            } catch (e) {
+                showNotification('Error: ' + e.message, 'error');
+                btn.textContent = 'Create License';
+                btn.disabled = false;
+            }
+        }
+        
         async function loadPluginLicenses() {
             const container = document.getElementById('plugin-licenses-list');
             if (!container) return;
