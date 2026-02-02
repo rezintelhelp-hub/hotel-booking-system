@@ -14520,7 +14520,8 @@ app.get('/api/setup-billing', async (req, res) => {
         ('GAS Booking Plugin', 'gas-booking-plugin', 'Core booking system plugin', 'plugin', 'basic', '4.0.0'),
         ('GAS Blog Plugin', 'gas-blog-plugin', 'Blog functionality with SEO', 'plugin', 'professional', '1.0.0'),
         ('GAS Attractions Plugin', 'gas-attractions-plugin', 'Nearby attractions showcase', 'plugin', 'business', '1.0.0'),
-        ('GAS Reviews Plugin', 'gas-reviews-plugin', 'Reviews from multiple sources', 'plugin', 'enterprise', '1.0.0')
+        ('GAS Reviews Plugin', 'gas-reviews-plugin', 'Reviews from multiple sources', 'plugin', 'enterprise', '1.0.0'),
+        ('GAS Properties Plugin', 'gas-properties-plugin', 'Multi-property portfolio display', 'plugin', 'professional', '1.0.0')
       `);
     }
     
@@ -19148,7 +19149,8 @@ app.get('/api/admin/billing/update-plans', async (req, res) => {
         ('GAS Booking Plugin', 'gas-booking-plugin', 'Core booking system plugin', 'plugin', 'starter', '4.0.0'),
         ('GAS Blog Plugin', 'gas-blog-plugin', 'Blog functionality with SEO', 'plugin', 'professional', '1.0.0'),
         ('GAS Attractions Plugin', 'gas-attractions-plugin', 'Nearby attractions showcase', 'plugin', 'business', '1.0.0'),
-        ('GAS Reviews Plugin', 'gas-reviews-plugin', 'Reviews from multiple sources', 'plugin', 'enterprise', '1.0.0')
+        ('GAS Reviews Plugin', 'gas-reviews-plugin', 'Reviews from multiple sources', 'plugin', 'enterprise', '1.0.0'),
+        ('GAS Properties Plugin', 'gas-properties-plugin', 'Multi-property portfolio display', 'plugin', 'professional', '1.0.0')
       `);
     }
     
@@ -44772,6 +44774,25 @@ const GAS_TRANSLATIONS = {
         "no_rules": "No house rules provided.",
         "no_cancellation": "No cancellation policy provided."
       },
+      "properties_portfolio": {
+        "page_title": "Our Properties",
+        "page_subtitle": "Explore our collection of vacation rentals",
+        "view_apartments": "View Apartments",
+        "view_rooms": "View Rooms",
+        "view_property": "View Property",
+        "rooms_available": "rooms available",
+        "room_available": "room available",
+        "from_price": "From",
+        "per_night": "per night",
+        "no_properties": "No properties available at this time.",
+        "loading": "Loading properties...",
+        "all_locations": "All Locations",
+        "filter_by_location": "Filter by location",
+        "bedrooms_range": "bedrooms",
+        "max_guests": "max guests",
+        "properties_count": "properties",
+        "property_count": "property"
+      },
       "terms": {
         "check_in": "Check-in",
         "check_out": "Check-out",
@@ -45028,6 +45049,25 @@ const GAS_TRANSLATIONS = {
         "no_rules": "Aucun règlement intérieur fourni.",
         "no_cancellation": "Aucune politique d'annulation fournie."
       },
+      "properties_portfolio": {
+        "page_title": "Nos Propriétés",
+        "page_subtitle": "Découvrez notre collection de locations de vacances",
+        "view_apartments": "Voir les Appartements",
+        "view_rooms": "Voir les Chambres",
+        "view_property": "Voir la Propriété",
+        "rooms_available": "chambres disponibles",
+        "room_available": "chambre disponible",
+        "from_price": "À partir de",
+        "per_night": "par nuit",
+        "no_properties": "Aucune propriété disponible pour le moment.",
+        "loading": "Chargement des propriétés...",
+        "all_locations": "Tous les Emplacements",
+        "filter_by_location": "Filtrer par emplacement",
+        "bedrooms_range": "chambres",
+        "max_guests": "voyageurs max",
+        "properties_count": "propriétés",
+        "property_count": "propriété"
+      },
       "terms": {
         "check_in": "Arrivée",
         "check_out": "Départ",
@@ -45281,6 +45321,25 @@ const GAS_TRANSLATIONS = {
         "no_terms": "No hay condiciones generales disponibles.",
         "no_rules": "No hay normas de la casa disponibles.",
         "no_cancellation": "No hay política de cancelación disponible."
+      },
+      "properties_portfolio": {
+        "page_title": "Nuestras Propiedades",
+        "page_subtitle": "Explore nuestra colección de alquileres vacacionales",
+        "view_apartments": "Ver Apartamentos",
+        "view_rooms": "Ver Habitaciones",
+        "view_property": "Ver Propiedad",
+        "rooms_available": "habitaciones disponibles",
+        "room_available": "habitación disponible",
+        "from_price": "Desde",
+        "per_night": "por noche",
+        "no_properties": "No hay propiedades disponibles en este momento.",
+        "loading": "Cargando propiedades...",
+        "all_locations": "Todas las Ubicaciones",
+        "filter_by_location": "Filtrar por ubicación",
+        "bedrooms_range": "dormitorios",
+        "max_guests": "huéspedes máx",
+        "properties_count": "propiedades",
+        "property_count": "propiedad"
       },
       "terms": {
         "check_in": "Llegada",
@@ -45538,6 +45597,25 @@ const GAS_TRANSLATIONS = {
         "no_rules": "Geen huisregels beschikbaar.",
         "no_cancellation": "Geen annuleringsbeleid beschikbaar."
       },
+      "properties_portfolio": {
+        "page_title": "Onze Accommodaties",
+        "page_subtitle": "Ontdek onze collectie vakantiewoningen",
+        "view_apartments": "Bekijk Appartementen",
+        "view_rooms": "Bekijk Kamers",
+        "view_property": "Bekijk Accommodatie",
+        "rooms_available": "kamers beschikbaar",
+        "room_available": "kamer beschikbaar",
+        "from_price": "Vanaf",
+        "per_night": "per nacht",
+        "no_properties": "Er zijn momenteel geen accommodaties beschikbaar.",
+        "loading": "Accommodaties laden...",
+        "all_locations": "Alle Locaties",
+        "filter_by_location": "Filteren op locatie",
+        "bedrooms_range": "slaapkamers",
+        "max_guests": "max gasten",
+        "properties_count": "accommodaties",
+        "property_count": "accommodatie"
+      },
       "terms": {
         "check_in": "Inchecken",
         "check_out": "Uitchecken",
@@ -45791,6 +45869,25 @@ const GAS_TRANSLATIONS = {
         "no_terms": "Keine allgemeinen Bedingungen vorhanden.",
         "no_rules": "Keine Hausordnung vorhanden.",
         "no_cancellation": "Keine Stornierungsbedingungen vorhanden."
+      },
+      "properties_portfolio": {
+        "page_title": "Unsere Unterkünfte",
+        "page_subtitle": "Entdecken Sie unsere Auswahl an Ferienunterkünften",
+        "view_apartments": "Apartments ansehen",
+        "view_rooms": "Zimmer ansehen",
+        "view_property": "Unterkunft ansehen",
+        "rooms_available": "Zimmer verfügbar",
+        "room_available": "Zimmer verfügbar",
+        "from_price": "Ab",
+        "per_night": "pro Nacht",
+        "no_properties": "Derzeit sind keine Unterkünfte verfügbar.",
+        "loading": "Unterkünfte werden geladen...",
+        "all_locations": "Alle Standorte",
+        "filter_by_location": "Nach Standort filtern",
+        "bedrooms_range": "Schlafzimmer",
+        "max_guests": "max Gäste",
+        "properties_count": "Unterkünfte",
+        "property_count": "Unterkunft"
       },
       "terms": {
         "check_in": "Anreise",
@@ -46130,6 +46227,167 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
     });
   } catch (error) {
     console.error('Get client rooms error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get all properties for a client (PUBLIC API - for GAS Properties WordPress Plugin)
+app.get('/api/public/client/:clientId/properties', async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const { limit, offset, sort } = req.query;
+    
+    // Get all active properties for this account with image and room stats
+    const result = await pool.query(`
+      SELECT 
+        p.id,
+        p.name,
+        p.property_type,
+        p.description,
+        p.short_description,
+        p.address,
+        p.city,
+        p.district,
+        p.country,
+        p.zip_code,
+        p.latitude,
+        p.longitude,
+        p.currency,
+        p.hero_image_url,
+        p.star_rating,
+        p.website_url,
+        
+        -- Primary image from property_images
+        (SELECT COALESCE(pi.image_url, pi.url) 
+         FROM property_images pi 
+         WHERE pi.property_id = p.id AND pi.room_id IS NULL
+         ORDER BY pi.is_primary DESC NULLS LAST, pi.sort_order ASC, pi.id ASC 
+         LIMIT 1
+        ) as primary_image,
+        
+        -- Room count
+        (SELECT COUNT(*) 
+         FROM bookable_units bu 
+         WHERE bu.property_id = p.id AND bu.status = 'active'
+        ) as room_count,
+        
+        -- Min price from active rooms (today's rate or base_price)
+        (SELECT MIN(COALESCE(
+           (SELECT COALESCE(ra.standard_price, ra.cm_price) 
+            FROM room_availability ra 
+            WHERE ra.room_id = bu2.id AND ra.date = CURRENT_DATE 
+            LIMIT 1),
+           bu2.base_price
+         ))
+         FROM bookable_units bu2 
+         WHERE bu2.property_id = p.id AND bu2.status = 'active' AND bu2.base_price > 0
+        ) as min_price,
+        
+        -- Max price
+        (SELECT MAX(COALESCE(
+           (SELECT COALESCE(ra.standard_price, ra.cm_price) 
+            FROM room_availability ra 
+            WHERE ra.room_id = bu3.id AND ra.date = CURRENT_DATE 
+            LIMIT 1),
+           bu3.base_price
+         ))
+         FROM bookable_units bu3 
+         WHERE bu3.property_id = p.id AND bu3.status = 'active' AND bu3.base_price > 0
+        ) as max_price,
+        
+        -- Bedroom range
+        (SELECT MIN(bu4.num_bedrooms) 
+         FROM bookable_units bu4 
+         WHERE bu4.property_id = p.id AND bu4.status = 'active' AND bu4.num_bedrooms > 0
+        ) as min_bedrooms,
+        (SELECT MAX(bu5.num_bedrooms) 
+         FROM bookable_units bu5 
+         WHERE bu5.property_id = p.id AND bu5.status = 'active' AND bu5.num_bedrooms > 0
+        ) as max_bedrooms,
+        
+        -- Max guests
+        (SELECT MAX(COALESCE(bu6.max_guests, bu6.max_adults, 2)) 
+         FROM bookable_units bu6 
+         WHERE bu6.property_id = p.id AND bu6.status = 'active'
+        ) as max_guests
+        
+      FROM properties p
+      WHERE p.account_id = $1
+        AND p.active = true
+      ORDER BY p.name ASC
+    `, [clientId]);
+    
+    // Apply optional limit/offset in JS to keep SQL safe
+    let properties = result.rows;
+    if (offset) properties = properties.slice(parseInt(offset));
+    if (limit) properties = properties.slice(0, parseInt(limit));
+    
+    // Build bedroom range strings and format response
+    properties = properties.map(prop => {
+      let bedroom_range = '';
+      if (prop.min_bedrooms && prop.max_bedrooms) {
+        if (prop.min_bedrooms === prop.max_bedrooms) {
+          bedroom_range = String(prop.min_bedrooms);
+        } else {
+          bedroom_range = `${prop.min_bedrooms}-${prop.max_bedrooms}`;
+        }
+      }
+      
+      return {
+        id: prop.id,
+        name: prop.name,
+        property_type: prop.property_type,
+        description: prop.description,
+        short_description: prop.short_description,
+        address: prop.address,
+        city: prop.city,
+        district: prop.district,
+        country: prop.country,
+        zip_code: prop.zip_code,
+        latitude: prop.latitude,
+        longitude: prop.longitude,
+        currency: prop.currency,
+        star_rating: prop.star_rating,
+        hero_image_url: prop.hero_image_url,
+        primary_image: prop.primary_image || prop.hero_image_url,
+        room_count: parseInt(prop.room_count) || 0,
+        min_price: prop.min_price ? parseFloat(prop.min_price) : null,
+        max_price: prop.max_price ? parseFloat(prop.max_price) : null,
+        bedroom_range: bedroom_range,
+        min_bedrooms: prop.min_bedrooms ? parseInt(prop.min_bedrooms) : null,
+        max_bedrooms: prop.max_bedrooms ? parseInt(prop.max_bedrooms) : null,
+        max_guests: prop.max_guests ? parseInt(prop.max_guests) : null
+      };
+    });
+    
+    // Get total count
+    const countResult = await pool.query(
+      'SELECT COUNT(*) as total FROM properties WHERE account_id = $1 AND active = true',
+      [clientId]
+    );
+    
+    // Get unique locations for filter
+    const locationsResult = await pool.query(
+      `SELECT DISTINCT city, district FROM properties WHERE account_id = $1 AND active = true AND city IS NOT NULL ORDER BY city`,
+      [clientId]
+    );
+    
+    res.json({
+      success: true,
+      properties: properties,
+      meta: {
+        total: parseInt(countResult.rows[0]?.total || 0),
+        returned: properties.length,
+        locations: locationsResult.rows.map(l => ({
+          city: l.city,
+          district: l.district,
+          display: l.district ? `${l.city}, ${l.district}` : l.city
+        }))
+      }
+    });
+    
+  } catch (error) {
+    console.error('Public client properties error:', error);
     res.json({ success: false, error: error.message });
   }
 });
