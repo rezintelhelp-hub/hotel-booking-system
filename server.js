@@ -38120,6 +38120,392 @@ app.put('/api/partner/websites/:websiteId/content/:section', async (req, res) =>
   }
 });
 
+// Default settings for each website content section
+// Returns full schema with defaults when no settings have been saved yet
+const SECTION_DEFAULTS = {
+  header: {
+    'site-name': '',
+    'tagline-en': '',
+    'logo-image-url': '',
+    'bg-color': '#ffffff',
+    'text-color': '#1e293b',
+    'logo-color': '#0f172a',
+    'underline-color': '',
+    'cta-button-text-en': 'Book Now',
+    'cta-bg': '#2563eb',
+    'cta-text-color': '#ffffff',
+    'border-color': '#e5e7eb',
+    'font': '',
+    'font-size': '',
+    'font-weight': '',
+    'text-transform': '',
+    'layout': 'logo-left',
+    'sticky': true,
+    'transparent': true,
+    'border': false
+  },
+  hero: {
+    'headline-en': '',
+    'subheadline-en': '',
+    'button-text-en': 'Book Now',
+    'button-link': '/book',
+    'image-url': '',
+    'mobile-image-url': '',
+    'video-url': '',
+    'video-mobile': '',
+    'overlay-color': '#0f172a',
+    'overlay': '30',
+    'height': '80',
+    'background-type': 'image',
+    'slide-1-url': '',
+    'slide-2-url': '',
+    'slide-3-url': '',
+    'slide-4-url': '',
+    'slider-duration': '5000',
+    'slider-transition': 'fade',
+    'badge-bg': '',
+    'badge-text': '',
+    'badge-border': '',
+    'trust-1-en': '',
+    'trust-2-en': '',
+    'trust-3-en': '',
+    'trust-text-color': '#ffffff',
+    'search-btn-bg': '',
+    'search-btn-text': '',
+    'search-label-color': '',
+    'search-max-guests': '4',
+    'search-bg': '',
+    'search-opacity': '100',
+    'search-radius': '8',
+    'search-padding': '20',
+    'search-scale': '100',
+    'search-max-width': '900',
+    'search-btn-label-en': 'Search',
+    'search-checkin-label-en': 'Check In',
+    'search-checkout-label-en': 'Check Out',
+    'search-guests-label-en': 'Guests',
+    'search-date-placeholder-en': 'Select date',
+    'search-guest-singular-en': 'Guest',
+    'meta-title': '',
+    'meta-description': '',
+    'menu-title-en': 'Home',
+    'faq-enabled': false
+  },
+  intro: {
+    'enabled': true,
+    'title-en': '',
+    'text-en': '',
+    'bg': '#ffffff',
+    'text-color': '#1e293b',
+    'title-size': '',
+    'text-size': '',
+    'max-width': '',
+    'btn-text-en': '',
+    'btn-url': '',
+    'btn-bg': '',
+    'btn-text-color': ''
+  },
+  featured: {
+    'enabled': true,
+    'title-en': 'Our Rooms',
+    'subtitle-en': '',
+    'bg': '#f8fafc',
+    'title-color': '',
+    'subtitle-color': '',
+    'count': '6',
+    'columns': '3',
+    'layout-style': 'cards',
+    'mode': 'auto',
+    'ids': '',
+    'btn-enabled': false,
+    'btn-text': '',
+    'btn-url': '',
+    'btn-bg': '',
+    'btn-text-color': ''
+  },
+  about: {
+    'enabled': true,
+    'title-en': 'About Us',
+    'text-en': '',
+    'image-url': '',
+    'bg': '#ffffff',
+    'text-color': '#1e293b',
+    'title-color': '',
+    'title-size': '',
+    'text-size': '',
+    'layout': 'image-left',
+    'feature-1-en': '',
+    'feature-2-en': '',
+    'feature-3-en': '',
+    'feature-4-en': '',
+    'feature-5-en': '',
+    'feature-6-en': '',
+    'btn-text-en': '',
+    'btn-url': '',
+    'btn-bg': '',
+    'btn-text-color': ''
+  },
+  reviews: {
+    'enabled': true,
+    'title-en': 'Guest Reviews',
+    'subtitle-en': '',
+    'bg': '#f8fafc',
+    'card-bg': '',
+    'text-color': '',
+    'star-color': '',
+    'use-app': false,
+    'app-code': '',
+    'review1-name': '',
+    'review1-text': '',
+    'review1-source': '',
+    'review2-name': '',
+    'review2-text': '',
+    'review2-source': '',
+    'review3-name': '',
+    'review3-text': '',
+    'review3-source': ''
+  },
+  cta: {
+    'enabled': true,
+    'title-en': '',
+    'text-en': '',
+    'background': '',
+    'text-color': '#ffffff',
+    'title-size': '',
+    'text-size': '',
+    'btn-text-en': 'Book Now',
+    'btn-url': '/book',
+    'btn-bg': '',
+    'btn-text-color': ''
+  },
+  footer: {
+    'bg': '#0f172a',
+    'text': '#ffffff',
+    'address': '',
+    'phone': '',
+    'email': '',
+    'copyright-en': '',
+    'layout': 'standard',
+    'social-facebook': '',
+    'social-instagram': '',
+    'social-twitter': '',
+    'social-youtube': '',
+    'social-linkedin': '',
+    'social-pinterest': '',
+    'social-tiktok': '',
+    'social-tripadvisor': ''
+  },
+  styles: {
+    'primary-color': '#2563eb',
+    'secondary-color': '#0f172a',
+    'accent-color': '#f59e0b',
+    'link-color': '#2563eb',
+    'heading-font': 'Inter',
+    'body-font': 'Inter',
+    'title-size': '',
+    'body-size': '',
+    'btn-primary-bg': '#2563eb',
+    'btn-primary-text': '#ffffff',
+    'btn-radius': '8',
+    'featured-bg': '',
+    'about-bg': '',
+    'testimonials-bg': '',
+    'cta-bg': '',
+    'custom-css': ''
+  },
+  seo: {
+    'enabled': false,
+    'meta-title': '',
+    'meta-description': '',
+    'og-image': '',
+    'google-analytics-id': '',
+    'google-tag-manager-id': '',
+    'google-site-verification': '',
+    'facebook-pixel-id': '',
+    'include-schema': true,
+    'include-faqs': true
+  },
+  'page-rooms': {
+    'enabled': true,
+    'title-en': 'Our Rooms',
+    'subtitle-en': '',
+    'menu-title-en': 'Book Now',
+    'bg': '',
+    'bg-color': '',
+    'text-color': '',
+    'columns': '3',
+    'layout-style': 'cards',
+    'show-search': true,
+    'show-amenity-filter': true,
+    'show-location-filter': false,
+    'show-map': false,
+    'meta-title': '',
+    'meta-description': '',
+    'faq-enabled': false
+  },
+  'page-about': {
+    'enabled': false,
+    'title-en': 'About Us',
+    'subtitle-en': '',
+    'menu-title-en': 'About',
+    'content-title-en': '',
+    'content-en': '',
+    'content-image': '',
+    'hero-image': '',
+    'bg': '',
+    'text-color': '',
+    'title-color': '',
+    'header-bg': '',
+    'header-text': '',
+    'image-position': 'right',
+    'menu-order': '',
+    'meta-title': '',
+    'meta-description': '',
+    'faq-enabled': false
+  },
+  'page-gallery': {
+    'enabled': false,
+    'menu-title-en': 'Gallery',
+    'menu-order': '',
+    'meta-title': '',
+    'meta-description': '',
+    'faq-enabled': false
+  },
+  'page-blog': {
+    'enabled': false,
+    'menu-title-en': 'Blog',
+    'meta-title': '',
+    'meta-description': '',
+    'faq-enabled': false
+  },
+  'page-attractions': {
+    'enabled': false,
+    'menu-title-en': 'Things To Do',
+    'meta-title': '',
+    'meta-description': '',
+    'faq-enabled': false
+  },
+  'page-dining': {
+    'enabled': false,
+    'menu-title-en': 'Dining',
+    'menu-order': '',
+    'meta-title': '',
+    'meta-description': '',
+    'faq-enabled': false
+  },
+  'page-offers': {
+    'enabled': false,
+    'title-en': 'Special Offers',
+    'subtitle-en': '',
+    'menu-title-en': 'Offers',
+    'menu-order': '',
+    'meta-title': '',
+    'meta-description': '',
+    'content': ''
+  },
+  'page-properties': {
+    'enabled': false,
+    'title-en': 'Our Properties',
+    'subtitle-en': '',
+    'menu-title-en': 'Properties',
+    'menu-order': '',
+    'meta-title': '',
+    'meta-description': '',
+    'content': ''
+  },
+  'page-reviews': {
+    'enabled': false,
+    'title': 'Reviews',
+    'subtitle': '',
+    'menu-title-en': 'Reviews',
+    'meta-title': '',
+    'meta-description': '',
+    'content': ''
+  },
+  'page-contact': {
+    'enabled': false,
+    'menu-title-en': 'Contact',
+    'menu-order': '',
+    'meta-title': '',
+    'meta-description': '',
+    'faq-enabled': false
+  },
+  'page-terms': {
+    'title': 'Terms & Conditions',
+    'updated': '',
+    'menu-title-en': 'Terms',
+    'meta-title': '',
+    'meta-description': '',
+    'checkin-enabled': true,
+    'checkin-title': 'Check-in / Check-out',
+    'checkin-time': '15:00',
+    'checkout-time': '11:00',
+    'checkin-details': '',
+    'cancellation-enabled': true,
+    'cancellation-title': 'Cancellation Policy',
+    'cancellation': '',
+    'payment-enabled': true,
+    'payment-title': 'Payment Terms',
+    'payment': '',
+    'house-rules-enabled': true,
+    'house-rules-title': 'House Rules',
+    'house-rules': '',
+    'booking-enabled': true,
+    'booking-title': 'Booking Conditions',
+    'booking': '',
+    'liability-enabled': true,
+    'liability-title': 'Liability',
+    'liability': '',
+    'additional-enabled': false,
+    'additional-title': 'Additional Terms',
+    'additional': '',
+    'faq-enabled': false
+  },
+  'page-privacy': {
+    'title': 'Privacy Policy',
+    'updated': '',
+    'effective': '',
+    'menu-title-en': 'Privacy',
+    'meta-title': '',
+    'meta-description': '',
+    'intro-enabled': true,
+    'intro-title': 'Introduction',
+    'intro': '',
+    'intro-sub': '',
+    'collection-enabled': true,
+    'collection-title': 'Information We Collect',
+    'collection': '',
+    'collection-sub1': '',
+    'how-collect': '',
+    'how-collect-sub': '',
+    'usage-enabled': true,
+    'usage-title': 'How We Use Your Information',
+    'usage': '',
+    'usage-sub': '',
+    'sharing-enabled': true,
+    'sharing-title': 'Information Sharing',
+    'sharing': '',
+    'sharing-sub': '',
+    'cookies-enabled': true,
+    'cookies-title': 'Cookies',
+    'cookies': '',
+    'cookies-sub': '',
+    'retention-enabled': true,
+    'retention-title': 'Data Retention',
+    'retention': '',
+    'retention-sub': '',
+    'rights-enabled': true,
+    'rights-title': 'Your Rights',
+    'rights': '',
+    'rights-sub': '',
+    'contact-enabled': true,
+    'contact-title': 'Contact Us',
+    'contact': '',
+    'contact-sub': '',
+    'faq-enabled': false
+  }
+};
+
 // GET /api/partner/websites/:websiteId/content/:section - Get website content section
 app.get('/api/partner/websites/:websiteId/content/:section', async (req, res) => {
   console.log('=== PARTNER API: GET CONTENT ===');
@@ -38132,22 +38518,36 @@ app.get('/api/partner/websites/:websiteId/content/:section', async (req, res) =>
     
     const { websiteId, section } = req.params;
     
+    // Validate section
+    if (!SECTION_DEFAULTS[section]) {
+      return res.status(400).json({ 
+        success: false, 
+        error: `Invalid section. Valid sections: ${Object.keys(SECTION_DEFAULTS).join(', ')}` 
+      });
+    }
+    
     // Get deployed site ID
     const deployedSiteId = await getPartnerDeployedSiteId(auth.partnerId, websiteId);
     if (!deployedSiteId) {
       return res.status(400).json({ success: false, error: 'Website not deployed or not found' });
     }
     
-    // Get settings
+    // Get saved settings
     const result = await pool.query(`
       SELECT settings FROM website_settings 
       WHERE deployed_site_id = $1 AND section = $2
     `, [deployedSiteId, section]);
     
+    const savedSettings = result.rows.length > 0 ? result.rows[0].settings : {};
+    const defaults = SECTION_DEFAULTS[section] || {};
+    
+    // Merge: defaults first, then saved settings override
+    const mergedSettings = { ...defaults, ...savedSettings };
+    
     res.json({
       success: true,
       section,
-      settings: result.rows.length > 0 ? result.rows[0].settings : {}
+      settings: mergedSettings
     });
     
   } catch (error) {
