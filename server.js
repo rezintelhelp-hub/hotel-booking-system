@@ -8989,9 +8989,18 @@ app.get('/api/account/language-settings', async (req, res) => {
       return res.json({ success: false, error: 'Invalid session' });
     }
     
+    // Support viewing another account's settings (master admin)
+    let targetAccountId = session.rows[0].account_id;
+    if (req.query.account_id && req.query.account_id !== String(targetAccountId)) {
+      const adminCheck = await pool.query('SELECT role FROM accounts WHERE id = $1', [session.rows[0].account_id]);
+      if (adminCheck.rows.length > 0 && adminCheck.rows[0].role === 'master_admin') {
+        targetAccountId = req.query.account_id;
+      }
+    }
+    
     const account = await pool.query(
       'SELECT settings FROM accounts WHERE id = $1',
-      [session.rows[0].account_id]
+      [targetAccountId]
     );
     
     if (account.rows.length === 0) {
@@ -9029,7 +9038,15 @@ app.put('/api/account/language-settings', async (req, res) => {
       return res.json({ success: false, error: 'Invalid session' });
     }
     
-    const accountId = session.rows[0].account_id;
+    // Support updating another account's settings (master admin)
+    let accountId = session.rows[0].account_id;
+    if (req.body.account_id && String(req.body.account_id) !== String(accountId)) {
+      const adminCheck = await pool.query('SELECT role FROM accounts WHERE id = $1', [session.rows[0].account_id]);
+      if (adminCheck.rows.length > 0 && adminCheck.rows[0].role === 'master_admin') {
+        accountId = req.body.account_id;
+      }
+    }
+    
     const { primary_language, supported_languages } = req.body;
     
     // Validate
