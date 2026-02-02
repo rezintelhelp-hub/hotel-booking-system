@@ -50529,7 +50529,7 @@ app.get('/api/public/client/:clientId/site-config', async (req, res) => {
         
         console.log(`site-config: clientId=${clientId}, found deployedSiteId=${deployedSiteId}, rows=${deployedSiteIdResult.rows.length}`);
         
-        const [pagesResult, contactResult, brandingResult, navigationResult, propertiesResult, roomsResult, websiteSettingsResult, deployedSiteResult] = await Promise.all([
+        const [pagesResult, contactResult, brandingResult, navigationResult, propertiesResult, roomsResult, websiteSettingsResult, deployedSiteResult, langSettingsResult] = await Promise.all([
             pool.query(`SELECT * FROM client_pages WHERE client_id = $1`, [clientId]),
             pool.query(`SELECT * FROM client_contact_info WHERE client_id = $1`, [clientId]),
             pool.query(`SELECT * FROM client_branding WHERE client_id = $1`, [clientId]),
@@ -50550,7 +50550,8 @@ app.get('/api/public/client/:clientId/site-config', async (req, res) => {
                 WHERE account_id = $2 AND deployed_site_id IS NULL
                 AND section NOT IN (SELECT section FROM website_settings WHERE deployed_site_id = $1)
             `, [deployedSiteId, clientId]),
-            pool.query(`SELECT pricing_tier FROM deployed_sites WHERE account_id = $1 LIMIT 1`, [clientId])
+            pool.query(`SELECT pricing_tier FROM deployed_sites WHERE account_id = $1 LIMIT 1`, [clientId]),
+            pool.query(`SELECT settings FROM account_settings WHERE account_id = $1 AND key = 'language_settings'`, [clientId])
         ]);
         
         // Get pricing_tier from deployed_sites
@@ -50974,7 +50975,19 @@ app.get('/api/public/client/:clientId/site-config', async (req, res) => {
                 },
                 
                 // Website Builder settings (hero, intro, footer, styles, etc.)
-                website: websiteSettings
+                website: websiteSettings,
+                
+                // Language settings
+                languages: (() => {
+                    const ls = langSettingsResult.rows[0]?.settings;
+                    if (ls && ls.supported_languages) {
+                        return {
+                            primary: ls.primary_language || 'en',
+                            supported: ls.supported_languages
+                        };
+                    }
+                    return { primary: 'en', supported: ['en'] };
+                })()
             }
         });
     } catch (error) {
