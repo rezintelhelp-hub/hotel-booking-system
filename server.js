@@ -37793,7 +37793,7 @@ app.get('/api/partner/websites/:websiteId/credentials', async (req, res) => {
     
     // Get website with deployed site info
     const result = await pool.query(`
-      SELECT w.id, w.name, w.site_url, w.admin_url, ds.wp_username, ds.wp_password_temp
+      SELECT w.id, w.name, w.site_url, w.admin_url, w.account_id, ds.wp_username, ds.wp_password_temp
       FROM websites w
       JOIN accounts a ON a.id = w.account_id
       LEFT JOIN deployed_sites ds ON ds.site_url = w.site_url
@@ -37810,6 +37810,22 @@ app.get('/api/partner/websites/:websiteId/credentials', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Website not yet deployed' });
     }
     
+    let password = website.wp_password_temp;
+    
+    // If password is null for this site, look it up from the first deployed site 
+    // for the same account (password is shared across all WordPress sites for same user)
+    if (!password && website.account_id) {
+      const passwordLookup = await pool.query(`
+        SELECT wp_password_temp FROM deployed_sites 
+        WHERE account_id = $1 AND wp_password_temp IS NOT NULL 
+        ORDER BY deployed_at ASC LIMIT 1
+      `, [website.account_id]);
+      
+      if (passwordLookup.rows.length > 0) {
+        password = passwordLookup.rows[0].wp_password_temp;
+      }
+    }
+    
     res.json({
       success: true,
       website: {
@@ -37820,7 +37836,7 @@ app.get('/api/partner/websites/:websiteId/credentials', async (req, res) => {
       },
       credentials: {
         username: website.wp_username,
-        password: website.wp_password_temp
+        password: password
       }
     });
     
@@ -39355,18 +39371,23 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
         
         const newRoom = await pool.query(`
           INSERT INTO bookable_units (
-            property_id, name, room_type, max_guests, base_price,
+            property_id, name, room_type, max_guests, num_bedrooms, num_bathrooms, base_price,
+            short_description, full_description,
             currency, cm_room_id, cm_source, status, created_at
           ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7, 'elevate', 'active', NOW()
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'elevate', 'active', NOW()
           )
           RETURNING id
         `, [
           propertyId,
           room.name,
           room.room_type || 'room',
-          room.max_occupancy || 2,
-          room.base_rate || null,
+          room.max_guests || room.max_occupancy || 2,
+          room.bedrooms || room.num_bedrooms || null,
+          room.bathrooms || room.num_bathrooms || null,
+          room.base_rate || room.base_price || null,
+          room.short_description || room.description || null,
+          room.long_description || room.full_description || null,
           room.currency || property.currency || 'CHF',
           room.external_id || null
         ]);
