@@ -46313,7 +46313,9 @@ app.get('/api/public/client/:clientId/properties', async (req, res) => {
     const { limit, offset, sort } = req.query;
     
     // Get all active properties for this account with image and room stats
-    const result = await pool.query(`
+    let result;
+    try {
+      result = await pool.query(`
       SELECT 
         p.id,
         p.name,
@@ -46401,6 +46403,36 @@ app.get('/api/public/client/:clientId/properties', async (req, res) => {
         AND (p.show_on_portfolio IS NULL OR p.show_on_portfolio = true)
       ORDER BY p.name ASC
     `, [clientId]);
+    } catch (queryErr) {
+      if (queryErr.message && queryErr.message.includes('does not exist')) {
+        // Fallback: columns not yet migrated
+        result = await pool.query(`
+          SELECT 
+            p.id, p.name, p.display_name, p.property_type, p.description, p.short_description,
+            p.address, p.city, p.district, p.country, p.zip_code, p.latitude, p.longitude,
+            p.currency, p.website_url,
+            COALESCE(
+              (SELECT COALESCE(pi.image_url, pi.url) FROM property_images pi 
+               WHERE pi.property_id = p.id AND (pi.room_id IS NULL)
+               ORDER BY pi.is_primary DESC NULLS LAST, COALESCE(pi.display_order, pi.sort_order, 0) ASC, pi.id ASC LIMIT 1),
+              (SELECT ri.image_url FROM room_images ri JOIN bookable_units bu ON ri.room_id = bu.id
+               WHERE bu.property_id = p.id AND ri.is_active = true
+               ORDER BY ri.is_primary DESC NULLS LAST, ri.display_order ASC, ri.id ASC LIMIT 1)
+            ) as primary_image,
+            (SELECT COUNT(*) FROM bookable_units bu WHERE bu.property_id = p.id AND bu.status = 'active') as room_count,
+            (SELECT MIN(bu2.base_price) FROM bookable_units bu2 WHERE bu2.property_id = p.id AND bu2.status = 'active' AND bu2.base_price > 0) as min_price,
+            (SELECT MAX(bu3.base_price) FROM bookable_units bu3 WHERE bu3.property_id = p.id AND bu3.status = 'active' AND bu3.base_price > 0) as max_price,
+            (SELECT MIN(bu4.num_bedrooms) FROM bookable_units bu4 WHERE bu4.property_id = p.id AND bu4.status = 'active' AND bu4.num_bedrooms > 0) as min_bedrooms,
+            (SELECT MAX(bu5.num_bedrooms) FROM bookable_units bu5 WHERE bu5.property_id = p.id AND bu5.status = 'active' AND bu5.num_bedrooms > 0) as max_bedrooms,
+            (SELECT MAX(COALESCE(bu6.max_guests, bu6.max_adults, 2)) FROM bookable_units bu6 WHERE bu6.property_id = p.id AND bu6.status = 'active') as max_guests
+          FROM properties p
+          WHERE p.account_id = $1 AND p.status = 'active'
+          ORDER BY p.name ASC
+        `, [clientId]);
+      } else {
+        throw queryErr;
+      }
+    }
     
     // Apply optional limit/offset in JS to keep SQL safe
     let properties = result.rows;
@@ -46446,16 +46478,32 @@ app.get('/api/public/client/:clientId/properties', async (req, res) => {
     });
     
     // Get total count
-    const countResult = await pool.query(
-      'SELECT COUNT(*) as total FROM properties WHERE account_id = $1 AND status = \'active\' AND (show_on_portfolio IS NULL OR show_on_portfolio = true)',
-      [clientId]
-    );
+    let countResult;
+    try {
+      countResult = await pool.query(
+        'SELECT COUNT(*) as total FROM properties WHERE account_id = $1 AND status = \'active\' AND (show_on_portfolio IS NULL OR show_on_portfolio = true)',
+        [clientId]
+      );
+    } catch (e) {
+      countResult = await pool.query(
+        'SELECT COUNT(*) as total FROM properties WHERE account_id = $1 AND status = \'active\'',
+        [clientId]
+      );
+    }
     
     // Get unique locations for filter
-    const locationsResult = await pool.query(
-      `SELECT DISTINCT city, district FROM properties WHERE account_id = $1 AND status = 'active' AND (show_on_portfolio IS NULL OR show_on_portfolio = true) AND city IS NOT NULL ORDER BY city`,
-      [clientId]
-    );
+    let locationsResult;
+    try {
+      locationsResult = await pool.query(
+        `SELECT DISTINCT city, district FROM properties WHERE account_id = $1 AND status = 'active' AND (show_on_portfolio IS NULL OR show_on_portfolio = true) AND city IS NOT NULL ORDER BY city`,
+        [clientId]
+      );
+    } catch (e) {
+      locationsResult = await pool.query(
+        `SELECT DISTINCT city, district FROM properties WHERE account_id = $1 AND status = 'active' AND city IS NOT NULL ORDER BY city`,
+        [clientId]
+      );
+    }
     
     res.json({
       success: true,
