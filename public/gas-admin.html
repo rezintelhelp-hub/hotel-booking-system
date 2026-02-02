@@ -6135,21 +6135,155 @@
                                         <div class="translation-field-wrapper" data-translation-group="wb-page-contact-menu-title">
                                             <div class="translation-tabs">
                                                 <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-contact-menu-title', 'en')"><span class="flag">🇬🇧</span>EN</button>
-                                                <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-contact-menu-title', 'fr')"><span class="flag">🇫🇷</span>FR</button>
-                                                <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-contact-menu-title', 'es')"><span class="flag">🇪🇸</span>ES</button>
-                                                <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-contact-menu-title', 'nl')"><span class="flag">🇳🇱</span>NL</button>
-                                                <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-contact-menu-title')" title="Auto-translate">✨</button>
                                             </div>
                                             <div class="translation-input-group">
                                                 <input type="text" class="form-input translation-input active" id="wb-page-contact-menu-title-en" data-lang="en" placeholder="e.g., Contact" value="Contact">
-                                                <input type="text" class="form-input translation-input" id="wb-page-contact-menu-title-fr" data-lang="fr" placeholder="Contact">
-                                                <input type="text" class="form-input translation-input" id="wb-page-contact-menu-title-es" data-lang="es" placeholder="Contacto">
-                                                <input type="text" class="form-input translation-input" id="wb-page-contact-menu-title-nl" data-lang="nl" placeholder="Contact">
                                             </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
+
+                            <!-- Contact Details -->
+                            <div class="card" style="margin-bottom: 1.5rem;">
+                                <div class="card-header"><h3>📇 Contact Details</h3></div>
+                                <div class="card-body">
+                                    <div class="form-group" style="margin-bottom: 1rem;">
+                                        <label class="form-label">Business Name</label>
+                                        <input type="text" class="form-input" id="wb-page-contact-business-name" placeholder="e.g., Rocketstay Vacation Rentals">
+                                    </div>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                                        <div class="form-group">
+                                            <label class="form-label">Email Address</label>
+                                            <input type="email" class="form-input" id="wb-page-contact-email" placeholder="e.g., info@rocketstay.com">
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label">Phone Number</label>
+                                            <input type="text" class="form-input" id="wb-page-contact-phone" placeholder="e.g., +1 (305) 555-0100">
+                                        </div>
+                                    </div>
+                                    <div class="form-group" style="margin-bottom: 1rem;">
+                                        <label class="form-label">Street Address</label>
+                                        <input type="text" class="form-input" id="wb-page-contact-address" placeholder="e.g., 123 Ocean Drive">
+                                    </div>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                                        <div class="form-group">
+                                            <label class="form-label">City</label>
+                                            <input type="text" class="form-input" id="wb-page-contact-city" placeholder="e.g., Miami Beach">
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label">State / Region</label>
+                                            <input type="text" class="form-input" id="wb-page-contact-state" placeholder="e.g., Florida">
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label">Zip / Postcode</label>
+                                            <input type="text" class="form-input" id="wb-page-contact-zip" placeholder="e.g., 33139">
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Country</label>
+                                        <input type="text" class="form-input" id="wb-page-contact-country" placeholder="e.g., United States">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Display Options -->
+                            <div class="card" style="margin-bottom: 1.5rem;">
+                                <div class="card-header"><h3>⚙️ Display Options</h3></div>
+                                <div class="card-body">
+                                    <p style="color: #64748b; font-size: 0.85rem; margin: 0 0 1rem 0;">Choose which sections to show on the Contact page. Leave unchecked to hide.</p>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                                        <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; background: var(--bg-secondary); border-radius: 8px; cursor: pointer;">
+                                            <input type="checkbox" id="wb-page-contact-show-email" checked style="accent-color: #10b981;"> Show Email
+                                        </label>
+                                        <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; background: var(--bg-secondary); border-radius: 8px; cursor: pointer;">
+                                            <input type="checkbox" id="wb-page-contact-show-phone" checked style="accent-color: #10b981;"> Show Phone
+                                        </label>
+                                        <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; background: var(--bg-secondary); border-radius: 8px; cursor: pointer;">
+                                            <input type="checkbox" id="wb-page-contact-show-address" checked style="accent-color: #10b981;"> Show Address
+                                        </label>
+                                        <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; background: var(--bg-secondary); border-radius: 8px; cursor: pointer;">
+                                            <input type="checkbox" id="wb-page-contact-show-map" checked style="accent-color: #10b981;"> Show Map
+                                        </label>
+                                        <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; background: var(--bg-secondary); border-radius: 8px; cursor: pointer;">
+                                            <input type="checkbox" id="wb-page-contact-show-directions" checked style="accent-color: #10b981;"> Show Directions Link
+                                        </label>
+                                        <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; background: var(--bg-secondary); border-radius: 8px; cursor: pointer;">
+                                            <input type="checkbox" id="wb-page-contact-show-form" checked style="accent-color: #10b981;"> Show Contact Form
+                                        </label>
+                                        <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; background: var(--bg-secondary); border-radius: 8px; cursor: pointer;">
+                                            <input type="checkbox" id="wb-page-contact-show-hours" style="accent-color: #10b981;"> Show Opening Hours
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Map Settings -->
+                            <div class="card" style="margin-bottom: 1.5rem;">
+                                <div class="card-header"><h3>🗺️ Map Settings</h3></div>
+                                <div class="card-body">
+                                    <p style="color: #64748b; font-size: 0.85rem; margin: 0 0 1rem 0;">Enter coordinates for the map pin, or use the Lookup button to find from your address above.</p>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 1rem; align-items: end;">
+                                        <div class="form-group">
+                                            <label class="form-label">Latitude</label>
+                                            <input type="text" class="form-input" id="wb-page-contact-latitude" placeholder="e.g., 25.7617">
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label">Longitude</label>
+                                            <input type="text" class="form-input" id="wb-page-contact-longitude" placeholder="e.g., -80.1918">
+                                        </div>
+                                        <button type="button" class="btn" onclick="lookupContactCoordinates()" style="background: #64748b; margin-bottom: 0.25rem; white-space: nowrap;">📍 Lookup</button>
+                                    </div>
+                                    <div class="form-group" style="margin-top: 1rem;">
+                                        <label class="form-label">Map Zoom Level</label>
+                                        <select class="form-input" id="wb-page-contact-map-zoom" style="max-width: 200px;">
+                                            <option value="12">City (12)</option>
+                                            <option value="14" selected>Neighbourhood (14)</option>
+                                            <option value="16">Street (16)</option>
+                                            <option value="18">Building (18)</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Opening Hours (optional) -->
+                            <div class="card" style="margin-bottom: 1.5rem;">
+                                <div class="card-header"><h3>🕐 Opening Hours <small style="color: #64748b; font-weight: normal;">(optional)</small></h3></div>
+                                <div class="card-body">
+                                    <p style="color: #64748b; font-size: 0.85rem; margin: 0 0 1rem 0;">Only displayed if "Show Opening Hours" is checked above. Leave blank to hide individual days.</p>
+                                    <div style="display: grid; gap: 0.5rem;">
+                                        <div style="display: grid; grid-template-columns: 100px 1fr; gap: 0.5rem; align-items: center;">
+                                            <label class="form-label" style="margin: 0;">Monday</label>
+                                            <input type="text" class="form-input" id="wb-page-contact-hours-mon" placeholder="e.g., 9:00 AM - 5:00 PM">
+                                        </div>
+                                        <div style="display: grid; grid-template-columns: 100px 1fr; gap: 0.5rem; align-items: center;">
+                                            <label class="form-label" style="margin: 0;">Tuesday</label>
+                                            <input type="text" class="form-input" id="wb-page-contact-hours-tue" placeholder="e.g., 9:00 AM - 5:00 PM">
+                                        </div>
+                                        <div style="display: grid; grid-template-columns: 100px 1fr; gap: 0.5rem; align-items: center;">
+                                            <label class="form-label" style="margin: 0;">Wednesday</label>
+                                            <input type="text" class="form-input" id="wb-page-contact-hours-wed" placeholder="e.g., 9:00 AM - 5:00 PM">
+                                        </div>
+                                        <div style="display: grid; grid-template-columns: 100px 1fr; gap: 0.5rem; align-items: center;">
+                                            <label class="form-label" style="margin: 0;">Thursday</label>
+                                            <input type="text" class="form-input" id="wb-page-contact-hours-thu" placeholder="e.g., 9:00 AM - 5:00 PM">
+                                        </div>
+                                        <div style="display: grid; grid-template-columns: 100px 1fr; gap: 0.5rem; align-items: center;">
+                                            <label class="form-label" style="margin: 0;">Friday</label>
+                                            <input type="text" class="form-input" id="wb-page-contact-hours-fri" placeholder="e.g., 9:00 AM - 5:00 PM">
+                                        </div>
+                                        <div style="display: grid; grid-template-columns: 100px 1fr; gap: 0.5rem; align-items: center;">
+                                            <label class="form-label" style="margin: 0;">Saturday</label>
+                                            <input type="text" class="form-input" id="wb-page-contact-hours-sat" placeholder="e.g., 10:00 AM - 2:00 PM">
+                                        </div>
+                                        <div style="display: grid; grid-template-columns: 100px 1fr; gap: 0.5rem; align-items: center;">
+                                            <label class="form-label" style="margin: 0;">Sunday</label>
+                                            <input type="text" class="form-input" id="wb-page-contact-hours-sun" placeholder="e.g., Closed">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
                             <div id="editor-page-contact-content"></div>
                             <div class="card" style="margin-top: 1.5rem; margin-bottom: 1.5rem; border: 2px solid #f59e0b; border-radius: 12px; overflow: hidden;">
                                 <div class="card-header" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; display: flex; justify-content: space-between; align-items: center;">
@@ -18574,6 +18708,20 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (typeof applyFeatureLocks === 'function') {
                 applyFeatureLocks();
             }
+            
+            // Rebuild all translation tabs to match account language settings
+            // Use the WEBSITE OWNER's account, not the logged-in admin's account
+            const websiteAccountId = selectedWebsiteData?.account_id || selectedAccountId;
+            const prevSelectedAccountId = selectedAccountId;
+            if (websiteAccountId) selectedAccountId = websiteAccountId;
+            window.accountLanguageSettings = null; // Force reload for this account
+            loadLanguageSettings(true).then(() => {
+                setTimeout(() => {
+                    rebuildAllTranslationTabs();
+                    // Restore selectedAccountId so other parts of admin aren't affected
+                    selectedAccountId = prevSelectedAccountId;
+                }, 200);
+            });
         }
         
         // Switch main editor tabs
@@ -19572,12 +19720,88 @@ const promo = await fetch('/api/v1/offers/validate', {
         // TRANSLATION HELPER FUNCTIONS
         // =========================================================
         
-        const SUPPORTED_LANGUAGES = [
-            { code: 'en', name: 'English', flag: '🇬🇧' },
-            { code: 'fr', name: 'Français', flag: '🇫🇷' },
-            { code: 'es', name: 'Español', flag: '🇪🇸' },
-            { code: 'nl', name: 'Nederlands', flag: '🇳🇱' }
+        // Language metadata lookup
+        const LANG_META = {
+            en: { name: 'English', flag: '🇬🇧' },
+            fr: { name: 'Français', flag: '🇫🇷' },
+            es: { name: 'Español', flag: '🇪🇸' },
+            nl: { name: 'Nederlands', flag: '🇳🇱' },
+            de: { name: 'Deutsch', flag: '🇩🇪' },
+            it: { name: 'Italiano', flag: '🇮🇹' },
+            pt: { name: 'Português', flag: '🇵🇹' },
+            pl: { name: 'Polski', flag: '🇵🇱' },
+            ru: { name: 'Русский', flag: '🇷🇺' },
+            ja: { name: '日本語', flag: '🇯🇵' },
+            zh: { name: '中文', flag: '🇨🇳' }
+        };
+        
+        // Dynamic - rebuilt from account settings
+        let SUPPORTED_LANGUAGES = [
+            { code: 'en', name: 'English', flag: '🇬🇧' }
         ];
+        
+        // Refresh SUPPORTED_LANGUAGES from account language settings
+        function refreshSupportedLanguages() {
+            const langs = (typeof getAccountLanguages === 'function') ? getAccountLanguages() : ['en'];
+            SUPPORTED_LANGUAGES = langs.map(code => ({
+                code: code,
+                name: (LANG_META[code] || {}).name || code.toUpperCase(),
+                flag: (LANG_META[code] || {}).flag || ''
+            }));
+            return SUPPORTED_LANGUAGES;
+        }
+        
+        // Rebuild ALL translation tab wrappers in the DOM to match current account languages
+        function rebuildAllTranslationTabs() {
+            refreshSupportedLanguages();
+            document.querySelectorAll('[data-translation-group]').forEach(wrapper => {
+                const group = wrapper.dataset.translationGroup;
+                if (!group) return;
+                
+                // Preserve existing values from inputs/textareas
+                const existing = {};
+                let isTextarea = false;
+                let placeholder = '';
+                let rows = 3;
+                wrapper.querySelectorAll('.translation-input, .translation-textarea').forEach(el => {
+                    if (el.value) existing[el.dataset.lang] = el.value;
+                    if (el.tagName === 'TEXTAREA') {
+                        isTextarea = true;
+                        rows = el.rows || 3;
+                    }
+                    if (el.placeholder) placeholder = el.placeholder;
+                });
+                
+                // Build new tabs
+                let tabsHtml = '';
+                SUPPORTED_LANGUAGES.forEach((lang, i) => {
+                    tabsHtml += `<button type="button" class="translation-tab ${i === 0 ? 'active' : ''}" data-lang="${lang.code}" onclick="switchTranslationTab('${group}', '${lang.code}')"><span class="flag">${lang.flag}</span>${lang.code.toUpperCase()}</button>`;
+                });
+                tabsHtml += `<button type="button" class="auto-translate-btn" onclick="autoTranslateField('${group}')" title="Auto-translate from English">✨</button>`;
+                
+                // Build new inputs
+                let inputsHtml = '';
+                SUPPORTED_LANGUAGES.forEach((lang, i) => {
+                    const val = existing[lang.code] || '';
+                    const escapedVal = val.replace(/"/g, '&quot;');
+                    if (isTextarea) {
+                        inputsHtml += `<textarea class="form-textarea translation-input ${i === 0 ? 'active' : ''}" id="${group}-${lang.code}" data-lang="${lang.code}" placeholder="${placeholder}" rows="${rows}">${val}</textarea>`;
+                    } else {
+                        inputsHtml += `<input type="text" class="form-input translation-input ${i === 0 ? 'active' : ''}" id="${group}-${lang.code}" data-lang="${lang.code}" placeholder="${placeholder}" value="${escapedVal}">`;
+                    }
+                });
+                
+                // Status dots
+                let statusHtml = '';
+                SUPPORTED_LANGUAGES.forEach(lang => {
+                    const hasValue = existing[lang.code] && existing[lang.code].trim() !== '';
+                    statusHtml += `<span class="translation-status-dot ${hasValue ? 'filled' : 'empty'}" title="${lang.name}: ${hasValue ? 'Filled' : 'Empty'}"></span>`;
+                });
+                
+                wrapper.innerHTML = `<div class="translation-tabs">${tabsHtml}</div><div class="translation-input-group">${inputsHtml}</div><div class="translation-status" title="Translation status">${statusHtml}</div>`;
+            });
+            console.log(`🌐 Rebuilt ${document.querySelectorAll('[data-translation-group]').length} translation tab groups for languages:`, SUPPORTED_LANGUAGES.map(l => l.code));
+        }
         
         // Current active language for translation tabs
         let currentTranslationLang = 'en';
@@ -19757,6 +19981,33 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
             
             updateTranslationStatus(fieldId);
+        }
+        
+        // =========================================================
+        // CONTACT PAGE HELPERS
+        // =========================================================
+        
+        // Coordinate lookup for Contact page map
+        async function lookupContactCoordinates() {
+            const address = document.getElementById('wb-page-contact-address')?.value || '';
+            const city = document.getElementById('wb-page-contact-city')?.value || '';
+            const state = document.getElementById('wb-page-contact-state')?.value || '';
+            const country = document.getElementById('wb-page-contact-country')?.value || '';
+            const query = [address, city, state, country].filter(Boolean).join(', ');
+            if (!query) { showNotification('Please enter an address first', 'error'); return; }
+            try {
+                const resp = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`);
+                const data = await resp.json();
+                if (data && data.length > 0) {
+                    document.getElementById('wb-page-contact-latitude').value = parseFloat(data[0].lat).toFixed(6);
+                    document.getElementById('wb-page-contact-longitude').value = parseFloat(data[0].lon).toFixed(6);
+                    showNotification('Coordinates found!', 'success');
+                } else {
+                    showNotification('No results found — try a simpler address', 'error');
+                }
+            } catch (e) {
+                showNotification('Lookup failed: ' + e.message, 'error');
+            }
         }
         
         // =========================================================
