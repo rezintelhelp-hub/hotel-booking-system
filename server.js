@@ -16851,7 +16851,10 @@ app.post('/api/custom-site/provision', async (req, res) => {
       res.json({
         success: true,
         site: data.site,
-        credentials: data.credentials,
+        credentials: {
+          username: data.credentials?.wp_user || data.credentials?.username || 'admin',
+          password: data.credentials?.wp_pass || data.credentials?.password || undefined
+        },
         message: 'Site provisioned successfully'
       });
     } else {
@@ -17233,7 +17236,10 @@ app.post('/api/custom-site/create', async (req, res) => {
           admin_url: `https://${cleanSubdomain}.custom.gas.travel/wp-admin`,
           domain: `${cleanSubdomain}.custom.gas.travel`
         },
-        credentials: provisionData.credentials,
+        credentials: {
+          username: provisionData.credentials?.wp_user || provisionData.credentials?.username || 'admin',
+          password: provisionData.credentials?.wp_pass || provisionData.credentials?.password || undefined
+        },
         request_id: requestId,
         message: 'Custom site created successfully'
       });
@@ -17451,7 +17457,10 @@ app.post('/api/deploy/create', async (req, res) => {
           warning: 'Site created on WordPress but failed to save to GAS database. Please contact support.',
           db_error: dbError.message,
           site: data.site,
-          credentials: data.credentials
+          credentials: {
+            username: data.credentials?.wp_user || data.credentials?.username || 'admin',
+            password: data.credentials?.wp_pass || data.credentials?.password || undefined
+          }
         });
       }
     }
