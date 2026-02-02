@@ -46253,15 +46253,14 @@ app.get('/api/public/client/:clientId/properties', async (req, res) => {
         p.latitude,
         p.longitude,
         p.currency,
-        p.hero_image_url,
         p.star_rating,
         p.website_url,
         
-        -- Primary image from property_images
+        -- Primary image from property_images (handles both old url and new image_url columns)
         (SELECT COALESCE(pi.image_url, pi.url) 
          FROM property_images pi 
-         WHERE pi.property_id = p.id AND pi.room_id IS NULL
-         ORDER BY pi.is_primary DESC NULLS LAST, pi.sort_order ASC, pi.id ASC 
+         WHERE pi.property_id = p.id AND (pi.room_id IS NULL)
+         ORDER BY pi.is_primary DESC NULLS LAST, COALESCE(pi.display_order, pi.sort_order, 0) ASC, pi.id ASC 
          LIMIT 1
         ) as primary_image,
         
@@ -46348,8 +46347,7 @@ app.get('/api/public/client/:clientId/properties', async (req, res) => {
         longitude: prop.longitude,
         currency: prop.currency,
         star_rating: prop.star_rating,
-        hero_image_url: prop.hero_image_url,
-        primary_image: prop.primary_image || prop.hero_image_url,
+        primary_image: prop.primary_image || null,
         room_count: parseInt(prop.room_count) || 0,
         min_price: prop.min_price ? parseFloat(prop.min_price) : null,
         max_price: prop.max_price ? parseFloat(prop.max_price) : null,
