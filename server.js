@@ -3559,6 +3559,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS longitude DECIMAL(10,7)');
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS postal_code VARCHAR(20)');
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS state VARCHAR(100)');
+    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS show_on_portfolio BOOLEAN DEFAULT true');
     
     // Fix: Ensure country column is wide enough for full country names
     await pool.query('ALTER TABLE properties ALTER COLUMN country TYPE VARCHAR(100)').catch(() => {});
@@ -19896,7 +19897,8 @@ app.put('/api/db/properties/:id', async (req, res) => {
     const { id } = req.params;
     const { 
       name, description, address, city, country, property_type, status,
-      district, state, zip_code, latitude, longitude, account_id, currency
+      district, state, zip_code, latitude, longitude, account_id, currency,
+      display_name, show_on_portfolio
     } = req.body;
 
     // If only account_id provided, do simple update
@@ -19924,11 +19926,14 @@ app.put('/api/db/properties/:id', async (req, res) => {
         currency = COALESCE($12, currency),
         district = COALESCE($13, district),
         zip_code = COALESCE($14, zip_code),
+        display_name = $15,
+        show_on_portfolio = COALESCE($16, show_on_portfolio),
         updated_at = NOW()
-      WHERE id = $15
+      WHERE id = $17
       RETURNING *`,
       [name, description, address, city, country, property_type, status,
-       state, latitude, longitude, account_id, currency, district, zip_code, id]
+       state, latitude, longitude, account_id, currency, district, zip_code,
+       display_name || null, show_on_portfolio, id]
     );
 
     res.json({ success: true, data: result.rows[0] });
@@ -46322,6 +46327,7 @@ app.get('/api/public/client/:clientId/properties', async (req, res) => {
       FROM properties p
       WHERE p.account_id = $1
         AND p.status = 'active'
+        AND (p.show_on_portfolio IS NULL OR p.show_on_portfolio = true)
       ORDER BY p.name ASC
     `, [clientId]);
     
@@ -46369,13 +46375,13 @@ app.get('/api/public/client/:clientId/properties', async (req, res) => {
     
     // Get total count
     const countResult = await pool.query(
-      'SELECT COUNT(*) as total FROM properties WHERE account_id = $1 AND status = \'active\'',
+      'SELECT COUNT(*) as total FROM properties WHERE account_id = $1 AND status = \'active\' AND (show_on_portfolio IS NULL OR show_on_portfolio = true)',
       [clientId]
     );
     
     // Get unique locations for filter
     const locationsResult = await pool.query(
-      `SELECT DISTINCT city, district FROM properties WHERE account_id = $1 AND status = 'active' AND city IS NOT NULL ORDER BY city`,
+      `SELECT DISTINCT city, district FROM properties WHERE account_id = $1 AND status = 'active' AND (show_on_portfolio IS NULL OR show_on_portfolio = true) AND city IS NOT NULL ORDER BY city`,
       [clientId]
     );
     
@@ -60559,11 +60565,11 @@ app.get('/api/public/client/:clientId/reviews', async (req, res) => {
     }
 });
 
-// GET /api/app-settings/:app - Get app display settings (blog, attractions, reviews)
+// GET /api/app-settings/:app - Get app display settings (blog, attractions, reviews, properties)
 app.get('/api/app-settings/:app', async (req, res) => {
     try {
         const { app } = req.params;
-        const validApps = ['blog', 'attractions', 'reviews'];
+        const validApps = ['blog', 'attractions', 'reviews', 'properties'];
         
         if (!validApps.includes(app)) {
             return res.status(400).json({ success: false, error: 'Invalid app name' });
@@ -60611,7 +60617,7 @@ app.put('/api/app-settings/:app', async (req, res) => {
     try {
         const { app } = req.params;
         const { colors } = req.body;
-        const validApps = ['blog', 'attractions', 'reviews'];
+        const validApps = ['blog', 'attractions', 'reviews', 'properties'];
         
         if (!validApps.includes(app)) {
             return res.status(400).json({ success: false, error: 'Invalid app name' });
@@ -60652,7 +60658,7 @@ app.put('/api/app-settings/:app', async (req, res) => {
 app.get('/api/public/client/:clientId/app-settings/:app', async (req, res) => {
     try {
         const { clientId, app } = req.params;
-        const validApps = ['blog', 'attractions', 'reviews'];
+        const validApps = ['blog', 'attractions', 'reviews', 'properties'];
         
         if (!validApps.includes(app)) {
             return res.status(400).json({ success: false, error: 'Invalid app name' });
@@ -60662,7 +60668,8 @@ app.get('/api/public/client/:clientId/app-settings/:app', async (req, res) => {
         const defaults = {
             blog: { accent: '#667eea', bg: '#ffffff', card_bg: '#ffffff', text: '#1a1a1a', text_secondary: '#666666', category_bg: '#e0e7ff', category_text: '#4338ca' },
             attractions: { accent: '#f59e0b', bg: '#ffffff', card_bg: '#ffffff', text: '#1a1a1a', text_secondary: '#666666', category_bg: '#fef3c7', category_text: '#92400e' },
-            reviews: { accent: '#667eea', bg: '#ffffff', card_bg: '#ffffff', text: '#1e293b', text_secondary: '#64748b', star: '#fbbf24' }
+            reviews: { accent: '#667eea', bg: '#ffffff', card_bg: '#ffffff', text: '#1e293b', text_secondary: '#64748b', star: '#fbbf24' },
+            properties: { accent: '#10b981', bg: '#ffffff', card_bg: '#ffffff', text: '#1a1a1a', text_secondary: '#666666', badge_bg: '#d1fae5', badge_text: '#065f46', button_bg: '#10b981', button_text: '#ffffff' }
         };
         
         // Get account - try by id first (numeric), then by account_code
