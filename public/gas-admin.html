@@ -1841,6 +1841,10 @@
                         <span>Reviews</span>
                         <span class="feature-lock" style="display:none; margin-left: auto; font-size: 0.75rem;"></span>
                     </a>
+                    <a class="nav-item" data-view="app-properties" href="#" onclick="showView('app-properties'); return false;">
+                        <span class="nav-icon">🏢</span>
+                        <span>Properties</span>
+                    </a>
                     <a class="nav-item" data-view="app-seo" href="#" onclick="showView('app-seo'); return false;">
                         <span class="nav-icon">📋</span>
                         <span>SEO Analytics</span>
@@ -9717,6 +9721,153 @@
                 </div>
             </div>
 
+            <!-- Properties App View -->
+            <div id="app-properties" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>🏢 Properties</h2>
+                            <p>Manage how your properties appear on your website portfolio page</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabs -->
+                <div style="display: flex; gap: 0; margin-bottom: 1rem; border-bottom: 2px solid #e5e7eb; overflow-x: auto;">
+                    <button class="properties-tab active" data-tab="manage" onclick="switchPropertiesTab('manage')" style="padding: 0.75rem 1.25rem; border: none; background: none; font-weight: 600; color: #10b981; border-bottom: 2px solid #10b981; margin-bottom: -2px; cursor: pointer; white-space: nowrap;">
+                        🏠 Manage <span id="properties-count-total" style="background: #d1fae5; color: #065f46; padding: 0.125rem 0.5rem; border-radius: 10px; font-size: 0.75rem; margin-left: 0.25rem;">0</span>
+                    </button>
+                    <button class="properties-tab" data-tab="settings" onclick="switchPropertiesTab('settings')" style="padding: 0.75rem 1.25rem; border: none; background: none; font-weight: 500; color: #6b7280; cursor: pointer; white-space: nowrap; margin-left: auto;">
+                        ⚙️ Settings
+                    </button>
+                </div>
+
+                <!-- Tab Content -->
+                <div id="properties-tab-content">
+                    <!-- Manage Tab -->
+                    <div id="properties-tab-manage" class="properties-tab-panel">
+                        <p style="color: #64748b; margin-bottom: 1rem;">Toggle which properties appear on your public Properties page. Edit a property to change its Display Name.</p>
+                        <div id="properties-portfolio-list">
+                            <div class="card" style="text-align: center; padding: 3rem; color: #64748b;">
+                                <p>Loading properties...</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Settings Tab -->
+                    <div id="properties-tab-settings" class="properties-tab-panel" style="display: none;">
+                        <div class="card">
+                            <h3 style="margin-bottom: 1.5rem;">🎨 Display Settings</h3>
+                            <p style="color: #64748b; margin-bottom: 1.5rem;">Customize how your properties portfolio appears on your website. These colors are used by the GAS Properties WordPress plugin.</p>
+                            
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;">
+                                <!-- Colors Section -->
+                                <div style="background: var(--bg-secondary); border-radius: 12px; padding: 1.25rem;">
+                                    <h4 style="margin: 0 0 1rem 0; font-size: 0.9rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Colors</h4>
+                                    
+                                    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                                        <div style="display: flex; align-items: center; justify-content: space-between;">
+                                            <label style="font-size: 0.9rem;">Accent Color</label>
+                                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                                <input type="color" id="properties-color-accent" value="#10b981" style="width: 40px; height: 32px; border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; padding: 2px;">
+                                                <input type="text" id="properties-color-accent-hex" value="#10b981" style="width: 80px; padding: 0.25rem 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.8rem; font-family: monospace;">
+                                            </div>
+                                        </div>
+                                        <div style="display: flex; align-items: center; justify-content: space-between;">
+                                            <label style="font-size: 0.9rem;">Background</label>
+                                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                                <input type="color" id="properties-color-bg" value="#ffffff" style="width: 40px; height: 32px; border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; padding: 2px;">
+                                                <input type="text" id="properties-color-bg-hex" value="#ffffff" style="width: 80px; padding: 0.25rem 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.8rem; font-family: monospace;">
+                                            </div>
+                                        </div>
+                                        <div style="display: flex; align-items: center; justify-content: space-between;">
+                                            <label style="font-size: 0.9rem;">Card Background</label>
+                                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                                <input type="color" id="properties-color-card" value="#ffffff" style="width: 40px; height: 32px; border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; padding: 2px;">
+                                                <input type="text" id="properties-color-card-hex" value="#ffffff" style="width: 80px; padding: 0.25rem 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.8rem; font-family: monospace;">
+                                            </div>
+                                        </div>
+                                        <div style="display: flex; align-items: center; justify-content: space-between;">
+                                            <label style="font-size: 0.9rem;">Text Color</label>
+                                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                                <input type="color" id="properties-color-text" value="#1a1a1a" style="width: 40px; height: 32px; border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; padding: 2px;">
+                                                <input type="text" id="properties-color-text-hex" value="#1a1a1a" style="width: 80px; padding: 0.25rem 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.8rem; font-family: monospace;">
+                                            </div>
+                                        </div>
+                                        <div style="display: flex; align-items: center; justify-content: space-between;">
+                                            <label style="font-size: 0.9rem;">Secondary Text</label>
+                                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                                <input type="color" id="properties-color-secondary" value="#666666" style="width: 40px; height: 32px; border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; padding: 2px;">
+                                                <input type="text" id="properties-color-secondary-hex" value="#666666" style="width: 80px; padding: 0.25rem 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.8rem; font-family: monospace;">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Button & Badge Section -->
+                                <div style="background: var(--bg-secondary); border-radius: 12px; padding: 1.25rem;">
+                                    <h4 style="margin: 0 0 1rem 0; font-size: 0.9rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Buttons & Badges</h4>
+                                    
+                                    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                                        <div style="display: flex; align-items: center; justify-content: space-between;">
+                                            <label style="font-size: 0.9rem;">Button Background</label>
+                                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                                <input type="color" id="properties-color-button-bg" value="#10b981" style="width: 40px; height: 32px; border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; padding: 2px;">
+                                                <input type="text" id="properties-color-button-bg-hex" value="#10b981" style="width: 80px; padding: 0.25rem 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.8rem; font-family: monospace;">
+                                            </div>
+                                        </div>
+                                        <div style="display: flex; align-items: center; justify-content: space-between;">
+                                            <label style="font-size: 0.9rem;">Button Text</label>
+                                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                                <input type="color" id="properties-color-button-text" value="#ffffff" style="width: 40px; height: 32px; border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; padding: 2px;">
+                                                <input type="text" id="properties-color-button-text-hex" value="#ffffff" style="width: 80px; padding: 0.25rem 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.8rem; font-family: monospace;">
+                                            </div>
+                                        </div>
+                                        <div style="display: flex; align-items: center; justify-content: space-between;">
+                                            <label style="font-size: 0.9rem;">Price Badge BG</label>
+                                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                                <input type="color" id="properties-color-badge-bg" value="#10b981" style="width: 40px; height: 32px; border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; padding: 2px;">
+                                                <input type="text" id="properties-color-badge-bg-hex" value="#10b981" style="width: 80px; padding: 0.25rem 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.8rem; font-family: monospace;">
+                                            </div>
+                                        </div>
+                                        <div style="display: flex; align-items: center; justify-content: space-between;">
+                                            <label style="font-size: 0.9rem;">Price Badge Text</label>
+                                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                                <input type="color" id="properties-color-badge-text" value="#ffffff" style="width: 40px; height: 32px; border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; padding: 2px;">
+                                                <input type="text" id="properties-color-badge-text-hex" value="#ffffff" style="width: 80px; padding: 0.25rem 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.8rem; font-family: monospace;">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
+                                        <label style="font-size: 0.8rem; color: #64748b; display: block; margin-bottom: 0.5rem;">Preview:</label>
+                                        <button id="properties-button-preview" style="background: #10b981; color: #ffffff; border: none; padding: 8px 20px; border-radius: 8px; font-size: 0.9rem; cursor: default;">View Rooms →</button>
+                                    </div>
+                                </div>
+                                
+                                <!-- Presets Section -->
+                                <div style="background: var(--bg-secondary); border-radius: 12px; padding: 1.25rem;">
+                                    <h4 style="margin: 0 0 1rem 0; font-size: 0.9rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Quick Presets</h4>
+                                    
+                                    <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                                        <button onclick="applyPropertiesPreset('light')" class="btn btn-secondary" style="font-size: 0.85rem;">☀️ Light</button>
+                                        <button onclick="applyPropertiesPreset('dark')" class="btn btn-secondary" style="font-size: 0.85rem; background: #1e293b; color: white;">🌙 Dark</button>
+                                        <button onclick="applyPropertiesPreset('ocean')" class="btn btn-secondary" style="font-size: 0.85rem; background: #0ea5e9; color: white;">🌊 Ocean</button>
+                                        <button onclick="applyPropertiesPreset('forest')" class="btn btn-secondary" style="font-size: 0.85rem; background: #22c55e; color: white;">🌲 Forest</button>
+                                        <button onclick="applyPropertiesPreset('luxury')" class="btn btn-secondary" style="font-size: 0.85rem; background: #7c3aed; color: white;">💎 Luxury</button>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div style="margin-top: 1.5rem; display: flex; gap: 0.75rem;">
+                                <button class="btn" onclick="savePropertiesSettings()" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">💾 Save Settings</button>
+                                <button class="btn btn-secondary" onclick="loadPropertiesSettings()">↩️ Reset</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Attractions App View -->
             <div id="app-attractions" class="view">
                 <div class="header">
@@ -11201,7 +11352,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 <span style="font-size: 1.75rem;">🏢</span>
                                 <div>
                                     <h4 style="margin: 0; font-size: 1rem;">GAS Properties</h4>
-                                    <span style="font-size: 0.75rem; opacity: 0.8;">v1.0 · Pro+</span>
+                                    <span style="font-size: 0.75rem; opacity: 0.8;">v1.0.3 · Pro+</span>
                                 </div>
                             </div>
                             <p style="font-size: 0.8rem; opacity: 0.9; margin-bottom: 1rem;">Multi-property portfolio with cards &amp; filters</p>
@@ -15962,6 +16113,12 @@ const promo = await fetch('/api/v1/offers/validate', {
                         <input type="text" class="form-input" id="edit-property-name" required>
                     </div>
                     
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label class="form-label">Display Name</label>
+                        <input type="text" class="form-input" id="edit-property-display-name" placeholder="Public-facing name (leave blank to use Property Name)">
+                        <small style="color: #64748b;">This is the name shown on your website and Properties page</small>
+                    </div>
+                    
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                         <div class="form-group">
                             <label class="form-label">Property Type</label>
@@ -15994,6 +16151,17 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 <option value="draft">Draft</option>
                                 <option value="inactive">Inactive</option>
                             </select>
+                        </div>
+                    </div>
+                    
+                    <div style="margin-top: 0.75rem; display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: var(--bg-secondary); border-radius: 8px;">
+                        <label style="position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0;">
+                            <input type="checkbox" id="edit-property-show-portfolio" checked style="opacity: 0; width: 0; height: 0;">
+                            <span onclick="this.previousElementSibling.checked = !this.previousElementSibling.checked;" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; border-radius: 24px; transition: .3s;"></span>
+                        </label>
+                        <div>
+                            <span style="font-weight: 500; font-size: 0.9rem;">Show on Properties Page</span>
+                            <small style="display: block; color: #64748b; font-size: 0.8rem;">When off, this property won't appear on the public Properties page</small>
                         </div>
                     </div>
                 </div>
@@ -19353,6 +19521,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (viewName === 'app-blog') loadBlogByTab();
             if (viewName === 'app-attractions') loadAttractionsByTab();
             if (viewName === 'app-reviews') loadAppReviews();
+            if (viewName === 'app-properties') loadPropertiesPortfolio();
             if (viewName === 'app-seo') loadSeoSites();
             if (viewName === 'api-docs') {
                 const urlInput = document.getElementById('api-docs-base-url');
@@ -37899,6 +38068,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                     document.getElementById('edit-property-latitude').value = prop.latitude || '';
                     document.getElementById('edit-property-longitude').value = prop.longitude || '';
                     document.getElementById('edit-property-status').value = prop.status || 'active';
+                    document.getElementById('edit-property-display-name').value = prop.display_name || '';
+                    document.getElementById('edit-property-show-portfolio').checked = prop.show_on_portfolio !== false;
                     
                     // Stripe fields
                     document.getElementById('edit-property-stripe-name').value = prop.stripe_name || '';
@@ -37962,6 +38133,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                 latitude: document.getElementById('edit-property-latitude').value ? parseFloat(document.getElementById('edit-property-latitude').value) : null,
                 longitude: document.getElementById('edit-property-longitude').value ? parseFloat(document.getElementById('edit-property-longitude').value) : null,
                 status: document.getElementById('edit-property-status').value,
+                display_name: document.getElementById('edit-property-display-name').value || null,
+                show_on_portfolio: document.getElementById('edit-property-show-portfolio').checked,
                 // Stripe fields
                 stripe_name: document.getElementById('edit-property-stripe-name').value || null
             };
@@ -40431,6 +40604,245 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
         
+        // =============================================
+        // PROPERTIES GENERATOR
+        // =============================================
+        
+        function switchPropertiesTab(tab) {
+            document.querySelectorAll('.properties-tab').forEach(t => {
+                if (t.dataset.tab === tab) {
+                    t.style.color = '#10b981';
+                    t.style.borderBottom = '2px solid #10b981';
+                    t.style.fontWeight = '600';
+                } else {
+                    t.style.color = '#6b7280';
+                    t.style.borderBottom = 'none';
+                    t.style.fontWeight = '500';
+                }
+            });
+            
+            document.querySelectorAll('.properties-tab-panel').forEach(p => p.style.display = 'none');
+            const panel = document.getElementById(`properties-tab-${tab}`);
+            if (panel) panel.style.display = 'block';
+            
+            if (tab === 'manage') loadPropertiesPortfolio();
+            if (tab === 'settings') loadPropertiesSettings();
+        }
+        
+        async function loadPropertiesPortfolio() {
+            const accountId = selectedAccountId || currentAccount?.id;
+            if (!accountId) return;
+            
+            try {
+                const response = await fetch(`/api/db/properties?account_id=${accountId}`, { headers: authHeaders() });
+                const data = await response.json();
+                
+                if (!data.success) return;
+                
+                const properties = data.data || [];
+                const container = document.getElementById('properties-portfolio-list');
+                const countEl = document.getElementById('properties-count-total');
+                if (countEl) countEl.textContent = properties.length;
+                
+                if (properties.length === 0) {
+                    container.innerHTML = `<div class="card" style="text-align: center; padding: 3rem; color: #64748b;">
+                        <div style="font-size: 3rem; margin-bottom: 1rem;">🏢</div>
+                        <h3>No properties found</h3>
+                        <p>Properties will appear here once synced from your channel manager</p>
+                    </div>`;
+                    return;
+                }
+                
+                container.innerHTML = `<div class="card" style="padding: 0; overflow: hidden;">
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="background: var(--bg-secondary); text-align: left;">
+                                <th style="padding: 0.75rem 1rem; font-size: 0.8rem; text-transform: uppercase; color: #64748b; letter-spacing: 0.05em;">Property</th>
+                                <th style="padding: 0.75rem 1rem; font-size: 0.8rem; text-transform: uppercase; color: #64748b; letter-spacing: 0.05em;">Display Name</th>
+                                <th style="padding: 0.75rem 1rem; font-size: 0.8rem; text-transform: uppercase; color: #64748b; letter-spacing: 0.05em;">Location</th>
+                                <th style="padding: 0.75rem 1rem; font-size: 0.8rem; text-transform: uppercase; color: #64748b; letter-spacing: 0.05em; text-align: center;">Show on Portfolio</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${properties.map(p => `
+                                <tr style="border-top: 1px solid var(--border-color);">
+                                    <td style="padding: 0.75rem 1rem;">
+                                        <div style="font-weight: 500;">${p.name || 'Unnamed'}</div>
+                                        <small style="color: #64748b;">${p.property_type || ''} · ${p.status || ''}</small>
+                                    </td>
+                                    <td style="padding: 0.75rem 1rem;">
+                                        <span style="color: ${p.display_name ? 'var(--text-primary)' : '#94a3b8'};">${p.display_name || '(uses property name)'}</span>
+                                    </td>
+                                    <td style="padding: 0.75rem 1rem; color: #64748b;">${[p.city, p.district].filter(Boolean).join(', ') || '—'}</td>
+                                    <td style="padding: 0.75rem 1rem; text-align: center;">
+                                        <label style="position: relative; display: inline-block; width: 44px; height: 24px;">
+                                            <input type="checkbox" ${p.show_on_portfolio !== false ? 'checked' : ''} onchange="togglePropertyPortfolio(${p.id}, this.checked)" style="opacity: 0; width: 0; height: 0;">
+                                            <span onclick="const cb = this.previousElementSibling; cb.checked = !cb.checked; cb.dispatchEvent(new Event('change'));" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: ${p.show_on_portfolio !== false ? '#10b981' : '#ccc'}; border-radius: 24px; transition: .3s;"></span>
+                                        </label>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>`;
+                
+                // Style the toggle sliders
+                container.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                    const slider = cb.nextElementSibling;
+                    if (slider) slider.style.backgroundColor = cb.checked ? '#10b981' : '#ccc';
+                });
+                
+            } catch (error) {
+                console.error('Error loading properties portfolio:', error);
+            }
+        }
+        
+        async function togglePropertyPortfolio(propertyId, show) {
+            try {
+                const response = await fetch(`/api/db/properties/${propertyId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ show_on_portfolio: show })
+                });
+                const result = await response.json();
+                if (result.success) {
+                    // Update toggle color
+                    const cb = event.target;
+                    const slider = cb.nextElementSibling;
+                    if (slider) slider.style.backgroundColor = show ? '#10b981' : '#ccc';
+                    showNotification(`Property ${show ? 'shown on' : 'hidden from'} portfolio`, 'success');
+                }
+            } catch (error) {
+                console.error('Error toggling portfolio visibility:', error);
+                showNotification('Failed to update property', 'error');
+            }
+        }
+        
+        async function loadPropertiesSettings() {
+            try {
+                const accountId = selectedAccountId || currentAccount?.id;
+                const response = await fetch(`/api/app-settings/properties?account_id=${accountId}`, { headers: authHeaders() });
+                if (!response.ok) return;
+                
+                const data = await response.json();
+                const colors = data.colors || {};
+                
+                const setColor = (field, value, def) => {
+                    const picker = document.getElementById(`properties-color-${field}`);
+                    const hex = document.getElementById(`properties-color-${field}-hex`);
+                    const val = value || def;
+                    if (picker) picker.value = val;
+                    if (hex) hex.value = val;
+                };
+                
+                setColor('accent', colors.accent, '#10b981');
+                setColor('bg', colors.bg, '#ffffff');
+                setColor('card', colors.card_bg, '#ffffff');
+                setColor('text', colors.text, '#1a1a1a');
+                setColor('secondary', colors.text_secondary, '#666666');
+                setColor('button-bg', colors.button_bg, '#10b981');
+                setColor('button-text', colors.button_text, '#ffffff');
+                setColor('badge-bg', colors.badge_bg, '#10b981');
+                setColor('badge-text', colors.badge_text, '#ffffff');
+                
+                updatePropertiesPreview();
+            } catch (error) {
+                console.error('Error loading properties settings:', error);
+            }
+        }
+        
+        async function savePropertiesSettings() {
+            const settings = {
+                accent: document.getElementById('properties-color-accent')?.value,
+                bg: document.getElementById('properties-color-bg')?.value,
+                card_bg: document.getElementById('properties-color-card')?.value,
+                text: document.getElementById('properties-color-text')?.value,
+                text_secondary: document.getElementById('properties-color-secondary')?.value,
+                button_bg: document.getElementById('properties-color-button-bg')?.value,
+                button_text: document.getElementById('properties-color-button-text')?.value,
+                badge_bg: document.getElementById('properties-color-badge-bg')?.value,
+                badge_text: document.getElementById('properties-color-badge-text')?.value
+            };
+            
+            try {
+                const accountId = selectedAccountId || currentAccount?.id;
+                const response = await fetch(`/api/app-settings/properties?account_id=${accountId}`, {
+                    method: 'PUT',
+                    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ colors: settings, account_id: accountId })
+                });
+                
+                if (response.ok) {
+                    showNotification('Properties display settings saved!', 'success');
+                } else {
+                    throw new Error('Failed to save');
+                }
+            } catch (error) {
+                console.error('Error saving properties settings:', error);
+                showNotification('Failed to save settings', 'error');
+            }
+        }
+        
+        function updatePropertiesPreview() {
+            const btnBg = document.getElementById('properties-color-button-bg')?.value || '#10b981';
+            const btnText = document.getElementById('properties-color-button-text')?.value || '#ffffff';
+            const preview = document.getElementById('properties-button-preview');
+            if (preview) {
+                preview.style.background = btnBg;
+                preview.style.color = btnText;
+            }
+        }
+        
+        function applyPropertiesPreset(preset) {
+            const presets = {
+                light:  { accent: '#10b981', bg: '#ffffff', card: '#ffffff', text: '#1a1a1a', secondary: '#666666', buttonBg: '#10b981', buttonText: '#ffffff', badgeBg: '#10b981', badgeText: '#ffffff' },
+                dark:   { accent: '#34d399', bg: '#0f172a', card: '#1e293b', text: '#f1f5f9', secondary: '#94a3b8', buttonBg: '#34d399', buttonText: '#0f172a', badgeBg: '#34d399', badgeText: '#0f172a' },
+                ocean:  { accent: '#0ea5e9', bg: '#ffffff', card: '#f0f9ff', text: '#0c4a6e', secondary: '#64748b', buttonBg: '#0ea5e9', buttonText: '#ffffff', badgeBg: '#0ea5e9', badgeText: '#ffffff' },
+                forest: { accent: '#22c55e', bg: '#ffffff', card: '#f0fdf4', text: '#14532d', secondary: '#64748b', buttonBg: '#22c55e', buttonText: '#ffffff', badgeBg: '#22c55e', badgeText: '#ffffff' },
+                luxury: { accent: '#7c3aed', bg: '#faf5ff', card: '#ffffff', text: '#1e1b4b', secondary: '#6b7280', buttonBg: '#7c3aed', buttonText: '#ffffff', badgeBg: '#7c3aed', badgeText: '#ffffff' }
+            };
+            
+            const c = presets[preset];
+            if (!c) return;
+            
+            const setColor = (field, value) => {
+                const picker = document.getElementById(`properties-color-${field}`);
+                const hex = document.getElementById(`properties-color-${field}-hex`);
+                if (picker) picker.value = value;
+                if (hex) hex.value = value;
+            };
+            
+            setColor('accent', c.accent);
+            setColor('bg', c.bg);
+            setColor('card', c.card);
+            setColor('text', c.text);
+            setColor('secondary', c.secondary);
+            setColor('button-bg', c.buttonBg);
+            setColor('button-text', c.buttonText);
+            setColor('badge-bg', c.badgeBg);
+            setColor('badge-text', c.badgeText);
+            
+            updatePropertiesPreview();
+            showNotification(`${preset.charAt(0).toUpperCase() + preset.slice(1)} theme applied`, 'success');
+        }
+        
+        // Sync hex inputs with color pickers for properties
+        document.addEventListener('input', function(e) {
+            if (e.target.id && e.target.id.startsWith('properties-color-') && e.target.type === 'color') {
+                const hexInput = document.getElementById(e.target.id + '-hex');
+                if (hexInput) hexInput.value = e.target.value;
+                updatePropertiesPreview();
+            }
+            if (e.target.id && e.target.id.startsWith('properties-color-') && e.target.id.endsWith('-hex')) {
+                const pickerId = e.target.id.replace('-hex', '');
+                const picker = document.getElementById(pickerId);
+                if (picker && /^#[0-9a-fA-F]{6}$/.test(e.target.value)) {
+                    picker.value = e.target.value;
+                    updatePropertiesPreview();
+                }
+            }
+        });
+
         function switchReviewsTab(tab) {
             document.querySelectorAll('.reviews-tab').forEach(t => {
                 if (t.dataset.tab === tab) {
