@@ -50551,7 +50551,7 @@ app.get('/api/public/client/:clientId/site-config', async (req, res) => {
                 AND section NOT IN (SELECT section FROM website_settings WHERE deployed_site_id = $1)
             `, [deployedSiteId, clientId]),
             pool.query(`SELECT pricing_tier FROM deployed_sites WHERE account_id = $1 LIMIT 1`, [clientId]),
-            pool.query(`SELECT settings FROM account_settings WHERE account_id = $1 AND key = 'language_settings'`, [clientId])
+            pool.query(`SELECT settings FROM accounts WHERE id = $1`, [clientId])
         ]);
         
         // Get pricing_tier from deployed_sites
@@ -50979,14 +50979,11 @@ app.get('/api/public/client/:clientId/site-config', async (req, res) => {
                 
                 // Language settings
                 languages: (() => {
-                    const ls = langSettingsResult.rows[0]?.settings;
-                    if (ls && ls.supported_languages) {
-                        return {
-                            primary: ls.primary_language || 'en',
-                            supported: ls.supported_languages
-                        };
-                    }
-                    return { primary: 'en', supported: ['en'] };
+                    const acctSettings = langSettingsResult.rows[0]?.settings || {};
+                    return {
+                        primary: acctSettings.primary_language || 'en',
+                        supported: acctSettings.supported_languages || ['en']
+                    };
                 })()
             }
         });
