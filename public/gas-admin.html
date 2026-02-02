@@ -11352,7 +11352,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 <span style="font-size: 1.75rem;">🏢</span>
                                 <div>
                                     <h4 style="margin: 0; font-size: 1rem;">GAS Properties</h4>
-                                    <span style="font-size: 0.75rem; opacity: 0.8;">v1.0.3 · Pro+</span>
+                                    <span style="font-size: 0.75rem; opacity: 0.8;">v1.0.4 · Pro+</span>
                                 </div>
                             </div>
                             <p style="font-size: 0.8rem; opacity: 0.9; margin-bottom: 1rem;">Multi-property portfolio with cards &amp; filters</p>
@@ -16155,13 +16155,40 @@ const promo = await fetch('/api/v1/offers/validate', {
                     </div>
                     
                     <div style="margin-top: 0.75rem; display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: var(--bg-secondary); border-radius: 8px;">
-                        <label style="position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0;">
-                            <input type="checkbox" id="edit-property-show-portfolio" checked style="opacity: 0; width: 0; height: 0;">
-                            <span onclick="this.previousElementSibling.checked = !this.previousElementSibling.checked;" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; border-radius: 24px; transition: .3s;"></span>
-                        </label>
+                        <input type="checkbox" id="edit-property-show-portfolio" checked style="width: 18px; height: 18px; accent-color: #10b981; cursor: pointer; flex-shrink: 0;">
                         <div>
-                            <span style="font-weight: 500; font-size: 0.9rem;">Show on Properties Page</span>
-                            <small style="display: block; color: #64748b; font-size: 0.8rem;">When off, this property won't appear on the public Properties page</small>
+                            <label for="edit-property-show-portfolio" style="font-weight: 500; font-size: 0.9rem; cursor: pointer;">Show on Properties Page</label>
+                            <small style="display: block; color: #64748b; font-size: 0.8rem;">When unchecked, this property won't appear on the public Properties page</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Portfolio Display Fields -->
+                <div style="margin-bottom: 1.5rem;">
+                    <h4 style="margin: 0 0 1rem 0; color: var(--text-primary); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;">🏷️ Portfolio Card Fields</h4>
+                    <p style="color: #64748b; font-size: 0.8rem; margin: 0 0 1rem 0;">These fields appear on the Properties page cards. Leave blank to hide a line.</p>
+                    
+                    <div class="form-group" style="margin-bottom: 0.75rem;">
+                        <label class="form-label">Display Subtitle <small style="color: #64748b;">(shown under location, e.g. "Two-Bedroom House")</small></label>
+                        <input type="text" class="form-input" id="edit-property-display-subtitle" placeholder="e.g. Two-Bedroom House">
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                        <div class="form-group">
+                            <label class="form-label">Feature Line 1</label>
+                            <input type="text" class="form-input" id="edit-property-display-line1" placeholder="e.g. Fully equipped kitchen">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Feature Line 2</label>
+                            <input type="text" class="form-input" id="edit-property-display-line2" placeholder="e.g. 2 Parking Spots">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Feature Line 3</label>
+                            <input type="text" class="form-input" id="edit-property-display-line3" placeholder="e.g. 2 Flat-Screen Smart TVs">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Feature Line 4</label>
+                            <input type="text" class="form-input" id="edit-property-display-line4" placeholder="e.g. 5-minute drive to Brickell">
                         </div>
                     </div>
                 </div>
@@ -38070,6 +38097,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                     document.getElementById('edit-property-status').value = prop.status || 'active';
                     document.getElementById('edit-property-display-name').value = prop.display_name || '';
                     document.getElementById('edit-property-show-portfolio').checked = prop.show_on_portfolio !== false;
+                    document.getElementById('edit-property-display-subtitle').value = prop.display_subtitle || '';
+                    document.getElementById('edit-property-display-line1').value = prop.display_line_1 || '';
+                    document.getElementById('edit-property-display-line2').value = prop.display_line_2 || '';
+                    document.getElementById('edit-property-display-line3').value = prop.display_line_3 || '';
+                    document.getElementById('edit-property-display-line4').value = prop.display_line_4 || '';
                     
                     // Stripe fields
                     document.getElementById('edit-property-stripe-name').value = prop.stripe_name || '';
@@ -38135,6 +38167,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                 status: document.getElementById('edit-property-status').value,
                 display_name: document.getElementById('edit-property-display-name').value || null,
                 show_on_portfolio: document.getElementById('edit-property-show-portfolio').checked,
+                display_subtitle: document.getElementById('edit-property-display-subtitle').value || null,
+                display_line_1: document.getElementById('edit-property-display-line1').value || null,
+                display_line_2: document.getElementById('edit-property-display-line2').value || null,
+                display_line_3: document.getElementById('edit-property-display-line3').value || null,
+                display_line_4: document.getElementById('edit-property-display-line4').value || null,
                 // Stripe fields
                 stripe_name: document.getElementById('edit-property-stripe-name').value || null
             };
@@ -40675,10 +40712,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                     </td>
                                     <td style="padding: 0.75rem 1rem; color: #64748b;">${[p.city, p.district].filter(Boolean).join(', ') || '—'}</td>
                                     <td style="padding: 0.75rem 1rem; text-align: center;">
-                                        <label style="position: relative; display: inline-block; width: 44px; height: 24px;">
-                                            <input type="checkbox" ${p.show_on_portfolio !== false ? 'checked' : ''} onchange="togglePropertyPortfolio(${p.id}, this.checked)" style="opacity: 0; width: 0; height: 0;">
-                                            <span onclick="const cb = this.previousElementSibling; cb.checked = !cb.checked; cb.dispatchEvent(new Event('change'));" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: ${p.show_on_portfolio !== false ? '#10b981' : '#ccc'}; border-radius: 24px; transition: .3s;"></span>
-                                        </label>
+                                        <input type="checkbox" ${p.show_on_portfolio !== false ? 'checked' : ''} onchange="togglePropertyPortfolio(${p.id}, this.checked)" style="width: 18px; height: 18px; accent-color: #10b981; cursor: pointer;">
                                     </td>
                                 </tr>
                             `).join('')}
