@@ -11352,7 +11352,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 <span style="font-size: 1.75rem;">🏢</span>
                                 <div>
                                     <h4 style="margin: 0; font-size: 1rem;">GAS Properties</h4>
-                                    <span style="font-size: 0.75rem; opacity: 0.8;">v1.0.4 · Pro+</span>
+                                    <span style="font-size: 0.75rem; opacity: 0.8;">v1.0.5 · Pro+</span>
                                 </div>
                             </div>
                             <p style="font-size: 0.8rem; opacity: 0.9; margin-bottom: 1rem;">Multi-property portfolio with cards &amp; filters</p>
@@ -16113,10 +16113,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                         <input type="text" class="form-input" id="edit-property-name" required>
                     </div>
                     
-                    <div class="form-group" style="margin-bottom: 1rem;">
-                        <label class="form-label">Display Name</label>
-                        <input type="text" class="form-input" id="edit-property-display-name" placeholder="Public-facing name (leave blank to use Property Name)">
-                        <small style="color: #64748b;">Internal reference name — used as fallback if no portfolio name set below</small>
                     </div>
                     
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
@@ -16165,7 +16161,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 <!-- Portfolio Card Fields (multilingual) -->
                 <div style="margin-bottom: 1.5rem;">
-                    <h4 style="margin: 0 0 1rem 0; color: var(--text-primary); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;">🏷️ Portfolio Card Fields</h4>
+                    <h4 style="margin: 0 0 1rem 0; color: var(--text-primary); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;">PORTFOLIO CARD FIELDS</h4>
                     <p style="color: #64748b; font-size: 0.8rem; margin: 0 0 0.75rem 0;">These appear on the Properties page cards. Switch language to add translations. Leave blank to hide.</p>
                     
                     <div class="lang-tabs" id="portfolio-lang-tabs" style="margin-bottom: 0.75rem; display: flex; gap: 0.25rem; flex-wrap: wrap;"></div>
@@ -21275,7 +21271,8 @@ const promo = await fetch('/api/v1/offers/validate', {
         // Load and populate language settings UI
         async function loadLanguageSettingsUI() {
             try {
-                const response = await fetch('/api/account/language-settings', { headers: authHeaders() });
+                const acctParam = selectedAccountId ? `?account_id=${selectedAccountId}` : '';
+                const response = await fetch(`/api/account/language-settings${acctParam}`, { headers: authHeaders() });
                 const data = await response.json();
                 
                 if (data.success) {
@@ -21335,7 +21332,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                     headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({
                         primary_language: primaryLanguage,
-                        supported_languages: supportedLanguages
+                        supported_languages: supportedLanguages,
+                        account_id: selectedAccountId || null
                     })
                 });
                 
@@ -21359,7 +21357,8 @@ const promo = await fetch('/api/v1/offers/validate', {
         // Load Account Settings page
         async function loadAccountSettings() {
             try {
-                const response = await fetch('/api/account/language-settings', { headers: authHeaders() });
+                const acctParam = selectedAccountId ? `?account_id=${selectedAccountId}` : '';
+                const response = await fetch(`/api/account/language-settings${acctParam}`, { headers: authHeaders() });
                 const data = await response.json();
                 
                 if (data.success) {
@@ -21436,7 +21435,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                     headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({
                         primary_language: primaryLanguage,
-                        supported_languages: supportedLanguages
+                        supported_languages: supportedLanguages,
+                        account_id: selectedAccountId || null
                     })
                 });
                 
@@ -22562,6 +22562,9 @@ const promo = await fetch('/api/v1/offers/validate', {
             const account = allAccounts.find(a => a.id === accountId);
             if (!account) return;
             
+            // Clear cached language settings so they reload for new account
+            window.accountLanguageSettings = null;
+            
             // Set the filter variables
             selectedAccountId = accountId;
             selectedAccountName = account.name;
@@ -22837,7 +22840,8 @@ const promo = await fetch('/api/v1/offers/validate', {
             selectedAccountId = null;
             selectedAccountName = null;
             
-            // SYNC with client selector system
+            // Clear cached language settings so they reload for master account
+            window.accountLanguageSettings = null;
             currentClientPublicId = null;
             const selector = document.getElementById('globalClientSelector');
             if (selector) selector.value = '';
@@ -38089,6 +38093,9 @@ const promo = await fetch('/api/v1/offers/validate', {
 
         async function editProperty(id) {
             try {
+                // Ensure language settings loaded for current account
+                await loadLanguageSettings(true);
+                
                 const response = await fetch(`/api/db/properties/${id}`);
                 const data = await response.json();
                 
@@ -38106,11 +38113,14 @@ const promo = await fetch('/api/v1/offers/validate', {
                     document.getElementById('edit-property-latitude').value = prop.latitude || '';
                     document.getElementById('edit-property-longitude').value = prop.longitude || '';
                     document.getElementById('edit-property-status').value = prop.status || 'active';
-                    document.getElementById('edit-property-display-name').value = prop.display_name || '';
-                    document.getElementById('edit-property-show-portfolio').checked = prop.show_on_portfolio !== false;
-                    
                     // Portfolio display fields (multilingual JSONB)
                     window.portfolioDisplayData = prop.portfolio_display || {};
+                    // If old display_name exists but no portfolio display_name, migrate it
+                    if (prop.display_name && (!window.portfolioDisplayData.display_name || !window.portfolioDisplayData.display_name.en)) {
+                        if (!window.portfolioDisplayData.display_name) window.portfolioDisplayData.display_name = {};
+                        window.portfolioDisplayData.display_name.en = prop.display_name;
+                    }
+                    document.getElementById('edit-property-show-portfolio').checked = prop.show_on_portfolio !== false;
                     window.currentPortfolioLang = getAccountPrimaryLanguage();
                     renderPortfolioLangTabs();
                     loadPortfolioLangFields(window.currentPortfolioLang);
@@ -38165,6 +38175,8 @@ const promo = await fetch('/api/v1/offers/validate', {
         async function saveProperty(e) {
             e.preventDefault();
             const id = document.getElementById('edit-property-id').value;
+                const portfolioData = savePortfolioLangFields();
+                const displayNameEn = portfolioData?.display_name?.en || null;
             const data = {
                 name: document.getElementById('edit-property-name').value,
                 property_type: document.getElementById('edit-property-type').value,
@@ -38177,9 +38189,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                 latitude: document.getElementById('edit-property-latitude').value ? parseFloat(document.getElementById('edit-property-latitude').value) : null,
                 longitude: document.getElementById('edit-property-longitude').value ? parseFloat(document.getElementById('edit-property-longitude').value) : null,
                 status: document.getElementById('edit-property-status').value,
-                display_name: document.getElementById('edit-property-display-name').value || null,
+                display_name: displayNameEn,
                 show_on_portfolio: document.getElementById('edit-property-show-portfolio').checked,
-                portfolio_display: savePortfolioLangFields(),
+                portfolio_display: portfolioData,
                 // Stripe fields
                 stripe_name: document.getElementById('edit-property-stripe-name').value || null
             };
@@ -38618,10 +38630,11 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
 
         // Load language settings if not already loaded
-        async function loadLanguageSettings() {
-            if (window.accountLanguageSettings) return;
+        async function loadLanguageSettings(forceReload) {
+            if (window.accountLanguageSettings && !forceReload) return;
             try {
-                const response = await fetch('/api/account/language-settings', { headers: authHeaders() });
+                const acctParam = selectedAccountId ? `?account_id=${selectedAccountId}` : '';
+                const response = await fetch(`/api/account/language-settings${acctParam}`, { headers: authHeaders() });
                 const data = await response.json();
                 if (data.success) {
                     window.accountLanguageSettings = {
