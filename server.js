@@ -46311,7 +46311,7 @@ app.get('/api/public/client/:clientId/properties', async (req, res) => {
         
       FROM properties p
       WHERE p.account_id = $1
-        AND p.active = true
+        AND p.status = 'active'
       ORDER BY p.name ASC
     `, [clientId]);
     
@@ -46358,13 +46358,13 @@ app.get('/api/public/client/:clientId/properties', async (req, res) => {
     
     // Get total count
     const countResult = await pool.query(
-      'SELECT COUNT(*) as total FROM properties WHERE account_id = $1 AND active = true',
+      'SELECT COUNT(*) as total FROM properties WHERE account_id = $1 AND status = \'active\'',
       [clientId]
     );
     
     // Get unique locations for filter
     const locationsResult = await pool.query(
-      `SELECT DISTINCT city, district FROM properties WHERE account_id = $1 AND active = true AND city IS NOT NULL ORDER BY city`,
+      `SELECT DISTINCT city, district FROM properties WHERE account_id = $1 AND status = 'active' AND city IS NOT NULL ORDER BY city`,
       [clientId]
     );
     
