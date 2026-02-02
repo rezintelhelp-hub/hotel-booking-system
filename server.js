@@ -59695,6 +59695,11 @@ app.listen(PORT, '0.0.0.0', async () => {
     await pool.query(`ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS last_image_sync TIMESTAMP`);
     await pool.query(`ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS last_content_sync TIMESTAMP`);
     await pool.query(`ALTER TABLE gas_sync_room_types ADD COLUMN IF NOT EXISTS tier5_synced_at TIMESTAMP`);
+    
+    // Portfolio display columns
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS show_on_portfolio BOOLEAN DEFAULT true`);
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS portfolio_display JSONB DEFAULT '{}'::jsonb`);
+    
     console.log('✅ Database migrations complete');
   } catch (migrationError) {
     console.log('⚠️ Migration error (may already exist):', migrationError.message);
