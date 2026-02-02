@@ -17227,6 +17227,23 @@ app.post('/api/custom-site/create', async (req, res) => {
         WHERE id = $1
       `, [requestId]);
       
+      // 5. Auto-create plugin license for this account
+      let licenseKey = null;
+      if (account_id) {
+        try {
+          const crypto = require('crypto');
+          licenseKey = 'GAS-' + crypto.randomBytes(16).toString('hex').toUpperCase();
+          await pool.query(`
+            INSERT INTO plugin_licenses (account_id, email, license_key, product, room_ids, display_settings, status, created_at)
+            VALUES ($1, $2, $3, 'gas-booking-plugin', '[]', '{}', 'active', NOW())
+          `, [account_id, email, licenseKey]);
+          console.log(`[Custom Site] ✅ Auto-created license ${licenseKey} for account ${account_id}`);
+        } catch (licError) {
+          console.error(`[Custom Site] License creation failed (non-blocking):`, licError.message);
+          // Non-blocking - site still created successfully
+        }
+      }
+      
       console.log(`[Custom Site] ✅ Site created: ${cleanSubdomain}.custom.gas.travel`);
       
       res.json({
@@ -17240,6 +17257,7 @@ app.post('/api/custom-site/create', async (req, res) => {
           username: provisionData.credentials?.wp_user || provisionData.credentials?.username || 'admin',
           password: provisionData.credentials?.wp_pass || provisionData.credentials?.password || undefined
         },
+        license_key: licenseKey,
         request_id: requestId,
         message: 'Custom site created successfully'
       });
