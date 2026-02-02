@@ -46253,7 +46253,6 @@ app.get('/api/public/client/:clientId/properties', async (req, res) => {
         p.latitude,
         p.longitude,
         p.currency,
-        p.star_rating,
         p.website_url,
         
         -- Primary image from property_images (handles both old url and new image_url columns)
@@ -46346,7 +46345,6 @@ app.get('/api/public/client/:clientId/properties', async (req, res) => {
         latitude: prop.latitude,
         longitude: prop.longitude,
         currency: prop.currency,
-        star_rating: prop.star_rating,
         primary_image: prop.primary_image || null,
         room_count: parseInt(prop.room_count) || 0,
         min_price: prop.min_price ? parseFloat(prop.min_price) : null,
