@@ -46242,6 +46242,7 @@ app.get('/api/public/client/:clientId/properties', async (req, res) => {
       SELECT 
         p.id,
         p.name,
+        p.display_name,
         p.property_type,
         p.description,
         p.short_description,
@@ -46255,12 +46256,21 @@ app.get('/api/public/client/:clientId/properties', async (req, res) => {
         p.currency,
         p.website_url,
         
-        -- Primary image from property_images (handles both old url and new image_url columns)
-        (SELECT COALESCE(pi.image_url, pi.url) 
-         FROM property_images pi 
-         WHERE pi.property_id = p.id AND (pi.room_id IS NULL)
-         ORDER BY pi.is_primary DESC NULLS LAST, COALESCE(pi.display_order, pi.sort_order, 0) ASC, pi.id ASC 
-         LIMIT 1
+        -- Primary image: try property_images first, then fall back to first room image
+        COALESCE(
+          (SELECT COALESCE(pi.image_url, pi.url) 
+           FROM property_images pi 
+           WHERE pi.property_id = p.id AND (pi.room_id IS NULL)
+           ORDER BY pi.is_primary DESC NULLS LAST, COALESCE(pi.display_order, pi.sort_order, 0) ASC, pi.id ASC 
+           LIMIT 1
+          ),
+          (SELECT ri.image_url
+           FROM room_images ri
+           JOIN bookable_units bu ON ri.room_id = bu.id
+           WHERE bu.property_id = p.id AND ri.is_active = true
+           ORDER BY ri.is_primary DESC NULLS LAST, ri.display_order ASC, ri.id ASC
+           LIMIT 1
+          )
         ) as primary_image,
         
         -- Room count
@@ -46333,7 +46343,8 @@ app.get('/api/public/client/:clientId/properties', async (req, res) => {
       
       return {
         id: prop.id,
-        name: prop.name,
+        name: prop.display_name || prop.name,
+        internal_name: prop.name,
         property_type: prop.property_type,
         description: prop.description,
         short_description: prop.short_description,
