@@ -16116,7 +16116,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <div class="form-group" style="margin-bottom: 1rem;">
                         <label class="form-label">Display Name</label>
                         <input type="text" class="form-input" id="edit-property-display-name" placeholder="Public-facing name (leave blank to use Property Name)">
-                        <small style="color: #64748b;">This is the name shown on your website and Properties page</small>
+                        <small style="color: #64748b;">Internal reference name — used as fallback if no portfolio name set below</small>
                     </div>
                     
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
@@ -16163,34 +16163,45 @@ const promo = await fetch('/api/v1/offers/validate', {
                     </div>
                 </div>
                 
-                <!-- Portfolio Display Fields -->
+                <!-- Portfolio Card Fields (multilingual) -->
                 <div style="margin-bottom: 1.5rem;">
                     <h4 style="margin: 0 0 1rem 0; color: var(--text-primary); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;">🏷️ Portfolio Card Fields</h4>
-                    <p style="color: #64748b; font-size: 0.8rem; margin: 0 0 1rem 0;">These fields appear on the Properties page cards. Leave blank to hide a line.</p>
+                    <p style="color: #64748b; font-size: 0.8rem; margin: 0 0 0.75rem 0;">These appear on the Properties page cards. Switch language to add translations. Leave blank to hide.</p>
+                    
+                    <div class="lang-tabs" id="portfolio-lang-tabs" style="margin-bottom: 0.75rem; display: flex; gap: 0.25rem; flex-wrap: wrap;"></div>
                     
                     <div class="form-group" style="margin-bottom: 0.75rem;">
-                        <label class="form-label">Display Subtitle <small style="color: #64748b;">(shown under location, e.g. "Two-Bedroom House")</small></label>
-                        <input type="text" class="form-input" id="edit-property-display-subtitle" placeholder="e.g. Two-Bedroom House">
+                        <label class="form-label">Display Name <small style="color: #64748b;">(large heading on card)</small></label>
+                        <input type="text" class="form-input" id="edit-property-portfolio-name" placeholder="e.g. Shenandoah House">
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 0.75rem;">
+                        <label class="form-label">Display Subtitle <small style="color: #64748b;">(under location)</small></label>
+                        <input type="text" class="form-input" id="edit-property-portfolio-subtitle" placeholder="e.g. Two-Bedroom House">
                     </div>
                     
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
                         <div class="form-group">
                             <label class="form-label">Feature Line 1</label>
-                            <input type="text" class="form-input" id="edit-property-display-line1" placeholder="e.g. Fully equipped kitchen">
+                            <input type="text" class="form-input" id="edit-property-portfolio-line1" placeholder="e.g. Fully equipped kitchen">
                         </div>
                         <div class="form-group">
                             <label class="form-label">Feature Line 2</label>
-                            <input type="text" class="form-input" id="edit-property-display-line2" placeholder="e.g. 2 Parking Spots">
+                            <input type="text" class="form-input" id="edit-property-portfolio-line2" placeholder="e.g. 2 Parking Spots">
                         </div>
                         <div class="form-group">
                             <label class="form-label">Feature Line 3</label>
-                            <input type="text" class="form-input" id="edit-property-display-line3" placeholder="e.g. 2 Flat-Screen Smart TVs">
+                            <input type="text" class="form-input" id="edit-property-portfolio-line3" placeholder="e.g. 2 Flat-Screen Smart TVs">
                         </div>
                         <div class="form-group">
                             <label class="form-label">Feature Line 4</label>
-                            <input type="text" class="form-input" id="edit-property-display-line4" placeholder="e.g. 5-minute drive to Brickell">
+                            <input type="text" class="form-input" id="edit-property-portfolio-line4" placeholder="e.g. 5-minute drive to Brickell">
                         </div>
                     </div>
+                    
+                    <button type="button" class="btn" onclick="translatePortfolioFields()" style="margin-top: 0.5rem; white-space: nowrap; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; font-size: 0.8rem; padding: 0.4rem 0.75rem;" title="Auto-translate to other languages">
+                        🌐 Auto-Translate
+                    </button>
                 </div>
                 
                 <!-- Address Section -->
@@ -38097,11 +38108,12 @@ const promo = await fetch('/api/v1/offers/validate', {
                     document.getElementById('edit-property-status').value = prop.status || 'active';
                     document.getElementById('edit-property-display-name').value = prop.display_name || '';
                     document.getElementById('edit-property-show-portfolio').checked = prop.show_on_portfolio !== false;
-                    document.getElementById('edit-property-display-subtitle').value = prop.display_subtitle || '';
-                    document.getElementById('edit-property-display-line1').value = prop.display_line_1 || '';
-                    document.getElementById('edit-property-display-line2').value = prop.display_line_2 || '';
-                    document.getElementById('edit-property-display-line3').value = prop.display_line_3 || '';
-                    document.getElementById('edit-property-display-line4').value = prop.display_line_4 || '';
+                    
+                    // Portfolio display fields (multilingual JSONB)
+                    window.portfolioDisplayData = prop.portfolio_display || {};
+                    window.currentPortfolioLang = getAccountPrimaryLanguage();
+                    renderPortfolioLangTabs();
+                    loadPortfolioLangFields(window.currentPortfolioLang);
                     
                     // Stripe fields
                     document.getElementById('edit-property-stripe-name').value = prop.stripe_name || '';
@@ -38167,11 +38179,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 status: document.getElementById('edit-property-status').value,
                 display_name: document.getElementById('edit-property-display-name').value || null,
                 show_on_portfolio: document.getElementById('edit-property-show-portfolio').checked,
-                display_subtitle: document.getElementById('edit-property-display-subtitle').value || null,
-                display_line_1: document.getElementById('edit-property-display-line1').value || null,
-                display_line_2: document.getElementById('edit-property-display-line2').value || null,
-                display_line_3: document.getElementById('edit-property-display-line3').value || null,
-                display_line_4: document.getElementById('edit-property-display-line4').value || null,
+                portfolio_display: savePortfolioLangFields(),
                 // Stripe fields
                 stripe_name: document.getElementById('edit-property-stripe-name').value || null
             };
@@ -40641,6 +40649,161 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
         
+        // =============================================
+        // PORTFOLIO CARD MULTILINGUAL FIELDS
+        // =============================================
+        
+        function renderPortfolioLangTabs() {
+            const langs = getAccountLanguages();
+            const primaryLang = getAccountPrimaryLanguage();
+            const sortedLangs = [...langs].sort((a, b) => {
+                if (a === primaryLang) return -1;
+                if (b === primaryLang) return 1;
+                return 0;
+            });
+            
+            const container = document.getElementById('portfolio-lang-tabs');
+            if (!container) return;
+            
+            container.innerHTML = sortedLangs.map(lang => {
+                const info = LANG_INFO[lang] || { flag: '🏳️', name: lang.toUpperCase() };
+                const isActive = lang === window.currentPortfolioLang;
+                const hasContent = hasPortfolioContent(lang);
+                return `<button type="button" class="lang-tab${isActive ? ' active' : ''}${hasContent ? ' has-content' : ''}" data-lang="${lang}" onclick="switchPortfolioLang('${lang}', this)" style="padding: 0.3rem 0.6rem; border: 1px solid ${isActive ? 'var(--accent, #10b981)' : 'var(--border-color, #d1d5db)'}; border-radius: 6px; background: ${isActive ? 'var(--accent, #10b981)' : 'transparent'}; color: ${isActive ? 'white' : 'inherit'}; cursor: pointer; font-size: 0.8rem;">${info.flag} ${info.name}</button>`;
+            }).join('');
+        }
+        
+        function hasPortfolioContent(lang) {
+            const d = window.portfolioDisplayData || {};
+            return !!(
+                (d.display_name && d.display_name[lang]) ||
+                (d.subtitle && d.subtitle[lang]) ||
+                (d.line_1 && d.line_1[lang]) ||
+                (d.line_2 && d.line_2[lang]) ||
+                (d.line_3 && d.line_3[lang]) ||
+                (d.line_4 && d.line_4[lang])
+            );
+        }
+        
+        function switchPortfolioLang(lang, btn) {
+            // Save current lang values before switching
+            saveCurrentPortfolioLangValues();
+            window.currentPortfolioLang = lang;
+            loadPortfolioLangFields(lang);
+            renderPortfolioLangTabs();
+        }
+        
+        function loadPortfolioLangFields(lang) {
+            const d = window.portfolioDisplayData || {};
+            document.getElementById('edit-property-portfolio-name').value = (d.display_name && d.display_name[lang]) || '';
+            document.getElementById('edit-property-portfolio-subtitle').value = (d.subtitle && d.subtitle[lang]) || '';
+            document.getElementById('edit-property-portfolio-line1').value = (d.line_1 && d.line_1[lang]) || '';
+            document.getElementById('edit-property-portfolio-line2').value = (d.line_2 && d.line_2[lang]) || '';
+            document.getElementById('edit-property-portfolio-line3').value = (d.line_3 && d.line_3[lang]) || '';
+            document.getElementById('edit-property-portfolio-line4').value = (d.line_4 && d.line_4[lang]) || '';
+        }
+        
+        function saveCurrentPortfolioLangValues() {
+            const lang = window.currentPortfolioLang;
+            if (!lang) return;
+            if (!window.portfolioDisplayData) window.portfolioDisplayData = {};
+            const d = window.portfolioDisplayData;
+            
+            const fields = {
+                display_name: document.getElementById('edit-property-portfolio-name').value,
+                subtitle: document.getElementById('edit-property-portfolio-subtitle').value,
+                line_1: document.getElementById('edit-property-portfolio-line1').value,
+                line_2: document.getElementById('edit-property-portfolio-line2').value,
+                line_3: document.getElementById('edit-property-portfolio-line3').value,
+                line_4: document.getElementById('edit-property-portfolio-line4').value
+            };
+            
+            for (const [key, val] of Object.entries(fields)) {
+                if (!d[key]) d[key] = {};
+                if (val) {
+                    d[key][lang] = val;
+                } else {
+                    delete d[key][lang];
+                }
+            }
+        }
+        
+        function savePortfolioLangFields() {
+            saveCurrentPortfolioLangValues();
+            // Clean empty objects
+            const d = window.portfolioDisplayData || {};
+            const cleaned = {};
+            for (const [key, val] of Object.entries(d)) {
+                if (val && typeof val === 'object' && Object.keys(val).length > 0) {
+                    cleaned[key] = val;
+                }
+            }
+            return Object.keys(cleaned).length > 0 ? cleaned : null;
+        }
+        
+        async function translatePortfolioFields() {
+            saveCurrentPortfolioLangValues();
+            const d = window.portfolioDisplayData || {};
+            const sourceLang = 'en';
+            const targetLangs = getAccountLanguages().filter(l => l !== sourceLang);
+            
+            if (targetLangs.length === 0) {
+                showNotification('No additional languages configured', 'info');
+                return;
+            }
+            
+            // Collect source texts
+            const fields = ['subtitle', 'line_1', 'line_2', 'line_3', 'line_4'];
+            const sourceTexts = {};
+            for (const f of fields) {
+                const text = (d[f] && d[f][sourceLang]) || '';
+                if (text) sourceTexts[f] = text;
+            }
+            
+            if (Object.keys(sourceTexts).length === 0) {
+                showNotification('Enter English text first, then translate', 'info');
+                return;
+            }
+            
+            showNotification('Translating...', 'info');
+            
+            try {
+                const accountId = selectedAccountId || currentAccount?.id;
+                for (const targetLang of targetLangs) {
+                    for (const [field, text] of Object.entries(sourceTexts)) {
+                        // Skip if translation already exists
+                        if (d[field] && d[field][targetLang]) continue;
+                        
+                        const response = await fetch('/api/translate', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                            body: JSON.stringify({
+                                text: text,
+                                source_language: sourceLang,
+                                target_language: targetLang,
+                                account_id: accountId
+                            })
+                        });
+                        
+                        if (response.ok) {
+                            const result = await response.json();
+                            if (result.translated_text) {
+                                if (!d[field]) d[field] = {};
+                                d[field][targetLang] = result.translated_text;
+                            }
+                        }
+                    }
+                }
+                
+                window.portfolioDisplayData = d;
+                renderPortfolioLangTabs();
+                showNotification('Translations added!', 'success');
+            } catch (error) {
+                console.error('Translation error:', error);
+                showNotification('Translation failed', 'error');
+            }
+        }
+
         // =============================================
         // PROPERTIES GENERATOR
         // =============================================
