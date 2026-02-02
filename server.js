@@ -3560,6 +3560,11 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS postal_code VARCHAR(20)');
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS state VARCHAR(100)');
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS show_on_portfolio BOOLEAN DEFAULT true');
+    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS display_subtitle VARCHAR(255)');
+    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS display_line_1 VARCHAR(255)');
+    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS display_line_2 VARCHAR(255)');
+    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS display_line_3 VARCHAR(255)');
+    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS display_line_4 VARCHAR(255)');
     
     // Fix: Ensure country column is wide enough for full country names
     await pool.query('ALTER TABLE properties ALTER COLUMN country TYPE VARCHAR(100)').catch(() => {});
@@ -19898,7 +19903,8 @@ app.put('/api/db/properties/:id', async (req, res) => {
     const { 
       name, description, address, city, country, property_type, status,
       district, state, zip_code, latitude, longitude, account_id, currency,
-      display_name, show_on_portfolio
+      display_name, show_on_portfolio, display_subtitle,
+      display_line_1, display_line_2, display_line_3, display_line_4
     } = req.body;
 
     // If only account_id provided, do simple update
@@ -19928,12 +19934,19 @@ app.put('/api/db/properties/:id', async (req, res) => {
         zip_code = COALESCE($14, zip_code),
         display_name = $15,
         show_on_portfolio = COALESCE($16, show_on_portfolio),
+        display_subtitle = $17,
+        display_line_1 = $18,
+        display_line_2 = $19,
+        display_line_3 = $20,
+        display_line_4 = $21,
         updated_at = NOW()
-      WHERE id = $17
+      WHERE id = $22
       RETURNING *`,
       [name, description, address, city, country, property_type, status,
        state, latitude, longitude, account_id, currency, district, zip_code,
-       display_name || null, show_on_portfolio, id]
+       display_name || null, show_on_portfolio,
+       display_subtitle || null, display_line_1 || null, display_line_2 || null,
+       display_line_3 || null, display_line_4 || null, id]
     );
 
     res.json({ success: true, data: result.rows[0] });
@@ -46260,6 +46273,11 @@ app.get('/api/public/client/:clientId/properties', async (req, res) => {
         p.longitude,
         p.currency,
         p.website_url,
+        p.display_subtitle,
+        p.display_line_1,
+        p.display_line_2,
+        p.display_line_3,
+        p.display_line_4,
         
         -- Primary image: try property_images first, then fall back to first room image
         COALESCE(
@@ -46363,6 +46381,11 @@ app.get('/api/public/client/:clientId/properties', async (req, res) => {
         longitude: prop.longitude,
         currency: prop.currency,
         primary_image: prop.primary_image || null,
+        display_subtitle: prop.display_subtitle,
+        display_line_1: prop.display_line_1,
+        display_line_2: prop.display_line_2,
+        display_line_3: prop.display_line_3,
+        display_line_4: prop.display_line_4,
         room_count: parseInt(prop.room_count) || 0,
         min_price: prop.min_price ? parseFloat(prop.min_price) : null,
         max_price: prop.max_price ? parseFloat(prop.max_price) : null,
