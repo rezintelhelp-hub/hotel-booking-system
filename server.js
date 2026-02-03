@@ -48543,6 +48543,7 @@ app.post('/api/admin/blog', async (req, res) => {
             author_name, author_image_url,
             read_time_minutes, is_featured, is_published, published_at,
             scheduled_at, ai_generated, source_keyword, language,
+            faq_schema,
             // Multilingual fields
             title_ml, excerpt_ml, content_ml, meta_title_ml, meta_description_ml
         } = req.body;
@@ -48582,9 +48583,10 @@ app.post('/api/admin/blog', async (req, res) => {
                 author_name, author_image_url, read_time_minutes,
                 is_featured, is_published, published_at,
                 scheduled_at, ai_generated, source_keyword, language,
-                title_ml, excerpt_ml, content_ml, meta_title_ml, meta_description_ml
+                title_ml, excerpt_ml, content_ml, meta_title_ml, meta_description_ml,
+                faq_schema
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)
             RETURNING *
         `, [
             client_id, property_id || null, title, finalSlug, excerpt, content, featured_image_url,
@@ -48596,7 +48598,8 @@ app.post('/api/admin/blog', async (req, res) => {
             excerpt_ml ? JSON.stringify(excerpt_ml) : null,
             content_ml ? JSON.stringify(content_ml) : null,
             meta_title_ml ? JSON.stringify(meta_title_ml) : null,
-            meta_description_ml ? JSON.stringify(meta_description_ml) : null
+            meta_description_ml ? JSON.stringify(meta_description_ml) : null,
+            faq_schema ? JSON.stringify(faq_schema) : null
         ]);
         
         res.json({ success: true, post: result.rows[0] });
@@ -48621,6 +48624,7 @@ app.put('/api/admin/blog/:id', async (req, res) => {
             meta_title, meta_description,
             author_name, author_image_url,
             read_time_minutes, is_featured, is_published, published_at,
+            faq_schema,
             // Multilingual fields
             title_ml, excerpt_ml, content_ml, meta_title_ml, meta_description_ml
         } = req.body;
@@ -48648,8 +48652,9 @@ app.put('/api/admin/blog/:id', async (req, res) => {
                 content_ml = $19,
                 meta_title_ml = $20,
                 meta_description_ml = $21,
+                faq_schema = $22,
                 updated_at = NOW()
-            WHERE id = $22
+            WHERE id = $23
             RETURNING *
         `, [
             property_id, title, slug, excerpt, content, featured_image_url,
@@ -48661,6 +48666,7 @@ app.put('/api/admin/blog/:id', async (req, res) => {
             content_ml ? JSON.stringify(content_ml) : null,
             meta_title_ml ? JSON.stringify(meta_title_ml) : null,
             meta_description_ml ? JSON.stringify(meta_description_ml) : null,
+            faq_schema ? JSON.stringify(faq_schema) : null,
             id
         ]);
         
@@ -50341,6 +50347,7 @@ app.post('/api/admin/attractions', async (req, res) => {
             category, phone, website_url, opening_hours, price_range, rating,
             meta_title, meta_description,
             is_featured, is_published, display_order,
+            faq_schema,
             // Multilingual fields
             name_ml, short_description_ml, description_ml, meta_title_ml, meta_description_ml
         } = req.body;
@@ -50374,9 +50381,10 @@ app.post('/api/admin/attractions', async (req, res) => {
                 address, city, distance_text, distance_value, latitude, longitude, google_maps_url,
                 category, phone, website_url, opening_hours, price_range, rating,
                 meta_title, meta_description, is_featured, is_published, display_order,
-                name_ml, short_description_ml, description_ml, meta_title_ml, meta_description_ml
+                name_ml, short_description_ml, description_ml, meta_title_ml, meta_description_ml,
+                faq_schema
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31)
             RETURNING *
         `, [
             client_id, property_id, name, finalSlug, description, short_description, featured_image_url,
@@ -50387,7 +50395,8 @@ app.post('/api/admin/attractions', async (req, res) => {
             short_description_ml ? JSON.stringify(short_description_ml) : null,
             description_ml ? JSON.stringify(description_ml) : null,
             meta_title_ml ? JSON.stringify(meta_title_ml) : null,
-            meta_description_ml ? JSON.stringify(meta_description_ml) : null
+            meta_description_ml ? JSON.stringify(meta_description_ml) : null,
+            faq_schema ? JSON.stringify(faq_schema) : null
         ]);
         
         res.json({ success: true, attraction: result.rows[0] });
@@ -50409,6 +50418,7 @@ app.put('/api/admin/attractions/:id', async (req, res) => {
             address, city, distance_text, distance_value, latitude, longitude, google_maps_url,
             category, phone, website_url, opening_hours, price_range, rating,
             meta_title, meta_description, is_featured, is_published, display_order,
+            faq_schema,
             // Multilingual fields
             name_ml, short_description_ml, description_ml, meta_title_ml, meta_description_ml
         } = req.body;
@@ -50444,8 +50454,9 @@ app.put('/api/admin/attractions/:id', async (req, res) => {
                 description_ml = $27,
                 meta_title_ml = $28,
                 meta_description_ml = $29,
+                faq_schema = $30,
                 updated_at = NOW()
-            WHERE id = $30
+            WHERE id = $31
             RETURNING *
         `, [
             property_id, name, slug, description, short_description, featured_image_url,
@@ -50457,6 +50468,7 @@ app.put('/api/admin/attractions/:id', async (req, res) => {
             description_ml ? JSON.stringify(description_ml) : null,
             meta_title_ml ? JSON.stringify(meta_title_ml) : null,
             meta_description_ml ? JSON.stringify(meta_description_ml) : null,
+            faq_schema ? JSON.stringify(faq_schema) : null,
             id
         ]);
         
