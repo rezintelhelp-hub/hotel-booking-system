@@ -8156,6 +8156,282 @@ app.post('/api/gas-sync/connections/:id/check-properties', async (req, res) => {
   }
 });
 
+// Import a new property from Beds24 via gas_sync connection
+app.post('/api/gas-sync/connections/:id/import-property', async (req, res) => {
+  const client = await pool.connect();
+  
+  try {
+    const { id } = req.params;
+    const { externalId } = req.body;
+    
+    if (!externalId) {
+      return res.json({ success: false, error: 'externalId required' });
+    }
+    
+    // Get connection info
+    const connResult = await pool.query('SELECT * FROM gas_sync_connections WHERE id = $1', [id]);
+    if (connResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Connection not found' });
+    }
+    
+    const conn = connResult.rows[0];
+    const accountId = conn.account_id;
+    let credentials = conn.credentials || {};
+    if (typeof credentials === 'string') credentials = JSON.parse(credentials);
+    
+    const refreshToken = credentials.refreshToken || conn.refresh_token;
+    if (!refreshToken) {
+      return res.json({ success: false, error: 'No API credentials. Please reconnect to Beds24.' });
+    }
+    
+    // Get fresh access token
+    const tokenResponse = await axios.get('https://beds24.com/api/v2/authentication/token', {
+      headers: { 'refreshToken': refreshToken }
+    });
+    const accessToken = tokenResponse.data.token;
+    
+    // Fetch full property data from Beds24
+    console.log(`📥 Importing Beds24 property ${externalId} for account ${accountId}`);
+    
+    const propResponse = await axios.get('https://beds24.com/api/v2/properties', {
+      headers: { 'token': accessToken, 'accept': 'application/json' },
+      params: {
+        id: externalId,
+        includeTexts: 'all',
+        includePictures: true,
+        includeAllRooms: true,
+        includeUnitDetails: true
+      }
+    });
+    
+    const prop = propResponse.data.data?.[0] || propResponse.data[0];
+    if (!prop) {
+      return res.json({ success: false, error: 'Property not found in Beds24' });
+    }
+    
+    await client.query('BEGIN');
+    
+    // Extract descriptions
+    let propertyDescription = '';
+    let shortDescription = '';
+    let houseRules = '';
+    if (prop.texts && Array.isArray(prop.texts) && prop.texts.length > 0) {
+      const defaultText = prop.texts[0];
+      propertyDescription = defaultText.propertyDescription || defaultText.description || '';
+      shortDescription = defaultText.propertyShortDescription || defaultText.shortDescription || '';
+      houseRules = defaultText.houseRules || defaultText.propertyHouseRules || '';
+    }
+    
+    // Check if property already exists
+    const existingProp = await client.query(
+      'SELECT id FROM properties WHERE beds24_property_id::text = $1::text',
+      [externalId]
+    );
+    
+    let gasPropertyId;
+    let isUpdate = false;
+    
+    if (existingProp.rows.length > 0) {
+      gasPropertyId = existingProp.rows[0].id;
+      isUpdate = true;
+      
+      await client.query(`
+        UPDATE properties SET
+          name = $1, property_type = $2, description = $3, short_description = $4,
+          house_rules = $5, address = $6, city = $7, state = $8, postcode = $9,
+          country = $10, latitude = $11, longitude = $12, check_in_from = $13,
+          check_in_until = $14, check_out_by = $15, currency = $16, phone = $17,
+          email = $18, website = $19, cm_source = 'beds24', account_id = $20, updated_at = NOW()
+        WHERE id = $21
+      `, [
+        prop.name || 'Property',
+        prop.propertyType || 'hotel',
+        JSON.stringify({ en: propertyDescription }),
+        JSON.stringify({ en: shortDescription }),
+        JSON.stringify({ en: houseRules }),
+        prop.address || '', prop.city || '', prop.state || '',
+        prop.postcode || prop.zipCode || '', prop.country || '',
+        prop.latitude || null, prop.longitude || null,
+        prop.checkInStart || prop.checkInFrom || '15:00',
+        prop.checkInEnd || prop.checkInUntil || '22:00',
+        prop.checkOutEnd || prop.checkOutBy || '11:00',
+        prop.currency || 'USD',
+        prop.phone || '', prop.email || '', prop.website || '',
+        accountId, gasPropertyId
+      ]);
+    } else {
+      const propertyResult = await client.query(`
+        INSERT INTO properties (
+          account_id, beds24_property_id, cm_source, name, property_type,
+          description, short_description, house_rules,
+          address, city, state, postcode, country,
+          latitude, longitude, check_in_from, check_in_until, check_out_by,
+          currency, phone, email, website, status
+        ) VALUES (
+          $1, $2, 'beds24', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
+          $13, $14, $15, $16, $17, $18, $19, $20, $21, 'active'
+        ) RETURNING id
+      `, [
+        accountId, externalId,
+        prop.name || 'Property',
+        prop.propertyType || 'hotel',
+        JSON.stringify({ en: propertyDescription }),
+        JSON.stringify({ en: shortDescription }),
+        JSON.stringify({ en: houseRules }),
+        prop.address || '', prop.city || '', prop.state || '',
+        prop.postcode || prop.zipCode || '', prop.country || '',
+        prop.latitude || null, prop.longitude || null,
+        prop.checkInStart || prop.checkInFrom || '15:00',
+        prop.checkInEnd || prop.checkInUntil || '22:00',
+        prop.checkOutEnd || prop.checkOutBy || '11:00',
+        prop.currency || 'USD',
+        prop.phone || '', prop.email || '', prop.website || ''
+      ]);
+      gasPropertyId = propertyResult.rows[0].id;
+    }
+    
+    console.log(`   ✓ Property ${isUpdate ? 'updated' : 'created'} (GAS ID: ${gasPropertyId})`);
+    
+    // Import rooms
+    let rooms = prop.roomTypes || prop.rooms || [];
+    if (!Array.isArray(rooms)) rooms = [];
+    
+    let roomsAdded = 0;
+    let roomsUpdated = 0;
+    
+    function getBedNameImport(code) {
+      const names = {
+        'BED_BUNK': 'Bunkbed', 'BED_CHILD': 'Child Bed', 'BED_CRIB': 'Cot',
+        'BED_DOUBLE': 'Double Bed', 'BED_KING': 'King Bed', 'BED_MURPHY': 'Murphy Bed',
+        'BED_QUEEN': 'Queen Bed', 'BED_SOFA': 'Sofa Bed', 'BED_SINGLE': 'Single Bed',
+        'BED_FUTON': 'Futon', 'BED_FLOORMATTRESS': 'Floor Mattress', 'BED_TODDLER': 'Toddler Bed',
+        'BED_HAMMOCK': 'Hammock', 'BED_AIRMATTRESS': 'Air Mattress', 'BED_COUCH': 'Couch'
+      };
+      return names[code] || code;
+    }
+    
+    for (const room of rooms) {
+      const beds24RoomId = String(room.id || room.roomId);
+      
+      let roomDescription = '';
+      let roomShortDesc = '';
+      if (room.texts && Array.isArray(room.texts) && room.texts.length > 0) {
+        const roomText = room.texts[0];
+        roomDescription = roomText.roomDescription || roomText.description || '';
+        roomShortDesc = roomText.roomShortDescription || roomText.shortDescription || '';
+      }
+      
+      // Bed config
+      let bedConfig = null;
+      if (room.bedTypes && Array.isArray(room.bedTypes) && room.bedTypes.length > 0) {
+        bedConfig = { beds: room.bedTypes.map(b => ({ type: b.type || 'BED_DOUBLE', quantity: b.quantity || 1, name: getBedNameImport(b.type || 'BED_DOUBLE') })) };
+      } else if (room.featureCodes && typeof room.featureCodes === 'string') {
+        const bedCodes = room.featureCodes.split(',').map(c => c.trim()).filter(c => c.startsWith('BED_'));
+        if (bedCodes.length > 0) {
+          const bedCounts = {};
+          for (const code of bedCodes) bedCounts[code] = (bedCounts[code] || 0) + 1;
+          bedConfig = { beds: Object.entries(bedCounts).map(([type, quantity]) => ({ type, quantity, name: getBedNameImport(type) })) };
+        }
+      }
+      
+      let bedroomCount = room.bedroomCount || room.bedrooms || null;
+      let bathroomCount = room.bathroomCount || room.bathrooms || null;
+      
+      // Check if room exists
+      const existingRoom = await client.query(`
+        SELECT id FROM bookable_units 
+        WHERE property_id = $1 AND (cm_room_id::text = $2::text OR beds24_room_id::text = $2::text)
+      `, [gasPropertyId, beds24RoomId]);
+      
+      if (existingRoom.rows.length > 0) {
+        await client.query(`
+          UPDATE bookable_units SET
+            name = $1, unit_type = $2, description = $3, short_description = $4,
+            max_guests = $5, max_adults = $6, max_children = $7, quantity = $8,
+            base_price = $9, size_sqm = $10, bed_configuration = $11,
+            bathroom_count = $12, bedroom_count = $13, min_stay = $14, max_stay = $15,
+            beds24_room_id = $17, cm_room_id = $18, updated_at = NOW()
+          WHERE id = $16
+        `, [
+          room.name || 'Room', room.roomType || 'double',
+          JSON.stringify({ en: roomDescription }), JSON.stringify({ en: roomShortDesc }),
+          room.maxPeople || room.maxGuests || 2, room.maxAdult || room.maxAdults || 2,
+          room.maxChildren || 0, room.qty || room.quantity || 1,
+          room.rackRate || room.basePrice || room.price || 100,
+          room.size || room.sizeSqm || null,
+          bedConfig ? JSON.stringify(bedConfig) : null,
+          bathroomCount, bedroomCount, room.minStay || 1, room.maxStay || null,
+          existingRoom.rows[0].id,
+          parseInt(beds24RoomId) || null, beds24RoomId
+        ]);
+        roomsUpdated++;
+      } else {
+        await client.query(`
+          INSERT INTO bookable_units (
+            property_id, beds24_room_id, cm_room_id, name, unit_type,
+            description, short_description, max_guests, max_adults, max_children,
+            quantity, base_price, size_sqm, bed_configuration,
+            bathroom_count, bedroom_count, min_stay, max_stay, status
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,'available')
+          RETURNING id
+        `, [
+          gasPropertyId, parseInt(beds24RoomId) || null, beds24RoomId,
+          room.name || 'Room', room.roomType || 'double',
+          JSON.stringify({ en: roomDescription }), JSON.stringify({ en: roomShortDesc }),
+          room.maxPeople || room.maxGuests || 2, room.maxAdult || room.maxAdults || 2,
+          room.maxChildren || 0, room.qty || room.quantity || 1,
+          room.rackRate || room.basePrice || room.price || 100,
+          room.size || room.sizeSqm || null,
+          bedConfig ? JSON.stringify(bedConfig) : null,
+          bathroomCount, bedroomCount, room.minStay || 1, room.maxStay || null
+        ]);
+        roomsAdded++;
+      }
+    }
+    
+    // Create gas_sync_properties mapping
+    const existingSyncProp = await client.query(
+      'SELECT id FROM gas_sync_properties WHERE connection_id = $1 AND external_id = $2',
+      [id, String(externalId)]
+    );
+    
+    if (existingSyncProp.rows.length === 0) {
+      await client.query(`
+        INSERT INTO gas_sync_properties (connection_id, external_id, gas_property_id, name, created_at)
+        VALUES ($1, $2, $3, $4, NOW())
+      `, [id, String(externalId), gasPropertyId, prop.name || 'Property']);
+    } else {
+      await client.query(`
+        UPDATE gas_sync_properties SET gas_property_id = $1, name = $2, updated_at = NOW()
+        WHERE connection_id = $3 AND external_id = $4
+      `, [gasPropertyId, prop.name || 'Property', id, String(externalId)]);
+    }
+    
+    await client.query('COMMIT');
+    
+    console.log(`🎉 Import complete: ${prop.name} — ${roomsAdded} rooms added, ${roomsUpdated} updated`);
+    
+    res.json({
+      success: true,
+      propertyId: gasPropertyId,
+      propertyName: prop.name || 'Property',
+      roomsAdded,
+      roomsUpdated,
+      isUpdate,
+      message: isUpdate
+        ? `Updated ${prop.name}: ${roomsUpdated} rooms updated, ${roomsAdded} added`
+        : `Imported ${prop.name} with ${roomsAdded} rooms. Configure amenities & images in GAS.`
+    });
+    
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('Import property error:', error);
+    res.json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
 app.post('/api/gas-sync/properties/:propertyId/check-room-changes', async (req, res) => {
   try {
     const { propertyId } = req.params;
