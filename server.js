@@ -3673,8 +3673,8 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
       } else if (prop.adapter_code === 'smoobu') {
         existingQuery = await pool.query(`SELECT id FROM properties WHERE smoobu_id::text = $1`, [String(prop.external_id)]);
       } else {
-        // Generic check using cm_external_id if we add it later
-        existingQuery = { rows: [] };
+        // Calry / generic - check cm_property_id
+        existingQuery = await pool.query(`SELECT id FROM properties WHERE cm_property_id = $1 AND account_id = $2`, [String(prop.external_id), accountId]);
       }
       const existing = existingQuery;
       
@@ -3694,7 +3694,8 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS cm_source VARCHAR(50)');
         
         const adapterColumn = prop.adapter_code === 'beds24' ? 'beds24_property_id' :
-                              prop.adapter_code === 'smoobu' ? 'smoobu_id' : 'beds24_property_id';
+                              prop.adapter_code === 'smoobu' ? 'smoobu_id' :
+                              prop.adapter_code === 'calry' ? 'cm_property_id' : 'cm_property_id';
         
         console.log('link-to-gas: Creating property with full data');
         
