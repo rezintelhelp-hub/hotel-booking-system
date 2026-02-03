@@ -3827,9 +3827,40 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     
     // 3. Sync room types to bookable_units
     console.log('link-to-gas: Starting room sync');
-    const syncRooms = await pool.query(`
+    let syncRooms = await pool.query(`
       SELECT * FROM gas_sync_room_types WHERE sync_property_id = $1
     `, [syncPropertyId]);
+    
+    // Auto-repair: if no gas_sync_room_types exist but bookable_units do, create them
+    if (syncRooms.rows.length === 0 && prop.gas_property_id) {
+      console.log('link-to-gas: No gas_sync_room_types found, checking bookable_units for auto-repair...');
+      const existingUnits = await pool.query(`
+        SELECT id, cm_room_id, beds24_room_id, name, max_guests, quantity
+        FROM bookable_units WHERE property_id = $1 AND (cm_room_id IS NOT NULL OR beds24_room_id IS NOT NULL)
+      `, [prop.gas_property_id]);
+      
+      if (existingUnits.rows.length > 0) {
+        console.log('link-to-gas: Found', existingUnits.rows.length, 'bookable_units to create sync mappings for');
+        for (const unit of existingUnits.rows) {
+          const extId = String(unit.cm_room_id || unit.beds24_room_id);
+          try {
+            await pool.query(`
+              INSERT INTO gas_sync_room_types (sync_property_id, connection_id, external_id, gas_room_id, name, max_guests, unit_count, synced_at)
+              VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+              ON CONFLICT DO NOTHING
+            `, [syncPropertyId, prop.connection_id, extId, unit.id, unit.name, unit.max_guests || 2, unit.quantity || 1]);
+          } catch (e) {
+            console.log('link-to-gas: auto-repair insert error:', e.message);
+          }
+        }
+        // Re-fetch after repair
+        syncRooms = await pool.query(`
+          SELECT * FROM gas_sync_room_types WHERE sync_property_id = $1
+        `, [syncPropertyId]);
+        console.log('link-to-gas: After auto-repair, found', syncRooms.rows.length, 'rooms');
+      }
+    }
+    
     console.log('link-to-gas: Found', syncRooms.rows.length, 'rooms to sync');
     
     // Ensure bookable_units table exists
@@ -6856,6 +6887,38 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
     const rooms = propData.roomTypes || propData.rooms || [];
     console.log(`[Content Sync] ${prop.name}: Found ${rooms.length} rooms in V2 response`);
     
+    // Auto-repair: ensure gas_sync_room_types exist for each room
+    if (rooms.length > 0 && prop.gas_property_id) {
+      const existingSyncRooms = await pool.query(
+        'SELECT external_id FROM gas_sync_room_types WHERE sync_property_id = $1',
+        [prop.id]
+      );
+      const existingExternalIds = new Set(existingSyncRooms.rows.map(r => String(r.external_id)));
+      
+      for (const room of rooms) {
+        const roomExtId = String(room.id || room.roomId);
+        if (!existingExternalIds.has(roomExtId)) {
+          // Check if a bookable_unit exists for this room
+          const unit = await pool.query(
+            `SELECT id, name, max_guests, quantity FROM bookable_units 
+             WHERE property_id = $1 AND (cm_room_id::text = $2 OR beds24_room_id::text = $2)`,
+            [prop.gas_property_id, roomExtId]
+          );
+          if (unit.rows.length > 0) {
+            try {
+              await pool.query(`
+                INSERT INTO gas_sync_room_types (sync_property_id, connection_id, external_id, gas_room_id, name, max_guests, unit_count, synced_at)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+              `, [prop.id, prop.connection_id, roomExtId, unit.rows[0].id, unit.rows[0].name, unit.rows[0].max_guests || 2, unit.rows[0].quantity || 1]);
+              console.log(`[Content Sync] Auto-created gas_sync_room_types for room ${roomExtId}`);
+            } catch (e) {
+              console.log(`[Content Sync] Auto-repair room ${roomExtId} error:`, e.message);
+            }
+          }
+        }
+      }
+    }
+    
     for (const room of rooms) {
       const roomId = room.id || room.roomId;
       
@@ -8298,6 +8361,7 @@ app.post('/api/gas-sync/connections/:id/import-property', async (req, res) => {
     
     let roomsAdded = 0;
     let roomsUpdated = 0;
+    const importedRooms = [];
     
     function getBedNameImport(code) {
       const names = {
@@ -8344,6 +8408,7 @@ app.post('/api/gas-sync/connections/:id/import-property', async (req, res) => {
       `, [gasPropertyId, beds24RoomId]);
       
       if (existingRoom.rows.length > 0) {
+        const gasRoomId = existingRoom.rows[0].id;
         await client.query(`
           UPDATE bookable_units SET
             name = $1, unit_type = $2, description = $3, short_description = $4,
@@ -8361,12 +8426,13 @@ app.post('/api/gas-sync/connections/:id/import-property', async (req, res) => {
           room.size || room.sizeSqm || null,
           bedConfig ? JSON.stringify(bedConfig) : null,
           bathroomCount, bedroomCount, room.minStay || 1, room.maxStay || null,
-          existingRoom.rows[0].id,
+          gasRoomId,
           parseInt(beds24RoomId) || null, beds24RoomId
         ]);
         roomsUpdated++;
+        importedRooms.push({ externalId: beds24RoomId, gasRoomId, name: room.name || 'Room', maxGuests: room.maxPeople || room.maxGuests || 2, quantity: room.qty || room.quantity || 1 });
       } else {
-        await client.query(`
+        const unitResult = await client.query(`
           INSERT INTO bookable_units (
             property_id, beds24_room_id, cm_room_id, name, unit_type,
             description, short_description, max_guests, max_adults, max_children,
@@ -8386,6 +8452,7 @@ app.post('/api/gas-sync/connections/:id/import-property', async (req, res) => {
           bathroomCount, bedroomCount, room.minStay || 1, room.maxStay || null
         ]);
         roomsAdded++;
+        importedRooms.push({ externalId: beds24RoomId, gasRoomId: unitResult.rows[0].id, name: room.name || 'Room', maxGuests: room.maxPeople || room.maxGuests || 2, quantity: room.qty || room.quantity || 1 });
       }
     }
     
@@ -8395,16 +8462,39 @@ app.post('/api/gas-sync/connections/:id/import-property', async (req, res) => {
       [id, String(externalId)]
     );
     
+    let syncPropertyId;
     if (existingSyncProp.rows.length === 0) {
-      await client.query(`
+      const syncPropResult = await client.query(`
         INSERT INTO gas_sync_properties (connection_id, external_id, gas_property_id, name, created_at)
-        VALUES ($1, $2, $3, $4, NOW())
+        VALUES ($1, $2, $3, $4, NOW()) RETURNING id
       `, [id, String(externalId), gasPropertyId, prop.name || 'Property']);
+      syncPropertyId = syncPropResult.rows[0].id;
     } else {
+      syncPropertyId = existingSyncProp.rows[0].id;
       await client.query(`
         UPDATE gas_sync_properties SET gas_property_id = $1, name = $2, updated_at = NOW()
-        WHERE connection_id = $3 AND external_id = $4
-      `, [gasPropertyId, prop.name || 'Property', id, String(externalId)]);
+        WHERE id = $3
+      `, [gasPropertyId, prop.name || 'Property', syncPropertyId]);
+    }
+    
+    // Create gas_sync_room_types entries (required for sync-content and link-to-gas to work)
+    for (const rm of importedRooms) {
+      const existingSyncRoom = await client.query(
+        'SELECT id FROM gas_sync_room_types WHERE sync_property_id = $1 AND external_id = $2',
+        [syncPropertyId, String(rm.externalId)]
+      );
+      
+      if (existingSyncRoom.rows.length === 0) {
+        await client.query(`
+          INSERT INTO gas_sync_room_types (sync_property_id, connection_id, external_id, gas_room_id, name, max_guests, unit_count, synced_at)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+        `, [syncPropertyId, parseInt(id), String(rm.externalId), rm.gasRoomId, rm.name, rm.maxGuests, rm.quantity]);
+      } else {
+        await client.query(`
+          UPDATE gas_sync_room_types SET gas_room_id = $1, name = $2, max_guests = $3, unit_count = $4, synced_at = NOW()
+          WHERE id = $5
+        `, [rm.gasRoomId, rm.name, rm.maxGuests, rm.quantity, existingSyncRoom.rows[0].id]);
+      }
     }
     
     await client.query('COMMIT');
