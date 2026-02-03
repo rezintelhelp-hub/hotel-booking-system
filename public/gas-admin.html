@@ -19271,6 +19271,23 @@ const promo = await fetch('/api/v1/offers/validate', {
         
         let selectedAccountName = null;
         
+        // Handle auto-login token from Calry callback (or any redirect with auto_token)
+        (function handleAutoLoginToken() {
+            const params = new URLSearchParams(window.location.search);
+            const autoToken = params.get('auto_token');
+            if (autoToken) {
+                localStorage.setItem('gas_token', autoToken);
+                localStorage.removeItem('gas_account');
+                // Clean the URL - remove query params, keep hash for navigation
+                const hash = window.location.hash || '#gas-sync-connections';
+                window.history.replaceState({}, '', window.location.pathname + hash);
+            }
+            // If calry_connected=true in URL, ensure we navigate to connections
+            if (params.get('calry_connected') === 'true' && !window.location.hash) {
+                window.location.hash = '#gas-sync-connections';
+            }
+        })();
+        
         // Run auth check after global state is declared
         checkAuth();
         
