@@ -480,6 +480,10 @@
             <span class="summary-value" id="summary-properties">-</span>
           </div>
           <div class="summary-row">
+            <span class="summary-label">Rooms Imported</span>
+            <span class="summary-value" id="summary-rooms">-</span>
+          </div>
+          <div class="summary-row">
             <span class="summary-label">Channel Manager</span>
             <span class="summary-value" id="summary-cm">-</span>
           </div>
@@ -488,6 +492,10 @@
             <span class="summary-value" style="color: #27ae60;">✓ Connected</span>
           </div>
         </div>
+        
+        <p style="font-size: 0.9rem; color: #7f8c8d; text-align: center; margin-top: 15px;">
+          Your next step is to review your imported properties and link them to your website.
+        </p>
         
         <div id="step5-status" class="status-message"></div>
       </div>
@@ -587,8 +595,17 @@
     // Handle callback from Calry
     if (urlParams.get('calry_connected') === 'true') {
       const propertiesImported = urlParams.get('properties_imported') || '0';
+      const roomsImported = urlParams.get('rooms_imported') || '0';
       const pmsName = urlParams.get('pms') || 'Channel Manager';
       const accountId = urlParams.get('account_id');
+      const autoToken = urlParams.get('auto_token');
+      
+      // Auto-login: store session token so gas-admin recognises this user
+      if (autoToken) {
+        localStorage.setItem('gas_token', autoToken);
+        // Clear any cached account so gas-admin fetches the correct one
+        localStorage.removeItem('gas_account');
+      }
       
       gasAccountId = accountId;
       selectedCM = pmsName.toLowerCase();
@@ -600,6 +617,7 @@
         }
         showStep(5);
         document.getElementById('summary-properties').textContent = propertiesImported;
+        document.getElementById('summary-rooms').textContent = roomsImported;
         document.getElementById('summary-cm').textContent = pmsName;
       });
     } else if (cmFromUrl && CM_CONFIG[cmFromUrl]) {
@@ -693,7 +711,7 @@
       if (step === 4) {
         document.getElementById('btn-next').classList.add('hidden');
       } else if (step === 5) {
-        document.getElementById('btn-next').textContent = 'Go to Dashboard';
+        document.getElementById('btn-next').textContent = 'View My Properties →';
         document.getElementById('btn-next').classList.remove('hidden');
       } else {
         document.getElementById('btn-next').textContent = 'Next →';
@@ -723,7 +741,8 @@
         currentStep = 4;
         showStep(currentStep);
       } else if (currentStep === 5) {
-        window.location.href = '/connections';
+        // Redirect to admin connections view - token is already in localStorage from callback
+        window.location.href = 'https://admin.gas.travel/#gas-sync-connections';
       }
     }
 
@@ -765,8 +784,13 @@
         const data = await response.json();
         
         if (data.success) {
-          gasAccountId = data.accountId;
-          gasAccountName = data.accountName || email;
+          gasAccountId = data.account?.id || data.accountId;
+          gasAccountName = data.account?.business_name || data.account?.name || email;
+          // Store session token for auto-login to gas-admin
+          if (data.token) {
+            localStorage.setItem('gas_token', data.token);
+            localStorage.removeItem('gas_account');
+          }
           showStatus('step2-status', '✓ Logged in successfully', 'success');
           return true;
         } else {
@@ -804,6 +828,11 @@
         if (data.success) {
           gasAccountId = data.account?.id;
           gasAccountName = business || name;
+          // Store session token for auto-login to gas-admin
+          if (data.token) {
+            localStorage.setItem('gas_token', data.token);
+            localStorage.removeItem('gas_account');
+          }
           showStatus('step2-status', '✓ Account created successfully', 'success');
           return true;
         } else {
