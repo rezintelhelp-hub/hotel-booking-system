@@ -48351,7 +48351,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                         <tr>
                                             <td><strong>${p.name}</strong><br><small style="color: #6b7280;">ID: ${p.externalId}</small></td>
                                             <td>${p.city || ''}, ${p.country || ''}</td>
-                                            <td><button class="btn btn-sm btn-primary" onclick="syncNewProperty(${selectedConnectionId}, '${p.externalId}')"> Sync</button></td>
+                                            <td><button class="btn btn-sm btn-primary" onclick="importNewProperty(${selectedConnectionId}, '${p.externalId}', this)">📥 Import</button></td>
                                         </tr>
                                     `).join('')}
                                 </tbody>
@@ -48398,23 +48398,34 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
 
-        async function syncNewProperty(connectionId, externalId) {
+        async function importNewProperty(connectionId, externalId, btn) {
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '⏳ Importing...';
+            
             try {
-                showNotification('Syncing property...', 'info');
-                const response = await fetch(`/api/gas-sync/connections/${connectionId}/sync-property`, {
+                const response = await fetch(`/api/gas-sync/connections/${connectionId}/import-property`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({ externalId })
                 });
                 const data = await response.json();
                 if (data.success) {
-                    showNotification('Property synced successfully!', 'success');
-                    loadPropertyCheckTab();
+                    btn.innerHTML = '✅ Imported';
+                    btn.style.background = '#10b981';
+                    btn.style.borderColor = '#10b981';
+                    showNotification(`✅ ${data.message}`, 'success');
+                    // Refresh property check after short delay
+                    setTimeout(() => runPropertyCheck(), 1500);
                 } else {
-                    showNotification(data.error || 'Failed to sync property', 'error');
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                    showNotification(data.error || 'Failed to import property', 'error');
                 }
             } catch (error) {
-                showNotification('Error syncing property', 'error');
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+                showNotification('Error importing property: ' + error.message, 'error');
             }
         }
 
