@@ -226,7 +226,7 @@
             { id: 'avantio', name: 'Avantio', desc: 'Vacation Rental', color: 'avantio' },
             { id: 'bookingsync', name: 'BookingSync', desc: 'Channel Manager', color: 'bookingsync' },
             { id: 'cloudbeds', name: 'Cloudbeds', desc: 'Hotel PMS', color: 'cloudbeds' },
-            { id: 'directsoftware', name: 'Direct Software', desc: 'Property Management', color: 'direct' },
+            { id: 'direct', name: 'Direct Software', desc: 'Property Management', color: 'direct' },
             { id: 'elina', name: 'Elina', desc: 'Property Management', color: 'elina' },
             { id: 'escapia', name: 'Escapia', desc: 'Vacation Rental', color: 'escapia' },
             { id: 'fantasticstay', name: 'FantasticStay', desc: 'Property Management', color: 'fantasticstay' },
@@ -242,7 +242,7 @@
             { id: 'ownerrez', name: 'OwnerRez', desc: 'Vacation Rental', color: 'ownerrez' },
             { id: 'rentalwise', name: 'RentalWise', desc: 'Property Management', color: 'rentalwise' },
             { id: 'resly', name: 'Resly', desc: 'Property Management', color: 'resly' },
-            { id: 'rmscloud', name: 'RMS Cloud', desc: 'Hotel PMS', color: 'rms' },
+            { id: 'rms', name: 'RMS Cloud', desc: 'Hotel PMS', color: 'rms' },
             { id: 'smoobu', name: 'Smoobu', desc: 'Channel Manager', color: 'smoobu' },
             { id: 'streamline', name: 'Streamline', desc: 'Vacation Rental', color: 'streamline' },
             { id: 'tokeet', name: 'Tokeet', desc: 'Channel Manager', color: 'tokeet' },
@@ -298,24 +298,19 @@
         
         // Select CM - route to wizard
         function selectCM(id) {
-            // Direct integrations - have their own dedicated wizards
-            if (id === 'beds24' || id === 'booking-automation') {
-                window.location.href = '/beds24-wizard';
-                return;
-            }
-            
-            if (id === 'hostaway') {
-                window.location.href = '/hostaway-wizard';
+            // Special cases
+            if (id === 'booking-automation') {
+                window.location.href = '/booking-automation-wizard.html';
                 return;
             }
             
             if (id === 'other') {
-                window.location.href = '/cm-wizard.html?cm=other';
+                window.location.href = '/other-cm-wizard.html';
                 return;
             }
             
-            // All Calry-based PMS go to the universal wizard
-            window.location.href = `/cm-wizard.html?cm=${id}`;
+            // All others go to their dedicated wizard
+            window.location.href = `/${id}-wizard.html`;
         }
         
         // Search handler
