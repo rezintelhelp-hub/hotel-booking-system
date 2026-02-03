@@ -54555,11 +54555,18 @@ app.get('/api/gas-sync/adapters', async (req, res) => {
     if (result.rows.length === 0) {
       const defaultAdapters = [
         { id: 1, code: 'beds24', name: 'Beds24', description: 'PMS + Channel Manager', auth_type: 'oauth2', capabilities: ['properties', 'room_types', 'availability', 'rates', 'reservations', 'images'], is_active: true },
-        { id: 2, code: 'calry', name: 'Calry', description: 'Unified API for 40+ PMS', auth_type: 'api_key', capabilities: ['properties', 'room_types', 'availability', 'rates', 'reservations'], is_active: true },
         { id: 3, code: 'hostaway', name: 'Hostaway', description: 'Vacation Rental Software', auth_type: 'api_key', capabilities: ['properties', 'reservations', 'availability'], is_active: true },
         { id: 4, code: 'smoobu', name: 'Smoobu', description: 'Channel Manager', auth_type: 'api_key', capabilities: ['properties', 'reservations', 'availability'], is_active: true },
-        { id: 5, code: 'hostfully', name: 'Hostfully', description: 'Property Management Platform', auth_type: 'api_key', capabilities: ['properties', 'room_types', 'availability', 'rates', 'reservations'], is_active: true },
-        { id: 6, code: 'lodgify', name: 'Lodgify', description: 'Vacation Rental Software', auth_type: 'api_key', capabilities: ['properties', 'room_types', 'availability', 'rates', 'reservations'], is_active: true },
+        { id: 10, code: 'calry_hostify', name: 'Hostify', description: 'Property Management Platform', auth_type: 'wizard', wizard_url: '/hostify-wizard', capabilities: ['properties', 'room_types', 'availability', 'rates', 'reservations'], is_active: true },
+        { id: 11, code: 'calry_lodgify', name: 'Lodgify', description: 'Vacation Rental Software', auth_type: 'wizard', wizard_url: '/lodgify-wizard', capabilities: ['properties', 'room_types', 'availability', 'rates', 'reservations'], is_active: true },
+        { id: 12, code: 'calry_hostfully', name: 'Hostfully', description: 'Property Management Platform', auth_type: 'wizard', wizard_url: '/hostfully-wizard', capabilities: ['properties', 'room_types', 'availability', 'rates', 'reservations'], is_active: true },
+        { id: 13, code: 'calry_guesty', name: 'Guesty', description: 'Property Management Platform', auth_type: 'wizard', wizard_url: '/guesty-wizard', capabilities: ['properties', 'room_types', 'availability', 'rates', 'reservations'], is_active: true },
+        { id: 14, code: 'calry_cloudbeds', name: 'Cloudbeds', description: 'Hospitality Management Suite', auth_type: 'wizard', wizard_url: '/cloudbeds-wizard', capabilities: ['properties', 'room_types', 'availability', 'rates', 'reservations'], is_active: true },
+        { id: 15, code: 'calry_ownerrez', name: 'OwnerRez', description: 'Vacation Rental Software', auth_type: 'wizard', wizard_url: '/ownerrez-wizard', capabilities: ['properties', 'room_types', 'availability', 'rates', 'reservations'], is_active: true },
+        { id: 16, code: 'calry_hospitable', name: 'Hospitable', description: 'Vacation Rental Automation', auth_type: 'wizard', wizard_url: '/hospitable-wizard', capabilities: ['properties', 'room_types', 'availability', 'rates', 'reservations'], is_active: true },
+        { id: 17, code: 'calry_uplisting', name: 'Uplisting', description: 'Channel Manager & PMS', auth_type: 'wizard', wizard_url: '/uplisting-wizard', capabilities: ['properties', 'room_types', 'availability', 'rates', 'reservations'], is_active: true },
+        { id: 18, code: 'calry_tokeet', name: 'Tokeet', description: 'Rental Management Software', auth_type: 'wizard', wizard_url: '/tokeet-wizard', capabilities: ['properties', 'room_types', 'availability', 'rates', 'reservations'], is_active: true },
+        { id: 19, code: 'calry_avantio', name: 'Avantio', description: 'Vacation Rental Software', auth_type: 'wizard', wizard_url: '/avantio-wizard', capabilities: ['properties', 'room_types', 'availability', 'rates', 'reservations'], is_active: true },
         { id: 7, code: 'other', name: 'Other / Not Listed', description: 'Request integration for unlisted PMS', auth_type: 'contact', capabilities: [], is_active: true }
       ];
       return res.json({ success: true, adapters: defaultAdapters });
@@ -54571,11 +54578,18 @@ app.get('/api/gas-sync/adapters', async (req, res) => {
     // Return hardcoded defaults on error
     const defaultAdapters = [
       { id: 1, code: 'beds24', name: 'Beds24', description: 'PMS + Channel Manager', auth_type: 'oauth2', capabilities: ['properties', 'room_types', 'availability', 'rates', 'reservations', 'images'], is_active: true },
-      { id: 2, code: 'calry', name: 'Calry', description: 'Unified API for 40+ PMS', auth_type: 'api_key', capabilities: ['properties', 'room_types', 'availability', 'rates', 'reservations'], is_active: true },
       { id: 3, code: 'hostaway', name: 'Hostaway', description: 'Vacation Rental Software', auth_type: 'api_key', capabilities: ['properties', 'reservations', 'availability'], is_active: true },
       { id: 4, code: 'smoobu', name: 'Smoobu', description: 'Channel Manager', auth_type: 'api_key', capabilities: ['properties', 'reservations', 'availability'], is_active: true },
-      { id: 5, code: 'hostfully', name: 'Hostfully', description: 'Property Management Platform', auth_type: 'api_key', capabilities: ['properties', 'room_types', 'availability', 'rates', 'reservations'], is_active: true },
-      { id: 6, code: 'lodgify', name: 'Lodgify', description: 'Vacation Rental Software', auth_type: 'api_key', capabilities: ['properties', 'room_types', 'availability', 'rates', 'reservations'], is_active: true },
+      { id: 10, code: 'calry_hostify', name: 'Hostify', description: 'Property Management Platform', auth_type: 'wizard', wizard_url: '/hostify-wizard', capabilities: ['properties', 'room_types', 'availability', 'rates', 'reservations'], is_active: true },
+      { id: 11, code: 'calry_lodgify', name: 'Lodgify', description: 'Vacation Rental Software', auth_type: 'wizard', wizard_url: '/lodgify-wizard', capabilities: ['properties', 'room_types', 'availability', 'rates', 'reservations'], is_active: true },
+      { id: 12, code: 'calry_hostfully', name: 'Hostfully', description: 'Property Management Platform', auth_type: 'wizard', wizard_url: '/hostfully-wizard', capabilities: ['properties', 'room_types', 'availability', 'rates', 'reservations'], is_active: true },
+      { id: 13, code: 'calry_guesty', name: 'Guesty', description: 'Property Management Platform', auth_type: 'wizard', wizard_url: '/guesty-wizard', capabilities: ['properties', 'room_types', 'availability', 'rates', 'reservations'], is_active: true },
+      { id: 14, code: 'calry_cloudbeds', name: 'Cloudbeds', description: 'Hospitality Management Suite', auth_type: 'wizard', wizard_url: '/cloudbeds-wizard', capabilities: ['properties', 'room_types', 'availability', 'rates', 'reservations'], is_active: true },
+      { id: 15, code: 'calry_ownerrez', name: 'OwnerRez', description: 'Vacation Rental Software', auth_type: 'wizard', wizard_url: '/ownerrez-wizard', capabilities: ['properties', 'room_types', 'availability', 'rates', 'reservations'], is_active: true },
+      { id: 16, code: 'calry_hospitable', name: 'Hospitable', description: 'Vacation Rental Automation', auth_type: 'wizard', wizard_url: '/hospitable-wizard', capabilities: ['properties', 'room_types', 'availability', 'rates', 'reservations'], is_active: true },
+      { id: 17, code: 'calry_uplisting', name: 'Uplisting', description: 'Channel Manager & PMS', auth_type: 'wizard', wizard_url: '/uplisting-wizard', capabilities: ['properties', 'room_types', 'availability', 'rates', 'reservations'], is_active: true },
+      { id: 18, code: 'calry_tokeet', name: 'Tokeet', description: 'Rental Management Software', auth_type: 'wizard', wizard_url: '/tokeet-wizard', capabilities: ['properties', 'room_types', 'availability', 'rates', 'reservations'], is_active: true },
+      { id: 19, code: 'calry_avantio', name: 'Avantio', description: 'Vacation Rental Software', auth_type: 'wizard', wizard_url: '/avantio-wizard', capabilities: ['properties', 'room_types', 'availability', 'rates', 'reservations'], is_active: true },
       { id: 7, code: 'other', name: 'Other / Not Listed', description: 'Request integration for unlisted PMS', auth_type: 'contact', capabilities: [], is_active: true }
     ];
     res.json({ success: true, adapters: defaultAdapters });
@@ -57010,6 +57024,17 @@ app.get('/hostaway-wizard', (req, res) => {
     res.sendFile(wizardPath);
   } else {
     res.status(404).send('Hostaway wizard file not found');
+  }
+});
+
+// Serve universal Calry CM wizard — one page handles ALL Calry-based PMS
+// Branding/instructions driven by ?cm= query parameter
+app.get('/cm-wizard.html', (req, res) => {
+  const wizardPath = path.join(__dirname, 'public', 'cm-wizard.html');
+  if (fs.existsSync(wizardPath)) {
+    res.sendFile(wizardPath);
+  } else {
+    res.status(404).send('CM wizard file not found');
   }
 });
 
