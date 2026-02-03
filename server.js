@@ -60404,6 +60404,77 @@ app.put('/api/plugin-licenses/:id', async (req, res) => {
   }
 });
 
+// GET rooms for a plugin license (same pattern as deployed-sites rooms)
+app.get('/api/plugin-licenses/:id/rooms', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const licenseResult = await pool.query('SELECT account_id, room_ids FROM plugin_licenses WHERE id = $1', [id]);
+    if (licenseResult.rows.length === 0) {
+      return res.json({ success: false, error: 'License not found' });
+    }
+    
+    const accountId = licenseResult.rows[0].account_id;
+    const roomIdsJson = licenseResult.rows[0].room_ids;
+    
+    let linkedRoomIds = [];
+    if (roomIdsJson) {
+      linkedRoomIds = typeof roomIdsJson === 'string' ? JSON.parse(roomIdsJson) : roomIdsJson;
+    }
+    
+    if (!accountId) {
+      return res.json({ success: true, propertyGroups: [], linkedRoomIds: [], message: 'No account linked to license' });
+    }
+    
+    const propertiesResult = await pool.query(`
+      SELECT id, name FROM properties WHERE account_id = $1 ORDER BY name
+    `, [accountId]);
+    
+    const roomsResult = await pool.query(`
+      SELECT bu.*, p.name as property_name 
+      FROM bookable_units bu
+      JOIN properties p ON bu.property_id = p.id
+      WHERE p.account_id = $1
+      ORDER BY p.name, bu.name
+    `, [accountId]);
+    
+    const propertyGroups = propertiesResult.rows.map(prop => ({
+      property: prop,
+      rooms: roomsResult.rows.filter(r => r.property_id === prop.id)
+    }));
+    
+    res.json({ success: true, propertyGroups, linkedRoomIds });
+  } catch (error) {
+    console.error('Get plugin license rooms error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// PUT rooms for a plugin license
+app.put('/api/plugin-licenses/:id/rooms', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { roomIds } = req.body;
+    
+    if (!Array.isArray(roomIds)) {
+      return res.json({ success: false, error: 'roomIds array required' });
+    }
+    
+    const result = await pool.query(`
+      UPDATE plugin_licenses SET room_ids = $1 WHERE id = $2 RETURNING id, room_ids
+    `, [JSON.stringify(roomIds), id]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'License not found' });
+    }
+    
+    res.json({ success: true, message: `Updated: ${roomIds.length} rooms selected`, room_ids: roomIds });
+  } catch (error) {
+    console.error('Update plugin license rooms error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Delete/deactivate license
 app.delete('/api/plugin-licenses/:id', async (req, res) => {
   try {
