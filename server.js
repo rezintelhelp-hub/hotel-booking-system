@@ -11370,12 +11370,13 @@ app.put('/api/accounts/:id', async (req, res) => {
     const { id } = req.params;
     const { 
       account_code, name, email, phone, business_name, status, notes, role,
-      contact_name, address_line1, address_line2, city, region, postcode, country 
+      contact_name, address_line1, address_line2, city, region, postcode, country, default_currency 
     } = req.body;
     
     // Ensure columns exist
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS account_code VARCHAR(20)`).catch(() => {});
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS contact_name VARCHAR(255)`).catch(() => {});
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS default_currency VARCHAR(10)`).catch(() => {});
     
     // Build dynamic update query
     const updates = [];
@@ -11445,6 +11446,10 @@ app.put('/api/accounts/:id', async (req, res) => {
     if (notes !== undefined) {
       updates.push(`notes = $${paramIndex++}`);
       values.push(notes);
+    }
+    if (default_currency !== undefined) {
+      updates.push(`default_currency = $${paramIndex++}`);
+      values.push(default_currency || null);
     }
     
     if (updates.length === 0) {
