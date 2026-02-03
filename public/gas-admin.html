@@ -15963,6 +15963,37 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 <input type="tel" id="account-phone" class="form-input" placeholder="+1 234 567 8900" style="padding: 0.5rem;">
                             </div>
                         </div>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-top: 0.75rem;">
+                            <div class="form-group" style="margin: 0;">
+                                <label style="font-size: 0.8rem;">Default Currency</label>
+                                <select id="account-currency" class="form-input" style="padding: 0.5rem;">
+                                    <option value="">-- Not Set --</option>
+                                    <option value="GBP">£ GBP</option>
+                                    <option value="USD">$ USD</option>
+                                    <option value="EUR">€ EUR</option>
+                                    <option value="AUD">$ AUD</option>
+                                    <option value="CAD">$ CAD</option>
+                                    <option value="CHF">CHF</option>
+                                    <option value="NZD">$ NZD</option>
+                                    <option value="THB">฿ THB</option>
+                                    <option value="JPY">¥ JPY</option>
+                                    <option value="ZAR">R ZAR</option>
+                                    <option value="AED">د.إ AED</option>
+                                    <option value="SGD">$ SGD</option>
+                                    <option value="MYR">RM MYR</option>
+                                    <option value="INR">₹ INR</option>
+                                    <option value="IDR">Rp IDR</option>
+                                    <option value="PHP">₱ PHP</option>
+                                    <option value="VND">₫ VND</option>
+                                    <option value="CNY">¥ CNY</option>
+                                    <option value="KRW">₩ KRW</option>
+                                    <option value="MXN">$ MXN</option>
+                                    <option value="BRL">R$ BRL</option>
+                                </select>
+                            </div>
+                            <div></div>
+                        </div>
                     </div>
                     
                     <!-- Business Address Section -->
@@ -23482,6 +23513,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     document.getElementById('account-region').value = account.region || '';
                     document.getElementById('account-postcode').value = account.postcode || '';
                     document.getElementById('account-country').value = account.country || '';
+                    document.getElementById('account-currency').value = account.default_currency || '';
                     
                     // Agency Management section (only for admin/submaster)
                     const agencySection = document.getElementById('account-agency-section');
@@ -23620,7 +23652,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                 city: document.getElementById('account-city').value,
                 region: document.getElementById('account-region').value,
                 postcode: document.getElementById('account-postcode').value,
-                country: document.getElementById('account-country').value
+                country: document.getElementById('account-country').value,
+                default_currency: document.getElementById('account-currency').value
             };
             
             // Master Admin can also update role and status
@@ -24706,6 +24739,34 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 if (properties.length > 0) {
                     const html = `
+                        <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; padding: 0.75rem 1rem; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px;">
+                            <span style="font-size: 0.85rem; color: #0369a1; font-weight: 500;">Set currency for all properties:</span>
+                            <select id="bulk-currency-select" style="padding: 0.35rem 0.5rem; border-radius: 6px; border: 1px solid #7dd3fc; font-size: 0.85rem;">
+                                <option value="">-- Choose --</option>
+                                <option value="GBP">£ GBP</option>
+                                <option value="USD">$ USD</option>
+                                <option value="EUR">€ EUR</option>
+                                <option value="AUD">$ AUD</option>
+                                <option value="CAD">$ CAD</option>
+                                <option value="CHF">CHF</option>
+                                <option value="NZD">$ NZD</option>
+                                <option value="THB">฿ THB</option>
+                                <option value="JPY">¥ JPY</option>
+                                <option value="ZAR">R ZAR</option>
+                                <option value="AED">د.إ AED</option>
+                                <option value="SGD">$ SGD</option>
+                                <option value="MYR">RM MYR</option>
+                                <option value="INR">₹ INR</option>
+                                <option value="IDR">Rp IDR</option>
+                                <option value="PHP">₱ PHP</option>
+                                <option value="VND">₫ VND</option>
+                                <option value="CNY">¥ CNY</option>
+                                <option value="KRW">₩ KRW</option>
+                                <option value="MXN">$ MXN</option>
+                                <option value="BRL">R$ BRL</option>
+                            </select>
+                            <button class="btn btn-small" onclick="bulkUpdateCurrency()" style="font-size: 0.85rem; padding: 0.35rem 0.75rem;">Apply to All</button>
+                        </div>
                         <div class="table-container">
                             <table>
                                 <thead>
@@ -38641,6 +38702,48 @@ const promo = await fetch('/api/v1/offers/validate', {
             } catch (error) {
                 showNotification('Error updating currency: ' + error.message, 'error');
             }
+        }
+
+        async function bulkUpdateCurrency() {
+            const currency = document.getElementById('bulk-currency-select').value;
+            if (!currency) {
+                showNotification('Please select a currency first', 'error');
+                return;
+            }
+            
+            // Get all property currency selects in the table
+            const selects = document.querySelectorAll('#properties-list table select');
+            const propertyIds = [];
+            selects.forEach(sel => {
+                const onchangeAttr = sel.getAttribute('onchange') || '';
+                const match = onchangeAttr.match(/updatePropertyCurrency\((\d+)/);
+                if (match) {
+                    propertyIds.push(parseInt(match[1]));
+                    sel.value = currency;
+                }
+            });
+            
+            if (propertyIds.length === 0) {
+                showNotification('No properties found to update', 'error');
+                return;
+            }
+            
+            if (!confirm(`Set currency to ${currency} for ${propertyIds.length} properties?`)) return;
+            
+            let successCount = 0;
+            for (const propId of propertyIds) {
+                try {
+                    const response = await fetch(`/api/db/properties/${propId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                        body: JSON.stringify({ currency })
+                    });
+                    const data = await response.json();
+                    if (data.success) successCount++;
+                } catch (e) { /* continue */ }
+            }
+            
+            showNotification(`Currency updated to ${currency} for ${successCount}/${propertyIds.length} properties`, 'success');
         }
 
         async function editProperty(id) {
