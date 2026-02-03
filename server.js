@@ -37372,6 +37372,203 @@ app.put('/api/partner/websites/:websiteId/rooms', async (req, res) => {
   }
 });
 
+// GET /api/partner/websites/:websiteId/rooms - Get room activation status
+app.get('/api/partner/websites/:websiteId/rooms', async (req, res) => {
+  console.log('=== PARTNER API: GET WEBSITE ROOMS STATUS ===');
+  
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    
+    const { websiteId } = req.params;
+    
+    // Verify website belongs to partner's tenant
+    const wCheck = await pool.query(`
+      SELECT w.id, w.account_id FROM websites w
+      JOIN accounts a ON a.id = w.account_id
+      WHERE w.id = $1 AND a.parent_id = $2
+    `, [websiteId, auth.partnerId]);
+    
+    if (wCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Website not found' });
+    }
+    
+    const accountId = wCheck.rows[0].account_id;
+    
+    // Get ALL rooms for all properties in this account
+    const allRooms = await pool.query(`
+      SELECT bu.id as unit_id, bu.name, bu.partner_external_id as external_id,
+             bu.max_guests, bu.num_bedrooms as bedrooms, bu.num_bathrooms as bathrooms,
+             p.id as property_id, p.name as property_name
+      FROM bookable_units bu
+      JOIN properties p ON p.id = bu.property_id
+      WHERE p.account_id = $1
+      ORDER BY p.name, bu.name
+    `, [accountId]);
+    
+    // Get rooms currently assigned to this website
+    const assignedRooms = await pool.query(`
+      SELECT wr.bookable_unit_id, wr.display_order, wr.is_featured
+      FROM website_rooms wr
+      WHERE wr.website_id = $1
+    `, [websiteId]);
+    
+    const assignedMap = {};
+    assignedRooms.rows.forEach(r => {
+      assignedMap[r.bookable_unit_id] = { display_order: r.display_order, is_featured: r.is_featured };
+    });
+    
+    // Group by property with active status
+    const propertyMap = {};
+    let totalRooms = 0;
+    let activeRooms = 0;
+    
+    allRooms.rows.forEach(r => {
+      if (!propertyMap[r.property_id]) {
+        propertyMap[r.property_id] = {
+          property_id: r.property_id,
+          property_name: r.property_name,
+          rooms: []
+        };
+      }
+      const isActive = !!assignedMap[r.unit_id];
+      propertyMap[r.property_id].rooms.push({
+        unit_id: r.unit_id,
+        external_id: r.external_id,
+        name: r.name,
+        active: isActive,
+        display_order: isActive ? (assignedMap[r.unit_id].display_order || 0) : 0,
+        is_featured: isActive ? (assignedMap[r.unit_id].is_featured || false) : false,
+        max_guests: r.max_guests,
+        bedrooms: r.bedrooms,
+        bathrooms: r.bathrooms
+      });
+      totalRooms++;
+      if (isActive) activeRooms++;
+    });
+    
+    res.json({
+      success: true,
+      website_id: parseInt(websiteId),
+      properties: Object.values(propertyMap),
+      summary: {
+        total_rooms: totalRooms,
+        active_rooms: activeRooms
+      }
+    });
+    
+  } catch (error) {
+    console.error('Partner API get website rooms error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PATCH /api/partner/websites/:websiteId/rooms - Toggle individual room activation
+app.patch('/api/partner/websites/:websiteId/rooms', async (req, res) => {
+  console.log('=== PARTNER API: TOGGLE ROOM ACTIVATION ===');
+  
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    
+    const { websiteId } = req.params;
+    const { changes } = req.body;
+    
+    if (!changes || !Array.isArray(changes) || changes.length === 0) {
+      return res.status(400).json({ success: false, error: 'changes array is required with at least one entry' });
+    }
+    
+    // Verify website belongs to partner's tenant
+    const wCheck = await pool.query(`
+      SELECT w.id, w.account_id FROM websites w
+      JOIN accounts a ON a.id = w.account_id
+      WHERE w.id = $1 AND a.parent_id = $2
+    `, [websiteId, auth.partnerId]);
+    
+    if (wCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Website not found' });
+    }
+    
+    const accountId = wCheck.rows[0].account_id;
+    let activated = 0;
+    let deactivated = 0;
+    const activeRooms = [];
+    
+    for (const change of changes) {
+      const { unit_id, active, display_order, is_featured } = change;
+      
+      if (!unit_id || typeof active !== 'boolean') {
+        continue; // Skip invalid entries
+      }
+      
+      // Verify room belongs to the same account
+      const roomCheck = await pool.query(`
+        SELECT bu.id, bu.name FROM bookable_units bu
+        JOIN properties p ON p.id = bu.property_id
+        WHERE bu.id = $1 AND p.account_id = $2
+      `, [unit_id, accountId]);
+      
+      if (roomCheck.rows.length === 0) {
+        continue; // Skip rooms that don't belong to this account
+      }
+      
+      if (active) {
+        // Add to website (or update if already there)
+        await pool.query(`
+          INSERT INTO website_rooms (website_id, bookable_unit_id, display_order, is_featured)
+          VALUES ($1, $2, $3, $4)
+          ON CONFLICT (website_id, bookable_unit_id) DO UPDATE SET
+            display_order = COALESCE($3, website_rooms.display_order),
+            is_featured = COALESCE($4, website_rooms.is_featured)
+        `, [websiteId, unit_id, display_order || 0, is_featured || false]);
+        activated++;
+        activeRooms.push({ unit_id, name: roomCheck.rows[0].name });
+      } else {
+        // Remove from website
+        await pool.query(`
+          DELETE FROM website_rooms WHERE website_id = $1 AND bookable_unit_id = $2
+        `, [websiteId, unit_id]);
+        deactivated++;
+      }
+    }
+    
+    // Also get remaining active rooms for the response
+    if (deactivated > 0 || activated > 0) {
+      const remaining = await pool.query(`
+        SELECT bu.id as unit_id, bu.name
+        FROM website_rooms wr
+        JOIN bookable_units bu ON bu.id = wr.bookable_unit_id
+        WHERE wr.website_id = $1
+        ORDER BY wr.display_order, bu.name
+      `, [websiteId]);
+      
+      res.json({
+        success: true,
+        message: `Updated ${activated + deactivated} rooms`,
+        activated,
+        deactivated,
+        active_rooms: remaining.rows
+      });
+    } else {
+      res.json({
+        success: true,
+        message: 'No valid changes applied',
+        activated: 0,
+        deactivated: 0,
+        active_rooms: []
+      });
+    }
+    
+  } catch (error) {
+    console.error('Partner API toggle room activation error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // DELETE /api/partner/websites/:websiteId - Delete website
 app.delete('/api/partner/websites/:websiteId', async (req, res) => {
   console.log('=== PARTNER API: DELETE WEBSITE ===');
@@ -49375,6 +49572,16 @@ app.get('/api/setup-content-ideas', async (req, res) => {
         await pool.query(`ALTER TABLE attractions ADD COLUMN IF NOT EXISTS meta_description_ml JSONB`);
         
         res.json({ success: true, message: 'Content ideas table created + FAQ schema columns added to blog_posts and attractions' });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// One-shot migration: add faq_schema column to client_pages
+app.get('/api/setup-faq-schema', async (req, res) => {
+    try {
+        await pool.query(`ALTER TABLE client_pages ADD COLUMN IF NOT EXISTS faq_schema JSONB`);
+        res.json({ success: true, message: 'faq_schema column added to client_pages' });
     } catch (error) {
         res.json({ success: false, error: error.message });
     }
