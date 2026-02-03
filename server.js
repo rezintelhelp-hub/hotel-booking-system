@@ -8241,7 +8241,7 @@ app.post('/api/gas-sync/connections/:id/import-property', async (req, res) => {
           house_rules = $5, address = $6, city = $7, state = $8, postcode = $9,
           country = $10, latitude = $11, longitude = $12, check_in_from = $13,
           check_in_until = $14, check_out_by = $15, currency = $16, phone = $17,
-          email = $18, website = $19, cm_source = 'beds24', account_id = $20, updated_at = NOW()
+          email = $18, website = $19, cm_source = 'beds24', account_id = $20, user_id = COALESCE(user_id, 1), updated_at = NOW()
         WHERE id = $21
       `, [
         prop.name || 'Property',
@@ -8262,13 +8262,13 @@ app.post('/api/gas-sync/connections/:id/import-property', async (req, res) => {
     } else {
       const propertyResult = await client.query(`
         INSERT INTO properties (
-          account_id, beds24_property_id, cm_source, name, property_type,
+          account_id, user_id, beds24_property_id, cm_source, name, property_type,
           description, short_description, house_rules,
           address, city, state, postcode, country,
           latitude, longitude, check_in_from, check_in_until, check_out_by,
           currency, phone, email, website, status
         ) VALUES (
-          $1, $2, 'beds24', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
+          $1, 1, $2, 'beds24', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
           $13, $14, $15, $16, $17, $18, $19, $20, $21, 'active'
         ) RETURNING id
       `, [
