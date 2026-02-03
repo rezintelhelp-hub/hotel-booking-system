@@ -1080,11 +1080,10 @@ class CalryAdapter {
       // First, upsert to gas_sync_properties (staging)
       const stagingResult = await this.pool.query(`
         INSERT INTO gas_sync_properties (
-          connection_id, external_id, cm_property_id, name, status, raw_data, created_at
-        ) VALUES ($1, $2, $2, $3, $4, $5, NOW())
+          connection_id, external_id, name, raw_data, created_at
+        ) VALUES ($1, $2, $3, $4, NOW())
         ON CONFLICT (connection_id, external_id) DO UPDATE SET
           name = EXCLUDED.name,
-          status = EXCLUDED.status,
           raw_data = EXCLUDED.raw_data,
           updated_at = NOW()
         RETURNING id
@@ -1092,7 +1091,6 @@ class CalryAdapter {
         this.connectionId,
         propertyData.externalId,
         propertyData.name,
-        propertyData.status || 'active',
         JSON.stringify(propertyData.raw || propertyData)
       ]);
       
