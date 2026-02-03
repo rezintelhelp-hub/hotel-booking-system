@@ -20200,6 +20200,20 @@ const promo = await fetch('/api/v1/offers/validate', {
                     if (section === 'reviews') {
                         toggleReviewsAppFields();
                     }
+                    
+                    // Load FAQs if present in settings
+                    if (data.settings.faqs) {
+                        const faqSection = section.replace('page-', '');
+                        try {
+                            const faqs = typeof data.settings.faqs === 'string' ? JSON.parse(data.settings.faqs) : data.settings.faqs;
+                            if (Array.isArray(faqs) && faqs.length > 0) {
+                                loadFAQsToSection(faqSection, faqs);
+                                console.log(`Loaded ${faqs.length} FAQs for ${section}`);
+                            }
+                        } catch(e) {
+                            console.error('Error parsing FAQs:', e);
+                        }
+                    }
                 } else {
                     console.log(`No saved ${section} settings, using template defaults`);
                 }
@@ -39496,7 +39510,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     document.getElementById('page-meta-title').value = data.page.meta_title || '';
                     document.getElementById('page-meta-description').value = data.page.meta_description || '';
                     document.getElementById('page-published').checked = data.page.is_published;
-                    document.getElementById('page-faq-schema').value = data.page.faq_schema ? (typeof data.page.faq_schema === 'object' ? JSON.stringify(data.page.faq_schema, null, 2) : data.page.faq_schema) : '';
+                    document.getElementById('page-faq-schema').value = data.page.faq_schema || '';
                     updateMetaCount();
                     updateFAQPreview();
                 } else {
@@ -39914,7 +39928,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 content: document.getElementById('page-content').value,
                 meta_title: document.getElementById('page-meta-title').value,
                 meta_description: document.getElementById('page-meta-description').value,
-                faq_schema: (() => { try { const v = document.getElementById('page-faq-schema').value; return v ? JSON.parse(v) : null; } catch(e) { return null; } })(),
+                faq_schema: document.getElementById('page-faq-schema').value,
                 is_published: document.getElementById('page-published').checked
             };
             
