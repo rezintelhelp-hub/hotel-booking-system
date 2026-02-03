@@ -28356,7 +28356,7 @@ app.post('/api/webhooks/hostaway', async (req, res) => {
           // Create new booking
           const newBooking = await client.query(`
             INSERT INTO bookings (
-              property_id, room_id, account_id,
+              property_id, bookable_unit_id, account_id,
               check_in, check_out,
               guest_first_name, guest_last_name, guest_email, guest_phone,
               num_adults, total_price, currency, status,
