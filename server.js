@@ -49360,6 +49360,9 @@ app.get('/api/setup-content-ideas', async (req, res) => {
         
         // Add faq_schema column to attractions if it doesn't exist
         await pool.query(`ALTER TABLE attractions ADD COLUMN IF NOT EXISTS faq_schema JSONB`);
+
+        // Add faq_schema column to client_pages if it doesn't exist
+        await pool.query(`ALTER TABLE client_pages ADD COLUMN IF NOT EXISTS faq_schema JSONB`);
         await pool.query(`ALTER TABLE attractions ADD COLUMN IF NOT EXISTS meta_title VARCHAR(100)`);
         await pool.query(`ALTER TABLE attractions ADD COLUMN IF NOT EXISTS meta_description VARCHAR(300)`);
         await pool.query(`ALTER TABLE attractions ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMP`);
@@ -59748,6 +59751,9 @@ app.listen(PORT, '0.0.0.0', async () => {
     // Portfolio display columns
     await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS show_on_portfolio BOOLEAN DEFAULT true`);
     await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS portfolio_display JSONB DEFAULT '{}'::jsonb`);
+    
+    // Ensure faq_schema column exists on client_pages
+    await pool.query(`ALTER TABLE client_pages ADD COLUMN IF NOT EXISTS faq_schema JSONB`);
     
     console.log('✅ Database migrations complete');
   } catch (migrationError) {
