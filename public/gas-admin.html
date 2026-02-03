@@ -28036,6 +28036,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                                     </div>
                                 </div>
                                 <div style="display: flex; gap: 0.5rem;">
+                                    <button class="btn btn-small" onclick="managePluginLicenseRooms(${license.id}, '${(license.account_name || license.email).replace(/'/g, "\\\\'")}')" style="padding: 0.4rem 0.75rem; font-size: 0.85rem; background: #10b981; border-color: #10b981;">
+                                        🛏️ Rooms
+                                    </button>
                                     <button class="btn btn-small" onclick="editLicenseSettings(${license.id})" style="padding: 0.4rem 0.75rem; font-size: 0.85rem;">
                                         ⚙️ Edit Settings
                                     </button>
@@ -28289,6 +28292,161 @@ const promo = await fetch('/api/v1/offers/validate', {
             } catch (error) {
                 console.error('Error deleting license:', error);
                 showNotification('Error: ' + error.message, 'error');
+            }
+        }
+        
+        async function managePluginLicenseRooms(licenseId, licenseName) {
+            try {
+                const response = await fetch(`/api/plugin-licenses/${licenseId}/rooms`, { headers: authHeaders() });
+                const data = await response.json();
+                
+                if (!data.success) {
+                    showNotification(data.error || 'Failed to load rooms', 'error');
+                    return;
+                }
+                
+                const propertyGroups = data.propertyGroups || [];
+                const linkedRoomIds = new Set(data.linkedRoomIds || []);
+                
+                if (propertyGroups.length === 0) {
+                    showNotification('No properties found for this account', 'error');
+                    return;
+                }
+                
+                let checkboxHtml = '';
+                propertyGroups.forEach((group, groupIdx) => {
+                    const propRooms = group.rooms || [];
+                    const allRoomsLinked = propRooms.length > 0 && propRooms.every(r => linkedRoomIds.has(r.id));
+                    const someRoomsLinked = propRooms.some(r => linkedRoomIds.has(r.id));
+                    
+                    checkboxHtml += `
+                        <div class="manage-property-group" style="border: 1px solid var(--border); border-radius: 8px; margin-bottom: 0.5rem; overflow: hidden;">
+                            <div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: var(--bg-secondary); cursor: pointer;" onclick="togglePluginLicensePropertyGroup(${groupIdx})">
+                                <input type="checkbox" class="plugin-license-property-checkbox" data-group="${groupIdx}" 
+                                    onchange="togglePluginLicensePropertyRooms(${groupIdx}, this.checked); event.stopPropagation();" 
+                                    ${allRoomsLinked ? 'checked' : ''} ${someRoomsLinked && !allRoomsLinked ? 'indeterminate' : ''}
+                                    style="width: 18px; height: 18px;">
+                                <div style="flex: 1;">
+                                    <strong>${group.property.name}</strong>
+                                    <div style="font-size: 0.75rem; color: #64748b;">${propRooms.length} room${propRooms.length !== 1 ? 's' : ''}</div>
+                                </div>
+                                <span class="plugin-license-group-arrow" id="plugin-license-arrow-${groupIdx}" style="transition: transform 0.2s;">▼</span>
+                            </div>
+                            <div class="plugin-license-rooms-list" id="plugin-license-rooms-${groupIdx}" style="padding: 0.5rem 1rem 0.5rem 2.5rem; display: none;">
+                    `;
+                    
+                    propRooms.forEach(room => {
+                        checkboxHtml += `
+                            <label style="display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 0; cursor: pointer;">
+                                <input type="checkbox" class="plugin-license-room-checkbox" data-group="${groupIdx}" 
+                                    name="plugin-license-room" value="${room.id}" 
+                                    ${linkedRoomIds.has(room.id) ? 'checked' : ''} 
+                                    onchange="updatePluginLicensePropertyCheckbox(${groupIdx})"
+                                    style="width: 16px; height: 16px;">
+                                <div>
+                                    <span>${room.name}</span>
+                                    <div style="font-size: 0.75rem; color: #64748b;">
+                                        ${room.max_guests || '?'} guests · ${room.num_bedrooms || '?'} bed · £${room.base_price || '?'}/night
+                                    </div>
+                                </div>
+                            </label>
+                        `;
+                    });
+                    
+                    checkboxHtml += `
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                const modalHtml = `
+                    <div id="pluginLicenseRoomsModal" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;">
+                        <div style="background: var(--bg-primary); border-radius: 12px; padding: 1.5rem; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto;">
+                            <h3 style="margin: 0 0 1rem;">🛏️ Manage Rooms for ${licenseName}</h3>
+                            <p style="color: #64748b; margin-bottom: 1rem;">Select which rooms to display via this plugin license:</p>
+                            <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+                                <button onclick="selectAllPluginLicenseRooms(true)" class="btn btn-secondary btn-small">Select All</button>
+                                <button onclick="selectAllPluginLicenseRooms(false)" class="btn btn-secondary btn-small">Deselect All</button>
+                            </div>
+                            <div style="margin-bottom: 1.5rem;">
+                                ${checkboxHtml}
+                            </div>
+                            <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+                                <button onclick="document.getElementById('pluginLicenseRoomsModal').remove()" class="btn btn-secondary">Cancel</button>
+                                <button onclick="savePluginLicenseRooms(${licenseId})" class="btn btn-primary">💾 Save Changes</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                document.body.insertAdjacentHTML('beforeend', modalHtml);
+                
+                propertyGroups.forEach((group, groupIdx) => {
+                    updatePluginLicensePropertyCheckbox(groupIdx);
+                });
+                
+            } catch (error) {
+                showNotification('Failed to load rooms: ' + error.message, 'error');
+            }
+        }
+        
+        function togglePluginLicensePropertyGroup(groupIdx) {
+            const roomsList = document.getElementById(`plugin-license-rooms-${groupIdx}`);
+            const arrow = document.getElementById(`plugin-license-arrow-${groupIdx}`);
+            if (roomsList.style.display === 'none') {
+                roomsList.style.display = 'block';
+                arrow.style.transform = 'rotate(180deg)';
+            } else {
+                roomsList.style.display = 'none';
+                arrow.style.transform = 'rotate(0deg)';
+            }
+        }
+        
+        function togglePluginLicensePropertyRooms(groupIdx, checked) {
+            document.querySelectorAll(`.plugin-license-room-checkbox[data-group="${groupIdx}"]`).forEach(cb => {
+                cb.checked = checked;
+            });
+        }
+        
+        function updatePluginLicensePropertyCheckbox(groupIdx) {
+            const roomCheckboxes = document.querySelectorAll(`.plugin-license-room-checkbox[data-group="${groupIdx}"]`);
+            const propCheckbox = document.querySelector(`.plugin-license-property-checkbox[data-group="${groupIdx}"]`);
+            if (!propCheckbox || roomCheckboxes.length === 0) return;
+            
+            const checkedCount = Array.from(roomCheckboxes).filter(cb => cb.checked).length;
+            propCheckbox.checked = checkedCount === roomCheckboxes.length;
+            propCheckbox.indeterminate = checkedCount > 0 && checkedCount < roomCheckboxes.length;
+        }
+        
+        function selectAllPluginLicenseRooms(select) {
+            document.querySelectorAll('.plugin-license-room-checkbox').forEach(cb => cb.checked = select);
+            document.querySelectorAll('.plugin-license-property-checkbox').forEach(cb => {
+                cb.checked = select;
+                cb.indeterminate = false;
+            });
+        }
+        
+        async function savePluginLicenseRooms(licenseId) {
+            const checkboxes = document.querySelectorAll('input[name="plugin-license-room"]:checked');
+            const selectedRoomIds = Array.from(checkboxes).map(cb => parseInt(cb.value));
+            
+            try {
+                const response = await fetch(`/api/plugin-licenses/${licenseId}/rooms`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ roomIds: selectedRoomIds })
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification(`✅ Updated! ${selectedRoomIds.length} room(s) selected for plugin`, 'success');
+                    document.getElementById('pluginLicenseRoomsModal').remove();
+                    loadPluginLicenses();
+                } else {
+                    showNotification(data.error || 'Failed to update rooms', 'error');
+                }
+            } catch (error) {
+                showNotification('Failed to save: ' + error.message, 'error');
             }
         }
         
