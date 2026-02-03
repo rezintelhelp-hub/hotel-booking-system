@@ -1102,22 +1102,20 @@ class CalryAdapter {
       
       const propResult = await this.pool.query(`
         INSERT INTO properties (
-          account_id, name, description, property_type, status,
-          address_line1, address_line2, city, state_province, postal_code, country,
+          account_id, user_id, name, description, property_type, status,
+          address, city, state, postcode, country,
           latitude, longitude, timezone, currency,
-          check_in_time, check_out_time,
-          min_nights, max_nights,
-          thumbnail_url, contact_email, contact_phone,
+          check_in_from, check_out_by,
+          contact_email, contact_phone,
           cm_property_id, cm_source,
           created_at
         ) VALUES (
-          $1, $2, $3, $4, $5,
-          $6, $7, $8, $9, $10, $11,
-          $12, $13, $14, $15,
-          $16, $17,
-          $18, $19,
-          $20, $21, $22,
-          $23, $24,
+          $1, 1, $2, $3, $4, $5,
+          $6, $7, $8, $9, $10,
+          $11, $12, $13, $14,
+          $15, $16,
+          $17, $18,
+          $19, 'calry',
           NOW()
         )
         ON CONFLICT (account_id, cm_property_id) WHERE cm_property_id IS NOT NULL
@@ -1125,14 +1123,13 @@ class CalryAdapter {
           name = EXCLUDED.name,
           description = EXCLUDED.description,
           status = EXCLUDED.status,
-          address_line1 = EXCLUDED.address_line1,
+          address = EXCLUDED.address,
           city = EXCLUDED.city,
-          state_province = EXCLUDED.state_province,
-          postal_code = EXCLUDED.postal_code,
+          state = EXCLUDED.state,
+          postcode = EXCLUDED.postcode,
           country = EXCLUDED.country,
           latitude = COALESCE(EXCLUDED.latitude, properties.latitude),
           longitude = COALESCE(EXCLUDED.longitude, properties.longitude),
-          thumbnail_url = COALESCE(EXCLUDED.thumbnail_url, properties.thumbnail_url),
           updated_at = NOW()
         RETURNING id
       `, [
@@ -1142,7 +1139,6 @@ class CalryAdapter {
         propertyData.propertyType || 'vacation_rental',
         propertyData.status || 'active',
         address.street || '',
-        address.street2 || '',
         address.city || '',
         address.state || '',
         address.postalCode || '',
@@ -1153,13 +1149,9 @@ class CalryAdapter {
         propertyData.currency || 'EUR',
         propertyData.defaultCheckIn || '15:00',
         propertyData.defaultCheckOut || '11:00',
-        propertyData.minNights || null,
-        propertyData.maxNights || null,
-        propertyData.thumbnailUrl || null,
         propertyData.contactEmail || null,
         propertyData.contactPhone || null,
-        propertyData.externalId,
-        'calry'
+        propertyData.externalId
       ]);
       
       const gasPropertyId = propResult.rows[0]?.id;
