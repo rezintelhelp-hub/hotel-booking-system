@@ -48448,6 +48448,39 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
 
+        async function moveSyncProperty(propId, direction) {
+            const tbody = document.querySelector('#connectionTabProperties tbody');
+            if (!tbody) return;
+            
+            const rows = Array.from(tbody.querySelectorAll('tr[data-prop-id]'));
+            const currentIndex = rows.findIndex(r => r.dataset.propId === String(propId));
+            if (currentIndex < 0) return;
+            
+            const newIndex = currentIndex + direction;
+            if (newIndex < 0 || newIndex >= rows.length) return;
+            
+            // Swap DOM rows
+            if (direction === -1) {
+                tbody.insertBefore(rows[currentIndex], rows[newIndex]);
+            } else {
+                tbody.insertBefore(rows[newIndex], rows[currentIndex]);
+            }
+            
+            // Save new order
+            const updatedRows = Array.from(tbody.querySelectorAll('tr[data-prop-id]'));
+            const order = updatedRows.map((r, i) => ({ id: parseInt(r.dataset.propId), display_order: i }));
+            
+            try {
+                await fetch(`/api/gas-sync/connections/${selectedConnectionId}/reorder-properties`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ order })
+                });
+            } catch (e) {
+                console.error('Reorder save error:', e);
+            }
+        }
+
         async function loadConnectionPropertiesTab() {
             const container = document.getElementById('connectionTabProperties');
             try {
@@ -48515,6 +48548,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                         </div>
                         ` : ''}
                         <table class="data-table" style="table-layout: auto; width: 100%;"><thead><tr>
+                            <th style="width: 40px;">Order</th>
                             <th style="width: 50px;">Status</th>
                             <th style="width: 140px;">Property</th>
                             <th style="width: 100px;">Location</th>
@@ -48553,7 +48587,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 }
                             }
                             const canImport = isBeds24 ? (p.prop_key && webhookTested && propKeyTested && !p.gas_property_id) : !p.gas_property_id;
-                            return `<tr id="prop-row-${p.id}">
+                            return `<tr id="prop-row-${p.id}" data-prop-id="${p.id}">
+                                <td style="text-align: center;">
+                                    <button onclick="moveSyncProperty(${p.id}, -1)" class="btn btn-sm" style="padding: 1px 5px; font-size: 0.75rem; background: #f1f5f9; border: 1px solid #e2e8f0;" title="Move up">▲</button>
+                                    <button onclick="moveSyncProperty(${p.id}, 1)" class="btn btn-sm" style="padding: 1px 5px; font-size: 0.75rem; background: #f1f5f9; border: 1px solid #e2e8f0;" title="Move down">▼</button>
+                                </td>
                                 <td title="${statusTitle}" style="font-size: 1.25rem; text-align: center;">${statusLight}</td>
                                 <td><strong>${p.name}</strong><br><small style="color: #6b7280;">ID: ${p.external_id}</small></td>
                                 <td>${p.city || ''}, ${p.country || ''}</td>
