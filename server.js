@@ -23539,9 +23539,9 @@ async function importCalryPropertiesViaAdapter(integrationAccountId, pmsName, ex
       const connResult = await pool.query(`
         INSERT INTO gas_sync_connections (
           account_id, adapter_code, external_account_id, external_account_name,
-          connection_name, credentials, access_token, status, sync_enabled, created_at
-        ) VALUES ($1, 'calry', $2, $3, $4, $5, $6, 'connected', true, NOW()) RETURNING id
-      `, [gasAccountId, integrationAccountId, `${pmsName} via Calry`, `${pmsName} via Calry`,
+          credentials, access_token, status, sync_enabled, created_at
+        ) VALUES ($1, 'calry', $2, $3, $4, $5, 'connected', true, NOW()) RETURNING id
+      `, [gasAccountId, integrationAccountId, `${pmsName} via Calry`,
           JSON.stringify({ workspaceId: CALRY_WORKSPACE_ID, integrationAccountId, pmsType: pmsName }), CALRY_API_TOKEN]);
       connectionId = connResult.rows[0].id;
       console.log(`Created connection: ${connectionId}`);
