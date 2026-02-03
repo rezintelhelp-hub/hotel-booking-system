@@ -28442,6 +28442,29 @@ const promo = await fetch('/api/v1/offers/validate', {
                     showNotification(`✅ Updated! ${selectedRoomIds.length} room(s) selected for plugin`, 'success');
                     document.getElementById('pluginLicenseRoomsModal').remove();
                     loadPluginLicenses();
+                    
+                    // Sync to WordPress sites
+                    if (data.site_urls && data.site_urls.length > 0) {
+                        for (const siteUrl of data.site_urls) {
+                            const cleanUrl = siteUrl.replace(/\/$/, '');
+                            try {
+                                console.log('Syncing license to WordPress:', cleanUrl);
+                                const syncResp = await fetch(`${cleanUrl}/wp-json/gas-booking/v1/sync-license`, {
+                                    method: 'POST',
+                                    mode: 'cors',
+                                    cache: 'no-cache',
+                                    headers: { 'Content-Type': 'application/json' }
+                                });
+                                const syncResult = await syncResp.json();
+                                console.log('WordPress license sync result:', syncResult);
+                                if (syncResult.success) {
+                                    showNotification(`🔄 WordPress synced: ${syncResult.message}`, 'success');
+                                }
+                            } catch (syncErr) {
+                                console.warn('WordPress sync failed for', cleanUrl, syncErr);
+                            }
+                        }
+                    }
                 } else {
                     showNotification(data.error || 'Failed to update rooms', 'error');
                 }
