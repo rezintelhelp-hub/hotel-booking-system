@@ -410,12 +410,13 @@
           </div>
           <div class="form-group">
             <label>Password</label>
-            <input type="password" id="register-password" placeholder="Choose a password">
+            <input type="password" id="register-password" placeholder="Choose a password (min 6 chars)">
           </div>
           <div class="form-group">
             <label>Business Name (optional)</label>
             <input type="text" id="register-business" placeholder="Your property or company name">
           </div>
+          <p style="font-size: 0.85rem; color: #95a5a6; margin-top: 4px;">Your account is saved straight away. If anything goes wrong, you can always log in at <a href="https://admin.gas.travel" style="color: var(--cm-color-1, #667eea);">admin.gas.travel</a> and connect your channel manager from there.</p>
         </div>
         
         <div id="step2-status" class="status-message"></div>
@@ -488,6 +489,10 @@
             <span class="summary-value" style="color: #27ae60;">✓ Connected</span>
           </div>
         </div>
+        
+        <p style="font-size: 0.85rem; color: #95a5a6; text-align: center; margin-top: 12px;">
+          You can manage your connection and properties anytime at <a href="https://admin.gas.travel" style="color: var(--cm-color-1, #667eea);">admin.gas.travel</a>
+        </p>
         
         <div id="step5-status" class="status-message"></div>
       </div>
@@ -579,10 +584,19 @@
     let calryLinkId = null;
     let isLoginMode = true;
     let skipCMSelection = false;
+    let fromAdmin = false;
+    let skipLogin = false;
 
     // Check URL params
     const urlParams = new URLSearchParams(window.location.search);
     const cmFromUrl = urlParams.get('cm');
+    
+    // Admin mode: skip login, use provided account_id
+    if (urlParams.get('from_admin') === 'true' && urlParams.get('account_id')) {
+      fromAdmin = true;
+      skipLogin = true;
+      gasAccountId = parseInt(urlParams.get('account_id'));
+    }
     
     // Handle callback from Calry
     if (urlParams.get('calry_connected') === 'true') {
@@ -606,11 +620,27 @@
       // CM specified in URL - skip selection
       selectedCM = cmFromUrl;
       skipCMSelection = true;
-      currentStep = 2;
       
+      if (skipLogin) {
+        // From admin: skip both CM selection AND login, go straight to instructions
+        currentStep = 3;
+        document.addEventListener('DOMContentLoaded', () => {
+          applyTheme(selectedCM);
+          showStep(3);
+        });
+      } else {
+        // Public: skip CM selection, show login
+        currentStep = 2;
+        document.addEventListener('DOMContentLoaded', () => {
+          applyTheme(selectedCM);
+          showStep(2);
+        });
+      }
+    } else if (cmFromUrl && !CM_CONFIG[cmFromUrl]) {
+      // Unknown CM from URL - still allow, show selection with message
       document.addEventListener('DOMContentLoaded', () => {
-        applyTheme(selectedCM);
-        showStep(2);
+        showStep(1);
+        showStatus('step1-cm-status', `"${cmFromUrl}" not found in our list. Please select your channel manager below.`, 'info');
       });
     }
 
@@ -669,10 +699,14 @@
 
     // Navigation
     function updateStepDots() {
-      const offset = skipCMSelection ? 1 : 0;
+      // Work out which steps are actually shown
+      let stepsSkipped = 0;
+      if (skipCMSelection) stepsSkipped++;
+      if (skipLogin) stepsSkipped++;
+      
       document.querySelectorAll('.step-dot').forEach((dot, idx) => {
         dot.classList.remove('active', 'completed');
-        const adjustedCurrent = currentStep - offset;
+        const adjustedCurrent = currentStep - stepsSkipped;
         const adjustedIdx = idx + 1;
         if (adjustedIdx === adjustedCurrent) {
           dot.classList.add('active');
@@ -686,14 +720,18 @@
       document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
       document.querySelector(`.step[data-step="${step}"]`).classList.add('active');
       
+      // Work out the first visible step
+      let firstStep = 1;
+      if (skipCMSelection) firstStep = 2;
+      if (skipLogin) firstStep = 3;
+      
       // Update buttons
-      const isFirstStep = (skipCMSelection && step === 2) || (!skipCMSelection && step === 1);
-      document.getElementById('btn-back').classList.toggle('hidden', isFirstStep || step === 5);
+      document.getElementById('btn-back').classList.toggle('hidden', step <= firstStep || step === 5);
       
       if (step === 4) {
         document.getElementById('btn-next').classList.add('hidden');
       } else if (step === 5) {
-        document.getElementById('btn-next').textContent = 'Go to Dashboard';
+        document.getElementById('btn-next').textContent = fromAdmin ? 'Return to Admin →' : 'Go to Dashboard →';
         document.getElementById('btn-next').classList.remove('hidden');
       } else {
         document.getElementById('btn-next').textContent = 'Next →';
@@ -711,7 +749,7 @@
           showStatus('step1-cm-status', 'Please select a channel manager', 'error');
           return;
         }
-        currentStep = 2;
+        currentStep = skipLogin ? 3 : 2;
         showStep(currentStep);
       } else if (currentStep === 2) {
         if (await handleAuth()) {
@@ -723,14 +761,26 @@
         currentStep = 4;
         showStep(currentStep);
       } else if (currentStep === 5) {
-        window.location.href = '/connections';
+        if (fromAdmin) {
+          // Try to close the tab, fall back to admin connections page
+          window.close();
+          window.location.href = 'https://admin.gas.travel/connections';
+        } else {
+          window.location.href = 'https://admin.gas.travel';
+        }
       }
     }
 
     function prevStep() {
-      if (currentStep > 1 && currentStep < 5) {
-        if (skipCMSelection && currentStep === 2) return;
+      let firstStep = 1;
+      if (skipCMSelection) firstStep = 2;
+      if (skipLogin) firstStep = 3;
+      
+      if (currentStep > firstStep && currentStep < 5) {
         currentStep--;
+        // Skip over hidden steps when going back
+        if (skipLogin && currentStep === 2) currentStep = skipCMSelection ? firstStep : 1;
+        if (skipCMSelection && currentStep === 1) currentStep = firstStep;
         showStep(currentStep);
       }
     }
@@ -790,13 +840,18 @@
         return false;
       }
       
+      if (password.length < 6) {
+        showStatus('step2-status', 'Password must be at least 6 characters', 'error');
+        return false;
+      }
+      
       showStatus('step2-status', 'Creating account...', 'info');
       
       try {
         const response = await fetch('/api/accounts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, email, password, business_name: business })
+          body: JSON.stringify({ name, email, password, business_name: business, cm_type: selectedCM })
         });
         
         const data = await response.json();
@@ -804,7 +859,14 @@
         if (data.success) {
           gasAccountId = data.account?.id;
           gasAccountName = business || name;
-          showStatus('step2-status', '✓ Account created successfully', 'success');
+          
+          // Store credentials so they can come back if they drop off
+          try {
+            sessionStorage.setItem('gas_account_id', gasAccountId);
+            sessionStorage.setItem('gas_account_email', email);
+          } catch(e) { /* storage not available, that's fine */ }
+          
+          showStatus('step2-status', '✓ Account created! You can always log in later at admin.gas.travel to complete setup.', 'success');
           return true;
         } else {
           showStatus('step2-status', data.error || 'Registration failed', 'error');

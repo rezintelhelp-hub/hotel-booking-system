@@ -298,19 +298,24 @@
         
         // Select CM - route to wizard
         function selectCM(id) {
-            // Special cases
-            if (id === 'booking-automation') {
-                window.location.href = '/booking-automation-wizard.html';
+            // Direct integrations - have their own dedicated wizards
+            if (id === 'beds24' || id === 'booking-automation') {
+                window.location.href = '/beds24-wizard';
+                return;
+            }
+            
+            if (id === 'hostaway') {
+                window.location.href = '/hostaway-wizard';
                 return;
             }
             
             if (id === 'other') {
-                window.location.href = '/other-cm-wizard.html';
+                window.location.href = '/cm-wizard.html?cm=other';
                 return;
             }
             
-            // All others go to their dedicated wizard
-            window.location.href = `/${id}-wizard.html`;
+            // All Calry-based PMS go to the universal wizard
+            window.location.href = `/cm-wizard.html?cm=${id}`;
         }
         
         // Search handler
