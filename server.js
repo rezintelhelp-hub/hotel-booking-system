@@ -8139,25 +8139,60 @@ app.post('/api/gas-sync/connections/:id/check-properties', async (req, res) => {
       credentials = JSON.parse(credentials);
     }
     
-    // Check both credentials.refreshToken and refresh_token column
-    const refreshToken = credentials.refreshToken || conn.refresh_token;
+    let cmProperties = []; // Normalized: { externalId, name, city, country }
     
-    if (!refreshToken) {
-      return res.status(400).json({ success: false, error: 'No API credentials for this connection. Please reconnect to Beds24.' });
+    if (conn.adapter_code === 'calry') {
+      // CALRY: Fetch properties via Calry API
+      const integrationAccountId = conn.external_account_id || credentials.integrationAccountId;
+      if (!integrationAccountId) {
+        return res.status(400).json({ success: false, error: 'No integration account ID for this Calry connection.' });
+      }
+      
+      const calryToken = conn.access_token || credentials.token || CALRY_API_TOKEN;
+      const calryWorkspace = credentials.workspaceId || CALRY_WORKSPACE_ID;
+      
+      const propResponse = await axios.get(`${CALRY_API_BASE}/properties`, {
+        headers: {
+          'Authorization': `Bearer ${calryToken}`,
+          'workspaceId': calryWorkspace,
+          'integrationAccountId': integrationAccountId,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      const calryProps = propResponse.data?.data || [];
+      cmProperties = calryProps.map(p => ({
+        externalId: String(p.id),
+        name: p.name || p.internalName || 'Unnamed',
+        city: p.address?.city || p.city || '',
+        country: p.address?.country || p.country || ''
+      }));
+      
+    } else {
+      // BEDS24: Fetch properties via Beds24 API
+      const refreshToken = credentials.refreshToken || conn.refresh_token;
+      
+      if (!refreshToken) {
+        return res.status(400).json({ success: false, error: 'No API credentials for this connection. Please reconnect to Beds24.' });
+      }
+      
+      const tokenResponse = await axios.get('https://beds24.com/api/v2/authentication/token', {
+        headers: { 'refreshToken': refreshToken }
+      });
+      const accessToken = tokenResponse.data.token;
+      
+      const propertiesResponse = await axios.get('https://beds24.com/api/v2/properties', {
+        headers: { token: accessToken }
+      });
+      
+      const beds24Properties = propertiesResponse.data.data || [];
+      cmProperties = beds24Properties.map(p => ({
+        externalId: String(p.id),
+        name: p.name,
+        city: p.city || '',
+        country: p.country || ''
+      }));
     }
-    
-    // Get access token using GET with header (like tiered sync)
-    const tokenResponse = await axios.get('https://beds24.com/api/v2/authentication/token', {
-      headers: { 'refreshToken': refreshToken }
-    });
-    const accessToken = tokenResponse.data.token;
-    
-    // Fetch properties from Beds24
-    const propertiesResponse = await axios.get('https://beds24.com/api/v2/properties', {
-      headers: { token: accessToken }
-    });
-    
-    const beds24Properties = propertiesResponse.data.data || [];
     
     // Get synced properties for this connection
     const syncedResult = await pool.query(`
@@ -8170,34 +8205,32 @@ app.post('/api/gas-sync/connections/:id/check-properties', async (req, res) => {
     const matched = [];
     const newProperties = [];
     
-    // Check Beds24 properties against synced
-    for (const b24Prop of beds24Properties) {
-      const externalId = String(b24Prop.id);
-      const synced = syncedByExternalId[externalId];
+    for (const cmProp of cmProperties) {
+      const synced = syncedByExternalId[cmProp.externalId];
       
       if (synced) {
         matched.push({
-          externalId,
-          name: b24Prop.name,
+          externalId: cmProp.externalId,
+          name: cmProp.name,
           gasPropertyId: synced.gas_property_id
         });
       } else {
         newProperties.push({
-          externalId,
-          name: b24Prop.name,
-          city: b24Prop.city,
-          country: b24Prop.country
+          externalId: cmProp.externalId,
+          name: cmProp.name,
+          city: cmProp.city,
+          country: cmProp.country
         });
       }
     }
     
-    // Check for removed properties (in GAS but not in Beds24)
-    const beds24ByExternalId = {};
-    beds24Properties.forEach(p => { beds24ByExternalId[String(p.id)] = p; });
+    // Check for removed properties (in GAS but not in CM)
+    const cmByExternalId = {};
+    cmProperties.forEach(p => { cmByExternalId[p.externalId] = p; });
     
     const removedProperties = [];
     for (const synced of syncedResult.rows) {
-      if (!beds24ByExternalId[String(synced.external_id)]) {
+      if (!cmByExternalId[String(synced.external_id)]) {
         removedProperties.push({
           externalId: synced.external_id,
           name: synced.name,
@@ -8210,7 +8243,8 @@ app.post('/api/gas-sync/connections/:id/check-properties', async (req, res) => {
       success: true,
       matchedCount: matched.length,
       newProperties,
-      removedProperties
+      removedProperties,
+      adapterCode: conn.adapter_code
     });
     
   } catch (error) {
@@ -8242,6 +8276,233 @@ app.post('/api/gas-sync/connections/:id/import-property', async (req, res) => {
     let credentials = conn.credentials || {};
     if (typeof credentials === 'string') credentials = JSON.parse(credentials);
     
+    // CALRY: Use Calry API for import
+    if (conn.adapter_code === 'calry') {
+      const integrationAccountId = conn.external_account_id || credentials.integrationAccountId;
+      if (!integrationAccountId) {
+        client.release();
+        return res.json({ success: false, error: 'No integration account ID for this Calry connection.' });
+      }
+      
+      const calryToken = conn.access_token || credentials.token || CALRY_API_TOKEN;
+      const calryWorkspace = credentials.workspaceId || CALRY_WORKSPACE_ID;
+      const calryHeaders = {
+        'Authorization': `Bearer ${calryToken}`,
+        'workspaceId': calryWorkspace,
+        'integrationAccountId': integrationAccountId,
+        'Content-Type': 'application/json'
+      };
+      
+      console.log(`📥 Importing Calry property ${externalId} for account ${accountId}`);
+      
+      // Fetch property details
+      const propResponse = await axios.get(`${CALRY_API_BASE}/properties/${externalId}`, {
+        headers: calryHeaders
+      });
+      const prop = propResponse.data?.data || propResponse.data;
+      if (!prop) {
+        client.release();
+        return res.json({ success: false, error: 'Property not found in Calry' });
+      }
+      
+      const address = prop.address || {};
+      const coords = prop.coordinates || prop.location || {};
+      
+      await client.query('BEGIN');
+      
+      // Create/update property in GAS
+      const existingProp = await client.query(
+        'SELECT id FROM properties WHERE account_id = $1 AND cm_property_id = $2',
+        [accountId, String(externalId)]
+      );
+      
+      let gasPropertyId;
+      let isUpdate = false;
+      
+      if (existingProp.rows.length > 0) {
+        gasPropertyId = existingProp.rows[0].id;
+        isUpdate = true;
+        await client.query(`
+          UPDATE properties SET
+            name = $1, description = $2, property_type = $3,
+            address = $4, city = $5, state = $6, postcode = $7, country = $8,
+            latitude = $9, longitude = $10, currency = $11,
+            check_in_from = $12, check_out_by = $13,
+            cm_source = 'calry', updated_at = NOW()
+          WHERE id = $14
+        `, [
+          prop.name || 'Property',
+          prop.description || '',
+          prop.propertyType || 'vacation_rental',
+          address.street || address.line1 || '',
+          address.city || '',
+          address.state || '',
+          address.postalCode || address.zip || '',
+          address.country || '',
+          coords.latitude || coords.lat || null,
+          coords.longitude || coords.lng || null,
+          prop.currency || 'EUR',
+          prop.defaultCheckIn || prop.checkInTime || '15:00',
+          prop.defaultCheckOut || prop.checkOutTime || '11:00',
+          gasPropertyId
+        ]);
+      } else {
+        const propResult = await client.query(`
+          INSERT INTO properties (
+            account_id, user_id, name, description, property_type,
+            address, city, state, postcode, country,
+            latitude, longitude, currency,
+            check_in_from, check_out_by,
+            cm_property_id, cm_source, status, created_at
+          ) VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'calry', 'active', NOW())
+          RETURNING id
+        `, [
+          accountId,
+          prop.name || 'Property',
+          prop.description || '',
+          prop.propertyType || 'vacation_rental',
+          address.street || address.line1 || '',
+          address.city || '',
+          address.state || '',
+          address.postalCode || address.zip || '',
+          address.country || '',
+          coords.latitude || coords.lat || null,
+          coords.longitude || coords.lng || null,
+          prop.currency || 'EUR',
+          prop.defaultCheckIn || prop.checkInTime || '15:00',
+          prop.defaultCheckOut || prop.checkOutTime || '11:00',
+          String(externalId)
+        ]);
+        gasPropertyId = propResult.rows[0].id;
+      }
+      
+      // Fetch room types
+      let roomsAdded = 0;
+      let roomsUpdated = 0;
+      const importedRooms = [];
+      
+      try {
+        const roomResponse = await axios.get(`${CALRY_API_BASE}/room-types/${externalId}`, {
+          headers: calryHeaders
+        });
+        const roomTypes = roomResponse.data?.data || [];
+        
+        for (const rt of roomTypes) {
+          const roomExtId = String(rt.id);
+          const existingRoom = await client.query(
+            'SELECT id FROM bookable_units WHERE property_id = $1 AND cm_room_id = $2',
+            [gasPropertyId, roomExtId]
+          );
+          
+          if (existingRoom.rows.length > 0) {
+            const gasRoomId = existingRoom.rows[0].id;
+            await client.query(`
+              UPDATE bookable_units SET
+                name = $1, max_guests = $2, max_adults = $3, max_children = $4,
+                bedroom_count = $5, bathroom_count = $6, base_price = $7,
+                description = $8, short_description = $9, updated_at = NOW()
+              WHERE id = $10
+            `, [
+              rt.name || 'Room',
+              rt.maxOccupancy || rt.maxGuests || 2,
+              rt.maxAdults || null,
+              rt.maxChildren || 0,
+              rt.bedRoom?.count || rt.bedrooms || 1,
+              rt.bathRoom?.count || rt.bathrooms || 1,
+              rt.startPrice || rt.basePrice || 0,
+              JSON.stringify({ en: rt.description || '' }),
+              JSON.stringify({ en: rt.shortDescription || '' }),
+              gasRoomId
+            ]);
+            roomsUpdated++;
+            importedRooms.push({ externalId: roomExtId, gasRoomId, name: rt.name || 'Room', maxGuests: rt.maxOccupancy || 2, quantity: 1 });
+          } else {
+            const unitResult = await client.query(`
+              INSERT INTO bookable_units (
+                property_id, cm_room_id, cm_source, name,
+                max_guests, max_adults, max_children,
+                bedroom_count, bathroom_count, base_price,
+                description, short_description, status, created_at
+              ) VALUES ($1, $2, 'calry', $3, $4, $5, $6, $7, $8, $9, $10, $11, 'available', NOW())
+              RETURNING id
+            `, [
+              gasPropertyId, roomExtId, rt.name || 'Room',
+              rt.maxOccupancy || rt.maxGuests || 2,
+              rt.maxAdults || null,
+              rt.maxChildren || 0,
+              rt.bedRoom?.count || rt.bedrooms || 1,
+              rt.bathRoom?.count || rt.bathrooms || 1,
+              rt.startPrice || rt.basePrice || 0,
+              JSON.stringify({ en: rt.description || '' }),
+              JSON.stringify({ en: rt.shortDescription || '' })
+            ]);
+            roomsAdded++;
+            importedRooms.push({ externalId: roomExtId, gasRoomId: unitResult.rows[0].id, name: rt.name || 'Room', maxGuests: rt.maxOccupancy || 2, quantity: 1 });
+          }
+        }
+      } catch (roomErr) {
+        console.log('Calry room types fetch error:', roomErr.message);
+      }
+      
+      // Create gas_sync_properties mapping
+      const existingSyncProp = await client.query(
+        'SELECT id FROM gas_sync_properties WHERE connection_id = $1 AND external_id = $2',
+        [id, String(externalId)]
+      );
+      
+      let syncPropertyId;
+      if (existingSyncProp.rows.length === 0) {
+        const syncPropResult = await client.query(`
+          INSERT INTO gas_sync_properties (connection_id, external_id, gas_property_id, name, raw_data, created_at)
+          VALUES ($1, $2, $3, $4, $5, NOW()) RETURNING id
+        `, [id, String(externalId), gasPropertyId, prop.name || 'Property', JSON.stringify(prop)]);
+        syncPropertyId = syncPropResult.rows[0].id;
+      } else {
+        syncPropertyId = existingSyncProp.rows[0].id;
+        await client.query(
+          'UPDATE gas_sync_properties SET gas_property_id = $1, name = $2, raw_data = $3, updated_at = NOW() WHERE id = $4',
+          [gasPropertyId, prop.name || 'Property', JSON.stringify(prop), syncPropertyId]
+        );
+      }
+      
+      // Create gas_sync_room_types entries
+      for (const rm of importedRooms) {
+        const existingSyncRoom = await client.query(
+          'SELECT id FROM gas_sync_room_types WHERE sync_property_id = $1 AND external_id = $2',
+          [syncPropertyId, String(rm.externalId)]
+        );
+        if (existingSyncRoom.rows.length === 0) {
+          await client.query(`
+            INSERT INTO gas_sync_room_types (sync_property_id, connection_id, external_id, gas_room_id, name, max_guests, unit_count, synced_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+          `, [syncPropertyId, parseInt(id), String(rm.externalId), rm.gasRoomId, rm.name, rm.maxGuests, rm.quantity]);
+        } else {
+          await client.query(
+            'UPDATE gas_sync_room_types SET gas_room_id = $1, name = $2, max_guests = $3, synced_at = NOW() WHERE id = $4',
+            [rm.gasRoomId, rm.name, rm.maxGuests, existingSyncRoom.rows[0].id]
+          );
+        }
+      }
+      
+      await client.query('COMMIT');
+      client.release();
+      
+      console.log(`🎉 Calry import complete: ${prop.name} — ${roomsAdded} rooms added, ${roomsUpdated} updated`);
+      
+      return res.json({
+        success: true,
+        propertyId: gasPropertyId,
+        propertyName: prop.name || 'Property',
+        roomsAdded,
+        roomsUpdated,
+        isUpdate,
+        message: isUpdate
+          ? `Updated ${prop.name}: ${roomsUpdated} rooms updated, ${roomsAdded} added`
+          : `Imported ${prop.name} with ${roomsAdded} rooms.`
+      });
+    }
+    
+    // BEDS24: Original Beds24 import flow
     const refreshToken = credentials.refreshToken || conn.refresh_token;
     if (!refreshToken) {
       return res.json({ success: false, error: 'No API credentials. Please reconnect to Beds24.' });
@@ -20194,6 +20455,9 @@ app.get('/api/db/properties', async (req, res) => {
     const accountId = req.query.account_id;
     let result;
     
+    // Ensure portfolio_order column exists
+    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS portfolio_order INTEGER DEFAULT 0').catch(() => {});
+    
     if (accountId) {
       // Check if this account is an agency_admin or has sub-accounts (parent account)
       const accountCheck = await pool.query(`
@@ -20206,29 +20470,46 @@ app.get('/api/db/properties', async (req, res) => {
       const hasSubAccounts = accountCheck.rows.length > 0 && parseInt(accountCheck.rows[0].sub_account_count) > 0;
       
       if (isAgency || hasSubAccounts) {
-        // For agencies or parent accounts, get:
-        // 1. Their own properties
-        // 2. Properties from accounts they manage (managed_by_id)
-        // 3. Properties from sub-accounts (parent_id)
         result = await pool.query(`
           SELECT p.*, a.name as owner_account_name FROM properties p
           LEFT JOIN accounts a ON p.account_id = a.id
           WHERE p.account_id = $1 
              OR a.managed_by_id = $1
              OR a.parent_id = $1
-          ORDER BY p.created_at DESC
+          ORDER BY COALESCE(p.portfolio_order, 999999), p.name
         `, [accountId]);
       } else {
-        // For regular accounts, get their own properties
-        result = await pool.query('SELECT * FROM properties WHERE account_id = $1 ORDER BY created_at DESC', [accountId]);
+        result = await pool.query('SELECT * FROM properties WHERE account_id = $1 ORDER BY COALESCE(portfolio_order, 999999), name', [accountId]);
       }
     } else if (clientId) {
-      result = await pool.query('SELECT * FROM properties WHERE client_id = $1 ORDER BY created_at DESC', [clientId]);
+      result = await pool.query('SELECT * FROM properties WHERE client_id = $1 ORDER BY COALESCE(portfolio_order, 999999), name', [clientId]);
     } else {
-      result = await pool.query('SELECT * FROM properties ORDER BY created_at DESC');
+      result = await pool.query('SELECT * FROM properties ORDER BY COALESCE(portfolio_order, 999999), name');
     }
     
     res.json({ success: true, data: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Reorder properties portfolio
+app.put('/api/db/properties/reorder', async (req, res) => {
+  try {
+    const { order } = req.body; // Array of { id, portfolio_order }
+    
+    if (!Array.isArray(order)) {
+      return res.json({ success: false, error: 'order array required' });
+    }
+    
+    for (const item of order) {
+      await pool.query(
+        'UPDATE properties SET portfolio_order = $1 WHERE id = $2',
+        [item.portfolio_order, item.id]
+      );
+    }
+    
+    res.json({ success: true, message: `Updated order for ${order.length} properties` });
   } catch (error) {
     res.json({ success: false, error: error.message });
   }
