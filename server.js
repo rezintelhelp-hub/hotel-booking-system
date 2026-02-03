@@ -11237,11 +11237,10 @@ app.post('/api/accounts', async (req, res) => {
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS contact_name VARCHAR(255)`).catch(() => {});
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS cm_type VARCHAR(100)`).catch(() => {});
     
-    // Hash password if provided
+    // Hash password if provided (using sha256 - same as login endpoint)
     let passwordHash = null;
     if (password) {
-      const bcrypt = require('bcryptjs');
-      passwordHash = await bcrypt.hash(password, 10);
+      passwordHash = crypto.createHash('sha256').update(password).digest('hex');
     }
     
     const result = await pool.query(`
@@ -23301,8 +23300,26 @@ app.get('/api/calry/link/callback/:linkId', async (req, res) => {
     
     console.log(`Import complete: ${successCount} properties, ${totalRooms} rooms`);
     
-    // Redirect to success page
-    res.redirect(`https://admin.gas.travel/connections?calry_connected=true&pms=${encodeURIComponent(pmsName)}&properties_imported=${successCount}&rooms_imported=${totalRooms}&integration_id=${intAccountId}&account_id=${gasAccountId}`);
+    // Generate auto-login session token so user lands logged into their own account
+    let autoLoginToken = '';
+    try {
+      autoLoginToken = crypto.randomBytes(32).toString('hex');
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS account_sessions (
+          id SERIAL PRIMARY KEY, account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
+          token VARCHAR(255) UNIQUE NOT NULL, expires_at TIMESTAMP NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, ip_address VARCHAR(45), user_agent TEXT
+        )
+      `);
+      await pool.query(
+        'INSERT INTO account_sessions (account_id, token, expires_at, ip_address, user_agent) VALUES ($1, $2, $3, $4, $5)',
+        [gasAccountId, autoLoginToken, expiresAt, req.ip, req.get('User-Agent')]
+      );
+    } catch (tokenErr) { console.error('Auto-login token error:', tokenErr.message); }
+    
+    // Redirect to success page with auto-login token
+    res.redirect(`https://admin.gas.travel/connections?calry_connected=true&pms=${encodeURIComponent(pmsName)}&properties_imported=${successCount}&rooms_imported=${totalRooms}&integration_id=${intAccountId}&account_id=${gasAccountId}&auto_token=${autoLoginToken}`);
     
   } catch (error) {
     console.error('Calry Link callback error:', error.response?.data || error.message);
@@ -23414,13 +23431,39 @@ app.get('/api/calry/link/callback', async (req, res) => {
     // Build redirect URL with results
     const resultParams = `calry_connected=true&pms=${encodeURIComponent(pmsName)}&properties_imported=${successCount}&rooms_imported=${totalRooms}&integration_id=${intAccountId}&account_id=${finalAccountId}&webhooks=${webhookRegistered ? 'registered' : 'pending'}`;
     
+    // Generate auto-login session token so user lands logged into their own account
+    let autoLoginToken = null;
+    try {
+      autoLoginToken = crypto.randomBytes(32).toString('hex');
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS account_sessions (
+          id SERIAL PRIMARY KEY,
+          account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
+          token VARCHAR(255) UNIQUE NOT NULL,
+          expires_at TIMESTAMP NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          ip_address VARCHAR(45),
+          user_agent TEXT
+        )
+      `);
+      await pool.query(
+        'INSERT INTO account_sessions (account_id, token, expires_at, ip_address, user_agent) VALUES ($1, $2, $3, $4, $5)',
+        [finalAccountId, autoLoginToken, expiresAt, req.ip, req.get('User-Agent')]
+      );
+      console.log(`Auto-login token created for account ${finalAccountId}`);
+    } catch (tokenErr) {
+      console.error('Auto-login token error:', tokenErr.message);
+    }
+    
     // Use custom final_redirect if provided, otherwise default to admin
     let redirectTo;
+    const tokenParam = autoLoginToken ? `&auto_token=${autoLoginToken}` : '';
     if (final_redirect) {
       const separator = final_redirect.includes('?') ? '&' : '?';
-      redirectTo = `${decodeURIComponent(final_redirect)}${separator}${resultParams}`;
+      redirectTo = `${decodeURIComponent(final_redirect)}${separator}${resultParams}${tokenParam}`;
     } else {
-      redirectTo = `https://admin.gas.travel/connections?${resultParams}`;
+      redirectTo = `https://admin.gas.travel/connections?${resultParams}${tokenParam}`;
     }
     
     res.redirect(redirectTo);
