@@ -55001,18 +55001,44 @@ app.get('/api/gas-sync/connections/:id/properties', async (req, res) => {
   try {
     const { id } = req.params;
     
+    // Ensure display_order column exists
+    await pool.query('ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS display_order INTEGER DEFAULT 0').catch(() => {});
+    
     const result = await pool.query(`
       SELECT p.id, p.external_id, p.name, p.city, p.country, p.currency,
              p.is_active, p.synced_at, p.gas_property_id, p.prop_key,
-             p.prop_key_tested, p.webhook_tested, p.raw_data,
+             p.prop_key_tested, p.webhook_tested, p.raw_data, p.display_order,
              (SELECT COUNT(*) FROM gas_sync_room_types WHERE sync_property_id = p.id) as room_type_count,
              (SELECT COUNT(*) FROM gas_sync_images WHERE sync_property_id = p.id) as image_count
       FROM gas_sync_properties p
       WHERE p.connection_id = $1
-      ORDER BY p.name
+      ORDER BY COALESCE(p.display_order, 999999), p.name
     `, [id]);
     
     res.json({ success: true, properties: result.rows });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Reorder synced properties
+app.put('/api/gas-sync/connections/:id/reorder-properties', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { order } = req.body; // Array of { id, display_order }
+    
+    if (!Array.isArray(order)) {
+      return res.json({ success: false, error: 'order array required' });
+    }
+    
+    for (const item of order) {
+      await pool.query(
+        'UPDATE gas_sync_properties SET display_order = $1 WHERE id = $2 AND connection_id = $3',
+        [item.display_order, item.id, id]
+      );
+    }
+    
+    res.json({ success: true, message: `Updated order for ${order.length} properties` });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
