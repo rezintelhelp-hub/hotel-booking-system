@@ -11715,7 +11715,7 @@ app.post('/api/public/create-group-booking', async (req, res) => {
                         city: guest_city || '',
                         postcode: guest_postcode || '',
                         country: guest_country || '',
-                        referer: 'GAS Direct Booking',
+                        referer: `GAS #${booking.id}`,
                         notes: `GAS Booking ID: ${booking.id} | Group: ${groupBookingId} (Room ${i + 1}/${rooms.length})`,
                         price: roomPrice,
                         invoiceItems: [{
@@ -20893,7 +20893,7 @@ app.post('/api/db/book', async (req, res) => {
           city: guest_city || '',
           country: guest_country || '',
           postcode: guest_postcode || '',
-          referer: 'GAS Direct Booking',
+          referer: `GAS #${booking.id}`,
           notes: `GAS Booking ID: ${booking.id}`,
           // Price and financial info
           price: parseFloat(total_price) || 0,
@@ -44654,7 +44654,7 @@ app.post('/api/public/book', async (req, res) => {
           city: guest_city || '',
           postcode: guest_postcode || '',
           country: guest_country || '',
-          referer: 'GAS Direct Booking',
+          referer: `GAS #${newBooking.id}`,
           notes: `GAS Booking ID: ${newBooking.id}`,
           price: parseFloat(total_price) || 0,
           deposit: deposit_amount ? parseFloat(deposit_amount) : 0,
