@@ -48573,9 +48573,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 ${isBeds24 ? `<td>
                                     <div style="display: flex; align-items: center; gap: 4px;">
                                         <input type="text" id="propKey-${p.id}" value="${p.prop_key || ''}" placeholder="Enter key" 
-                                            style="width: 80px; padding: 4px 6px; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 0.8rem;"
-                                            ${p.gas_property_id ? 'disabled' : ''}>
-                                        <button onclick="savePropKey(${p.id})" class="btn btn-sm" style="padding: 4px 6px;" ${p.gas_property_id ? 'disabled' : ''} title="Save">💾</button>
+                                            style="width: 80px; padding: 4px 6px; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 0.8rem;">
+                                        <button onclick="savePropKey(${p.id})" class="btn btn-sm" style="padding: 4px 6px;" title="Save">💾</button>
                                         ${p.prop_key && !p.gas_property_id ? `<button onclick="clearPropKey(${p.id})" class="btn btn-sm" style="padding: 4px 6px; background: #fee2e2; color: #dc2626;" title="Clear">🗑️</button>` : ''}
                                         <span id="propkey-test-${p.id}">
                                             ${p.prop_key ? 
