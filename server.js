@@ -60461,14 +60461,34 @@ app.put('/api/plugin-licenses/:id/rooms', async (req, res) => {
     }
     
     const result = await pool.query(`
-      UPDATE plugin_licenses SET room_ids = $1 WHERE id = $2 RETURNING id, room_ids
+      UPDATE plugin_licenses SET room_ids = $1 WHERE id = $2 RETURNING id, room_ids, account_id
     `, [JSON.stringify(roomIds), id]);
     
     if (result.rows.length === 0) {
       return res.json({ success: false, error: 'License not found' });
     }
     
-    res.json({ success: true, message: `Updated: ${roomIds.length} rooms selected`, room_ids: roomIds });
+    // Find associated WordPress site URLs for this account
+    const accountId = result.rows[0].account_id;
+    let siteUrls = [];
+    
+    if (accountId) {
+      // Check deployed_sites (multisite)
+      const deployedResult = await pool.query(
+        `SELECT site_url FROM deployed_sites WHERE account_id = $1 AND status = 'active' AND site_url IS NOT NULL`,
+        [accountId]
+      );
+      siteUrls.push(...deployedResult.rows.map(r => r.site_url));
+      
+      // Check custom_sites
+      const customResult = await pool.query(
+        `SELECT domain FROM custom_sites WHERE account_id = $1 AND domain IS NOT NULL`,
+        [accountId]
+      );
+      siteUrls.push(...customResult.rows.map(r => `https://${r.domain}`));
+    }
+    
+    res.json({ success: true, message: `Updated: ${roomIds.length} rooms selected`, room_ids: roomIds, site_urls: siteUrls });
   } catch (error) {
     console.error('Update plugin license rooms error:', error);
     res.json({ success: false, error: error.message });
