@@ -48102,7 +48102,7 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
 
         function getAdapterEmoji(code) {
-            const emojis = { beds24: '', hostaway: '', smoobu: '', calry: '', guesty: '', hostfully: '', hospitable: '' };
+            const emojis = { beds24: '🏨', hostaway: '🏠', smoobu: '🔗', calry: '🔌', guesty: '🏡', hostfully: '🏘', hospitable: '🛏', calry_hostify: '🏠', calry_lodgify: '🏡', calry_hostfully: '🏘', calry_guesty: '🏡', calry_cloudbeds: '☁', calry_ownerrez: '🔑', other: '➕' };
             return emojis[code] || '';
         }
 
@@ -48169,9 +48169,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 const grid = document.getElementById('adapterGrid');
                 grid.innerHTML = gasSyncAdapters.map(adapter => `
-                    <div class="adapter-card" onclick="selectAdapter('${adapter.code}', '${adapter.name}')">
+                    <div class="adapter-card" onclick="selectAdapter('${adapter.code}', '${adapter.name}')" title="${adapter.description || ''}">
                         <div class="adapter-card-logo">${getAdapterEmoji(adapter.code)}</div>
                         <div class="adapter-card-name">${adapter.name}</div>
+                        <div style="font-size: 0.75rem; color: #9ca3af; margin-top: 2px;">${adapter.description || ''}</div>
                     </div>
                 `).join('');
                 
@@ -48193,6 +48194,20 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
 
         function selectAdapter(code, name) {
+            // Find the adapter to check if it has a wizard URL
+            const adapter = gasSyncAdapters.find(a => a.code === code);
+            
+            // Calry-based PMS: redirect to universal CM wizard
+            if (adapter?.auth_type === 'wizard' && adapter?.wizard_url) {
+                const accountId = selectedAccountId || '';
+                // Extract the PMS name from the wizard_url (e.g. /hostify-wizard -> hostify)
+                const pmsCode = adapter.wizard_url.replace('/', '').replace('-wizard', '');
+                const wizardUrl = `/cm-wizard.html?cm=${pmsCode}&account_id=${accountId}&from_admin=true`;
+                closeModal('addConnectionModal');
+                window.open(wizardUrl, '_blank');
+                return;
+            }
+            
             document.getElementById('selectedAdapterCode').value = code;
             document.getElementById('selectedAdapterName').textContent = `Configure ${name}`;
             
@@ -48209,15 +48224,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                         <div class="help-text">Optional: Enables image download</div></div>
                     <div class="form-group"><label>Property Key (V1)</label>
                         <input type="text" id="credPropKey" placeholder="Optional: V1 property key"></div>
-                `;
-            } else if (code === 'calry') {
-                fieldsHtml = `
-                    <div class="form-group"><label>Calry API Token</label>
-                        <input type="password" id="credToken" placeholder="Enter your Calry API token" required></div>
-                    <div class="form-group"><label>Workspace ID</label>
-                        <input type="text" id="credWorkspaceId" placeholder="Your Calry workspace ID" required></div>
-                    <div class="form-group"><label>Integration Account ID</label>
-                        <input type="text" id="credIntegrationAccountId" placeholder="The connected PMS account ID" required></div>
                 `;
             } else {
                 fieldsHtml = `<div class="form-group"><label>API Token</label>
