@@ -3569,6 +3569,34 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
       gasPropertyId = prop.gas_property_id;
       // Update existing property - only update text fields, skip JSONB columns to avoid type mismatch
       console.log('link-to-gas: Updating existing property', gasPropertyId);
+      
+      // Parse address - Calry sends it as an object like {"city":"Iiyama-shi","line1":"Toyoda 5480","state":"Nagano-ken","country":"JP","postal_code":"389-2411"}
+      let parsedAddr = {};
+      if (rawData.address && typeof rawData.address === 'object') {
+        parsedAddr = rawData.address;
+      } else if (rawData.address && typeof rawData.address === 'string') {
+        try { parsedAddr = JSON.parse(rawData.address); } catch(e) { parsedAddr = { line1: rawData.address }; }
+      }
+      
+      // Parse geoLocation - Calry sends as {"lat": x, "lng": y} or {"latitude": x, "longitude": y}
+      let geo = {};
+      if (rawData.geoLocation && typeof rawData.geoLocation === 'object') {
+        geo = rawData.geoLocation;
+      } else if (rawData.geoLocation && typeof rawData.geoLocation === 'string') {
+        try { geo = JSON.parse(rawData.geoLocation); } catch(e) {}
+      }
+      
+      const addressStr = parsedAddr.line1 || parsedAddr.street || parsedAddr.address1 || (typeof rawData.address === 'string' ? rawData.address : '') || '';
+      const cityStr = parsedAddr.city || rawData.city || '';
+      const stateStr = parsedAddr.state || rawData.state || rawData.region || '';
+      const countryStr = parsedAddr.country || parsedAddr.countryCode || rawData.country || '';
+      const postalStr = parsedAddr.postal_code || parsedAddr.postalCode || rawData.postcode || rawData.postalCode || '';
+      const latVal = geo.lat || geo.latitude || rawData.latitude ? parseFloat(geo.lat || geo.latitude || rawData.latitude) : null;
+      const lngVal = geo.lng || geo.lon || geo.longitude || rawData.longitude ? parseFloat(geo.lng || geo.lon || geo.longitude || rawData.longitude) : null;
+      
+      console.log('link-to-gas: Parsed address:', addressStr, '|', cityStr, '|', stateStr, '|', countryStr, '|', postalStr);
+      console.log('link-to-gas: Parsed coords:', latVal, lngVal);
+      
       await pool.query(`
         UPDATE properties SET
           name = $1,
@@ -3590,19 +3618,19 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         WHERE id = $16
       `, [
         prop.name || 'Unnamed Property',
-        rawData.address || '',
-        rawData.city || '',
-        rawData.state || rawData.region || '',
-        rawData.country || '',
-        rawData.postcode || rawData.postalCode || '',
-        rawData.propertyType || '',
-        rawData.checkInStart || rawData.checkInTime || '',
-        rawData.checkOutEnd || rawData.checkOutTime || '',
+        addressStr,
+        cityStr,
+        stateStr,
+        countryStr,
+        postalStr,
+        rawData.propertyType || rawData.type || '',
+        rawData.checkInStart || rawData.checkInTime || propCheckInTime || '',
+        rawData.checkOutEnd || rawData.checkOutTime || propCheckOutTime || '',
         rawData.email || '',
         rawData.phone || '',
         rawData.web || rawData.website || '',
-        rawData.latitude ? parseFloat(rawData.latitude) : null,
-        rawData.longitude ? parseFloat(rawData.longitude) : null,
+        latVal,
+        lngVal,
         accountId,
         gasPropertyId
       ]);
@@ -3749,10 +3777,24 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         };
         
         // Get currency: first from Beds24/sync, then from country, then default to GBP
-        const propCountry = rawData.country || '';
+        const propCountry = parsedAddr.country || rawData.country || '';
         let propCurrency = prop.currency || rawData.currency;
         if (!propCurrency) {
           propCurrency = countryCurrencyMap[propCountry] || countryCurrencyMap[propCountry.toUpperCase()] || 'GBP';
+        }
+        
+        // Parse address for INSERT (same logic as UPDATE above)
+        let insertAddr = {};
+        if (rawData.address && typeof rawData.address === 'object') {
+          insertAddr = rawData.address;
+        } else if (rawData.address && typeof rawData.address === 'string') {
+          try { insertAddr = JSON.parse(rawData.address); } catch(e) { insertAddr = { line1: rawData.address }; }
+        }
+        let insertGeo = {};
+        if (rawData.geoLocation && typeof rawData.geoLocation === 'object') {
+          insertGeo = rawData.geoLocation;
+        } else if (rawData.geoLocation && typeof rawData.geoLocation === 'string') {
+          try { insertGeo = JSON.parse(rawData.geoLocation); } catch(e) {}
         }
         
         // INSERT with basic fields only (avoid JSONB columns)
@@ -3769,20 +3811,20 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
           accountId,
           String(prop.external_id),
           prop.name || 'Unnamed Property',
-          rawData.address || '',
-          rawData.city || '',
-          rawData.state || rawData.region || '',
-          rawData.country || '',
-          rawData.postcode || rawData.postalCode || '',
+          insertAddr.line1 || insertAddr.street || insertAddr.address1 || (typeof rawData.address === 'string' ? rawData.address : '') || '',
+          insertAddr.city || rawData.city || '',
+          insertAddr.state || rawData.state || rawData.region || '',
+          insertAddr.country || insertAddr.countryCode || rawData.country || '',
+          insertAddr.postal_code || insertAddr.postalCode || rawData.postcode || rawData.postalCode || '',
           propCurrency,
-          rawData.propertyType || 'vacation_rental',
-          rawData.checkInStart || rawData.checkInTime || '15:00',
-          rawData.checkOutEnd || rawData.checkOutTime || '11:00',
+          rawData.propertyType || rawData.type || 'vacation_rental',
+          rawData.checkInStart || rawData.checkInTime || propCheckInTime || '15:00',
+          rawData.checkOutEnd || rawData.checkOutTime || propCheckOutTime || '11:00',
           rawData.email || '',
           rawData.phone || '',
           rawData.web || rawData.website || '',
-          rawData.latitude ? parseFloat(rawData.latitude) : null,
-          rawData.longitude ? parseFloat(rawData.longitude) : null,
+          insertGeo.lat || insertGeo.latitude || rawData.latitude ? parseFloat(insertGeo.lat || insertGeo.latitude || rawData.latitude) : null,
+          insertGeo.lng || insertGeo.lon || insertGeo.longitude || rawData.longitude ? parseFloat(insertGeo.lng || insertGeo.lon || insertGeo.longitude || rawData.longitude) : null,
           prop.adapter_code
         ]);
         gasPropertyId = propResult.rows[0].id;
