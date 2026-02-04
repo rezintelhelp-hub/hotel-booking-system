@@ -16581,30 +16581,31 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 <!-- Payment Provider Selection -->
                 <div style="background: linear-gradient(135deg, #f0f9ff 0%, #e0e7ff 100%); border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem; border: 1px solid #c7d2fe;">
-                    <h4 style="margin: 0 0 1rem 0; font-size: 0.95rem; color: #4338ca;"> Payment Provider</h4>
+                    <h4 style="margin: 0 0 1rem 0; font-size: 0.95rem; color: #4338ca;"> Payment Methods</h4>
+                    <p style="font-size: 0.8rem; color: #64748b; margin: -0.5rem 0 1rem 0;">Select one or more payment methods for this property</p>
                     
                     <div style="display: flex; flex-direction: column; gap: 0.75rem;">
                         <!-- Stripe -->
                         <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer; padding: 0.75rem; background: white; border-radius: 8px; border: 2px solid transparent; transition: all 0.2s;" id="provider-stripe-label">
-                            <input type="radio" name="payment-provider" value="stripe" id="payment-provider-stripe" style="width: 18px; height: 18px;" checked>
+                            <input type="checkbox" name="payment-provider" value="stripe" id="payment-provider-stripe" style="width: 18px; height: 18px;" onchange="togglePaymentSections()">
                             <img src="https://upload.wikimedia.org/wikipedia/commons/b/ba/Stripe_Logo%2C_revised_2016.svg" alt="Stripe" style="height: 24px;">
-                            <span style="flex: 1; font-weight: 500;">Stripe</span>
-                            <span style="font-size: 0.75rem; background: #10b981; color: white; padding: 0.15rem 0.5rem; border-radius: 10px;">Recommended</span>
+                            <span style="flex: 1; font-weight: 500;">Credit/Debit Card (Stripe)</span>
+                            <span style="font-size: 0.75rem; background: #10b981; color: white; padding: 0.15rem 0.5rem; border-radius: 10px;">Online</span>
+                        </label>
+                        
+                        <!-- Bank Transfer -->
+                        <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer; padding: 0.75rem; background: white; border-radius: 8px; border: 2px solid transparent; transition: all 0.2s;" id="provider-bank-label">
+                            <input type="checkbox" name="payment-provider" value="bank_transfer" id="payment-provider-bank" style="width: 18px; height: 18px;" onchange="togglePaymentSections()">
+                            <span style="font-size: 1.25rem;">🏦</span>
+                            <span style="flex: 1; font-weight: 500;">Bank Transfer</span>
+                            <span style="font-size: 0.75rem; background: #3b82f6; color: white; padding: 0.15rem 0.5rem; border-radius: 10px;">Manual</span>
                         </label>
                         
                         <!-- PayPal -->
                         <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer; padding: 0.75rem; background: white; border-radius: 8px; border: 2px solid transparent; opacity: 0.5;" id="provider-paypal-label">
-                            <input type="radio" name="payment-provider" value="paypal" id="payment-provider-paypal" style="width: 18px; height: 18px;" disabled>
+                            <input type="checkbox" name="payment-provider" value="paypal" id="payment-provider-paypal" style="width: 18px; height: 18px;" disabled>
                             <img src="https://upload.wikimedia.org/wikipedia/commons/b/b5/PayPal.svg" alt="PayPal" style="height: 24px;">
                             <span style="flex: 1; font-weight: 500;">PayPal</span>
-                            <span style="font-size: 0.75rem; background: #94a3b8; color: white; padding: 0.15rem 0.5rem; border-radius: 10px;">Coming Soon</span>
-                        </label>
-                        
-                        <!-- Airwallex -->
-                        <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer; padding: 0.75rem; background: white; border-radius: 8px; border: 2px solid transparent; opacity: 0.5;" id="provider-airwallex-label">
-                            <input type="radio" name="payment-provider" value="airwallex" id="payment-provider-airwallex" style="width: 18px; height: 18px;" disabled>
-                            <span style="font-weight: 600; color: #e11d48;">Airwallex</span>
-                            <span style="flex: 1;"></span>
                             <span style="font-size: 0.75rem; background: #94a3b8; color: white; padding: 0.15rem 0.5rem; border-radius: 10px;">Coming Soon</span>
                         </label>
                     </div>
@@ -16651,7 +16652,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 </div>
                 
                 <!-- Generate Setup Link (for property owners) -->
-                <div style="background: #fef3c7; border-radius: 12px; padding: 1rem; margin-bottom: 1.5rem; border: 1px solid #fcd34d;">
+                <div id="stripe-setup-link-section" style="background: #fef3c7; border-radius: 12px; padding: 1rem; margin-bottom: 1.5rem; border: 1px solid #fcd34d;">
                     <div style="display: flex; align-items: center; gap: 0.75rem;">
                         <span style="font-size: 1.25rem;"></span>
                         <div style="flex: 1;">
@@ -16672,6 +16673,35 @@ const promo = await fetch('/api/v1/offers/validate', {
                         <p style="font-size: 0.75rem; color: #92400e; margin: 0.5rem 0 0 0;">
                             Link expires in 72 hours
                         </p>
+                    </div>
+                </div>
+                
+                <!-- Bank Transfer Details Section -->
+                <div id="bank-transfer-section" style="display: none; background: var(--bg-secondary); border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h4 style="margin: 0; font-size: 0.95rem;">🏦 Bank Account Details</h4>
+                        <button type="button" class="btn btn-small" onclick="addBankAccount()" style="font-size: 0.8rem;">+ Add Bank Account</button>
+                    </div>
+                    <p style="font-size: 0.8rem; color: #64748b; margin: -0.5rem 0 1rem 0;">
+                        These details will be shown to guests when they choose to pay by bank transfer
+                    </p>
+                    
+                    <div id="bank-accounts-container">
+                        <!-- Bank accounts will be rendered here -->
+                    </div>
+                    
+                    <!-- Bank Transfer Instructions -->
+                    <div class="form-group" style="margin-top: 1rem; margin-bottom: 0.5rem;">
+                        <label class="form-label">Custom Instructions (shown to guest)</label>
+                        <textarea id="bank-transfer-instructions" class="form-input" rows="3" placeholder="e.g., To complete your reservation, please make a bank transfer for the amount above. We will hold this reservation for a maximum of 48 hours. Please send proof of payment to our email."></textarea>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label">Payment Deadline (hours)</label>
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <input type="number" id="bank-transfer-deadline-hours" class="form-input" value="48" min="0" style="max-width: 100px;">
+                            <span style="font-size: 0.85rem; color: #64748b;">hours to complete transfer (0 = no deadline)</span>
+                        </div>
                     </div>
                 </div>
                 
@@ -16715,6 +16745,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                         <option value="USD"> USD ($)</option>
                         <option value="EUR"> EUR ()</option>
                         <option value="CHF"> CHF</option>
+                        <option value="PHP"> PHP (₱)</option>
+                        <option value="AED"> AED</option>
+                        <option value="JPY"> JPY (¥)</option>
+                        <option value="THB"> THB (฿)</option>
                     </select>
                 </div>
                 
@@ -46326,7 +46360,8 @@ const promo = await fetch('/api/v1/offers/validate', {
             document.getElementById('payment-settings-property-name').textContent = propertyName;
             
             // Reset form
-            document.getElementById('payment-provider-stripe').checked = true;
+            document.getElementById('payment-provider-stripe').checked = false;
+            document.getElementById('payment-provider-bank').checked = false;
             document.getElementById('stripe-publishable-key').value = '';
             document.getElementById('stripe-secret-key').value = '';
             document.getElementById('stripe-test-mode').checked = false;
@@ -46337,6 +46372,10 @@ const promo = await fetch('/api/v1/offers/validate', {
             document.getElementById('payment-balance-days').value = 14;
             document.getElementById('payment-currency').value = 'GBP';
             document.getElementById('payment-cancellation').value = '';
+            document.getElementById('bank-transfer-instructions').value = '';
+            document.getElementById('bank-transfer-deadline-hours').value = 48;
+            currentBankAccounts = [];
+            renderBankAccounts();
             
             // Get property's account_id
             try {
@@ -46360,6 +46399,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     // Show configured status
                     const statusEl = document.getElementById('stripe-keys-status');
                     if (config.is_enabled) {
+                        document.getElementById('payment-provider-stripe').checked = true;
                         statusEl.innerHTML = '<span style="color: var(--success);"> Stripe connected and enabled</span>';
                         statusEl.style.background = '#d1fae5';
                         statusEl.style.display = 'block';
@@ -46379,7 +46419,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 console.error('Error loading payment config:', error);
             }
             
-            // Also load legacy payment settings
+            // Also load legacy payment settings (includes bank details)
             try {
                 const response = await fetch(`/api/property/${propertyId}/payment-settings`);
                 const data = await response.json();
@@ -46392,12 +46432,35 @@ const promo = await fetch('/api/v1/offers/validate', {
                     document.getElementById('payment-currency').value = settings.currency || 'GBP';
                     document.getElementById('payment-cancellation').value = settings.cancellation_policy || '';
                     
+                    // Load accepted methods
+                    const methods = typeof settings.accepted_methods === 'string' ? JSON.parse(settings.accepted_methods) : (settings.accepted_methods || ['card']);
+                    if (methods.includes('card') || methods.includes('stripe')) {
+                        document.getElementById('payment-provider-stripe').checked = true;
+                    }
+                    if (methods.includes('bank_transfer')) {
+                        document.getElementById('payment-provider-bank').checked = true;
+                    }
+                    
+                    // Load bank details
+                    const bankDetails = typeof settings.bank_details === 'string' ? JSON.parse(settings.bank_details) : (settings.bank_details || {});
+                    if (bankDetails.accounts && bankDetails.accounts.length > 0) {
+                        currentBankAccounts = bankDetails.accounts;
+                        renderBankAccounts();
+                    }
+                    if (bankDetails.instructions) {
+                        document.getElementById('bank-transfer-instructions').value = bankDetails.instructions;
+                    }
+                    if (bankDetails.deadline_hours !== undefined) {
+                        document.getElementById('bank-transfer-deadline-hours').value = bankDetails.deadline_hours;
+                    }
+                    
                     updateDepositSymbol();
                 }
             } catch (error) {
                 console.error('Error loading payment settings:', error);
             }
             
+            togglePaymentSections();
             openModal('paymentSettingsModal');
         }
         
@@ -46434,6 +46497,130 @@ const promo = await fetch('/api/v1/offers/validate', {
                 currencySelect.addEventListener('change', updateDepositSymbol);
             }
         });
+        
+        // ===== Bank Transfer Management =====
+        let currentBankAccounts = [];
+        
+        function togglePaymentSections() {
+            const stripeChecked = document.getElementById('payment-provider-stripe').checked;
+            const bankChecked = document.getElementById('payment-provider-bank').checked;
+            
+            document.getElementById('stripe-keys-section').style.display = stripeChecked ? 'block' : 'none';
+            document.getElementById('stripe-setup-link-section').style.display = stripeChecked ? 'block' : 'none';
+            document.getElementById('bank-transfer-section').style.display = bankChecked ? 'block' : 'none';
+            
+            // Highlight selected providers
+            document.getElementById('provider-stripe-label').style.borderColor = stripeChecked ? '#4f46e5' : 'transparent';
+            document.getElementById('provider-stripe-label').style.background = stripeChecked ? '#eef2ff' : 'white';
+            document.getElementById('provider-bank-label').style.borderColor = bankChecked ? '#3b82f6' : 'transparent';
+            document.getElementById('provider-bank-label').style.background = bankChecked ? '#eff6ff' : 'white';
+        }
+        
+        function addBankAccount() {
+            currentBankAccounts.push({
+                label: '',
+                bank_name: '',
+                bank_address: '',
+                account_name: '',
+                account_number: '',
+                sort_code: '',
+                iban: '',
+                swift_bic: '',
+                currency: document.getElementById('payment-currency')?.value || 'GBP',
+                notes: ''
+            });
+            renderBankAccounts();
+        }
+        
+        function removeBankAccount(index) {
+            if (confirm('Remove this bank account?')) {
+                currentBankAccounts.splice(index, 1);
+                renderBankAccounts();
+            }
+        }
+        
+        function updateBankAccount(index, field, value) {
+            if (currentBankAccounts[index]) {
+                currentBankAccounts[index][field] = value;
+            }
+        }
+        
+        function renderBankAccounts() {
+            const container = document.getElementById('bank-accounts-container');
+            if (!container) return;
+            
+            if (currentBankAccounts.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 1.5rem; color: #64748b; background: white; border-radius: 8px; border: 2px dashed #e2e8f0;">
+                        <p style="margin: 0 0 0.5rem 0;">🏦 No bank accounts added yet</p>
+                        <button type="button" class="btn btn-small" onclick="addBankAccount()" style="font-size: 0.8rem;">+ Add Bank Account</button>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = currentBankAccounts.map((account, i) => `
+                <div style="background: white; border-radius: 10px; padding: 1rem; margin-bottom: 0.75rem; border: 1px solid #e2e8f0;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                        <strong style="font-size: 0.9rem;">🏦 ${account.label || account.bank_name || 'Bank Account ' + (i + 1)}</strong>
+                        <button type="button" onclick="removeBankAccount(${i})" style="background: none; border: none; cursor: pointer; color: #ef4444; font-size: 0.85rem;">✕ Remove</button>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                        <div class="form-group" style="margin-bottom: 0.5rem;">
+                            <label style="font-size: 0.75rem; font-weight: 600; color: #64748b;">Label (e.g. "Local PHP" or "International USD")</label>
+                            <input type="text" class="form-input" value="${account.label || ''}" onchange="updateBankAccount(${i}, 'label', this.value)" placeholder="e.g. Local Bank Account" style="font-size: 0.85rem;">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0.5rem;">
+                            <label style="font-size: 0.75rem; font-weight: 600; color: #64748b;">Bank Name *</label>
+                            <input type="text" class="form-input" value="${account.bank_name || ''}" onchange="updateBankAccount(${i}, 'bank_name', this.value)" placeholder="e.g. BPI, HSBC, Barclays" style="font-size: 0.85rem;" required>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0.5rem; grid-column: 1 / -1;">
+                            <label style="font-size: 0.75rem; font-weight: 600; color: #64748b;">Bank Address</label>
+                            <input type="text" class="form-input" value="${account.bank_address || ''}" onchange="updateBankAccount(${i}, 'bank_address', this.value)" placeholder="Branch address" style="font-size: 0.85rem;">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0.5rem;">
+                            <label style="font-size: 0.75rem; font-weight: 600; color: #64748b;">Account Name *</label>
+                            <input type="text" class="form-input" value="${account.account_name || ''}" onchange="updateBankAccount(${i}, 'account_name', this.value)" placeholder="e.g. MBG Travel & Tours Inc" style="font-size: 0.85rem;" required>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0.5rem;">
+                            <label style="font-size: 0.75rem; font-weight: 600; color: #64748b;">Account Number *</label>
+                            <input type="text" class="form-input" value="${account.account_number || ''}" onchange="updateBankAccount(${i}, 'account_number', this.value)" placeholder="e.g. 2520 0121-36" style="font-size: 0.85rem;" required>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0.5rem;">
+                            <label style="font-size: 0.75rem; font-weight: 600; color: #64748b;">Sort Code</label>
+                            <input type="text" class="form-input" value="${account.sort_code || ''}" onchange="updateBankAccount(${i}, 'sort_code', this.value)" placeholder="e.g. 20-00-00" style="font-size: 0.85rem;">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0.5rem;">
+                            <label style="font-size: 0.75rem; font-weight: 600; color: #64748b;">IBAN</label>
+                            <input type="text" class="form-input" value="${account.iban || ''}" onchange="updateBankAccount(${i}, 'iban', this.value)" placeholder="e.g. GB29 NWBK 6016 1331 9268 19" style="font-size: 0.85rem;">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0.5rem;">
+                            <label style="font-size: 0.75rem; font-weight: 600; color: #64748b;">SWIFT/BIC</label>
+                            <input type="text" class="form-input" value="${account.swift_bic || ''}" onchange="updateBankAccount(${i}, 'swift_bic', this.value)" placeholder="e.g. BOPIPHMMXXX" style="font-size: 0.85rem;">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0.5rem;">
+                            <label style="font-size: 0.75rem; font-weight: 600; color: #64748b;">Currency</label>
+                            <select class="form-input" onchange="updateBankAccount(${i}, 'currency', this.value)" style="font-size: 0.85rem;">
+                                <option value="PHP" ${account.currency === 'PHP' ? 'selected' : ''}>PHP (₱)</option>
+                                <option value="GBP" ${account.currency === 'GBP' ? 'selected' : ''}>GBP (£)</option>
+                                <option value="USD" ${account.currency === 'USD' ? 'selected' : ''}>USD ($)</option>
+                                <option value="EUR" ${account.currency === 'EUR' ? 'selected' : ''}>EUR (€)</option>
+                                <option value="CHF" ${account.currency === 'CHF' ? 'selected' : ''}>CHF</option>
+                                <option value="AED" ${account.currency === 'AED' ? 'selected' : ''}>AED</option>
+                                <option value="JPY" ${account.currency === 'JPY' ? 'selected' : ''}>JPY (¥)</option>
+                                <option value="THB" ${account.currency === 'THB' ? 'selected' : ''}>THB (฿)</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label style="font-size: 0.75rem; font-weight: 600; color: #64748b;">Additional Notes</label>
+                        <input type="text" class="form-input" value="${account.notes || ''}" onchange="updateBankAccount(${i}, 'notes', this.value)" placeholder="e.g. For international transfers only" style="font-size: 0.85rem;">
+                    </div>
+                </div>
+            `).join('');
+        }
         
         async function savePaymentSettings() {
             const propertyId = document.getElementById('payment-settings-property-id').value;
@@ -46475,13 +46662,25 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
             
             // Save deposit/payment settings
+            const acceptedMethods = [];
+            if (document.getElementById('payment-provider-stripe').checked) acceptedMethods.push('card');
+            if (document.getElementById('payment-provider-bank').checked) acceptedMethods.push('bank_transfer');
+            
+            // Build bank details object
+            const bankDetails = {
+                accounts: currentBankAccounts,
+                instructions: document.getElementById('bank-transfer-instructions').value,
+                deadline_hours: parseInt(document.getElementById('bank-transfer-deadline-hours').value) || 48
+            };
+            
             const settings = {
                 payment_enabled: true,
                 deposit_type: document.getElementById('payment-deposit-type').value,
                 deposit_amount: parseFloat(document.getElementById('payment-deposit-amount').value) || 25,
                 balance_due_days: parseInt(document.getElementById('payment-balance-days').value) || 14,
                 currency: document.getElementById('payment-currency').value,
-                accepted_methods: ['card'],
+                accepted_methods: acceptedMethods.length > 0 ? acceptedMethods : ['card'],
+                bank_details: bankDetails,
                 cancellation_policy: document.getElementById('payment-cancellation').value
             };
             
