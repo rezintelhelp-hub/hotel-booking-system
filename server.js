@@ -32,6 +32,17 @@ let searchConsole = null;
 let analyticsAdmin = null;
 let analyticsData = null;
 
+// Helper: extract plain string from a value that might be a multilingual object {"en":"..."} or a plain string
+// Used whenever frontend sends multilingual data to a VARCHAR column
+function mlStr(value) {
+  if (!value) return value;
+  if (typeof value === 'string') return value;
+  if (typeof value === 'object' && value !== null) {
+    return value.en || value.fr || value.es || value.de || value.nl || value.ja || Object.values(value)[0] || '';
+  }
+  return String(value);
+}
+
 // Initialize Google Auth from service account
 function initGoogleAuth() {
   try {
@@ -11714,7 +11725,7 @@ app.post('/api/properties/:propertyId/deposit-rules', async (req, res) => {
     try {
         const { propertyId } = req.params;
         const {
-            rule_name,
+            rule_name: rawRuleName,
             deposit_type,
             deposit_percentage,
             deposit_fixed_amount,
@@ -11729,6 +11740,7 @@ app.post('/api/properties/:propertyId/deposit-rules', async (req, res) => {
             max_nights,
             is_active
         } = req.body;
+        const rule_name = mlStr(rawRuleName);
         
         // Get account_id from property
         const property = await pool.query('SELECT account_id FROM properties WHERE id = $1', [propertyId]);
@@ -11767,7 +11779,7 @@ app.put('/api/deposit-rules/:ruleId', async (req, res) => {
     try {
         const { ruleId } = req.params;
         const {
-            rule_name,
+            rule_name: rawRuleName,
             deposit_type,
             deposit_percentage,
             deposit_fixed_amount,
@@ -11782,6 +11794,7 @@ app.put('/api/deposit-rules/:ruleId', async (req, res) => {
             max_nights,
             is_active
         } = req.body;
+        const rule_name = mlStr(rawRuleName);
         
         const result = await pool.query(`
             UPDATE deposit_rules SET
@@ -11857,7 +11870,7 @@ app.post('/api/accounts/:accountId/deposit-rules', async (req, res) => {
     try {
         const { accountId } = req.params;
         const {
-            rule_name,
+            rule_name: rawRuleName,
             deposit_type,
             deposit_percentage,
             deposit_fixed_amount,
@@ -11868,6 +11881,7 @@ app.post('/api/accounts/:accountId/deposit-rules', async (req, res) => {
             refund_policy,
             is_active
         } = req.body;
+        const rule_name = mlStr(rawRuleName);
         
         const result = await pool.query(`
             INSERT INTO deposit_rules (
@@ -29538,7 +29552,7 @@ app.get('/api/admin/offers/:id', async (req, res) => {
 app.post('/api/admin/offers', async (req, res) => {
   try {
     const {
-      name, description, property_id, room_id,
+      name: rawName, description: rawDesc, property_id, room_id,
       property_ids, room_ids, account_id,
       discount_type, discount_value, applies_to,
       min_nights, max_nights, min_guests, max_guests,
@@ -29547,6 +29561,8 @@ app.post('/api/admin/offers', async (req, res) => {
       allowed_checkin_days, allowed_checkout_days,
       stackable, priority, active, pricing_tier, price_per_night
     } = req.body;
+    const name = mlStr(rawName);
+    const description = mlStr(rawDesc);
     
     // CRITICAL: Get account_id from property if not provided
     // This ensures offers are always scoped to an account
@@ -29620,7 +29636,7 @@ app.post('/api/admin/offers', async (req, res) => {
 app.put('/api/admin/offers/:id', async (req, res) => {
   try {
     const {
-      name, description, property_id, room_id,
+      name: rawName, description: rawDesc, property_id, room_id,
       property_ids, room_ids, account_id,
       discount_type, discount_value, price_per_night, applies_to,
       min_nights, max_nights, min_guests, max_guests,
@@ -29630,6 +29646,8 @@ app.put('/api/admin/offers/:id', async (req, res) => {
       stackable, priority, active,
       available_website, available_agents, pricing_tier
     } = req.body;
+    const name = mlStr(rawName);
+    const description = mlStr(rawDesc);
     
     let result;
     try {
@@ -29826,7 +29844,7 @@ app.post('/api/admin/vouchers', async (req, res) => {
         property_ids, room_ids,
         valid_from, valid_until, active,
         is_external, vendor_id
-      ) VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6::jsonb, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+      ) VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6::jsonb, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
       RETURNING *
     `, [
       code.toUpperCase(), englishName, englishDesc, nameJson, descJson, termsJson,
@@ -29917,6 +29935,12 @@ app.delete('/api/admin/vouchers/:id', async (req, res) => {
 // Get all vendors for an account
 app.get('/api/admin/vendors', async (req, res) => {
   try {
+    // Ensure vendor_permissions columns exist
+    await pool.query('ALTER TABLE vendor_permissions ADD COLUMN IF NOT EXISTS can_see_booking_dates BOOLEAN DEFAULT true').catch(() => {});
+    await pool.query('ALTER TABLE vendor_permissions ADD COLUMN IF NOT EXISTS can_see_room_details BOOLEAN DEFAULT false').catch(() => {});
+    await pool.query('ALTER TABLE vendor_permissions ADD COLUMN IF NOT EXISTS can_see_booking_notes BOOLEAN DEFAULT false').catch(() => {});
+    await pool.query('ALTER TABLE vendor_permissions ADD COLUMN IF NOT EXISTS can_see_price_paid BOOLEAN DEFAULT false').catch(() => {});
+    
     const accountId = req.query.account_id;
     let query = `
       SELECT v.*, 
@@ -29947,6 +29971,12 @@ app.get('/api/admin/vendors', async (req, res) => {
 // Get single vendor
 app.get('/api/admin/vendors/:id', async (req, res) => {
   try {
+    // Ensure vendor_permissions columns exist
+    await pool.query('ALTER TABLE vendor_permissions ADD COLUMN IF NOT EXISTS can_see_booking_dates BOOLEAN DEFAULT true').catch(() => {});
+    await pool.query('ALTER TABLE vendor_permissions ADD COLUMN IF NOT EXISTS can_see_room_details BOOLEAN DEFAULT false').catch(() => {});
+    await pool.query('ALTER TABLE vendor_permissions ADD COLUMN IF NOT EXISTS can_see_booking_notes BOOLEAN DEFAULT false').catch(() => {});
+    await pool.query('ALTER TABLE vendor_permissions ADD COLUMN IF NOT EXISTS can_see_price_paid BOOLEAN DEFAULT false').catch(() => {});
+    
     const result = await pool.query(`
       SELECT v.*, 
              vp.can_see_guest_name, vp.can_see_guest_email, vp.can_see_guest_phone,
@@ -29980,6 +30010,15 @@ app.post('/api/admin/vendors', async (req, res) => {
     
     // Ensure account_id column allows NULL
     await client.query('ALTER TABLE vendors ALTER COLUMN account_id DROP NOT NULL').catch(() => {});
+    
+    // Ensure vendor_permissions columns exist
+    await client.query('ALTER TABLE vendor_permissions ADD COLUMN IF NOT EXISTS can_see_guest_name BOOLEAN DEFAULT true').catch(() => {});
+    await client.query('ALTER TABLE vendor_permissions ADD COLUMN IF NOT EXISTS can_see_guest_email BOOLEAN DEFAULT false').catch(() => {});
+    await client.query('ALTER TABLE vendor_permissions ADD COLUMN IF NOT EXISTS can_see_guest_phone BOOLEAN DEFAULT true').catch(() => {});
+    await client.query('ALTER TABLE vendor_permissions ADD COLUMN IF NOT EXISTS can_see_booking_dates BOOLEAN DEFAULT true').catch(() => {});
+    await client.query('ALTER TABLE vendor_permissions ADD COLUMN IF NOT EXISTS can_see_room_details BOOLEAN DEFAULT false').catch(() => {});
+    await client.query('ALTER TABLE vendor_permissions ADD COLUMN IF NOT EXISTS can_see_booking_notes BOOLEAN DEFAULT false').catch(() => {});
+    await client.query('ALTER TABLE vendor_permissions ADD COLUMN IF NOT EXISTS can_see_price_paid BOOLEAN DEFAULT false').catch(() => {});
     
     await client.query('BEGIN');
     
@@ -30032,6 +30071,12 @@ app.post('/api/admin/vendors', async (req, res) => {
 app.put('/api/admin/vendors/:id', async (req, res) => {
   const client = await pool.connect();
   try {
+    // Ensure vendor_permissions columns exist
+    await client.query('ALTER TABLE vendor_permissions ADD COLUMN IF NOT EXISTS can_see_booking_dates BOOLEAN DEFAULT true').catch(() => {});
+    await client.query('ALTER TABLE vendor_permissions ADD COLUMN IF NOT EXISTS can_see_room_details BOOLEAN DEFAULT false').catch(() => {});
+    await client.query('ALTER TABLE vendor_permissions ADD COLUMN IF NOT EXISTS can_see_booking_notes BOOLEAN DEFAULT false').catch(() => {});
+    await client.query('ALTER TABLE vendor_permissions ADD COLUMN IF NOT EXISTS can_see_price_paid BOOLEAN DEFAULT false').catch(() => {});
+    
     const { id } = req.params;
     const { 
       name, email, phone, address, website, contact_name, notes, login_email, is_active,
@@ -30650,7 +30695,8 @@ app.get('/api/admin/taxes', async (req, res) => {
 
 app.post('/api/admin/taxes', async (req, res) => {
   try {
-    const { name, country, amount_type, currency, amount, charge_per, max_nights, min_age, star_tier, season_start, season_end, property_id, room_id, active, account_id } = req.body;
+    const { name: rawName, country, amount_type, currency, amount, charge_per, max_nights, min_age, star_tier, season_start, season_end, property_id, room_id, active, account_id } = req.body;
+    const name = mlStr(rawName);
     
     // user_id = creator (account_id)
     // Visibility is handled by GET which checks property ownership
@@ -30668,7 +30714,8 @@ app.post('/api/admin/taxes', async (req, res) => {
 
 app.put('/api/admin/taxes/:id', async (req, res) => {
   try {
-    const { name, country, amount_type, currency, amount, charge_per, max_nights, min_age, star_tier, season_start, season_end, property_id, room_id, active } = req.body;
+    const { name: rawName, country, amount_type, currency, amount, charge_per, max_nights, min_age, star_tier, season_start, season_end, property_id, room_id, active } = req.body;
+    const name = mlStr(rawName);
     
     const result = await pool.query(`
       UPDATE taxes SET
