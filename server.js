@@ -22720,18 +22720,26 @@ app.post('/api/calry/import-property', async (req, res) => {
     let gasPropertyId;
     
     // Log the raw address from Calry for debugging
-    console.log('[Calry Sync] Raw address data:', JSON.stringify(calryProperty.address));
+    console.log('[Calry Sync] Raw address data:', JSON.stringify(calryProperty.address), 'type:', typeof calryProperty.address);
+    console.log('[Calry Sync] Raw coordinates:', JSON.stringify(calryProperty.coordinates));
     
-    // Parse address - handle both {line1, city, state, country} and {street, city, country} formats
+    // Parse address - handle JSON string, object, or plain string
+    // Adapter outputs: { street, street2, city, state, postalCode, country, countryCode }
+    // Plus separate: coordinates: { latitude, longitude }
+    let addr = calryProperty.address || {};
+    if (typeof addr === 'string') {
+      try { addr = JSON.parse(addr); } catch (e) { addr = { street: addr }; }
+    }
+    
     const parsedAddress = {
-      street: calryProperty.address?.line1 || calryProperty.address?.street || (typeof calryProperty.address === 'string' ? calryProperty.address : '') || '',
-      line2: calryProperty.address?.line2 || '',
-      city: calryProperty.address?.city || '',
-      state: calryProperty.address?.state || '',
-      country: calryProperty.address?.country || '',
-      postal_code: calryProperty.address?.postal_code || calryProperty.address?.postalCode || '',
-      lat: calryProperty.address?.coordinates?.lat || calryProperty.address?.latitude || calryProperty.latitude || null,
-      lng: calryProperty.address?.coordinates?.lng || calryProperty.address?.longitude || calryProperty.longitude || null
+      street: addr.street || addr.line1 || addr.address1 || addr.address || '',
+      line2: addr.street2 || addr.line2 || addr.address2 || '',
+      city: addr.city || '',
+      state: addr.state || addr.region || addr.province || '',
+      country: addr.country || addr.countryCode || '',
+      postal_code: addr.postalCode || addr.postal_code || addr.zipCode || addr.zip || '',
+      lat: calryProperty.coordinates?.latitude || calryProperty.coordinates?.lat || addr.coordinates?.lat || calryProperty.latitude || null,
+      lng: calryProperty.coordinates?.longitude || calryProperty.coordinates?.lng || calryProperty.coordinates?.lon || addr.coordinates?.lng || calryProperty.longitude || null
     };
     
     // Build full address string (combining line1 + line2)
@@ -26100,16 +26108,21 @@ app.get('/api/calry/import-property/:integrationAccountId/:propertyId', async (r
     
     let gasPropertyId;
     
-    // Parse address - handle both {line1, city, state, country} and {street, city, country} formats
+    // Parse address - handle JSON string, object, or plain string
+    let addr2 = calryProperty.address || {};
+    if (typeof addr2 === 'string') {
+      try { addr2 = JSON.parse(addr2); } catch (e) { addr2 = { street: addr2 }; }
+    }
+    
     const parsedAddress2 = {
-      street: calryProperty.address?.line1 || calryProperty.address?.street || (typeof calryProperty.address === 'string' ? calryProperty.address : '') || '',
-      line2: calryProperty.address?.line2 || '',
-      city: calryProperty.address?.city || '',
-      state: calryProperty.address?.state || '',
-      country: calryProperty.address?.country || '',
-      postal_code: calryProperty.address?.postal_code || calryProperty.address?.postalCode || '',
-      lat: calryProperty.address?.coordinates?.lat || calryProperty.address?.latitude || calryProperty.latitude || null,
-      lng: calryProperty.address?.coordinates?.lng || calryProperty.address?.longitude || calryProperty.longitude || null
+      street: addr2.street || addr2.line1 || addr2.address1 || addr2.address || '',
+      line2: addr2.street2 || addr2.line2 || addr2.address2 || '',
+      city: addr2.city || '',
+      state: addr2.state || addr2.region || addr2.province || '',
+      country: addr2.country || addr2.countryCode || '',
+      postal_code: addr2.postalCode || addr2.postal_code || addr2.zipCode || addr2.zip || '',
+      lat: calryProperty.coordinates?.latitude || calryProperty.coordinates?.lat || addr2.coordinates?.lat || calryProperty.latitude || null,
+      lng: calryProperty.coordinates?.longitude || calryProperty.coordinates?.lng || calryProperty.coordinates?.lon || addr2.coordinates?.lng || calryProperty.longitude || null
     };
     parsedAddress2.full = [parsedAddress2.street, parsedAddress2.line2].filter(Boolean).join(', ');
     
