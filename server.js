@@ -30029,6 +30029,40 @@ app.get('/api/admin/vendors/:id', async (req, res) => {
 
 // Create vendor
 app.post('/api/admin/vendors', async (req, res) => {
+  // Run DDL operations on pool (outside transaction)
+  await pool.query('ALTER TABLE vendors ALTER COLUMN account_id DROP NOT NULL').catch(() => {});
+  
+  // Drop global unique on login_email, replace with per-account unique
+  try {
+    const constraints = await pool.query(`
+      SELECT con.conname FROM pg_constraint con
+      JOIN pg_class rel ON rel.oid = con.conrelid
+      JOIN pg_attribute att ON att.attrelid = con.conrelid AND att.attnum = ANY(con.conkey)
+      WHERE rel.relname = 'vendors' AND att.attname = 'login_email'
+    `);
+    for (const row of constraints.rows) {
+      await pool.query(`ALTER TABLE vendors DROP CONSTRAINT "${row.conname}"`).catch(e => console.log('Drop vendor constraint error:', e.message));
+    }
+    const indexes = await pool.query(`
+      SELECT indexname FROM pg_indexes 
+      WHERE tablename = 'vendors' AND indexdef ILIKE '%login_email%'
+      AND indexname != 'vendors_login_email_account_unique'
+    `);
+    for (const row of indexes.rows) {
+      await pool.query(`DROP INDEX "${row.indexname}"`).catch(e => console.log('Drop vendor index error:', e.message));
+    }
+  } catch(e) { console.log('Vendor constraint cleanup error:', e.message); }
+  await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS vendors_login_email_account_unique ON vendors (login_email, COALESCE(account_id, 0))').catch(e => console.log('Create vendor index error:', e.message));
+  
+  // Ensure vendor_permissions columns exist
+  await pool.query('ALTER TABLE vendor_permissions ADD COLUMN IF NOT EXISTS can_see_guest_name BOOLEAN DEFAULT true').catch(() => {});
+  await pool.query('ALTER TABLE vendor_permissions ADD COLUMN IF NOT EXISTS can_see_guest_email BOOLEAN DEFAULT false').catch(() => {});
+  await pool.query('ALTER TABLE vendor_permissions ADD COLUMN IF NOT EXISTS can_see_guest_phone BOOLEAN DEFAULT true').catch(() => {});
+  await pool.query('ALTER TABLE vendor_permissions ADD COLUMN IF NOT EXISTS can_see_booking_dates BOOLEAN DEFAULT true').catch(() => {});
+  await pool.query('ALTER TABLE vendor_permissions ADD COLUMN IF NOT EXISTS can_see_room_details BOOLEAN DEFAULT false').catch(() => {});
+  await pool.query('ALTER TABLE vendor_permissions ADD COLUMN IF NOT EXISTS can_see_booking_notes BOOLEAN DEFAULT false').catch(() => {});
+  await pool.query('ALTER TABLE vendor_permissions ADD COLUMN IF NOT EXISTS can_see_price_paid BOOLEAN DEFAULT false').catch(() => {});
+  
   const client = await pool.connect();
   try {
     const { 
@@ -30038,43 +30072,7 @@ app.post('/api/admin/vendors', async (req, res) => {
     
     // Get account_id from body, query, or header
     const account_id = req.body.account_id || req.query.account_id || req.headers['x-account-id'] || null;
-    
-    // Ensure account_id column allows NULL
-    await client.query('ALTER TABLE vendors ALTER COLUMN account_id DROP NOT NULL').catch(() => {});
-    
-    // Drop global unique on login_email, replace with per-account unique
-    try {
-      const constraints = await client.query(`
-        SELECT con.conname FROM pg_constraint con
-        JOIN pg_class rel ON rel.oid = con.conrelid
-        JOIN pg_attribute att ON att.attrelid = con.conrelid AND att.attnum = ANY(con.conkey)
-        WHERE rel.relname = 'vendors' AND att.attname = 'login_email'
-      `);
-      console.log('Vendor login_email constraints found:', JSON.stringify(constraints.rows));
-      for (const row of constraints.rows) {
-        console.log('Dropping vendor constraint:', row.conname);
-        await client.query(`ALTER TABLE vendors DROP CONSTRAINT "${row.conname}"`).catch(e => console.log('Drop vendor constraint error:', e.message));
-      }
-      const indexes = await client.query(`
-        SELECT indexname FROM pg_indexes 
-        WHERE tablename = 'vendors' AND indexdef ILIKE '%login_email%'
-        AND indexname != 'vendors_login_email_account_unique'
-      `);
-      for (const row of indexes.rows) {
-        console.log('Dropping vendor index:', row.indexname);
-        await client.query(`DROP INDEX "${row.indexname}"`).catch(e => console.log('Drop vendor index error:', e.message));
-      }
-    } catch(e) { console.log('Vendor constraint cleanup error:', e.message); }
-    await client.query('CREATE UNIQUE INDEX IF NOT EXISTS vendors_login_email_account_unique ON vendors (login_email, COALESCE(account_id, 0))').catch(e => console.log('Create vendor index error:', e.message));
-    
-    // Ensure vendor_permissions columns exist
-    await client.query('ALTER TABLE vendor_permissions ADD COLUMN IF NOT EXISTS can_see_guest_name BOOLEAN DEFAULT true').catch(() => {});
-    await client.query('ALTER TABLE vendor_permissions ADD COLUMN IF NOT EXISTS can_see_guest_email BOOLEAN DEFAULT false').catch(() => {});
-    await client.query('ALTER TABLE vendor_permissions ADD COLUMN IF NOT EXISTS can_see_guest_phone BOOLEAN DEFAULT true').catch(() => {});
-    await client.query('ALTER TABLE vendor_permissions ADD COLUMN IF NOT EXISTS can_see_booking_dates BOOLEAN DEFAULT true').catch(() => {});
-    await client.query('ALTER TABLE vendor_permissions ADD COLUMN IF NOT EXISTS can_see_room_details BOOLEAN DEFAULT false').catch(() => {});
-    await client.query('ALTER TABLE vendor_permissions ADD COLUMN IF NOT EXISTS can_see_booking_notes BOOLEAN DEFAULT false').catch(() => {});
-    await client.query('ALTER TABLE vendor_permissions ADD COLUMN IF NOT EXISTS can_see_price_paid BOOLEAN DEFAULT false').catch(() => {});
+    console.log('Creating vendor with account_id:', account_id, 'name:', name);
     
     await client.query('BEGIN');
     
@@ -30117,7 +30115,15 @@ app.post('/api/admin/vendors', async (req, res) => {
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('Create vendor error:', error);
-    res.json({ success: false, error: error.message });
+    if (error.code === '23505') {
+      if (error.constraint && error.constraint.includes('login_email')) {
+        res.json({ success: false, error: 'A vendor with this login email already exists. Please use a different email address.' });
+      } else {
+        res.json({ success: false, error: 'A vendor with these details already exists.' });
+      }
+    } else {
+      res.json({ success: false, error: error.message });
+    }
   } finally {
     client.release();
   }
