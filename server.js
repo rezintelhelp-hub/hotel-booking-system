@@ -22719,6 +22719,47 @@ app.post('/api/calry/import-property', async (req, res) => {
     
     let gasPropertyId;
     
+    // Log the raw address from Calry for debugging
+    console.log('[Calry Sync] Raw address data:', JSON.stringify(calryProperty.address));
+    
+    // Parse address - handle both {line1, city, state, country} and {street, city, country} formats
+    const parsedAddress = {
+      street: calryProperty.address?.line1 || calryProperty.address?.street || (typeof calryProperty.address === 'string' ? calryProperty.address : '') || '',
+      line2: calryProperty.address?.line2 || '',
+      city: calryProperty.address?.city || '',
+      state: calryProperty.address?.state || '',
+      country: calryProperty.address?.country || '',
+      postal_code: calryProperty.address?.postal_code || calryProperty.address?.postalCode || '',
+      lat: calryProperty.address?.coordinates?.lat || calryProperty.address?.latitude || calryProperty.latitude || null,
+      lng: calryProperty.address?.coordinates?.lng || calryProperty.address?.longitude || calryProperty.longitude || null
+    };
+    
+    // Build full address string (combining line1 + line2)
+    parsedAddress.full = [parsedAddress.street, parsedAddress.line2].filter(Boolean).join(', ');
+    
+    // Geocode if no coordinates provided
+    if (!parsedAddress.lat || !parsedAddress.lng) {
+      try {
+        const geocodeQuery = [parsedAddress.full, parsedAddress.city, parsedAddress.state, parsedAddress.postal_code, parsedAddress.country].filter(Boolean).join(', ');
+        console.log('[Calry Sync] Geocoding address:', geocodeQuery);
+        const geoResp = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(geocodeQuery)}&format=json&limit=1`, {
+          headers: { 'User-Agent': 'GAS-Platform/1.0' }
+        });
+        const geoData = await geoResp.json();
+        if (geoData && geoData.length > 0) {
+          parsedAddress.lat = parseFloat(geoData[0].lat);
+          parsedAddress.lng = parseFloat(geoData[0].lon);
+          console.log(`[Calry Sync] Geocoded to: ${parsedAddress.lat}, ${parsedAddress.lng}`);
+        } else {
+          console.log('[Calry Sync] Geocoding returned no results');
+        }
+      } catch (geoErr) {
+        console.log('[Calry Sync] Geocoding failed:', geoErr.message);
+      }
+    }
+    
+    console.log('[Calry Sync] Parsed address:', JSON.stringify(parsedAddress));
+    
     if (existingProp.rows.length > 0) {
       gasPropertyId = existingProp.rows[0].id;
       console.log('Property already exists in GAS:', gasPropertyId);
@@ -22726,34 +22767,38 @@ app.post('/api/calry/import-property', async (req, res) => {
       await pool.query(`
         UPDATE properties SET
           name = $1, address = $2, city = $3, country = $4,
-          latitude = $5, longitude = $6, currency = $7, updated_at = NOW()
-        WHERE id = $8
+          latitude = $5, longitude = $6, currency = $7,
+          state = $8, postal_code = $9, updated_at = NOW()
+        WHERE id = $10
       `, [
         calryProperty.name,
-        calryProperty.address?.street || '',
-        calryProperty.address?.city || '',
-        calryProperty.address?.country || '',
-        calryProperty.address?.coordinates?.lat || null,
-        calryProperty.address?.coordinates?.lng || null,
+        parsedAddress.full,
+        parsedAddress.city,
+        parsedAddress.country,
+        parsedAddress.lat,
+        parsedAddress.lng,
         calryProperty.currency || 'USD',
+        parsedAddress.state,
+        parsedAddress.postal_code,
         gasPropertyId
       ]);
     } else {
       const propResult = await pool.query(`
         INSERT INTO properties (
-          account_id, user_id, name, address, city, country, postal_code,
+          account_id, user_id, name, address, city, country, state, postal_code,
           latitude, longitude, currency, cm_property_id, cm_source, status, created_at
-        ) VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'calry', 'active', NOW())
+        ) VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'calry', 'active', NOW())
         RETURNING id
       `, [
         gasAccountId,
         calryProperty.name,
-        calryProperty.address?.street || '',
-        calryProperty.address?.city || '',
-        calryProperty.address?.country || '',
-        calryProperty.address?.postalCode || '',
-        calryProperty.address?.coordinates?.lat || null,
-        calryProperty.address?.coordinates?.lng || null,
+        parsedAddress.full,
+        parsedAddress.city,
+        parsedAddress.country,
+        parsedAddress.state,
+        parsedAddress.postal_code,
+        parsedAddress.lat,
+        parsedAddress.lng,
         calryProperty.currency || 'USD',
         String(propertyId)
       ]);
@@ -26037,27 +26082,63 @@ app.get('/api/calry/import-property/:integrationAccountId/:propertyId', async (r
     );
     
     let gasPropertyId;
+    
+    // Parse address - handle both {line1, city, state, country} and {street, city, country} formats
+    const parsedAddress2 = {
+      street: calryProperty.address?.line1 || calryProperty.address?.street || (typeof calryProperty.address === 'string' ? calryProperty.address : '') || '',
+      line2: calryProperty.address?.line2 || '',
+      city: calryProperty.address?.city || '',
+      state: calryProperty.address?.state || '',
+      country: calryProperty.address?.country || '',
+      postal_code: calryProperty.address?.postal_code || calryProperty.address?.postalCode || '',
+      lat: calryProperty.address?.coordinates?.lat || calryProperty.address?.latitude || calryProperty.latitude || null,
+      lng: calryProperty.address?.coordinates?.lng || calryProperty.address?.longitude || calryProperty.longitude || null
+    };
+    parsedAddress2.full = [parsedAddress2.street, parsedAddress2.line2].filter(Boolean).join(', ');
+    
+    // Geocode if no coordinates
+    if (!parsedAddress2.lat || !parsedAddress2.lng) {
+      try {
+        const geocodeQuery = [parsedAddress2.full, parsedAddress2.city, parsedAddress2.state, parsedAddress2.postal_code, parsedAddress2.country].filter(Boolean).join(', ');
+        console.log('[Calry Sync] Geocoding:', geocodeQuery);
+        const geoResp = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(geocodeQuery)}&format=json&limit=1`, {
+          headers: { 'User-Agent': 'GAS-Platform/1.0' }
+        });
+        const geoData = await geoResp.json();
+        if (geoData && geoData.length > 0) {
+          parsedAddress2.lat = parseFloat(geoData[0].lat);
+          parsedAddress2.lng = parseFloat(geoData[0].lon);
+          console.log(`[Calry Sync] Geocoded to: ${parsedAddress2.lat}, ${parsedAddress2.lng}`);
+        }
+      } catch (geoErr) {
+        console.log('[Calry Sync] Geocoding failed:', geoErr.message);
+      }
+    }
+    
     if (existingProp.rows.length > 0) {
       gasPropertyId = existingProp.rows[0].id;
       await pool.query(`
         UPDATE properties SET name = $1, address = $2, city = $3, country = $4,
-          latitude = $5, longitude = $6, currency = $7, updated_at = NOW()
-        WHERE id = $8
-      `, [calryProperty.name, calryProperty.address?.street || '',
-          calryProperty.address?.city || '', calryProperty.address?.country || '',
-          calryProperty.address?.coordinates?.lat, calryProperty.address?.coordinates?.lng,
-          calryProperty.currency || 'USD', gasPropertyId]);
+          latitude = $5, longitude = $6, currency = $7, state = $8, postal_code = $9, updated_at = NOW()
+        WHERE id = $10
+      `, [calryProperty.name, parsedAddress2.full,
+          parsedAddress2.city, parsedAddress2.country,
+          parsedAddress2.lat, parsedAddress2.lng,
+          calryProperty.currency || 'USD',
+          parsedAddress2.state, parsedAddress2.postal_code,
+          gasPropertyId]);
     } else {
       const propResult = await pool.query(`
         INSERT INTO properties (
-          account_id, user_id, name, address, city, country, postal_code,
+          account_id, user_id, name, address, city, country, state, postal_code,
           latitude, longitude, currency, cm_property_id, cm_source, status, created_at
-        ) VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'calry', 'active', NOW())
+        ) VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'calry', 'active', NOW())
         RETURNING id
-      `, [gasAccountId, calryProperty.name, calryProperty.address?.street || '',
-          calryProperty.address?.city || '', calryProperty.address?.country || '',
-          calryProperty.address?.postalCode || '', calryProperty.address?.coordinates?.lat,
-          calryProperty.address?.coordinates?.lng, calryProperty.currency || 'USD',
+      `, [gasAccountId, calryProperty.name, parsedAddress2.full,
+          parsedAddress2.city, parsedAddress2.country,
+          parsedAddress2.state, parsedAddress2.postal_code,
+          parsedAddress2.lat, parsedAddress2.lng, 
+          calryProperty.currency || 'USD',
           String(propertyId)]);
       gasPropertyId = propResult.rows[0].id;
     }
