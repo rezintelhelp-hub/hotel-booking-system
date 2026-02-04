@@ -34991,10 +34991,11 @@ app.post('/api/admin/rooms/:roomId/assign-images', async (req, res) => {
       }
       
       await pool.query(`
-        INSERT INTO room_images (room_id, image_url, thumbnail_url, caption, display_order, upload_source, is_active, created_at)
-        VALUES ($1, $2, $3, $4, $5, 'assigned', true, NOW())
+        INSERT INTO room_images (room_id, image_key, image_url, thumbnail_url, caption, display_order, upload_source, is_active, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, 'assigned', true, NOW())
       `, [
         roomId,
+        'assign-' + Date.now() + '-' + nextOrder,
         img.url,
         img.thumbnail_url || img.url,
         img.caption || '',
