@@ -29819,8 +29819,26 @@ app.post('/api/admin/vouchers', async (req, res) => {
     await pool.query('ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS description_ml JSONB').catch(() => {});
     await pool.query('ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS terms_ml JSONB').catch(() => {});
     
-    // Drop global unique constraint on code, replace with per-property unique
-    await pool.query('ALTER TABLE vouchers DROP CONSTRAINT IF EXISTS vouchers_code_key').catch(() => {});
+    // Drop ANY unique constraint/index on vouchers.code column, replace with per-property unique
+    try {
+      const constraints = await pool.query(`
+        SELECT con.conname FROM pg_constraint con
+        JOIN pg_class rel ON rel.oid = con.conrelid
+        JOIN pg_attribute att ON att.attrelid = con.conrelid AND att.attnum = ANY(con.conkey)
+        WHERE rel.relname = 'vouchers' AND att.attname = 'code' AND con.contype = 'u'
+      `);
+      for (const row of constraints.rows) {
+        await pool.query(`ALTER TABLE vouchers DROP CONSTRAINT IF EXISTS "${row.conname}"`).catch(() => {});
+      }
+      const indexes = await pool.query(`
+        SELECT indexname FROM pg_indexes 
+        WHERE tablename = 'vouchers' AND indexdef ILIKE '%code%' AND indexdef ILIKE '%unique%'
+        AND indexname != 'vouchers_code_property_unique'
+      `);
+      for (const row of indexes.rows) {
+        await pool.query(`DROP INDEX IF EXISTS "${row.indexname}"`).catch(() => {});
+      }
+    } catch(e) { console.log('Constraint cleanup:', e.message); }
     await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS vouchers_code_property_unique ON vouchers (code, COALESCE(property_id, 0))').catch(() => {});
     
     const {
