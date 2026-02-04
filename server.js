@@ -1295,7 +1295,7 @@ const upload = multer({
 });
 
 app.use(cors());
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '50mb' }));
 
 // Handle JSON parse errors gracefully
 app.use((err, req, res, next) => {
@@ -39582,6 +39582,24 @@ app.post('/api/partner/websites/:websiteId/upload', async (req, res) => {
       return res.status(400).json({ success: false, error: 'file_data and file_name required' });
     }
     
+    // Strip data URI prefix if present (e.g. "data:image/jpeg;base64,/9j/4AAQ...")
+    let cleanBase64 = file_data;
+    if (cleanBase64.startsWith('data:')) {
+      cleanBase64 = cleanBase64.split(',')[1] || cleanBase64;
+    }
+    
+    // Validate base64 is not empty/truncated
+    if (cleanBase64.length < 100) {
+      return res.status(400).json({ success: false, error: 'file_data appears to be empty or truncated' });
+    }
+    
+    // Detect file_type from data URI prefix or base64 header if not provided
+    let detectedType = file_type || 'image/jpeg';
+    if (!file_type && file_data.startsWith('data:')) {
+      const match = file_data.match(/^data:([^;]+);/);
+      if (match) detectedType = match[1];
+    }
+    
     // Verify website belongs to partner
     const wResult = await pool.query(`
       SELECT w.id, w.site_url, w.account_id
@@ -39609,9 +39627,9 @@ app.post('/api/partner/websites/:websiteId/upload', async (req, res) => {
         'X-GAS-API-Key': wpApiKey
       },
       body: JSON.stringify({
-        file_data: file_data,  // Base64 encoded
+        file_data: cleanBase64,  // Base64 encoded (no data URI prefix)
         file_name: file_name,
-        file_type: file_type || 'image/jpeg'
+        file_type: detectedType
       })
     });
     
