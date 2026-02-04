@@ -40271,8 +40271,18 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
           
           // Update account settings with user_id
           const updatedSettings = { ...settings, user_id: clientUserId };
-          await pool.query('UPDATE accounts SET settings = $1 WHERE id = $2', [JSON.stringify(updatedSettings), clientAccountId]);
-          console.log(`[Elevate] Linked user ${clientUserId} to existing account ${clientAccountId}`);
+          try {
+            await pool.query('UPDATE accounts SET settings = $1 WHERE id = $2', [JSON.stringify(updatedSettings), clientAccountId]);
+            console.log(`[Elevate] Linked user ${clientUserId} to existing account ${clientAccountId}`);
+          } catch (settingsError) {
+            console.error(`[Elevate] Existing account settings UPDATE failed for account ${clientAccountId}:`, settingsError.message);
+            console.error('[Elevate] Settings value was:', JSON.stringify(updatedSettings));
+            return res.status(500).json({ 
+              success: false, 
+              error: settingsError.message,
+              step: 'existing_settings_update'
+            });
+          }
         }
       }
       
@@ -40337,7 +40347,18 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
           
           // Update account settings with user_id
           const updatedSettings = { ...settings, user_id: clientUserId };
-          await pool.query('UPDATE accounts SET settings = $1 WHERE id = $2', [JSON.stringify(updatedSettings), clientAccountId]);
+          try {
+            await pool.query('UPDATE accounts SET settings = $1 WHERE id = $2', [JSON.stringify(updatedSettings), clientAccountId]);
+            console.log(`[Elevate] Linked user ${clientUserId} to tenant account ${clientAccountId}`);
+          } catch (settingsError) {
+            console.error(`[Elevate] Tenant settings UPDATE failed for account ${clientAccountId}:`, settingsError.message);
+            console.error('[Elevate] Settings value was:', JSON.stringify(updatedSettings));
+            return res.status(500).json({ 
+              success: false, 
+              error: settingsError.message,
+              step: 'tenant_settings_update'
+            });
+          }
         }
       }
       
@@ -40381,37 +40402,51 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
       });
     }
     
-    const newProperty = await pool.query(`
-      INSERT INTO properties (
-        user_id, account_id, name, display_name, short_description, full_description,
-        address, city, state, country, postal_code,
-        latitude, longitude, phone, email, currency, property_type,
-        cm_source, cm_property_id, status, created_at
-      ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17,
-        'elevate', $18, 'active', NOW()
-      )
-      RETURNING id
-    `, [
-      clientUserId,
-      clientAccountId,
-      property.name,
-      property.display_name || property.name,
-      property.short_description || property.description || null,
-      property.long_description || property.full_description || property.description || null,
-      property.address || null,
-      property.city || null,
-      property.state || null,
-      property.country || 'CH',
-      property.zip || property.postal_code || property.zip_code || null,
-      property.latitude || null,
-      property.longitude || null,
-      property.phone || null,
-      property.email || null,
-      property.currency || 'CHF',
-      property.property_type || 'vacation_rental',
-      property.external_id || null
-    ]);
+    // Prepare description values - handle both TEXT and JSONB column types
+    const shortDesc = property.short_description || property.description || null;
+    const fullDesc = property.long_description || property.full_description || property.description || null;
+    
+    let newProperty;
+    try {
+      newProperty = await pool.query(`
+        INSERT INTO properties (
+          user_id, account_id, name, display_name, short_description, full_description,
+          address, city, state, country, postal_code,
+          latitude, longitude, phone, email, currency, property_type,
+          cm_source, cm_property_id, status, created_at
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17,
+          'elevate', $18, 'active', NOW()
+        )
+        RETURNING id
+      `, [
+        clientUserId,
+        clientAccountId,
+        property.name,
+        property.display_name || property.name,
+        shortDesc,
+        fullDesc,
+        property.address || null,
+        property.city || null,
+        property.state || null,
+        property.country || 'CH',
+        property.zip || property.postal_code || property.zip_code || null,
+        property.latitude || null,
+        property.longitude || null,
+        property.phone || null,
+        property.email || null,
+        property.currency || 'CHF',
+        property.property_type || 'vacation_rental',
+        property.external_id || null
+      ]);
+    } catch (propError) {
+      console.error('[Elevate] Property INSERT failed:', propError.message);
+      return res.status(500).json({ 
+        success: false, 
+        error: propError.message,
+        step: 'property_insert'
+      });
+    }
     
     const propertyId = newProperty.rows[0].id;
     console.log(`[Elevate] Created property ${propertyId} for client ${clientAccountId} (user_id: ${clientUserId})`);
@@ -40426,28 +40461,45 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
       for (const room of rooms) {
         if (!room.name) continue;
         
-        const newRoom = await pool.query(`
-          INSERT INTO bookable_units (
-            property_id, name, room_type, max_guests, num_bedrooms, num_bathrooms, base_price,
-            short_description, full_description,
-            currency, cm_room_id, cm_source, status, created_at
-          ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'elevate', 'active', NOW()
-          )
-          RETURNING id
-        `, [
-          propertyId,
-          room.name,
-          room.room_type || 'room',
-          room.max_guests || room.max_guest || room.max_occupancy || 2,
-          room.bedrooms || room.num_bedrooms || null,
-          room.bathrooms || room.num_bathrooms || null,
-          room.base_rate || room.base_price || null,
-          room.short_description || room.description || null,
-          room.long_description || room.full_description || null,
-          room.currency || property.currency || 'CHF',
-          room.external_id || null
-        ]);
+        // Prepare room description values
+        const roomShortDesc = room.short_description || room.description || null;
+        const roomFullDesc = room.long_description || room.full_description || null;
+        
+        let newRoom;
+        try {
+          newRoom = await pool.query(`
+            INSERT INTO bookable_units (
+              property_id, name, room_type, max_guests, num_bedrooms, num_bathrooms, base_price,
+              short_description, full_description,
+              currency, cm_room_id, cm_source, status, created_at
+            ) VALUES (
+              $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'elevate', 'active', NOW()
+            )
+            RETURNING id
+          `, [
+            propertyId,
+            room.name,
+            room.room_type || 'room',
+            room.max_guests || room.max_guest || room.max_occupancy || 2,
+            room.bedrooms || room.num_bedrooms || null,
+            room.bathrooms || room.num_bathrooms || null,
+            room.base_rate || room.base_price || null,
+            roomShortDesc,
+            roomFullDesc,
+            room.currency || property.currency || 'CHF',
+            room.external_id || null
+          ]);
+        } catch (roomError) {
+          console.error(`[Elevate] Room INSERT failed for "${room.name}":`, roomError.message);
+          // Return partial success - property was created but room failed
+          return res.status(500).json({ 
+            success: false, 
+            error: roomError.message,
+            step: 'room_insert',
+            room_name: room.name,
+            property_id: propertyId
+          });
+        }
         
         createdRooms.push({
           external_id: room.external_id || null,
