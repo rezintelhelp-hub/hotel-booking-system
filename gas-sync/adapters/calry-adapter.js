@@ -277,10 +277,10 @@ class CalryAdapter {
       }
     });
     
-    // Handle location/coordinates
-    const coords = raw.coordinates || raw.location || raw.geoLocation || {};
-    const lat = coords.latitude || coords.lat || raw.latitude;
-    const lng = coords.longitude || coords.lng || coords.lon || raw.longitude;
+    // Handle location/coordinates - check multiple possible locations
+    const coords = raw.coordinates || raw.location || raw.geoLocation || raw.address?.coordinates || {};
+    const lat = coords.latitude || coords.lat || raw.latitude || raw.address?.latitude;
+    const lng = coords.longitude || coords.lng || coords.lon || raw.longitude || raw.address?.longitude;
     
     return {
       externalId: String(raw.id),
@@ -290,13 +290,13 @@ class CalryAdapter {
       propertyType: raw.type || raw.propertyType || 'vacation_rental',
       status: raw.status || 'active',
       address: {
-        street: raw.address?.address1 || raw.address?.street || raw.street || '',
-        street2: raw.address?.address2 || '',
+        street: raw.address?.line1 || raw.address?.address1 || raw.address?.street || raw.street || '',
+        street2: raw.address?.line2 || raw.address?.address2 || '',
         city: raw.address?.city || raw.city || '',
         state: raw.address?.state || raw.state || raw.region || '',
-        postalCode: raw.address?.postalCode || raw.address?.zipCode || raw.postalCode || '',
+        postalCode: raw.address?.postal_code || raw.address?.postalCode || raw.address?.zipCode || raw.postalCode || '',
         country: raw.address?.country || raw.country || '',
-        countryCode: raw.address?.countryCode || raw.countryCode || ''
+        countryCode: raw.address?.countryCode || raw.address?.country_code || raw.countryCode || ''
       },
       coordinates: (lat && lng) ? { latitude: parseFloat(lat), longitude: parseFloat(lng) } : null,
       timezone: raw.timezone || raw.timeZone || null,
@@ -1121,13 +1121,12 @@ class CalryAdapter {
         ON CONFLICT (account_id, cm_property_id) WHERE cm_property_id IS NOT NULL
         DO UPDATE SET
           name = EXCLUDED.name,
-          description = EXCLUDED.description,
           status = EXCLUDED.status,
-          address = EXCLUDED.address,
-          city = EXCLUDED.city,
-          state = EXCLUDED.state,
-          postcode = EXCLUDED.postcode,
-          country = EXCLUDED.country,
+          address = CASE WHEN EXCLUDED.address != '' THEN EXCLUDED.address ELSE properties.address END,
+          city = CASE WHEN EXCLUDED.city != '' THEN EXCLUDED.city ELSE properties.city END,
+          state = CASE WHEN EXCLUDED.state != '' THEN EXCLUDED.state ELSE properties.state END,
+          postcode = CASE WHEN EXCLUDED.postcode != '' THEN EXCLUDED.postcode ELSE properties.postcode END,
+          country = CASE WHEN EXCLUDED.country != '' THEN EXCLUDED.country ELSE properties.country END,
           latitude = COALESCE(EXCLUDED.latitude, properties.latitude),
           longitude = COALESCE(EXCLUDED.longitude, properties.longitude),
           updated_at = NOW()
@@ -1135,7 +1134,7 @@ class CalryAdapter {
       `, [
         accountId,
         propertyData.name,
-        propertyData.description || '',
+        propertyData.description ? JSON.stringify({ en: propertyData.description }) : JSON.stringify({ en: '' }),
         propertyData.propertyType || 'vacation_rental',
         propertyData.status || 'active',
         address.street || '',
@@ -1219,7 +1218,6 @@ class CalryAdapter {
         ON CONFLICT (property_id, cm_room_id) WHERE cm_room_id IS NOT NULL
         DO UPDATE SET
           name = EXCLUDED.name,
-          description = EXCLUDED.description,
           max_guests = EXCLUDED.max_guests,
           max_adults = EXCLUDED.max_adults,
           max_children = EXCLUDED.max_children,
