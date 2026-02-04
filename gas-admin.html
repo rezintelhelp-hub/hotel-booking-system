@@ -1724,10 +1724,6 @@
                         <span class="nav-icon">📋</span>
                         <span>Images</span>
                     </a>
-                    <a class="nav-item" data-view="image-assign" href="#" onclick="navClick(this, 'image-assign'); return false;">
-                        <span class="nav-icon">🔀</span>
-                        <span>Image Assign</span>
-                    </a>
                     <a class="nav-item" data-view="amenities" href="#" onclick="navClick(this, 'amenities'); return false;">
                         <span class="nav-icon">📋</span>
                         <span>Amenities</span>
@@ -2556,66 +2552,6 @@
                         <p style="color: #64748b; text-align: center; padding: 2rem;">
                             Select a property to view and manage images
                         </p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Image Assign View -->
-            <div id="image-assign" class="view">
-                <div class="header">
-                    <div class="header-top">
-                        <div>
-                            <h2>🔀 Image Assignment</h2>
-                            <p>Assign property-level images to specific rooms</p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Property Selector -->
-                <div class="card" style="margin-bottom: 1rem;">
-                    <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
-                        <div style="flex: 1; min-width: 200px;">
-                            <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Property</label>
-                            <select id="ia-property-select" class="form-input" onchange="iaLoadProperty()">
-                                <option value="">Select Property...</option>
-                            </select>
-                        </div>
-                        <div style="padding-top: 1.5rem;">
-                            <span id="ia-status" style="font-size: 0.85rem; color: var(--text-secondary);"></span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Sticky action bar -->
-                <div id="ia-action-bar" style="display: none; position: sticky; top: 0; z-index: 50; background: white; border: 1px solid var(--border); border-radius: 10px; padding: 0.75rem 1rem; margin-bottom: 1rem; box-shadow: 0 2px 8px rgba(0,0,0,0.08); display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
-                    <button onclick="iaSelectAll()" style="font-size: 0.8rem; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border); background: white; color: var(--text-primary); cursor: pointer; font-weight: 500;">Select All</button>
-                    <button onclick="iaSelectNone()" style="font-size: 0.8rem; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border); background: white; color: var(--text-primary); cursor: pointer; font-weight: 500;">Select None</button>
-                    <div style="display: flex; gap: 4px;">
-                        <button class="ia-filter-btn active" data-filter="all" onclick="iaSetFilter('all', this)" style="font-size: 0.8rem; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--accent); color: white; cursor: pointer; font-weight: 500;">All</button>
-                        <button class="ia-filter-btn" data-filter="unassigned" onclick="iaSetFilter('unassigned', this)" style="font-size: 0.8rem; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border); background: white; color: var(--text-secondary); cursor: pointer; font-weight: 500;">Unassigned</button>
-                        <button class="ia-filter-btn" data-filter="assigned" onclick="iaSetFilter('assigned', this)" style="font-size: 0.8rem; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border); background: white; color: var(--text-secondary); cursor: pointer; font-weight: 500;">Assigned</button>
-                    </div>
-                    <div style="flex: 1;"></div>
-                    <span id="ia-sel-count" style="font-size: 0.85rem; font-weight: 600; color: var(--accent);">0 selected</span>
-                    <span style="font-size: 0.8rem; color: var(--text-muted);">→ Assign to</span>
-                    <select id="ia-assign-target" class="form-input" style="font-size: 0.85rem; padding: 6px 10px; width: 220px;">
-                        <option value="">Select room...</option>
-                    </select>
-                    <button class="btn" onclick="iaAssignSelected()" style="font-size: 0.85rem; padding: 6px 16px;">Assign</button>
-                </div>
-
-                <!-- Full-width image grid -->
-                <div class="card" style="padding: 0.75rem;">
-                    <div id="ia-image-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.5rem;">
-                        <p style="grid-column: 1/-1; color: var(--text-secondary); text-align: center; padding: 3rem; font-size: 0.9rem;">Select a property to load images</p>
-                    </div>
-                </div>
-
-                <!-- Rooms section below -->
-                <div style="margin-top: 1.5rem;">
-                    <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 0.75rem; color: var(--text-primary);">Rooms</h3>
-                    <div id="ia-rooms-panel">
-                        <p style="color: var(--text-secondary); text-align: center; padding: 2rem; font-size: 0.85rem;">Rooms will appear here when you select a property</p>
                     </div>
                 </div>
             </div>
@@ -16923,15 +16859,15 @@ const promo = await fetch('/api/v1/offers/validate', {
                 <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 1rem;">
                     <div class="form-group">
                         <label class="form-label">Max Guests</label>
-                        <input type="number" class="form-input" id="edit-room-maxguests" min="1" max="30">
+                        <input type="number" class="form-input" id="edit-room-maxguests" min="1" max="20">
                     </div>
                     <div class="form-group">
                         <label class="form-label">Max Adults</label>
-                        <input type="number" class="form-input" id="edit-room-maxadults" min="1" max="30">
+                        <input type="number" class="form-input" id="edit-room-maxadults" min="1" max="20">
                     </div>
                     <div class="form-group">
                         <label class="form-label">Max Children</label>
-                        <input type="number" class="form-input" id="edit-room-maxchildren" min="0" max="20">
+                        <input type="number" class="form-input" id="edit-room-maxchildren" min="0" max="10">
                     </div>
                     <div class="form-group">
                         <label class="form-label">Quantity</label>
@@ -19711,7 +19647,6 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (viewName === 'properties') loadProperties();
             if (viewName === 'rooms') loadRooms();
             if (viewName === 'images') loadImages();
-            if (viewName === 'image-assign') loadImageAssign();
             if (viewName === 'amenities') loadAmenities();
             if (viewName === 'availability') loadAvailabilityView();
             if (viewName === 'tasks') loadTasks();
@@ -21304,10 +21239,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                     formData.append('type', `page-${pageName}-${imageType}`);
                     
                     try {
-                        const token = localStorage.getItem('gas_token');
                         const response = await fetch('/api/admin/website-builder/upload-image', {
                             method: 'POST',
-                            headers: token ? { 'Authorization': `Bearer ${token}` } : {},
                             body: formData
                         });
                         
@@ -21356,10 +21289,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                 formData.append('section', section);
                 
                 try {
-                    const token = localStorage.getItem('gas_token');
                     const response = await fetch('/api/admin/website-builder/upload-image', {
                         method: 'POST',
-                        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
                         body: formData
                     });
                     
@@ -21542,10 +21473,8 @@ const promo = await fetch('/api/v1/offers/validate', {
             formData.append('section', 'hero');
             
             try {
-                const token = localStorage.getItem('gas_token');
                 const response = await fetch('/api/admin/website-builder/upload-video', {
                     method: 'POST',
-                    headers: token ? { 'Authorization': `Bearer ${token}` } : {},
                     body: formData
                 });
                 
@@ -27049,337 +26978,6 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
 
         // =====================================================
-        // IMAGE ASSIGNMENT TOOL
-        // =====================================================
-        let iaState = {
-            propertyId: null,
-            property: null,
-            rooms: [],
-            allImages: [],
-            roomImages: {},
-            selectedImages: new Set(),
-            assignedUrls: new Set(),
-            filter: 'all'
-        };
-
-        async function loadImageAssign() {
-            const select = document.getElementById('ia-property-select');
-            if (select.options.length <= 1) {
-                try {
-                    const queryString = buildQueryString();
-                    const response = await fetch(`/api/db/properties${queryString}`);
-                    const data = await response.json();
-                    
-                    select.innerHTML = '<option value="">Select Property...</option>';
-                    if (data.success && data.data) {
-                        data.data.forEach(p => {
-                            select.innerHTML += `<option value="${p.id}">${p.name || p.display_name || 'Property ' + p.id} (ID: ${p.id})</option>`;
-                        });
-                    }
-                } catch (err) {
-                    console.error('Failed to load properties for image assign:', err);
-                }
-            }
-        }
-
-        async function iaLoadProperty() {
-            const propertyId = document.getElementById('ia-property-select').value;
-            if (!propertyId) return;
-
-            iaState.propertyId = propertyId;
-            iaState.selectedImages = new Set();
-            
-            document.getElementById('ia-image-grid').innerHTML = '<p style="grid-column:1/-1;text-align:center;padding:3rem;color:var(--text-secondary);">Loading images...</p>';
-            document.getElementById('ia-rooms-panel').innerHTML = '<p style="text-align:center;padding:2rem;color:var(--text-secondary);">Loading rooms...</p>';
-
-            try {
-                const resp = await fetch(`/api/admin/properties/${propertyId}/all-images`, { headers: authHeaders() });
-                const data = await resp.json();
-
-                if (!data.success) {
-                    showNotification(data.error || 'Failed to load', 'error');
-                    return;
-                }
-
-                iaState.property = data.property;
-                iaState.rooms = data.rooms || [];
-                iaState.roomImages = data.room_images || {};
-
-                // Build unified image pool (deduplicated)
-                iaState.allImages = [];
-                const seenUrls = new Set();
-
-                for (const img of (data.sync_images || [])) {
-                    if (img.url && !seenUrls.has(img.url)) {
-                        seenUrls.add(img.url);
-                        iaState.allImages.push({
-                            url: img.url,
-                            thumbnail_url: img.thumbnail_url || img.url,
-                            caption: img.caption || '',
-                            source: 'sync'
-                        });
-                    }
-                }
-                for (const img of (data.property_images || [])) {
-                    if (img.url && !seenUrls.has(img.url)) {
-                        seenUrls.add(img.url);
-                        iaState.allImages.push({
-                            url: img.url,
-                            thumbnail_url: img.url,
-                            caption: img.caption || '',
-                            source: 'property'
-                        });
-                    }
-                }
-
-                iaRebuildAssigned();
-
-                // Populate room dropdown in action bar
-                const targetSelect = document.getElementById('ia-assign-target');
-                targetSelect.innerHTML = '<option value="">Select room...</option>';
-                iaState.rooms.forEach(r => {
-                    const name = (typeof r.display_name === 'object') ? (r.display_name?.en || r.display_name?.EN || r.name) : (r.display_name || r.name);
-                    targetSelect.innerHTML += `<option value="${r.id}">${name} (${r.id})</option>`;
-                });
-
-                // Show action bar
-                document.getElementById('ia-action-bar').style.display = 'flex';
-
-                iaRenderPool();
-                iaRenderRooms();
-                iaUpdateSelectionCount();
-
-                document.getElementById('ia-status').textContent = `${iaState.property.name} — ${iaState.allImages.length} images, ${iaState.rooms.length} rooms`;
-                showNotification(`Loaded ${iaState.allImages.length} images for ${iaState.rooms.length} rooms`, 'success');
-
-            } catch (err) {
-                showNotification('Error: ' + err.message, 'error');
-            }
-        }
-
-        function iaRebuildAssigned() {
-            iaState.assignedUrls = new Set();
-            for (const roomId in iaState.roomImages) {
-                for (const img of iaState.roomImages[roomId]) {
-                    iaState.assignedUrls.add(img.url);
-                }
-            }
-        }
-
-        function iaUpdateSelectionCount() {
-            const count = iaState.selectedImages.size;
-            const total = iaGetFiltered().length;
-            document.getElementById('ia-sel-count').textContent = `${count} of ${total} selected`;
-        }
-
-        function iaGetFiltered() {
-            if (iaState.filter === 'unassigned') return iaState.allImages.filter(i => !iaState.assignedUrls.has(i.url));
-            if (iaState.filter === 'assigned') return iaState.allImages.filter(i => iaState.assignedUrls.has(i.url));
-            return iaState.allImages;
-        }
-
-        function iaRenderPool() {
-            const grid = document.getElementById('ia-image-grid');
-            const images = iaGetFiltered();
-
-            if (images.length === 0) {
-                grid.innerHTML = `<p style="grid-column:1/-1;text-align:center;padding:3rem;color:var(--text-secondary);font-size:0.9rem;">
-                    ${iaState.filter === 'unassigned' ? 'All images have been assigned ✓' : iaState.filter === 'assigned' ? 'No images assigned yet' : 'No images found'}
-                </p>`;
-                iaUpdateSelectionCount();
-                return;
-            }
-
-            grid.innerHTML = images.map((img, i) => {
-                const isAssigned = iaState.assignedUrls.has(img.url);
-                const isSelected = iaState.selectedImages.has(img.url);
-                const encodedUrl = encodeURIComponent(img.url);
-                return `<div onclick="iaToggleSelect('${encodedUrl}')" 
-                    style="position:relative;border-radius:8px;overflow:hidden;aspect-ratio:16/11;cursor:pointer;
-                    border:3px solid ${isSelected ? 'var(--accent)' : 'transparent'};
-                    box-shadow:${isSelected ? '0 0 0 1px var(--accent), 0 4px 12px rgba(99,102,241,0.3)' : '0 1px 3px rgba(0,0,0,0.1)'};
-                    transition:all 0.15s;background:#f1f5f9;">
-                    <img src="${img.thumbnail_url || img.url}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;" alt="">
-                    <span style="position:absolute;top:6px;left:6px;background:rgba(0,0,0,0.6);color:white;font-size:11px;font-weight:700;padding:2px 7px;border-radius:4px;">${i + 1}</span>
-                    ${isAssigned ? '<span style="position:absolute;top:6px;right:6px;background:#10b981;color:white;font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;">✓ Assigned</span>' : ''}
-                    ${isSelected ? '<div style="position:absolute;inset:0;background:rgba(99,102,241,0.15);pointer-events:none;"></div><span style="position:absolute;bottom:6px;right:6px;background:var(--accent);color:white;font-size:11px;font-weight:700;padding:3px 10px;border-radius:5px;">✓ Selected</span>' : ''}
-                </div>`;
-            }).join('');
-
-            iaUpdateSelectionCount();
-        }
-
-        function iaRenderRooms() {
-            const panel = document.getElementById('ia-rooms-panel');
-
-            if (iaState.rooms.length === 0) {
-                panel.innerHTML = '<p style="color:var(--text-secondary);text-align:center;padding:2rem;">No rooms found for this property</p>';
-                return;
-            }
-
-            panel.innerHTML = iaState.rooms.map(room => {
-                const name = (typeof room.display_name === 'object') ? (room.display_name?.en || room.display_name?.EN || room.name) : (room.display_name || room.name);
-                const images = iaState.roomImages[room.id] || [];
-
-                return `<div class="card" id="ia-room-${room.id}" style="padding:0;">
-                    <div style="padding:0.75rem 1rem;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
-                        <div>
-                            <span style="font-weight:600;font-size:0.9rem;">${name}</span>
-                            <span style="font-size:0.8rem;color:var(--text-muted);margin-left:6px;">ID: ${room.id}</span>
-                        </div>
-                        <div style="display:flex;align-items:center;gap:8px;">
-                            <span style="font-size:0.75rem;padding:2px 8px;border-radius:10px;background:${images.length > 0 ? 'var(--success-light)' : '#f1f5f9'};color:${images.length > 0 ? 'var(--success)' : 'var(--text-muted)'};font-weight:600;">${images.length} images</span>
-                            ${images.length > 0 ? `<button onclick="iaClearRoom(${room.id})" style="font-size:0.75rem;padding:2px 8px;border-radius:6px;border:1px solid var(--error-light);background:var(--error-light);color:var(--error);cursor:pointer;font-weight:500;">Clear</button>` : ''}
-                        </div>
-                    </div>
-                    <div style="padding:0.75rem;min-height:70px;display:flex;gap:6px;flex-wrap:wrap;${images.length === 0 ? 'justify-content:center;align-items:center;' : ''}">
-                        ${images.length === 0
-                            ? '<div style="width:100%;text-align:center;padding:12px;border:2px dashed var(--border);border-radius:8px;color:var(--text-muted);font-size:0.8rem;">No images — select images above and assign to this room</div>'
-                            : images.map((img, idx) => `
-                                <div style="position:relative;width:120px;height:80px;border-radius:6px;overflow:hidden;border:1px solid var(--border);flex-shrink:0;">
-                                    <img src="${img.thumbnail_url || img.url}" style="width:100%;height:100%;object-fit:cover;display:block;" alt="">
-                                    ${idx === 0 ? '<span style="position:absolute;bottom:2px;left:2px;background:var(--warning);color:#000;font-size:8px;font-weight:700;padding:0px 4px;border-radius:3px;">PRIMARY</span>' : ''}
-                                    <button onclick="iaRemoveRoomImage(${room.id}, ${img.id})" style="position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;background:var(--error);color:white;font-size:11px;border:none;cursor:pointer;display:none;align-items:center;justify-content:center;padding:0;line-height:1;" onmouseover="this.style.display='flex'" onmouseout="this.style.display='none'">×</button>
-                                </div>
-                            `).join('')
-                        }
-                    </div>
-                </div>`;
-            }).join('');
-
-            // Show remove buttons on hover over the card
-            panel.querySelectorAll('.card').forEach(card => {
-                card.addEventListener('mouseenter', () => {
-                    card.querySelectorAll('button[onclick^="iaRemoveRoomImage"]').forEach(b => b.style.display = 'flex');
-                });
-                card.addEventListener('mouseleave', () => {
-                    card.querySelectorAll('button[onclick^="iaRemoveRoomImage"]').forEach(b => b.style.display = 'none');
-                });
-            });
-        }
-
-        // Selection
-        function iaToggleSelect(encodedUrl) {
-            const url = decodeURIComponent(encodedUrl);
-            if (iaState.selectedImages.has(url)) {
-                iaState.selectedImages.delete(url);
-            } else {
-                iaState.selectedImages.add(url);
-            }
-            iaRenderPool();
-        }
-
-        function iaSelectAll() {
-            const visible = iaGetFiltered();
-            visible.forEach(img => iaState.selectedImages.add(img.url));
-            iaRenderPool();
-        }
-
-        function iaSelectNone() {
-            iaState.selectedImages = new Set();
-            iaRenderPool();
-        }
-
-        function iaClearSelection() {
-            iaState.selectedImages = new Set();
-            iaRenderPool();
-        }
-
-        // Filter
-        function iaSetFilter(filter, btn) {
-            iaState.filter = filter;
-            document.querySelectorAll('.ia-filter-btn').forEach(b => {
-                b.style.background = 'white';
-                b.style.color = 'var(--text-secondary)';
-            });
-            if (btn) {
-                btn.style.background = 'var(--accent)';
-                btn.style.color = 'white';
-            }
-            iaState.selectedImages = new Set();
-            iaRenderPool();
-        }
-
-        // Assign selected images
-        async function iaAssignSelected() {
-            const roomId = document.getElementById('ia-assign-target').value;
-            if (!roomId) { showNotification('Select a room first', 'warning'); return; }
-            if (iaState.selectedImages.size === 0) { showNotification('No images selected', 'warning'); return; }
-
-            const images = [];
-            for (const url of iaState.selectedImages) {
-                const img = iaState.allImages.find(i => i.url === url);
-                if (img) images.push({ url: img.url, thumbnail_url: img.thumbnail_url, caption: img.caption });
-            }
-
-            try {
-                const resp = await fetch(`/api/admin/rooms/${roomId}/assign-images`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                    body: JSON.stringify({ images })
-                });
-                const result = await resp.json();
-                if (result.success) {
-                    showNotification(`Assigned ${result.added} to ${result.room} (${result.skipped} skipped)`, 'success');
-                    iaState.selectedImages = new Set();
-                    await iaRefresh();
-                } else {
-                    showNotification(result.error, 'error');
-                }
-            } catch (err) {
-                showNotification('Error: ' + err.message, 'error');
-            }
-        }
-
-        // Clear all images from a room
-        async function iaClearRoom(roomId) {
-            if (!confirm('Remove all images from this room?')) return;
-            try {
-                const resp = await fetch(`/api/admin/rooms/${roomId}/clear-images`, { method: 'DELETE', headers: authHeaders() });
-                const result = await resp.json();
-                if (result.success) {
-                    showNotification(`Cleared ${result.deleted} images`, 'success');
-                    await iaRefresh();
-                } else {
-                    showNotification(result.error, 'error');
-                }
-            } catch (err) {
-                showNotification('Error: ' + err.message, 'error');
-            }
-        }
-
-        // Remove single image from room
-        async function iaRemoveRoomImage(roomId, imageId) {
-            try {
-                const resp = await fetch(`/api/admin/rooms/images/${imageId}`, { method: 'DELETE', headers: authHeaders() });
-                const result = await resp.json();
-                if (result.success) {
-                    showNotification('Image removed', 'success');
-                    await iaRefresh();
-                }
-            } catch (err) {
-                showNotification('Error: ' + err.message, 'error');
-            }
-        }
-
-        // Refresh room images data
-        async function iaRefresh() {
-            try {
-                const resp = await fetch(`/api/admin/properties/${iaState.propertyId}/all-images`, { headers: authHeaders() });
-                const data = await resp.json();
-                if (data.success) {
-                    iaState.roomImages = data.room_images || {};
-                    iaRebuildAssigned();
-                    iaRenderPool();
-                    iaRenderRooms();
-                    iaUpdateSelectionCount();
-                }
-            } catch (err) {
-                console.error('Refresh failed:', err);
-            }
-        }
-
-        // =====================================================
         // TASKS - Tabbed Menu Navigation
         // =====================================================
         let tasksData = null;
@@ -31594,7 +31192,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                     <div style="display: flex; align-items: center; gap: 0.5rem;">
                                         <span style="font-size: 1.2rem;"></span>
                                         <div>
-                                            <strong>${offer.name}</strong>${tierBadge}
+                                            <strong>${mlDisplay(offer.name)}</strong>${tierBadge}
                                             <div style="font-size: 0.75rem; color: ${isDiscount ? '#dc2626' : '#16a34a'};">${discountLabel} from Standard</div>
                                         </div>
                                     </div>
@@ -32091,7 +31689,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 select.innerHTML = '<option value="">Choose an offer...</option>';
                 if (data.success && data.data) {
                     data.data.forEach(offer => {
-                        select.innerHTML += `<option value="${offer.id}" data-offer='${JSON.stringify(offer)}'>${offer.name}</option>`;
+                        select.innerHTML += `<option value="${offer.id}" data-offer='${JSON.stringify(offer)}'>${mlDisplay(offer.name)}</option>`;
                     });
                 }
             } catch (error) {
@@ -32129,7 +31727,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             
             try {
                 const offer = JSON.parse(option.dataset.offer);
-                document.getElementById('post-offer-name').textContent = offer.name;
+                document.getElementById('post-offer-name').textContent = mlDisplay(offer.name);
                 document.getElementById('post-offer-discount').textContent = 
                     offer.discount_type === 'percentage' ? `${offer.discount_value}% off` : `$${offer.discount_value} off`;
                 document.getElementById('post-offer-dates').textContent = 
@@ -34563,11 +34161,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 if (data.success && data.data?.length) {
                     for (const offer of data.data) {
-                        if (offer.name !== 'Standard Price') {
+                        if (mlDisplay(offer.name) !== 'Standard Price') {
                             html += `
                                 <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; cursor: pointer; border-bottom: 1px solid #f1f5f9;">
                                     <input type="checkbox" class="bulk-offer-cb" data-offer-id="${offer.id}" checked>
-                                    <span style="font-size: 0.9rem;"> ${offer.name}</span>
+                                    <span style="font-size: 0.9rem;"> ${mlDisplay(offer.name)}</span>
                                 </label>
                             `;
                         }
@@ -35020,7 +34618,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             `;
             
             for (const offer of offers) {
-                const isStandard = offer.id === 'standard' || offer.name === 'Standard Price';
+                const isStandard = offer.id === 'standard' || mlDisplay(offer.name) === 'Standard Price';
                 
                 // Build "Applies To" text - handle arrays
                 let appliesTo = 'All Properties';
@@ -35041,7 +34639,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 html += `
                     <tr style="border-bottom: 1px solid var(--border);">
                         <td style="padding: 0.75rem;">
-                            <strong>${isStandard ? ' ' : ' '}${offer.name}</strong>
+                            <strong>${isStandard ? ' ' : ' '}${mlDisplay(offer.name)}</strong>
                         </td>
                         <td style="padding: 0.75rem; font-size: 0.85rem; color: #6b7280;">
                             ${appliesTo}
@@ -36459,7 +36057,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 ${voucher.code}
                             </code>
                         </td>
-                        <td style="padding: 0.75rem;">${voucher.name}</td>
+                        <td style="padding: 0.75rem;">${mlDisplay(voucher.name)}</td>
                         <td style="padding: 0.75rem;">
                             <span style="background: ${discountBg}; color: ${discountColor}; padding: 0.25rem 0.5rem; border-radius: 4px; font-weight: 500;">
                                 ${discountText}
@@ -36950,8 +36548,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                 html += `
                     <tr style="border-bottom: 1px solid var(--border);">
                         <td style="padding: 0.75rem;">
-                            <strong>${upsell.name}</strong>
-                            ${upsell.description ? `<br><small style="color: #64748b;">${upsell.description}</small>` : ''}
+                            <strong>${mlDisplay(upsell.name)}</strong>
+                            ${upsell.description ? `<br><small style="color: #64748b;">${mlDisplay(upsell.description)}</small>` : ''}
                         </td>
                         <td style="padding: 0.75rem; font-weight: 600; color: #059669;">$${parseFloat(upsell.price).toFixed(2)}</td>
                         <td style="padding: 0.75rem; color: #64748b; font-size: 0.9rem;">${chargeTypeLabels[upsell.charge_type] || upsell.charge_type}</td>
@@ -38296,7 +37894,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                             <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem;">
                                 <div style="flex: 1;">
                                     <h4 style="margin-bottom: 0.5rem;">
-                                        ${rule.rule_name || 'Unnamed Rule'}
+                                        ${mlDisplay(rule.rule_name) || 'Unnamed Rule'}
                                         ${rule.is_active ? '<span class="badge badge-success" style="margin-left: 0.5rem;">Active</span>' : '<span class="badge badge-secondary" style="margin-left: 0.5rem;">Inactive</span>'}
                                         <span class="badge" style="margin-left: 0.5rem; background: #e0e7ff; color: #3730a3;">${scopeLabel}</span>
                                     </h4>
@@ -38778,7 +38376,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 html += `
                     <tr style="border-bottom: 1px solid var(--border);">
                         <td style="padding: 0.75rem;">
-                            <strong>${tax.name}</strong>
+                            <strong>${mlDisplay(tax.name)}</strong>
                             ${tax.max_nights ? `<br><small style="color: #64748b;">Max ${tax.max_nights} nights</small>` : ''}
                         </td>
                         <td style="padding: 0.75rem;">${tax.country || '-'}</td>
@@ -39502,6 +39100,27 @@ const promo = await fetch('/api/v1/offers/validate', {
                 }
             }
             return {};
+        }
+
+        // Display helper: extract readable name from a field that might be JSONB {"en":"..."} or a plain string
+        function mlDisplay(value) {
+            if (!value) return '';
+            if (typeof value === 'string') {
+                // If it looks like JSON, parse it
+                if (value.startsWith('{')) {
+                    try {
+                        const parsed = JSON.parse(value);
+                        return parsed.en || parsed.fr || parsed.es || parsed.de || parsed.nl || parsed.ja || Object.values(parsed)[0] || '';
+                    } catch(e) {
+                        return value;
+                    }
+                }
+                return value;
+            }
+            if (typeof value === 'object' && value !== null) {
+                return value.en || value.fr || value.es || value.de || value.nl || value.ja || Object.values(value)[0] || '';
+            }
+            return String(value);
         }
 
         // Switch language tab for room fields
