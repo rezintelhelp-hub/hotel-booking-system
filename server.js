@@ -29768,11 +29768,11 @@ app.get('/api/admin/vouchers', async (req, res) => {
     let result;
     
     if (propertyId) {
-      // Filter by specific property
+      // Filter by specific property - check both property_id and property_ids array
       result = await pool.query(`
         SELECT v.*, vn.name as vendor_name FROM vouchers v
         LEFT JOIN vendors vn ON v.vendor_id = vn.id
-        WHERE v.property_id = $1
+        WHERE v.property_id = $1 OR $1 = ANY(v.property_ids)
         ORDER BY v.created_at DESC
       `, [propertyId]);
     } else if (accountId) {
