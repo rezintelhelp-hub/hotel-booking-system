@@ -37058,7 +37058,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             
             // Add account_id for new vendors
             if (!id) {
-                const accountId = document.getElementById('account-filter')?.value;
+                const accountId = selectedAccountId || document.getElementById('account-filter')?.value;
                 if (accountId) vendorData.account_id = accountId;
             }
             
@@ -37085,7 +37085,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     }
                     loadVendors();
                 } else {
-                    alert('Error: ' + data.error);
+                    showNotification(data.error || 'Error saving vendor', 'error');
                 }
             } catch (error) {
                 alert('Error saving vendor: ' + error.message);
