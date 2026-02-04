@@ -52721,7 +52721,15 @@ app.get('/api/admin/website-builder/:section', async (req, res) => {
 });
 
 // Upload image for website builder (hero, about, etc.)
-app.post('/api/admin/website-builder/upload-image', upload.single('image'), async (req, res) => {
+app.post('/api/admin/website-builder/upload-image', (req, res, next) => {
+  upload.single('image')(req, res, (err) => {
+    if (err) {
+      console.error('Website image upload multer error:', err.message);
+      return res.status(400).json({ success: false, error: err.message });
+    }
+    next();
+  });
+}, async (req, res) => {
   try {
     const { account_id, client_id, deployed_site_id, section } = req.body;
     
@@ -52739,6 +52747,11 @@ app.post('/api/admin/website-builder/upload-image', upload.single('image'), asyn
     
     console.log(`Website image upload: section=${section}, client_id=${client_id}, deployed_site_id=${deployed_site_id}, account_id=${account_id}, using entityId=${entityId}`);
     
+    // Check R2 is configured
+    if (!r2Client) {
+      return res.status(500).json({ success: false, error: 'R2 storage not configured. Check R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_ENDPOINT env vars.' });
+    }
+    
     // Process and upload to R2
     const results = await processAndUploadImage(
       req.file.buffer,
@@ -52754,7 +52767,7 @@ app.post('/api/admin/website-builder/upload-image', upload.single('image'), asyn
     });
   } catch (error) {
     console.error('Website image upload error:', error);
-    res.json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
@@ -52771,7 +52784,15 @@ const videoUpload = multer({
   }
 });
 
-app.post('/api/admin/website-builder/upload-video', videoUpload.single('video'), async (req, res) => {
+app.post('/api/admin/website-builder/upload-video', (req, res, next) => {
+  videoUpload.single('video')(req, res, (err) => {
+    if (err) {
+      console.error('Website video upload multer error:', err.message);
+      return res.status(400).json({ success: false, error: err.message });
+    }
+    next();
+  });
+}, async (req, res) => {
   try {
     const { account_id, client_id, deployed_site_id, section } = req.body;
     
@@ -63179,6 +63200,23 @@ app.get('*', (req, res) => {
     return res.status(404).json({ error: 'API endpoint not found', path: req.path });
   }
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Catch-all for non-GET API routes (POST, PUT, DELETE to unknown endpoints)
+app.all('/api/*', (req, res) => {
+  res.status(404).json({ error: 'API endpoint not found', method: req.method, path: req.path });
+});
+
+// Global error handler - ALWAYS return JSON, never HTML
+app.use((err, req, res, next) => {
+  console.error('Global error handler:', err.message);
+  console.error('Request:', req.method, req.url);
+  if (err.stack) console.error(err.stack);
+  res.status(err.status || 500).json({
+    success: false,
+    error: err.message || 'Internal server error',
+    path: req.url
+  });
 });
 // SYNC SCHEDULER
 // ============================================
