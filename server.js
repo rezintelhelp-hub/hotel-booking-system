@@ -29819,7 +29819,7 @@ app.post('/api/admin/vouchers', async (req, res) => {
     await pool.query('ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS description_ml JSONB').catch(() => {});
     await pool.query('ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS terms_ml JSONB').catch(() => {});
     
-    // Drop ANY unique constraint/index on vouchers.code column, replace with per-property unique
+    // Remove any unique constraints on voucher codes - codes are validated at booking time per property
     try {
       const constraints = await pool.query(`
         SELECT con.conname, con.contype FROM pg_constraint con
@@ -29827,23 +29827,17 @@ app.post('/api/admin/vouchers', async (req, res) => {
         JOIN pg_attribute att ON att.attrelid = con.conrelid AND att.attnum = ANY(con.conkey)
         WHERE rel.relname = 'vouchers' AND att.attname = 'code'
       `);
-      console.log('Voucher code constraints found:', JSON.stringify(constraints.rows));
       for (const row of constraints.rows) {
-        console.log('Dropping constraint:', row.conname);
         await pool.query(`ALTER TABLE vouchers DROP CONSTRAINT "${row.conname}"`).catch(e => console.log('Drop constraint error:', e.message));
       }
       const indexes = await pool.query(`
-        SELECT indexname, indexdef FROM pg_indexes 
-        WHERE tablename = 'vouchers' AND indexdef ILIKE '%code%'
-        AND indexname != 'vouchers_code_property_unique'
+        SELECT indexname FROM pg_indexes 
+        WHERE tablename = 'vouchers' AND indexdef ILIKE '%unique%' AND indexdef ILIKE '%code%'
       `);
-      console.log('Voucher code indexes found:', JSON.stringify(indexes.rows));
       for (const row of indexes.rows) {
-        console.log('Dropping index:', row.indexname);
         await pool.query(`DROP INDEX "${row.indexname}"`).catch(e => console.log('Drop index error:', e.message));
       }
-    } catch(e) { console.log('Constraint cleanup error:', e.message); }
-    await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS vouchers_code_property_unique ON vouchers (code, COALESCE(property_id, 0))').catch(e => console.log('Create new index error:', e.message));
+    } catch(e) { console.log('Voucher constraint cleanup:', e.message); }
     
     const {
       code, name, description, terms,
@@ -30047,6 +30041,31 @@ app.post('/api/admin/vendors', async (req, res) => {
     
     // Ensure account_id column allows NULL
     await client.query('ALTER TABLE vendors ALTER COLUMN account_id DROP NOT NULL').catch(() => {});
+    
+    // Drop global unique on login_email, replace with per-account unique
+    try {
+      const constraints = await client.query(`
+        SELECT con.conname FROM pg_constraint con
+        JOIN pg_class rel ON rel.oid = con.conrelid
+        JOIN pg_attribute att ON att.attrelid = con.conrelid AND att.attnum = ANY(con.conkey)
+        WHERE rel.relname = 'vendors' AND att.attname = 'login_email'
+      `);
+      console.log('Vendor login_email constraints found:', JSON.stringify(constraints.rows));
+      for (const row of constraints.rows) {
+        console.log('Dropping vendor constraint:', row.conname);
+        await client.query(`ALTER TABLE vendors DROP CONSTRAINT "${row.conname}"`).catch(e => console.log('Drop vendor constraint error:', e.message));
+      }
+      const indexes = await client.query(`
+        SELECT indexname FROM pg_indexes 
+        WHERE tablename = 'vendors' AND indexdef ILIKE '%login_email%'
+        AND indexname != 'vendors_login_email_account_unique'
+      `);
+      for (const row of indexes.rows) {
+        console.log('Dropping vendor index:', row.indexname);
+        await client.query(`DROP INDEX "${row.indexname}"`).catch(e => console.log('Drop vendor index error:', e.message));
+      }
+    } catch(e) { console.log('Vendor constraint cleanup error:', e.message); }
+    await client.query('CREATE UNIQUE INDEX IF NOT EXISTS vendors_login_email_account_unique ON vendors (login_email, COALESCE(account_id, 0))').catch(e => console.log('Create vendor index error:', e.message));
     
     // Ensure vendor_permissions columns exist
     await client.query('ALTER TABLE vendor_permissions ADD COLUMN IF NOT EXISTS can_see_guest_name BOOLEAN DEFAULT true').catch(() => {});
