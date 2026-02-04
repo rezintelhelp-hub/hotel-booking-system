@@ -3635,38 +3635,9 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         gasPropertyId
       ]);
       
-      // Update text description fields separately (these may be JSONB or TEXT depending on schema)
-      // Only update if we have data from Beds24
-      if (propShortDesc) {
-        await pool.query('UPDATE properties SET short_description = $1 WHERE id = $2', [propShortDesc, gasPropertyId]).catch(() => {});
-      }
-      if (propDescription) {
-        await pool.query('UPDATE properties SET full_description = $1 WHERE id = $2', [propDescription, gasPropertyId]).catch(() => {});
-      }
-      if (propHouseRules) {
-        await pool.query('UPDATE properties SET house_rules = $1 WHERE id = $2', [propHouseRules, gasPropertyId]).catch(() => {});
-      }
-      if (propCancellation) {
-        await pool.query('UPDATE properties SET cancellation_policy = $1 WHERE id = $2', [propCancellation, gasPropertyId]).catch(() => {});
-      }
-      if (propTerms) {
-        await pool.query('UPDATE properties SET terms_conditions = $1 WHERE id = $2', [propTerms, gasPropertyId]).catch(() => {});
-      }
-      if (propDirections) {
-        await pool.query('UPDATE properties SET directions = $1 WHERE id = $2', [propDirections, gasPropertyId]).catch(() => {});
-      }
-      if (propCheckInInstr) {
-        await pool.query('UPDATE properties SET check_in_instructions = $1 WHERE id = $2', [propCheckInInstr, gasPropertyId]).catch(() => {});
-      }
-      if (propCheckOutInstr) {
-        await pool.query('UPDATE properties SET check_out_instructions = $1 WHERE id = $2', [propCheckOutInstr, gasPropertyId]).catch(() => {});
-      }
-      if (propAreaInfo) {
-        await pool.query('UPDATE properties SET area_info = $1 WHERE id = $2', [propAreaInfo, gasPropertyId]).catch(() => {});
-      }
-      if (propDamagePolicy) {
-        await pool.query('UPDATE properties SET damage_policy = $1 WHERE id = $2', [propDamagePolicy, gasPropertyId]).catch(() => {});
-      }
+      // Property descriptions NOT updated on sync - these are manually curated / AI-generated
+      // Only sync structural data: check-in/out times, house rules from PMS, cancellation policy
+      
       if (propDisplayName) {
         await pool.query('UPDATE properties SET display_name = $1 WHERE id = $2', [propDisplayName, gasPropertyId]).catch(() => {});
       }
@@ -4266,22 +4237,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
           prop.adapter_code === 'beds24' ? parseInt(room.external_id) : null
         ]);
         
-        // Update text fields separately - columns are JSONB, need {"en": "...", "fr": "..."} format (multilingual)
-        if (displayNameMultilang && Object.keys(displayNameMultilang).length > 0) {
-          const jsonVal = JSON.stringify(displayNameMultilang);
-          await pool.query('UPDATE bookable_units SET display_name = $1::jsonb WHERE id = $2', [jsonVal, gasRoomId])
-            .catch(e => console.log('link-to-gas: display_name update failed:', e.message));
-        }
-        if (shortDescMultilang && Object.keys(shortDescMultilang).length > 0) {
-          const jsonVal = JSON.stringify(shortDescMultilang);
-          await pool.query('UPDATE bookable_units SET short_description = $1::jsonb WHERE id = $2', [jsonVal, gasRoomId])
-            .catch(e => console.log('link-to-gas: short_description update failed:', e.message));
-        }
-        if (fullDescMultilang && Object.keys(fullDescMultilang).length > 0) {
-          const jsonVal = JSON.stringify(fullDescMultilang);
-          await pool.query('UPDATE bookable_units SET full_description = $1::jsonb WHERE id = $2', [jsonVal, gasRoomId])
-            .catch(e => console.log('link-to-gas: full_description update failed:', e.message));
-        }
+        // Descriptions NOT updated on sync - these are manually curated / AI-generated
         
         roomsUpdated++;
       } else {
@@ -4794,15 +4750,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
             gasRoomId
           ]);
           
-          // Update descriptions separately (JSONB columns)
-          if (fullDescJson) {
-            await pool.query('UPDATE bookable_units SET full_description = $1::jsonb WHERE id = $2', [fullDescJson, gasRoomId])
-              .catch(e => console.log('link-to-gas: full_description update skipped:', e.message));
-          }
-          if (shortDescJson) {
-            await pool.query('UPDATE bookable_units SET short_description = $1::jsonb WHERE id = $2', [shortDescJson, gasRoomId])
-              .catch(e => console.log('link-to-gas: short_description update skipped:', e.message));
-          }
+          // Descriptions NOT updated on sync - these are manually curated / AI-generated
           
           roomsUpdated++;
         } else {
