@@ -39578,8 +39578,12 @@ app.post('/api/partner/websites/:websiteId/upload', async (req, res) => {
     const { websiteId } = req.params;
     const { file_data, file_name, file_type, section } = req.body;
     
-    if (!file_data || !file_name) {
-      return res.status(400).json({ success: false, error: 'file_data and file_name required' });
+    // Validate required fields with clear messages
+    if (!file_data) {
+      return res.status(400).json({ success: false, error: 'file_data is required (base64-encoded image data)' });
+    }
+    if (!file_name) {
+      return res.status(400).json({ success: false, error: 'file_name is required (e.g. "hero-image.jpg")' });
     }
     
     // Strip data URI prefix if present (e.g. "data:image/jpeg;base64,/9j/4AAQ...")
@@ -39599,6 +39603,10 @@ app.post('/api/partner/websites/:websiteId/upload', async (req, res) => {
       const match = file_data.match(/^data:([^;]+);/);
       if (match) detectedType = match[1];
     }
+    
+    // Log upload attempt details
+    const base64SizeKB = Math.round(cleanBase64.length / 1024);
+    console.log(`[Upload] file_name=${file_name}, type=${detectedType}, section=${section || 'none'}, base64_size=${base64SizeKB}KB`);
     
     // Verify website belongs to partner
     const wResult = await pool.query(`
@@ -39620,31 +39628,63 @@ app.post('/api/partner/websites/:websiteId/upload', async (req, res) => {
     
     // Upload to WordPress media library
     const wpApiKey = 'GAS_SECRET_KEY_2024!';
-    const uploadResponse = await fetch(`${website.site_url}wp-json/developer-theme/v1/upload-media`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-GAS-API-Key': wpApiKey
-      },
-      body: JSON.stringify({
-        file_data: cleanBase64,  // Base64 encoded (no data URI prefix)
-        file_name: file_name,
-        file_type: detectedType
-      })
-    });
+    let uploadResponse;
+    try {
+      uploadResponse = await fetch(`${website.site_url}wp-json/developer-theme/v1/upload-media`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-GAS-API-Key': wpApiKey
+        },
+        body: JSON.stringify({
+          file_data: cleanBase64,  // Base64 encoded (no data URI prefix)
+          file_name: file_name,
+          file_type: detectedType,
+          section: section || null
+        })
+      });
+    } catch (fetchError) {
+      console.error('[Upload] WordPress fetch failed:', fetchError.message);
+      return res.status(502).json({ 
+        success: false, 
+        error: 'Could not connect to WordPress site',
+        detail: fetchError.message
+      });
+    }
+    
+    // Handle non-JSON WordPress responses (e.g. 413 entity too large, nginx errors)
+    const contentType = uploadResponse.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      const rawText = await uploadResponse.text();
+      console.error(`[Upload] WordPress returned non-JSON (status ${uploadResponse.status}):`, rawText.substring(0, 500));
+      return res.status(502).json({ 
+        success: false, 
+        error: `WordPress returned HTTP ${uploadResponse.status}`,
+        detail: rawText.substring(0, 200)
+      });
+    }
     
     const uploadData = await uploadResponse.json();
     
     if (!uploadData.success) {
-      return res.status(500).json({ success: false, error: uploadData.error || 'Upload failed' });
+      console.error('[Upload] WordPress upload failed:', JSON.stringify(uploadData));
+      return res.status(500).json({ 
+        success: false, 
+        error: uploadData.error || 'Upload failed',
+        wp_status: uploadResponse.status,
+        detail: uploadData.message || uploadData.data || null
+      });
     }
+    
+    console.log(`[Upload] Success: ${uploadData.url} (media_id: ${uploadData.media_id})`);
     
     res.json({
       success: true,
       message: 'Media uploaded',
       url: uploadData.url,
       media_id: uploadData.media_id,
-      file_name: file_name
+      file_name: file_name,
+      section: section || null
     });
     
   } catch (error) {
