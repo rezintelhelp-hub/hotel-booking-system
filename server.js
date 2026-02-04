@@ -34880,6 +34880,169 @@ app.put('/api/admin/rooms/bulk-visibility', async (req, res) => {
 });
 
 // =========================================================
+// IMAGE ASSIGNMENT TOOL API
+// =========================================================
+
+// GET all images for a property (from all sources) with room assignments
+app.get('/api/admin/properties/:id/all-images', async (req, res) => {
+  try {
+    const propertyId = req.params.id;
+    
+    // Get property info
+    const propResult = await pool.query('SELECT id, name, account_id FROM properties WHERE id = $1', [propertyId]);
+    if (propResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Property not found' });
+    }
+    
+    // Get rooms for this property
+    const rooms = await pool.query(
+      'SELECT id, name, display_name, max_guests FROM bookable_units WHERE property_id = $1 ORDER BY name',
+      [propertyId]
+    );
+    
+    // Get gas_sync_images (the main source for synced properties)
+    const syncImages = await pool.query(`
+      SELECT 
+        gsi.id, gsi.original_url as url, gsi.thumbnail_url, gsi.caption,
+        gsi.sort_order, gsi.image_type, gsi.room_type_external_id,
+        gsi.external_id, gsi.width, gsi.height,
+        'gas_sync' as source
+      FROM gas_sync_images gsi
+      JOIN gas_sync_properties gsp ON gsi.sync_property_id = gsp.id
+      WHERE gsp.gas_property_id = $1
+      ORDER BY gsi.sort_order, gsi.id
+    `, [propertyId]);
+    
+    // Get property_images 
+    const propImages = await pool.query(`
+      SELECT id, url, caption, sort_order, is_primary, room_id, external_id,
+        'property_images' as source
+      FROM property_images 
+      WHERE property_id = $1
+      ORDER BY sort_order, id
+    `, [propertyId]);
+    
+    // Get existing room_images for each room
+    const roomImages = await pool.query(`
+      SELECT ri.id, ri.room_id, ri.image_url as url, ri.thumbnail_url, ri.caption, 
+        ri.display_order, ri.is_primary, ri.is_active, ri.image_key
+      FROM room_images ri
+      JOIN bookable_units bu ON ri.room_id = bu.id
+      WHERE bu.property_id = $1 AND ri.is_active = true
+      ORDER BY ri.room_id, ri.display_order
+    `, [propertyId]);
+    
+    // Group room images by room_id
+    const roomImageMap = {};
+    for (const img of roomImages.rows) {
+      if (!roomImageMap[img.room_id]) roomImageMap[img.room_id] = [];
+      roomImageMap[img.room_id].push(img);
+    }
+    
+    res.json({
+      success: true,
+      property: propResult.rows[0],
+      rooms: rooms.rows,
+      sync_images: syncImages.rows,
+      property_images: propImages.rows,
+      room_images: roomImageMap
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// POST assign images to a room (from any source URL)
+app.post('/api/admin/rooms/:roomId/assign-images', async (req, res) => {
+  try {
+    const { roomId } = req.params;
+    const { images } = req.body; // Array of { url, thumbnail_url, caption }
+    
+    if (!images || !Array.isArray(images) || images.length === 0) {
+      return res.json({ success: false, error: 'No images provided' });
+    }
+    
+    // Verify room exists
+    const roomCheck = await pool.query('SELECT id, name, property_id FROM bookable_units WHERE id = $1', [roomId]);
+    if (roomCheck.rows.length === 0) {
+      return res.json({ success: false, error: 'Room not found' });
+    }
+    
+    // Get current max display_order
+    const maxOrder = await pool.query(
+      'SELECT COALESCE(MAX(display_order), -1) as max FROM room_images WHERE room_id = $1',
+      [roomId]
+    );
+    let nextOrder = maxOrder.rows[0].max + 1;
+    
+    let added = 0;
+    let skipped = 0;
+    
+    for (const img of images) {
+      // Check if already exists
+      const existing = await pool.query(
+        'SELECT id FROM room_images WHERE room_id = $1 AND image_url = $2',
+        [roomId, img.url]
+      );
+      
+      if (existing.rows.length > 0) {
+        skipped++;
+        continue;
+      }
+      
+      await pool.query(`
+        INSERT INTO room_images (room_id, image_url, thumbnail_url, caption, display_order, upload_source, is_active, created_at)
+        VALUES ($1, $2, $3, $4, $5, 'assigned', true, NOW())
+      `, [
+        roomId,
+        img.url,
+        img.thumbnail_url || img.url,
+        img.caption || '',
+        nextOrder++
+      ]);
+      added++;
+    }
+    
+    // Set first image as primary if no primary exists
+    if (added > 0) {
+      const hasPrimary = await pool.query(
+        'SELECT id FROM room_images WHERE room_id = $1 AND is_primary = true',
+        [roomId]
+      );
+      if (hasPrimary.rows.length === 0) {
+        const firstImg = await pool.query(
+          'SELECT id FROM room_images WHERE room_id = $1 AND is_active = true ORDER BY display_order LIMIT 1',
+          [roomId]
+        );
+        if (firstImg.rows.length > 0) {
+          await pool.query('UPDATE room_images SET is_primary = true WHERE id = $1', [firstImg.rows[0].id]);
+        }
+      }
+    }
+    
+    res.json({ success: true, added, skipped, room: roomCheck.rows[0].name });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// DELETE clear all room images for a room
+app.delete('/api/admin/rooms/:roomId/clear-images', async (req, res) => {
+  try {
+    const { roomId } = req.params;
+    
+    const result = await pool.query(
+      'DELETE FROM room_images WHERE room_id = $1',
+      [roomId]
+    );
+    
+    res.json({ success: true, deleted: result.rowCount });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// =========================================================
 // PROPERTY TERMS & POLICIES API
 // =========================================================
 
