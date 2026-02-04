@@ -40566,8 +40566,56 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
     }
     
     // Prepare description values - handle both TEXT and JSONB column types
-    const shortDesc = property.short_description || property.description || null;
-    const fullDesc = property.long_description || property.full_description || property.description || null;
+    // The live DB may have these as JSONB for multilingual support
+    const rawShortDesc = property.short_description || property.description || null;
+    const rawFullDesc = property.long_description || property.full_description || property.description || null;
+    const rawDisplayName = property.display_name || property.name;
+    
+    // Helper: wrap a string as JSONB {"en": "..."} if needed
+    function toJsonbSafe(val) {
+      if (val === null || val === undefined) return null;
+      if (typeof val === 'object') return JSON.stringify(val);
+      // Already valid JSON?
+      try { JSON.parse(val); return val; } catch(e) {}
+      // Wrap plain string as multilingual object
+      return JSON.stringify({ en: val });
+    }
+    
+    // First, check the actual column types in the live database
+    let colTypes = {};
+    try {
+      const typeCheck = await pool.query(`
+        SELECT column_name, data_type 
+        FROM information_schema.columns 
+        WHERE table_name = 'properties' 
+          AND column_name IN ('short_description', 'full_description', 'display_name', 'description')
+      `);
+      for (const row of typeCheck.rows) {
+        colTypes[row.column_name] = row.data_type;
+      }
+      console.log('[Elevate] Properties column types:', JSON.stringify(colTypes));
+    } catch (schemaErr) {
+      console.log('[Elevate] Could not check column types:', schemaErr.message);
+    }
+    
+    // Format values based on actual column types
+    const shortDesc = (colTypes.short_description === 'jsonb' || colTypes.short_description === 'json') 
+      ? toJsonbSafe(rawShortDesc) : rawShortDesc;
+    const fullDesc = (colTypes.full_description === 'jsonb' || colTypes.full_description === 'json') 
+      ? toJsonbSafe(rawFullDesc) : rawFullDesc;
+    const displayName = (colTypes.display_name === 'jsonb' || colTypes.display_name === 'json') 
+      ? toJsonbSafe(rawDisplayName) : rawDisplayName;
+    
+    console.log('[Elevate] Property INSERT params:', JSON.stringify({
+      user_id: clientUserId,
+      account_id: clientAccountId, 
+      name: property.name,
+      display_name: displayName,
+      short_desc_type: typeof shortDesc,
+      full_desc_type: typeof fullDesc,
+      display_name_type: typeof displayName,
+      colTypes
+    }));
     
     let newProperty;
     try {
@@ -40586,7 +40634,7 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
         clientUserId,
         clientAccountId,
         property.name,
-        property.display_name || property.name,
+        displayName,
         shortDesc,
         fullDesc,
         property.address || null,
@@ -40604,10 +40652,23 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
       ]);
     } catch (propError) {
       console.error('[Elevate] Property INSERT failed:', propError.message);
+      console.error('[Elevate] Failed with colTypes:', JSON.stringify(colTypes));
+      console.error('[Elevate] Failed param values:', JSON.stringify({
+        shortDesc, fullDesc, displayName,
+        short_type: typeof shortDesc,
+        full_type: typeof fullDesc,
+        display_type: typeof displayName
+      }));
       return res.status(500).json({ 
         success: false, 
         error: propError.message,
-        step: 'property_insert'
+        step: 'property_insert',
+        colTypes,
+        debug: {
+          short_desc_value: shortDesc ? shortDesc.substring(0, 50) : null,
+          full_desc_value: fullDesc ? fullDesc.substring(0, 50) : null,
+          display_name_value: displayName ? String(displayName).substring(0, 50) : null
+        }
       });
     }
     
@@ -40624,24 +40685,27 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
       for (const room of rooms) {
         if (!room.name) continue;
         
-        // Prepare room description values
-        const roomShortDesc = room.short_description || room.description || null;
-        const roomFullDesc = room.long_description || room.full_description || null;
+        // bookable_units has JSONB columns for display_name, short_description, full_description
+        // Wrap plain strings as {"en": "..."} for JSONB compatibility
+        const roomDisplayName = toJsonbSafe(room.display_name || room.name);
+        const roomShortDesc = toJsonbSafe(room.short_description || room.description || null);
+        const roomFullDesc = toJsonbSafe(room.long_description || room.full_description || null);
         
         let newRoom;
         try {
           newRoom = await pool.query(`
             INSERT INTO bookable_units (
-              property_id, name, room_type, max_guests, num_bedrooms, num_bathrooms, base_price,
+              property_id, name, display_name, room_type, max_guests, num_bedrooms, num_bathrooms, base_price,
               short_description, full_description,
               currency, cm_room_id, cm_source, status, created_at
             ) VALUES (
-              $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'elevate', 'active', NOW()
+              $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'elevate', 'active', NOW()
             )
             RETURNING id
           `, [
             propertyId,
             room.name,
+            roomDisplayName,
             room.room_type || 'room',
             room.max_guests || room.max_guest || room.max_occupancy || 2,
             room.bedrooms || room.num_bedrooms || null,
@@ -40654,6 +40718,7 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
           ]);
         } catch (roomError) {
           console.error(`[Elevate] Room INSERT failed for "${room.name}":`, roomError.message);
+          console.error('[Elevate] Room params:', JSON.stringify({ roomDisplayName, roomShortDesc, roomFullDesc }));
           // Return partial success - property was created but room failed
           return res.status(500).json({ 
             success: false, 
