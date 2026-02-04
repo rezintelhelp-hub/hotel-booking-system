@@ -29819,38 +29819,49 @@ app.post('/api/admin/vouchers', async (req, res) => {
     await pool.query('ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS description_ml JSONB').catch(() => {});
     await pool.query('ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS terms_ml JSONB').catch(() => {});
     
+    // Drop global unique constraint on code, replace with per-property unique
+    await pool.query('ALTER TABLE vouchers DROP CONSTRAINT IF EXISTS vouchers_code_key').catch(() => {});
+    await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS vouchers_code_property_unique ON vouchers (code, COALESCE(property_id, 0))').catch(() => {});
+    
     const {
       code, name, description, terms,
       name_ml, description_ml, terms_ml,
       discount_type, discount_value, applies_to,
       min_nights, min_total, max_uses, single_use_per_guest,
-      property_ids, room_ids,
+      property_ids, room_ids, property_id,
       valid_from, valid_until, active,
       is_external, vendor_id
     } = req.body;
     
-    // Handle multilingual fields
-    const nameJson = name_ml ? JSON.stringify(name_ml) : (name ? JSON.stringify({ en: name }) : null);
-    const descJson = description_ml ? JSON.stringify(description_ml) : (description ? JSON.stringify({ en: description }) : null);
-    const termsJson = terms_ml ? JSON.stringify(terms_ml) : (terms ? JSON.stringify({ en: terms }) : null);
-    const englishName = name_ml?.en || name || '';
-    const englishDesc = description_ml?.en || description || '';
+    // Handle name/description being sent as objects from frontend
+    const nameObj = (typeof name === 'object' && name !== null) ? name : (name_ml || (name ? { en: name } : null));
+    const descObj = (typeof description === 'object' && description !== null) ? description : (description_ml || (description ? { en: description } : null));
+    const termsObj = (typeof terms === 'object' && terms !== null) ? terms : (terms_ml || (terms ? { en: terms } : null));
+    
+    const nameJson = nameObj ? JSON.stringify(nameObj) : null;
+    const descJson = descObj ? JSON.stringify(descObj) : null;
+    const termsJson = termsObj ? JSON.stringify(termsObj) : null;
+    const englishName = nameObj?.en || (typeof name === 'string' ? name : '') || '';
+    const englishDesc = descObj?.en || (typeof description === 'string' ? description : '') || '';
+    
+    // Get property_id from body - try single property_id first, then first of property_ids array
+    const propId = property_id || (property_ids && property_ids.length > 0 ? property_ids[0] : null) || null;
     
     const result = await pool.query(`
       INSERT INTO vouchers (
         code, name, description, name_ml, description_ml, terms_ml,
         discount_type, discount_value, applies_to,
         min_nights, min_total, max_uses, single_use_per_guest,
-        property_ids, room_ids,
+        property_id, property_ids, room_ids,
         valid_from, valid_until, active,
         is_external, vendor_id
-      ) VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6::jsonb, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+      ) VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6::jsonb, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
       RETURNING *
     `, [
       code.toUpperCase(), englishName, englishDesc, nameJson, descJson, termsJson,
       discount_type || 'percentage', discount_value, applies_to || 'total',
       min_nights || 1, min_total || null, max_uses || null, single_use_per_guest || false,
-      property_ids || null, room_ids || null,
+      propId, property_ids || null, room_ids || null,
       valid_from || null, valid_until || null, active !== false,
       is_external || false, vendor_id || null
     ]);
@@ -29882,12 +29893,16 @@ app.put('/api/admin/vouchers/:id', async (req, res) => {
       is_external, vendor_id
     } = req.body;
     
-    // Handle multilingual fields
-    const nameJson = req.body.name_ml ? JSON.stringify(req.body.name_ml) : (name ? JSON.stringify({ en: name }) : null);
-    const descJson = req.body.description_ml ? JSON.stringify(req.body.description_ml) : (description ? JSON.stringify({ en: description }) : null);
-    const termsJson = req.body.terms_ml ? JSON.stringify(req.body.terms_ml) : null;
-    const englishName = req.body.name_ml?.en || name || '';
-    const englishDesc = req.body.description_ml?.en || description || '';
+    // Handle name/description being sent as objects from frontend
+    const nameObj = (typeof name === 'object' && name !== null) ? name : (req.body.name_ml || (name ? { en: name } : null));
+    const descObj = (typeof description === 'object' && description !== null) ? description : (req.body.description_ml || (description ? { en: description } : null));
+    const termsObj = req.body.terms_ml || null;
+    
+    const nameJson = nameObj ? JSON.stringify(nameObj) : null;
+    const descJson = descObj ? JSON.stringify(descObj) : null;
+    const termsJson = termsObj ? JSON.stringify(termsObj) : null;
+    const englishName = nameObj?.en || (typeof name === 'string' ? name : '') || '';
+    const englishDesc = descObj?.en || (typeof description === 'string' ? description : '') || '';
     
     const result = await pool.query(`
       UPDATE vouchers SET
@@ -30502,13 +30517,15 @@ app.post('/api/admin/upsells', async (req, res) => {
     await pool.query('ALTER TABLE upsells ADD COLUMN IF NOT EXISTS name_ml JSONB').catch(() => {});
     await pool.query('ALTER TABLE upsells ADD COLUMN IF NOT EXISTS description_ml JSONB').catch(() => {});
     
-    const { name, description, name_ml, description_ml, price, charge_type, max_quantity, property_id, room_id, room_ids, active, is_external, vendor_id } = req.body;
+    const { name: rawName, description: rawDesc, name_ml, description_ml, price, charge_type, max_quantity, property_id, room_id, room_ids, active, is_external, vendor_id } = req.body;
     
-    // Handle multilingual fields
-    const nameJson = name_ml ? JSON.stringify(name_ml) : (name ? JSON.stringify({ en: name }) : null);
-    const descJson = description_ml ? JSON.stringify(description_ml) : (description ? JSON.stringify({ en: description }) : null);
-    const englishName = name_ml?.en || name || '';
-    const englishDesc = description_ml?.en || description || '';
+    // Handle name/description being sent as objects from frontend
+    const nameObj = (typeof rawName === 'object' && rawName !== null) ? rawName : (name_ml || (rawName ? { en: rawName } : null));
+    const descObj = (typeof rawDesc === 'object' && rawDesc !== null) ? rawDesc : (description_ml || (rawDesc ? { en: rawDesc } : null));
+    const nameJson = nameObj ? JSON.stringify(nameObj) : null;
+    const descJson = descObj ? JSON.stringify(descObj) : null;
+    const englishName = mlStr(rawName) || '';
+    const englishDesc = mlStr(rawDesc) || '';
     
     const result = await pool.query(`
       INSERT INTO upsells (name, description, name_ml, description_ml, price, charge_type, max_quantity, property_id, room_id, room_ids, active, is_external, vendor_id)
@@ -30528,13 +30545,15 @@ app.put('/api/admin/upsells/:id', async (req, res) => {
     await pool.query('ALTER TABLE upsells ADD COLUMN IF NOT EXISTS name_ml JSONB').catch(() => {});
     await pool.query('ALTER TABLE upsells ADD COLUMN IF NOT EXISTS description_ml JSONB').catch(() => {});
     
-    const { name, description, name_ml, description_ml, price, charge_type, max_quantity, property_id, room_id, room_ids, active, is_external, vendor_id } = req.body;
+    const { name: rawName, description: rawDesc, name_ml, description_ml, price, charge_type, max_quantity, property_id, room_id, room_ids, active, is_external, vendor_id } = req.body;
     
-    // Handle multilingual fields
-    const nameJson = name_ml ? JSON.stringify(name_ml) : (name ? JSON.stringify({ en: name }) : null);
-    const descJson = description_ml ? JSON.stringify(description_ml) : (description ? JSON.stringify({ en: description }) : null);
-    const englishName = name_ml?.en || name || '';
-    const englishDesc = description_ml?.en || description || '';
+    // Handle name/description being sent as objects from frontend
+    const nameObj = (typeof rawName === 'object' && rawName !== null) ? rawName : (name_ml || (rawName ? { en: rawName } : null));
+    const descObj = (typeof rawDesc === 'object' && rawDesc !== null) ? rawDesc : (description_ml || (rawDesc ? { en: rawDesc } : null));
+    const nameJson = nameObj ? JSON.stringify(nameObj) : null;
+    const descJson = descObj ? JSON.stringify(descObj) : null;
+    const englishName = mlStr(rawName) || '';
+    const englishDesc = mlStr(rawDesc) || '';
     
     const result = await pool.query(`
       UPDATE upsells SET
