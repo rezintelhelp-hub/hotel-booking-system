@@ -22764,24 +22764,34 @@ app.post('/api/calry/import-property', async (req, res) => {
       gasPropertyId = existingProp.rows[0].id;
       console.log('Property already exists in GAS:', gasPropertyId);
       
-      await pool.query(`
-        UPDATE properties SET
-          name = $1, address = $2, city = $3, country = $4,
-          latitude = $5, longitude = $6, currency = $7,
-          state = $8, postal_code = $9, updated_at = NOW()
-        WHERE id = $10
-      `, [
-        calryProperty.name,
-        parsedAddress.full,
-        parsedAddress.city,
-        parsedAddress.country,
-        parsedAddress.lat,
-        parsedAddress.lng,
-        calryProperty.currency || 'USD',
-        parsedAddress.state,
-        parsedAddress.postal_code,
-        gasPropertyId
-      ]);
+      // SELECTIVE UPDATE: Only update fields that have actual values from the sync
+      // Never overwrite existing data with empty/null values
+      // Never overwrite descriptions (those are manually curated)
+      const updateParts = [];
+      const updateValues = [];
+      let paramIdx = 1;
+      
+      // Only update address fields if we have real data
+      if (parsedAddress.full) { updateParts.push(`address = $${paramIdx++}`); updateValues.push(parsedAddress.full); }
+      if (parsedAddress.city) { updateParts.push(`city = $${paramIdx++}`); updateValues.push(parsedAddress.city); }
+      if (parsedAddress.country) { updateParts.push(`country = $${paramIdx++}`); updateValues.push(parsedAddress.country); }
+      if (parsedAddress.state) { updateParts.push(`state = $${paramIdx++}`); updateValues.push(parsedAddress.state); }
+      if (parsedAddress.postal_code) { updateParts.push(`postal_code = $${paramIdx++}`); updateValues.push(parsedAddress.postal_code); }
+      if (parsedAddress.lat) { updateParts.push(`latitude = $${paramIdx++}`); updateValues.push(parsedAddress.lat); }
+      if (parsedAddress.lng) { updateParts.push(`longitude = $${paramIdx++}`); updateValues.push(parsedAddress.lng); }
+      if (calryProperty.currency) { updateParts.push(`currency = $${paramIdx++}`); updateValues.push(calryProperty.currency); }
+      
+      if (updateParts.length > 0) {
+        updateParts.push('updated_at = NOW()');
+        updateValues.push(gasPropertyId);
+        await pool.query(
+          `UPDATE properties SET ${updateParts.join(', ')} WHERE id = $${paramIdx}`,
+          updateValues
+        );
+        console.log(`[Calry Sync] Updated ${updateParts.length - 1} property fields for ${gasPropertyId}`);
+      } else {
+        console.log('[Calry Sync] No property fields to update');
+      }
     } else {
       const propResult = await pool.query(`
         INSERT INTO properties (
@@ -22838,23 +22848,30 @@ app.post('/api/calry/import-property', async (req, res) => {
       if (existingRoom.rows.length > 0) {
         gasRoomId = existingRoom.rows[0].id;
         
-        await pool.query(`
-          UPDATE bookable_units SET
-            name = $1, max_guests = $2, num_bedrooms = $3, num_bathrooms = $4,
-            base_price = $5, currency = $6, full_description = $7, updated_at = NOW()
-          WHERE id = $8
-        `, [
-          roomName,
-          maxGuests,
-          numBedrooms,
-          numBathrooms,
-          basePrice,
-          calryProperty.currency || 'EUR',
-          description,
-          gasRoomId
-        ]);
+        // SELECTIVE UPDATE: Only update structural/pricing data from sync
+        // NEVER overwrite full_description, short_description, or display_name
+        // Those are manually curated (e.g. AI-generated descriptions)
+        const roomUpdates = [];
+        const roomVals = [];
+        let rIdx = 1;
         
-        console.log('Updated room:', gasRoomId);
+        if (roomName) { roomUpdates.push(`name = $${rIdx++}`); roomVals.push(roomName); }
+        if (maxGuests) { roomUpdates.push(`max_guests = $${rIdx++}`); roomVals.push(maxGuests); }
+        if (numBedrooms) { roomUpdates.push(`num_bedrooms = $${rIdx++}`); roomVals.push(numBedrooms); }
+        if (numBathrooms) { roomUpdates.push(`num_bathrooms = $${rIdx++}`); roomVals.push(numBathrooms); }
+        if (basePrice > 0) { roomUpdates.push(`base_price = $${rIdx++}`); roomVals.push(basePrice); }
+        if (calryProperty.currency) { roomUpdates.push(`currency = $${rIdx++}`); roomVals.push(calryProperty.currency); }
+        
+        if (roomUpdates.length > 0) {
+          roomUpdates.push('updated_at = NOW()');
+          roomVals.push(gasRoomId);
+          await pool.query(
+            `UPDATE bookable_units SET ${roomUpdates.join(', ')} WHERE id = $${rIdx}`,
+            roomVals
+          );
+        }
+        
+        console.log('Updated room (preserved descriptions):', gasRoomId);
       } else {
         const roomResult = await pool.query(`
           INSERT INTO bookable_units (
@@ -26117,16 +26134,29 @@ app.get('/api/calry/import-property/:integrationAccountId/:propertyId', async (r
     
     if (existingProp.rows.length > 0) {
       gasPropertyId = existingProp.rows[0].id;
-      await pool.query(`
-        UPDATE properties SET name = $1, address = $2, city = $3, country = $4,
-          latitude = $5, longitude = $6, currency = $7, state = $8, postal_code = $9, updated_at = NOW()
-        WHERE id = $10
-      `, [calryProperty.name, parsedAddress2.full,
-          parsedAddress2.city, parsedAddress2.country,
-          parsedAddress2.lat, parsedAddress2.lng,
-          calryProperty.currency || 'USD',
-          parsedAddress2.state, parsedAddress2.postal_code,
-          gasPropertyId]);
+      
+      // SELECTIVE UPDATE: Only update fields with real data, never overwrite with blanks
+      const updateParts2 = [];
+      const updateValues2 = [];
+      let pIdx = 1;
+      
+      if (parsedAddress2.full) { updateParts2.push(`address = $${pIdx++}`); updateValues2.push(parsedAddress2.full); }
+      if (parsedAddress2.city) { updateParts2.push(`city = $${pIdx++}`); updateValues2.push(parsedAddress2.city); }
+      if (parsedAddress2.country) { updateParts2.push(`country = $${pIdx++}`); updateValues2.push(parsedAddress2.country); }
+      if (parsedAddress2.state) { updateParts2.push(`state = $${pIdx++}`); updateValues2.push(parsedAddress2.state); }
+      if (parsedAddress2.postal_code) { updateParts2.push(`postal_code = $${pIdx++}`); updateValues2.push(parsedAddress2.postal_code); }
+      if (parsedAddress2.lat) { updateParts2.push(`latitude = $${pIdx++}`); updateValues2.push(parsedAddress2.lat); }
+      if (parsedAddress2.lng) { updateParts2.push(`longitude = $${pIdx++}`); updateValues2.push(parsedAddress2.lng); }
+      if (calryProperty.currency) { updateParts2.push(`currency = $${pIdx++}`); updateValues2.push(calryProperty.currency); }
+      
+      if (updateParts2.length > 0) {
+        updateParts2.push('updated_at = NOW()');
+        updateValues2.push(gasPropertyId);
+        await pool.query(
+          `UPDATE properties SET ${updateParts2.join(', ')} WHERE id = $${pIdx}`,
+          updateValues2
+        );
+      }
     } else {
       const propResult = await pool.query(`
         INSERT INTO properties (
@@ -26154,12 +26184,21 @@ app.get('/api/calry/import-property/:integrationAccountId/:propertyId', async (r
       let gasRoomId;
       if (existingRoom.rows.length > 0) {
         gasRoomId = existingRoom.rows[0].id;
-        await pool.query(`
-          UPDATE bookable_units SET name = $1, max_guests = $2, num_bedrooms = $3,
-            num_bathrooms = $4, base_price = $5, currency = $6, updated_at = NOW()
-          WHERE id = $7
-        `, [room.name, room.maxGuests || 2, room.bedrooms || 1, room.bathrooms || 1,
-            room.basePrice || 0, calryProperty.currency || 'USD', gasRoomId]);
+        // SELECTIVE UPDATE: Only structural/pricing data, never descriptions
+        const ru2 = [];
+        const rv2 = [];
+        let ri2 = 1;
+        if (room.name) { ru2.push(`name = $${ri2++}`); rv2.push(room.name); }
+        if (room.maxGuests) { ru2.push(`max_guests = $${ri2++}`); rv2.push(room.maxGuests); }
+        if (room.bedrooms) { ru2.push(`num_bedrooms = $${ri2++}`); rv2.push(room.bedrooms); }
+        if (room.bathrooms) { ru2.push(`num_bathrooms = $${ri2++}`); rv2.push(room.bathrooms); }
+        if (room.basePrice > 0) { ru2.push(`base_price = $${ri2++}`); rv2.push(room.basePrice); }
+        if (calryProperty.currency) { ru2.push(`currency = $${ri2++}`); rv2.push(calryProperty.currency); }
+        if (ru2.length > 0) {
+          ru2.push('updated_at = NOW()');
+          rv2.push(gasRoomId);
+          await pool.query(`UPDATE bookable_units SET ${ru2.join(', ')} WHERE id = $${ri2}`, rv2);
+        }
       } else {
         const roomResult = await pool.query(`
           INSERT INTO bookable_units (
