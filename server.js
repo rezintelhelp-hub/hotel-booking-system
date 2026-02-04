@@ -38526,12 +38526,12 @@ app.get('/api/partner/tenants/:tenantId/analytics', async (req, res) => {
     const bookingStats = await pool.query(`
       SELECT 
         COUNT(*) as total_bookings,
-        COUNT(CASE WHEN status = 'confirmed' THEN 1 END) as confirmed_bookings,
-        COUNT(CASE WHEN status = 'cancelled' THEN 1 END) as cancelled_bookings,
-        COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending_bookings,
-        COALESCE(SUM(CASE WHEN status = 'confirmed' THEN grand_total ELSE 0 END), 0) as total_revenue,
-        COALESCE(AVG(CASE WHEN status = 'confirmed' THEN grand_total END), 0) as avg_booking_value,
-        COALESCE(SUM(CASE WHEN status = 'confirmed' THEN 
+        COUNT(CASE WHEN b.status = 'confirmed' THEN 1 END) as confirmed_bookings,
+        COUNT(CASE WHEN b.status = 'cancelled' THEN 1 END) as cancelled_bookings,
+        COUNT(CASE WHEN b.status = 'pending' THEN 1 END) as pending_bookings,
+        COALESCE(SUM(CASE WHEN b.status = 'confirmed' THEN grand_total ELSE 0 END), 0) as total_revenue,
+        COALESCE(AVG(CASE WHEN b.status = 'confirmed' THEN grand_total END), 0) as avg_booking_value,
+        COALESCE(SUM(CASE WHEN b.status = 'confirmed' THEN 
           DATE_PART('day', departure_date::timestamp - arrival_date::timestamp) 
         ELSE 0 END), 0) as total_nights
       FROM bookings b
@@ -38596,15 +38596,15 @@ app.get('/api/partner/tenants/:tenantId/analytics', async (req, res) => {
     // Get booking sources
     const bookingSources = await pool.query(`
       SELECT 
-        COALESCE(booking_source, 'direct') as source,
+        COALESCE(b.booking_source, 'direct') as source,
         COUNT(*) as bookings,
-        COALESCE(SUM(CASE WHEN status = 'confirmed' THEN grand_total ELSE 0 END), 0) as revenue
+        COALESCE(SUM(CASE WHEN b.status = 'confirmed' THEN b.grand_total ELSE 0 END), 0) as revenue
       FROM bookings b
       JOIN properties p ON b.property_id = p.id
       WHERE p.account_id = $1 
       AND b.created_at >= $2 
       AND b.created_at <= $3::date + INTERVAL '1 day'
-      GROUP BY COALESCE(booking_source, 'direct')
+      GROUP BY COALESCE(b.booking_source, 'direct')
       ORDER BY bookings DESC
     `, [accountId, startDate, endDate]);
     
@@ -38707,8 +38707,8 @@ app.get('/api/partner/websites/:websiteId/analytics', async (req, res) => {
       bookingStats = await pool.query(`
         SELECT 
           COUNT(*) as total_bookings,
-          COUNT(CASE WHEN status = 'confirmed' THEN 1 END) as confirmed_bookings,
-          COALESCE(SUM(CASE WHEN status = 'confirmed' THEN grand_total ELSE 0 END), 0) as total_revenue
+          COUNT(CASE WHEN b.status = 'confirmed' THEN 1 END) as confirmed_bookings,
+          COALESCE(SUM(CASE WHEN b.status = 'confirmed' THEN b.grand_total ELSE 0 END), 0) as total_revenue
         FROM bookings b
         WHERE b.bookable_unit_id = ANY($1::int[])
         AND b.created_at >= $2 
@@ -38719,8 +38719,8 @@ app.get('/api/partner/websites/:websiteId/analytics', async (req, res) => {
       bookingStats = await pool.query(`
         SELECT 
           COUNT(*) as total_bookings,
-          COUNT(CASE WHEN status = 'confirmed' THEN 1 END) as confirmed_bookings,
-          COALESCE(SUM(CASE WHEN status = 'confirmed' THEN grand_total ELSE 0 END), 0) as total_revenue
+          COUNT(CASE WHEN b.status = 'confirmed' THEN 1 END) as confirmed_bookings,
+          COALESCE(SUM(CASE WHEN b.status = 'confirmed' THEN b.grand_total ELSE 0 END), 0) as total_revenue
         FROM bookings b
         JOIN properties p ON b.property_id = p.id
         WHERE p.account_id = $1
