@@ -23882,19 +23882,26 @@ async function linkSyncPropertyToGasInternal(syncPropertyId, accountId, calryPro
     
     // Build comprehensive property data from all available sources
     const cp = calryProperty || {};
-    const addr = cp.address || {};
-    const coords = addr.coordinates || addr.geoLocation || {};
+    
+    // Parse address - adapter returns { street, street2, city, state, postalCode, country }
+    let addr = cp.address || {};
+    if (typeof addr === 'string') {
+      try { addr = JSON.parse(addr); } catch (e) { addr = { street: addr }; }
+    }
+    
+    // Coordinates are at cp.coordinates (separate from address in adapter output)
+    const coords = cp.coordinates || addr.coordinates || addr.geoLocation || {};
     
     const propData = {
       name: prop.name || cp.name || 'Imported Property',
       display_name: cp.displayName || cp.name || prop.name || '',
-      address: prop.address || addr.street || addr.addressLine1 || addr.line1 || '',
-      city: prop.city || addr.city || '',
+      address: addr.street || addr.line1 || addr.addressLine1 || prop.address || '',
+      city: addr.city || prop.city || '',
       state: addr.state || addr.region || addr.province || '',
-      country: prop.country || addr.country || addr.countryCode || '',
-      postal_code: prop.postal_code || addr.postalCode || addr.zipCode || addr.zip || '',
-      latitude: prop.latitude || coords.lat || coords.latitude || null,
-      longitude: prop.longitude || coords.lng || coords.lon || coords.longitude || null,
+      country: addr.country || addr.countryCode || prop.country || '',
+      postal_code: addr.postalCode || addr.postal_code || addr.zipCode || prop.postal_code || '',
+      latitude: coords.latitude || coords.lat || prop.latitude || null,
+      longitude: coords.longitude || coords.lng || coords.lon || prop.longitude || null,
       currency: prop.currency || cp.currency || 'EUR',
       // Text fields
       short_description: cp.shortDescription || cp.summary || rawData.shortDescription || '',
@@ -23918,25 +23925,61 @@ async function linkSyncPropertyToGasInternal(syncPropertyId, accountId, calryPro
       website: cp.website || cp.websiteUrl || ''
     };
     
+    // Geocode if no coordinates provided
+    if (!propData.latitude || !propData.longitude) {
+      try {
+        const geoQuery = [propData.address, propData.city, propData.state, propData.postal_code, propData.country].filter(Boolean).join(', ');
+        if (geoQuery) {
+          console.log(`  Geocoding: ${geoQuery}`);
+          const geoResp = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(geoQuery)}&format=json&limit=1`, {
+            headers: { 'User-Agent': 'GAS-Platform/1.0' }
+          });
+          const geoData = await geoResp.json();
+          if (geoData && geoData.length > 0) {
+            propData.latitude = parseFloat(geoData[0].lat);
+            propData.longitude = parseFloat(geoData[0].lon);
+            console.log(`  Geocoded to: ${propData.latitude}, ${propData.longitude}`);
+          }
+        }
+      } catch (geoErr) {
+        console.log(`  Geocoding failed: ${geoErr.message}`);
+      }
+    }
+    
+    console.log(`  Mapped address: ${propData.address}, ${propData.city}, ${propData.state}, ${propData.country} ${propData.postal_code}`);
+    console.log(`  Mapped coords: ${propData.latitude}, ${propData.longitude}`);
     console.log(`  Mapped: ${propData.city}, ${propData.country} | ${propData.bedrooms}BR/${propData.bathrooms}BA | max ${propData.max_guests} guests`);
     
     if (existingProp.rows.length > 0) {
       gasPropertyId = existingProp.rows[0].id;
-      await pool.query(`
-        UPDATE properties SET 
-          name=$1, display_name=$2, address=$3, city=$4, state=$5, country=$6, postal_code=$7,
-          latitude=$8, longitude=$9, currency=$10, short_description=$11, full_description=$12,
-          house_rules=$13, cancellation_policy=$14, check_in_instructions=$15, check_out_instructions=$16,
-          check_in_time=$17, check_out_time=$18, max_guests=$19, bedrooms=$20, bathrooms=$21,
-          property_type=$22, contact_email=$23, contact_phone=$24, website=$25, updated_at=NOW()
-        WHERE id=$26`,
-        [propData.name, propData.display_name, propData.address, propData.city, propData.state,
-         propData.country, propData.postal_code, propData.latitude, propData.longitude, propData.currency,
-         propData.short_description, propData.full_description, propData.house_rules, propData.cancellation_policy,
-         propData.check_in_instructions, propData.check_out_instructions, propData.check_in_time, propData.check_out_time,
-         propData.max_guests, propData.bedrooms, propData.bathrooms, propData.property_type,
-         propData.contact_email, propData.contact_phone, propData.website, gasPropertyId]);
-      console.log(`  Updated existing property: ${gasPropertyId}`);
+      
+      // SELECTIVE UPDATE for existing properties:
+      // Only update address/location/structural fields
+      // NEVER overwrite descriptions, display_name, house_rules etc - those are manually curated
+      const pu = [];
+      const pv = [];
+      let pi = 1;
+      
+      // Always update name from PMS
+      pu.push(`name = $${pi++}`); pv.push(propData.name);
+      // Address fields - only if we have data
+      if (propData.address) { pu.push(`address = $${pi++}`); pv.push(propData.address); }
+      if (propData.city) { pu.push(`city = $${pi++}`); pv.push(propData.city); }
+      if (propData.state) { pu.push(`state = $${pi++}`); pv.push(propData.state); }
+      if (propData.country) { pu.push(`country = $${pi++}`); pv.push(propData.country); }
+      if (propData.postal_code) { pu.push(`postal_code = $${pi++}`); pv.push(propData.postal_code); }
+      if (propData.latitude) { pu.push(`latitude = $${pi++}`); pv.push(propData.latitude); }
+      if (propData.longitude) { pu.push(`longitude = $${pi++}`); pv.push(propData.longitude); }
+      if (propData.currency) { pu.push(`currency = $${pi++}`); pv.push(propData.currency); }
+      // Structural from PMS
+      if (propData.check_in_time) { pu.push(`check_in_time = $${pi++}`); pv.push(propData.check_in_time); }
+      if (propData.check_out_time) { pu.push(`check_out_time = $${pi++}`); pv.push(propData.check_out_time); }
+      if (propData.property_type) { pu.push(`property_type = $${pi++}`); pv.push(propData.property_type); }
+      
+      pu.push('updated_at = NOW()');
+      pv.push(gasPropertyId);
+      await pool.query(`UPDATE properties SET ${pu.join(', ')} WHERE id = $${pi}`, pv);
+      console.log(`  Updated existing property (preserved descriptions): ${gasPropertyId}`);
     } else {
       const propResult = await pool.query(`
         INSERT INTO properties (
@@ -23993,15 +24036,17 @@ async function linkSyncPropertyToGasInternal(syncPropertyId, accountId, calryPro
         let gasRoomId;
         if (existingRoom.rows.length > 0) {
           gasRoomId = existingRoom.rows[0].id;
+          // SELECTIVE UPDATE: Only structural/pricing data from PMS
+          // NEVER overwrite display_name, short_description, full_description - those are manually curated
           await pool.query(`
             UPDATE bookable_units SET 
-              name=$1, display_name=$2, max_guests=$3, base_price=$4, currency=$5, 
-              bedrooms=$6, bathrooms=$7, short_description=$8, full_description=$9,
-              room_type=$10, max_adults=$11, max_children=$12, beds=$13, size_sqm=$14,
+              name=$1, max_guests=$2, base_price=$3, currency=$4, 
+              bedrooms=$5, bathrooms=$6,
+              room_type=$7, max_adults=$8, max_children=$9, beds=$10, size_sqm=$11,
               updated_at=NOW() 
-            WHERE id=$15`,
-            [roomData.name, roomData.display_name, roomData.max_guests, roomData.base_price, roomData.currency,
-             roomData.bedrooms, roomData.bathrooms, roomData.short_description, roomData.full_description,
+            WHERE id=$12`,
+            [roomData.name, roomData.max_guests, roomData.base_price, roomData.currency,
+             roomData.bedrooms, roomData.bathrooms,
              roomData.room_type, roomData.max_adults, roomData.max_children, roomData.beds, roomData.size_sqm, gasRoomId]);
         } else {
           const roomResult = await pool.query(`
