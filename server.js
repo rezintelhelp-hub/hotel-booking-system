@@ -29796,6 +29796,11 @@ app.get('/api/admin/vouchers/:id', async (req, res) => {
 // Create voucher
 app.post('/api/admin/vouchers', async (req, res) => {
   try {
+    // Ensure multilingual columns exist
+    await pool.query('ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS name_ml JSONB').catch(() => {});
+    await pool.query('ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS description_ml JSONB').catch(() => {});
+    await pool.query('ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS terms_ml JSONB').catch(() => {});
+    
     const {
       code, name, description, terms,
       name_ml, description_ml, terms_ml,
@@ -29845,6 +29850,11 @@ app.post('/api/admin/vouchers', async (req, res) => {
 // Update voucher
 app.put('/api/admin/vouchers/:id', async (req, res) => {
   try {
+    // Ensure multilingual columns exist
+    await pool.query('ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS name_ml JSONB').catch(() => {});
+    await pool.query('ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS description_ml JSONB').catch(() => {});
+    await pool.query('ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS terms_ml JSONB').catch(() => {});
+    
     const {
       code, name, description,
       discount_type, discount_value, applies_to,
@@ -29961,9 +29971,15 @@ app.post('/api/admin/vendors', async (req, res) => {
   const client = await pool.connect();
   try {
     const { 
-      account_id, name, email, phone, address, website, contact_name, notes,
+      name, email, phone, address, website, contact_name, notes,
       login_email, permissions = {}
     } = req.body;
+    
+    // Get account_id from body, query, or header
+    const account_id = req.body.account_id || req.query.account_id || req.headers['x-account-id'] || null;
+    
+    // Ensure account_id column allows NULL
+    await client.query('ALTER TABLE vendors ALTER COLUMN account_id DROP NOT NULL').catch(() => {});
     
     await client.query('BEGIN');
     
@@ -30437,6 +30453,10 @@ app.get('/api/admin/upsells', async (req, res) => {
 
 app.post('/api/admin/upsells', async (req, res) => {
   try {
+    // Ensure multilingual columns exist
+    await pool.query('ALTER TABLE upsells ADD COLUMN IF NOT EXISTS name_ml JSONB').catch(() => {});
+    await pool.query('ALTER TABLE upsells ADD COLUMN IF NOT EXISTS description_ml JSONB').catch(() => {});
+    
     const { name, description, name_ml, description_ml, price, charge_type, max_quantity, property_id, room_id, room_ids, active, is_external, vendor_id } = req.body;
     
     // Handle multilingual fields
@@ -30459,6 +30479,10 @@ app.post('/api/admin/upsells', async (req, res) => {
 
 app.put('/api/admin/upsells/:id', async (req, res) => {
   try {
+    // Ensure multilingual columns exist
+    await pool.query('ALTER TABLE upsells ADD COLUMN IF NOT EXISTS name_ml JSONB').catch(() => {});
+    await pool.query('ALTER TABLE upsells ADD COLUMN IF NOT EXISTS description_ml JSONB').catch(() => {});
+    
     const { name, description, name_ml, description_ml, price, charge_type, max_quantity, property_id, room_id, room_ids, active, is_external, vendor_id } = req.body;
     
     // Handle multilingual fields
