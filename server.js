@@ -40194,8 +40194,11 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
       clientAccountId = existingClient.rows[0].id;
       clientApiKey = existingClient.rows[0].api_key;
       
-      // Get user_id from settings JSON
-      const settings = existingClient.rows[0].settings || {};
+      // Get user_id from settings JSON - safely parse if string
+      let settings = existingClient.rows[0].settings || {};
+      if (typeof settings === 'string') {
+        try { settings = JSON.parse(settings); } catch(e) { settings = {}; }
+      }
       clientUserId = settings.user_id;
       
       // If existing account doesn't have user_id, try to find or create one
@@ -40235,8 +40238,6 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
       
       console.log(`[Elevate] Using existing client account ${clientAccountId} with user_id ${clientUserId}`);
       
-      console.log(`[Elevate] Using existing client account ${clientAccountId} with user_id ${clientUserId}`);
-      
     } else if (client.action === 'tenant') {
       // Use tenant_id from partner_tenant_mapping (created via Partner API)
       if (!client.tenant_id) {
@@ -40263,8 +40264,11 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
       clientAccountId = tenantMapping.rows[0].gas_account_id;
       clientApiKey = tenantMapping.rows[0].api_key;
       
-      // Get user_id from settings JSON
-      const settings = tenantMapping.rows[0].settings || {};
+      // Get user_id from settings JSON - safely parse if string
+      let settings = tenantMapping.rows[0].settings || {};
+      if (typeof settings === 'string') {
+        try { settings = JSON.parse(settings); } catch(e) { settings = {}; }
+      }
       clientUserId = settings.user_id;
       
       // If tenant account doesn't have user_id, try to find or create one
@@ -40340,12 +40344,12 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
     const newProperty = await pool.query(`
       INSERT INTO properties (
         user_id, account_id, name, display_name, short_description, full_description,
-        address, city, country,
+        address, city, state, country, postal_code,
         latitude, longitude, phone, email, currency, property_type,
         cm_source, cm_property_id, status, created_at
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
-        'elevate', $16, 'active', NOW()
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17,
+        'elevate', $18, 'active', NOW()
       )
       RETURNING id
     `, [
@@ -40353,11 +40357,13 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
       clientAccountId,
       property.name,
       property.display_name || property.name,
-      property.short_description || null,
-      property.long_description || property.full_description || null,
+      property.short_description || property.description || null,
+      property.long_description || property.full_description || property.description || null,
       property.address || null,
       property.city || null,
+      property.state || null,
       property.country || 'CH',
+      property.zip || property.postal_code || property.zip_code || null,
       property.latitude || null,
       property.longitude || null,
       property.phone || null,
@@ -40393,7 +40399,7 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
           propertyId,
           room.name,
           room.room_type || 'room',
-          room.max_guests || room.max_occupancy || 2,
+          room.max_guests || room.max_guest || room.max_occupancy || 2,
           room.bedrooms || room.num_bedrooms || null,
           room.bathrooms || room.num_bathrooms || null,
           room.base_rate || room.base_price || null,
