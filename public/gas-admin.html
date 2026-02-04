@@ -36359,7 +36359,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                 single_use_per_guest: document.getElementById('voucher-single-use').checked,
                 active: document.getElementById('voucher-active').checked,
                 is_external: isExternal,
-                vendor_id: vendorId
+                vendor_id: vendorId,
+                property_id: document.getElementById('voucher-property')?.value || document.getElementById('vouchers-property-select')?.value || null
             };
             
             try {
