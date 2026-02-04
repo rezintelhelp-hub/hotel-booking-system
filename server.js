@@ -38546,7 +38546,6 @@ app.get('/api/partner/tenants/:tenantId/analytics', async (req, res) => {
       SELECT 
         p.id as property_id,
         p.name as property_name,
-        p.external_id,
         COUNT(*) as bookings,
         COALESCE(SUM(CASE WHEN b.status = 'confirmed' THEN b.grand_total ELSE 0 END), 0) as revenue
       FROM bookings b
@@ -38554,7 +38553,7 @@ app.get('/api/partner/tenants/:tenantId/analytics', async (req, res) => {
       WHERE p.account_id = $1 
       AND b.created_at >= $2 
       AND b.created_at <= $3::date + INTERVAL '1 day'
-      GROUP BY p.id, p.name, p.external_id
+      GROUP BY p.id, p.name
       ORDER BY revenue DESC
     `, [accountId, startDate, endDate]);
     
@@ -38563,7 +38562,6 @@ app.get('/api/partner/tenants/:tenantId/analytics', async (req, res) => {
       SELECT 
         bu.id as room_id,
         bu.name as room_name,
-        bu.external_id,
         p.name as property_name,
         COUNT(*) as bookings,
         COALESCE(SUM(CASE WHEN b.status = 'confirmed' THEN b.grand_total ELSE 0 END), 0) as revenue
@@ -38573,7 +38571,7 @@ app.get('/api/partner/tenants/:tenantId/analytics', async (req, res) => {
       WHERE p.account_id = $1 
       AND b.created_at >= $2 
       AND b.created_at <= $3::date + INTERVAL '1 day'
-      GROUP BY bu.id, bu.name, bu.external_id, p.name
+      GROUP BY bu.id, bu.name, p.name
       ORDER BY bookings DESC
       LIMIT 20
     `, [accountId, startDate, endDate]);
@@ -38632,14 +38630,12 @@ app.get('/api/partner/tenants/:tenantId/analytics', async (req, res) => {
       by_property: bookingsByProperty.rows.map(p => ({
         property_id: p.property_id,
         property_name: p.property_name,
-        external_id: p.external_id,
         bookings: parseInt(p.bookings),
         revenue: parseFloat(p.revenue)
       })),
       by_room: bookingsByRoom.rows.map(r => ({
         room_id: r.room_id,
         room_name: r.room_name,
-        external_id: r.external_id,
         property_name: r.property_name,
         bookings: parseInt(r.bookings),
         revenue: parseFloat(r.revenue)
