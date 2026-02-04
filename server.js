@@ -29822,24 +29822,28 @@ app.post('/api/admin/vouchers', async (req, res) => {
     // Drop ANY unique constraint/index on vouchers.code column, replace with per-property unique
     try {
       const constraints = await pool.query(`
-        SELECT con.conname FROM pg_constraint con
+        SELECT con.conname, con.contype FROM pg_constraint con
         JOIN pg_class rel ON rel.oid = con.conrelid
         JOIN pg_attribute att ON att.attrelid = con.conrelid AND att.attnum = ANY(con.conkey)
-        WHERE rel.relname = 'vouchers' AND att.attname = 'code' AND con.contype = 'u'
+        WHERE rel.relname = 'vouchers' AND att.attname = 'code'
       `);
+      console.log('Voucher code constraints found:', JSON.stringify(constraints.rows));
       for (const row of constraints.rows) {
-        await pool.query(`ALTER TABLE vouchers DROP CONSTRAINT IF EXISTS "${row.conname}"`).catch(() => {});
+        console.log('Dropping constraint:', row.conname);
+        await pool.query(`ALTER TABLE vouchers DROP CONSTRAINT "${row.conname}"`).catch(e => console.log('Drop constraint error:', e.message));
       }
       const indexes = await pool.query(`
-        SELECT indexname FROM pg_indexes 
-        WHERE tablename = 'vouchers' AND indexdef ILIKE '%code%' AND indexdef ILIKE '%unique%'
+        SELECT indexname, indexdef FROM pg_indexes 
+        WHERE tablename = 'vouchers' AND indexdef ILIKE '%code%'
         AND indexname != 'vouchers_code_property_unique'
       `);
+      console.log('Voucher code indexes found:', JSON.stringify(indexes.rows));
       for (const row of indexes.rows) {
-        await pool.query(`DROP INDEX IF EXISTS "${row.indexname}"`).catch(() => {});
+        console.log('Dropping index:', row.indexname);
+        await pool.query(`DROP INDEX "${row.indexname}"`).catch(e => console.log('Drop index error:', e.message));
       }
-    } catch(e) { console.log('Constraint cleanup:', e.message); }
-    await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS vouchers_code_property_unique ON vouchers (code, COALESCE(property_id, 0))').catch(() => {});
+    } catch(e) { console.log('Constraint cleanup error:', e.message); }
+    await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS vouchers_code_property_unique ON vouchers (code, COALESCE(property_id, 0))').catch(e => console.log('Create new index error:', e.message));
     
     const {
       code, name, description, terms,
