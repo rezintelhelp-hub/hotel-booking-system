@@ -23883,25 +23883,29 @@ async function linkSyncPropertyToGasInternal(syncPropertyId, accountId, calryPro
     // Build comprehensive property data from all available sources
     const cp = calryProperty || {};
     
-    // Parse address - adapter returns { street, street2, city, state, postalCode, country }
+    // Parse address - could be object or JSON string
     let addr = cp.address || {};
     if (typeof addr === 'string') {
-      try { addr = JSON.parse(addr); } catch (e) { addr = { street: addr }; }
+      try { addr = JSON.parse(addr); } catch (e) { addr = {}; }
     }
     
-    // Coordinates are at cp.coordinates (separate from address in adapter output)
-    const coords = cp.coordinates || addr.coordinates || addr.geoLocation || {};
+    // Log exactly what we're working with
+    console.log('[linkSync] cp.address type:', typeof cp.address, 'value:', JSON.stringify(cp.address));
+    console.log('[linkSync] addr parsed:', JSON.stringify(addr));
+    console.log('[linkSync] cp.coordinates:', JSON.stringify(cp.coordinates));
+    console.log('[linkSync] prop (staging):', JSON.stringify({ address: prop.address, city: prop.city, country: prop.country, lat: prop.latitude, lng: prop.longitude }));
     
+    // Map address fields - handle ALL known field names from Calry/adapter
     const propData = {
       name: prop.name || cp.name || 'Imported Property',
       display_name: cp.displayName || cp.name || prop.name || '',
-      address: addr.street || addr.line1 || addr.addressLine1 || prop.address || '',
+      address: addr.line1 || addr.street || addr.address1 || addr.addressLine1 || prop.address || '',
       city: addr.city || prop.city || '',
-      state: addr.state || addr.region || addr.province || '',
+      state: addr.state || addr.region || '',
       country: addr.country || addr.countryCode || prop.country || '',
-      postal_code: addr.postalCode || addr.postal_code || addr.zipCode || prop.postal_code || '',
-      latitude: coords.latitude || coords.lat || prop.latitude || null,
-      longitude: coords.longitude || coords.lng || coords.lon || prop.longitude || null,
+      postal_code: addr.postal_code || addr.postalCode || addr.zipCode || prop.postal_code || '',
+      latitude: cp.coordinates?.latitude || cp.coordinates?.lat || prop.latitude || null,
+      longitude: cp.coordinates?.longitude || cp.coordinates?.lng || prop.longitude || null,
       currency: prop.currency || cp.currency || 'EUR',
       // Text fields
       short_description: cp.shortDescription || cp.summary || rawData.shortDescription || '',
