@@ -21304,8 +21304,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                     formData.append('type', `page-${pageName}-${imageType}`);
                     
                     try {
+                        const token = localStorage.getItem('gas_token');
                         const response = await fetch('/api/admin/website-builder/upload-image', {
                             method: 'POST',
+                            headers: token ? { 'Authorization': `Bearer ${token}` } : {},
                             body: formData
                         });
                         
@@ -21354,8 +21356,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                 formData.append('section', section);
                 
                 try {
+                    const token = localStorage.getItem('gas_token');
                     const response = await fetch('/api/admin/website-builder/upload-image', {
                         method: 'POST',
+                        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
                         body: formData
                     });
                     
@@ -21538,8 +21542,10 @@ const promo = await fetch('/api/v1/offers/validate', {
             formData.append('section', 'hero');
             
             try {
+                const token = localStorage.getItem('gas_token');
                 const response = await fetch('/api/admin/website-builder/upload-video', {
                     method: 'POST',
+                    headers: token ? { 'Authorization': `Bearer ${token}` } : {},
                     body: formData
                 });
                 
