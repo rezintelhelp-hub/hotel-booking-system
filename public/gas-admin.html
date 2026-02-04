@@ -1724,6 +1724,10 @@
                         <span class="nav-icon">📋</span>
                         <span>Images</span>
                     </a>
+                    <a class="nav-item" data-view="image-assign" href="#" onclick="navClick(this, 'image-assign'); return false;">
+                        <span class="nav-icon">🔀</span>
+                        <span>Image Assign</span>
+                    </a>
                     <a class="nav-item" data-view="amenities" href="#" onclick="navClick(this, 'amenities'); return false;">
                         <span class="nav-icon">📋</span>
                         <span>Amenities</span>
@@ -2552,6 +2556,88 @@
                         <p style="color: #64748b; text-align: center; padding: 2rem;">
                             Select a property to view and manage images
                         </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Image Assign View -->
+            <div id="image-assign" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>🔀 Image Assignment</h2>
+                            <p>Assign property-level images to specific rooms</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Property Selector -->
+                <div class="card" style="margin-bottom: 1rem;">
+                    <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                        <div style="flex: 1; min-width: 200px;">
+                            <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Property</label>
+                            <select id="ia-property-select" class="form-input" onchange="iaLoadProperty()">
+                                <option value="">Select Property...</option>
+                            </select>
+                        </div>
+                        <div style="padding-top: 1.5rem;">
+                            <span id="ia-status" style="font-size: 0.85rem; color: var(--text-secondary);"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stats Row -->
+                <div id="ia-stats" style="display: none; display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; margin-bottom: 1rem;">
+                    <div class="card" style="padding: 1rem; margin-bottom: 0;">
+                        <div style="font-size: 0.8rem; color: var(--text-secondary);">Pool Images</div>
+                        <div style="font-size: 1.5rem; font-weight: 700; color: var(--accent);" id="ia-pool-count">0</div>
+                    </div>
+                    <div class="card" style="padding: 1rem; margin-bottom: 0;">
+                        <div style="font-size: 0.8rem; color: var(--text-secondary);">Assigned</div>
+                        <div style="font-size: 1.5rem; font-weight: 700; color: var(--success);" id="ia-assigned-count">0</div>
+                    </div>
+                    <div class="card" style="padding: 1rem; margin-bottom: 0;">
+                        <div style="font-size: 0.8rem; color: var(--text-secondary);">Unassigned</div>
+                        <div style="font-size: 1.5rem; font-weight: 700; color: var(--warning);" id="ia-unassigned-count">0</div>
+                    </div>
+                    <div class="card" style="padding: 1rem; margin-bottom: 0;">
+                        <div style="font-size: 0.8rem; color: var(--text-secondary);">Rooms</div>
+                        <div style="font-size: 1.5rem; font-weight: 700;" id="ia-room-count">0</div>
+                    </div>
+                </div>
+
+                <!-- Main 2-column layout -->
+                <div style="display: flex; gap: 1rem; align-items: flex-start;">
+                    <!-- Left: Image Pool -->
+                    <div style="width: 380px; min-width: 380px;">
+                        <div class="card" style="padding: 0; margin-bottom: 0;">
+                            <div style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+                                <span style="font-weight: 600; font-size: 0.9rem;">Image Pool</span>
+                                <div style="display: flex; gap: 4px;">
+                                    <button class="ia-filter-btn active" data-filter="all" onclick="iaSetFilter('all', this)" style="font-size: 0.75rem; padding: 3px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--accent); color: white; cursor: pointer;">All</button>
+                                    <button class="ia-filter-btn" data-filter="unassigned" onclick="iaSetFilter('unassigned', this)" style="font-size: 0.75rem; padding: 3px 8px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--text-secondary); cursor: pointer;">Unassigned</button>
+                                    <button class="ia-filter-btn" data-filter="assigned" onclick="iaSetFilter('assigned', this)" style="font-size: 0.75rem; padding: 3px 8px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--text-secondary); cursor: pointer;">Assigned</button>
+                                </div>
+                            </div>
+                            <div id="ia-image-grid" style="max-height: calc(100vh - 340px); overflow-y: auto; padding: 0.5rem; display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                                <p style="grid-column: 1/-1; color: var(--text-secondary); text-align: center; padding: 2rem; font-size: 0.85rem;">Select a property to load images</p>
+                            </div>
+                            <!-- Selection actions bar -->
+                            <div id="ia-selection-bar" style="display: none; padding: 0.6rem 1rem; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                                <span id="ia-sel-count" style="font-size: 0.8rem; font-weight: 600; color: var(--accent);">0 selected</span>
+                                <span style="font-size: 0.75rem; color: var(--text-muted);">→</span>
+                                <select id="ia-assign-target" class="form-input" style="font-size: 0.8rem; padding: 4px 8px; flex: 1; min-width: 120px;">
+                                    <option value="">Select room...</option>
+                                </select>
+                                <button class="btn btn-sm" onclick="iaAssignSelected()" style="font-size: 0.8rem; padding: 4px 12px;">Assign</button>
+                                <button onclick="iaClearSelection()" style="font-size: 0.75rem; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--text-secondary); cursor: pointer;">Clear</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right: Rooms -->
+                    <div style="flex: 1; min-width: 0;" id="ia-rooms-panel">
+                        <p style="color: var(--text-secondary); text-align: center; padding: 2rem; font-size: 0.85rem;">Rooms will appear here when you select a property</p>
                     </div>
                 </div>
             </div>
@@ -19647,6 +19733,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (viewName === 'properties') loadProperties();
             if (viewName === 'rooms') loadRooms();
             if (viewName === 'images') loadImages();
+            if (viewName === 'image-assign') loadImageAssign();
             if (viewName === 'amenities') loadAmenities();
             if (viewName === 'availability') loadAvailabilityView();
             if (viewName === 'tasks') loadTasks();
@@ -26974,6 +27061,405 @@ const promo = await fetch('/api/v1/offers/validate', {
                 console.error('Error reordering:', error);
                 alert('Error reordering images');
                 gallery.style.opacity = '1';
+            }
+        }
+
+        // =====================================================
+        // IMAGE ASSIGNMENT TOOL
+        // =====================================================
+        let iaState = {
+            propertyId: null,
+            property: null,
+            rooms: [],
+            allImages: [],
+            roomImages: {},
+            selectedImages: new Set(),
+            assignedUrls: new Set(),
+            filter: 'all'
+        };
+
+        async function loadImageAssign() {
+            const select = document.getElementById('ia-property-select');
+            if (select.options.length <= 1) {
+                try {
+                    const queryString = buildQueryString();
+                    const response = await fetch(`/api/db/properties${queryString}`);
+                    const data = await response.json();
+                    
+                    select.innerHTML = '<option value="">Select Property...</option>';
+                    if (data.success && data.data) {
+                        data.data.forEach(p => {
+                            select.innerHTML += `<option value="${p.id}">${p.name || p.display_name || 'Property ' + p.id} (ID: ${p.id})</option>`;
+                        });
+                    }
+                } catch (err) {
+                    console.error('Failed to load properties for image assign:', err);
+                }
+            }
+        }
+
+        async function iaLoadProperty() {
+            const propertyId = document.getElementById('ia-property-select').value;
+            if (!propertyId) return;
+
+            iaState.propertyId = propertyId;
+            iaState.selectedImages = new Set();
+            
+            document.getElementById('ia-image-grid').innerHTML = '<p style="grid-column:1/-1;text-align:center;padding:2rem;color:var(--text-secondary);">Loading images...</p>';
+            document.getElementById('ia-rooms-panel').innerHTML = '<p style="text-align:center;padding:2rem;color:var(--text-secondary);">Loading rooms...</p>';
+
+            try {
+                const resp = await fetch(`/api/admin/properties/${propertyId}/all-images`, { headers: authHeaders() });
+                const data = await resp.json();
+
+                if (!data.success) {
+                    showNotification(data.error || 'Failed to load', 'error');
+                    return;
+                }
+
+                iaState.property = data.property;
+                iaState.rooms = data.rooms || [];
+                iaState.roomImages = data.room_images || {};
+
+                // Build unified image pool (deduplicated)
+                iaState.allImages = [];
+                const seenUrls = new Set();
+
+                for (const img of (data.sync_images || [])) {
+                    if (img.url && !seenUrls.has(img.url)) {
+                        seenUrls.add(img.url);
+                        iaState.allImages.push({
+                            url: img.url,
+                            thumbnail_url: img.thumbnail_url || img.url,
+                            caption: img.caption || '',
+                            source: 'sync'
+                        });
+                    }
+                }
+                for (const img of (data.property_images || [])) {
+                    if (img.url && !seenUrls.has(img.url)) {
+                        seenUrls.add(img.url);
+                        iaState.allImages.push({
+                            url: img.url,
+                            thumbnail_url: img.url,
+                            caption: img.caption || '',
+                            source: 'property'
+                        });
+                    }
+                }
+
+                iaRebuildAssigned();
+
+                // Populate room dropdown in selection bar
+                const targetSelect = document.getElementById('ia-assign-target');
+                targetSelect.innerHTML = '<option value="">Select room...</option>';
+                iaState.rooms.forEach(r => {
+                    const name = (typeof r.display_name === 'object') ? (r.display_name?.en || r.display_name?.EN || r.name) : (r.display_name || r.name);
+                    targetSelect.innerHTML += `<option value="${r.id}">${name} (${r.id})</option>`;
+                });
+
+                iaRenderPool();
+                iaRenderRooms();
+                iaUpdateStats();
+
+                document.getElementById('ia-status').textContent = `${iaState.property.name} — ${iaState.allImages.length} images, ${iaState.rooms.length} rooms`;
+                showNotification(`Loaded ${iaState.allImages.length} images for ${iaState.rooms.length} rooms`, 'success');
+
+            } catch (err) {
+                showNotification('Error: ' + err.message, 'error');
+            }
+        }
+
+        function iaRebuildAssigned() {
+            iaState.assignedUrls = new Set();
+            for (const roomId in iaState.roomImages) {
+                for (const img of iaState.roomImages[roomId]) {
+                    iaState.assignedUrls.add(img.url);
+                }
+            }
+        }
+
+        function iaUpdateStats() {
+            const total = iaState.allImages.length;
+            const assigned = iaState.assignedUrls.size;
+            document.getElementById('ia-pool-count').textContent = total;
+            document.getElementById('ia-assigned-count').textContent = assigned;
+            document.getElementById('ia-unassigned-count').textContent = total - assigned;
+            document.getElementById('ia-room-count').textContent = iaState.rooms.length;
+            document.getElementById('ia-stats').style.display = 'grid';
+        }
+
+        function iaGetFiltered() {
+            if (iaState.filter === 'unassigned') return iaState.allImages.filter(i => !iaState.assignedUrls.has(i.url));
+            if (iaState.filter === 'assigned') return iaState.allImages.filter(i => iaState.assignedUrls.has(i.url));
+            return iaState.allImages;
+        }
+
+        function iaRenderPool() {
+            const grid = document.getElementById('ia-image-grid');
+            const images = iaGetFiltered();
+
+            if (images.length === 0) {
+                grid.innerHTML = `<p style="grid-column:1/-1;text-align:center;padding:2rem;color:var(--text-secondary);font-size:0.85rem;">
+                    ${iaState.filter === 'unassigned' ? 'All images assigned ✓' : 'No images found'}
+                </p>`;
+                iaUpdateSelectionBar();
+                return;
+            }
+
+            grid.innerHTML = images.map((img, i) => {
+                const isAssigned = iaState.assignedUrls.has(img.url);
+                const isSelected = iaState.selectedImages.has(img.url);
+                const encodedUrl = encodeURIComponent(img.url);
+                return `<div style="position:relative;border-radius:8px;overflow:hidden;aspect-ratio:16/10;border:2px solid ${isSelected ? 'var(--accent)' : isAssigned ? 'var(--success)' : 'transparent'};cursor:pointer;opacity:${isAssigned && !isSelected ? '0.5' : '1'};transition:all 0.15s;background:#f1f5f9;"
+                    draggable="true"
+                    data-ia-url="${encodedUrl}"
+                    data-ia-thumb="${encodeURIComponent(img.thumbnail_url)}"
+                    data-ia-caption="${encodeURIComponent(img.caption)}"
+                    ondragstart="iaOnDragStart(event)"
+                    ondragend="iaOnDragEnd(event)"
+                    onclick="iaToggleSelect('${encodedUrl}')">
+                    <img src="${img.thumbnail_url || img.url}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;" alt="">
+                    <span style="position:absolute;top:3px;left:3px;background:rgba(0,0,0,0.65);color:white;font-size:10px;font-weight:700;padding:1px 5px;border-radius:4px;">${i + 1}</span>
+                    ${isAssigned ? '<span style="position:absolute;top:3px;right:3px;background:var(--success);color:white;font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;">✓</span>' : ''}
+                    ${isSelected ? '<span style="position:absolute;bottom:3px;right:3px;background:var(--accent);color:white;font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;">Selected</span>' : ''}
+                </div>`;
+            }).join('');
+
+            iaUpdateSelectionBar();
+        }
+
+        function iaRenderRooms() {
+            const panel = document.getElementById('ia-rooms-panel');
+
+            if (iaState.rooms.length === 0) {
+                panel.innerHTML = '<p style="color:var(--text-secondary);text-align:center;padding:2rem;">No rooms found for this property</p>';
+                return;
+            }
+
+            panel.innerHTML = iaState.rooms.map(room => {
+                const name = (typeof room.display_name === 'object') ? (room.display_name?.en || room.display_name?.EN || room.name) : (room.display_name || room.name);
+                const images = iaState.roomImages[room.id] || [];
+
+                return `<div class="card" id="ia-room-${room.id}" style="padding:0;border:2px solid var(--border);transition:border-color 0.15s;"
+                    ondragover="iaOnDragOver(event, this)" ondragleave="iaOnDragLeave(event, this)" ondrop="iaOnDrop(event, ${room.id}, this)">
+                    <div style="padding:0.75rem 1rem;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+                        <div>
+                            <span style="font-weight:600;font-size:0.9rem;">${name}</span>
+                            <span style="font-size:0.8rem;color:var(--text-muted);margin-left:6px;">ID: ${room.id}</span>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <span style="font-size:0.75rem;padding:2px 8px;border-radius:10px;background:${images.length > 0 ? 'var(--success-light)' : '#f1f5f9'};color:${images.length > 0 ? 'var(--success)' : 'var(--text-muted)'};font-weight:600;">${images.length} images</span>
+                            ${images.length > 0 ? `<button onclick="iaClearRoom(${room.id})" style="font-size:0.75rem;padding:2px 8px;border-radius:6px;border:1px solid var(--error-light);background:var(--error-light);color:var(--error);cursor:pointer;font-weight:500;">Clear</button>` : ''}
+                        </div>
+                    </div>
+                    <div style="padding:0.75rem;min-height:70px;display:flex;gap:6px;flex-wrap:wrap;${images.length === 0 ? 'justify-content:center;align-items:center;' : ''}">
+                        ${images.length === 0
+                            ? '<div style="width:100%;text-align:center;padding:12px;border:2px dashed var(--border);border-radius:8px;color:var(--text-muted);font-size:0.8rem;">Drop images here or select & assign</div>'
+                            : images.map((img, idx) => `
+                                <div style="position:relative;width:100px;height:64px;border-radius:6px;overflow:hidden;border:1px solid var(--border);flex-shrink:0;">
+                                    <img src="${img.thumbnail_url || img.url}" style="width:100%;height:100%;object-fit:cover;display:block;" alt="">
+                                    ${idx === 0 ? '<span style="position:absolute;bottom:2px;left:2px;background:var(--warning);color:#000;font-size:8px;font-weight:700;padding:0px 4px;border-radius:3px;">PRIMARY</span>' : ''}
+                                    <button onclick="iaRemoveRoomImage(${room.id}, ${img.id})" style="position:absolute;top:2px;right:2px;width:16px;height:16px;border-radius:50%;background:var(--error);color:white;font-size:10px;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;line-height:1;opacity:0;transition:opacity 0.15s;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0">×</button>
+                                </div>
+                            `).join('')
+                        }
+                    </div>
+                </div>`;
+            }).join('');
+
+            // Add hover to show remove buttons on room thumbs
+            panel.querySelectorAll('.card').forEach(card => {
+                card.addEventListener('mouseenter', () => {
+                    card.querySelectorAll('button[onclick^="iaRemoveRoomImage"]').forEach(b => b.style.opacity = '0.8');
+                });
+                card.addEventListener('mouseleave', () => {
+                    card.querySelectorAll('button[onclick^="iaRemoveRoomImage"]').forEach(b => b.style.opacity = '0');
+                });
+            });
+        }
+
+        // Selection
+        function iaToggleSelect(encodedUrl) {
+            const url = decodeURIComponent(encodedUrl);
+            if (iaState.selectedImages.has(url)) {
+                iaState.selectedImages.delete(url);
+            } else {
+                iaState.selectedImages.add(url);
+            }
+            iaRenderPool();
+        }
+
+        function iaClearSelection() {
+            iaState.selectedImages = new Set();
+            iaRenderPool();
+        }
+
+        function iaUpdateSelectionBar() {
+            const bar = document.getElementById('ia-selection-bar');
+            const count = iaState.selectedImages.size;
+            bar.style.display = count > 0 ? 'flex' : 'none';
+            document.getElementById('ia-sel-count').textContent = `${count} selected`;
+        }
+
+        // Filter
+        function iaSetFilter(filter, btn) {
+            iaState.filter = filter;
+            document.querySelectorAll('.ia-filter-btn').forEach(b => {
+                b.style.background = 'transparent';
+                b.style.color = 'var(--text-secondary)';
+            });
+            if (btn) {
+                btn.style.background = 'var(--accent)';
+                btn.style.color = 'white';
+            }
+            iaRenderPool();
+        }
+
+        // Assign selected images
+        async function iaAssignSelected() {
+            const roomId = document.getElementById('ia-assign-target').value;
+            if (!roomId) { showNotification('Select a room first', 'warning'); return; }
+            if (iaState.selectedImages.size === 0) { showNotification('No images selected', 'warning'); return; }
+
+            const images = [];
+            for (const url of iaState.selectedImages) {
+                const img = iaState.allImages.find(i => i.url === url);
+                if (img) images.push({ url: img.url, thumbnail_url: img.thumbnail_url, caption: img.caption });
+            }
+
+            try {
+                const resp = await fetch(`/api/admin/rooms/${roomId}/assign-images`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ images })
+                });
+                const result = await resp.json();
+                if (result.success) {
+                    showNotification(`Assigned ${result.added} to ${result.room} (${result.skipped} skipped)`, 'success');
+                    iaState.selectedImages = new Set();
+                    await iaRefresh();
+                } else {
+                    showNotification(result.error, 'error');
+                }
+            } catch (err) {
+                showNotification('Error: ' + err.message, 'error');
+            }
+        }
+
+        // Assign via drag and drop
+        async function iaAssignToRoom(roomId, imageDataList) {
+            try {
+                const resp = await fetch(`/api/admin/rooms/${roomId}/assign-images`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ images: imageDataList })
+                });
+                const result = await resp.json();
+                if (result.success) {
+                    showNotification(`Assigned ${result.added} image(s) to ${result.room}`, 'success');
+                    await iaRefresh();
+                } else {
+                    showNotification(result.error, 'error');
+                }
+            } catch (err) {
+                showNotification('Error: ' + err.message, 'error');
+            }
+        }
+
+        // Clear all images from a room
+        async function iaClearRoom(roomId) {
+            if (!confirm('Remove all images from this room?')) return;
+            try {
+                const resp = await fetch(`/api/admin/rooms/${roomId}/clear-images`, { method: 'DELETE', headers: authHeaders() });
+                const result = await resp.json();
+                if (result.success) {
+                    showNotification(`Cleared ${result.deleted} images`, 'success');
+                    await iaRefresh();
+                } else {
+                    showNotification(result.error, 'error');
+                }
+            } catch (err) {
+                showNotification('Error: ' + err.message, 'error');
+            }
+        }
+
+        // Remove single image from room
+        async function iaRemoveRoomImage(roomId, imageId) {
+            try {
+                const resp = await fetch(`/api/admin/rooms/images/${imageId}`, { method: 'DELETE', headers: authHeaders() });
+                const result = await resp.json();
+                if (result.success) {
+                    showNotification('Image removed', 'success');
+                    await iaRefresh();
+                }
+            } catch (err) {
+                showNotification('Error: ' + err.message, 'error');
+            }
+        }
+
+        // Refresh room images data
+        async function iaRefresh() {
+            try {
+                const resp = await fetch(`/api/admin/properties/${iaState.propertyId}/all-images`, { headers: authHeaders() });
+                const data = await resp.json();
+                if (data.success) {
+                    iaState.roomImages = data.room_images || {};
+                    iaRebuildAssigned();
+                    iaRenderPool();
+                    iaRenderRooms();
+                    iaUpdateStats();
+                }
+            } catch (err) {
+                console.error('Refresh failed:', err);
+            }
+        }
+
+        // Drag and Drop handlers for image assignment
+        function iaOnDragStart(event) {
+            const el = event.currentTarget;
+            el.style.opacity = '0.5';
+            const url = decodeURIComponent(el.dataset.iaUrl);
+            const thumb = decodeURIComponent(el.dataset.iaThumb);
+            const caption = decodeURIComponent(el.dataset.iaCaption || '');
+
+            let dragData;
+            if (iaState.selectedImages.has(url) && iaState.selectedImages.size > 1) {
+                dragData = Array.from(iaState.selectedImages).map(u => {
+                    const img = iaState.allImages.find(i => i.url === u);
+                    return { url: u, thumbnail_url: img?.thumbnail_url || u, caption: img?.caption || '' };
+                });
+            } else {
+                dragData = [{ url, thumbnail_url: thumb, caption }];
+            }
+            event.dataTransfer.setData('application/json', JSON.stringify(dragData));
+            event.dataTransfer.effectAllowed = 'copy';
+        }
+
+        function iaOnDragEnd(event) {
+            event.currentTarget.style.opacity = '1';
+        }
+
+        function iaOnDragOver(event, el) {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'copy';
+            if (el) el.style.borderColor = 'var(--accent)';
+        }
+
+        function iaOnDragLeave(event, el) {
+            if (el) el.style.borderColor = 'var(--border)';
+        }
+
+        function iaOnDrop(event, roomId, el) {
+            event.preventDefault();
+            if (el) el.style.borderColor = 'var(--border)';
+            try {
+                const data = JSON.parse(event.dataTransfer.getData('application/json'));
+                if (data && data.length > 0) {
+                    iaAssignToRoom(roomId, data);
+                }
+            } catch (err) {
+                console.error('Drop error:', err);
             }
         }
 
