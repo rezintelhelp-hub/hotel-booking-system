@@ -2790,6 +2790,18 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
           
           console.log(`[Beds24 Sync] ${room.name}: V2 returned ${calendarData.length} entries, hasAnyPrices: ${hasAnyPrices}`);
           
+          // DEBUG: Log raw fields from first 10 entries to see all price columns
+          if (calendarData.length > 0) {
+            const sampleEntries = calendarData.slice(0, 10).map(entry => {
+              const fields = {};
+              for (const key of Object.keys(entry)) {
+                fields[key] = entry[key];
+              }
+              return fields;
+            });
+            console.log(`[Beds24 Debug] ${room.name} RAW first 10 entries: ${JSON.stringify(sampleEntries)}`);
+          }
+          
           // Check if this room has price linking
           const linking = priceLinkingMap[String(room.beds24_room_id)];
           console.log(`[Beds24 Sync] ${room.name}: linking found: ${!!linking}, key used: ${String(room.beds24_room_id)}`);
@@ -57296,17 +57308,47 @@ app.get('/api/admin/debug/beds24-calendar/:connectionId/:roomId', async (req, re
     const startDate = new Date().toISOString().split('T')[0];
     const endDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     
+    // Use EXACT same params as the real sync
     const calResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/calendar', {
       headers: { 'token': accessToken },
-      params: { roomId: parseInt(roomId), startDate, endDate }
+      params: { 
+        roomId: parseInt(roomId), 
+        startDate, 
+        endDate,
+        includeNumAvail: true,
+        includePrices: true,
+        includeMinStay: true
+      }
+    });
+    
+    const calendarData = calResponse.data.data?.[0]?.calendar || [];
+    
+    // Extract ALL unique field names across all entries
+    const allFields = new Set();
+    calendarData.forEach(entry => {
+      Object.keys(entry).forEach(key => allFields.add(key));
+    });
+    
+    // Flag which entries have price2 or other price fields
+    const priceFieldSummary = {};
+    allFields.forEach(field => {
+      if (field.toLowerCase().includes('price')) {
+        const nonNullCount = calendarData.filter(e => e[field] !== null && e[field] !== undefined && e[field] !== 0).length;
+        priceFieldSummary[field] = { total: calendarData.length, nonNull: nonNullCount };
+      }
     });
     
     res.json({
       success: true,
+      connectionId,
       roomId,
       startDate,
       endDate,
-      calendar: calResponse.data
+      totalEntries: calendarData.length,
+      allFieldsFound: [...allFields].sort(),
+      priceFieldSummary,
+      rawEntries: calendarData,
+      rawApiResponse: calResponse.data
     });
   } catch (error) {
     res.json({ success: false, error: error.message, details: error.response?.data });
