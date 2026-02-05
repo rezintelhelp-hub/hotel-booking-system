@@ -25556,7 +25556,7 @@ async function handleReservationWebhook(connectionId, accountId, data, eventType
     : data.guestName || 'Guest';
   
   // Upsert booking
-  await pool.query(`
+  const upsertResult = await pool.query(`
     INSERT INTO bookings (
       account_id, property_id, room_id, external_booking_id, cm_source,
       check_in, check_out, status,
@@ -25576,6 +25576,7 @@ async function handleReservationWebhook(connectionId, accountId, data, eventType
       children = EXCLUDED.children,
       total_price = EXCLUDED.total_price,
       updated_at = NOW()
+    RETURNING id
   `, [
     accountId,
     gasPropertyId,
@@ -25596,18 +25597,50 @@ async function handleReservationWebhook(connectionId, accountId, data, eventType
   ]);
   
   console.log(`Booking ${reservationId} synced to GAS`);
+  
+  // ========== SEND PARTNER WEBHOOK FOR CALRY BOOKING ==========
+  if (upsertResult.rows.length > 0 && eventType === 'reservation.created') {
+    try {
+      const gasBookingId = upsertResult.rows[0].id;
+      const webhookResult = await sendPartnerBookingWebhook(gasBookingId, 'booking.created');
+      if (webhookResult.sent) {
+        console.log(`[Webhook] Sent booking.created for Calry booking ${gasBookingId}`);
+      }
+    } catch (webhookError) {
+      console.error(`[Webhook] Error sending Calry booking webhook:`, webhookError.message);
+      // Don't fail the booking sync if partner webhook fails
+    }
+  }
+  // ========== END PARTNER WEBHOOK ==========
 }
 
 // Handle reservation cancellation
 async function handleReservationCancellation(connectionId, data) {
   const reservationId = data.id || data.reservationId;
   
-  await pool.query(`
+  const cancelResult = await pool.query(`
     UPDATE bookings SET status = 'cancelled', updated_at = NOW()
     WHERE external_booking_id = $1 AND cm_source = 'calry'
+    RETURNING id
   `, [String(reservationId)]);
   
   console.log(`Booking ${reservationId} cancelled`);
+  
+  // ========== SEND PARTNER WEBHOOK FOR CALRY CANCELLATION ==========
+  if (cancelResult.rowCount > 0) {
+    for (const row of cancelResult.rows) {
+      try {
+        const webhookResult = await sendPartnerBookingWebhook(row.id, 'booking.cancelled');
+        if (webhookResult.sent) {
+          console.log(`[Webhook] Sent booking.cancelled for Calry-cancelled booking ${row.id}`);
+        }
+      } catch (webhookError) {
+        console.error(`[Webhook] Error sending Calry cancellation webhook for booking ${row.id}:`, webhookError.message);
+        // Don't fail the cancellation processing if partner webhook fails
+      }
+    }
+  }
+  // ========== END PARTNER WEBHOOK ==========
 }
 
 // Handle availability update
@@ -36470,6 +36503,21 @@ app.post('/api/webhooks/beds24', async (req, res) => {
           
           await client.query('COMMIT');
           console.log(`✅ Webhook processed: ${isCancelled ? 'UNBLOCKED' : 'BLOCKED'} room ${ourRoomId} from ${arrival} to ${departure}`);
+          
+          // ========== SEND PARTNER WEBHOOK FOR BEDS24 CANCELLATION ==========
+          if (isCancelled && updateResult && updateResult.rowCount > 0) {
+            try {
+              const gasBookingId = updateResult.rows[0].id;
+              const webhookResult = await sendPartnerBookingWebhook(gasBookingId, 'booking.cancelled');
+              if (webhookResult.sent) {
+                console.log(`[Webhook] Sent booking.cancelled for Beds24-cancelled booking ${gasBookingId}`);
+              }
+            } catch (webhookError) {
+              console.error(`[Webhook] Error sending Beds24 cancellation webhook:`, webhookError.message);
+              // Don't fail the webhook processing if partner webhook fails
+            }
+          }
+          // ========== END PARTNER WEBHOOK ==========
         }
       } else {
         console.log(`⚠️ No matching room found for beds24_room_id: ${roomId}`);
@@ -36774,6 +36822,7 @@ async function sendPartnerBookingWebhook(bookingId, eventType = 'booking.created
   
   try {
     // Get booking details with tenant/partner info
+    // JOIN on bookable_unit_id (main bookings) OR room_id (Calry CM bookings)
     const bookingResult = await pool.query(`
       SELECT 
         b.*,
@@ -36790,7 +36839,7 @@ async function sendPartnerBookingWebhook(bookingId, eventType = 'booking.created
         pa.webhook_secret,
         pa.name as partner_name
       FROM bookings b
-      JOIN bookable_units bu ON b.bookable_unit_id = bu.id
+      LEFT JOIN bookable_units bu ON bu.id = COALESCE(b.bookable_unit_id, b.room_id)
       JOIN properties p ON b.property_id = p.id
       LEFT JOIN partner_tenant_mapping ptm ON p.account_id = ptm.gas_account_id
       LEFT JOIN accounts pa ON ptm.partner_account_id = pa.id
