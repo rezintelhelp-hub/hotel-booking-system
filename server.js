@@ -2786,7 +2786,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
           });
           
           const calendarData = calResponse.data.data?.[0]?.calendar || [];
-          const hasAnyPrices = calendarData.some(entry => entry.price1);
+          const hasAnyPrices = calendarData.some(entry => entry.price1 || entry.price2);
           
           console.log(`[Beds24 Sync] ${room.name}: V2 returned ${calendarData.length} entries, hasAnyPrices: ${hasAnyPrices}`);
           
@@ -2863,7 +2863,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
               for (let d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
                 const dateStr = d.toISOString().split('T')[0];
                 const numAvail = entry.numAvail || 0;
-                const price = entry.price1 || null;
+                const price = entry.price1 || entry.price2 || null;
                 const minStay = entry.minStay || 1;
                 
                 await pool.query(`
@@ -6003,7 +6003,7 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
           let calendarData = calResponse.data.data?.[0]?.calendar || [];
           
           // If no prices and has price linking, fetch from source room (with caching)
-          const hasNoPrices = calendarData.length === 0 || !calendarData.some(e => e.price1);
+          const hasNoPrices = calendarData.length === 0 || !calendarData.some(e => e.price1 || e.price2);
           if (hasNoPrices && linking) {
             console.log(`  ${room.name}: No prices, fetching from linked room ${linking.sourceRoomId} (offset +${linking.offsetAmount})`);
             
@@ -6030,12 +6030,12 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
                 // Create a price map from source (raw prices, offset applied later)
                 sourcePriceMap = {};
                 for (const entry of sourceCalendar) {
-                  if (entry.price1) {
+                if (entry.price1 || entry.price2) {
                     const fromDate = new Date(entry.from);
                     const toDate = new Date(entry.to);
                     for (let d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
                       const dateStr = d.toISOString().split('T')[0];
-                      sourcePriceMap[dateStr] = entry.price1; // Store raw price, apply offset per-room
+                      sourcePriceMap[dateStr] = entry.price1 || entry.price2; // Store raw price, apply offset per-room
                     }
                   }
                 }
@@ -6068,7 +6068,7 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
                     to: dateStr,
                     numAvail: entry.numAvail,
                     minStay: entry.minStay,
-                    price1: entry.price1 || applyOffset(sourcePriceMap[dateStr])
+                    price1: entry.price1 || entry.price2 || applyOffset(sourcePriceMap[dateStr])
                   });
                 }
               }
@@ -6103,7 +6103,7 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
                 const dateStr = d.toISOString().split('T')[0];
                 
                 const numAvail = entry.numAvail || 0;
-                const price = entry.price1 || null;
+                const price = entry.price1 || entry.price2 || null;
                 const minStay = entry.minStay || 1;
                 
                 const isAvailable = numAvail > 0;
@@ -6432,7 +6432,7 @@ app.post('/api/gas-sync/properties/:propertyId/sync-prices', async (req, res) =>
         let daysUpdated = 0;
         
         // Check if V2 returned any prices
-        const hasAnyPrices = calendarData.some(entry => entry.price1 || entry.price);
+        const hasAnyPrices = calendarData.some(entry => entry.price1 || entry.price2 || entry.price);
         
         // If no prices and has price linking, fetch from source room
         if (!hasAnyPrices && linking && linking.sourceRoomId) {
@@ -6459,13 +6459,13 @@ app.post('/api/gas-sync/properties/:propertyId/sync-prices', async (req, res) =>
               sourcePriceMap = {};
               
               for (const entry of sourceCalendar) {
-                if (entry.price1 || entry.price) {
+                if (entry.price1 || entry.price2 || entry.price) {
                   const fromDate = new Date(entry.from);
                   const toDate = new Date(entry.to);
                   for (let d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
                     const dateStr = d.toISOString().split('T')[0];
                     sourcePriceMap[dateStr] = {
-                      price: entry.price1 || entry.price,
+                      price: entry.price1 || entry.price2 || entry.price,
                       minStay: entry.minStay || 1
                     };
                   }
@@ -6505,7 +6505,7 @@ app.post('/api/gas-sync/properties/:propertyId/sync-prices', async (req, res) =>
                   to: dateStr,
                   numAvail: entry.numAvail,
                   minStay: entry.minStay || sourceData?.minStay || 1,
-                  price1: entry.price1 || applyOffset(sourceData?.price)
+                  price1: entry.price1 || entry.price2 || applyOffset(sourceData?.price)
                 });
               }
             }
@@ -6605,7 +6605,7 @@ app.post('/api/gas-sync/properties/:propertyId/sync-prices', async (req, res) =>
             for (let d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
               const dateStr = d.toISOString().split('T')[0];
               const numAvail = entry.numAvail ?? 1;
-              const price = entry.price1 || entry.price || null;
+              const price = entry.price1 || entry.price2 || entry.price || null;
               const minStay = entry.minStay || 1;
               
               await pool.query(`
@@ -7504,7 +7504,7 @@ app.post('/api/gas-sync/tiered-availability-sync', async (req, res) => {
             let daysUpdated = 0;
             
             // If no prices and has price linking, get prices from source room in DATABASE
-            const hasNoPrices = calendarData.length === 0 || !calendarData.some(e => e.price1);
+            const hasNoPrices = calendarData.length === 0 || !calendarData.some(e => e.price1 || e.price2);
             if (hasNoPrices && linking) {
               // Find the GAS room ID for the source Beds24 room
               const sourceRoomResult = await pool.query(`
@@ -7553,7 +7553,7 @@ app.post('/api/gas-sync/tiered-availability-sync', async (req, res) => {
                         to: dateStr,
                         numAvail: entry.numAvail,
                         minStay: sourceData?.minStay || entry.minStay || 1,
-                        price1: entry.price1 || applyOffset(sourceData?.price)
+                        price1: entry.price1 || entry.price2 || applyOffset(sourceData?.price)
                       });
                     }
                   }
@@ -7579,7 +7579,7 @@ app.post('/api/gas-sync/tiered-availability-sync', async (req, res) => {
               for (let d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
                 const dateStr = d.toISOString().split('T')[0];
                 const numAvail = entry.numAvail || 0;
-                const price = entry.price1 || null;
+                const price = entry.price1 || entry.price2 || null;
                 const minStay = entry.minStay || 1;
                 
                 await pool.query(`
@@ -7602,7 +7602,7 @@ app.post('/api/gas-sync/tiered-availability-sync', async (req, res) => {
             
             // ===== PUSH PRICES TO LINKED ROOMS =====
             // If this room has prices (like BASE), find all rooms linked to it and copy prices
-            const hasSourcePrices = calendarData.some(e => e.price1);
+            const hasSourcePrices = calendarData.some(e => e.price1 || e.price2);
             if (hasSourcePrices) {
               // Find all rooms that link to this room
               const linkedRoomsResult = await pool.query(`
@@ -7631,7 +7631,7 @@ app.post('/api/gas-sync/tiered-availability-sync', async (req, res) => {
                     
                     for (let d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
                       const dateStr = d.toISOString().split('T')[0];
-                      const basePrice = entry.price1 || null;
+                      const basePrice = entry.price1 || entry.price2 || null;
                       const linkedPrice = basePrice ? (basePrice * multiplier) + offset : null;
                       const minStay = entry.minStay || 1;
                       
@@ -7772,7 +7772,7 @@ app.post('/api/gas-sync/connections/:connectionId/sync-tier/:tier', async (req, 
                 cm_min_stay = $6,
                 source = 'beds24',
                 updated_at = NOW()
-            `, [room.gas_room_id, dateStr, entry.price1, (entry.numAvail || 0) > 0, (entry.numAvail || 0) === 0, entry.minStay || 1]);
+            `, [room.gas_room_id, dateStr, entry.price1 || entry.price2, (entry.numAvail || 0) > 0, (entry.numAvail || 0) === 0, entry.minStay || 1]);
             
             daysUpdated++;
           }
@@ -43747,7 +43747,7 @@ app.post('/api/admin/sync-beds24-full-pricing', async (req, res) => {
         
         const calendarData = calResponse.data.data?.[0]?.calendar || [];
         let daysUpdated = 0;
-        let hasAnyPrices = calendarData.some(entry => entry.price1 || entry.price);
+        let hasAnyPrices = calendarData.some(entry => entry.price1 || entry.price2 || entry.price);
         
         console.log(`    V2 calendar entries: ${calendarData.length}, hasAnyPrices: ${hasAnyPrices}`);
         
@@ -43760,7 +43760,7 @@ app.post('/api/admin/sync-beds24-full-pricing', async (req, res) => {
             for (let d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
               const dateStr = d.toISOString().split('T')[0];
               const numAvail = entry.numAvail || 0;
-              const price = entry.price1 || null;
+              const price = entry.price1 || entry.price2 || null;
               const minStay = entry.minStay || 1;
               
               await pool.query(`
@@ -43802,7 +43802,7 @@ app.post('/api/admin/sync-beds24-full-pricing', async (req, res) => {
             if (Array.isArray(ratesData)) {
               for (const rate of ratesData) {
                 const dateStr = rate.date;
-                const price = parseFloat(rate.price1 || rate.price || 0);
+                const price = parseFloat(rate.price1 || rate.price2 || rate.price || 0);
                 const minStay = parseInt(rate.minStay) || 1;
                 const isAvailable = rate.numAvail > 0 || rate.available !== false;
                 
@@ -56009,7 +56009,7 @@ app.post('/api/gas-sync/connections/:id/sync-prices', async (req, res) => {
           for (let d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
             const dateStr = d.toISOString().split('T')[0];
             const numAvail = entry.numAvail || 0;
-            const price = entry.price1 || null;
+            const price = entry.price1 || entry.price2 || null;
             const minStay = entry.minStay || 1;
             
             await pool.query(`
@@ -61626,7 +61626,7 @@ async function runTieredSync() {
             let daysUpdated = 0;
             
             // Check if V2 returned any prices
-            const hasAnyPrices = calendarData.some(entry => entry.price1 || entry.price);
+            const hasAnyPrices = calendarData.some(entry => entry.price1 || entry.price2 || entry.price);
             
             // Check if this room has price linking
             const linking = priceLinkingMap[room.beds24_room_id];
@@ -61693,7 +61693,7 @@ async function runTieredSync() {
                 for (let d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
                   const dateStr = d.toISOString().split('T')[0];
                   const numAvail = entry.numAvail || 0;
-                  const price = entry.price1 || null;
+                  const price = entry.price1 || entry.price2 || null;
                   const minStay = entry.minStay || 1;
                   
                   await pool.query(`
