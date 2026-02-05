@@ -57298,13 +57298,33 @@ app.get('/api/admin/debug/beds24-calendar/:connectionId/:roomId', async (req, re
   try {
     const { connectionId, roomId } = req.params;
     
-    // Get connection with token
-    const result = await pool.query('SELECT access_token FROM gas_sync_connections WHERE id = $1', [connectionId]);
+    // Get connection with token - same approach as main sync
+    const result = await pool.query('SELECT * FROM gas_sync_connections WHERE id = $1', [connectionId]);
     if (result.rows.length === 0) {
       return res.json({ success: false, error: 'Connection not found' });
     }
     
-    const accessToken = result.rows[0].access_token;
+    const conn = result.rows[0];
+    let accessToken = conn.access_token;
+    
+    // Refresh token if needed - same as main sync
+    if (conn.refresh_token) {
+      try {
+        const tokenResponse = await axios.get('https://beds24.com/api/v2/authentication/token', {
+          headers: { 'refreshToken': conn.refresh_token }
+        });
+        accessToken = tokenResponse.data.token;
+        await pool.query('UPDATE gas_sync_connections SET access_token = $1 WHERE id = $2', [accessToken, connectionId]);
+      } catch (e) {
+        // If refresh fails, try existing token
+        console.log(`[Debug] Token refresh failed for connection ${connectionId}, trying stored token`);
+      }
+    }
+    
+    if (!accessToken) {
+      return res.json({ success: false, error: 'No access token and refresh failed' });
+    }
+    
     const startDate = new Date().toISOString().split('T')[0];
     const endDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     
@@ -57344,6 +57364,7 @@ app.get('/api/admin/debug/beds24-calendar/:connectionId/:roomId', async (req, re
       roomId,
       startDate,
       endDate,
+      tokenRefreshed: !!conn.refresh_token,
       totalEntries: calendarData.length,
       allFieldsFound: [...allFields].sort(),
       priceFieldSummary,
