@@ -61145,6 +61145,24 @@ app.post('/api/turbines/campaigns/:id/send', async (req, res) => {
     let failed = 0;
     const errors = [];
     
+    // Build campaign URL (shared by email + facebook)
+    const campaignUrl = campaign.gas_lite_slug 
+      ? `https://lite.gas.travel/${campaign.gas_lite_slug}?offer=${campaign.offer_code}`
+      : null;
+    
+    // Format dates (shared)
+    const formatDate = (d) => d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
+    
+    // Calculate discount display (shared)
+    let discountText = '';
+    if (campaign.discount_type === 'percent' || campaign.discount_type === 'percentage') {
+      discountText = `${parseFloat(campaign.discount_value).toFixed(0)}% OFF`;
+    } else if (campaign.discount_type === 'fixed') {
+      discountText = `$${campaign.discount_value} OFF`;
+    } else if (campaign.discount_type === 'custom' || campaign.discount_type === 'custom_price') {
+      discountText = `Special Price: $${campaign.custom_price}`;
+    }
+    
     if (emailEnabled || test_email) {
     // Get recipients
     let recipients = [];
@@ -61162,26 +61180,8 @@ app.post('/api/turbines/campaigns/:id/send', async (req, res) => {
       recipients = contactsResult.rows;
     }
     
-    if (recipients.length === 0) {
+    if (recipients.length === 0 && !facebookEnabled) {
       return res.json({ success: false, error: 'No recipients found' });
-    }
-    
-    // Build campaign URL
-    const campaignUrl = campaign.gas_lite_slug 
-      ? `https://lite.gas.travel/${campaign.gas_lite_slug}?offer=${campaign.offer_code}`
-      : null;
-    
-    // Format dates
-    const formatDate = (d) => d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
-    
-    // Calculate discount display (handle both 'percent' and 'percentage')
-    let discountText = '';
-    if (campaign.discount_type === 'percent' || campaign.discount_type === 'percentage') {
-      discountText = `${parseFloat(campaign.discount_value).toFixed(0)}% OFF`;
-    } else if (campaign.discount_type === 'fixed') {
-      discountText = `$${campaign.discount_value} OFF`;
-    } else if (campaign.discount_type === 'custom' || campaign.discount_type === 'custom_price') {
-      discountText = `Special Price: $${campaign.custom_price}`;
     }
     
     // Get room image for Lite card
@@ -61379,9 +61379,6 @@ app.post('/api/turbines/campaigns/:id/send', async (req, res) => {
         
         if (fbConns.rows.length > 0) {
           const conn = fbConns.rows[0]; // Post to first connected page
-          const campaignUrl = campaign.gas_lite_slug 
-            ? `https://lite.gas.travel/${campaign.gas_lite_slug}?offer=${campaign.offer_code}`
-            : null;
           
           const postBody = { access_token: conn.access_token };
           
@@ -61430,7 +61427,7 @@ app.post('/api/turbines/campaigns/:id/send', async (req, res) => {
       success: true, 
       sent,
       failed,
-      total: recipients.length,
+      total: sent + failed,
       test: !!test_email,
       facebook: fbResult,
       errors: errors.slice(0, 10)
