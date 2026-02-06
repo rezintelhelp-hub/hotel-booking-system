@@ -32894,6 +32894,34 @@ const promo = await fetch('/api/v1/offers/validate', {
                                     </div>
                                 </div>
                                 ` : ''}
+                                
+                                ${channels.facebook ? `
+                                <div style="background: #eef2ff; border: 1px solid #818cf8; border-radius: 8px; padding: 1rem; margin-top: 0.5rem;">
+                                    <div style="font-weight: 600; margin-bottom: 0.75rem; color: #3730a3;">
+                                        <span style="background: #1877f2; color: white; width: 22px; height: 22px; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; font-size: 0.75rem; margin-right: 0.5rem;">f</span>
+                                        Facebook
+                                    </div>
+                                    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                                        <button onclick="postCampaignToFacebook(${campaign.id})" class="btn btn-sm" style="background: #1877f2;" ${campaign.status === 'sent' ? 'disabled' : ''}>
+                                            ${campaign.status === 'sent' ? '✓ Posted' : '🚀 Post to Facebook'}
+                                        </button>
+                                    </div>
+                                </div>
+                                ` : ''}
+                                
+                                ${!emailEnabled && !channels.facebook ? `
+                                <div style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 1rem; margin-top: 0.5rem;">
+                                    <div style="color: #92400e; font-size: 0.9rem;">⚠️ No channels selected. Edit this campaign to select Email or Facebook.</div>
+                                </div>
+                                ` : ''}
+                                
+                                ${emailEnabled || channels.facebook ? `
+                                <div style="margin-top: 0.5rem;">
+                                    <button onclick="sendCampaignAll(${campaign.id})" class="btn" style="width: 100%; background: linear-gradient(135deg, #6366f1, #8b5cf6);" ${campaign.status === 'sent' ? 'disabled' : ''}>
+                                        ${campaign.status === 'sent' ? '✓ Campaign Sent' : '🚀 Launch Campaign (All Channels)'}
+                                    </button>
+                                </div>
+                                ` : ''}
                             </div>
                             <div style="display: flex; gap: 1rem; margin-top: 1.5rem; justify-content: flex-end;">
                                 <button class="btn btn-secondary" onclick="closeModal('campaignDetailsModal')">Close</button>
@@ -32958,7 +32986,76 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
         
         function editCampaign(id) {
-            showNotification('Campaign editor coming soon!', 'info');
+            // Load campaign data into wizard for editing
+            const campaign = allCampaigns.find(c => c.id === id);
+            if (!campaign) return;
+            
+            // Pre-fill wizard data
+            campaignData = {
+                id: campaign.id,
+                property_id: campaign.property_id,
+                room_id: campaign.room_id,
+                name: campaign.name,
+                discount_type: campaign.discount_type || 'percent',
+                discount_value: campaign.discount_value || 0,
+                custom_price: campaign.custom_price,
+                start_date: campaign.start_date ? campaign.start_date.split('T')[0] : '',
+                end_date: campaign.end_date ? campaign.end_date.split('T')[0] : '',
+                min_nights: campaign.min_nights || 1,
+                target_type: campaign.target_type || 'all',
+                target_tags: campaign.target_tags || [],
+                channels: typeof campaign.channels === 'string' ? JSON.parse(campaign.channels || '{}') : (campaign.channels || {}),
+                email_subject: campaign.email_subject || '',
+                email_body: campaign.email_body || '',
+                social_caption: campaign.social_caption || ''
+            };
+            campaignWizardStep = 1;
+            openModal('campaignWizardModal');
+            renderCampaignWizard();
+        }
+        
+        async function postCampaignToFacebook(campaignId) {
+            if (!confirm('Post this campaign to your connected Facebook Page?')) return;
+            try {
+                const response = await fetch(`/api/turbines/campaigns/${campaignId}/send`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
+                });
+                const data = await response.json();
+                if (data.facebook && data.facebook.success) {
+                    showNotification(`✅ Posted to Facebook: ${data.facebook.page_name}`, 'success');
+                    closeModal('campaignDetailsModal');
+                    loadTurbineCampaigns();
+                } else if (data.facebook && data.facebook.error) {
+                    showNotification(`Facebook error: ${data.facebook.error}`, 'error');
+                } else {
+                    showNotification('Campaign sent but no Facebook result returned', 'info');
+                }
+            } catch (error) {
+                showNotification('Error posting to Facebook', 'error');
+            }
+        }
+        
+        async function sendCampaignAll(campaignId) {
+            if (!confirm('Launch this campaign to ALL selected channels (email + Facebook)?')) return;
+            try {
+                const response = await fetch(`/api/turbines/campaigns/${campaignId}/send`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
+                });
+                const data = await response.json();
+                let msg = '🚀 Campaign launched!';
+                if (data.sent > 0) msg += ` ${data.sent} emails sent.`;
+                if (data.facebook && data.facebook.success) msg += ` Posted to Facebook: ${data.facebook.page_name}.`;
+                if (data.facebook && data.facebook.error) msg += ` Facebook error: ${data.facebook.error}.`;
+                showNotification(msg, 'success');
+                closeModal('campaignDetailsModal');
+                loadTurbineCampaigns();
+            } catch (error) {
+                showNotification('Error launching campaign', 'error');
+            }
         }
         
         async function deleteCampaign(id) {
