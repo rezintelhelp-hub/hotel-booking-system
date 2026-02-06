@@ -22339,6 +22339,21 @@ app.get('/api/fix/add-hostaway/:token/:accountId', async (req, res) => {
 });
 
 // Add Smoobu connection manually
+// Fix deposit rule refund policy
+// Usage: /api/fix/deposit-policy/18/refund_60
+app.get('/api/fix/deposit-policy/:ruleId/:policy', async (req, res) => {
+  try {
+    const { ruleId, policy } = req.params;
+    const result = await pool.query(
+      'UPDATE deposit_rules SET refund_policy = $1, updated_at = NOW() WHERE id = $2 RETURNING id, refund_policy',
+      [policy, ruleId]
+    );
+    res.json({ success: true, updated: result.rows[0] });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Fix currency for all units in an account
 // Usage: /api/fix/account-currency/94/USD
 app.get('/api/fix/account-currency/:accountId/:currency', async (req, res) => {
