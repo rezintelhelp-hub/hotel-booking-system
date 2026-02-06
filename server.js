@@ -11388,7 +11388,8 @@ app.put('/api/accounts/:id', async (req, res) => {
     const { id } = req.params;
     const { 
       account_code, name, email, phone, business_name, status, notes, role,
-      contact_name, address_line1, address_line2, city, region, postcode, country, default_currency 
+      contact_name, address_line1, address_line2, city, region, postcode, country, default_currency,
+      payment_methods
     } = req.body;
     
     // Ensure columns exist
@@ -11487,6 +11488,15 @@ app.put('/api/accounts/:id', async (req, res) => {
       return res.json({ success: false, error: 'Account not found' });
     }
     
+    // Save payment methods in settings if provided
+    if (payment_methods) {
+      await pool.query(`
+        UPDATE accounts 
+        SET settings = COALESCE(settings, '{}'::jsonb) || $1::jsonb
+        WHERE id = $2
+      `, [JSON.stringify({ payment_methods }), id]);
+    }
+
     res.json({ success: true, account: result.rows[0] });
   } catch (error) {
     res.json({ success: false, error: error.message });
@@ -11662,7 +11672,7 @@ app.get('/api/accounts/:accountId/stripe-status', async (req, res) => {
 app.post('/api/accounts/:accountId/stripe-keys', async (req, res) => {
   try {
     const { accountId } = req.params;
-    const { stripe_publishable_key, stripe_secret_key, stripe_name } = req.body;
+    const { stripe_publishable_key, stripe_secret_key, stripe_name, payment_methods } = req.body;
     
     if (!stripe_secret_key) {
       return res.status(400).json({ success: false, error: 'Secret key is required' });
@@ -11692,6 +11702,15 @@ app.post('/api/accounts/:accountId/stripe-keys', async (req, res) => {
           updated_at = NOW()
       WHERE id = $4
     `, [stripe_publishable_key || null, stripe_secret_key, stripe_name || null, accountId]);
+    
+    // Save payment methods in account settings
+    if (payment_methods) {
+      await pool.query(`
+        UPDATE accounts 
+        SET settings = COALESCE(settings, '{}'::jsonb) || $1::jsonb
+        WHERE id = $2
+      `, [JSON.stringify({ payment_methods }), accountId]);
+    }
     
     console.log(`✅ Stripe keys saved for account ${accountId}`);
     res.json({ success: true });
@@ -12209,7 +12228,8 @@ app.get('/api/public/property/:propertyId/stripe-info', async (req, res) => {
             SELECT p.id, p.account_id, p.stripe_publishable_key, p.stripe_secret_key, p.stripe_enabled,
                    a.stripe_account_id, a.stripe_account_status, a.stripe_onboarding_complete,
                    a.stripe_publishable_key as account_stripe_publishable_key,
-                   a.stripe_secret_key as account_stripe_secret_key
+                   a.stripe_secret_key as account_stripe_secret_key,
+                   a.settings as account_settings
             FROM properties p
             JOIN accounts a ON p.account_id = a.id
             WHERE p.id = $1
@@ -12254,13 +12274,23 @@ app.get('/api/public/property/:propertyId/stripe-info', async (req, res) => {
             }
         }
         
+        // Get payment methods config from account settings
+        const accountSettings = typeof data.account_settings === 'string' ? JSON.parse(data.account_settings) : (data.account_settings || {});
+        // Default: card enabled, pay_at_property enabled, paypal disabled
+        const paymentMethods = accountSettings.payment_methods || { 
+            card: stripeEnabled, 
+            pay_at_property: true, 
+            paypal: false 
+        };
+        
         res.json({
             success: true,
             stripe_enabled: stripeEnabled,
             stripe_type: hasPropertyStripe ? 'property' : (hasAccountStripe ? 'connect' : (hasAccountKeys ? 'account_keys' : null)),
             stripe_publishable_key: hasPropertyStripe ? data.stripe_publishable_key : (hasAccountKeys ? data.account_stripe_publishable_key : (hasAccountStripe ? process.env.STRIPE_PUBLISHABLE_KEY : null)),
             stripe_account_id: hasAccountStripe ? data.stripe_account_id : null,
-            deposit_rule: depositRule
+            deposit_rule: depositRule,
+            payment_methods: paymentMethods
         });
         
     } catch (error) {
