@@ -22366,16 +22366,22 @@ app.get('/api/fix/check-unit/:unitId', async (req, res) => {
 
 // Link Hostaway listing ID to a bookable unit
 // Usage: /api/fix/link-hostaway/586/357140
+// Optional: /api/fix/link-hostaway/586/357140?currency=USD
 app.get('/api/fix/link-hostaway/:unitId/:hostawayId', async (req, res) => {
   try {
     const { unitId, hostawayId } = req.params;
+    const { currency } = req.query;
     await pool.query('UPDATE bookable_units SET hostaway_listing_id = $1 WHERE id = $2', [hostawayId, unitId]);
     // Also set on the property
     await pool.query(`
       UPDATE properties SET hostaway_listing_id = $1 
       WHERE id = (SELECT property_id FROM bookable_units WHERE id = $2)
     `, [hostawayId, unitId]);
-    res.json({ success: true, message: `Linked unit ${unitId} to Hostaway listing ${hostawayId}` });
+    // Fix currency if specified
+    if (currency) {
+      await pool.query('UPDATE bookable_units SET currency = $1 WHERE id = $2', [currency, unitId]);
+    }
+    res.json({ success: true, message: `Linked unit ${unitId} to Hostaway listing ${hostawayId}${currency ? ', currency set to ' + currency : ''}` });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
