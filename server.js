@@ -12537,10 +12537,10 @@ app.post('/api/public/create-group-booking', async (req, res) => {
                     const stored = await getStoredHostawayToken(pool);
                     
                     if (stored?.accessToken) {
-                        const hostawayResponse = await axios.post('https://api.hostaway.com/v1/reservations', {
+                        const hostawayPayload = {
                             listingMapId: cmData.hostaway_listing_id,
                             channelId: 2000,
-                            source: 'manual',
+                            source: 'GAS Direct Booking',
                             arrivalDate: checkin,
                             departureDate: checkout,
                             guestFirstName: guest_first_name,
@@ -12553,7 +12553,36 @@ app.post('/api/public/create-group-booking', async (req, res) => {
                             totalPrice: roomPrice,
                             status: 'new',
                             comment: `GAS Booking ID: ${booking.id} | Group: ${groupBookingId} (Room ${i + 1}/${rooms.length})`
-                        }, {
+                        };
+                        
+                        // If we have a price breakdown from the quote, include it
+                        if (room.priceBreakdown) {
+                            const bd = room.priceBreakdown;
+                            if (bd.basePrice) hostawayPayload.basePrice = bd.basePrice;
+                            
+                            // Extract cleaning fee
+                            const cleaningFee = bd.fees?.find(f => f.type === 'cleaning_fee');
+                            if (cleaningFee) hostawayPayload.cleaningFee = cleaningFee.amount;
+                            
+                            // Add reservation fees (non-cleaning fees + taxes)
+                            const reservationFees = [];
+                            if (bd.fees) {
+                                for (const fee of bd.fees) {
+                                    if (fee.type === 'cleaning_fee') continue;
+                                    reservationFees.push({ name: fee.name, value: fee.amount, isTax: 0, isIncludedInTotalPrice: 1 });
+                                }
+                            }
+                            if (bd.taxes) {
+                                for (const tax of bd.taxes) {
+                                    reservationFees.push({ name: tax.name, value: tax.amount, isTax: 1, isIncludedInTotalPrice: 1 });
+                                }
+                            }
+                            if (reservationFees.length > 0) {
+                                hostawayPayload.reservationFees = reservationFees;
+                            }
+                        }
+                        
+                        const hostawayResponse = await axios.post('https://api.hostaway.com/v1/reservations', hostawayPayload, {
                             headers: {
                                 'Authorization': `Bearer ${stored.accessToken}`,
                                 'Content-Type': 'application/json'
@@ -46416,6 +46445,308 @@ app.post('/api/public/validate-voucher', async (req, res) => {
     res.json({ success: false, error: 'Unable to validate voucher' });
   }
 });
+
+// Get price quote with full breakdown from channel manager (public)
+app.get('/api/public/quote/:unitId', async (req, res) => {
+  try {
+    const { unitId } = req.params;
+    const { checkin, checkout, guests } = req.query;
+    
+    if (!checkin || !checkout) {
+      return res.status(400).json({ success: false, error: 'checkin and checkout dates required' });
+    }
+    
+    // Get unit info including Hostaway listing ID
+    const unitResult = await pool.query(`
+      SELECT bu.id, bu.hostaway_listing_id, bu.cleaning_fee, bu.security_deposit,
+             bu.base_price, bu.beds24_room_id, bu.smoobu_id,
+             COALESCE(bu.currency, p.currency, 'USD') as currency,
+             p.id as property_id, p.account_id, p.channel_manager,
+             p.hostaway_listing_id as prop_hostaway_id
+      FROM bookable_units bu
+      LEFT JOIN properties p ON bu.property_id = p.id
+      WHERE bu.id = $1
+    `, [unitId]);
+    
+    if (unitResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Unit not found' });
+    }
+    
+    const unit = unitResult.rows[0];
+    const hostawayListingId = unit.hostaway_listing_id || unit.prop_hostaway_id;
+    const numberOfGuests = parseInt(guests) || 1;
+    const nights = Math.round((new Date(checkout) - new Date(checkin)) / (1000 * 60 * 60 * 24));
+    
+    // Try to get quote from Hostaway if connected
+    if (hostawayListingId) {
+      try {
+        const stored = await getStoredHostawayToken(pool);
+        
+        if (stored?.accessToken) {
+          // Call Hostaway price calculation endpoint
+          const priceResponse = await axios.get(
+            `https://api.hostaway.com/v1/listings/${hostawayListingId}/calendar/priceDetails`, {
+            params: {
+              startingDate: checkin,
+              endingDate: checkout,
+              numberOfGuests: numberOfGuests
+            },
+            headers: {
+              'Authorization': `Bearer ${stored.accessToken}`,
+              'Content-Type': 'application/json',
+              'Cache-control': 'no-cache'
+            },
+            timeout: 15000
+          });
+          
+          if (priceResponse.data?.status === 'success' && priceResponse.data?.result) {
+            const raw = priceResponse.data.result;
+            
+            console.log('📊 Hostaway price quote raw:', JSON.stringify(raw, null, 2));
+            
+            // Build breakdown from Hostaway response
+            const breakdown = buildHostawayBreakdown(raw, nights, unit.currency);
+            
+            return res.json({
+              success: true,
+              source: 'hostaway',
+              quote: breakdown
+            });
+          }
+        }
+      } catch (haError) {
+        console.error('Hostaway quote error:', haError.response?.data || haError.message);
+        // Fall through to local calculation
+      }
+    }
+    
+    // Fall back to local calculation from GAS database
+    const localQuote = await calculateLocalQuote(pool, unit, checkin, checkout, numberOfGuests, nights);
+    
+    return res.json({
+      success: true,
+      source: 'local',
+      quote: localQuote
+    });
+    
+  } catch (error) {
+    console.error('Quote error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * Build a clean price breakdown from Hostaway's priceDetails response
+ */
+function buildHostawayBreakdown(raw, nights, currency) {
+  const lineItems = [];
+  const taxes = [];
+  const fees = [];
+  
+  // Base rate
+  const basePrice = parseFloat(raw.basePrice || 0);
+  const pricePerNight = nights > 0 ? basePrice / nights : basePrice;
+  
+  // Cleaning fee
+  if (raw.cleaningFee && parseFloat(raw.cleaningFee) > 0) {
+    fees.push({ type: 'cleaning_fee', name: 'Cleaning Fee', amount: parseFloat(raw.cleaningFee) });
+  }
+  
+  // Reservation fees array (comes with includeResources)
+  if (raw.reservationFees && Array.isArray(raw.reservationFees)) {
+    for (const fee of raw.reservationFees) {
+      const amount = parseFloat(fee.amount || fee.value || 0);
+      if (amount === 0) continue;
+      
+      if (fee.isTax || fee.isTax === 1) {
+        taxes.push({ type: 'tax', name: fee.name || 'Tax', amount });
+      } else {
+        // Don't double-count cleaning fee
+        if ((fee.name || '').toLowerCase().includes('cleaning')) continue;
+        fees.push({ type: 'fee', name: fee.name || 'Fee', amount });
+      }
+    }
+  }
+  
+  // Individual Hostaway financial fields
+  const taxFields = [
+    { key: 'lodgingTax', name: 'Lodging Tax' },
+    { key: 'occupancyTax', name: 'Occupancy Tax' },
+    { key: 'salesTax', name: 'Sales Tax' },
+    { key: 'guestPerPersonPerNightTax', name: 'Tourist Tax' },
+    { key: 'guestStayTax', name: 'Stay Tax' },
+    { key: 'guestNightlyTax', name: 'Nightly Tax' },
+    { key: 'vatTax', name: 'VAT' },
+    { key: 'stateTax', name: 'State Tax' },
+    { key: 'cityTax', name: 'City Tax' },
+    { key: 'countyTax', name: 'County Tax' }
+  ];
+  
+  for (const tf of taxFields) {
+    if (raw[tf.key] && parseFloat(raw[tf.key]) > 0) {
+      // Only add if not already in reservationFees
+      const exists = taxes.find(t => t.name === tf.name);
+      if (!exists) {
+        taxes.push({ type: 'tax', name: tf.name, amount: parseFloat(raw[tf.key]) });
+      }
+    }
+  }
+  
+  // Fee fields
+  const feeFields = [
+    { key: 'guestChannelFee', name: 'Guest Channel Fee' },
+    { key: 'safelyInsurance', name: 'Safely Insurance' },
+    { key: 'otherFees', name: 'Other Fees' },
+    { key: 'extraGuestFee', name: 'Extra Guest Fee' },
+    { key: 'petFee', name: 'Pet Fee' },
+    { key: 'resortFee', name: 'Resort Fee' }
+  ];
+  
+  for (const ff of feeFields) {
+    if (raw[ff.key] && parseFloat(raw[ff.key]) > 0) {
+      const exists = fees.find(f => f.name === ff.name);
+      if (!exists) {
+        fees.push({ type: 'fee', name: ff.name, amount: parseFloat(raw[ff.key]) });
+      }
+    }
+  }
+  
+  // Damage deposit (separate from total)
+  const damageDeposit = parseFloat(raw.refundableDamageDeposit || raw.securityDeposit || raw.securityDepositFee || 0);
+  
+  // Calculate totals
+  const feeTotal = fees.reduce((sum, f) => sum + f.amount, 0);
+  const taxTotal = taxes.reduce((sum, t) => sum + t.amount, 0);
+  
+  // Use Hostaway's totalPrice if available
+  const hostawayTotal = parseFloat(raw.totalPrice || 0);
+  const calculatedTotal = basePrice + feeTotal + taxTotal;
+  const total = hostawayTotal > 0 ? hostawayTotal : calculatedTotal;
+  
+  return {
+    nights,
+    pricePerNight: Math.round(pricePerNight * 100) / 100,
+    currency: currency || raw.currency || 'USD',
+    total: Math.round(total * 100) / 100,
+    damageDeposit: Math.round(damageDeposit * 100) / 100,
+    grandTotal: Math.round((total + damageDeposit) * 100) / 100,
+    breakdown: {
+      basePrice: Math.round(basePrice * 100) / 100,
+      fees,
+      taxes,
+      feeTotal: Math.round(feeTotal * 100) / 100,
+      taxTotal: Math.round(taxTotal * 100) / 100
+    }
+  };
+}
+
+/**
+ * Calculate price locally from GAS database when no CM quote available
+ */
+async function calculateLocalQuote(pool, unit, checkin, checkout, guests, nights) {
+  const currency = unit.currency || 'USD';
+  
+  // Get nightly rates from availability table
+  const ratesResult = await pool.query(`
+    SELECT date, COALESCE(direct_price, cm_price) as price
+    FROM room_availability
+    WHERE room_id = $1 AND date >= $2 AND date < $3
+    ORDER BY date
+  `, [unit.id, checkin, checkout]);
+  
+  let basePrice = 0;
+  if (ratesResult.rows.length > 0) {
+    basePrice = ratesResult.rows.reduce((sum, r) => sum + parseFloat(r.price || unit.base_price || 0), 0);
+  } else {
+    basePrice = parseFloat(unit.base_price || 0) * nights;
+  }
+  
+  const pricePerNight = nights > 0 ? basePrice / nights : basePrice;
+  const fees = [];
+  const taxes = [];
+  
+  // Add cleaning fee from unit
+  if (unit.cleaning_fee && parseFloat(unit.cleaning_fee) > 0) {
+    fees.push({ type: 'cleaning_fee', name: 'Cleaning Fee', amount: parseFloat(unit.cleaning_fee) });
+  }
+  
+  // Get fees from GAS fees table
+  const feesResult = await pool.query(`
+    SELECT name, amount_type, amount, apply_per, is_tax 
+    FROM fees 
+    WHERE (property_id = $1 OR room_id = $2) AND is_active = true
+  `, [unit.property_id, unit.id]);
+  
+  for (const fee of feesResult.rows) {
+    let feeAmount = 0;
+    const baseAmount = parseFloat(fee.amount || 0);
+    
+    if (fee.amount_type === 'percentage') {
+      feeAmount = basePrice * (baseAmount / 100);
+    } else {
+      // Fixed amount
+      switch (fee.apply_per) {
+        case 'per_night': feeAmount = baseAmount * nights; break;
+        case 'per_guest': feeAmount = baseAmount * guests; break;
+        case 'per_guest_per_night': feeAmount = baseAmount * guests * nights; break;
+        default: feeAmount = baseAmount; // per_booking
+      }
+    }
+    
+    if (feeAmount > 0) {
+      const item = { type: fee.is_tax ? 'tax' : 'fee', name: fee.name, amount: Math.round(feeAmount * 100) / 100 };
+      if (fee.is_tax) taxes.push(item); else fees.push(item);
+    }
+  }
+  
+  // Get taxes from GAS taxes table
+  const taxesResult = await pool.query(`
+    SELECT name, amount_type, amount, charge_per, max_nights 
+    FROM taxes 
+    WHERE (property_id = $1 OR room_id = $2) AND is_active != false
+  `, [unit.property_id, unit.id]);
+  
+  for (const tax of taxesResult.rows) {
+    let taxAmount = 0;
+    const baseAmount = parseFloat(tax.amount || 0);
+    const applicableNights = tax.max_nights ? Math.min(nights, tax.max_nights) : nights;
+    
+    if (tax.amount_type === 'percentage') {
+      taxAmount = basePrice * (baseAmount / 100);
+    } else {
+      switch (tax.charge_per) {
+        case 'per_night': taxAmount = baseAmount * applicableNights; break;
+        case 'per_person_per_night': taxAmount = baseAmount * guests * applicableNights; break;
+        default: taxAmount = baseAmount; // per_booking
+      }
+    }
+    
+    if (taxAmount > 0) {
+      taxes.push({ type: 'tax', name: tax.name, amount: Math.round(taxAmount * 100) / 100 });
+    }
+  }
+  
+  const damageDeposit = parseFloat(unit.security_deposit || 0);
+  const feeTotal = fees.reduce((sum, f) => sum + f.amount, 0);
+  const taxTotal = taxes.reduce((sum, t) => sum + t.amount, 0);
+  const total = basePrice + feeTotal + taxTotal;
+  
+  return {
+    nights,
+    pricePerNight: Math.round(pricePerNight * 100) / 100,
+    currency,
+    total: Math.round(total * 100) / 100,
+    damageDeposit: Math.round(damageDeposit * 100) / 100,
+    grandTotal: Math.round((total + damageDeposit) * 100) / 100,
+    breakdown: {
+      basePrice: Math.round(basePrice * 100) / 100,
+      fees,
+      taxes,
+      feeTotal: Math.round(feeTotal * 100) / 100,
+      taxTotal: Math.round(taxTotal * 100) / 100
+    }
+  };
+}
 
 // Get available upsells (public)
 app.get('/api/public/upsells/:unitId', async (req, res) => {
