@@ -61478,6 +61478,215 @@ app.get('/api/turbines/availability-gaps', async (req, res) => {
 // ============================================
 
 
+// ============================================
+// FACEBOOK OAUTH - TURBINE CONNECTIONS
+// ============================================
+
+// Step 1: Redirect user to Facebook OAuth
+app.get('/api/oauth/facebook/start', async (req, res) => {
+  try {
+    const accountId = req.query.account_id;
+    if (!accountId) return res.status(400).json({ error: 'account_id required' });
+
+    const FACEBOOK_APP_ID = process.env.FACEBOOK_APP_ID;
+    const REDIRECT_URI = 'https://admin.gas.travel/api/oauth/facebook/callback';
+    
+    // Permissions needed for posting to pages
+    const scopes = 'pages_manage_posts,pages_read_engagement,pages_show_list';
+    
+    // Store account_id in state parameter so we know who's connecting
+    const state = Buffer.from(JSON.stringify({ account_id: accountId })).toString('base64');
+    
+    const authUrl = `https://www.facebook.com/v22.0/dialog/oauth?` +
+      `client_id=${FACEBOOK_APP_ID}` +
+      `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}` +
+      `&scope=${scopes}` +
+      `&state=${state}` +
+      `&response_type=code`;
+    
+    res.redirect(authUrl);
+  } catch (error) {
+    console.error('Facebook OAuth start error:', error);
+    res.status(500).json({ error: 'Failed to start Facebook OAuth' });
+  }
+});
+
+// Step 2: Facebook redirects back with auth code
+app.get('/api/oauth/facebook/callback', async (req, res) => {
+  try {
+    const { code, state, error: fbError } = req.query;
+    
+    if (fbError) {
+      console.error('Facebook OAuth error:', fbError);
+      return res.redirect('/gas-admin.html?fb_error=' + encodeURIComponent(fbError));
+    }
+    
+    if (!code || !state) {
+      return res.redirect('/gas-admin.html?fb_error=missing_params');
+    }
+    
+    // Decode state to get account_id
+    const stateData = JSON.parse(Buffer.from(state, 'base64').toString());
+    const accountId = stateData.account_id;
+    
+    const FACEBOOK_APP_ID = process.env.FACEBOOK_APP_ID;
+    const FACEBOOK_APP_SECRET = process.env.FACEBOOK_APP_SECRET;
+    const REDIRECT_URI = 'https://admin.gas.travel/api/oauth/facebook/callback';
+    
+    // Exchange code for short-lived user access token
+    const tokenResponse = await fetch(
+      `https://graph.facebook.com/v22.0/oauth/access_token?` +
+      `client_id=${FACEBOOK_APP_ID}` +
+      `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}` +
+      `&client_secret=${FACEBOOK_APP_SECRET}` +
+      `&code=${code}`
+    );
+    const tokenData = await tokenResponse.json();
+    
+    if (tokenData.error) {
+      console.error('Facebook token error:', tokenData.error);
+      return res.redirect('/gas-admin.html?fb_error=' + encodeURIComponent(tokenData.error.message));
+    }
+    
+    const shortLivedToken = tokenData.access_token;
+    
+    // Exchange for long-lived user token (60 days)
+    const longLivedResponse = await fetch(
+      `https://graph.facebook.com/v22.0/oauth/access_token?` +
+      `grant_type=fb_exchange_token` +
+      `&client_id=${FACEBOOK_APP_ID}` +
+      `&client_secret=${FACEBOOK_APP_SECRET}` +
+      `&fb_exchange_token=${shortLivedToken}`
+    );
+    const longLivedData = await longLivedResponse.json();
+    
+    if (longLivedData.error) {
+      console.error('Facebook long-lived token error:', longLivedData.error);
+      return res.redirect('/gas-admin.html?fb_error=token_exchange_failed');
+    }
+    
+    const longLivedUserToken = longLivedData.access_token;
+    
+    // Get user's pages
+    const pagesResponse = await fetch(
+      `https://graph.facebook.com/v22.0/me/accounts?access_token=${longLivedUserToken}&fields=id,name,access_token,category,picture`
+    );
+    const pagesData = await pagesResponse.json();
+    
+    if (!pagesData.data || pagesData.data.length === 0) {
+      return res.redirect('/gas-admin.html?fb_error=no_pages');
+    }
+    
+    // Store all pages as connections (page tokens are long-lived when derived from long-lived user token)
+    for (const page of pagesData.data) {
+      // Check if connection already exists
+      const existing = await pool.query(
+        'SELECT id FROM turbine_connections WHERE account_id = $1 AND platform = $2 AND page_id = $3',
+        [accountId, 'facebook', page.id]
+      );
+      
+      if (existing.rows.length > 0) {
+        // Update existing
+        await pool.query(
+          `UPDATE turbine_connections SET 
+            access_token = $1, page_name = $2, platform_username = $3, 
+            status = 'active', updated_at = NOW()
+          WHERE id = $4`,
+          [page.access_token, page.name, page.name, existing.rows[0].id]
+        );
+      } else {
+        // Insert new
+        await pool.query(
+          `INSERT INTO turbine_connections (account_id, platform, platform_user_id, platform_username, access_token, page_id, page_name, status)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, 'active')`,
+          [accountId, 'facebook', page.id, page.name, page.access_token, page.id, page.name]
+        );
+      }
+    }
+    
+    console.log(`✅ Facebook connected for account ${accountId}: ${pagesData.data.length} page(s)`);
+    
+    // Redirect back to Turbine Connections with success
+    res.redirect('/gas-admin.html?fb_success=true&fb_pages=' + pagesData.data.length);
+    
+  } catch (error) {
+    console.error('Facebook OAuth callback error:', error);
+    res.redirect('/gas-admin.html?fb_error=' + encodeURIComponent(error.message));
+  }
+});
+
+// GET turbine connections for an account
+app.get('/api/turbines/connections', async (req, res) => {
+  try {
+    const accountId = req.query.account_id;
+    if (!accountId) return res.status(400).json({ error: 'account_id required' });
+    
+    const result = await pool.query(
+      `SELECT id, platform, platform_username, page_id, page_name, status, created_at 
+      FROM turbine_connections WHERE account_id = $1 ORDER BY created_at DESC`,
+      [accountId]
+    );
+    
+    res.json({ connections: result.rows });
+  } catch (error) {
+    console.error('Error loading turbine connections:', error);
+    res.status(500).json({ error: 'Failed to load connections' });
+  }
+});
+
+// DELETE (disconnect) a turbine connection
+app.delete('/api/turbines/connections/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query('DELETE FROM turbine_connections WHERE id = $1', [id]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error disconnecting turbine:', error);
+    res.status(500).json({ error: 'Failed to disconnect' });
+  }
+});
+
+// POST to a Facebook page
+app.post('/api/turbines/post/facebook', async (req, res) => {
+  try {
+    const { connection_id, message, link } = req.body;
+    
+    const conn = await pool.query(
+      'SELECT * FROM turbine_connections WHERE id = $1 AND platform = $2',
+      [connection_id, 'facebook']
+    );
+    
+    if (conn.rows.length === 0) return res.status(404).json({ error: 'Connection not found' });
+    
+    const { page_id, access_token } = conn.rows[0];
+    
+    // Post to Facebook Page
+    const postBody = { access_token };
+    if (message) postBody.message = message;
+    if (link) postBody.link = link;
+    
+    const fbResponse = await fetch(`https://graph.facebook.com/v22.0/${page_id}/feed`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(postBody)
+    });
+    
+    const fbData = await fbResponse.json();
+    
+    if (fbData.error) {
+      console.error('Facebook post error:', fbData.error);
+      return res.status(400).json({ error: fbData.error.message });
+    }
+    
+    console.log(`✅ Posted to Facebook page ${page_id}: ${fbData.id}`);
+    res.json({ success: true, post_id: fbData.id });
+    
+  } catch (error) {
+    console.error('Error posting to Facebook:', error);
+    res.status(500).json({ error: 'Failed to post' });
+  }
+});
+
 app.listen(PORT, '0.0.0.0', async () => {
   console.log('🚀 Server running on port ' + PORT);
   console.log('🔄 Auto-sync scheduled: Prices every 15min, Beds24 bookings every 15min, Inventory every 6hrs');
