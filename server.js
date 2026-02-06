@@ -28031,7 +28031,7 @@ async function getHostawayAccessToken(accountId, clientSecret) {
 // Helper to get stored Hostaway token from database
 async function getStoredHostawayToken(pool) {
   const result = await pool.query(`
-    SELECT access_token, account_id FROM channel_connections 
+    SELECT id, access_token, api_key, account_id FROM channel_connections 
     WHERE cm_id = (SELECT id FROM channel_managers WHERE cm_code = 'hostaway') 
     AND status = 'active'
     ORDER BY updated_at DESC LIMIT 1
@@ -28041,8 +28041,45 @@ async function getStoredHostawayToken(pool) {
     return null;
   }
   
+  let token = result.rows[0].access_token;
+  const connectionId = result.rows[0].id;
+  
+  // If the stored token doesn't look like a JWT (starts with 'ey'), 
+  // it might be the API secret - exchange it for a real token
+  if (token && !token.startsWith('ey')) {
+    try {
+      // api_key has the account ID, access_token has the secret
+      const hostawayAccountId = result.rows[0].api_key;
+      const clientSecret = token;
+      
+      console.log('🔄 Exchanging Hostaway credentials for bearer token, accountId:', hostawayAccountId);
+      
+      const realToken = await getHostawayAccessToken(hostawayAccountId, clientSecret);
+      
+      if (realToken) {
+        // Store the real token
+        await pool.query(
+          'UPDATE channel_connections SET access_token = $1, api_key = $2, updated_at = NOW() WHERE id = $3',
+          [realToken, clientSecret, connectionId]
+        );
+        // Store the original secret somewhere we can find it for re-auth
+        await pool.query(`
+          UPDATE channel_connections 
+          SET gas_account_id = COALESCE(gas_account_id, (SELECT id::integer FROM accounts LIMIT 1))
+          WHERE id = $1
+        `, [connectionId]);
+        
+        token = realToken;
+        console.log('✅ Hostaway bearer token obtained and stored');
+      }
+    } catch (e) {
+      console.error('❌ Failed to exchange Hostaway credentials:', e.message);
+      return null;
+    }
+  }
+  
   return {
-    accessToken: result.rows[0].access_token,
+    accessToken: token,
     accountId: result.rows[0].account_id
   };
 }
