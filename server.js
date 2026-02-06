@@ -11629,7 +11629,8 @@ app.get('/api/accounts/:accountId/stripe-status', async (req, res) => {
         const { accountId } = req.params;
         
         const result = await pool.query(`
-            SELECT stripe_account_id, stripe_account_status, stripe_onboarding_complete
+            SELECT stripe_account_id, stripe_account_status, stripe_onboarding_complete,
+                   stripe_publishable_key, stripe_secret_key, stripe_name
             FROM accounts WHERE id = $1
         `, [accountId]);
         
@@ -11638,13 +11639,16 @@ app.get('/api/accounts/:accountId/stripe-status', async (req, res) => {
         }
         
         const account = result.rows[0];
+        const hasKeys = !!account.stripe_secret_key;
         
         res.json({
             success: true,
-            connected: !!account.stripe_account_id,
+            connected: !!account.stripe_account_id || hasKeys,
             stripe_account_id: account.stripe_account_id,
+            stripe_name: account.stripe_name,
             status: account.stripe_account_status,
-            onboarding_complete: account.stripe_onboarding_complete
+            onboarding_complete: account.stripe_onboarding_complete,
+            has_keys: hasKeys
         });
         
     } catch (error) {
@@ -11654,6 +11658,49 @@ app.get('/api/accounts/:accountId/stripe-status', async (req, res) => {
 });
 
 // Disconnect Stripe account
+// Save Stripe API keys for an account (manual entry)
+app.post('/api/accounts/:accountId/stripe-keys', async (req, res) => {
+  try {
+    const { accountId } = req.params;
+    const { stripe_publishable_key, stripe_secret_key, stripe_name } = req.body;
+    
+    if (!stripe_secret_key) {
+      return res.status(400).json({ success: false, error: 'Secret key is required' });
+    }
+    
+    // Ensure columns exist
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS stripe_publishable_key TEXT`);
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS stripe_secret_key TEXT`);
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS stripe_name VARCHAR(255)`);
+    
+    // Validate the key by making a test API call
+    try {
+      const testStripe = new (require('stripe'))(stripe_secret_key);
+      await testStripe.balance.retrieve();
+    } catch (e) {
+      return res.status(400).json({ success: false, error: 'Invalid Stripe key - could not authenticate: ' + e.message });
+    }
+    
+    // Save keys
+    await pool.query(`
+      UPDATE accounts 
+      SET stripe_publishable_key = $1,
+          stripe_secret_key = $2,
+          stripe_name = $3,
+          stripe_account_status = 'active',
+          stripe_onboarding_complete = true,
+          updated_at = NOW()
+      WHERE id = $4
+    `, [stripe_publishable_key || null, stripe_secret_key, stripe_name || null, accountId]);
+    
+    console.log(`✅ Stripe keys saved for account ${accountId}`);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Save Stripe keys error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 app.post('/api/accounts/:accountId/stripe-disconnect', async (req, res) => {
     try {
         const { accountId } = req.params;
@@ -11685,6 +11732,9 @@ app.post('/api/accounts/:accountId/stripe-disconnect', async (req, res) => {
             SET stripe_account_id = NULL,
                 stripe_account_status = NULL,
                 stripe_onboarding_complete = false,
+                stripe_publishable_key = NULL,
+                stripe_secret_key = NULL,
+                stripe_name = NULL,
                 updated_at = NOW()
             WHERE id = $1
         `, [accountId]);
