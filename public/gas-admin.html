@@ -22800,7 +22800,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                         ${(() => {
                                             const propCount = parseInt(account.property_count) || 0;
                                             const stripePropsCount = parseInt(account.stripe_properties_count) || 0;
-                                            const hasAccountStripe = !!account.stripe_account_id;
+                                            const hasAccountStripe = !!account.stripe_account_id || !!account.stripe_secret_key;
                                             
                                             if (hasAccountStripe) {
                                                 return `<div style="display: flex; align-items: center; gap: 0.5rem;">
