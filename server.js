@@ -61355,12 +61355,74 @@ app.post('/api/turbines/campaigns/:id/send', async (req, res) => {
       `, [id, sent]);
     }
     
+    // Post to Facebook if channel enabled
+    const facebookEnabled = channels?.facebook === true;
+    let fbResult = null;
+    if (facebookEnabled && !test_email) {
+      try {
+        // Get connected Facebook pages for this account
+        const fbConns = await pool.query(
+          `SELECT id, page_id, page_name, access_token FROM turbine_connections 
+           WHERE account_id = $1 AND platform = 'facebook' AND status = 'active'`,
+          [campaign.account_id]
+        );
+        
+        if (fbConns.rows.length > 0) {
+          const conn = fbConns.rows[0]; // Post to first connected page
+          const campaignUrl = campaign.gas_lite_slug 
+            ? `https://lite.gas.travel/${campaign.gas_lite_slug}?offer=${campaign.offer_code}`
+            : null;
+          
+          const postBody = { access_token: conn.access_token };
+          
+          // Build Facebook post message
+          let fbMessage = campaign.social_caption || '';
+          if (!fbMessage) {
+            fbMessage = `🔥 ${discountText || 'Special Offer'} - ${campaign.name}\n\n`;
+            if (campaign.property_name) fbMessage += `🏠 ${campaign.property_name}\n`;
+            if (campaign.room_name) fbMessage += `🛏️ ${campaign.room_name}\n`;
+            if (campaign.start_date && campaign.end_date) {
+              fbMessage += `📅 ${formatDate(campaign.start_date)} - ${formatDate(campaign.end_date)}\n`;
+            }
+            fbMessage += `\nBook now and save! ✨`;
+          }
+          postBody.message = fbMessage;
+          if (campaignUrl) postBody.link = campaignUrl;
+          
+          const fbResponse = await fetch(`https://graph.facebook.com/v22.0/${conn.page_id}/feed`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(postBody)
+          });
+          const fbData = await fbResponse.json();
+          
+          if (fbData.error) {
+            console.error('Facebook post error:', fbData.error);
+            fbResult = { success: false, error: fbData.error.message };
+          } else {
+            console.log(`✅ Posted to Facebook page ${conn.page_name}: ${fbData.id}`);
+            fbResult = { success: true, post_id: fbData.id, page_name: conn.page_name };
+            
+            // Record Facebook stats
+            await pool.query(`
+              INSERT INTO turbine_campaign_stats (campaign_id, channel, sent_count, updated_at)
+              VALUES ($1, 'facebook', 1, NOW())
+            `, [id]);
+          }
+        }
+      } catch (fbErr) {
+        console.error('Facebook posting error:', fbErr);
+        fbResult = { success: false, error: fbErr.message };
+      }
+    }
+    
     res.json({ 
       success: true, 
       sent,
       failed,
       total: recipients.length,
       test: !!test_email,
+      facebook: fbResult,
       errors: errors.slice(0, 10)
     });
   } catch (error) {
@@ -61389,6 +61451,18 @@ app.get('/api/turbines/connections', async (req, res) => {
   } catch (error) {
     console.error('Get connections error:', error);
     res.json({ success: false, error: error.message });
+  }
+});
+
+// DELETE /api/turbines/connections/:id - Disconnect a social account
+app.delete('/api/turbines/connections/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query('DELETE FROM turbine_connections WHERE id = $1', [id]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error disconnecting turbine:', error);
+    res.status(500).json({ success: false, error: 'Failed to disconnect' });
   }
 });
 
@@ -61615,38 +61689,7 @@ app.get('/api/oauth/facebook/callback', async (req, res) => {
   }
 });
 
-// GET turbine connections for an account
-app.get('/api/turbines/connections', async (req, res) => {
-  try {
-    const accountId = req.query.account_id;
-    if (!accountId) return res.status(400).json({ error: 'account_id required' });
-    
-    const result = await pool.query(
-      `SELECT id, platform, platform_username, page_id, page_name, status, created_at 
-      FROM turbine_connections WHERE account_id = $1 ORDER BY created_at DESC`,
-      [accountId]
-    );
-    
-    res.json({ connections: result.rows });
-  } catch (error) {
-    console.error('Error loading turbine connections:', error);
-    res.status(500).json({ error: 'Failed to load connections' });
-  }
-});
-
-// DELETE (disconnect) a turbine connection
-app.delete('/api/turbines/connections/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    await pool.query('DELETE FROM turbine_connections WHERE id = $1', [id]);
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Error disconnecting turbine:', error);
-    res.status(500).json({ error: 'Failed to disconnect' });
-  }
-});
-
-// POST to a Facebook page
+// POST to a Facebook page (standalone - outside campaigns)
 app.post('/api/turbines/post/facebook', async (req, res) => {
   try {
     const { connection_id, message, link } = req.body;
