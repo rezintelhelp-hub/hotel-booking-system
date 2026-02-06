@@ -836,6 +836,262 @@ Please provide your response in this exact JSON format:
     };
   }
   
+  // =====================================================
+  // PRICE CALCULATION
+  // =====================================================
+  
+  /**
+   * Get a full price quote from Hostaway for a listing + dates + guests
+   * Returns itemised breakdown: base rate, cleaning fee, taxes, fees, deposit
+   */
+  async getQuote(listingId, startDate, endDate, numberOfGuests = 1) {
+    const response = await this.request(`/listings/${listingId}/calendar/priceDetails`, 'GET', null, {
+      params: {
+        startingDate: startDate,
+        endingDate: endDate,
+        numberOfGuests: numberOfGuests
+      }
+    });
+    
+    // If the new endpoint doesn't work, fall back to the older price calculator
+    if (!response.success) {
+      const fallbackResponse = await this.request(`/reservationPriceDetails`, 'GET', null, {
+        params: {
+          listingMapId: listingId,
+          startingDate: startDate,
+          endingDate: endDate,
+          numberOfGuests: numberOfGuests
+        }
+      });
+      
+      if (!fallbackResponse.success) {
+        return fallbackResponse;
+      }
+      
+      return {
+        success: true,
+        data: this.mapPriceQuote(fallbackResponse.data, startDate, endDate)
+      };
+    }
+    
+    return {
+      success: true,
+      data: this.mapPriceQuote(response.data, startDate, endDate)
+    };
+  }
+  
+  /**
+   * Map Hostaway price details response into a clean breakdown
+   */
+  mapPriceQuote(raw, startDate, endDate) {
+    // Calculate nights
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const nights = Math.round((end - start) / (1000 * 60 * 60 * 24));
+    
+    // Build line items from whatever Hostaway returns
+    const lineItems = [];
+    const taxes = [];
+    const fees = [];
+    
+    // Base rate
+    const basePrice = parseFloat(raw.basePrice || raw.totalPrice || 0);
+    const pricePerNight = nights > 0 ? basePrice / nights : basePrice;
+    
+    lineItems.push({
+      type: 'base_rate',
+      name: `$${pricePerNight.toFixed(0)} x ${nights} night${nights !== 1 ? 's' : ''}`,
+      amount: basePrice
+    });
+    
+    // Cleaning fee
+    if (raw.cleaningFee && parseFloat(raw.cleaningFee) > 0) {
+      fees.push({
+        type: 'cleaning_fee',
+        name: 'Cleaning Fee',
+        amount: parseFloat(raw.cleaningFee)
+      });
+    }
+    
+    // Reservation fees (from includeResources)
+    if (raw.reservationFees && Array.isArray(raw.reservationFees)) {
+      for (const fee of raw.reservationFees) {
+        const amount = parseFloat(fee.amount || fee.value || 0);
+        if (amount === 0) continue;
+        
+        const item = {
+          type: fee.isTax ? 'tax' : 'fee',
+          name: fee.name || fee.title || 'Fee',
+          amount: amount,
+          hostawayFeeId: fee.id
+        };
+        
+        if (fee.isTax) {
+          taxes.push(item);
+        } else {
+          fees.push(item);
+        }
+      }
+    }
+    
+    // Individual tax fields from Hostaway
+    if (raw.lodgingTax && parseFloat(raw.lodgingTax) > 0) {
+      taxes.push({ type: 'tax', name: 'Lodging Tax', amount: parseFloat(raw.lodgingTax) });
+    }
+    if (raw.occupancyTax && parseFloat(raw.occupancyTax) > 0) {
+      taxes.push({ type: 'tax', name: 'Occupancy Tax', amount: parseFloat(raw.occupancyTax) });
+    }
+    if (raw.salesTax && parseFloat(raw.salesTax) > 0) {
+      taxes.push({ type: 'tax', name: 'Sales Tax', amount: parseFloat(raw.salesTax) });
+    }
+    if (raw.guestPerPersonPerNightTax && parseFloat(raw.guestPerPersonPerNightTax) > 0) {
+      taxes.push({ type: 'tax', name: 'Tourist Tax', amount: parseFloat(raw.guestPerPersonPerNightTax) });
+    }
+    if (raw.guestStayTax && parseFloat(raw.guestStayTax) > 0) {
+      taxes.push({ type: 'tax', name: 'Stay Tax', amount: parseFloat(raw.guestStayTax) });
+    }
+    if (raw.guestNightlyTax && parseFloat(raw.guestNightlyTax) > 0) {
+      taxes.push({ type: 'tax', name: 'Nightly Tax', amount: parseFloat(raw.guestNightlyTax) });
+    }
+    
+    // Guest channel fee
+    if (raw.guestChannelFee && parseFloat(raw.guestChannelFee) > 0) {
+      fees.push({ type: 'fee', name: 'Guest Channel Fee', amount: parseFloat(raw.guestChannelFee) });
+    }
+    
+    // Insurance / safely
+    if (raw.safelyInsurance && parseFloat(raw.safelyInsurance) > 0) {
+      fees.push({ type: 'fee', name: 'Safely Insurance', amount: parseFloat(raw.safelyInsurance) });
+    }
+    
+    // Other fees
+    if (raw.otherFees && parseFloat(raw.otherFees) > 0) {
+      fees.push({ type: 'fee', name: 'Other Fees', amount: parseFloat(raw.otherFees) });
+    }
+    
+    // Refundable damage deposit (separate from total)
+    const damageDeposit = parseFloat(raw.refundableDamageDeposit || raw.securityDeposit || 0);
+    
+    // Calculate subtotal (everything except damage deposit)
+    const feeTotal = fees.reduce((sum, f) => sum + f.amount, 0);
+    const taxTotal = taxes.reduce((sum, t) => sum + t.amount, 0);
+    const subtotal = basePrice + feeTotal + taxTotal;
+    
+    // Total price as reported by Hostaway (may differ from our calculation)
+    const hostawayTotal = parseFloat(raw.totalPrice || 0);
+    // Use Hostaway's total if available, otherwise our calculated one
+    const total = hostawayTotal > 0 ? hostawayTotal : subtotal;
+    
+    return {
+      nights,
+      pricePerNight,
+      currency: raw.currency || 'USD',
+      
+      // The single line the guest sees
+      total,
+      damageDeposit,
+      grandTotal: total + damageDeposit,
+      
+      // Full breakdown for Hostaway push
+      breakdown: {
+        basePrice,
+        fees,
+        taxes,
+        feeTotal,
+        taxTotal,
+        subtotal
+      },
+      
+      // Raw Hostaway response for debugging
+      _raw: raw
+    };
+  }
+  
+  /**
+   * Create a reservation in Hostaway WITH full price details
+   * This sends the itemised breakdown so Hostaway financials match
+   */
+  async createReservationWithPriceDetails(data) {
+    const payload = {
+      listingMapId: data.listingId,
+      channelId: 2000, // Direct booking channel
+      guestFirstName: data.guestFirstName,
+      guestLastName: data.guestLastName,
+      guestEmail: data.guestEmail,
+      guestPhone: data.guestPhone || '',
+      numberOfGuests: data.guests || 1,
+      adults: data.adults || data.guests || 1,
+      children: data.children || 0,
+      arrivalDate: data.checkIn,
+      departureDate: data.checkOut,
+      status: 'new',
+      
+      // Price details
+      totalPrice: data.totalPrice,
+      basePrice: data.breakdown?.basePrice || data.totalPrice,
+      cleaningFee: 0,
+      
+      // Source tracking
+      source: 'GAS Direct Booking'
+    };
+    
+    // Extract cleaning fee from breakdown
+    if (data.breakdown?.fees) {
+      const cleaning = data.breakdown.fees.find(f => f.type === 'cleaning_fee');
+      if (cleaning) {
+        payload.cleaningFee = cleaning.amount;
+      }
+    }
+    
+    // Add reservation fees array for Hostaway financial reporting
+    if (data.breakdown?.fees || data.breakdown?.taxes) {
+      payload.reservationFees = [];
+      
+      // Add fees (skip cleaning fee as it has its own field)
+      if (data.breakdown?.fees) {
+        for (const fee of data.breakdown.fees) {
+          if (fee.type === 'cleaning_fee') continue;
+          payload.reservationFees.push({
+            name: fee.name,
+            value: fee.amount,
+            isTax: 0,
+            isIncludedInTotalPrice: 1
+          });
+        }
+      }
+      
+      // Add taxes
+      if (data.breakdown?.taxes) {
+        for (const tax of data.breakdown.taxes) {
+          payload.reservationFees.push({
+            name: tax.name,
+            value: tax.amount,
+            isTax: 1,
+            isIncludedInTotalPrice: 1
+          });
+        }
+      }
+    }
+    
+    // Add damage deposit if present
+    if (data.damageDeposit && data.damageDeposit > 0) {
+      payload.securityDepositFee = data.damageDeposit;
+    }
+    
+    console.log('📤 Creating Hostaway reservation with price details:', JSON.stringify(payload, null, 2));
+    
+    const response = await this.request('/reservations', 'POST', payload);
+    
+    if (!response.success) {
+      return response;
+    }
+    
+    return {
+      success: true,
+      data: this.mapReservation(response.data)
+    };
+  }
+  
   mapReservation(raw) {
     return {
       externalId: String(raw.id),
