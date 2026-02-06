@@ -46570,25 +46570,81 @@ app.get('/api/public/quote/:unitId', async (req, res) => {
         console.log('🔍 Quote: Token found:', !!stored?.accessToken);
         
         if (stored?.accessToken) {
+          // First verify the listing exists
+          console.log('🔍 Quote: Verifying listing', hostawayListingId, 'exists...');
+          
+          try {
+            const listingCheck = await axios.get(
+              `https://api.hostaway.com/v1/listings/${hostawayListingId}`, {
+              headers: {
+                'Authorization': `Bearer ${stored.accessToken}`,
+                'Content-Type': 'application/json',
+                'Cache-control': 'no-cache'
+              },
+              timeout: 10000
+            });
+            console.log('🔍 Quote: Listing found:', listingCheck.data?.status, listingCheck.data?.result?.name || 'unknown');
+          } catch (listErr) {
+            console.log('🔍 Quote: Listing check failed:', listErr.response?.status, listErr.response?.data?.message || listErr.message);
+          }
+          
+          // Try GET first, then POST if that fails
+          let priceResponse = null;
           const quoteUrl = `https://api.hostaway.com/v1/listings/${hostawayListingId}/calendar/priceDetails`;
-          console.log('🔍 Quote: Calling', quoteUrl, { startingDate: checkin, endingDate: checkout, numberOfGuests });
+          const quoteParams = {
+            startingDate: checkin,
+            endingDate: checkout,
+            numberOfGuests: numberOfGuests
+          };
           
-          // Call Hostaway price calculation endpoint
-          const priceResponse = await axios.get(quoteUrl, {
-            params: {
-              startingDate: checkin,
-              endingDate: checkout,
-              numberOfGuests: numberOfGuests
-            },
-            headers: {
-              'Authorization': `Bearer ${stored.accessToken}`,
-              'Content-Type': 'application/json',
-              'Cache-control': 'no-cache'
-            },
-            timeout: 15000
-          });
+          console.log('🔍 Quote: Trying GET', quoteUrl, quoteParams);
           
-          if (priceResponse.data?.status === 'success' && priceResponse.data?.result) {
+          try {
+            priceResponse = await axios.get(quoteUrl, {
+              params: quoteParams,
+              headers: {
+                'Authorization': `Bearer ${stored.accessToken}`,
+                'Content-Type': 'application/json',
+                'Cache-control': 'no-cache'
+              },
+              timeout: 15000
+            });
+          } catch (getErr) {
+            console.log('🔍 Quote: GET failed:', getErr.response?.status, '- trying POST...');
+            
+            try {
+              priceResponse = await axios.post(quoteUrl, quoteParams, {
+                headers: {
+                  'Authorization': `Bearer ${stored.accessToken}`,
+                  'Content-Type': 'application/json',
+                  'Cache-control': 'no-cache'
+                },
+                timeout: 15000
+              });
+            } catch (postErr) {
+              console.log('🔍 Quote: POST also failed:', postErr.response?.status, postErr.response?.data);
+              
+              // Try the older endpoint
+              const oldUrl = `https://api.hostaway.com/v1/reservationPriceDetails`;
+              console.log('🔍 Quote: Trying old endpoint', oldUrl);
+              
+              try {
+                priceResponse = await axios.get(oldUrl, {
+                  params: { listingMapId: hostawayListingId, ...quoteParams },
+                  headers: {
+                    'Authorization': `Bearer ${stored.accessToken}`,
+                    'Content-Type': 'application/json',
+                    'Cache-control': 'no-cache'
+                  },
+                  timeout: 15000
+                });
+              } catch (oldErr) {
+                console.log('🔍 Quote: Old endpoint also failed:', oldErr.response?.status, oldErr.response?.data);
+              }
+            }
+          }
+          
+          if (priceResponse?.data?.status === 'success' && priceResponse?.data?.result) {
             const raw = priceResponse.data.result;
             
             console.log('📊 Hostaway price quote raw:', JSON.stringify(raw, null, 2));
