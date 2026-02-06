@@ -31611,12 +31611,44 @@ const promo = await fetch('/api/v1/offers/validate', {
         
         // Connect to social media platform
         function connectTurbine(platform) {
-            // For now, show coming soon message
-            showNotification(`${platform.charAt(0).toUpperCase() + platform.slice(1)} connection coming soon! OAuth integration required.`, 'info');
-            
-            // When API is ready, this will redirect to OAuth:
-            // window.location.href = `/api/turbines/connect/${platform}`;
+            if (platform === 'facebook') {
+                // Start Facebook OAuth flow
+                const accountId = currentAccountId || localStorage.getItem('gas_account_id');
+                if (!accountId) {
+                    showNotification('Please select an account first', 'error');
+                    return;
+                }
+                window.location.href = `/api/oauth/facebook/start?account_id=${accountId}`;
+                return;
+            }
+            // Other platforms coming soon
+            showNotification(`${platform.charAt(0).toUpperCase() + platform.slice(1)} connection coming soon!`, 'info');
         }
+        
+        // Check for Facebook OAuth callback results
+        (function checkFacebookCallback() {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('fb_success') === 'true') {
+                const pages = params.get('fb_pages') || '1';
+                showNotification(`✅ Facebook connected successfully! ${pages} page(s) linked.`, 'success');
+                // Clean URL
+                window.history.replaceState({}, document.title, window.location.pathname);
+                // Switch to turbine connections view
+                setTimeout(() => {
+                    const navItem = document.querySelector('[data-view="turbine-connections"]');
+                    if (navItem) navClick(navItem, 'turbine-connections');
+                }, 500);
+            }
+            if (params.get('fb_error')) {
+                const error = decodeURIComponent(params.get('fb_error'));
+                let msg = 'Facebook connection failed';
+                if (error === 'no_pages') msg = 'No Facebook Pages found. You need a Facebook Page to connect.';
+                else if (error === 'token_exchange_failed') msg = 'Token exchange failed. Please try again.';
+                else msg = `Facebook error: ${error}`;
+                showNotification(msg, 'error');
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
+        })();
         
         // Load connected accounts
         async function loadTurbineConnections() {
@@ -31624,8 +31656,15 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (!container) return;
             
             try {
-                // For now, show empty state (will load from API later)
-                turbineConnections = [];
+                const accountId = currentAccountId || localStorage.getItem('gas_account_id');
+                if (!accountId) {
+                    container.innerHTML = `<div style="text-align: center; padding: 2rem; color: #64748b;"><p>Select an account to view connections</p></div>`;
+                    return;
+                }
+                
+                const response = await fetch(`/api/turbines/connections?account_id=${accountId}`);
+                const data = await response.json();
+                turbineConnections = data.connections || [];
                 
                 if (turbineConnections.length === 0) {
                     container.innerHTML = `
@@ -31639,23 +31678,30 @@ const promo = await fetch('/api/v1/offers/validate', {
                     container.innerHTML = turbineConnections.map(conn => `
                         <div style="display: flex; align-items: center; justify-content: space-between; padding: 1rem; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 0.5rem;">
                             <div style="display: flex; align-items: center; gap: 1rem;">
-                                <div style="width: 40px; height: 40px; background: ${getPlatformColor(conn.platform)}; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white;">
+                                <div style="width: 40px; height: 40px; background: ${getPlatformColor(conn.platform)}; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;">
                                     ${getPlatformIcon(conn.platform)}
                                 </div>
                                 <div>
-                                    <strong>${conn.platform_username || conn.platform}</strong>
-                                    <p style="margin: 0; font-size: 0.8rem; color: #64748b;">${conn.platform}</p>
+                                    <strong>${conn.page_name || conn.platform_username || conn.platform}</strong>
+                                    <p style="margin: 0; font-size: 0.8rem; color: #64748b;">${conn.platform.charAt(0).toUpperCase() + conn.platform.slice(1)} Page</p>
                                 </div>
                             </div>
-                            <button class="btn btn-secondary" onclick="disconnectTurbine(${conn.id})" style="color: #ef4444; border-color: #fecaca;">
-                                Disconnect
-                            </button>
+                            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                <span style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 100px; font-size: 0.75rem; font-weight: 500; background: ${conn.status === 'active' ? '#d1fae5' : '#fee2e2'}; color: ${conn.status === 'active' ? '#065f46' : '#991b1b'};">
+                                    <span style="width: 6px; height: 6px; border-radius: 50%; background: ${conn.status === 'active' ? '#10b981' : '#ef4444'};"></span>
+                                    ${conn.status === 'active' ? 'Connected' : 'Disconnected'}
+                                </span>
+                                <button class="btn btn-secondary" onclick="disconnectTurbine(${conn.id})" style="color: #ef4444; border-color: #fecaca; font-size: 0.8rem; padding: 6px 12px;">
+                                    Disconnect
+                                </button>
+                            </div>
                         </div>
                     `).join('');
                 }
                 
                 // Update stats
-                document.getElementById('turbine-stat-connections').textContent = turbineConnections.length;
+                const statsEl = document.getElementById('turbine-stat-connections');
+                if (statsEl) statsEl.textContent = turbineConnections.length;
             } catch (error) {
                 console.error('Error loading turbine connections:', error);
             }
@@ -31685,7 +31731,17 @@ const promo = await fetch('/api/v1/offers/validate', {
         
         function disconnectTurbine(id) {
             if (!confirm('Are you sure you want to disconnect this account?')) return;
-            showNotification('Disconnect feature coming soon', 'info');
+            fetch(`/api/turbines/connections/${id}`, { method: 'DELETE' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        showNotification('Account disconnected', 'success');
+                        loadTurbineConnections();
+                    } else {
+                        showNotification('Failed to disconnect', 'error');
+                    }
+                })
+                .catch(() => showNotification('Failed to disconnect', 'error'));
         }
         
         // Open Create Post Modal
