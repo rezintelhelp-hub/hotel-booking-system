@@ -46496,13 +46496,17 @@ app.get('/api/public/quote/:unitId', async (req, res) => {
     
     // Try to get quote from Hostaway if connected
     if (hostawayListingId) {
+      console.log('🔍 Quote: Found Hostaway listing ID:', hostawayListingId, 'for unit:', unitId);
       try {
         const stored = await getStoredHostawayToken(pool);
+        console.log('🔍 Quote: Token found:', !!stored?.accessToken);
         
         if (stored?.accessToken) {
+          const quoteUrl = `https://api.hostaway.com/v1/listings/${hostawayListingId}/calendar/priceDetails`;
+          console.log('🔍 Quote: Calling', quoteUrl, { startingDate: checkin, endingDate: checkout, numberOfGuests });
+          
           // Call Hostaway price calculation endpoint
-          const priceResponse = await axios.get(
-            `https://api.hostaway.com/v1/listings/${hostawayListingId}/calendar/priceDetails`, {
+          const priceResponse = await axios.get(quoteUrl, {
             params: {
               startingDate: checkin,
               endingDate: checkout,
@@ -46532,7 +46536,7 @@ app.get('/api/public/quote/:unitId', async (req, res) => {
           }
         }
       } catch (haError) {
-        console.error('Hostaway quote error:', haError.response?.data || haError.message);
+        console.error('❌ Hostaway quote error:', haError.response?.status, haError.response?.data || haError.message);
         // Fall through to local calculation
       }
     }
