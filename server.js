@@ -22339,6 +22339,22 @@ app.get('/api/fix/add-hostaway/:token/:accountId', async (req, res) => {
 });
 
 // Add Smoobu connection manually
+// Fix currency for all units in an account
+// Usage: /api/fix/account-currency/94/USD
+app.get('/api/fix/account-currency/:accountId/:currency', async (req, res) => {
+  try {
+    const { accountId, currency } = req.params;
+    const result = await pool.query(`
+      UPDATE bookable_units SET currency = $1 
+      WHERE property_id IN (SELECT id FROM properties WHERE account_id = $2)
+      RETURNING id
+    `, [currency, accountId]);
+    res.json({ success: true, updated: result.rowCount, message: `Set ${result.rowCount} units to ${currency}` });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Debug: check unit data for quote
 app.get('/api/fix/check-unit/:unitId', async (req, res) => {
   try {
