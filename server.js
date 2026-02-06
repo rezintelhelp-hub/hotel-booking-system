@@ -1333,6 +1333,11 @@ app.get('/', (req, res) => {
   }
 });
 
+// Legal pages (clean URLs)
+app.get('/privacy', (req, res) => res.sendFile('privacy.html', { root: 'public' }));
+app.get('/terms', (req, res) => res.sendFile('terms.html', { root: 'public' }));
+app.get('/data-deletion', (req, res) => res.sendFile('data-deletion.html', { root: 'public' }));
+
 app.use(express.static('public'));
 
 const BEDS24_TOKEN = process.env.BEDS24_TOKEN;
