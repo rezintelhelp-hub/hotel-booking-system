@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Deletion - GAS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --text-primary: #1e293b;
+            --text-secondary: #475569;
+            --text-muted: #64748b;
+            --glass-bg: rgba(255, 255, 255, 0.88);
+            --glass-border: rgba(255, 255, 255, 0.5);
+            --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            color: var(--text-primary);
+            line-height: 1.8;
+            background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+            min-height: 100vh;
+        }
+        .nav {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+            padding: 1.25rem 2.5rem;
+            display: flex; justify-content: space-between; align-items: center;
+            background: var(--glass-bg);
+            border-bottom: 1px solid var(--glass-border);
+            backdrop-filter: blur(20px);
+        }
+        .nav-logo {
+            font-size: 1.5rem; font-weight: 600; color: var(--text-primary);
+            text-decoration: none;
+        }
+        .nav-logo span {
+            font-size: 0.7rem; font-weight: 400; color: var(--text-muted);
+            display: block; letter-spacing: 0.05em;
+        }
+        .content {
+            max-width: 800px; margin: 0 auto;
+            padding: 120px 2rem 60px;
+        }
+        .legal-card {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            padding: 3rem;
+            box-shadow: var(--glass-shadow);
+            backdrop-filter: blur(20px);
+        }
+        h1 {
+            font-size: 2rem; font-weight: 600; margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+        .updated { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 2rem; }
+        h2 { font-size: 1.15rem; font-weight: 600; margin: 1.5rem 0 0.5rem; color: var(--text-primary); }
+        p { margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.95rem; }
+        .steps { margin: 1rem 0 1.5rem; }
+        .step {
+            display: flex; align-items: flex-start; gap: 1rem;
+            margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.95rem;
+        }
+        .step-num {
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            color: white; font-weight: 600; font-size: 0.85rem;
+            width: 28px; height: 28px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+        }
+        .contact-box {
+            background: #f1f5f9; border-radius: 12px; padding: 1.5rem;
+            margin-top: 1.5rem;
+        }
+        .contact-box a { color: #6366f1; text-decoration: none; font-weight: 500; }
+        .contact-box a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <nav class="nav">
+        <a href="/" class="nav-logo">GAS <span>Global Accommodation System</span></a>
+    </nav>
+    <div class="content">
+        <div class="legal-card">
+            <h1>Data Deletion</h1>
+            <p class="updated">Last updated: February 2026</p>
+
+            <h2>How to Request Data Deletion</h2>
+            <p>If you have connected your Facebook account to GAS and would like us to delete your data, you can do so in two ways:</p>
+
+            <h2>Option 1: Remove from GAS Admin</h2>
+            <div class="steps">
+                <div class="step">
+                    <div class="step-num">1</div>
+                    <div>Log in to your GAS Admin dashboard at admin.gas.travel</div>
+                </div>
+                <div class="step">
+                    <div class="step-num">2</div>
+                    <div>Go to <strong>Connections</strong> in the sidebar</div>
+                </div>
+                <div class="step">
+                    <div class="step-num">3</div>
+                    <div>Find your Facebook connection and click <strong>Disconnect</strong></div>
+                </div>
+                <div class="step">
+                    <div class="step-num">4</div>
+                    <div>Your Facebook Page Access Token and all associated data will be permanently deleted from our systems within 24 hours</div>
+                </div>
+            </div>
+
+            <h2>Option 2: Remove from Facebook</h2>
+            <div class="steps">
+                <div class="step">
+                    <div class="step-num">1</div>
+                    <div>Go to your Facebook <strong>Settings & Privacy → Settings</strong></div>
+                </div>
+                <div class="step">
+                    <div class="step-num">2</div>
+                    <div>Click <strong>Apps and Websites</strong> under Security</div>
+                </div>
+                <div class="step">
+                    <div class="step-num">3</div>
+                    <div>Find <strong>gas.travel</strong> and click <strong>Remove</strong></div>
+                </div>
+                <div class="step">
+                    <div class="step-num">4</div>
+                    <div>This will revoke our access and we will delete your stored data within 24 hours</div>
+                </div>
+            </div>
+
+            <h2>Option 3: Contact Us Directly</h2>
+            <p>If you prefer, you can request data deletion by contacting us directly. We will process your request within 48 hours and confirm deletion by email.</p>
+
+            <div class="contact-box">
+                <p style="margin-bottom: 0.5rem;"><strong>Contact for data deletion requests:</strong></p>
+                <p style="margin-bottom: 0.25rem;">Email: <a href="mailto:privacy@gas.travel">privacy@gas.travel</a></p>
+                <p style="margin-bottom: 0;">Please include the email address associated with your GAS account.</p>
+            </div>
+
+            <h2>What Data We Delete</h2>
+            <p>Upon receiving a deletion request, we will permanently remove: your Facebook Page Access Token, your Facebook Page ID and name, any campaign data associated with your Facebook connection, and any other data obtained through the Facebook integration. This does not affect posts that have already been published to your Facebook Page — those remain on Facebook and can be managed through Facebook directly.</p>
+        </div>
+    </div>
+</body>
+</html>
