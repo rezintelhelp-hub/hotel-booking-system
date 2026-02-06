@@ -22835,7 +22835,82 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
         
         function connectStripeForAccount(accountId) {
-            window.location.href = `/api/stripe/connect/${accountId}`;
+            const modalHtml = `
+                <div class="modal active" id="stripeKeyModal" onclick="if(event.target===this)closeModal('stripeKeyModal')">
+                    <div class="modal-content" style="max-width: 500px;">
+                        <div class="modal-header">
+                            <h3>💳 Connect Stripe Account</h3>
+                            <button onclick="closeModal('stripeKeyModal')" style="background:none;border:none;font-size:1.5rem;cursor:pointer;">×</button>
+                        </div>
+                        <div style="padding: 1.5rem;">
+                            <p style="color: #64748b; margin-bottom: 1.5rem;">Enter the client's Stripe API keys. These can be found in their Stripe Dashboard under Developers → API Keys.</p>
+                            <div style="margin-bottom: 1rem;">
+                                <label style="font-weight: 600; display: block; margin-bottom: 0.5rem;">Publishable Key</label>
+                                <input type="text" id="stripe-pub-key" class="form-input" placeholder="pk_live_..." style="width: 100%; font-family: monospace; font-size: 0.85rem;">
+                            </div>
+                            <div style="margin-bottom: 1rem;">
+                                <label style="font-weight: 600; display: block; margin-bottom: 0.5rem;">Secret Key (or Restricted Key)</label>
+                                <input type="password" id="stripe-secret-key" class="form-input" placeholder="sk_live_... or rk_live_..." style="width: 100%; font-family: monospace; font-size: 0.85rem;">
+                            </div>
+                            <div style="margin-bottom: 1.5rem;">
+                                <label style="font-weight: 600; display: block; margin-bottom: 0.5rem;">Account Name (optional)</label>
+                                <input type="text" id="stripe-account-name" class="form-input" placeholder="e.g. Synergy Payments" style="width: 100%;">
+                            </div>
+                            <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+                                <button class="btn btn-secondary" onclick="closeModal('stripeKeyModal')">Cancel</button>
+                                <button class="btn" onclick="saveStripeKeysForAccount(${accountId})" style="background: #635bff;">Save Stripe Keys</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            const existing = document.getElementById('stripeKeyModal');
+            if (existing) existing.remove();
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+        }
+        
+        async function saveStripeKeysForAccount(accountId) {
+            const pubKey = document.getElementById('stripe-pub-key').value.trim();
+            const secretKey = document.getElementById('stripe-secret-key').value.trim();
+            const accountName = document.getElementById('stripe-account-name').value.trim();
+            
+            if (!secretKey) {
+                showNotification('Secret key is required', 'error');
+                return;
+            }
+            
+            if (secretKey && !secretKey.startsWith('sk_') && !secretKey.startsWith('rk_')) {
+                showNotification('Secret key should start with sk_ or rk_', 'error');
+                return;
+            }
+            
+            if (pubKey && !pubKey.startsWith('pk_')) {
+                showNotification('Publishable key should start with pk_', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/accounts/${accountId}/stripe-keys`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        stripe_publishable_key: pubKey,
+                        stripe_secret_key: secretKey,
+                        stripe_name: accountName
+                    })
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('✅ Stripe keys saved successfully', 'success');
+                    closeModal('stripeKeyModal');
+                    loadAccounts();
+                } else {
+                    showNotification(data.error || 'Failed to save Stripe keys', 'error');
+                }
+            } catch (error) {
+                showNotification('Error saving Stripe keys', 'error');
+            }
         }
         
         async function disconnectStripe(accountId, accountName) {
@@ -37829,9 +37904,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                 } else {
                     statusText.innerHTML = `<span style="color: #dc2626;"> Not Connected</span> - Connect Stripe to accept payments for this property`;
                     btnArea.innerHTML = `
-                        <a href="/api/stripe/connect/${accountId}" class="btn" style="background: #635bff; text-decoration: none;">
+                        <button onclick="connectStripeForAccount(${accountId})" class="btn" style="background: #635bff;">
                              Connect Stripe
-                        </a>
+                        </button>
                     `;
                 }
             } catch (error) {
