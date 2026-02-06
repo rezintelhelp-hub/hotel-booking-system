@@ -46458,11 +46458,11 @@ app.get('/api/public/quote/:unitId', async (req, res) => {
     
     // Get unit info including Hostaway listing ID
     const unitResult = await pool.query(`
-      SELECT bu.id, bu.hostaway_listing_id, bu.hostaway_id, bu.cleaning_fee, bu.security_deposit,
+      SELECT bu.id, bu.hostaway_listing_id, bu.cleaning_fee, bu.security_deposit,
              bu.base_price, bu.beds24_room_id, bu.smoobu_id,
              COALESCE(bu.currency, p.currency, 'USD') as currency,
              p.id as property_id, p.account_id, p.channel_manager,
-             p.hostaway_listing_id as prop_hostaway_id, p.hostaway_id as prop_hostaway_id2
+             p.hostaway_listing_id as prop_hostaway_id
       FROM bookable_units bu
       LEFT JOIN properties p ON bu.property_id = p.id
       WHERE bu.id = $1
@@ -46473,7 +46473,7 @@ app.get('/api/public/quote/:unitId', async (req, res) => {
     }
     
     const unit = unitResult.rows[0];
-    const hostawayListingId = unit.hostaway_listing_id || unit.hostaway_id || unit.prop_hostaway_id || unit.prop_hostaway_id2;
+    const hostawayListingId = unit.hostaway_listing_id || unit.prop_hostaway_id;
     const numberOfGuests = parseInt(guests) || 1;
     const nights = Math.round((new Date(checkout) - new Date(checkin)) / (1000 * 60 * 60 * 24));
     
