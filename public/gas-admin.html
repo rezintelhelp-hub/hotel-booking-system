@@ -31613,7 +31613,7 @@ const promo = await fetch('/api/v1/offers/validate', {
         function connectTurbine(platform) {
             if (platform === 'facebook') {
                 // Start Facebook OAuth flow
-                const accountId = currentAccountId || localStorage.getItem('gas_account_id');
+                const accountId = selectedAccountId || (currentAccount && currentAccount.id);
                 if (!accountId) {
                     showNotification('Please select an account first', 'error');
                     return;
@@ -31630,14 +31630,17 @@ const promo = await fetch('/api/v1/offers/validate', {
             const params = new URLSearchParams(window.location.search);
             if (params.get('fb_success') === 'true') {
                 const pages = params.get('fb_pages') || '1';
-                showNotification(`✅ Facebook connected successfully! ${pages} page(s) linked.`, 'success');
+                // Delay notification until page is loaded
+                window.addEventListener('load', function() {
+                    setTimeout(() => {
+                        showNotification(`✅ Facebook connected successfully! ${pages} page(s) linked.`, 'success');
+                        // Switch to turbine connections view
+                        const navItem = document.querySelector('[data-view="turbine-connections"]');
+                        if (navItem) navClick(navItem, 'turbine-connections');
+                    }, 1000);
+                });
                 // Clean URL
                 window.history.replaceState({}, document.title, window.location.pathname);
-                // Switch to turbine connections view
-                setTimeout(() => {
-                    const navItem = document.querySelector('[data-view="turbine-connections"]');
-                    if (navItem) navClick(navItem, 'turbine-connections');
-                }, 500);
             }
             if (params.get('fb_error')) {
                 const error = decodeURIComponent(params.get('fb_error'));
@@ -31645,7 +31648,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                 if (error === 'no_pages') msg = 'No Facebook Pages found. You need a Facebook Page to connect.';
                 else if (error === 'token_exchange_failed') msg = 'Token exchange failed. Please try again.';
                 else msg = `Facebook error: ${error}`;
-                showNotification(msg, 'error');
+                window.addEventListener('load', function() {
+                    setTimeout(() => showNotification(msg, 'error'), 1000);
+                });
                 window.history.replaceState({}, document.title, window.location.pathname);
             }
         })();
@@ -31656,7 +31661,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (!container) return;
             
             try {
-                const accountId = currentAccountId || localStorage.getItem('gas_account_id');
+                const accountId = selectedAccountId || (currentAccount && currentAccount.id);
                 if (!accountId) {
                     container.innerHTML = `<div style="text-align: center; padding: 2rem; color: #64748b;"><p>Select an account to view connections</p></div>`;
                     return;
