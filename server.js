@@ -22339,6 +22339,23 @@ app.get('/api/fix/add-hostaway/:token/:accountId', async (req, res) => {
 });
 
 // Add Smoobu connection manually
+// Link Hostaway listing ID to a bookable unit
+// Usage: /api/fix/link-hostaway/586/357140
+app.get('/api/fix/link-hostaway/:unitId/:hostawayId', async (req, res) => {
+  try {
+    const { unitId, hostawayId } = req.params;
+    await pool.query('UPDATE bookable_units SET hostaway_listing_id = $1 WHERE id = $2', [hostawayId, unitId]);
+    // Also set on the property
+    await pool.query(`
+      UPDATE properties SET hostaway_listing_id = $1 
+      WHERE id = (SELECT property_id FROM bookable_units WHERE id = $2)
+    `, [hostawayId, unitId]);
+    res.json({ success: true, message: `Linked unit ${unitId} to Hostaway listing ${hostawayId}` });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 app.get('/api/fix/add-smoobu/:apiKey', async (req, res) => {
   try {
     const { apiKey } = req.params;
