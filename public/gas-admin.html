@@ -32312,12 +32312,12 @@ const promo = await fetch('/api/v1/offers/validate', {
                                     <p style="margin: 0; font-size: 0.85rem; color: #64748b;">Send to your contact list</p>
                                 </div>
                             </label>
-                            <label style="display: flex; align-items: center; gap: 1rem; padding: 1rem; border: 2px solid ${campaignData.channels.facebook ? '#6366f1' : '#e2e8f0'}; border-radius: 8px; cursor: pointer; opacity: 0.5;">
-                                <input type="checkbox" disabled ${campaignData.channels.facebook ? 'checked' : ''}>
+                            <label style="display: flex; align-items: center; gap: 1rem; padding: 1rem; border: 2px solid ${campaignData.channels.facebook ? '#6366f1' : '#e2e8f0'}; border-radius: 8px; cursor: pointer; ${turbineConnections.some(c => c.platform === 'facebook') ? '' : 'opacity: 0.5;'}">
+                                <input type="checkbox" ${turbineConnections.some(c => c.platform === 'facebook') ? '' : 'disabled'} ${campaignData.channels.facebook ? 'checked' : ''} onchange="campaignData.channels.facebook = this.checked; renderCampaignWizard();">
                                 <div style="width: 40px; height: 40px; background: #1877f2; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.25rem;">f</div>
                                 <div>
                                     <strong>Facebook</strong>
-                                    <p style="margin: 0; font-size: 0.85rem; color: #64748b;">Coming soon - Connect your page first</p>
+                                    <p style="margin: 0; font-size: 0.85rem; color: #64748b;">${turbineConnections.some(c => c.platform === 'facebook') ? turbineConnections.filter(c => c.platform === 'facebook').map(c => c.page_name).join(', ') : 'Connect your page in Turbine Connections first'}</p>
                                 </div>
                             </label>
                             <label style="display: flex; align-items: center; gap: 1rem; padding: 1rem; border: 2px solid ${campaignData.channels.instagram ? '#6366f1' : '#e2e8f0'}; border-radius: 8px; cursor: pointer; opacity: 0.5;">
