@@ -61134,10 +61134,18 @@ app.post('/api/turbines/campaigns/:id/send', async (req, res) => {
     // Check if email channel is enabled (handle both formats: true or {enabled: true})
     const channels = typeof campaign.channels === 'string' ? JSON.parse(campaign.channels) : campaign.channels;
     const emailEnabled = channels?.email === true || channels?.email?.enabled === true;
-    if (!emailEnabled && !test_email) {
-      return res.json({ success: false, error: 'Email channel not enabled for this campaign' });
+    const facebookEnabled = channels?.facebook === true;
+    
+    if (!emailEnabled && !facebookEnabled && !test_email) {
+      return res.json({ success: false, error: 'No channels enabled for this campaign' });
     }
     
+    // Get recipients and send emails if email channel is enabled
+    let sent = 0;
+    let failed = 0;
+    const errors = [];
+    
+    if (emailEnabled || test_email) {
     // Get recipients
     let recipients = [];
     if (test_email) {
@@ -61337,6 +61345,7 @@ app.post('/api/turbines/campaigns/:id/send', async (req, res) => {
         errors.push({ email: recipient.email, error: err.message });
       }
     }
+    } // end if (emailEnabled || test_email)
     
     // Update campaign stats
     if (!test_email) {
@@ -61348,15 +61357,16 @@ app.post('/api/turbines/campaigns/:id/send', async (req, res) => {
         WHERE id = $1
       `, [id]);
       
-      // Record in stats
+      if (sent > 0) {
+      // Record email stats
       await pool.query(`
         INSERT INTO turbine_campaign_stats (campaign_id, channel, sent_count, updated_at)
         VALUES ($1, 'email', $2, NOW())
       `, [id, sent]);
+      }
     }
     
     // Post to Facebook if channel enabled
-    const facebookEnabled = channels?.facebook === true;
     let fbResult = null;
     if (facebookEnabled && !test_email) {
       try {
