@@ -22339,6 +22339,31 @@ app.get('/api/fix/add-hostaway/:token/:accountId', async (req, res) => {
 });
 
 // Add Smoobu connection manually
+// Debug: check unit data for quote
+app.get('/api/fix/check-unit/:unitId', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT bu.id, bu.hostaway_listing_id as bu_ha_id, bu.cleaning_fee, bu.security_deposit,
+             bu.base_price, bu.currency as bu_currency,
+             p.id as prop_id, p.hostaway_listing_id as prop_ha_id, p.currency as prop_currency,
+             p.channel_manager
+      FROM bookable_units bu
+      LEFT JOIN properties p ON bu.property_id = p.id
+      WHERE bu.id = $1
+    `, [req.params.unitId]);
+    
+    const stored = await getStoredHostawayToken(pool);
+    
+    res.json({ 
+      unit: result.rows[0] || null, 
+      hasToken: !!stored?.accessToken,
+      tokenAccountId: stored?.accountId || null
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Link Hostaway listing ID to a bookable unit
 // Usage: /api/fix/link-hostaway/586/357140
 app.get('/api/fix/link-hostaway/:unitId/:hostawayId', async (req, res) => {
