@@ -46684,86 +46684,73 @@ app.get('/api/public/quote/:unitId', async (req, res) => {
  * Build a clean price breakdown from Hostaway's priceDetails response
  */
 function buildHostawayBreakdown(raw, nights, currency) {
-  const lineItems = [];
-  const taxes = [];
   const fees = [];
+  const taxes = [];
+  let basePrice = 0;
+  let damageDeposit = 0;
   
-  // Base rate
-  const basePrice = parseFloat(raw.basePrice || 0);
-  const pricePerNight = nights > 0 ? basePrice / nights : basePrice;
-  
-  // Cleaning fee
-  if (raw.cleaningFee && parseFloat(raw.cleaningFee) > 0) {
-    fees.push({ type: 'cleaning_fee', name: 'Cleaning Fee', amount: parseFloat(raw.cleaningFee) });
-  }
-  
-  // Reservation fees array (comes with includeResources)
-  if (raw.reservationFees && Array.isArray(raw.reservationFees)) {
-    for (const fee of raw.reservationFees) {
-      const amount = parseFloat(fee.amount || fee.value || 0);
+  // Hostaway returns a "components" array with all line items
+  if (raw.components && Array.isArray(raw.components)) {
+    for (const comp of raw.components) {
+      const amount = parseFloat(comp.total || comp.value || 0);
       if (amount === 0) continue;
       
-      if (fee.isTax || fee.isTax === 1) {
-        taxes.push({ type: 'tax', name: fee.name || 'Tax', amount });
-      } else {
-        // Don't double-count cleaning fee
-        if ((fee.name || '').toLowerCase().includes('cleaning')) continue;
-        fees.push({ type: 'fee', name: fee.name || 'Fee', amount });
+      const name = comp.name || '';
+      const title = comp.alias || comp.title || comp.name || 'Fee';
+      
+      // Base rate / accommodation
+      if (comp.type === 'accommodation' || name === 'baseRate') {
+        basePrice = amount;
+      }
+      // Damage deposit (separate from total)
+      else if (name === 'damageDeposit' || name === 'securityDeposit' || name === 'refundableDamageDeposit') {
+        damageDeposit = amount;
+      }
+      // Taxes
+      else if (comp.type === 'tax') {
+        taxes.push({ type: 'tax', name: title, amount: Math.round(amount * 100) / 100 });
+      }
+      // Fees (cleaning, insurance, other)
+      else if (comp.type === 'fee') {
+        const feeType = name === 'cleaningFee' ? 'cleaning_fee' : 'fee';
+        fees.push({ type: feeType, name: title, amount: Math.round(amount * 100) / 100 });
+      }
+      // Anything else with a value
+      else if (amount > 0 && comp.isIncludedInTotalPrice) {
+        fees.push({ type: 'fee', name: title, amount: Math.round(amount * 100) / 100 });
       }
     }
-  }
-  
-  // Individual Hostaway financial fields
-  const taxFields = [
-    { key: 'lodgingTax', name: 'Lodging Tax' },
-    { key: 'occupancyTax', name: 'Occupancy Tax' },
-    { key: 'salesTax', name: 'Sales Tax' },
-    { key: 'guestPerPersonPerNightTax', name: 'Tourist Tax' },
-    { key: 'guestStayTax', name: 'Stay Tax' },
-    { key: 'guestNightlyTax', name: 'Nightly Tax' },
-    { key: 'vatTax', name: 'VAT' },
-    { key: 'stateTax', name: 'State Tax' },
-    { key: 'cityTax', name: 'City Tax' },
-    { key: 'countyTax', name: 'County Tax' }
-  ];
-  
-  for (const tf of taxFields) {
-    if (raw[tf.key] && parseFloat(raw[tf.key]) > 0) {
-      // Only add if not already in reservationFees
-      const exists = taxes.find(t => t.name === tf.name);
-      if (!exists) {
+  } else {
+    // Fallback: try individual fields (older Hostaway response format)
+    basePrice = parseFloat(raw.basePrice || 0);
+    
+    if (raw.cleaningFee && parseFloat(raw.cleaningFee) > 0) {
+      fees.push({ type: 'cleaning_fee', name: 'Cleaning Fee', amount: parseFloat(raw.cleaningFee) });
+    }
+    
+    const taxFields = [
+      { key: 'lodgingTax', name: 'Lodging Tax' },
+      { key: 'occupancyTax', name: 'Occupancy Tax' },
+      { key: 'salesTax', name: 'Sales Tax' },
+      { key: 'guestPerPersonPerNightTax', name: 'Tourist Tax' },
+      { key: 'guestStayTax', name: 'Stay Tax' },
+      { key: 'guestNightlyTax', name: 'Nightly Tax' }
+    ];
+    
+    for (const tf of taxFields) {
+      if (raw[tf.key] && parseFloat(raw[tf.key]) > 0) {
         taxes.push({ type: 'tax', name: tf.name, amount: parseFloat(raw[tf.key]) });
       }
     }
+    
+    damageDeposit = parseFloat(raw.refundableDamageDeposit || raw.securityDeposit || 0);
   }
   
-  // Fee fields
-  const feeFields = [
-    { key: 'guestChannelFee', name: 'Guest Channel Fee' },
-    { key: 'safelyInsurance', name: 'Safely Insurance' },
-    { key: 'otherFees', name: 'Other Fees' },
-    { key: 'extraGuestFee', name: 'Extra Guest Fee' },
-    { key: 'petFee', name: 'Pet Fee' },
-    { key: 'resortFee', name: 'Resort Fee' }
-  ];
-  
-  for (const ff of feeFields) {
-    if (raw[ff.key] && parseFloat(raw[ff.key]) > 0) {
-      const exists = fees.find(f => f.name === ff.name);
-      if (!exists) {
-        fees.push({ type: 'fee', name: ff.name, amount: parseFloat(raw[ff.key]) });
-      }
-    }
-  }
-  
-  // Damage deposit (separate from total)
-  const damageDeposit = parseFloat(raw.refundableDamageDeposit || raw.securityDeposit || raw.securityDepositFee || 0);
-  
-  // Calculate totals
+  const pricePerNight = nights > 0 ? basePrice / nights : basePrice;
   const feeTotal = fees.reduce((sum, f) => sum + f.amount, 0);
   const taxTotal = taxes.reduce((sum, t) => sum + t.amount, 0);
   
-  // Use Hostaway's totalPrice if available
+  // Use Hostaway's totalPrice if available (more accurate)
   const hostawayTotal = parseFloat(raw.totalPrice || 0);
   const calculatedTotal = basePrice + feeTotal + taxTotal;
   const total = hostawayTotal > 0 ? hostawayTotal : calculatedTotal;
