@@ -1,6 +1,6 @@
 {
-  "updated": "2026-01-06",
-  "plan_summary": "Migrating 100 legacy clients is priority. Build migration essentials first, then new revenue channels, then polish.",
+  "updated": "2026-02-07",
+  "plan_summary": "Migrating 100 legacy clients is priority. Elevate partnership active with API integration. Custom site builds for clients. Build migration essentials first, then new revenue channels, then polish.",
   "categories": [
     {
       "id": "phase1",
@@ -21,13 +21,163 @@
       "description": "Onboarding UX and refinements"
     },
     {
+      "id": "elevate",
+      "name": "Elevate Partnership",
+      "icon": "🤝",
+      "description": "Elevate API integration and white-label"
+    },
+    {
+      "id": "custom-sites",
+      "name": "Custom Sites",
+      "icon": "🌐",
+      "description": "Bespoke client website builds"
+    },
+    {
       "id": "fixes",
-      "name": "Bug Fixes",
+      "name": "Bug Fixes & Improvements",
       "icon": "🔧",
       "description": "Outstanding issues to resolve"
+    },
+    {
+      "id": "future",
+      "name": "Future / Ideas",
+      "icon": "💡",
+      "description": "Longer term features and integrations"
     }
   ],
   "tasks": [
+    {
+      "id": "fix-001",
+      "title": "Blog/Attractions Translation Fix",
+      "description": "Hardcoded English strings showing when only one language is selected",
+      "priority": "critical",
+      "category": "fixes",
+      "status": "today",
+      "notes": "Priority #1 for Feb 7"
+    },
+    {
+      "id": "fix-002",
+      "title": "New Clients Visibility in GAS Admin",
+      "description": "Way to see/flag new account signups so they don't get missed",
+      "priority": "critical",
+      "category": "fixes",
+      "status": "today",
+      "subtasks": [
+        "Email notification on signup",
+        "New Accounts section/flag in admin dashboard"
+      ],
+      "notes": "Priority #2 for Feb 7"
+    },
+    {
+      "id": "cs-001",
+      "title": "Discover St Charles - Final Checks",
+      "description": "Check sync, test Stripe, make test booking on discoverstcharles.custom.gas.travel",
+      "priority": "critical",
+      "category": "custom-sites",
+      "status": "today",
+      "notes": "Priority #3 for Feb 7. Font fix done. Beds24 instructions updated."
+    },
+    {
+      "id": "fix-003",
+      "title": "EmailMeForm Investigation",
+      "description": "Look into EmailMeForm integration/issue",
+      "priority": "high",
+      "category": "fixes",
+      "status": "today",
+      "notes": "Priority #4 for Feb 7"
+    },
+    {
+      "id": "fix-004",
+      "title": "Special Offers Page",
+      "description": "Create Special Offers page functionality",
+      "priority": "medium",
+      "category": "phase2",
+      "status": "today",
+      "notes": "Priority #5 for Feb 7"
+    },
+    {
+      "id": "fix-005",
+      "title": "Failed Bookings to Channel Manager",
+      "description": "Send failed bookings into the CMs under a different tag",
+      "priority": "medium",
+      "category": "fixes",
+      "status": "today",
+      "notes": "Priority #6 for Feb 7"
+    },
+    {
+      "id": "fix-006",
+      "title": "Split Payments Option",
+      "description": "Allow split payment functionality for bookings",
+      "priority": "medium",
+      "category": "phase1",
+      "status": "today",
+      "notes": "Priority #7 for Feb 7"
+    },
+    {
+      "id": "fix-007",
+      "title": "Deposit Levels",
+      "description": "Configurable deposit level percentages",
+      "priority": "medium",
+      "category": "phase1",
+      "status": "today",
+      "notes": "Priority #8 for Feb 7"
+    },
+    {
+      "id": "fix-008",
+      "title": "Social Media Connectivity",
+      "description": "Social media integration for properties/sites",
+      "priority": "medium",
+      "category": "phase2",
+      "status": "todo"
+    },
+    {
+      "id": "elv-001",
+      "title": "Elevate API - Webhook Live Testing",
+      "description": "Get Adi's webhook endpoint, configure, test end-to-end booking.created and booking.cancelled",
+      "priority": "critical",
+      "category": "elevate",
+      "status": "in-progress",
+      "subtasks": [
+        "Get Adi's webhook endpoint URL",
+        "Configure webhook: PUT /api/partner/webhooks",
+        "Test booking.created with curl",
+        "Test booking.cancelled with curl",
+        "Live end-to-end test with real booking"
+      ],
+      "notes": "API v7.3 docs sent. Section 15 removed. Awaiting Adi's endpoint."
+    },
+    {
+      "id": "elv-002",
+      "title": "Elevate White-Label Solution",
+      "description": "Branded portal, lites, agents, blog under Elevate domains with CSS theming",
+      "priority": "high",
+      "category": "elevate",
+      "status": "todo",
+      "subtasks": [
+        "Multi-tenant theming system",
+        "Partner config in DB",
+        "Custom domain routing",
+        "Elevate-specific CSS",
+        "Branded Lites/Blog/Attractions",
+        "Travel Agency portal branding"
+      ],
+      "notes": "Subdomains on GAS infrastructure, WP on Elevate's VPS"
+    },
+    {
+      "id": "elv-003",
+      "title": "Calry Integration via Elevate",
+      "description": "GAS wizards for CM connections that route through Elevate's Calry account",
+      "priority": "high",
+      "category": "elevate",
+      "status": "todo",
+      "subtasks": [
+        "Connection wizards per CM (Lodgify, Guesty, etc.)",
+        "CalryLink integration for auth",
+        "Data flow: GAS wizard → Calry → Elevate → GAS",
+        "Client never sees Calry/Elevate branding"
+      ],
+      "notes": "Elevate already connected to Calry. Teo confirmed CalryLink approach."
+    },
     {
       "id": "p1-002",
       "title": "Payment Systems by Region",
@@ -49,15 +199,17 @@
       "description": "Multi-language support for websites and content",
       "priority": "high",
       "category": "phase1",
-      "status": "todo",
+      "status": "in-progress",
       "subtasks": [
         "Language selector in website builder",
         "Multi-language content fields for all pages",
         "Language switcher on deployed sites",
         "Auto-translation option (AI)",
-        "RTL support for Arabic etc"
+        "RTL support for Arabic etc",
+        "Fix JS-rendered hardcoded English strings in booking widget",
+        "French, Dutch, Spanish, German translations"
       ],
-      "notes": "Essential for European clients migrating from legacy system"
+      "notes": "Multilingual fields built. Translation gaps in JS-rendered content being fixed."
     },
     {
       "id": "p2-001",
@@ -163,24 +315,26 @@
       "notes": "Keep simple - vertical stack, no complex nesting"
     },
     {
-      "id": "p3-003",
-      "title": "DNS & Custom Domains",
-      "description": "Custom domain connection and email setup",
-      "priority": "low",
-      "category": "phase3",
-      "status": "todo",
+      "id": "fut-001",
+      "title": "Hostvana AI Chat Integration",
+      "description": "Pre-booking guest chat widget with AI responses, post-booking handoff to CM",
+      "priority": "medium",
+      "category": "future",
+      "status": "spec-complete",
       "subtasks": [
-        "DNS management in GAS Admin",
-        "Custom domain connection flow",
-        "SSL certificate provisioning",
-        "Email hosting/forwarding"
-      ]
+        "GAS endpoints: /api/hostvana/message, /api/hostvana/property/:id, /api/hostvana/conversation/:ref",
+        "Hostvana endpoints: /api/gas/conversation/start, /api/gas/message, /api/gas/conversation/booked",
+        "GAS reference tracking (GAS-CONV-xxx)",
+        "Webhook for booking updates",
+        "API key pair authentication"
+      ],
+      "notes": "API spec v1.0 complete (gas-hostvana-api-spec_3.docx). Awaiting Hostvana development."
     },
     {
-      "id": "fix-001",
+      "id": "fix-009",
       "title": "Search Button Color Fix",
       "description": "Homepage hero search button doesn't change color from GAS Admin",
-      "priority": "medium",
+      "priority": "low",
       "category": "fixes",
       "status": "todo",
       "notes": "Workaround: Use WP Customiser directly"
@@ -188,72 +342,156 @@
   ],
   "completed": [
     {
+      "id": "done-070",
+      "title": "Elevate Partner API v7.3 Documentation",
+      "description": "Definitive API documentation covering all 14 sections. Removed Section 15 (Channel Manager Updates) as not relevant to Elevate's direct integration. Includes full webhook schemas, curl testing examples, signature verification.",
+      "category": "elevate",
+      "completed": "2026-02-07"
+    },
+    {
+      "id": "done-069",
+      "title": "Discover St Charles - Font Fix",
+      "description": "Fixed font mismatch on room/booking pages. Plugin CSS was overriding site fonts. Added Inter + Playfair Display overrides to assets/css/style.css.",
+      "category": "custom-sites",
+      "completed": "2026-02-06"
+    },
+    {
+      "id": "done-068",
+      "title": "Beds24 Setup Instructions Update",
+      "description": "Replaced technical instructions with clear 6-step guide in GAS Admin: Settings → Properties → Access, copy webhook, create prop key, test, camera icon, import.",
+      "category": "fixes",
+      "completed": "2026-02-07"
+    },
+    {
+      "id": "done-067",
+      "title": "Rocket Stay Custom Site - Complete Build",
+      "description": "Full custom site build at bookrocketstay.custom.gas.travel including contact page with dual forms, footer with forced contact info, terms page with 26 rental rules, privacy redirect, dark theme.",
+      "category": "custom-sites",
+      "completed": "2026-02-05"
+    },
+    {
+      "id": "done-066",
+      "title": "Discover St Charles Custom Site",
+      "description": "Full custom dark theme site build at discoverstcharles.custom.gas.travel with video hero, Hostaway sync, custom CSS for booking plugin dark mode, reviews integration.",
+      "category": "custom-sites",
+      "completed": "2026-02-04"
+    },
+    {
+      "id": "done-065",
+      "title": "Elevate Partner API - Room Activation & Content Endpoints",
+      "description": "Added room activation/deactivation endpoints, website content management API with 22 section schemas, media upload endpoint.",
+      "category": "elevate",
+      "completed": "2026-02-03"
+    },
+    {
+      "id": "done-064",
+      "title": "Custom Domain Functionality",
+      "description": "API endpoints for custom domain connection on WordPress multisite. Automated Nginx configuration and SSL certificate generation via Let's Encrypt.",
+      "category": "phase1",
+      "completed": "2026-01-28"
+    },
+    {
+      "id": "done-063",
+      "title": "GasSync Unified Abstraction Layer",
+      "description": "Comprehensive unified system for connecting to multiple channel managers (Beds24, Hostaway, Calry). Scalable architecture replacing direct integrations.",
+      "category": "phase1",
+      "completed": "2026-01-20"
+    },
+    {
+      "id": "done-062",
+      "title": "Multilingual Translation - Booking Widget",
+      "description": "Added French, Dutch, Spanish, German translations for booking interface. Addressed JavaScript-rendered content with hardcoded English strings.",
+      "category": "phase1",
+      "completed": "2026-01-15"
+    },
+    {
+      "id": "done-061",
+      "title": "Elevate Partner API v7.0 - Core Endpoints",
+      "description": "Full partner API with tenant management, property/room CRUD, images, pricing, availability, room types, websites, Stripe config, analytics, webhooks.",
+      "category": "elevate",
+      "completed": "2026-01-12"
+    },
+    {
+      "id": "done-060",
+      "title": "FAQ Schema Persistence Fix",
+      "description": "Fixed FAQ schema data not persisting across web builder, blog posts, and attractions sections.",
+      "category": "fixes",
+      "completed": "2026-01-10"
+    },
+    {
+      "id": "done-059",
+      "title": "Property-Level Stripe Integration",
+      "description": "Stripe credentials configured per property allowing different Stripe accounts. Multi-unit booking rule: same Stripe = multi-unit allowed.",
+      "category": "phase1",
+      "completed": "2026-01-08"
+    },
+    {
       "id": "done-058",
       "title": "Hostaway Integration",
-      "description": "Full Hostaway channel manager integration with OAuth wizard, property import, images, availability sync, reservations sync (bidirectional), webhook support, and scheduled auto-sync every 15 minutes",
+      "description": "Full Hostaway channel manager integration with OAuth wizard, property import, images, availability sync, reservations sync (bidirectional), webhook support, and scheduled auto-sync every 15 minutes.",
       "category": "phase1",
       "completed": "2026-01-06"
     },
     {
       "id": "done-057",
       "title": "Beds24 Wizard - Large Property Support",
-      "description": "V6 wizard allows V2 key only at signup, pull properties from V2, add V1 key and property codes per property later, webhook per property, refresh button, per-property traffic light status",
+      "description": "V6 wizard allows V2 key only at signup, pull properties from V2, add V1 key and property codes per property later, webhook per property, refresh button, per-property traffic light status.",
       "category": "phase1",
       "completed": "2026-01-06"
     },
     {
       "id": "done-056",
       "title": "Image Reordering with Drag & Drop",
-      "description": "Fixed image gallery reordering - arrows now left/right for horizontal layout, added drag-and-drop support",
+      "description": "Fixed image gallery reordering - arrows now left/right for horizontal layout, added drag-and-drop support.",
       "category": "fixes",
       "completed": "2026-01-06"
     },
     {
       "id": "done-055",
       "title": "FAQ Schema with AI Generation",
-      "description": "Added FAQ Schema sections to all pages with AI-powered FAQ generation via Claude API",
+      "description": "Added FAQ Schema sections to all pages with AI-powered FAQ generation via Claude API.",
       "category": "website-builder",
       "completed": "2025-12-30"
     },
     {
       "id": "done-054",
       "title": "SEO Meta AI Generation",
-      "description": "AI-powered meta title and description generation for all pages",
+      "description": "AI-powered meta title and description generation for all pages.",
       "category": "website-builder",
       "completed": "2025-12-30"
     },
     {
       "id": "done-053",
       "title": "Enable/Disable Toggles for Featured & About",
-      "description": "Added section enable toggles for Featured Properties and About sections on homepage",
+      "description": "Added section enable toggles for Featured Properties and About sections on homepage.",
       "category": "website-builder",
       "completed": "2025-12-30"
     },
     {
       "id": "done-052",
       "title": "Menu Active Underline Color",
-      "description": "Added Menu Active Underline Color control to Header settings",
+      "description": "Added Menu Active Underline Color control to Header settings.",
       "category": "website-builder",
       "completed": "2025-12-30"
     },
     {
       "id": "done-051",
       "title": "Textarea Styling Improvements",
-      "description": "All textareas now 100% width, deeper height, no drag resize handles",
+      "description": "All textareas now 100% width, deeper height, no drag resize handles.",
       "category": "ui",
       "completed": "2025-12-30"
     },
     {
       "id": "done-050",
       "title": "Meta Fields Save Fix",
-      "description": "Fixed meta title/description fields not saving on all pages",
+      "description": "Fixed meta title/description fields not saving on all pages.",
       "category": "website-builder",
       "completed": "2025-12-30"
     },
     {
       "id": "done-049",
       "title": "Blog/Attractions Plan-Based Unlock",
-      "description": "Blog and Attractions tabs in Website Builder now check plan features",
+      "description": "Blog and Attractions tabs in Website Builder now check plan features.",
       "category": "website-builder",
       "completed": "2025-12-30"
     }
