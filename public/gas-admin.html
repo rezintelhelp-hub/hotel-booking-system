@@ -48883,24 +48883,15 @@ const promo = await fetch('/api/v1/offers/validate', {
                     container.innerHTML = `
                         ${isBeds24 ? `
                         <div style="background: #f0fdf4; border: 1px solid #22c55e; border-radius: 8px; padding: 16px; margin-bottom: 15px;">
-                            <h4 style="margin: 0 0 12px 0; color: #166534;"> Beds24 Setup Instructions</h4>
-                            <p style="margin: 0 0 12px 0; font-size: 0.9rem; color: #15803d;">For each property in Beds24, go to <strong>Settings  Channel Manager  API</strong> and configure:</p>
-                            
-                            <div style="background: white; border-radius: 6px; padding: 12px; margin-bottom: 10px;">
-                                <strong style="color: #1e293b;">1. Booking Webhook</strong>
-                                <table style="width: 100%; margin-top: 8px; font-size: 0.85rem;">
-                                    <tr><td style="color: #64748b; width: 120px;">Webhook Version:</td><td><code>2 - no personal data</code></td></tr>
-                                    <tr><td style="color: #64748b;">URL:</td><td><code>https://admin.gas.travel/api/webhooks/beds24?propertyId=<span style="color: #dc2626;">{PROPERTY_ID}</span></code> <button onclick="copyWebhookUrl()" class="btn btn-sm" style="padding: 2px 8px; font-size: 0.75rem; margin-left: 5px;"></button></td></tr>
-                                    <tr><td style="color: #64748b;">Additional Data:</td><td><code>CVC and Token</code></td></tr>
-                                </table>
-                            </div>
-                            
-                            <div style="background: white; border-radius: 6px; padding: 12px;">
-                                <strong style="color: #1e293b;">2. API Access (V1 Only)</strong>
-                                <table style="width: 100%; margin-top: 8px; font-size: 0.85rem;">
-                                    <tr><td style="color: #64748b; width: 120px;">propKey:</td><td>Create a random key in Beds24 for each property  Enter in Prop Key field  Test Webhook  Import</td></tr>
-                                </table>
-                            </div>
+                            <h4 style="margin: 0 0 12px 0; color: #166534;">🔗 Beds24 Setup Instructions</h4>
+                            <ol style="margin: 0; padding-left: 20px; font-size: 0.9rem; color: #15803d; line-height: 2;">
+                                <li>In Beds24, go to <strong>Settings → Properties → Accounts</strong></li>
+                                <li>Copy the <strong>Webhook URL</strong> from GAS (below) and paste it into the <strong>URL field</strong> in Beds24</li>
+                                <li>Create a <strong>Prop Key</strong> in Beds24 and enter it into the <strong>Prop Key field</strong> in GAS</li>
+                                <li>Once saved, <strong>test both</strong> — they should turn <span style="color: #16a34a; font-weight: 600;">green</span> ✅</li>
+                                <li>Click the <strong>📷 camera icon</strong> (which will appear) to bring in the images</li>
+                                <li>Click <strong>Import</strong> to bring in the properties</li>
+                            </ol>
                         </div>
                         ` : ''}
                         ${isHostaway ? `
