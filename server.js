@@ -12207,7 +12207,9 @@ app.get('/api/public/property/:propertyId/stripe-info', async (req, res) => {
         // Fall back to legacy property/account stripe fields
         const result = await pool.query(`
             SELECT p.id, p.account_id, p.stripe_publishable_key, p.stripe_secret_key, p.stripe_enabled,
-                   a.stripe_account_id, a.stripe_account_status, a.stripe_onboarding_complete
+                   a.stripe_account_id, a.stripe_account_status, a.stripe_onboarding_complete,
+                   a.stripe_publishable_key as account_stripe_publishable_key,
+                   a.stripe_secret_key as account_stripe_secret_key
             FROM properties p
             JOIN accounts a ON p.account_id = a.id
             WHERE p.id = $1
@@ -12222,7 +12224,8 @@ app.get('/api/public/property/:propertyId/stripe-info', async (req, res) => {
         // Property-level Stripe takes priority
         const hasPropertyStripe = data.stripe_enabled && data.stripe_publishable_key && data.stripe_secret_key;
         const hasAccountStripe = !!(data.stripe_account_id && data.stripe_onboarding_complete);
-        const stripeEnabled = hasPropertyStripe || hasAccountStripe;
+        const hasAccountKeys = !!(data.account_stripe_publishable_key && data.account_stripe_secret_key);
+        const stripeEnabled = hasPropertyStripe || hasAccountStripe || hasAccountKeys;
         
         // Get deposit rules for this property (or fall back to account-level rule)
         let depositRule = null;
@@ -12254,8 +12257,8 @@ app.get('/api/public/property/:propertyId/stripe-info', async (req, res) => {
         res.json({
             success: true,
             stripe_enabled: stripeEnabled,
-            stripe_type: hasPropertyStripe ? 'property' : (hasAccountStripe ? 'connect' : null),
-            stripe_publishable_key: hasPropertyStripe ? data.stripe_publishable_key : (hasAccountStripe ? process.env.STRIPE_PUBLISHABLE_KEY : null),
+            stripe_type: hasPropertyStripe ? 'property' : (hasAccountStripe ? 'connect' : (hasAccountKeys ? 'account_keys' : null)),
+            stripe_publishable_key: hasPropertyStripe ? data.stripe_publishable_key : (hasAccountKeys ? data.account_stripe_publishable_key : (hasAccountStripe ? process.env.STRIPE_PUBLISHABLE_KEY : null)),
             stripe_account_id: hasAccountStripe ? data.stripe_account_id : null,
             deposit_rule: depositRule
         });
@@ -12772,7 +12775,9 @@ app.post('/api/public/create-payment-intent', async (req, res) => {
         // Fall back to legacy property stripe fields
         const result = await pool.query(`
             SELECT p.stripe_secret_key, p.stripe_publishable_key, p.stripe_enabled,
-                   a.stripe_account_id
+                   a.stripe_account_id,
+                   a.stripe_publishable_key as account_stripe_publishable_key,
+                   a.stripe_secret_key as account_stripe_secret_key
             FROM properties p
             JOIN accounts a ON p.account_id = a.id
             WHERE p.id = $1
@@ -12825,6 +12830,28 @@ app.post('/api/public/create-payment-intent', async (req, res) => {
                 success: true,
                 client_secret: paymentIntent.client_secret,
                 payment_intent_id: paymentIntent.id
+            });
+        }
+        // Fall back to account-level manual keys
+        else if (prop.account_stripe_secret_key) {
+            const accountStripe = new Stripe(prop.account_stripe_secret_key);
+            
+            paymentIntent = await accountStripe.paymentIntents.create({
+                amount: Math.round(amount * 100),
+                currency: (currency || 'usd').toLowerCase(),
+                metadata: {
+                    property_id: property_id,
+                    guest_email: booking_data?.email || '',
+                    check_in: booking_data?.check_in || '',
+                    check_out: booking_data?.check_out || ''
+                }
+            });
+            
+            return res.json({
+                success: true,
+                client_secret: paymentIntent.client_secret,
+                payment_intent_id: paymentIntent.id,
+                publishable_key: prop.account_stripe_publishable_key
             });
         }
         else {
