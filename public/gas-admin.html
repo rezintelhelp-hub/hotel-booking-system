@@ -32131,6 +32131,9 @@ const promo = await fetch('/api/v1/offers/validate', {
             // Load properties
             await loadCampaignProperties();
             
+            // Load social media connections for channel selection
+            await loadTurbineConnections();
+            
             renderCampaignWizard();
         }
         
@@ -32918,7 +32921,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 ${emailEnabled || channels.facebook ? `
                                 <div style="margin-top: 0.5rem;">
                                     <button onclick="sendCampaignAll(${campaign.id})" class="btn" style="width: 100%; background: linear-gradient(135deg, #6366f1, #8b5cf6);" ${campaign.status === 'sent' ? 'disabled' : ''}>
-                                        ${campaign.status === 'sent' ? '✓ Campaign Sent' : '🚀 Launch Campaign (All Channels)'}
+                                        ${campaign.status === 'sent' ? '✓ Campaign Sent' : '🚀 Launch Campaign' + (emailEnabled && channels.facebook ? ' (Email + Facebook)' : emailEnabled ? ' (Email)' : channels.facebook ? ' (Facebook)' : '')}
                                     </button>
                                 </div>
                                 ` : ''}
