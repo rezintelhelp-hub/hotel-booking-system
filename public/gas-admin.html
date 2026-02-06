@@ -22846,15 +22846,15 @@ const promo = await fetch('/api/v1/offers/validate', {
                             <p style="color: #64748b; margin-bottom: 1.5rem;">Enter the client's Stripe API keys. These can be found in their Stripe Dashboard under Developers → API Keys.</p>
                             <div style="margin-bottom: 1rem;">
                                 <label style="font-weight: 600; display: block; margin-bottom: 0.5rem;">Publishable Key</label>
-                                <input type="text" id="stripe-pub-key" class="form-input" placeholder="pk_live_..." style="width: 100%; font-family: monospace; font-size: 0.85rem;">
+                                <input type="text" id="acct-stripe-pub-key" class="form-input" placeholder="pk_live_..." style="width: 100%; font-family: monospace; font-size: 0.85rem;">
                             </div>
                             <div style="margin-bottom: 1rem;">
                                 <label style="font-weight: 600; display: block; margin-bottom: 0.5rem;">Secret Key (or Restricted Key)</label>
-                                <input type="password" id="stripe-secret-key" class="form-input" placeholder="sk_live_... or rk_live_..." style="width: 100%; font-family: monospace; font-size: 0.85rem;">
+                                <input type="password" id="acct-stripe-secret-key" class="form-input" placeholder="sk_live_... or rk_live_..." style="width: 100%; font-family: monospace; font-size: 0.85rem;">
                             </div>
                             <div style="margin-bottom: 1.5rem;">
                                 <label style="font-weight: 600; display: block; margin-bottom: 0.5rem;">Account Name (optional)</label>
-                                <input type="text" id="stripe-account-name" class="form-input" placeholder="e.g. Synergy Payments" style="width: 100%;">
+                                <input type="text" id="acct-stripe-account-name" class="form-input" placeholder="e.g. Synergy Payments" style="width: 100%;">
                             </div>
                             <div style="display: flex; gap: 1rem; justify-content: flex-end;">
                                 <button class="btn btn-secondary" onclick="closeModal('stripeKeyModal')">Cancel</button>
@@ -22870,9 +22870,9 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
         
         async function saveStripeKeysForAccount(accountId) {
-            const pubKey = document.getElementById('stripe-pub-key').value.trim();
-            const secretKey = document.getElementById('stripe-secret-key').value.trim();
-            const accountName = document.getElementById('stripe-account-name').value.trim();
+            const pubKey = document.getElementById('acct-stripe-pub-key').value.trim();
+            const secretKey = document.getElementById('acct-stripe-secret-key').value.trim();
+            const accountName = document.getElementById('acct-stripe-account-name').value.trim();
             
             if (!secretKey) {
                 showNotification('Secret key is required', 'error');
