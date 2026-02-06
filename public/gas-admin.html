@@ -16044,6 +16044,21 @@ const promo = await fetch('/api/v1/offers/validate', {
                         </div>
                     </div>
                     
+                    <!-- Payment Methods -->
+                    <div style="background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%); padding: 1rem; border-radius: 12px; margin-bottom: 1rem; border: 1px solid #86efac;">
+                        <h4 style="margin: 0 0 0.75rem 0; font-size: 0.85rem; color: #166534; font-weight: 600;">💳 Checkout Payment Options</h4>
+                        <p style="font-size: 0.8rem; color: #64748b; margin-bottom: 0.75rem;">Choose which payment methods guests see at checkout</p>
+                        <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; cursor: pointer;">
+                            <input type="checkbox" id="acct-edit-pm-card"> 💳 Pay by Card
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; cursor: pointer;">
+                            <input type="checkbox" id="acct-edit-pm-pay-at-property"> 🏠 Pay at Property
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                            <input type="checkbox" id="acct-edit-pm-paypal" disabled> 🅿️ PayPal (coming soon)
+                        </label>
+                    </div>
+                    
                     <!-- Agency Management Section (only for admin/submaster) -->
                     <div id="account-agency-section" style="display: none;">
                         <div style="background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%); padding: 1rem; border-radius: 12px; margin-bottom: 1rem; border: 1px solid #d8b4fe;">
@@ -23666,6 +23681,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                     document.getElementById('accountModal').dataset.accountId = account.id;
                     document.getElementById('accountModal').dataset.accountEmail = account.email;
                     
+                    // Load payment methods from account settings
+                    const settings = typeof account.settings === 'string' ? JSON.parse(account.settings || '{}') : (account.settings || {});
+                    const pm = settings.payment_methods || {};
+                    document.getElementById('acct-edit-pm-card').checked = pm.card !== false;
+                    document.getElementById('acct-edit-pm-pay-at-property').checked = pm.pay_at_property === true;
+                    document.getElementById('acct-edit-pm-paypal').checked = pm.paypal === true;
+                    
                     openModal('accountModal');
                 } else {
                     alert('Error loading account: ' + (data.error || 'Unknown error'));
@@ -23762,7 +23784,12 @@ const promo = await fetch('/api/v1/offers/validate', {
                 region: document.getElementById('account-region').value,
                 postcode: document.getElementById('account-postcode').value,
                 country: document.getElementById('account-country').value,
-                default_currency: document.getElementById('account-currency').value
+                default_currency: document.getElementById('account-currency').value,
+                payment_methods: {
+                    card: document.getElementById('acct-edit-pm-card').checked,
+                    pay_at_property: document.getElementById('acct-edit-pm-pay-at-property').checked,
+                    paypal: document.getElementById('acct-edit-pm-paypal').checked
+                }
             };
             
             // Master Admin can also update role and status
