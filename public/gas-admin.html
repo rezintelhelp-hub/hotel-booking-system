@@ -15746,9 +15746,12 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <div class="form-group">
                         <label>Refund Policy</label>
                         <select id="bulk-refund-policy" class="form-input">
-                            <option value="flexible">Flexible</option>
-                            <option value="moderate">Moderate</option>
-                            <option value="strict">Strict</option>
+                            <option value="flexible">Flexible - Full refund up to 24h before check-in</option>
+                            <option value="moderate">Moderate - Full refund up to 5 days before</option>
+                            <option value="strict">Strict - 50% refund up to 7 days before</option>
+                            <option value="refund_60">Full refund - 100% refund up to 60 days before arrival</option>
+                            <option value="refund_30">Full refund - 100% refund up to 30 days before arrival</option>
+                            <option value="refund_14">Full refund - 100% refund up to 14 days before arrival</option>
                             <option value="non_refundable">Non-refundable</option>
                         </select>
                     </div>
@@ -37880,6 +37883,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 const currentValue = select.value;
                 select.innerHTML = '<option value="">Select Property...</option>';
+                select.innerHTML += '<option value="all">🏢 All Properties (Account Default)</option>';
                 
                 if (data.success && data.data) {
                     data.data.forEach(p => {
@@ -38210,7 +38214,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                         </div>
                                         <div>
                                             <strong style="color: #64748b; font-size: 0.85rem;">Refund Policy</strong><br>
-                                            ${capitalizeFirst(rule.refund_policy || 'flexible')}
+                                            ${getRefundPolicyDisplay(rule.refund_policy)}
                                         </div>
                                         <div>
                                             <strong style="color: #64748b; font-size: 0.85rem;">Auto-charge Balance</strong><br>
@@ -38240,6 +38244,19 @@ const promo = await fetch('/api/v1/offers/validate', {
                 console.error('Error loading deposit rules:', error);
                 listEl.innerHTML = '<p style="color: #ef4444; text-align: center; padding: 2rem;">Error loading deposit rules</p>';
             }
+        }
+        
+        function getRefundPolicyDisplay(policy) {
+            const map = {
+                'flexible': 'Flexible - Full refund up to 24h before check-in',
+                'moderate': 'Moderate - Full refund up to 5 days before',
+                'strict': 'Strict - 50% refund up to 7 days before',
+                'refund_60': '100% refund up to 60 days before arrival',
+                'refund_30': '100% refund up to 30 days before arrival',
+                'refund_14': '100% refund up to 14 days before arrival',
+                'non_refundable': 'Non-refundable'
+            };
+            return map[policy] || capitalizeFirst(policy || 'flexible');
         }
         
         function getDepositTypeDisplay(rule) {
