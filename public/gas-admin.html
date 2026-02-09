@@ -1683,6 +1683,10 @@
                         <span class="nav-icon">📋</span>
                         <span>All Accounts</span>
                     </a>
+                    <a class="nav-item master-only" data-view="beds24-costs" href="#" onclick="navClick(this, 'beds24-costs'); return false;" style="display: none;">
+                        <span class="nav-icon">🏨</span>
+                        <span>Beds24 Costs</span>
+                    </a>
                     <a class="nav-item agency-only" data-view="management-requests" href="#" onclick="navClick(this, 'management-requests'); return false;" style="display: none;">
                         <span class="nav-icon">📋</span>
                         <span>Management Requests</span>
@@ -2356,6 +2360,89 @@
                 <div class="card">
                     <div id="managementRequestsList">
                         <p style="text-align: center; padding: 2rem; color: #64748b;">Loading requests...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Beds24 Costs View -->
+            <div id="beds24-costs" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>🏨 Beds24 Monthly Costs</h2>
+                            <p>Upload and allocate Beds24 AccountUsage reports to client accounts</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Upload Section -->
+                <div class="card" style="margin-bottom: 1.5rem; padding: 1.5rem;">
+                    <h3 style="margin: 0 0 1rem 0;">Upload Usage Report</h3>
+                    <p style="color: #64748b; margin-bottom: 1rem; font-size: 0.9rem;">Download the AccountUsage .xls file from Beds24 → Settings → Account Usage, then upload it here.</p>
+                    <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            <select id="beds24-usage-month" style="padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 6px;">
+                                <option value="1">January</option><option value="2">February</option><option value="3">March</option>
+                                <option value="4">April</option><option value="5">May</option><option value="6">June</option>
+                                <option value="7">July</option><option value="8">August</option><option value="9">September</option>
+                                <option value="10">October</option><option value="11">November</option><option value="12">December</option>
+                            </select>
+                            <select id="beds24-usage-year" style="padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 6px;">
+                            </select>
+                        </div>
+                        <input type="file" id="beds24-usage-file" accept=".xls,.html,.htm" style="display: none;" onchange="uploadBeds24Usage()">
+                        <button class="btn" onclick="document.getElementById('beds24-usage-file').click()" style="background: #059669; color: white;">
+                            📤 Upload .xls File
+                        </button>
+                        <span id="beds24-upload-status" style="font-size: 0.85rem; color: #64748b;"></span>
+                    </div>
+                </div>
+
+                <!-- Import History -->
+                <div class="card" style="margin-bottom: 1.5rem; padding: 1.5rem;">
+                    <h3 style="margin: 0 0 1rem 0;">Import History</h3>
+                    <div id="beds24-usage-history" style="color: #64748b;">Loading...</div>
+                </div>
+
+                <!-- Preview Section (hidden until upload) -->
+                <div id="beds24-usage-preview" style="display: none;">
+                    <!-- Summary Cards -->
+                    <div class="stats-grid" style="margin-bottom: 1.5rem;">
+                        <div class="stat-card"><div class="stat-value" id="b24-total-cost">-</div><div class="stat-label">Total Cost</div></div>
+                        <div class="stat-card"><div class="stat-value" id="b24-total-accounts">-</div><div class="stat-label">Accounts</div></div>
+                        <div class="stat-card"><div class="stat-value" id="b24-total-properties">-</div><div class="stat-label">Properties</div></div>
+                        <div class="stat-card"><div class="stat-value" id="b24-total-rooms">-</div><div class="stat-label">Rooms</div></div>
+                    </div>
+
+                    <!-- Account Breakdown Table -->
+                    <div class="card" style="padding: 1.5rem; margin-bottom: 1.5rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                            <h3 style="margin: 0;">Account Breakdown</h3>
+                            <button class="btn" id="beds24-commit-btn" onclick="commitBeds24Usage()" style="background: #7c3aed; color: white;">
+                                ✅ Commit to Bought Ledger
+                            </button>
+                        </div>
+                        <div style="overflow-x: auto;">
+                            <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+                                <thead>
+                                    <tr style="background: #f1f5f9; text-align: left;">
+                                        <th style="padding: 0.6rem;">Beds24 Account</th>
+                                        <th style="padding: 0.6rem;">GAS Account</th>
+                                        <th style="padding: 0.6rem; text-align: center;">Props</th>
+                                        <th style="padding: 0.6rem; text-align: center;">Rooms</th>
+                                        <th style="padding: 0.6rem; text-align: center;">Subs</th>
+                                        <th style="padding: 0.6rem; text-align: right;">Acct Fee</th>
+                                        <th style="padding: 0.6rem; text-align: right;">SSL</th>
+                                        <th style="padding: 0.6rem; text-align: right;">Domain</th>
+                                        <th style="padding: 0.6rem; text-align: right;">Sub Fees</th>
+                                        <th style="padding: 0.6rem; text-align: right;">Properties</th>
+                                        <th style="padding: 0.6rem; text-align: right; font-weight: bold;">Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="beds24-usage-table-body">
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -19848,6 +19935,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (viewName === 'account-settings') loadAccountSettings();
             if (viewName === 'management-requests') loadManagementRequests();
             if (viewName === 'accounts') loadAccounts();
+            if (viewName === 'beds24-costs') initBeds24UsageView();
             if (viewName === 'agencies') loadAgencies();
             if (viewName === 'clients') loadClients();
             if (viewName === 'properties') loadProperties();
@@ -24050,6 +24138,187 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
         
+        // ============ BEDS24 USAGE REPORT FUNCTIONS ============
+        
+        let beds24UsageData = null; // Holds parsed upload data
+        
+        function initBeds24UsageView() {
+            // Set current month/year
+            const now = new Date();
+            document.getElementById('beds24-usage-month').value = now.getMonth() + 1;
+            const yearSelect = document.getElementById('beds24-usage-year');
+            yearSelect.innerHTML = '';
+            for (let y = now.getFullYear(); y >= now.getFullYear() - 2; y--) {
+                const opt = document.createElement('option');
+                opt.value = y; opt.textContent = y;
+                yearSelect.appendChild(opt);
+            }
+            loadBeds24UsageHistory();
+        }
+        
+        async function loadBeds24UsageHistory() {
+            try {
+                const response = await fetch('/api/admin/beds24-usage/history', { headers: authHeaders() });
+                const data = await response.json();
+                const container = document.getElementById('beds24-usage-history');
+                
+                if (data.success && data.history.length > 0) {
+                    const months = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                    container.innerHTML = '<div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">' +
+                        data.history.map(h => 
+                            `<span style="background: #e0e7ff; color: #3730a3; padding: 0.3rem 0.8rem; border-radius: 20px; font-size: 0.8rem;">
+                                ${months[h.month]} ${h.year} — €${parseFloat(h.total).toFixed(2)} (${h.entries} entries)
+                            </span>`
+                        ).join('') + '</div>';
+                } else {
+                    container.innerHTML = '<span style="font-size: 0.85rem;">No imports yet</span>';
+                }
+            } catch (e) {
+                console.error('Error loading usage history:', e);
+            }
+        }
+        
+        async function uploadBeds24Usage() {
+            const fileInput = document.getElementById('beds24-usage-file');
+            const statusEl = document.getElementById('beds24-upload-status');
+            
+            if (!fileInput.files.length) return;
+            
+            statusEl.textContent = 'Uploading...';
+            statusEl.style.color = '#6366f1';
+            
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            
+            try {
+                const response = await fetch('/api/admin/beds24-usage/upload', {
+                    method: 'POST',
+                    headers: authHeaders(),
+                    body: formData
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    beds24UsageData = data;
+                    statusEl.textContent = `✅ Parsed ${data.summary.total_master_accounts} accounts — €${data.summary.grand_total.toFixed(2)} total`;
+                    statusEl.style.color = '#059669';
+                    renderBeds24UsagePreview(data);
+                } else {
+                    statusEl.textContent = '❌ ' + data.error;
+                    statusEl.style.color = '#dc2626';
+                }
+            } catch (e) {
+                statusEl.textContent = '❌ Upload failed: ' + e.message;
+                statusEl.style.color = '#dc2626';
+            }
+            
+            fileInput.value = '';
+        }
+        
+        function renderBeds24UsagePreview(data) {
+            const preview = document.getElementById('beds24-usage-preview');
+            preview.style.display = 'block';
+            
+            // Summary cards
+            document.getElementById('b24-total-cost').textContent = '€' + data.summary.grand_total.toFixed(2);
+            document.getElementById('b24-total-accounts').textContent = data.summary.total_master_accounts;
+            document.getElementById('b24-total-properties').textContent = data.summary.total_properties;
+            document.getElementById('b24-total-rooms').textContent = data.summary.total_rooms;
+            
+            // Build GAS account dropdown options
+            const gasOptions = data.gas_accounts.map(ga => 
+                `<option value="${ga.id}">${ga.name}</option>`
+            ).join('');
+            
+            // Build table
+            const tbody = document.getElementById('beds24-usage-table-body');
+            tbody.innerHTML = data.accounts.map((acct, idx) => {
+                const matchedGas = acct.gas_account_id ? acct.gas_account_id : '';
+                const rowColor = acct.total_cost > 100 ? '#fef3c7' : (acct.total_cost > 50 ? '#f0fdf4' : '');
+                
+                return `<tr style="border-bottom: 1px solid #e2e8f0; ${rowColor ? 'background:' + rowColor : ''}">
+                    <td style="padding: 0.5rem;">
+                        <strong>${acct.username}</strong>
+                        <div style="font-size: 0.75rem; color: #94a3b8;">ID: ${acct.beds24_id}</div>
+                    </td>
+                    <td style="padding: 0.5rem;">
+                        <select class="b24-gas-match" data-idx="${idx}" style="padding: 0.3rem; border: 1px solid #d1d5db; border-radius: 4px; font-size: 0.8rem; width: 100%; max-width: 200px;">
+                            <option value="">— Overhead —</option>
+                            ${gasOptions}
+                        </select>
+                    </td>
+                    <td style="padding: 0.5rem; text-align: center;">${acct.properties.length}</td>
+                    <td style="padding: 0.5rem; text-align: center;">${acct.total_rooms}</td>
+                    <td style="padding: 0.5rem; text-align: center;">${acct.sub_account_count}</td>
+                    <td style="padding: 0.5rem; text-align: right;">€${acct.account_fee.toFixed(2)}</td>
+                    <td style="padding: 0.5rem; text-align: right;">${acct.ssl_cost > 0 ? '€' + acct.ssl_cost.toFixed(2) : '-'}</td>
+                    <td style="padding: 0.5rem; text-align: right;">${acct.private_domain_cost > 0 ? '€' + acct.private_domain_cost.toFixed(2) : '-'}</td>
+                    <td style="padding: 0.5rem; text-align: right;">${acct.sub_account_cost > 0 ? '€' + acct.sub_account_cost.toFixed(2) : '-'}</td>
+                    <td style="padding: 0.5rem; text-align: right;">${acct.property_cost > 0 ? '€' + acct.property_cost.toFixed(2) : '-'}</td>
+                    <td style="padding: 0.5rem; text-align: right; font-weight: bold;">€${acct.total_cost.toFixed(2)}</td>
+                </tr>`;
+            }).join('');
+            
+            // Pre-select GAS account matches
+            setTimeout(() => {
+                document.querySelectorAll('.b24-gas-match').forEach(sel => {
+                    const idx = parseInt(sel.dataset.idx);
+                    const acct = data.accounts[idx];
+                    if (acct.gas_account_id) {
+                        sel.value = acct.gas_account_id;
+                    }
+                });
+            }, 100);
+        }
+        
+        async function commitBeds24Usage() {
+            if (!beds24UsageData) {
+                alert('Please upload a usage report first');
+                return;
+            }
+            
+            const month = parseInt(document.getElementById('beds24-usage-month').value);
+            const year = parseInt(document.getElementById('beds24-usage-year').value);
+            
+            if (!confirm(`Commit Beds24 costs for ${month}/${year} to the bought ledger?\n\nThis will create expense entries totalling €${beds24UsageData.summary.grand_total.toFixed(2)}.\n\nAny existing Beds24 entries for this month will be replaced.`)) {
+                return;
+            }
+            
+            // Collect GAS account allocations from dropdowns
+            const accountAllocations = beds24UsageData.accounts.map((acct, idx) => {
+                const select = document.querySelector(`.b24-gas-match[data-idx="${idx}"]`);
+                const gasAccountId = select ? (parseInt(select.value) || null) : null;
+                
+                return {
+                    ...acct,
+                    gas_account_id: gasAccountId
+                };
+            });
+            
+            try {
+                const response = await fetch('/api/admin/beds24-usage/commit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({
+                        period_month: month,
+                        period_year: year,
+                        accounts: accountAllocations
+                    })
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                    loadBeds24UsageHistory();
+                    document.getElementById('beds24-usage-preview').style.display = 'none';
+                    beds24UsageData = null;
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (e) {
+                alert('Commit failed: ' + e.message);
+            }
+        }
         
 
         async function editAccount(accountId) {
