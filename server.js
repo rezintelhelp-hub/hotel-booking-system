@@ -1305,6 +1305,14 @@ const upload = multer({
   },
 });
 
+// Separate upload handler for non-image files (spreadsheets, HTML, etc)
+const uploadFile = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB max
+  },
+});
+
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
@@ -13393,7 +13401,7 @@ function parseBeds24UsageReport(htmlContent) {
 }
 
 // Upload and preview Beds24 usage report
-app.post('/api/admin/beds24-usage/upload', upload.single('file'), async (req, res) => {
+app.post('/api/admin/beds24-usage/upload', uploadFile.single('file'), async (req, res) => {
   try {
     if (!req.file) {
       return res.json({ success: false, error: 'No file uploaded' });
