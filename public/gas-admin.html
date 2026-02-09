@@ -2389,12 +2389,39 @@
                             </select>
                             <select id="beds24-usage-year" style="padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 6px;">
                             </select>
+                            <div style="display: flex; align-items: center; gap: 0.3rem;">
+                                <label style="font-size: 0.85rem; color: #64748b;">Discount:</label>
+                                <input type="number" id="beds24-discount-pct" value="50" min="0" max="100" style="width: 55px; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 6px; text-align: center;" onchange="if(beds24UsageData) renderBeds24UsagePreview(beds24UsageData)">
+                                <span style="font-size: 0.85rem; color: #64748b;">%</span>
+                            </div>
                         </div>
                         <input type="file" id="beds24-usage-file" accept=".xls,.html,.htm" style="display: none;" onchange="uploadBeds24Usage()">
                         <button class="btn" onclick="document.getElementById('beds24-usage-file').click()" style="background: #059669; color: white;">
                             📤 Upload .xls File
                         </button>
                         <span id="beds24-upload-status" style="font-size: 0.85rem; color: #64748b;"></span>
+                    </div>
+                </div>
+
+                <!-- Contract Minimums Tracker -->
+                <div class="card" style="margin-bottom: 1.5rem; padding: 1.5rem; border-left: 4px solid #6366f1;">
+                    <h3 style="margin: 0 0 0.75rem 0;">📊 Contract Minimum Volumes <span style="font-size: 0.75rem; color: #64748b; font-weight: normal;">(vs Jan 2029 targets)</span></h3>
+                    <div id="beds24-minimums" style="display: flex; gap: 1.5rem; flex-wrap: wrap;">
+                        <div style="flex: 1; min-width: 140px; text-align: center; padding: 0.75rem; background: #f8fafc; border-radius: 8px;">
+                            <div style="font-size: 0.75rem; color: #64748b;">Sub Accounts</div>
+                            <div id="b24-min-subs" style="font-size: 1.3rem; font-weight: bold;">-</div>
+                            <div style="font-size: 0.7rem; color: #94a3b8;">Target: 144</div>
+                        </div>
+                        <div style="flex: 1; min-width: 140px; text-align: center; padding: 0.75rem; background: #f8fafc; border-radius: 8px;">
+                            <div style="font-size: 0.75rem; color: #64748b;">Rooms</div>
+                            <div id="b24-min-rooms" style="font-size: 1.3rem; font-weight: bold;">-</div>
+                            <div style="font-size: 0.7rem; color: #94a3b8;">Target: 498</div>
+                        </div>
+                        <div style="flex: 1; min-width: 140px; text-align: center; padding: 0.75rem; background: #f8fafc; border-radius: 8px;">
+                            <div style="font-size: 0.75rem; color: #64748b;">Links</div>
+                            <div id="b24-min-links" style="font-size: 1.3rem; font-weight: bold;">-</div>
+                            <div style="font-size: 0.7rem; color: #94a3b8;">Target: 1,231</div>
+                        </div>
                     </div>
                 </div>
 
@@ -2408,7 +2435,8 @@
                 <div id="beds24-usage-preview" style="display: none;">
                     <!-- Summary Cards -->
                     <div class="stats-grid" style="margin-bottom: 1.5rem;">
-                        <div class="stat-card"><div class="stat-value" id="b24-total-cost">-</div><div class="stat-label">Total Cost</div></div>
+                        <div class="stat-card"><div class="stat-value" id="b24-total-cost">-</div><div class="stat-label">List Cost</div></div>
+                        <div class="stat-card" style="border-left: 3px solid #059669;"><div class="stat-value" id="b24-discounted-cost" style="color: #059669;">-</div><div class="stat-label">Your Cost (after discount)</div></div>
                         <div class="stat-card"><div class="stat-value" id="b24-total-accounts">-</div><div class="stat-label">Accounts</div></div>
                         <div class="stat-card"><div class="stat-value" id="b24-total-properties">-</div><div class="stat-label">Properties</div></div>
                         <div class="stat-card"><div class="stat-value" id="b24-total-rooms">-</div><div class="stat-label">Rooms</div></div>
@@ -24219,22 +24247,45 @@ const promo = await fetch('/api/v1/offers/validate', {
             const preview = document.getElementById('beds24-usage-preview');
             preview.style.display = 'block';
             
+            const discountPct = parseInt(document.getElementById('beds24-discount-pct').value) || 50;
+            const discountMult = 1 - (discountPct / 100);
+            
+            const grandTotal = data.summary.grand_total;
+            const discountedTotal = Math.round(grandTotal * discountMult * 100) / 100;
+            
             // Summary cards
-            document.getElementById('b24-total-cost').textContent = '€' + data.summary.grand_total.toFixed(2);
+            document.getElementById('b24-total-cost').textContent = '€' + grandTotal.toFixed(2);
+            document.getElementById('b24-discounted-cost').textContent = '€' + discountedTotal.toFixed(2);
             document.getElementById('b24-total-accounts').textContent = data.summary.total_master_accounts;
             document.getElementById('b24-total-properties').textContent = data.summary.total_properties;
             document.getElementById('b24-total-rooms').textContent = data.summary.total_rooms;
+            
+            // Minimum volume tracker
+            const totalSubs = data.summary.total_sub_accounts;
+            const totalRooms = data.summary.total_rooms;
+            const totalLinks = data.summary.total_links;
+            
+            const subEl = document.getElementById('b24-min-subs');
+            const roomEl = document.getElementById('b24-min-rooms');
+            const linkEl = document.getElementById('b24-min-links');
+            
+            subEl.textContent = totalSubs;
+            subEl.style.color = totalSubs >= 144 ? '#059669' : '#dc2626';
+            roomEl.textContent = totalRooms;
+            roomEl.style.color = totalRooms >= 498 ? '#059669' : '#dc2626';
+            linkEl.textContent = totalLinks;
+            linkEl.style.color = totalLinks >= 1231 ? '#059669' : '#dc2626';
             
             // Build GAS account dropdown options
             const gasOptions = data.gas_accounts.map(ga => 
                 `<option value="${ga.id}">${ga.name}</option>`
             ).join('');
             
-            // Build table
+            // Build table with discounted column
             const tbody = document.getElementById('beds24-usage-table-body');
             tbody.innerHTML = data.accounts.map((acct, idx) => {
-                const matchedGas = acct.gas_account_id ? acct.gas_account_id : '';
-                const rowColor = acct.total_cost > 100 ? '#fef3c7' : (acct.total_cost > 50 ? '#f0fdf4' : '');
+                const discTotal = Math.round(acct.total_cost * discountMult * 100) / 100;
+                const rowColor = discTotal > 50 ? '#fef3c7' : (discTotal > 25 ? '#f0fdf4' : '');
                 
                 return `<tr style="border-bottom: 1px solid #e2e8f0; ${rowColor ? 'background:' + rowColor : ''}">
                     <td style="padding: 0.5rem;">
@@ -24255,7 +24306,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <td style="padding: 0.5rem; text-align: right;">${acct.private_domain_cost > 0 ? '€' + acct.private_domain_cost.toFixed(2) : '-'}</td>
                     <td style="padding: 0.5rem; text-align: right;">${acct.sub_account_cost > 0 ? '€' + acct.sub_account_cost.toFixed(2) : '-'}</td>
                     <td style="padding: 0.5rem; text-align: right;">${acct.property_cost > 0 ? '€' + acct.property_cost.toFixed(2) : '-'}</td>
-                    <td style="padding: 0.5rem; text-align: right; font-weight: bold;">€${acct.total_cost.toFixed(2)}</td>
+                    <td style="padding: 0.5rem; text-align: right; font-weight: bold; color: #059669;">€${discTotal.toFixed(2)}</td>
                 </tr>`;
             }).join('');
             
@@ -24279,8 +24330,11 @@ const promo = await fetch('/api/v1/offers/validate', {
             
             const month = parseInt(document.getElementById('beds24-usage-month').value);
             const year = parseInt(document.getElementById('beds24-usage-year').value);
+            const discountPct = parseInt(document.getElementById('beds24-discount-pct').value) || 50;
+            const discountMult = 1 - (discountPct / 100);
+            const discountedTotal = (beds24UsageData.summary.grand_total * discountMult).toFixed(2);
             
-            if (!confirm(`Commit Beds24 costs for ${month}/${year} to the bought ledger?\n\nThis will create expense entries totalling €${beds24UsageData.summary.grand_total.toFixed(2)}.\n\nAny existing Beds24 entries for this month will be replaced.`)) {
+            if (!confirm(`Commit Beds24 costs for ${month}/${year} to the bought ledger?\n\nList total: €${beds24UsageData.summary.grand_total.toFixed(2)}\nDiscount: ${discountPct}%\nYour cost: €${discountedTotal}\n\nAny existing Beds24 entries for this month will be replaced.`)) {
                 return;
             }
             
@@ -24302,6 +24356,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     body: JSON.stringify({
                         period_month: month,
                         period_year: year,
+                        discount_pct: discountPct,
                         accounts: accountAllocations
                     })
                 });
