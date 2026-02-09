@@ -12075,6 +12075,34 @@ app.get('/api/setup-accounts-billing', async (req, res) => {
     `);
     console.log('✅ account_rooms table created');
 
+    // Beds24 usage snapshots - monthly counts per account for RRP calculation
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS beds24_usage_snapshots (
+        id SERIAL PRIMARY KEY,
+        account_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL,
+        beds24_username VARCHAR(255),
+        beds24_id VARCHAR(50),
+        period_date DATE NOT NULL,
+        account_fee DECIMAL(10,2) DEFAULT 0,
+        ssl_count INTEGER DEFAULT 0,
+        ssl_cost DECIMAL(10,2) DEFAULT 0,
+        private_domain BOOLEAN DEFAULT false,
+        private_domain_cost DECIMAL(10,2) DEFAULT 0,
+        sub_account_count INTEGER DEFAULT 0,
+        property_count INTEGER DEFAULT 0,
+        room_count INTEGER DEFAULT 0,
+        link_count INTEGER DEFAULT 0,
+        activity_count INTEGER DEFAULT 0,
+        list_total DECIMAL(10,2) DEFAULT 0,
+        discounted_total DECIMAL(10,2) DEFAULT 0,
+        discount_pct INTEGER DEFAULT 50,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_beds24_usage_account ON beds24_usage_snapshots(account_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_beds24_usage_period ON beds24_usage_snapshots(period_date)`);
+    console.log('✅ beds24_usage_snapshots table created');
+
     // Account subscriptions - what GAS products each client has
     await pool.query(`
       CREATE TABLE IF NOT EXISTS account_subscriptions (
@@ -13567,6 +13595,9 @@ app.post('/api/admin/beds24-usage/commit', async (req, res) => {
 
     let entriesCreated = 0;
 
+    // Clear existing snapshots for this month too
+    await pool.query(`DELETE FROM beds24_usage_snapshots WHERE period_date = $1`, [periodDate]);
+
     for (const alloc of accountAllocations) {
       const gasAccountId = alloc.gas_account_id || null;
       const isOverhead = !gasAccountId;
@@ -13630,6 +13661,23 @@ app.post('/api/admin/beds24-usage/commit', async (req, res) => {
         `, [periodDate, `Properties (${alloc.properties.length}) - ${alloc.total_rooms} rooms, ${alloc.total_links} links - ${beds24Username}`, disc(alloc.property_cost), gasAccountId, isOverhead, invoiceRef]);
         entriesCreated++;
       }
+
+      // Store usage snapshot for RRP calculation
+      await pool.query(`
+        INSERT INTO beds24_usage_snapshots 
+        (account_id, beds24_username, beds24_id, period_date, account_fee, ssl_count, ssl_cost,
+         private_domain, private_domain_cost, sub_account_count, property_count, room_count, 
+         link_count, activity_count, list_total, discounted_total, discount_pct)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+      `, [
+        gasAccountId, beds24Username, alloc.beds24_id, periodDate,
+        alloc.account_fee, alloc.ssl_count || 0, alloc.ssl_cost || 0,
+        alloc.private_domain || false, alloc.private_domain_cost || 0,
+        alloc.sub_account_count || 0, (alloc.properties || []).length,
+        alloc.total_rooms || 0, alloc.total_links || 0, alloc.total_activities || 0,
+        alloc.total_cost, Math.round(alloc.total_cost * discountMultiplier * 100) / 100,
+        discount_pct || 50
+      ]);
     }
 
     res.json({
@@ -13659,6 +13707,61 @@ app.get('/api/admin/beds24-usage/history', async (req, res) => {
       ORDER BY year DESC, month DESC
     `);
     res.json({ success: true, history: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get Beds24 RRP breakdown for a specific account (client-facing)
+app.get('/api/accounts/:id/beds24-rrp', async (req, res) => {
+  try {
+    const accountId = req.params.id;
+    
+    // Get latest snapshot for this account
+    const result = await pool.query(`
+      SELECT * FROM beds24_usage_snapshots
+      WHERE account_id = $1
+      ORDER BY period_date DESC
+      LIMIT 1
+    `, [accountId]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: true, has_data: false });
+    }
+    
+    const snap = result.rows[0];
+    
+    // Calculate RRP at full Beds24 contract rates (pre-discount)
+    const rrp = {
+      account_fee: { label: 'Beds24 Account', rate: 12.90, qty: 1, total: 12.90 },
+      sub_accounts: { label: 'Sub Accounts', rate: 2.00, qty: snap.sub_account_count, total: snap.sub_account_count * 2.00 },
+      rooms: { label: 'Rooms', rate: 2.60, qty: snap.room_count, total: snap.room_count * 2.60 },
+      links: { label: 'Channel Links', rate: 0.55, qty: snap.link_count, total: snap.link_count * 0.55 },
+    };
+    
+    if (snap.ssl_count > 0) {
+      rrp.ssl = { label: 'SSL Certificates', rate: 50.00, qty: snap.ssl_count, total: snap.ssl_count * 50.00 };
+    }
+    
+    if (snap.private_domain) {
+      rrp.private_domain = { label: 'Private Booking Domain', rate: 19.00, qty: 1, total: 19.00 };
+    }
+    
+    const rrpTotal = Object.values(rrp).reduce((s, r) => s + r.total, 0);
+    
+    res.json({
+      success: true,
+      has_data: true,
+      period: snap.period_date,
+      beds24_username: snap.beds24_username,
+      property_count: snap.property_count,
+      room_count: snap.room_count,
+      link_count: snap.link_count,
+      sub_account_count: snap.sub_account_count,
+      rrp_breakdown: rrp,
+      rrp_total: Math.round(rrpTotal * 100) / 100,
+      rrp_total_monthly: Math.round(rrpTotal * 100) / 100
+    });
   } catch (error) {
     res.json({ success: false, error: error.message });
   }
