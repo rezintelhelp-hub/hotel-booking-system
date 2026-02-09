@@ -12831,8 +12831,286 @@ app.get('/api/admin/expenses/summary', async (req, res) => {
 
 
 // =====================================================
-// 5. CLIENT PROFITABILITY / MARGIN REPORT
+// BEDS24 USAGE REPORT IMPORT
 // =====================================================
+
+// Parse and import Beds24 AccountUsage file
+app.post('/api/admin/import-beds24-costs', async (req, res) => {
+  try {
+    const { html_content, period_month, period_year, discount_pct } = req.body;
+
+    if (!html_content) {
+      return res.json({ success: false, error: 'No file content provided' });
+    }
+
+    const discount = (discount_pct || 50) / 100; // Default 50% reseller discount
+    const month = period_month || new Date().getMonth() + 1;
+    const year = period_year || new Date().getFullYear();
+    const periodDate = `${year}-${String(month).padStart(2, '0')}-01`;
+
+    // Parse the HTML table
+    const rows = html_content.match(/<tr>(.*?)<\/tr>/gs) || [];
+
+    const accounts = [];
+    let currentAccount = null;
+
+    for (const row of rows) {
+      // Skip spacer rows
+      if (row.includes('colspan="8"')) {
+        if (currentAccount) {
+          accounts.push(currentAccount);
+          currentAccount = null;
+        }
+        continue;
+      }
+
+      // Extract <th> and <td> content
+      const thMatches = [...row.matchAll(/<th[^>]*>(.*?)<\/th>/gs)].map(m => m[1].replace(/&nbsp;/g, '').replace(/&amp;/g, '&').trim());
+      const tdMatches = [...row.matchAll(/<td[^>]*>(.*?)<\/td>/gs)].map(m => m[1].replace(/&nbsp;/g, '').replace(/&amp;/g, '&').trim());
+
+      // Get cost from row
+      const costMatch = row.match(/(\d+\.?\d*)\s*EUR/);
+      const cost = costMatch ? parseFloat(costMatch[1]) : 0;
+
+      if (thMatches.length >= 2) {
+        const beds24Id = thMatches[0];
+        const username = thMatches[1];
+
+        // Empty ID + empty username = SSL/Domain row for current account
+        if (!beds24Id && !username) {
+          // This is an SSL or Domain line for the previous account
+          const propName = tdMatches.find(td => td && td.length > 1 && !td.match(/^\d+\.\d+ EUR$/)) || '';
+          if (currentAccount) {
+            currentAccount.ssl_cost += cost;
+            currentAccount.ssl_items.push(propName);
+          } else if (accounts.length > 0) {
+            accounts[accounts.length - 1].ssl_cost += cost;
+            accounts[accounts.length - 1].ssl_items.push(propName);
+          }
+          continue;
+        }
+
+        // Skip header row
+        if (beds24Id === 'id' || username === 'Username') continue;
+
+        // Check if sub-account (username contains parent ID in parentheses)
+        const parentMatch = username.match(/^(.+?)\s*\((\d+)\)$/);
+
+        if (parentMatch) {
+          // Sub-account - find parent and add
+          const parentId = parentMatch[2];
+          const target = currentAccount && currentAccount.beds24_id === parentId
+            ? currentAccount
+            : accounts.find(a => a.beds24_id === parentId);
+
+          if (target) {
+            target.sub_accounts.push({ name: parentMatch[1], beds24_id: beds24Id, cost });
+            target.sub_account_cost += cost;
+          }
+        } else {
+          // New main account
+          if (currentAccount) accounts.push(currentAccount);
+          currentAccount = {
+            beds24_id: beds24Id,
+            username: username,
+            account_fee: cost,
+            ssl_cost: 0,
+            ssl_items: [],
+            property_cost: 0,
+            properties: [],
+            sub_accounts: [],
+            sub_account_cost: 0
+          };
+        }
+      } else if (tdMatches.length >= 4 && currentAccount) {
+        // Property row
+        const propId = tdMatches[2] || '';
+        const propName = tdMatches[3] || '';
+
+        if (propId && propName) {
+          const centerMatches = [...row.matchAll(/<td class="text-center">(\d*)<\/td>/g)].map(m => parseInt(m[1]) || 0);
+          const rooms = centerMatches[0] || 0;
+          const activities = centerMatches[1] || 0;
+          const links = centerMatches[2] || 0;
+
+          currentAccount.property_cost += cost;
+          currentAccount.properties.push({ id: propId, name: propName, rooms, activities, links, cost });
+        }
+      }
+    }
+
+    if (currentAccount) accounts.push(currentAccount);
+
+    // Remove the header pseudo-account if present
+    const validAccounts = accounts.filter(a => a.beds24_id && a.username && a.username !== 'Username');
+
+    // Build username-to-GAS-account mapping
+    // Try matching via gas_sync_connections external_account_id or account name
+    const gasAccounts = await pool.query(`
+      SELECT a.id, a.name, a.beds24_account_id,
+             (SELECT external_account_id FROM gas_sync_connections
+              WHERE account_id = a.id AND adapter_code = 'beds24' LIMIT 1) as sync_ext_id
+      FROM accounts a WHERE a.status = 'active'
+    `);
+
+    const gasMap = {};
+    for (const ga of gasAccounts.rows) {
+      if (ga.beds24_account_id) gasMap[ga.beds24_account_id] = ga.id;
+      if (ga.sync_ext_id) gasMap[ga.sync_ext_id] = ga.id;
+    }
+
+    // Check for existing Beds24 username mapping in settings
+    const mappingResult = await pool.query(`
+      SELECT a.id, a.settings->>'beds24_username' as beds24_username
+      FROM accounts a
+      WHERE a.settings->>'beds24_username' IS NOT NULL
+    `);
+    for (const m of mappingResult.rows) {
+      if (m.beds24_username) gasMap[m.beds24_username] = m.id;
+    }
+
+    // Delete existing Beds24 expenses for this period to avoid duplicates
+    await pool.query(`
+      DELETE FROM bought_ledger
+      WHERE supplier = 'Beds24'
+        AND EXTRACT(MONTH FROM date) = $1
+        AND EXTRACT(YEAR FROM date) = $2
+    `, [month, year]);
+
+    // Insert expenses per account
+    let imported = 0;
+    let unmatched = [];
+
+    for (const acct of validAccounts) {
+      const gasAccountId = gasMap[acct.beds24_id] || gasMap[acct.username] || null;
+      const total = acct.account_fee + acct.ssl_cost + acct.property_cost + acct.sub_account_cost;
+      const discountedTotal = total * discount;
+
+      if (!gasAccountId && total > 2) {
+        unmatched.push({ beds24_id: acct.beds24_id, username: acct.username, total });
+      }
+
+      // Account Fee
+      if (acct.account_fee > 0) {
+        await pool.query(`
+          INSERT INTO bought_ledger (date, supplier, description, category, amount, currency, account_id, is_overhead, invoice_ref)
+          VALUES ($1, 'Beds24', $2, 'Beds24 - Account', $3, 'EUR', $4, $5, $6)
+        `, [
+          periodDate,
+          `Account fee: ${acct.username} (${acct.beds24_id})`,
+          Math.round(acct.account_fee * discount * 100) / 100,
+          gasAccountId, !gasAccountId,
+          `B24-${year}${String(month).padStart(2, '0')}`
+        ]);
+        imported++;
+      }
+
+      // SSL/Domain costs
+      if (acct.ssl_cost > 0) {
+        await pool.query(`
+          INSERT INTO bought_ledger (date, supplier, description, category, amount, currency, account_id, is_overhead, invoice_ref)
+          VALUES ($1, 'Beds24', $2, 'Beds24 - SSL/Domain', $3, 'EUR', $4, $5, $6)
+        `, [
+          periodDate,
+          `SSL/Domain: ${acct.ssl_items.join(', ')} (${acct.username})`,
+          Math.round(acct.ssl_cost * discount * 100) / 100,
+          gasAccountId, !gasAccountId,
+          `B24-${year}${String(month).padStart(2, '0')}`
+        ]);
+        imported++;
+      }
+
+      // Property costs (combined per account)
+      if (acct.property_cost > 0) {
+        await pool.query(`
+          INSERT INTO bought_ledger (date, supplier, description, category, amount, currency, account_id, is_overhead, invoice_ref)
+          VALUES ($1, 'Beds24', $2, 'Beds24 - Properties', $3, 'EUR', $4, $5, $6)
+        `, [
+          periodDate,
+          `${acct.properties.length} properties, ${acct.properties.reduce((s,p) => s + p.rooms, 0)} rooms, ${acct.properties.reduce((s,p) => s + p.links, 0)} links (${acct.username})`,
+          Math.round(acct.property_cost * discount * 100) / 100,
+          gasAccountId, !gasAccountId,
+          `B24-${year}${String(month).padStart(2, '0')}`
+        ]);
+        imported++;
+      }
+
+      // Sub-account costs (combined)
+      if (acct.sub_account_cost > 0) {
+        await pool.query(`
+          INSERT INTO bought_ledger (date, supplier, description, category, amount, currency, account_id, is_overhead, invoice_ref)
+          VALUES ($1, 'Beds24', $2, 'Beds24 - Sub Accounts', $3, 'EUR', $4, $5, $6)
+        `, [
+          periodDate,
+          `${acct.sub_accounts.length} sub-accounts (${acct.username})`,
+          Math.round(acct.sub_account_cost * discount * 100) / 100,
+          gasAccountId, !gasAccountId,
+          `B24-${year}${String(month).padStart(2, '0')}`
+        ]);
+        imported++;
+      }
+    }
+
+    // Calculate totals
+    const grandTotal = validAccounts.reduce((s, a) => s + a.account_fee + a.ssl_cost + a.property_cost + a.sub_account_cost, 0);
+
+    res.json({
+      success: true,
+      message: `Imported ${imported} expense entries for ${validAccounts.length} Beds24 accounts`,
+      summary: {
+        accounts: validAccounts.length,
+        entries: imported,
+        full_cost: Math.round(grandTotal * 100) / 100,
+        discounted_cost: Math.round(grandTotal * discount * 100) / 100,
+        discount_pct: discount * 100,
+        period: `${year}-${String(month).padStart(2, '0')}`,
+        unmatched_accounts: unmatched
+      }
+    });
+  } catch (error) {
+    console.error('Beds24 import error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Map a Beds24 username to a GAS account
+app.post('/api/admin/beds24-mapping', async (req, res) => {
+  try {
+    const { beds24_username, beds24_id, gas_account_id } = req.body;
+
+    // Store mapping in account settings
+    await pool.query(`
+      UPDATE accounts SET
+        settings = COALESCE(settings, '{}'::jsonb) || $1::jsonb,
+        beds24_account_id = COALESCE(beds24_account_id, $2)
+      WHERE id = $3
+    `, [
+      JSON.stringify({ beds24_username: beds24_username }),
+      beds24_id || null,
+      gas_account_id
+    ]);
+
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get all Beds24 username mappings
+app.get('/api/admin/beds24-mappings', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT a.id, a.name, a.beds24_account_id,
+             a.settings->>'beds24_username' as beds24_username
+      FROM accounts a
+      WHERE a.status = 'active'
+      ORDER BY a.name
+    `);
+    res.json({ success: true, mappings: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
 
 app.get('/api/admin/profitability', async (req, res) => {
   try {
@@ -12950,6 +13228,357 @@ app.put('/api/admin/pricing-config/:id', async (req, res) => {
   }
 });
 
+
+
+// =====================================================
+// 7. BEDS24 USAGE REPORT UPLOAD & PARSING
+// =====================================================
+
+// Parse Beds24 AccountUsage HTML table into structured data
+function parseBeds24UsageReport(htmlContent) {
+  // Simple HTML table parser for Beds24's specific format
+  const rows = [];
+  const rowRegex = /<tr>([\s\S]*?)<\/tr>/gi;
+  const cellRegex = /<(?:td|th)[^>]*>([\s\S]*?)<\/(?:td|th)>/gi;
+  
+  let rowMatch;
+  while ((rowMatch = rowRegex.exec(htmlContent)) !== null) {
+    const cells = [];
+    let cellMatch;
+    const cellContent = rowMatch[1];
+    const cellRe = /<(?:td|th)[^>]*>([\s\S]*?)<\/(?:td|th)>/gi;
+    while ((cellMatch = cellRe.exec(cellContent)) !== null) {
+      // Strip HTML tags and decode entities
+      let text = cellMatch[1]
+        .replace(/<[^>]+>/g, '')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .trim();
+      cells.push(text);
+    }
+    if (cells.length > 0) {
+      rows.push(cells);
+    }
+  }
+
+  // Skip header row
+  const dataRows = rows.slice(1);
+  
+  const accounts = {};
+  let currentMaster = null;
+  let currentAccount = null;
+
+  for (const row of dataRows) {
+    if (row.length < 8) continue;
+    // Skip separator rows (just whitespace)
+    if (row.every(c => !c.trim())) continue;
+
+    const idCol = row[0].trim();
+    const usernameCol = row[1].trim();
+    const propIdCol = row[2] ? row[2].trim() : '';
+    const propNameCol = row[3] ? row[3].trim() : '';
+    const roomsCol = row[4] ? row[4].trim() : '';
+    const activitiesCol = row[5] ? row[5].trim() : '';
+    const linksCol = row[6] ? row[6].trim() : '';
+    const costStr = row[7] ? row[7].trim().replace(' EUR', '').replace(',', '') : '0';
+    const cost = parseFloat(costStr) || 0;
+
+    // Account header row (has id and username)
+    if (idCol && usernameCol) {
+      const isSub = usernameCol.includes('(') && usernameCol.includes(')');
+      let cleanUsername = usernameCol;
+      let parentId = null;
+
+      if (isSub) {
+        const parts = usernameCol.split('(');
+        cleanUsername = parts[0].trim();
+        parentId = parts[1].replace(')', '').trim();
+      }
+
+      if (!isSub) {
+        currentMaster = idCol;
+        currentAccount = idCol;
+        accounts[idCol] = {
+          beds24_id: idCol,
+          username: cleanUsername,
+          account_fee: cost,
+          ssl_count: 0,
+          ssl_domains: [],
+          ssl_cost: 0,
+          private_domain: false,
+          private_domain_cost: 0,
+          properties: [],
+          sub_accounts: [],
+          sub_account_count: 0,
+          sub_account_cost: 0,
+          property_cost: 0,
+          total_rooms: 0,
+          total_links: 0,
+          total_activities: 0,
+          total_cost: cost
+        };
+      } else {
+        currentAccount = idCol;
+        if (currentMaster && accounts[currentMaster]) {
+          accounts[currentMaster].sub_accounts.push({
+            beds24_id: idCol,
+            username: cleanUsername,
+            parent_id: parentId,
+            cost: cost
+          });
+          accounts[currentMaster].sub_account_count++;
+          accounts[currentMaster].sub_account_cost += cost;
+          accounts[currentMaster].total_cost += cost;
+        }
+      }
+    }
+    // SSL row
+    else if (!idCol && !usernameCol && propNameCol.includes('SSL')) {
+      if (currentMaster && accounts[currentMaster]) {
+        const parts = propNameCol.split(/\s+/);
+        let sslCount = 0;
+        const domains = [];
+        for (const p of parts) {
+          if (/^\d+$/.test(p)) {
+            sslCount = parseInt(p);
+          } else if (p.includes('SSL')) {
+            const domain = p.replace('SSL', '');
+            if (domain) domains.push(domain);
+          } else if (p.includes('.')) {
+            domains.push(p);
+          }
+        }
+        accounts[currentMaster].ssl_count = sslCount || domains.length;
+        accounts[currentMaster].ssl_domains = domains;
+        accounts[currentMaster].ssl_cost = cost;
+        accounts[currentMaster].total_cost += cost;
+      }
+    }
+    // Private Book Domain row
+    else if (!idCol && propNameCol.includes('Private Book Domain')) {
+      if (currentMaster && accounts[currentMaster]) {
+        accounts[currentMaster].private_domain = true;
+        accounts[currentMaster].private_domain_cost = cost;
+        accounts[currentMaster].total_cost += cost;
+      }
+    }
+    // Property row
+    else if (propIdCol && propNameCol) {
+      const rooms = parseInt(roomsCol) || 0;
+      const activities = parseInt(activitiesCol) || 0;
+      const links = parseInt(linksCol) || 0;
+
+      if (currentMaster && accounts[currentMaster]) {
+        accounts[currentMaster].properties.push({
+          beds24_property_id: propIdCol,
+          name: propNameCol,
+          rooms,
+          activities,
+          links,
+          cost,
+          under_sub_account: currentAccount !== currentMaster ? currentAccount : null
+        });
+        accounts[currentMaster].property_cost += cost;
+        accounts[currentMaster].total_rooms += rooms;
+        accounts[currentMaster].total_links += links;
+        accounts[currentMaster].total_activities += activities;
+        accounts[currentMaster].total_cost += cost;
+      }
+    }
+  }
+
+  return accounts;
+}
+
+// Upload and preview Beds24 usage report
+app.post('/api/admin/beds24-usage/upload', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.json({ success: false, error: 'No file uploaded' });
+    }
+
+    const htmlContent = req.file.buffer.toString('utf-8');
+    
+    if (!htmlContent.includes('<table') && !htmlContent.includes('<tr')) {
+      return res.json({ success: false, error: 'File does not appear to be a Beds24 AccountUsage report' });
+    }
+
+    const parsed = parseBeds24UsageReport(htmlContent);
+    const accountList = Object.values(parsed);
+
+    // Try to match Beds24 accounts to GAS accounts
+    const gasAccounts = await pool.query(`
+      SELECT id, name, beds24_account_id,
+             (SELECT username FROM gas_sync_connections WHERE account_id = accounts.id AND adapter_code = 'beds24' LIMIT 1) as beds24_username
+      FROM accounts WHERE status = 'active'
+    `);
+
+    // Build lookup maps
+    const gasById = {};
+    const gasByName = {};
+    for (const ga of gasAccounts.rows) {
+      if (ga.beds24_account_id) gasById[ga.beds24_account_id] = ga;
+      gasByName[ga.name.toLowerCase()] = ga;
+    }
+
+    // Enrich with GAS account matches
+    let grandTotal = 0;
+    for (const acct of accountList) {
+      acct.gas_account_id = null;
+      acct.gas_account_name = null;
+      
+      // Try matching by beds24_account_id
+      if (gasById[acct.beds24_id]) {
+        acct.gas_account_id = gasById[acct.beds24_id].id;
+        acct.gas_account_name = gasById[acct.beds24_id].name;
+      }
+      
+      // Round costs
+      acct.total_cost = Math.round(acct.total_cost * 100) / 100;
+      acct.property_cost = Math.round(acct.property_cost * 100) / 100;
+      acct.sub_account_cost = Math.round(acct.sub_account_cost * 100) / 100;
+      grandTotal += acct.total_cost;
+    }
+
+    res.json({
+      success: true,
+      accounts: accountList,
+      summary: {
+        total_master_accounts: accountList.length,
+        grand_total: Math.round(grandTotal * 100) / 100,
+        total_properties: accountList.reduce((s, a) => s + a.properties.length, 0),
+        total_sub_accounts: accountList.reduce((s, a) => s + a.sub_account_count, 0),
+        total_ssl: accountList.reduce((s, a) => s + a.ssl_count, 0),
+        total_rooms: accountList.reduce((s, a) => s + a.total_rooms, 0),
+        total_links: accountList.reduce((s, a) => s + a.total_links, 0)
+      },
+      gas_accounts: gasAccounts.rows
+    });
+  } catch (error) {
+    console.error('Beds24 usage upload error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Commit Beds24 usage data to bought ledger
+app.post('/api/admin/beds24-usage/commit', async (req, res) => {
+  try {
+    const { period_month, period_year, accounts: accountAllocations } = req.body;
+
+    if (!period_month || !period_year || !accountAllocations) {
+      return res.json({ success: false, error: 'Month, year, and account allocations are required' });
+    }
+
+    const periodDate = `${period_year}-${String(period_month).padStart(2, '0')}-01`;
+
+    // Check for existing entries for this month
+    const existing = await pool.query(`
+      SELECT COUNT(*) FROM bought_ledger
+      WHERE supplier = 'Beds24' AND date = $1
+    `, [periodDate]);
+
+    if (parseInt(existing.rows[0].count) > 0) {
+      // Delete existing entries for this month to allow re-import
+      await pool.query(`
+        DELETE FROM bought_ledger WHERE supplier = 'Beds24' AND date = $1
+      `, [periodDate]);
+    }
+
+    let entriesCreated = 0;
+
+    for (const alloc of accountAllocations) {
+      const gasAccountId = alloc.gas_account_id || null;
+      const isOverhead = !gasAccountId;
+      const beds24Username = alloc.username;
+
+      // Account fee entry
+      if (alloc.account_fee > 0) {
+        await pool.query(`
+          INSERT INTO bought_ledger (date, supplier, description, category, amount, currency, account_id, is_overhead, invoice_ref)
+          VALUES ($1, 'Beds24', $2, 'Beds24', $3, 'EUR', $4, $5, $6)
+        `, [periodDate, `Account fee - ${beds24Username}`, alloc.account_fee, gasAccountId, isOverhead, `B24-${period_year}${String(period_month).padStart(2, '0')}`]);
+        entriesCreated++;
+      }
+
+      // SSL entry
+      if (alloc.ssl_cost > 0 && alloc.ssl_allocations) {
+        for (const sslAlloc of alloc.ssl_allocations) {
+          const sslGasId = sslAlloc.gas_account_id || null;
+          const sslOverhead = !sslGasId;
+          await pool.query(`
+            INSERT INTO bought_ledger (date, supplier, description, category, amount, currency, account_id, is_overhead, invoice_ref)
+            VALUES ($1, 'Beds24', $2, 'Domains / SSL', $3, 'EUR', $4, $5, $6)
+          `, [periodDate, `SSL - ${sslAlloc.domain || 'certificate'}`, sslAlloc.cost, sslGasId, sslOverhead, `B24-${period_year}${String(period_month).padStart(2, '0')}`]);
+          entriesCreated++;
+        }
+      } else if (alloc.ssl_cost > 0) {
+        await pool.query(`
+          INSERT INTO bought_ledger (date, supplier, description, category, amount, currency, account_id, is_overhead, invoice_ref)
+          VALUES ($1, 'Beds24', $2, 'Domains / SSL', $3, 'EUR', $4, $5, $6)
+        `, [periodDate, `SSL (${alloc.ssl_count} certs) - ${beds24Username}`, alloc.ssl_cost, gasAccountId, isOverhead, `B24-${period_year}${String(period_month).padStart(2, '0')}`]);
+        entriesCreated++;
+      }
+
+      // Private domain entry
+      if (alloc.private_domain_cost > 0) {
+        await pool.query(`
+          INSERT INTO bought_ledger (date, supplier, description, category, amount, currency, account_id, is_overhead, invoice_ref)
+          VALUES ($1, 'Beds24', $2, 'Domains / SSL', $3, 'EUR', $4, $5, $6)
+        `, [periodDate, `Private Book Domain - ${beds24Username}`, alloc.private_domain_cost, gasAccountId, isOverhead, `B24-${period_year}${String(period_month).padStart(2, '0')}`]);
+        entriesCreated++;
+      }
+
+      // Sub-account fees (single combined entry)
+      if (alloc.sub_account_cost > 0) {
+        await pool.query(`
+          INSERT INTO bought_ledger (date, supplier, description, category, amount, currency, account_id, is_overhead, invoice_ref)
+          VALUES ($1, 'Beds24', $2, 'Beds24', $3, 'EUR', $4, $5, $6)
+        `, [periodDate, `Sub-accounts (${alloc.sub_account_count}) - ${beds24Username}`, alloc.sub_account_cost, gasAccountId, isOverhead, `B24-${period_year}${String(period_month).padStart(2, '0')}`]);
+        entriesCreated++;
+      }
+
+      // Property costs (single combined entry per master)
+      if (alloc.property_cost > 0) {
+        await pool.query(`
+          INSERT INTO bought_ledger (date, supplier, description, category, amount, currency, account_id, is_overhead, invoice_ref)
+          VALUES ($1, 'Beds24', $2, 'Beds24', $3, 'EUR', $4, $5, $6)
+        `, [periodDate, `Properties (${alloc.properties.length}) - ${alloc.total_rooms} rooms, ${alloc.total_links} links - ${beds24Username}`, alloc.property_cost, gasAccountId, isOverhead, `B24-${period_year}${String(period_month).padStart(2, '0')}`]);
+        entriesCreated++;
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Created ${entriesCreated} bought ledger entries for ${period_month}/${period_year}`,
+      entries_created: entriesCreated
+    });
+  } catch (error) {
+    console.error('Beds24 usage commit error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get Beds24 usage history (which months have been imported)
+app.get('/api/admin/beds24-usage/history', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT DISTINCT 
+        EXTRACT(MONTH FROM date)::integer as month,
+        EXTRACT(YEAR FROM date)::integer as year,
+        SUM(amount) as total,
+        COUNT(*) as entries
+      FROM bought_ledger
+      WHERE supplier = 'Beds24'
+      GROUP BY EXTRACT(MONTH FROM date), EXTRACT(YEAR FROM date)
+      ORDER BY year DESC, month DESC
+    `);
+    res.json({ success: true, history: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
 
 
 // =====================================================
