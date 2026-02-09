@@ -11993,6 +11993,897 @@ app.post('/api/accounts/:accountId/deposit-rules', async (req, res) => {
 });
 
 // =====================================================
+// GAS ACCOUNTS - BEDS24 PER-CLIENT INTEGRATION & BILLING
+// =====================================================
+// Add these endpoints to server.js
+// Requires: axios, pool (PostgreSQL), express app
+// =====================================================
+
+// =====================================================
+// 1. DATABASE SETUP - Run once via /api/setup-accounts-billing
+// =====================================================
+app.get('/api/setup-accounts-billing', async (req, res) => {
+  try {
+    // Add Beds24 fields to accounts table
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS beds24_invite_code TEXT`);
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS beds24_token TEXT`);
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS beds24_refresh_token TEXT`);
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS beds24_token_expires TIMESTAMP`);
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS beds24_connected BOOLEAN DEFAULT false`);
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS beds24_account_id VARCHAR(50)`);
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS beds24_last_sync TIMESTAMP`);
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS total_units INTEGER DEFAULT 0`);
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS total_properties INTEGER DEFAULT 0`);
+    console.log('✅ Beds24 columns added to accounts');
+
+    // Account properties table - synced from Beds24
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS account_properties (
+        id SERIAL PRIMARY KEY,
+        account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
+        beds24_property_id INTEGER,
+        name VARCHAR(500),
+        address TEXT,
+        city VARCHAR(255),
+        country VARCHAR(100),
+        room_count INTEGER DEFAULT 0,
+        channel_links INTEGER DEFAULT 0,
+        beds24_cost DECIMAL(10,2) DEFAULT 0,
+        status VARCHAR(20) DEFAULT 'active',
+        synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(account_id, beds24_property_id)
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_account_properties_account ON account_properties(account_id)`);
+    console.log('✅ account_properties table created');
+
+    // Account rooms table - synced from Beds24
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS account_rooms (
+        id SERIAL PRIMARY KEY,
+        account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
+        property_id INTEGER REFERENCES account_properties(id) ON DELETE CASCADE,
+        beds24_room_id INTEGER,
+        name VARCHAR(500),
+        max_guests INTEGER DEFAULT 2,
+        status VARCHAR(20) DEFAULT 'active',
+        synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(property_id, beds24_room_id)
+      )
+    `);
+    console.log('✅ account_rooms table created');
+
+    // Account subscriptions - what GAS products each client has
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS account_subscriptions (
+        id SERIAL PRIMARY KEY,
+        account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
+        product VARCHAR(50) NOT NULL,
+        tier INTEGER DEFAULT 1,
+        quantity INTEGER DEFAULT 0,
+        monthly_price DECIMAL(10,2) DEFAULT 0,
+        currency VARCHAR(3) DEFAULT 'EUR',
+        status VARCHAR(20) DEFAULT 'active',
+        started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        cancelled_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(account_id, product)
+      )
+    `);
+    console.log('✅ account_subscriptions table created');
+
+    // Bought ledger - expense tracking
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS bought_ledger (
+        id SERIAL PRIMARY KEY,
+        date DATE NOT NULL DEFAULT CURRENT_DATE,
+        supplier VARCHAR(255) NOT NULL,
+        description TEXT,
+        category VARCHAR(50) NOT NULL,
+        amount DECIMAL(10,2) NOT NULL,
+        currency VARCHAR(3) DEFAULT 'EUR',
+        account_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL,
+        is_overhead BOOLEAN DEFAULT false,
+        apportion_method VARCHAR(20) DEFAULT 'equal',
+        invoice_ref VARCHAR(100),
+        status VARCHAR(20) DEFAULT 'paid',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_bought_ledger_account ON bought_ledger(account_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_bought_ledger_category ON bought_ledger(category)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_bought_ledger_date ON bought_ledger(date)`);
+    console.log('✅ bought_ledger table created');
+
+    // Expense categories
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS expense_categories (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(100) NOT NULL UNIQUE,
+        icon VARCHAR(10),
+        sort_order INTEGER DEFAULT 0
+      )
+    `);
+
+    // Seed default categories
+    const catCheck = await pool.query('SELECT COUNT(*) FROM expense_categories');
+    if (parseInt(catCheck.rows[0].count) === 0) {
+      await pool.query(`
+        INSERT INTO expense_categories (name, icon, sort_order) VALUES
+        ('Beds24', '🏨', 1),
+        ('Hosting / Servers', '🖥️', 2),
+        ('Software / SaaS', '💿', 3),
+        ('AI / API Costs', '🤖', 4),
+        ('Email Services', '📧', 5),
+        ('Domains / SSL', '🔒', 6),
+        ('Marketing', '📣', 7),
+        ('Repuso / Reviews', '⭐', 8),
+        ('Payment Processing', '💳', 9),
+        ('Admin / Office', '📋', 10),
+        ('Other', '📎', 99)
+      `);
+    }
+    console.log('✅ expense_categories table created');
+
+    // Invoices table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS invoices (
+        id SERIAL PRIMARY KEY,
+        invoice_number VARCHAR(50) UNIQUE NOT NULL,
+        account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
+        period_start DATE NOT NULL,
+        period_end DATE NOT NULL,
+        subtotal DECIMAL(10,2) DEFAULT 0,
+        tax DECIMAL(10,2) DEFAULT 0,
+        total DECIMAL(10,2) DEFAULT 0,
+        currency VARCHAR(3) DEFAULT 'EUR',
+        status VARCHAR(20) DEFAULT 'draft',
+        gocardless_payment_id VARCHAR(100),
+        paid_at TIMESTAMP,
+        notes TEXT,
+        line_items JSONB DEFAULT '[]',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_invoices_account ON invoices(account_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices(status)`);
+    console.log('✅ invoices table created');
+
+    // Pricing configuration table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS pricing_config (
+        id SERIAL PRIMARY KEY,
+        product VARCHAR(50) NOT NULL,
+        tier INTEGER DEFAULT 1,
+        tier_label VARCHAR(100),
+        min_quantity INTEGER DEFAULT 0,
+        max_quantity INTEGER,
+        price_per_unit DECIMAL(10,4),
+        flat_price DECIMAL(10,2),
+        currency VARCHAR(3) DEFAULT 'EUR',
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Seed pricing config
+    const priceCheck = await pool.query('SELECT COUNT(*) FROM pricing_config');
+    if (parseInt(priceCheck.rows[0].count) === 0) {
+      await pool.query(`
+        INSERT INTO pricing_config (product, tier, tier_label, min_quantity, max_quantity, price_per_unit, flat_price, currency) VALUES
+        ('ai_website', 0, 'Base Fee', 0, NULL, NULL, 19.00, 'EUR'),
+        ('ai_website', 1, '1-50 units', 1, 50, 2.50, NULL, 'EUR'),
+        ('ai_website', 2, '51-100 units', 51, 100, 2.00, NULL, 'EUR'),
+        ('ai_website', 3, '101-250 units', 101, 250, 1.50, NULL, 'EUR'),
+        ('ai_website', 4, '251-500 units', 251, 500, 1.00, NULL, 'EUR'),
+        ('ai_website', 5, '501+ units', 501, NULL, 0.50, NULL, 'EUR'),
+        ('blog', 1, '0-19 creations', 0, 19, NULL, 9.99, 'USD'),
+        ('blog', 2, '20-49 creations', 20, 49, NULL, 14.99, 'USD'),
+        ('blog', 3, '50+ creations', 50, NULL, NULL, 24.99, 'USD'),
+        ('attractions', 1, '0-19 creations', 0, 19, NULL, 4.99, 'USD'),
+        ('attractions', 2, '20-49 creations', 20, 49, NULL, 9.99, 'USD'),
+        ('attractions', 3, '50+ creations', 50, NULL, NULL, 14.99, 'USD'),
+        ('lites', 1, '0-19 posts', 0, 19, NULL, 4.99, 'USD'),
+        ('lites', 2, '20-49 posts', 20, 49, NULL, 9.99, 'USD'),
+        ('lites', 3, '50+ posts', 50, NULL, NULL, 19.99, 'USD'),
+        ('reviews', 1, '1-9 apps', 1, 9, 5.00, NULL, 'USD'),
+        ('reviews', 2, '10-49 apps', 10, 49, 3.00, NULL, 'USD'),
+        ('reviews', 3, '50+ apps', 50, NULL, 1.50, NULL, 'USD')
+      `);
+    }
+    console.log('✅ pricing_config table seeded');
+
+    res.json({ success: true, message: 'All billing tables created and seeded' });
+  } catch (error) {
+    console.error('Setup error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+
+// =====================================================
+// 2. BEDS24 PER-ACCOUNT CONNECTION
+// =====================================================
+
+// Connect account to Beds24 using invite code
+app.post('/api/accounts/:id/beds24/connect', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { inviteCode } = req.body;
+
+    if (!inviteCode) {
+      return res.json({ success: false, error: 'Invite code is required' });
+    }
+
+    // Exchange invite code for token
+    const tokenResponse = await axios.get('https://beds24.com/api/v2/authentication/setup', {
+      headers: { 'accept': 'application/json', 'code': inviteCode }
+    });
+
+    if (!tokenResponse.data.token || !tokenResponse.data.refreshToken) {
+      return res.json({ success: false, error: 'Failed to exchange invite code. Please generate a new one in Beds24.' });
+    }
+
+    const { token, refreshToken, expiresIn } = tokenResponse.data;
+    const expiresAt = new Date(Date.now() + (expiresIn || 3600) * 1000);
+
+    // Store credentials against account
+    await pool.query(`
+      UPDATE accounts SET
+        beds24_invite_code = $1,
+        beds24_token = $2,
+        beds24_refresh_token = $3,
+        beds24_token_expires = $4,
+        beds24_connected = true,
+        updated_at = NOW()
+      WHERE id = $5
+    `, [inviteCode, token, refreshToken, expiresAt, id]);
+
+    res.json({ success: true, message: 'Connected to Beds24 successfully' });
+  } catch (error) {
+    console.error('Beds24 connect error:', error.response?.data || error.message);
+    res.json({ success: false, error: error.response?.data?.error || error.message });
+  }
+});
+
+// Disconnect account from Beds24
+app.post('/api/accounts/:id/beds24/disconnect', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    await pool.query(`
+      UPDATE accounts SET
+        beds24_token = NULL,
+        beds24_refresh_token = NULL,
+        beds24_token_expires = NULL,
+        beds24_connected = false,
+        updated_at = NOW()
+      WHERE id = $1
+    `, [id]);
+
+    res.json({ success: true, message: 'Disconnected from Beds24' });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Helper: get valid Beds24 token for an account (refreshes if needed)
+async function getBeds24Token(accountId) {
+  const result = await pool.query(
+    'SELECT beds24_token, beds24_refresh_token, beds24_token_expires FROM accounts WHERE id = $1',
+    [accountId]
+  );
+
+  if (result.rows.length === 0) throw new Error('Account not found');
+
+  const { beds24_token, beds24_refresh_token, beds24_token_expires } = result.rows[0];
+
+  if (!beds24_token && !beds24_refresh_token) {
+    throw new Error('Account not connected to Beds24');
+  }
+
+  // Check if token is still valid (with 5 min buffer)
+  if (beds24_token && beds24_token_expires && new Date(beds24_token_expires) > new Date(Date.now() + 300000)) {
+    return beds24_token;
+  }
+
+  // Refresh token
+  if (!beds24_refresh_token) throw new Error('No refresh token. Please reconnect to Beds24.');
+
+  try {
+    const tokenResponse = await axios.get('https://beds24.com/api/v2/authentication/token', {
+      headers: { 'refreshToken': beds24_refresh_token }
+    });
+
+    const newToken = tokenResponse.data.token;
+    const expiresAt = new Date(Date.now() + (tokenResponse.data.expiresIn || 3600) * 1000);
+
+    await pool.query(`
+      UPDATE accounts SET beds24_token = $1, beds24_token_expires = $2 WHERE id = $3
+    `, [newToken, expiresAt, accountId]);
+
+    return newToken;
+  } catch (e) {
+    await pool.query(`UPDATE accounts SET beds24_connected = false WHERE id = $1`, [accountId]);
+    throw new Error('Token expired. Please reconnect to Beds24.');
+  }
+}
+
+// Sync properties and rooms from Beds24 for an account
+app.post('/api/accounts/:id/beds24/sync', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const token = await getBeds24Token(id);
+
+    // Fetch all properties
+    const propResponse = await axios.get('https://beds24.com/api/v2/properties', {
+      headers: { 'token': token },
+      params: { includeAllRooms: true }
+    });
+
+    const properties = propResponse.data?.data || propResponse.data || [];
+
+    if (!Array.isArray(properties) || properties.length === 0) {
+      return res.json({ success: true, message: 'No properties found', properties: 0, rooms: 0 });
+    }
+
+    let totalRooms = 0;
+    let totalProps = 0;
+
+    for (const prop of properties) {
+      const propId = prop.id || prop.propertyId;
+      const propName = prop.name || 'Unnamed Property';
+      const rooms = prop.roomTypes || prop.rooms || [];
+      const roomCount = rooms.length || 0;
+
+      totalProps++;
+      totalRooms += roomCount;
+
+      // Upsert property
+      await pool.query(`
+        INSERT INTO account_properties (account_id, beds24_property_id, name, address, city, country, room_count, synced_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+        ON CONFLICT (account_id, beds24_property_id) DO UPDATE SET
+          name = EXCLUDED.name,
+          address = EXCLUDED.address,
+          city = EXCLUDED.city,
+          country = EXCLUDED.country,
+          room_count = EXCLUDED.room_count,
+          synced_at = NOW()
+      `, [id, propId, propName, prop.address || '', prop.city || '', prop.country || '', roomCount]);
+
+      // Get the property record
+      const propRecord = await pool.query(
+        'SELECT id FROM account_properties WHERE account_id = $1 AND beds24_property_id = $2',
+        [id, propId]
+      );
+
+      if (propRecord.rows.length > 0) {
+        const apId = propRecord.rows[0].id;
+
+        // Upsert rooms
+        for (const room of rooms) {
+          const roomId = room.id || room.roomId;
+          const roomName = room.name || 'Room';
+          const maxGuests = room.maxGuests || room.maxPeople || 2;
+
+          await pool.query(`
+            INSERT INTO account_rooms (account_id, property_id, beds24_room_id, name, max_guests, synced_at)
+            VALUES ($1, $2, $3, $4, $5, NOW())
+            ON CONFLICT (property_id, beds24_room_id) DO UPDATE SET
+              name = EXCLUDED.name,
+              max_guests = EXCLUDED.max_guests,
+              synced_at = NOW()
+          `, [id, apId, roomId, roomName, maxGuests]);
+        }
+      }
+    }
+
+    // Update account totals
+    await pool.query(`
+      UPDATE accounts SET
+        total_properties = $1,
+        total_units = $2,
+        beds24_last_sync = NOW(),
+        updated_at = NOW()
+      WHERE id = $3
+    `, [totalProps, totalRooms, id]);
+
+    // Auto-calculate AI Website subscription price
+    await calculateAccountPricing(id);
+
+    res.json({
+      success: true,
+      properties: totalProps,
+      rooms: totalRooms,
+      message: `Synced ${totalProps} properties with ${totalRooms} rooms/units`
+    });
+  } catch (error) {
+    console.error('Beds24 sync error:', error.response?.data || error.message);
+    res.json({ success: false, error: error.response?.data?.error || error.message });
+  }
+});
+
+// Get properties for an account
+app.get('/api/accounts/:id/properties', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await pool.query(`
+      SELECT ap.*,
+             (SELECT COUNT(*) FROM account_rooms ar WHERE ar.property_id = ap.id) as room_count_live
+      FROM account_properties ap
+      WHERE ap.account_id = $1
+      ORDER BY ap.name
+    `, [id]);
+
+    res.json({ success: true, properties: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get Beds24 connection status for an account
+app.get('/api/accounts/:id/beds24/status', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await pool.query(`
+      SELECT beds24_connected, beds24_account_id, beds24_last_sync,
+             total_properties, total_units
+      FROM accounts WHERE id = $1
+    `, [id]);
+
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Account not found' });
+    }
+
+    res.json({ success: true, ...result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+
+// =====================================================
+// 3. PRICING CALCULATION
+// =====================================================
+
+// Calculate tiered AI Website price for a given unit count
+function calculateAIWebsitePrice(units) {
+  let price = 19.00; // base fee
+  if (units <= 0) return price;
+
+  const tiers = [
+    { max: 50, rate: 2.50 },
+    { max: 100, rate: 2.00 },
+    { max: 250, rate: 1.50 },
+    { max: 500, rate: 1.00 },
+    { max: Infinity, rate: 0.50 }
+  ];
+
+  let remaining = units;
+  let prevMax = 0;
+
+  for (const tier of tiers) {
+    const tierUnits = Math.min(remaining, tier.max - prevMax);
+    if (tierUnits <= 0) break;
+    price += tierUnits * tier.rate;
+    remaining -= tierUnits;
+    prevMax = tier.max;
+    if (remaining <= 0) break;
+  }
+
+  return Math.round(price * 100) / 100;
+}
+
+// Calculate tiered Reviews price
+function calculateReviewsPrice(apps) {
+  if (apps <= 0) return 0;
+  let price = 0;
+  const tiers = [
+    { max: 9, rate: 5.00 },
+    { max: 49, rate: 3.00 },
+    { max: Infinity, rate: 1.50 }
+  ];
+
+  let remaining = apps;
+  let prevMax = 0;
+
+  for (const tier of tiers) {
+    const tierUnits = Math.min(remaining, tier.max - prevMax);
+    if (tierUnits <= 0) break;
+    price += tierUnits * tier.rate;
+    remaining -= tierUnits;
+    prevMax = tier.max;
+    if (remaining <= 0) break;
+  }
+
+  return Math.round(price * 100) / 100;
+}
+
+// Auto-calculate and update pricing for an account
+async function calculateAccountPricing(accountId) {
+  const acct = await pool.query('SELECT total_units FROM accounts WHERE id = $1', [accountId]);
+  if (acct.rows.length === 0) return;
+
+  const units = acct.rows[0].total_units || 0;
+  const aiWebsitePrice = calculateAIWebsitePrice(units);
+
+  // Upsert AI Website subscription
+  await pool.query(`
+    INSERT INTO account_subscriptions (account_id, product, tier, quantity, monthly_price, currency, status)
+    VALUES ($1, 'ai_website', 1, $2, $3, 'EUR', 'active')
+    ON CONFLICT (account_id, product) DO UPDATE SET
+      quantity = EXCLUDED.quantity,
+      monthly_price = EXCLUDED.monthly_price,
+      updated_at = NOW()
+  `, [accountId, units, aiWebsitePrice]);
+}
+
+// Get pricing for an account
+app.get('/api/accounts/:id/pricing', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const acct = await pool.query('SELECT total_units, total_properties FROM accounts WHERE id = $1', [id]);
+    if (acct.rows.length === 0) return res.json({ success: false, error: 'Account not found' });
+
+    const subs = await pool.query(
+      'SELECT * FROM account_subscriptions WHERE account_id = $1 ORDER BY product',
+      [id]
+    );
+
+    const pricing = await pool.query('SELECT * FROM pricing_config WHERE is_active = true ORDER BY product, tier');
+
+    res.json({
+      success: true,
+      units: acct.rows[0].total_units,
+      properties: acct.rows[0].total_properties,
+      subscriptions: subs.rows,
+      pricing_config: pricing.rows
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Update subscription for an account
+app.post('/api/accounts/:id/subscriptions', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { product, tier, quantity, status } = req.body;
+
+    if (!product) return res.json({ success: false, error: 'Product is required' });
+
+    // Calculate price based on product and tier/quantity
+    let price = 0;
+    if (product === 'ai_website') {
+      price = calculateAIWebsitePrice(quantity || 0);
+    } else if (product === 'reviews') {
+      price = calculateReviewsPrice(quantity || 0);
+    } else {
+      // Flat tier pricing for blog, attractions, lites
+      const tierConfig = await pool.query(
+        'SELECT flat_price FROM pricing_config WHERE product = $1 AND tier = $2',
+        [product, tier || 1]
+      );
+      price = tierConfig.rows.length > 0 ? parseFloat(tierConfig.rows[0].flat_price) : 0;
+    }
+
+    const currency = (product === 'ai_website') ? 'EUR' : 'USD';
+
+    await pool.query(`
+      INSERT INTO account_subscriptions (account_id, product, tier, quantity, monthly_price, currency, status)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      ON CONFLICT (account_id, product) DO UPDATE SET
+        tier = EXCLUDED.tier,
+        quantity = EXCLUDED.quantity,
+        monthly_price = EXCLUDED.monthly_price,
+        status = EXCLUDED.status,
+        updated_at = NOW()
+    `, [id, product, tier || 1, quantity || 0, price, currency, status || 'active']);
+
+    res.json({ success: true, product, price, currency });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+
+// =====================================================
+// 4. BOUGHT LEDGER - EXPENSE TRACKING
+// =====================================================
+
+// Get all expense categories
+app.get('/api/admin/expense-categories', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM expense_categories ORDER BY sort_order');
+    res.json({ success: true, categories: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get expenses with optional filters
+app.get('/api/admin/expenses', async (req, res) => {
+  try {
+    const { account_id, category, from_date, to_date, is_overhead } = req.query;
+
+    let query = `
+      SELECT bl.*, a.name as account_name
+      FROM bought_ledger bl
+      LEFT JOIN accounts a ON bl.account_id = a.id
+      WHERE 1=1
+    `;
+    const params = [];
+    let idx = 1;
+
+    if (account_id) { query += ` AND bl.account_id = $${idx++}`; params.push(account_id); }
+    if (category) { query += ` AND bl.category = $${idx++}`; params.push(category); }
+    if (from_date) { query += ` AND bl.date >= $${idx++}`; params.push(from_date); }
+    if (to_date) { query += ` AND bl.date <= $${idx++}`; params.push(to_date); }
+    if (is_overhead !== undefined) { query += ` AND bl.is_overhead = $${idx++}`; params.push(is_overhead === 'true'); }
+
+    query += ' ORDER BY bl.date DESC, bl.created_at DESC';
+
+    const result = await pool.query(query, params);
+    res.json({ success: true, expenses: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Add expense
+app.post('/api/admin/expenses', async (req, res) => {
+  try {
+    const { date, supplier, description, category, amount, currency, account_id, is_overhead, apportion_method, invoice_ref } = req.body;
+
+    if (!supplier || !category || !amount) {
+      return res.json({ success: false, error: 'Supplier, category, and amount are required' });
+    }
+
+    const result = await pool.query(`
+      INSERT INTO bought_ledger (date, supplier, description, category, amount, currency, account_id, is_overhead, apportion_method, invoice_ref)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      RETURNING *
+    `, [
+      date || new Date().toISOString().split('T')[0],
+      supplier, description || '', category,
+      amount, currency || 'EUR',
+      account_id || null,
+      is_overhead !== undefined ? is_overhead : !account_id,
+      apportion_method || 'equal',
+      invoice_ref || null
+    ]);
+
+    res.json({ success: true, expense: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Update expense
+app.put('/api/admin/expenses/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { date, supplier, description, category, amount, currency, account_id, is_overhead, apportion_method, invoice_ref, status } = req.body;
+
+    const result = await pool.query(`
+      UPDATE bought_ledger SET
+        date = COALESCE($1, date),
+        supplier = COALESCE($2, supplier),
+        description = COALESCE($3, description),
+        category = COALESCE($4, category),
+        amount = COALESCE($5, amount),
+        currency = COALESCE($6, currency),
+        account_id = $7,
+        is_overhead = COALESCE($8, is_overhead),
+        apportion_method = COALESCE($9, apportion_method),
+        invoice_ref = $10,
+        status = COALESCE($11, status),
+        updated_at = NOW()
+      WHERE id = $12
+      RETURNING *
+    `, [date, supplier, description, category, amount, currency, account_id || null, is_overhead, apportion_method, invoice_ref, status, id]);
+
+    res.json({ success: true, expense: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Delete expense
+app.delete('/api/admin/expenses/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM bought_ledger WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get expense summary (for dashboard)
+app.get('/api/admin/expenses/summary', async (req, res) => {
+  try {
+    const { month, year } = req.query;
+    const targetMonth = month || new Date().getMonth() + 1;
+    const targetYear = year || new Date().getFullYear();
+
+    // By category
+    const byCategory = await pool.query(`
+      SELECT category, SUM(amount) as total, COUNT(*) as count
+      FROM bought_ledger
+      WHERE EXTRACT(MONTH FROM date) = $1 AND EXTRACT(YEAR FROM date) = $2
+      GROUP BY category ORDER BY total DESC
+    `, [targetMonth, targetYear]);
+
+    // Direct vs overhead
+    const directVsOverhead = await pool.query(`
+      SELECT is_overhead, SUM(amount) as total, COUNT(*) as count
+      FROM bought_ledger
+      WHERE EXTRACT(MONTH FROM date) = $1 AND EXTRACT(YEAR FROM date) = $2
+      GROUP BY is_overhead
+    `, [targetMonth, targetYear]);
+
+    // By account (direct costs only)
+    const byAccount = await pool.query(`
+      SELECT a.name as account_name, bl.account_id, SUM(bl.amount) as total
+      FROM bought_ledger bl
+      JOIN accounts a ON bl.account_id = a.id
+      WHERE bl.is_overhead = false
+        AND EXTRACT(MONTH FROM bl.date) = $1 AND EXTRACT(YEAR FROM bl.date) = $2
+      GROUP BY a.name, bl.account_id ORDER BY total DESC
+    `, [targetMonth, targetYear]);
+
+    // Total
+    const total = await pool.query(`
+      SELECT SUM(amount) as total FROM bought_ledger
+      WHERE EXTRACT(MONTH FROM date) = $1 AND EXTRACT(YEAR FROM date) = $2
+    `, [targetMonth, targetYear]);
+
+    res.json({
+      success: true,
+      month: targetMonth,
+      year: targetYear,
+      total: parseFloat(total.rows[0].total || 0),
+      by_category: byCategory.rows,
+      direct_vs_overhead: directVsOverhead.rows,
+      by_account: byAccount.rows
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+
+// =====================================================
+// 5. CLIENT PROFITABILITY / MARGIN REPORT
+// =====================================================
+
+app.get('/api/admin/profitability', async (req, res) => {
+  try {
+    const { month, year } = req.query;
+    const targetMonth = month || new Date().getMonth() + 1;
+    const targetYear = year || new Date().getFullYear();
+
+    // Get all active accounts with subscriptions
+    const accounts = await pool.query(`
+      SELECT a.id, a.name, a.total_units, a.total_properties, a.beds24_connected,
+             COALESCE(json_agg(
+               json_build_object('product', s.product, 'tier', s.tier, 'quantity', s.quantity, 'monthly_price', s.monthly_price, 'currency', s.currency)
+             ) FILTER (WHERE s.id IS NOT NULL), '[]') as subscriptions
+      FROM accounts a
+      LEFT JOIN account_subscriptions s ON a.id = s.account_id AND s.status = 'active'
+      WHERE a.status = 'active' AND a.role IN ('agency_admin', 'admin')
+      GROUP BY a.id ORDER BY a.total_units DESC
+    `);
+
+    // Get direct costs per account for the month
+    const directCosts = await pool.query(`
+      SELECT account_id, SUM(amount) as total_cost
+      FROM bought_ledger
+      WHERE account_id IS NOT NULL AND is_overhead = false
+        AND EXTRACT(MONTH FROM date) = $1 AND EXTRACT(YEAR FROM date) = $2
+      GROUP BY account_id
+    `, [targetMonth, targetYear]);
+
+    const costMap = {};
+    directCosts.rows.forEach(r => { costMap[r.account_id] = parseFloat(r.total_cost); });
+
+    // Get overhead total for the month
+    const overheadResult = await pool.query(`
+      SELECT SUM(amount) as total FROM bought_ledger
+      WHERE is_overhead = true
+        AND EXTRACT(MONTH FROM date) = $1 AND EXTRACT(YEAR FROM date) = $2
+    `, [targetMonth, targetYear]);
+
+    const totalOverhead = parseFloat(overheadResult.rows[0].total || 0);
+    const activeAccounts = accounts.rows.filter(a => a.total_units > 0);
+    const totalUnits = activeAccounts.reduce((sum, a) => sum + (a.total_units || 0), 0);
+
+    // Build profitability report
+    const report = accounts.rows.map(acct => {
+      const subs = acct.subscriptions || [];
+      const revenue = subs.reduce((sum, s) => sum + parseFloat(s.monthly_price || 0), 0);
+      const directCost = costMap[acct.id] || 0;
+
+      // Apportion overhead by unit count
+      const overheadShare = totalUnits > 0 ? (totalOverhead * (acct.total_units || 0) / totalUnits) : 0;
+      const totalCost = directCost + overheadShare;
+      const margin = revenue - totalCost;
+
+      return {
+        id: acct.id,
+        name: acct.name,
+        units: acct.total_units,
+        properties: acct.total_properties,
+        beds24_connected: acct.beds24_connected,
+        subscriptions: subs,
+        revenue: Math.round(revenue * 100) / 100,
+        direct_cost: Math.round(directCost * 100) / 100,
+        overhead_share: Math.round(overheadShare * 100) / 100,
+        total_cost: Math.round(totalCost * 100) / 100,
+        margin: Math.round(margin * 100) / 100,
+        margin_pct: revenue > 0 ? Math.round((margin / revenue) * 100) : 0
+      };
+    });
+
+    res.json({
+      success: true,
+      month: targetMonth,
+      year: targetYear,
+      total_overhead: totalOverhead,
+      total_units: totalUnits,
+      report
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+
+// =====================================================
+// 6. PRICING CONFIG ADMIN
+// =====================================================
+
+app.get('/api/admin/pricing-config', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM pricing_config WHERE is_active = true ORDER BY product, tier');
+    res.json({ success: true, pricing: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+app.put('/api/admin/pricing-config/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { price_per_unit, flat_price, tier_label, min_quantity, max_quantity } = req.body;
+
+    const result = await pool.query(`
+      UPDATE pricing_config SET
+        price_per_unit = COALESCE($1, price_per_unit),
+        flat_price = COALESCE($2, flat_price),
+        tier_label = COALESCE($3, tier_label),
+        min_quantity = COALESCE($4, min_quantity),
+        max_quantity = $5
+      WHERE id = $6 RETURNING *
+    `, [price_per_unit, flat_price, tier_label, min_quantity, max_quantity, id]);
+
+    res.json({ success: true, pricing: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+
+
+// =====================================================
 // PAYMENT PROCESSING API
 // =====================================================
 
@@ -55596,8 +56487,8 @@ async function syncAllChannelManagers() {
   }
 }
 
-// Run availability + pricing sync once per day
-const SYNC_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
+// Run sync every 15 minutes
+const SYNC_INTERVAL = 15 * 60 * 1000; // 15 minutes
 setInterval(syncAllChannelManagers, SYNC_INTERVAL);
 
 // Also run once on startup (after 30 seconds to let DB connect)
@@ -55766,8 +56657,8 @@ async function runBeds24InventorySync() {
   }
 }
 
-// Schedule Beds24 bookings sync once per day
-setInterval(runBeds24BookingsSync, 24 * 60 * 60 * 1000);
+// Schedule Beds24 bookings sync every 15 minutes
+setInterval(runBeds24BookingsSync, 15 * 60 * 1000);
 
 // Schedule Beds24 full inventory sync every 6 hours
 setInterval(runBeds24InventorySync, 6 * 60 * 60 * 1000);
@@ -55892,8 +56783,8 @@ async function runHostawayReservationsSync() {
   }
 }
 
-// Schedule Hostaway reservations sync once per day
-setInterval(runHostawayReservationsSync, 24 * 60 * 60 * 1000);
+// Schedule Hostaway reservations sync every 15 minutes
+setInterval(runHostawayReservationsSync, 15 * 60 * 1000);
 
 // Run initial Hostaway sync 90 seconds after startup
 setTimeout(runHostawayReservationsSync, 90 * 1000);
@@ -64507,10 +65398,10 @@ app.use((err, req, res, next) => {
 // SYNC SCHEDULER
 // ============================================
 function startTieredSyncScheduler() {
-  // Run availability + pricing sync once per day
-  const SYNC_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
+  // Run every 15 minutes (900000ms)
+  const SYNC_INTERVAL = 15 * 60 * 1000;
   
-  console.log('⏰ [Tiered Sync] Scheduler started - runs once per day');
+  console.log('⏰ [Tiered Sync] Scheduler started - runs every 15 minutes');
   
   // Run first sync after 30 seconds (let server fully start)
   setTimeout(() => {
