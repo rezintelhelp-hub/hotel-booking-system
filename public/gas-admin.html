@@ -16220,8 +16220,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                             </h4>
                             <span id="properties-toggle-icon" style="color: #94a3b8; font-size: 1.2rem;">▼</span>
                         </div>
-                        <div id="properties-list-container" style="display: none; margin-top: 0.75rem; max-height: 250px; overflow-y: auto;">
-                            <div id="properties-list" style="font-size: 0.85rem;">
+                        <div id="acct-properties-list-container" style="display: none; margin-top: 0.75rem; max-height: 250px; overflow-y: auto;">
+                            <div id="acct-properties-list" style="font-size: 0.85rem;">
                                 Loading...
                             </div>
                         </div>
@@ -24000,7 +24000,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const data = await response.json();
                 
                 if (data.success) {
-                    const container = document.getElementById('properties-list');
+                    const container = document.getElementById('acct-properties-list');
                     const countBadge = document.getElementById('properties-count-badge');
                     countBadge.textContent = data.properties.length;
                     
@@ -24027,7 +24027,7 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
         
         function togglePropertiesPanel() {
-            const container = document.getElementById('properties-list-container');
+            const container = document.getElementById('acct-properties-list-container');
             const icon = document.getElementById('properties-toggle-icon');
             if (container.style.display === 'none') {
                 container.style.display = 'block';
