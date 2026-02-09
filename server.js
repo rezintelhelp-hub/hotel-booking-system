@@ -11521,21 +11521,34 @@ app.delete('/api/accounts/:id', async (req, res) => {
       
       if (roomIds.length > 0) {
         // Delete room-related data
-        await pool.query('DELETE FROM room_images WHERE room_id = ANY($1)', [roomIds]);
-        await pool.query('DELETE FROM bookable_unit_amenities WHERE bookable_unit_id = ANY($1)', [roomIds]);
-        await pool.query('DELETE FROM bookable_units WHERE id = ANY($1)', [roomIds]);
+        await pool.query('DELETE FROM room_images WHERE room_id = ANY($1)', [roomIds]).catch(() => {});
+        await pool.query('DELETE FROM bookable_unit_amenities WHERE bookable_unit_id = ANY($1)', [roomIds]).catch(() => {});
+        await pool.query('DELETE FROM bookable_units WHERE id = ANY($1)', [roomIds]).catch(() => {});
       }
       
       // Delete property-related data
-      await pool.query('DELETE FROM property_images WHERE property_id = ANY($1)', [propIds]);
+      await pool.query('DELETE FROM property_images WHERE property_id = ANY($1)', [propIds]).catch(() => {});
       await pool.query('DELETE FROM property_amenity_selections WHERE property_id = ANY($1)', [propIds]).catch(() => {});
       await pool.query('DELETE FROM reservations WHERE property_id = ANY($1)', [propIds]).catch(() => {});
-      await pool.query('DELETE FROM properties WHERE id = ANY($1)', [propIds]);
+      await pool.query('DELETE FROM payment_configurations WHERE property_id = ANY($1)', [propIds]).catch(() => {});
+      await pool.query('DELETE FROM deposit_rules WHERE property_id = ANY($1)', [propIds]).catch(() => {});
+      await pool.query('DELETE FROM properties WHERE id = ANY($1)', [propIds]).catch(() => {});
     }
     
-    // Delete account-related data
+    // Delete account-related data from all dependent tables
+    await pool.query('DELETE FROM gas_lites WHERE account_id = $1', [id]).catch(() => {});
     await pool.query('DELETE FROM gas_sync_connections WHERE account_id = $1', [id]).catch(() => {});
+    await pool.query('DELETE FROM gas_sync_properties WHERE connection_id IN (SELECT id FROM gas_sync_connections WHERE account_id = $1)', [id]).catch(() => {});
     await pool.query('DELETE FROM management_requests WHERE requester_account_id = $1 OR target_account_id = $1', [id]).catch(() => {});
+    await pool.query('DELETE FROM account_sessions WHERE account_id = $1', [id]).catch(() => {});
+    await pool.query('DELETE FROM billing_subscriptions WHERE account_id = $1', [id]).catch(() => {});
+    
+    // Delete new billing tables data
+    await pool.query('DELETE FROM account_rooms WHERE account_id = $1', [id]).catch(() => {});
+    await pool.query('DELETE FROM account_properties WHERE account_id = $1', [id]).catch(() => {});
+    await pool.query('DELETE FROM account_subscriptions WHERE account_id = $1', [id]).catch(() => {});
+    await pool.query('DELETE FROM invoices WHERE account_id = $1', [id]).catch(() => {});
+    await pool.query('UPDATE bought_ledger SET account_id = NULL WHERE account_id = $1', [id]).catch(() => {});
     
     // Delete the account
     const result = await pool.query('DELETE FROM accounts WHERE id = $1 RETURNING id, name', [id]);
@@ -12280,7 +12293,29 @@ async function getBeds24Token(accountId) {
 
   if (result.rows.length === 0) throw new Error('Account not found');
 
-  const { beds24_token, beds24_refresh_token, beds24_token_expires } = result.rows[0];
+  let { beds24_token, beds24_refresh_token, beds24_token_expires } = result.rows[0];
+
+  // If no token on account, try gas_sync_connections
+  if (!beds24_token && !beds24_refresh_token) {
+    const connResult = await pool.query(`
+      SELECT access_token, refresh_token
+      FROM gas_sync_connections
+      WHERE account_id = $1 AND adapter_code = 'beds24' AND status != 'deleted'
+      ORDER BY created_at DESC LIMIT 1
+    `, [accountId]);
+
+    if (connResult.rows.length > 0) {
+      beds24_token = connResult.rows[0].access_token;
+      beds24_refresh_token = connResult.rows[0].refresh_token;
+
+      // Migrate to account fields
+      if (beds24_token || beds24_refresh_token) {
+        await pool.query(`
+          UPDATE accounts SET beds24_token = $1, beds24_refresh_token = $2, beds24_connected = true WHERE id = $3
+        `, [beds24_token, beds24_refresh_token, accountId]);
+      }
+    }
+  }
 
   if (!beds24_token && !beds24_refresh_token) {
     throw new Error('Account not connected to Beds24');
@@ -12442,7 +12477,41 @@ app.get('/api/accounts/:id/beds24/status', async (req, res) => {
       return res.json({ success: false, error: 'Account not found' });
     }
 
-    res.json({ success: true, ...result.rows[0] });
+    const acct = result.rows[0];
+
+    // If not connected via new system, check gas_sync_connections for existing Beds24 connection
+    if (!acct.beds24_connected) {
+      const existingConn = await pool.query(`
+        SELECT id, access_token, refresh_token, status, external_account_id
+        FROM gas_sync_connections
+        WHERE account_id = $1 AND adapter_code = 'beds24' AND status != 'deleted'
+        ORDER BY created_at DESC LIMIT 1
+      `, [id]);
+
+      if (existingConn.rows.length > 0) {
+        const conn = existingConn.rows[0];
+        const hasToken = !!(conn.access_token || conn.refresh_token);
+
+        if (hasToken) {
+          // Migrate credentials to the new account fields
+          await pool.query(`
+            UPDATE accounts SET
+              beds24_token = COALESCE($1, beds24_token),
+              beds24_refresh_token = COALESCE($2, beds24_refresh_token),
+              beds24_connected = true,
+              beds24_account_id = $3,
+              updated_at = NOW()
+            WHERE id = $4
+          `, [conn.access_token, conn.refresh_token, conn.external_account_id, id]);
+
+          acct.beds24_connected = true;
+          acct.beds24_account_id = conn.external_account_id;
+          acct.gas_sync_connection_id = conn.id;
+        }
+      }
+    }
+
+    res.json({ success: true, ...acct });
   } catch (error) {
     res.json({ success: false, error: error.message });
   }
