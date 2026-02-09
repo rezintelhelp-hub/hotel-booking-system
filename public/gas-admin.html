@@ -24051,20 +24051,6 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
         
         
-        
-                    // Load Beds24 status and subscriptions
-                    loadBeds24Status(account.id);
-                    loadSubscriptions(account.id);
-                    document.getElementById('beds24-invite-code').value = '';
-                    document.getElementById('properties-list-container').style.display = 'none';
-                    document.getElementById('properties-toggle-icon').textContent = '▼';
-                    document.getElementById('sub-blog-tier').value = '0';
-                    document.getElementById('sub-attractions-tier').value = '0';
-                    document.getElementById('sub-lites-tier').value = '0';
-                    document.getElementById('sub-reviews-apps').value = '0';
-                    updateSubscriptionPreview();
-                    
-
 
         async function editAccount(accountId) {
             try {
@@ -24174,6 +24160,18 @@ const promo = await fetch('/api/v1/offers/validate', {
                     document.getElementById('acct-edit-pm-card').checked = pm.card !== false;
                     document.getElementById('acct-edit-pm-pay-at-property').checked = pm.pay_at_property === true;
                     document.getElementById('acct-edit-pm-paypal').checked = pm.paypal === true;
+                    
+                    // Load Beds24 status and subscriptions
+                    loadBeds24Status(account.id);
+                    loadSubscriptions(account.id);
+                    document.getElementById('beds24-invite-code').value = '';
+                    document.getElementById('properties-list-container').style.display = 'none';
+                    document.getElementById('properties-toggle-icon').textContent = '▼';
+                    document.getElementById('sub-blog-tier').value = '0';
+                    document.getElementById('sub-attractions-tier').value = '0';
+                    document.getElementById('sub-lites-tier').value = '0';
+                    document.getElementById('sub-reviews-apps').value = '0';
+                    updateSubscriptionPreview();
                     
                     openModal('accountModal');
                 } else {
