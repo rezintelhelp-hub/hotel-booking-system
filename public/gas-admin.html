@@ -16050,6 +16050,157 @@ const promo = await fetch('/api/v1/offers/validate', {
                         </div>
                     </div>
                     
+
+                    <!-- ============ BEDS24 CONNECTION SECTION ============ -->
+                    <div id="beds24-section" style="background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); padding: 1rem; border-radius: 12px; margin-bottom: 1rem; border: 1px solid #6ee7b7;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                            <h4 style="margin: 0; font-size: 0.85rem; color: #065f46; font-weight: 600;">🏨 Beds24 Connection</h4>
+                            <div id="beds24-status-badge"></div>
+                        </div>
+                        
+                        <div id="beds24-not-connected" style="display: none;">
+                            <p style="font-size: 0.8rem; color: #047857; margin-bottom: 0.75rem;">
+                                Enter the Beds24 invite code to connect this account. Generate one in Beds24 → Settings → Account Access → Invite Codes.
+                            </p>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <input type="text" id="beds24-invite-code" class="form-input" placeholder="Paste invite code here..." style="padding: 0.5rem; flex: 1; font-family: monospace;">
+                                <button type="button" class="btn" onclick="connectBeds24()" style="white-space: nowrap; background: #059669; color: white; border: none; padding: 0.5rem 1rem; border-radius: 8px; cursor: pointer;">
+                                    ⚡ Connect
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div id="beds24-connected" style="display: none;">
+                            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
+                                <div style="text-align: center; background: white; padding: 0.5rem; border-radius: 8px;">
+                                    <div style="font-size: 1.2rem; font-weight: 700; color: #059669;" id="beds24-prop-count">0</div>
+                                    <div style="font-size: 0.7rem; color: #6b7280;">Properties</div>
+                                </div>
+                                <div style="text-align: center; background: white; padding: 0.5rem; border-radius: 8px;">
+                                    <div style="font-size: 1.2rem; font-weight: 700; color: #059669;" id="beds24-unit-count">0</div>
+                                    <div style="font-size: 0.7rem; color: #6b7280;">Units/Rooms</div>
+                                </div>
+                                <div style="text-align: center; background: white; padding: 0.5rem; border-radius: 8px;">
+                                    <div style="font-size: 1.2rem; font-weight: 700; color: #059669;" id="beds24-ai-price">€0</div>
+                                    <div style="font-size: 0.7rem; color: #6b7280;">AI Website/mo</div>
+                                </div>
+                            </div>
+                            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                <span id="beds24-last-sync" style="font-size: 0.75rem; color: #6b7280; flex: 1;"></span>
+                                <button type="button" class="btn btn-secondary" onclick="syncBeds24Properties()" style="font-size: 0.8rem; padding: 0.4rem 0.75rem;" id="beds24-sync-btn">
+                                    🔄 Sync Properties
+                                </button>
+                                <button type="button" class="btn btn-secondary" onclick="disconnectBeds24()" style="font-size: 0.8rem; padding: 0.4rem 0.75rem; color: #dc2626;">
+                                    ✕ Disconnect
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- ============ PROPERTIES LIST (expandable) ============ -->
+                    <div id="account-properties-section" style="display: none; background: #f8fafc; padding: 1rem; border-radius: 12px; margin-bottom: 1rem; border: 1px solid #e2e8f0;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;" onclick="togglePropertiesPanel()">
+                            <h4 style="margin: 0; font-size: 0.85rem; color: #475569; font-weight: 600;">
+                                🏠 Properties <span id="properties-count-badge" style="background: #6366f1; color: white; padding: 0.1rem 0.5rem; border-radius: 10px; font-size: 0.75rem; margin-left: 0.5rem;">0</span>
+                            </h4>
+                            <span id="properties-toggle-icon" style="color: #94a3b8; font-size: 1.2rem;">▼</span>
+                        </div>
+                        <div id="properties-list-container" style="display: none; margin-top: 0.75rem; max-height: 250px; overflow-y: auto;">
+                            <div id="properties-list" style="font-size: 0.85rem;">
+                                Loading...
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- ============ GAS SUBSCRIPTIONS SECTION ============ -->
+                    <div id="account-billing-section" style="background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); padding: 1rem; border-radius: 12px; margin-bottom: 1rem; border: 1px solid #93c5fd;">
+                        <h4 style="margin: 0 0 0.75rem 0; font-size: 0.85rem; color: #1e40af; font-weight: 600;">💰 GAS Subscriptions</h4>
+                        
+                        <!-- AI Website (auto-calculated from units) -->
+                        <div style="display: grid; grid-template-columns: 1fr auto; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem; padding: 0.5rem; background: white; border-radius: 8px;">
+                            <div>
+                                <div style="font-weight: 600; font-size: 0.85rem;">AI Website</div>
+                                <div style="font-size: 0.7rem; color: #6b7280;">€19 base + tiered per unit</div>
+                            </div>
+                            <div style="text-align: right;">
+                                <span id="sub-ai-website-price" style="font-weight: 700; color: #1e40af; font-size: 1rem;">€0</span>
+                                <span style="font-size: 0.7rem; color: #6b7280;">/mo</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Blog -->
+                        <div style="display: grid; grid-template-columns: 1fr auto auto; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem; padding: 0.5rem; background: white; border-radius: 8px;">
+                            <div>
+                                <div style="font-weight: 600; font-size: 0.85rem;">Blog</div>
+                                <div style="font-size: 0.7rem; color: #6b7280;">AI content generation</div>
+                            </div>
+                            <select id="sub-blog-tier" class="form-input" onchange="updateSubscriptionPreview()" style="padding: 0.3rem; font-size: 0.8rem; width: 140px;">
+                                <option value="0">Not subscribed</option>
+                                <option value="1">0-19 ($9.99)</option>
+                                <option value="2">20-49 ($14.99)</option>
+                                <option value="3">50+ ($24.99)</option>
+                            </select>
+                            <span id="sub-blog-price" style="font-weight: 600; font-size: 0.85rem; min-width: 60px; text-align: right;">$0</span>
+                        </div>
+                        
+                        <!-- Attractions -->
+                        <div style="display: grid; grid-template-columns: 1fr auto auto; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem; padding: 0.5rem; background: white; border-radius: 8px;">
+                            <div>
+                                <div style="font-weight: 600; font-size: 0.85rem;">Attractions</div>
+                                <div style="font-size: 0.7rem; color: #6b7280;">Local content pages</div>
+                            </div>
+                            <select id="sub-attractions-tier" class="form-input" onchange="updateSubscriptionPreview()" style="padding: 0.3rem; font-size: 0.8rem; width: 140px;">
+                                <option value="0">Not subscribed</option>
+                                <option value="1">0-19 ($4.99)</option>
+                                <option value="2">20-49 ($9.99)</option>
+                                <option value="3">50+ ($14.99)</option>
+                            </select>
+                            <span id="sub-attractions-price" style="font-weight: 600; font-size: 0.85rem; min-width: 60px; text-align: right;">$0</span>
+                        </div>
+                        
+                        <!-- Lites/Social -->
+                        <div style="display: grid; grid-template-columns: 1fr auto auto; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem; padding: 0.5rem; background: white; border-radius: 8px;">
+                            <div>
+                                <div style="font-weight: 600; font-size: 0.85rem;">Lites / Social</div>
+                                <div style="font-size: 0.7rem; color: #6b7280;">Social media posts</div>
+                            </div>
+                            <select id="sub-lites-tier" class="form-input" onchange="updateSubscriptionPreview()" style="padding: 0.3rem; font-size: 0.8rem; width: 140px;">
+                                <option value="0">Not subscribed</option>
+                                <option value="1">0-19 ($4.99)</option>
+                                <option value="2">20-49 ($9.99)</option>
+                                <option value="3">50+ ($19.99)</option>
+                            </select>
+                            <span id="sub-lites-price" style="font-weight: 600; font-size: 0.85rem; min-width: 60px; text-align: right;">$0</span>
+                        </div>
+                        
+                        <!-- Reviews -->
+                        <div style="display: grid; grid-template-columns: 1fr auto auto; gap: 0.5rem; align-items: center; margin-bottom: 0.75rem; padding: 0.5rem; background: white; border-radius: 8px;">
+                            <div>
+                                <div style="font-weight: 600; font-size: 0.85rem;">Reviews (Repuso)</div>
+                                <div style="font-size: 0.7rem; color: #6b7280;">$5/1-9, $3/10-49, $1.50/50+</div>
+                            </div>
+                            <input type="number" id="sub-reviews-apps" class="form-input" onchange="updateSubscriptionPreview()" value="0" min="0" style="padding: 0.3rem; font-size: 0.8rem; width: 80px; text-align: center;" placeholder="# apps">
+                            <span id="sub-reviews-price" style="font-weight: 600; font-size: 0.85rem; min-width: 60px; text-align: right;">$0</span>
+                        </div>
+                        
+                        <!-- Total -->
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); border-radius: 8px; color: white;">
+                            <div style="font-weight: 600;">Monthly Total</div>
+                            <div>
+                                <span id="sub-total-eur" style="font-size: 1.2rem; font-weight: 700;">€0</span>
+                                <span style="font-size: 0.8rem; opacity: 0.8;">/mo</span>
+                            </div>
+                        </div>
+                        
+                        <button type="button" onclick="saveSubscriptions()" class="btn" style="width: 100%; margin-top: 0.75rem; background: #1e40af; color: white; border: none; padding: 0.5rem; border-radius: 8px; cursor: pointer; font-size: 0.85rem;">
+                            💾 Save Subscriptions
+                        </button>
+                    </div>
+                    
+                    
+                    <!-- =====================================================
+                         JAVASCRIPT - Add to the
+
                     <!-- Payment Methods -->
                     <div style="background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%); padding: 1rem; border-radius: 12px; margin-bottom: 1rem; border: 1px solid #86efac;">
                         <h4 style="margin: 0 0 0.75rem 0; font-size: 0.85rem; color: #166534; font-weight: 600;">💳 Checkout Payment Options</h4>
@@ -23585,6 +23736,335 @@ const promo = await fetch('/api/v1/offers/validate', {
             openModal('accountModal');
         }
         
+        section
+             ===================================================== -->
+        <script>
+        // ============ BEDS24 CONNECTION FUNCTIONS ============
+        
+        async function loadBeds24Status(accountId) {
+            try {
+                const response = await fetch(`/api/accounts/${accountId}/beds24/status`, { headers: authHeaders() });
+                const data = await response.json();
+                
+                if (data.success) {
+                    const connected = document.getElementById('beds24-connected');
+                    const notConnected = document.getElementById('beds24-not-connected');
+                    const badge = document.getElementById('beds24-status-badge');
+                    const propsSection = document.getElementById('account-properties-section');
+                    
+                    if (data.beds24_connected) {
+                        connected.style.display = 'block';
+                        notConnected.style.display = 'none';
+                        badge.innerHTML = '<span style="background: #059669; color: white; padding: 0.15rem 0.5rem; border-radius: 10px; font-size: 0.7rem;">✓ Connected</span>';
+                        
+                        document.getElementById('beds24-prop-count').textContent = data.total_properties || 0;
+                        document.getElementById('beds24-unit-count').textContent = data.total_units || 0;
+                        
+                        // Calculate AI Website price
+                        const price = calculateAIWebsitePriceJS(data.total_units || 0);
+                        document.getElementById('beds24-ai-price').textContent = '€' + price.toFixed(2);
+                        document.getElementById('sub-ai-website-price').textContent = '€' + price.toFixed(2);
+                        
+                        if (data.beds24_last_sync) {
+                            const syncDate = new Date(data.beds24_last_sync);
+                            document.getElementById('beds24-last-sync').textContent = 'Last sync: ' + syncDate.toLocaleDateString() + ' ' + syncDate.toLocaleTimeString();
+                        }
+                        
+                        // Show properties section
+                        propsSection.style.display = 'block';
+                        loadAccountProperties(accountId);
+                    } else {
+                        connected.style.display = 'none';
+                        notConnected.style.display = 'block';
+                        badge.innerHTML = '<span style="background: #dc2626; color: white; padding: 0.15rem 0.5rem; border-radius: 10px; font-size: 0.7rem;">✕ Not Connected</span>';
+                        propsSection.style.display = 'none';
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading Beds24 status:', error);
+            }
+        }
+        
+        async function connectBeds24() {
+            const accountId = document.getElementById('edit-account-id').value;
+            const inviteCode = document.getElementById('beds24-invite-code').value.trim();
+            
+            if (!inviteCode) {
+                alert('Please enter a Beds24 invite code');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/accounts/${accountId}/beds24/connect`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ inviteCode })
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Connected to Beds24!', 'success');
+                    loadBeds24Status(accountId);
+                    // Auto-sync after connecting
+                    syncBeds24Properties();
+                } else {
+                    alert('Connection failed: ' + data.error);
+                }
+            } catch (error) {
+                alert('Error connecting: ' + error.message);
+            }
+        }
+        
+        async function disconnectBeds24() {
+            if (!confirm('Disconnect this account from Beds24? Property data will be kept but no longer synced.')) return;
+            
+            const accountId = document.getElementById('edit-account-id').value;
+            
+            try {
+                const response = await fetch(`/api/accounts/${accountId}/beds24/disconnect`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() }
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Disconnected from Beds24', 'info');
+                    loadBeds24Status(accountId);
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+        
+        async function syncBeds24Properties() {
+            const accountId = document.getElementById('edit-account-id').value;
+            const btn = document.getElementById('beds24-sync-btn');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '⏳ Syncing...';
+            btn.disabled = true;
+            
+            try {
+                const response = await fetch(`/api/accounts/${accountId}/beds24/sync`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() }
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification(`Synced ${data.properties} properties, ${data.rooms} rooms`, 'success');
+                    loadBeds24Status(accountId);
+                    loadAccountProperties(accountId);
+                    loadSubscriptions(accountId);
+                } else {
+                    alert('Sync failed: ' + data.error);
+                }
+            } catch (error) {
+                alert('Error syncing: ' + error.message);
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+        
+        
+        // ============ PROPERTIES PANEL ============
+        
+        async function loadAccountProperties(accountId) {
+            try {
+                const response = await fetch(`/api/accounts/${accountId}/properties`, { headers: authHeaders() });
+                const data = await response.json();
+                
+                if (data.success) {
+                    const container = document.getElementById('properties-list');
+                    const countBadge = document.getElementById('properties-count-badge');
+                    countBadge.textContent = data.properties.length;
+                    
+                    if (data.properties.length === 0) {
+                        container.innerHTML = '<p style="color: #94a3b8; text-align: center; padding: 1rem;">No properties synced yet</p>';
+                        return;
+                    }
+                    
+                    container.innerHTML = data.properties.map(p => `
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.4rem 0.5rem; border-bottom: 1px solid #f1f5f9; font-size: 0.8rem;">
+                            <div style="flex: 1; min-width: 0;">
+                                <div style="font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${p.name}</div>
+                                <div style="color: #94a3b8; font-size: 0.7rem;">${p.city || ''} ${p.country || ''}</div>
+                            </div>
+                            <div style="display: flex; gap: 0.75rem; margin-left: 0.5rem;">
+                                <span style="color: #6366f1; font-weight: 600;">${p.room_count} ${p.room_count === 1 ? 'room' : 'rooms'}</span>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Error loading properties:', error);
+            }
+        }
+        
+        function togglePropertiesPanel() {
+            const container = document.getElementById('properties-list-container');
+            const icon = document.getElementById('properties-toggle-icon');
+            if (container.style.display === 'none') {
+                container.style.display = 'block';
+                icon.textContent = '▲';
+            } else {
+                container.style.display = 'none';
+                icon.textContent = '▼';
+            }
+        }
+        
+        
+        // ============ SUBSCRIPTION / PRICING ============
+        
+        // Client-side tiered pricing calculator (mirrors server-side)
+        function calculateAIWebsitePriceJS(units) {
+            let price = 19.00;
+            if (units <= 0) return price;
+            const tiers = [
+                { max: 50, rate: 2.50 },
+                { max: 100, rate: 2.00 },
+                { max: 250, rate: 1.50 },
+                { max: 500, rate: 1.00 },
+                { max: Infinity, rate: 0.50 }
+            ];
+            let remaining = units;
+            let prevMax = 0;
+            for (const tier of tiers) {
+                const tierUnits = Math.min(remaining, tier.max - prevMax);
+                if (tierUnits <= 0) break;
+                price += tierUnits * tier.rate;
+                remaining -= tierUnits;
+                prevMax = tier.max;
+                if (remaining <= 0) break;
+            }
+            return Math.round(price * 100) / 100;
+        }
+        
+        function calculateReviewsPriceJS(apps) {
+            if (apps <= 0) return 0;
+            let price = 0;
+            const tiers = [
+                { max: 9, rate: 5.00 },
+                { max: 49, rate: 3.00 },
+                { max: Infinity, rate: 1.50 }
+            ];
+            let remaining = apps;
+            let prevMax = 0;
+            for (const tier of tiers) {
+                const tierUnits = Math.min(remaining, tier.max - prevMax);
+                if (tierUnits <= 0) break;
+                price += tierUnits * tier.rate;
+                remaining -= tierUnits;
+                prevMax = tier.max;
+                if (remaining <= 0) break;
+            }
+            return Math.round(price * 100) / 100;
+        }
+        
+        const blogPrices = { 0: 0, 1: 9.99, 2: 14.99, 3: 24.99 };
+        const attractionsPrices = { 0: 0, 1: 4.99, 2: 9.99, 3: 14.99 };
+        const litesPrices = { 0: 0, 1: 4.99, 2: 9.99, 3: 19.99 };
+        const EUR_USD_RATE = 0.92; // approx
+        
+        function updateSubscriptionPreview() {
+            const blogTier = parseInt(document.getElementById('sub-blog-tier').value) || 0;
+            const attractionsTier = parseInt(document.getElementById('sub-attractions-tier').value) || 0;
+            const litesTier = parseInt(document.getElementById('sub-lites-tier').value) || 0;
+            const reviewsApps = parseInt(document.getElementById('sub-reviews-apps').value) || 0;
+            
+            const blogPrice = blogPrices[blogTier] || 0;
+            const attractionsPrice = attractionsPrices[attractionsTier] || 0;
+            const litesPrice = litesPrices[litesTier] || 0;
+            const reviewsPrice = calculateReviewsPriceJS(reviewsApps);
+            
+            document.getElementById('sub-blog-price').textContent = blogPrice > 0 ? '$' + blogPrice.toFixed(2) : '$0';
+            document.getElementById('sub-attractions-price').textContent = attractionsPrice > 0 ? '$' + attractionsPrice.toFixed(2) : '$0';
+            document.getElementById('sub-lites-price').textContent = litesPrice > 0 ? '$' + litesPrice.toFixed(2) : '$0';
+            document.getElementById('sub-reviews-price').textContent = reviewsPrice > 0 ? '$' + reviewsPrice.toFixed(2) : '$0';
+            
+            // Total in EUR
+            const aiWebsiteEUR = parseFloat(document.getElementById('sub-ai-website-price').textContent.replace('€', '')) || 0;
+            const usdTotal = blogPrice + attractionsPrice + litesPrice + reviewsPrice;
+            const totalEUR = aiWebsiteEUR + (usdTotal * EUR_USD_RATE);
+            
+            document.getElementById('sub-total-eur').textContent = '€' + totalEUR.toFixed(2);
+        }
+        
+        async function loadSubscriptions(accountId) {
+            try {
+                const response = await fetch(`/api/accounts/${accountId}/pricing`, { headers: authHeaders() });
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Set AI Website price from server
+                    const aiWebSub = data.subscriptions.find(s => s.product === 'ai_website');
+                    if (aiWebSub) {
+                        document.getElementById('sub-ai-website-price').textContent = '€' + parseFloat(aiWebSub.monthly_price).toFixed(2);
+                    }
+                    
+                    // Set other subscription tiers
+                    const blogSub = data.subscriptions.find(s => s.product === 'blog');
+                    if (blogSub) document.getElementById('sub-blog-tier').value = blogSub.tier || 0;
+                    
+                    const attractionsSub = data.subscriptions.find(s => s.product === 'attractions');
+                    if (attractionsSub) document.getElementById('sub-attractions-tier').value = attractionsSub.tier || 0;
+                    
+                    const litesSub = data.subscriptions.find(s => s.product === 'lites');
+                    if (litesSub) document.getElementById('sub-lites-tier').value = litesSub.tier || 0;
+                    
+                    const reviewsSub = data.subscriptions.find(s => s.product === 'reviews');
+                    if (reviewsSub) document.getElementById('sub-reviews-apps').value = reviewsSub.quantity || 0;
+                    
+                    updateSubscriptionPreview();
+                }
+            } catch (error) {
+                console.error('Error loading subscriptions:', error);
+            }
+        }
+        
+        async function saveSubscriptions() {
+            const accountId = document.getElementById('edit-account-id').value;
+            
+            const products = [
+                { product: 'blog', tier: parseInt(document.getElementById('sub-blog-tier').value) || 0 },
+                { product: 'attractions', tier: parseInt(document.getElementById('sub-attractions-tier').value) || 0 },
+                { product: 'lites', tier: parseInt(document.getElementById('sub-lites-tier').value) || 0 },
+                { product: 'reviews', tier: 1, quantity: parseInt(document.getElementById('sub-reviews-apps').value) || 0 }
+            ];
+            
+            try {
+                for (const sub of products) {
+                    const status = (sub.product === 'reviews') ? (sub.quantity > 0 ? 'active' : 'inactive') : (sub.tier > 0 ? 'active' : 'inactive');
+                    
+                    await fetch(`/api/accounts/${accountId}/subscriptions`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                        body: JSON.stringify({ ...sub, status })
+                    });
+                }
+                
+                showNotification('Subscriptions saved', 'success');
+            } catch (error) {
+                alert('Error saving subscriptions: ' + error.message);
+            }
+        }
+        
+        
+        
+                    // Load Beds24 status and subscriptions
+                    loadBeds24Status(account.id);
+                    loadSubscriptions(account.id);
+                    document.getElementById('beds24-invite-code').value = '';
+                    document.getElementById('properties-list-container').style.display = 'none';
+                    document.getElementById('properties-toggle-icon').textContent = '▼';
+                    document.getElementById('sub-blog-tier').value = '0';
+                    document.getElementById('sub-attractions-tier').value = '0';
+                    document.getElementById('sub-lites-tier').value = '0';
+                    document.getElementById('sub-reviews-apps').value = '0';
+                    updateSubscriptionPreview();
+                    
+
+
         async function editAccount(accountId) {
             try {
                 const response = await fetch(`/api/accounts/${accountId}`, { headers: authHeaders() });
