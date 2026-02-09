@@ -55596,8 +55596,8 @@ async function syncAllChannelManagers() {
   }
 }
 
-// Run sync every 15 minutes
-const SYNC_INTERVAL = 15 * 60 * 1000; // 15 minutes
+// Run availability + pricing sync once per day
+const SYNC_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
 setInterval(syncAllChannelManagers, SYNC_INTERVAL);
 
 // Also run once on startup (after 30 seconds to let DB connect)
@@ -55766,8 +55766,8 @@ async function runBeds24InventorySync() {
   }
 }
 
-// Schedule Beds24 bookings sync every 15 minutes
-setInterval(runBeds24BookingsSync, 15 * 60 * 1000);
+// Schedule Beds24 bookings sync once per day
+setInterval(runBeds24BookingsSync, 24 * 60 * 60 * 1000);
 
 // Schedule Beds24 full inventory sync every 6 hours
 setInterval(runBeds24InventorySync, 6 * 60 * 60 * 1000);
@@ -55892,8 +55892,8 @@ async function runHostawayReservationsSync() {
   }
 }
 
-// Schedule Hostaway reservations sync every 15 minutes
-setInterval(runHostawayReservationsSync, 15 * 60 * 1000);
+// Schedule Hostaway reservations sync once per day
+setInterval(runHostawayReservationsSync, 24 * 60 * 60 * 1000);
 
 // Run initial Hostaway sync 90 seconds after startup
 setTimeout(runHostawayReservationsSync, 90 * 1000);
@@ -64507,10 +64507,10 @@ app.use((err, req, res, next) => {
 // SYNC SCHEDULER
 // ============================================
 function startTieredSyncScheduler() {
-  // Run every 15 minutes (900000ms)
-  const SYNC_INTERVAL = 15 * 60 * 1000;
+  // Run availability + pricing sync once per day
+  const SYNC_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
   
-  console.log('⏰ [Tiered Sync] Scheduler started - runs every 15 minutes');
+  console.log('⏰ [Tiered Sync] Scheduler started - runs once per day');
   
   // Run first sync after 30 seconds (let server fully start)
   setTimeout(() => {
