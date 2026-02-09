@@ -23743,42 +23743,46 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const response = await fetch(`/api/accounts/${accountId}/beds24/status`, { headers: authHeaders() });
                 const data = await response.json();
                 
-                if (data.success) {
-                    const connected = document.getElementById('beds24-connected');
-                    const notConnected = document.getElementById('beds24-not-connected');
-                    const badge = document.getElementById('beds24-status-badge');
-                    const propsSection = document.getElementById('account-properties-section');
+                const connected = document.getElementById('beds24-connected');
+                const notConnected = document.getElementById('beds24-not-connected');
+                const badge = document.getElementById('beds24-status-badge');
+                const propsSection = document.getElementById('account-properties-section');
+                
+                if (data.success && data.beds24_connected) {
+                    connected.style.display = 'block';
+                    notConnected.style.display = 'none';
+                    badge.innerHTML = '<span style="background: #059669; color: white; padding: 0.15rem 0.5rem; border-radius: 10px; font-size: 0.7rem;">✓ Connected</span>';
                     
-                    if (data.beds24_connected) {
-                        connected.style.display = 'block';
-                        notConnected.style.display = 'none';
-                        badge.innerHTML = '<span style="background: #059669; color: white; padding: 0.15rem 0.5rem; border-radius: 10px; font-size: 0.7rem;">✓ Connected</span>';
-                        
-                        document.getElementById('beds24-prop-count').textContent = data.total_properties || 0;
-                        document.getElementById('beds24-unit-count').textContent = data.total_units || 0;
-                        
-                        // Calculate AI Website price
-                        const price = calculateAIWebsitePriceJS(data.total_units || 0);
-                        document.getElementById('beds24-ai-price').textContent = '€' + price.toFixed(2);
-                        document.getElementById('sub-ai-website-price').textContent = '€' + price.toFixed(2);
-                        
-                        if (data.beds24_last_sync) {
-                            const syncDate = new Date(data.beds24_last_sync);
-                            document.getElementById('beds24-last-sync').textContent = 'Last sync: ' + syncDate.toLocaleDateString() + ' ' + syncDate.toLocaleTimeString();
-                        }
-                        
-                        // Show properties section
-                        propsSection.style.display = 'block';
-                        loadAccountProperties(accountId);
+                    document.getElementById('beds24-prop-count').textContent = data.total_properties || 0;
+                    document.getElementById('beds24-unit-count').textContent = data.total_units || 0;
+                    
+                    // Calculate AI Website price
+                    const price = calculateAIWebsitePriceJS(data.total_units || 0);
+                    document.getElementById('beds24-ai-price').textContent = '€' + price.toFixed(2);
+                    document.getElementById('sub-ai-website-price').textContent = '€' + price.toFixed(2);
+                    
+                    if (data.beds24_last_sync) {
+                        const syncDate = new Date(data.beds24_last_sync);
+                        document.getElementById('beds24-last-sync').textContent = 'Last sync: ' + syncDate.toLocaleDateString() + ' ' + syncDate.toLocaleTimeString();
                     } else {
-                        connected.style.display = 'none';
-                        notConnected.style.display = 'block';
-                        badge.innerHTML = '<span style="background: #dc2626; color: white; padding: 0.15rem 0.5rem; border-radius: 10px; font-size: 0.7rem;">✕ Not Connected</span>';
-                        propsSection.style.display = 'none';
+                        document.getElementById('beds24-last-sync').textContent = 'Not synced yet — click Sync Properties';
                     }
+                    
+                    // Show properties section
+                    propsSection.style.display = 'block';
+                    loadAccountProperties(accountId);
+                } else {
+                    connected.style.display = 'none';
+                    notConnected.style.display = 'block';
+                    badge.innerHTML = '<span style="background: #dc2626; color: white; padding: 0.15rem 0.5rem; border-radius: 10px; font-size: 0.7rem;">✕ Not Connected</span>';
+                    propsSection.style.display = 'none';
                 }
             } catch (error) {
                 console.error('Error loading Beds24 status:', error);
+                // Show not connected on error
+                document.getElementById('beds24-connected').style.display = 'none';
+                document.getElementById('beds24-not-connected').style.display = 'block';
+                document.getElementById('beds24-status-badge').innerHTML = '<span style="background: #f59e0b; color: white; padding: 0.15rem 0.5rem; border-radius: 10px; font-size: 0.7rem;">⚠ Error</span>';
             }
         }
         
