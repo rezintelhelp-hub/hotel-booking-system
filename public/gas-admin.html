@@ -16316,6 +16316,14 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <!-- =====================================================
                          JAVASCRIPT - Add to the
 
+                    <!-- Beds24 Costs Breakdown -->
+                    <div id="account-beds24-costs-section" style="background: linear-gradient(135deg, #fef3c7 0%, #fffbeb 100%); padding: 1rem; border-radius: 12px; margin-bottom: 1rem; border: 1px solid #fcd34d; display: none;">
+                        <h4 style="margin: 0 0 0.75rem 0; font-size: 0.85rem; color: #92400e; font-weight: 600;">📊 Beds24 Cost Breakdown</h4>
+                        <div id="account-beds24-costs-content" style="font-size: 0.85rem;">
+                            <p style="color: #64748b;">Loading...</p>
+                        </div>
+                    </div>
+
                     <!-- Payment Methods -->
                     <div style="background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%); padding: 1rem; border-radius: 12px; margin-bottom: 1rem; border: 1px solid #86efac;">
                         <h4 style="margin: 0 0 0.75rem 0; font-size: 0.85rem; color: #166534; font-weight: 600;">💳 Checkout Payment Options</h4>
@@ -24170,6 +24178,74 @@ const promo = await fetch('/api/v1/offers/validate', {
         
         let beds24UsageData = null; // Holds parsed upload data
         
+        async function loadAccountBeds24Costs(accountId) {
+            const section = document.getElementById('account-beds24-costs-section');
+            const content = document.getElementById('account-beds24-costs-content');
+            
+            try {
+                // Get all Beds24 supplier expenses for this account
+                const response = await fetch(`/api/admin/expenses?account_id=${accountId}`, { headers: authHeaders() });
+                const data = await response.json();
+                
+                if (!data.success) {
+                    section.style.display = 'none';
+                    return;
+                }
+                
+                // Filter to Beds24 supplier entries only
+                const allExpenses = (data.expenses || []).filter(e => e.supplier === 'Beds24');
+                
+                if (allExpenses.length === 0) {
+                    section.style.display = 'none';
+                    return;
+                }
+                
+                section.style.display = 'block';
+                
+                // Group by month
+                const byMonth = {};
+                for (const exp of allExpenses) {
+                    const d = new Date(exp.date);
+                    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+                    if (!byMonth[key]) byMonth[key] = { entries: [], total: 0 };
+                    byMonth[key].entries.push(exp);
+                    byMonth[key].total += parseFloat(exp.amount);
+                }
+                
+                // Show latest month's breakdown
+                const months = Object.keys(byMonth).sort().reverse();
+                const latest = months[0];
+                const latestData = byMonth[latest];
+                
+                const monthNames = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                const [yr, mn] = latest.split('-');
+                
+                let html = `<div style="margin-bottom: 0.5rem; font-weight: 600; color: #92400e;">${monthNames[parseInt(mn)]} ${yr} — €${latestData.total.toFixed(2)}</div>`;
+                html += '<div style="display: flex; flex-direction: column; gap: 0.25rem;">';
+                for (const exp of latestData.entries) {
+                    html += `<div style="display: flex; justify-content: space-between; padding: 0.2rem 0; border-bottom: 1px solid #fde68a;">
+                        <span style="color: #78716c; font-size: 0.8rem;">${exp.description}</span>
+                        <span style="font-weight: 500;">€${parseFloat(exp.amount).toFixed(2)}</span>
+                    </div>`;
+                }
+                html += '</div>';
+                
+                if (months.length > 1) {
+                    html += '<div style="margin-top: 0.5rem; font-size: 0.75rem; color: #94a3b8;">History: ';
+                    html += months.slice(1, 4).map(m => {
+                        const [y, mo] = m.split('-');
+                        return `${monthNames[parseInt(mo)]} ${y}: €${byMonth[m].total.toFixed(2)}`;
+                    }).join(' · ');
+                    html += '</div>';
+                }
+                
+                content.innerHTML = html;
+            } catch (e) {
+                section.style.display = 'none';
+                console.error('Error loading Beds24 costs:', e);
+            }
+        }
+        
         function initBeds24UsageView() {
             // Set current month/year
             const now = new Date();
@@ -24488,6 +24564,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     // Load Beds24 status and subscriptions
                     loadBeds24Status(account.id);
                     loadSubscriptions(account.id);
+                    loadAccountBeds24Costs(account.id);
                     document.getElementById('beds24-invite-code').value = '';
                     document.getElementById('properties-list-container').style.display = 'none';
                     document.getElementById('properties-toggle-icon').textContent = '▼';
