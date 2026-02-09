@@ -13418,9 +13418,43 @@ app.post('/api/admin/beds24-usage/upload', upload.single('file'), async (req, re
     // Build lookup maps
     const gasById = {};
     const gasByName = {};
+    const gasByNameWords = {};
     for (const ga of gasAccounts.rows) {
       if (ga.beds24_account_id) gasById[ga.beds24_account_id] = ga;
-      gasByName[ga.name.toLowerCase()] = ga;
+      gasByName[ga.name.toLowerCase().trim()] = ga;
+      // Also index by significant words in the name for fuzzy matching
+      const words = ga.name.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 3);
+      for (const w of words) {
+        if (!gasByNameWords[w]) gasByNameWords[w] = [];
+        gasByNameWords[w].push(ga);
+      }
+    }
+
+    // Also check gas_sync_connections for Beds24 username mappings
+    const syncConns = await pool.query(`
+      SELECT gsc.account_id, gsc.external_account_id, a.name as account_name
+      FROM gas_sync_connections gsc
+      JOIN accounts a ON gsc.account_id = a.id
+      WHERE gsc.adapter_code = 'beds24' AND gsc.status != 'deleted'
+    `);
+    const gasByExtId = {};
+    for (const sc of syncConns.rows) {
+      if (sc.external_account_id) gasByExtId[sc.external_account_id] = { id: sc.account_id, name: sc.account_name };
+    }
+
+    // Also load any previous mappings from bought_ledger to remember past allocations
+    const prevMappings = await pool.query(`
+      SELECT DISTINCT description, account_id 
+      FROM bought_ledger 
+      WHERE supplier = 'Beds24' AND account_id IS NOT NULL
+    `);
+    const prevMap = {};
+    for (const pm of prevMappings.rows) {
+      // Extract username from descriptions like "Account fee - thecotswoldretreats"
+      const match = pm.description.match(/- ([a-zA-Z0-9@._]+)$/);
+      if (match) {
+        prevMap[match[1].toLowerCase()] = pm.account_id;
+      }
     }
 
     // Enrich with GAS account matches
@@ -13429,10 +13463,45 @@ app.post('/api/admin/beds24-usage/upload', upload.single('file'), async (req, re
       acct.gas_account_id = null;
       acct.gas_account_name = null;
       
-      // Try matching by beds24_account_id
+      // 1. Try matching by beds24_account_id on accounts table
       if (gasById[acct.beds24_id]) {
         acct.gas_account_id = gasById[acct.beds24_id].id;
         acct.gas_account_name = gasById[acct.beds24_id].name;
+      }
+      
+      // 2. Try matching by external_account_id in gas_sync_connections
+      if (!acct.gas_account_id && gasByExtId[acct.beds24_id]) {
+        acct.gas_account_id = gasByExtId[acct.beds24_id].id;
+        acct.gas_account_name = gasByExtId[acct.beds24_id].name;
+      }
+      
+      // 3. Try matching by previous bought_ledger mappings
+      if (!acct.gas_account_id && prevMap[acct.username.toLowerCase()]) {
+        const prevId = prevMap[acct.username.toLowerCase()];
+        const ga = gasAccounts.rows.find(g => g.id === prevId);
+        if (ga) {
+          acct.gas_account_id = ga.id;
+          acct.gas_account_name = ga.name;
+        }
+      }
+      
+      // 4. Try exact name match
+      if (!acct.gas_account_id && gasByName[acct.username.toLowerCase()]) {
+        acct.gas_account_id = gasByName[acct.username.toLowerCase()].id;
+        acct.gas_account_name = gasByName[acct.username.toLowerCase()].name;
+      }
+      
+      // 5. Try fuzzy name match - check if username appears in any GAS account name
+      if (!acct.gas_account_id) {
+        const uname = acct.username.toLowerCase();
+        for (const ga of gasAccounts.rows) {
+          const gname = ga.name.toLowerCase();
+          if (uname.length > 3 && (gname.includes(uname) || uname.includes(gname.replace(/\s+/g, '')))) {
+            acct.gas_account_id = ga.id;
+            acct.gas_account_name = ga.name;
+            break;
+          }
+        }
       }
       
       // Round costs
@@ -13465,11 +13534,14 @@ app.post('/api/admin/beds24-usage/upload', upload.single('file'), async (req, re
 // Commit Beds24 usage data to bought ledger
 app.post('/api/admin/beds24-usage/commit', async (req, res) => {
   try {
-    const { period_month, period_year, accounts: accountAllocations } = req.body;
+    const { period_month, period_year, accounts: accountAllocations, discount_pct } = req.body;
 
     if (!period_month || !period_year || !accountAllocations) {
       return res.json({ success: false, error: 'Month, year, and account allocations are required' });
     }
+
+    // Apply discount (default 50% per Beds24 contract)
+    const discountMultiplier = 1 - ((discount_pct || 50) / 100);
 
     const periodDate = `${period_year}-${String(period_month).padStart(2, '0')}-01`;
 
@@ -13492,13 +13564,17 @@ app.post('/api/admin/beds24-usage/commit', async (req, res) => {
       const gasAccountId = alloc.gas_account_id || null;
       const isOverhead = !gasAccountId;
       const beds24Username = alloc.username;
+      const invoiceRef = `B24-${period_year}${String(period_month).padStart(2, '0')}`;
+
+      // Helper to round and apply discount
+      const disc = (amount) => Math.round(amount * discountMultiplier * 100) / 100;
 
       // Account fee entry
       if (alloc.account_fee > 0) {
         await pool.query(`
           INSERT INTO bought_ledger (date, supplier, description, category, amount, currency, account_id, is_overhead, invoice_ref)
           VALUES ($1, 'Beds24', $2, 'Beds24', $3, 'EUR', $4, $5, $6)
-        `, [periodDate, `Account fee - ${beds24Username}`, alloc.account_fee, gasAccountId, isOverhead, `B24-${period_year}${String(period_month).padStart(2, '0')}`]);
+        `, [periodDate, `Account fee - ${beds24Username}`, disc(alloc.account_fee), gasAccountId, isOverhead, invoiceRef]);
         entriesCreated++;
       }
 
@@ -13510,14 +13586,14 @@ app.post('/api/admin/beds24-usage/commit', async (req, res) => {
           await pool.query(`
             INSERT INTO bought_ledger (date, supplier, description, category, amount, currency, account_id, is_overhead, invoice_ref)
             VALUES ($1, 'Beds24', $2, 'Domains / SSL', $3, 'EUR', $4, $5, $6)
-          `, [periodDate, `SSL - ${sslAlloc.domain || 'certificate'}`, sslAlloc.cost, sslGasId, sslOverhead, `B24-${period_year}${String(period_month).padStart(2, '0')}`]);
+          `, [periodDate, `SSL - ${sslAlloc.domain || 'certificate'}`, disc(sslAlloc.cost), sslGasId, sslOverhead, invoiceRef]);
           entriesCreated++;
         }
       } else if (alloc.ssl_cost > 0) {
         await pool.query(`
           INSERT INTO bought_ledger (date, supplier, description, category, amount, currency, account_id, is_overhead, invoice_ref)
           VALUES ($1, 'Beds24', $2, 'Domains / SSL', $3, 'EUR', $4, $5, $6)
-        `, [periodDate, `SSL (${alloc.ssl_count} certs) - ${beds24Username}`, alloc.ssl_cost, gasAccountId, isOverhead, `B24-${period_year}${String(period_month).padStart(2, '0')}`]);
+        `, [periodDate, `SSL (${alloc.ssl_count} certs) - ${beds24Username}`, disc(alloc.ssl_cost), gasAccountId, isOverhead, invoiceRef]);
         entriesCreated++;
       }
 
@@ -13526,7 +13602,7 @@ app.post('/api/admin/beds24-usage/commit', async (req, res) => {
         await pool.query(`
           INSERT INTO bought_ledger (date, supplier, description, category, amount, currency, account_id, is_overhead, invoice_ref)
           VALUES ($1, 'Beds24', $2, 'Domains / SSL', $3, 'EUR', $4, $5, $6)
-        `, [periodDate, `Private Book Domain - ${beds24Username}`, alloc.private_domain_cost, gasAccountId, isOverhead, `B24-${period_year}${String(period_month).padStart(2, '0')}`]);
+        `, [periodDate, `Private Book Domain - ${beds24Username}`, disc(alloc.private_domain_cost), gasAccountId, isOverhead, invoiceRef]);
         entriesCreated++;
       }
 
@@ -13535,7 +13611,7 @@ app.post('/api/admin/beds24-usage/commit', async (req, res) => {
         await pool.query(`
           INSERT INTO bought_ledger (date, supplier, description, category, amount, currency, account_id, is_overhead, invoice_ref)
           VALUES ($1, 'Beds24', $2, 'Beds24', $3, 'EUR', $4, $5, $6)
-        `, [periodDate, `Sub-accounts (${alloc.sub_account_count}) - ${beds24Username}`, alloc.sub_account_cost, gasAccountId, isOverhead, `B24-${period_year}${String(period_month).padStart(2, '0')}`]);
+        `, [periodDate, `Sub-accounts (${alloc.sub_account_count}) - ${beds24Username}`, disc(alloc.sub_account_cost), gasAccountId, isOverhead, invoiceRef]);
         entriesCreated++;
       }
 
@@ -13544,15 +13620,16 @@ app.post('/api/admin/beds24-usage/commit', async (req, res) => {
         await pool.query(`
           INSERT INTO bought_ledger (date, supplier, description, category, amount, currency, account_id, is_overhead, invoice_ref)
           VALUES ($1, 'Beds24', $2, 'Beds24', $3, 'EUR', $4, $5, $6)
-        `, [periodDate, `Properties (${alloc.properties.length}) - ${alloc.total_rooms} rooms, ${alloc.total_links} links - ${beds24Username}`, alloc.property_cost, gasAccountId, isOverhead, `B24-${period_year}${String(period_month).padStart(2, '0')}`]);
+        `, [periodDate, `Properties (${alloc.properties.length}) - ${alloc.total_rooms} rooms, ${alloc.total_links} links - ${beds24Username}`, disc(alloc.property_cost), gasAccountId, isOverhead, invoiceRef]);
         entriesCreated++;
       }
     }
 
     res.json({
       success: true,
-      message: `Created ${entriesCreated} bought ledger entries for ${period_month}/${period_year}`,
-      entries_created: entriesCreated
+      message: `Created ${entriesCreated} bought ledger entries for ${period_month}/${period_year} (${discount_pct || 50}% discount applied)`,
+      entries_created: entriesCreated,
+      discount_pct: discount_pct || 50
     });
   } catch (error) {
     console.error('Beds24 usage commit error:', error);
