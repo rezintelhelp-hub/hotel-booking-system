@@ -13418,8 +13418,7 @@ app.post('/api/admin/beds24-usage/upload', uploadFile.single('file'), async (req
 
     // Try to match Beds24 accounts to GAS accounts
     const gasAccounts = await pool.query(`
-      SELECT id, name, beds24_account_id,
-             (SELECT username FROM gas_sync_connections WHERE account_id = accounts.id AND adapter_code = 'beds24' LIMIT 1) as beds24_username
+      SELECT id, name, beds24_account_id
       FROM accounts WHERE status = 'active'
     `);
 
