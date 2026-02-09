@@ -24182,6 +24182,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             const section = document.getElementById('account-beds24-costs-section');
             const content = document.getElementById('account-beds24-costs-content');
             
+            if (!section || !content) return;
             try {
                 const response = await fetch(`/api/accounts/${accountId}/beds24-rrp`, { headers: authHeaders() });
                 const data = await response.json();
@@ -24540,8 +24541,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                     loadSubscriptions(account.id);
                     loadAccountBeds24Costs(account.id);
                     document.getElementById('beds24-invite-code').value = '';
-                    document.getElementById('properties-list-container').style.display = 'none';
-                    document.getElementById('properties-toggle-icon').textContent = '▼';
+                    const propsContainer = document.getElementById('acct-properties-list-container');
+                    if (propsContainer) propsContainer.style.display = 'none';
+                    const propsIcon = document.getElementById('properties-toggle-icon');
+                    if (propsIcon) propsIcon.textContent = '▼';
                     document.getElementById('sub-blog-tier').value = '0';
                     document.getElementById('sub-attractions-tier').value = '0';
                     document.getElementById('sub-lites-tier').value = '0';
