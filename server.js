@@ -14233,7 +14233,7 @@ app.post('/api/public/create-group-booking', async (req, res) => {
                         city: guest_city || '',
                         postcode: guest_postcode || '',
                         country: guest_country || '',
-                        referer: `GAS #${booking.id}`,
+                        referer: `Direct website GAS-${booking.id}`,
                         notes: `GAS Booking ID: ${booking.id} | Group: ${groupBookingId} (Room ${i + 1}/${rooms.length})`,
                         price: roomPrice,
                         invoiceItems: [{
@@ -23484,7 +23484,7 @@ app.post('/api/db/book', async (req, res) => {
           city: guest_city || '',
           country: guest_country || '',
           postcode: guest_postcode || '',
-          referer: `GAS #${booking.id}`,
+          referer: `Direct website GAS-${booking.id}`,
           notes: `GAS Booking ID: ${booking.id}`,
           // Price and financial info
           price: parseFloat(total_price) || 0,
@@ -33633,7 +33633,7 @@ app.post('/api/bookings/:id/cancel', async (req, res) => {
       AND date >= $2 
       AND date < $3 
       AND source = 'booking'
-    `, [booking.bookable_unit_id, booking.arrival_date, booking.departure_date]);
+    `, [booking.bookable_unit_id, booking.check_in, booking.check_out]);
     
     // Cancel in Beds24
     if (booking.beds24_booking_id) {
@@ -48237,7 +48237,7 @@ app.post('/api/public/book', async (req, res) => {
           city: guest_city || '',
           postcode: guest_postcode || '',
           country: guest_country || '',
-          referer: `GAS #${newBooking.id}`,
+          referer: `Direct website GAS-${newBooking.id}`,
           notes: `GAS Booking ID: ${newBooking.id}`,
           price: parseFloat(total_price) || 0,
           deposit: deposit_amount ? parseFloat(deposit_amount) : 0,
