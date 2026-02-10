@@ -38738,6 +38738,73 @@ async function validatePartnerApiKey(req) {
 
 // =====================================================
 // PARTNER API - WEBHOOK CONFIGURATION
+
+// GET /api/partner/webhooks/diagnose - Diagnose webhook chain for a property
+app.get('/api/partner/webhooks/diagnose', async (req, res) => {
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    
+    // Show the full chain
+    const diagnosis = {
+      partner_account_id: auth.partnerId,
+      partner_name: auth.partnerName,
+      webhook_url: auth.webhookUrl || 'NOT SET',
+      webhook_secret: auth.webhookSecret ? 'SET' : 'NOT SET',
+      ELEVATE_MASTER_ACCOUNT_ID: 92,
+      partner_matches_elevate_master: auth.partnerId === 92,
+    };
+    
+    // Check tenant mappings
+    const mappings = await pool.query(`
+      SELECT ptm.*, a.name as account_name, a.id as gas_id,
+             (SELECT COUNT(*) FROM properties WHERE account_id = ptm.gas_account_id) as property_count
+      FROM partner_tenant_mapping ptm
+      JOIN accounts a ON a.id = ptm.gas_account_id
+      WHERE ptm.partner_account_id = $1
+    `, [auth.partnerId]);
+    
+    diagnosis.tenant_mappings = mappings.rows.map(m => ({
+      tenant_id: m.external_tenant_id,
+      gas_account_id: m.gas_account_id,
+      account_name: m.account_name,
+      property_count: parseInt(m.property_count)
+    }));
+    
+    // Also check if there are mappings under ELEVATE_MASTER_ACCOUNT_ID if different
+    if (auth.partnerId !== 92) {
+      const elevateMappings = await pool.query(`
+        SELECT ptm.*, a.name as account_name
+        FROM partner_tenant_mapping ptm
+        JOIN accounts a ON a.id = ptm.gas_account_id
+        WHERE ptm.partner_account_id = 92
+      `);
+      diagnosis.WARNING = 'Partner account ID does NOT match ELEVATE_MASTER_ACCOUNT_ID (92). Tenants created via Partner API may use a different partner_account_id than properties pushed via Elevate API.';
+      diagnosis.elevate_master_mappings = elevateMappings.rows.map(m => ({
+        tenant_id: m.external_tenant_id,
+        gas_account_id: m.gas_account_id,
+        account_name: m.account_name
+      }));
+    }
+    
+    // Check webhook_url on account 92 specifically  
+    const acc92 = await pool.query('SELECT id, name, booking_webhook_url, webhook_secret, role FROM accounts WHERE id = 92');
+    if (acc92.rows.length > 0) {
+      diagnosis.account_92 = {
+        name: acc92.rows[0].name,
+        role: acc92.rows[0].role,
+        webhook_url: acc92.rows[0].booking_webhook_url || 'NOT SET',
+        webhook_secret: acc92.rows[0].webhook_secret ? 'SET' : 'NOT SET'
+      };
+    }
+    
+    res.json({ success: true, diagnosis });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
 // =====================================================
 
 // PUT /api/partner/webhooks - Configure webhook URL for booking notifications
@@ -38898,9 +38965,12 @@ async function sendPartnerBookingWebhook(bookingId, eventType = 'booking.created
     
     const booking = bookingResult.rows[0];
     
+    // Debug logging for webhook diagnosis
+    console.log(`[Webhook DEBUG] Booking ${bookingId}: property_id=${booking.property_id}, account_id=${booking.account_id}, partner_account_id=${booking.partner_account_id}, webhook_url=${booking.booking_webhook_url ? 'SET' : 'NULL'}, tenant_id=${booking.tenant_id}`);
+    
     // Check if this booking belongs to a partner tenant with webhook configured
     if (!booking.partner_account_id || !booking.booking_webhook_url) {
-      console.log(`[Webhook] No webhook configured for booking ${bookingId}`);
+      console.log(`[Webhook] No webhook configured for booking ${bookingId} (partner_account_id=${booking.partner_account_id}, webhook_url=${booking.booking_webhook_url ? 'SET' : 'NULL'})`);
       return { sent: false, reason: 'no_webhook_configured' };
     }
     
