@@ -38746,6 +38746,24 @@ async function validatePartnerApiKey(req) {
 // =====================================================
 // PARTNER API - WEBHOOK CONFIGURATION
 
+// GET /api/admin/room-mapping/:accountId - Check Beds24 room ID mappings
+app.get('/api/admin/room-mapping/:accountId', async (req, res) => {
+  try {
+    const { accountId } = req.params;
+    const result = await pool.query(`
+      SELECT bu.id as unit_id, bu.name, bu.beds24_room_id, bu.cm_room_id,
+             p.id as property_id, p.name as property_name, p.beds24_property_id
+      FROM bookable_units bu
+      JOIN properties p ON bu.property_id = p.id
+      WHERE p.account_id = $1
+      ORDER BY p.id, bu.id
+    `, [accountId]);
+    res.json({ success: true, account_id: parseInt(accountId), rooms: result.rows });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // GET /api/partner/webhooks/diagnose - Diagnose webhook chain for a property
 app.get('/api/partner/webhooks/diagnose', async (req, res) => {
   try {
