@@ -51748,9 +51748,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                     const icon = siteType === 'custom' ? '✨' : siteType === 'plugin' ? '🔌' : '🌐';
                     const typeLabel = siteType === 'custom' ? 'Custom' : siteType === 'plugin' ? 'Plugin' : 'AI Website';
                     const discountType = site.discount_type || 'none';
-                    const discountValue = site.discount_value || 0;
+                    const discountValue = parseFloat(site.discount_value) || 0;
                     const monthlyFee = site.monthly_fee;
-                    const setupFee = site.setup_fee || 0;
+                    const setupFee = parseFloat(site.setup_fee) || 0;
                     const roomCount = site.roomCount || 0;
                     
                     // Calculate price
@@ -51768,7 +51768,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     if (discountType === 'percentage' && discountValue > 0) {
                         discount = price * (discountValue / 100);
                     } else if (discountType === 'fixed' && discountValue > 0) {
-                        discount = discountValue;
+                        discount = parseFloat(discountValue);
                     }
                     const netPrice = Math.round((price - discount) * 100) / 100;
                     totalMonthly += netPrice;
