@@ -16165,6 +16165,80 @@ const promo = await fetch('/api/v1/offers/validate', {
                         </div>
                     </div>
                     
+                    <!-- Security Section -->
+                    <div style="background: linear-gradient(135deg, #fefce8 0%, #fef9c3 100%); padding: 1rem; border-radius: 12px; margin-bottom: 1rem; border: 1px solid #fde047;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <h4 style="margin: 0 0 0.25rem 0; font-size: 0.85rem; color: #854d0e; font-weight: 600;"> Security</h4>
+                                <div style="font-size: 0.8rem; color: #a16207;">Set a new password for this account</div>
+                            </div>
+                            <button type="button" class="btn btn-secondary" onclick="resetPasswordFromModal()" style="white-space: nowrap; font-size: 0.85rem;">
+                                 Reset Password
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- ============ BEDS24 CONNECTION SECTION ============ -->
+                    <div id="beds24-section" style="background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); padding: 1rem; border-radius: 12px; margin-bottom: 1rem; border: 1px solid #6ee7b7;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                            <h4 style="margin: 0; font-size: 0.85rem; color: #065f46; font-weight: 600;">🏨 Beds24 Connection</h4>
+                            <div id="beds24-status-badge"></div>
+                        </div>
+                        
+                        <div id="beds24-not-connected" style="display: none;">
+                            <p style="font-size: 0.8rem; color: #047857; margin-bottom: 0.75rem;">
+                                Enter the Beds24 invite code to connect this account. Generate one in Beds24 → Settings → Account Access → Invite Codes.
+                            </p>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <input type="text" id="beds24-invite-code" class="form-input" placeholder="Paste invite code here..." style="padding: 0.5rem; flex: 1; font-family: monospace;">
+                                <button type="button" class="btn" onclick="connectBeds24()" style="white-space: nowrap; background: #059669; color: white; border: none; padding: 0.5rem 1rem; border-radius: 8px; cursor: pointer;">
+                                    ⚡ Connect
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div id="beds24-connected" style="display: none;">
+                            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
+                                <div style="text-align: center; background: white; padding: 0.5rem; border-radius: 8px;">
+                                    <div style="font-size: 1.2rem; font-weight: 700; color: #059669;" id="beds24-prop-count">0</div>
+                                    <div style="font-size: 0.7rem; color: #6b7280;">Properties</div>
+                                </div>
+                                <div style="text-align: center; background: white; padding: 0.5rem; border-radius: 8px;">
+                                    <div style="font-size: 1.2rem; font-weight: 700; color: #059669;" id="beds24-unit-count">0</div>
+                                    <div style="font-size: 0.7rem; color: #6b7280;">Units/Rooms</div>
+                                </div>
+                                <div style="text-align: center; background: white; padding: 0.5rem; border-radius: 8px;">
+                                    <div style="font-size: 1.2rem; font-weight: 700; color: #059669;" id="beds24-ai-price">€0</div>
+                                    <div style="font-size: 0.7rem; color: #6b7280;">AI Website/mo</div>
+                                </div>
+                            </div>
+                            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                <span id="beds24-last-sync" style="font-size: 0.75rem; color: #6b7280; flex: 1;"></span>
+                                <button type="button" class="btn btn-secondary" onclick="syncBeds24Properties()" style="font-size: 0.8rem; padding: 0.4rem 0.75rem;" id="beds24-sync-btn">
+                                    🔄 Sync Properties
+                                </button>
+                                <button type="button" class="btn btn-secondary" onclick="disconnectBeds24()" style="font-size: 0.8rem; padding: 0.4rem 0.75rem; color: #dc2626;">
+                                    ✕ Disconnect
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- ============ PROPERTIES LIST (expandable) ============ -->
+                    <div id="account-properties-section" style="display: none; background: #f8fafc; padding: 1rem; border-radius: 12px; margin-bottom: 1rem; border: 1px solid #e2e8f0;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;" onclick="togglePropertiesPanel()">
+                            <h4 style="margin: 0; font-size: 0.85rem; color: #475569; font-weight: 600;">
+                                🏠 Properties <span id="properties-count-badge" style="background: #6366f1; color: white; padding: 0.1rem 0.5rem; border-radius: 10px; font-size: 0.75rem; margin-left: 0.5rem;">0</span>
+                            </h4>
+                            <span id="properties-toggle-icon" style="color: #94a3b8; font-size: 1.2rem;">▼</span>
+                        </div>
+                        <div id="acct-properties-list-container" style="display: none; margin-top: 0.75rem; max-height: 250px; overflow-y: auto;">
+                            <div id="acct-properties-list" style="font-size: 0.85rem;">
+                                Loading...
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- ============ SECTION 1: GAS SERVICES ============ -->
                     <div id="account-billing-section" style="background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); padding: 1rem; border-radius: 12px; margin-bottom: 1rem; border: 1px solid #93c5fd;">
                         <h4 style="margin: 0 0 0.75rem 0; font-size: 0.85rem; color: #1e40af; font-weight: 600;">💰 1. GAS Services</h4>
@@ -24134,7 +24208,8 @@ const promo = await fetch('/api/v1/offers/validate', {
             const usdTotal = blogPrice + attractionsPrice + litesPrice + reviewsPrice;
             const totalEUR = aiWebsiteEUR + (usdTotal * EUR_USD_RATE);
             
-            document.getElementById('sub-total-eur').textContent = '€' + totalEUR.toFixed(2);
+            const subTotalEl = document.getElementById('sub-total-eur');
+            if (subTotalEl) subTotalEl.textContent = '€' + totalEUR.toFixed(2);
         }
         
         async function loadSubscriptions(accountId) {
