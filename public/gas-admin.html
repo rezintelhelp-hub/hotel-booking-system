@@ -24011,7 +24011,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                     // Calculate AI Website price
                     const price = calculateAIWebsitePriceJS(data.total_units || 0);
                     document.getElementById('beds24-ai-price').textContent = '€' + price.toFixed(2);
-                    document.getElementById('sub-ai-website-price').textContent = '€' + price.toFixed(2);
+                    const subAiEl = document.getElementById('sub-ai-website-price');
+                    if (subAiEl) subAiEl.textContent = '€' + price.toFixed(2);
                     
                     if (data.beds24_last_sync) {
                         const syncDate = new Date(data.beds24_last_sync);
@@ -24236,7 +24237,8 @@ const promo = await fetch('/api/v1/offers/validate', {
             document.getElementById('sub-reviews-price').textContent = reviewsPrice > 0 ? '$' + reviewsPrice.toFixed(2) : '$0';
             
             // Total in EUR
-            const aiWebsiteEUR = parseFloat(document.getElementById('sub-ai-website-price').textContent.replace('€', '')) || 0;
+            const aiWebsiteEl = document.getElementById('sub-ai-website-price');
+            const aiWebsiteEUR = aiWebsiteEl ? (parseFloat(aiWebsiteEl.textContent.replace('€', '')) || 0) : 0;
             const usdTotal = blogPrice + attractionsPrice + litesPrice + reviewsPrice;
             const totalEUR = aiWebsiteEUR + (usdTotal * EUR_USD_RATE);
             
@@ -24252,7 +24254,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                     // Set AI Website price from server
                     const aiWebSub = data.subscriptions.find(s => s.product === 'ai_website');
                     if (aiWebSub) {
-                        document.getElementById('sub-ai-website-price').textContent = '€' + parseFloat(aiWebSub.monthly_price).toFixed(2);
+                        const aiPriceEl = document.getElementById('sub-ai-website-price');
+                        if (aiPriceEl) aiPriceEl.textContent = '€' + parseFloat(aiWebSub.monthly_price).toFixed(2);
                     }
                     
                     // Set other subscription tiers
