@@ -39915,9 +39915,9 @@ async function sendPartnerBookingWebhook(bookingId, eventType = 'booking.created
           name: booking.room_name
         },
         dates: {
-          check_in: booking.check_in ? new Date(booking.check_in).toISOString().split('T')[0] : null,
-          check_out: booking.check_out ? new Date(booking.check_out).toISOString().split('T')[0] : null,
-          nights: Math.ceil((new Date(booking.check_out) - new Date(booking.check_in)) / (1000 * 60 * 60 * 24))
+          check_in: booking.arrival_date ? new Date(booking.arrival_date).toISOString().split('T')[0] : null,
+          check_out: booking.departure_date ? new Date(booking.departure_date).toISOString().split('T')[0] : null,
+          nights: (booking.arrival_date && booking.departure_date) ? Math.ceil((new Date(booking.departure_date) - new Date(booking.arrival_date)) / (1000 * 60 * 60 * 24)) : null
         },
         guest: {
           first_name: booking.guest_first_name,
