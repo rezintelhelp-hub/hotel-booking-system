@@ -16331,16 +16331,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <div id="account-billing-section" style="background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); padding: 1rem; border-radius: 12px; margin-bottom: 1rem; border: 1px solid #93c5fd;">
                         <h4 style="margin: 0 0 0.75rem 0; font-size: 0.85rem; color: #1e40af; font-weight: 600;">💰 GAS Subscriptions</h4>
                         
-                        <!-- AI Website (auto-calculated from units) -->
-                        <div style="display: grid; grid-template-columns: 1fr auto; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem; padding: 0.5rem; background: white; border-radius: 8px;">
-                            <div>
-                                <div style="font-weight: 600; font-size: 0.85rem;">AI Website</div>
-                                <div style="font-size: 0.7rem; color: #6b7280;">€19 base + tiered per unit</div>
-                            </div>
-                            <div style="text-align: right;">
-                                <span id="sub-ai-website-price" style="font-weight: 700; color: #1e40af; font-size: 1rem;">€0</span>
-                                <span style="font-size: 0.7rem; color: #6b7280;">/mo</span>
-                            </div>
+                        <!-- Deployed Sites (dynamic per-site billing) -->
+                        <div id="per-site-billing-container" style="margin-bottom: 0.75rem;">
+                            <div style="font-size: 0.8rem; color: #64748b; padding: 0.5rem;">Loading sites...</div>
                         </div>
                         
                         <!-- Blog -->
@@ -24645,6 +24638,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                     
                     // Load custom lines
                     loadCustomLines(account.id);
+                    
+                    // Load per-site billing
+                    loadPerSiteBilling(account.id);
                     
                     // Agency Management section (only for admin/submaster)
                     const agencySection = document.getElementById('account-agency-section');
@@ -51688,6 +51684,129 @@ const promo = await fetch('/api/v1/offers/validate', {
         // BILLING & INVOICE FUNCTIONS
         // =====================================================
         
+        async function loadPerSiteBilling(accountId) {
+            const container = document.getElementById('per-site-billing-container');
+            if (!container) return;
+            try {
+                const response = await fetch(`/api/admin/deployed-sites?account_id=${accountId}`, { headers: authHeaders() });
+                const data = await response.json();
+                
+                if (!data.success || !data.sites || data.sites.length === 0) {
+                    container.innerHTML = '<div style="font-size: 0.8rem; color: #9ca3af; padding: 0.5rem; font-style: italic;">No deployed sites</div>';
+                    return;
+                }
+                
+                let html = '';
+                data.sites.forEach(site => {
+                    const roomCount = site.room_ids ? (typeof site.room_ids === 'string' ? JSON.parse(site.room_ids) : site.room_ids).length : 0;
+                    const siteType = site.site_type || (site.template === 'custom-bespoke' ? 'custom' : site.template === 'plugin-only' ? 'plugin' : 'standard');
+                    const icon = siteType === 'custom' ? '✨' : siteType === 'plugin' ? '🔌' : '🌐';
+                    const typeLabel = siteType === 'custom' ? 'Custom' : siteType === 'plugin' ? 'Plugin' : 'AI Website';
+                    const discountType = site.discount_type || 'none';
+                    const discountValue = site.discount_value || 0;
+                    const monthlyFee = site.monthly_fee;
+                    const setupFee = site.setup_fee || 0;
+                    
+                    html += `
+                    <div style="padding: 0.5rem; background: white; border-radius: 8px; margin-bottom: 0.5rem; border: 1px solid #e2e8f0;" id="site-billing-${site.id}">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                            <div>
+                                <span style="font-weight: 600; font-size: 0.85rem;">${icon} ${site.site_name || site.slug}</span>
+                                <span style="font-size: 0.7rem; background: #f1f5f9; padding: 1px 6px; border-radius: 4px; margin-left: 4px;">${typeLabel}</span>
+                                <span style="font-size: 0.7rem; color: #6b7280; margin-left: 4px;">${roomCount} rooms</span>
+                            </div>
+                            <button type="button" onclick="toggleSiteBilling(${site.id})" style="background:none;border:none;cursor:pointer;font-size:0.8rem;color:#6366f1;">⚙️</button>
+                        </div>
+                        
+                        <div id="site-billing-edit-${site.id}" style="display: none; padding-top: 0.35rem; border-top: 1px solid #e2e8f0; margin-top: 0.35rem;">
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.35rem;">
+                                <div>
+                                    <label style="font-size: 0.7rem; color: #6b7280;">Site Type</label>
+                                    <select id="site-type-${site.id}" class="form-input" style="padding: 0.3rem; font-size: 0.8rem;" onchange="toggleCustomSiteFields(${site.id})">
+                                        <option value="standard" ${siteType === 'standard' ? 'selected' : ''}>Standard (auto-price)</option>
+                                        <option value="plugin" ${siteType === 'plugin' ? 'selected' : ''}>Plugin Only</option>
+                                        <option value="custom" ${siteType === 'custom' ? 'selected' : ''}>Custom Site</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label style="font-size: 0.7rem; color: #6b7280;">Monthly Fee Override (€)</label>
+                                    <input type="number" id="site-monthly-${site.id}" class="form-input" value="${monthlyFee !== null && monthlyFee !== undefined ? monthlyFee : ''}" placeholder="Auto" step="0.01" min="0" style="padding: 0.3rem; font-size: 0.8rem;">
+                                </div>
+                            </div>
+                            <div id="custom-site-fields-${site.id}" style="display: ${siteType === 'custom' ? 'grid' : 'none'}; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.35rem;">
+                                <div>
+                                    <label style="font-size: 0.7rem; color: #6b7280;">Setup Fee (one-off, €)</label>
+                                    <input type="number" id="site-setup-${site.id}" class="form-input" value="${setupFee}" step="0.01" min="0" style="padding: 0.3rem; font-size: 0.8rem;">
+                                </div>
+                                <div style="display:flex;align-items:flex-end;">
+                                    <label style="font-size: 0.7rem; color: #6b7280; display:flex; align-items:center; gap:4px;">
+                                        <input type="checkbox" id="site-setup-invoiced-${site.id}" ${site.setup_fee_invoiced ? 'checked' : ''}>
+                                        Setup fee already invoiced
+                                    </label>
+                                </div>
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.35rem;">
+                                <div>
+                                    <label style="font-size: 0.7rem; color: #6b7280;">Discount Type</label>
+                                    <select id="site-discount-type-${site.id}" class="form-input" style="padding: 0.3rem; font-size: 0.8rem;">
+                                        <option value="none" ${discountType === 'none' ? 'selected' : ''}>No Discount</option>
+                                        <option value="percentage" ${discountType === 'percentage' ? 'selected' : ''}>Percentage (%)</option>
+                                        <option value="fixed" ${discountType === 'fixed' ? 'selected' : ''}>Fixed (€)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label style="font-size: 0.7rem; color: #6b7280;">Discount Value</label>
+                                    <input type="number" id="site-discount-value-${site.id}" class="form-input" value="${discountValue}" step="0.01" min="0" style="padding: 0.3rem; font-size: 0.8rem;">
+                                </div>
+                            </div>
+                            <button type="button" onclick="saveSiteBilling(${site.id})" class="btn" style="font-size: 0.75rem; padding: 0.25rem 0.75rem; background: #1e40af;">💾 Save Site Billing</button>
+                        </div>
+                    </div>`;
+                });
+                
+                container.innerHTML = html;
+            } catch (e) {
+                container.innerHTML = '<div style="color: #ef4444; font-size: 0.8rem;">Error loading sites</div>';
+            }
+        }
+        
+        function toggleSiteBilling(siteId) {
+            const el = document.getElementById(`site-billing-edit-${siteId}`);
+            if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+        }
+        
+        function toggleCustomSiteFields(siteId) {
+            const type = document.getElementById(`site-type-${siteId}`).value;
+            const fields = document.getElementById(`custom-site-fields-${siteId}`);
+            if (fields) fields.style.display = type === 'custom' ? 'grid' : 'none';
+        }
+        
+        async function saveSiteBilling(siteId) {
+            try {
+                const monthlyVal = document.getElementById(`site-monthly-${siteId}`).value;
+                const response = await fetch(`/api/admin/deployed-sites/${siteId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({
+                        site_type: document.getElementById(`site-type-${siteId}`).value,
+                        monthly_fee: monthlyVal !== '' ? parseFloat(monthlyVal) : null,
+                        setup_fee: parseFloat(document.getElementById(`site-setup-${siteId}`)?.value) || 0,
+                        setup_fee_invoiced: document.getElementById(`site-setup-invoiced-${siteId}`)?.checked || false,
+                        discount_type: document.getElementById(`site-discount-type-${siteId}`).value,
+                        discount_value: parseFloat(document.getElementById(`site-discount-value-${siteId}`).value) || 0
+                    })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    showNotification('Site billing saved', 'success');
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (e) {
+                alert('Error saving site billing');
+            }
+        }
+        
         async function loadCustomLines(accountId) {
             const container = document.getElementById('custom-lines-container');
             if (!container) return;
@@ -51775,9 +51894,14 @@ const promo = await fetch('/api/v1/offers/validate', {
                 if (gasItems.length > 0) {
                     html += '<h4 style="color:#1e40af;margin-bottom:0.5rem;">💰 GAS Services</h4>';
                     html += '<table style="width:100%;border-collapse:collapse;margin-bottom:1rem;font-size:0.85rem;">';
-                    html += '<tr style="background:#f1f5f9;"><th style="text-align:left;padding:6px;">Item</th><th style="text-align:right;padding:6px;">Amount</th></tr>';
+                    html += '<tr style="background:#f1f5f9;"><th style="text-align:left;padding:6px;">Item</th><th style="text-align:center;padding:6px;">Rooms</th><th style="text-align:right;padding:6px;">Amount</th></tr>';
                     gasItems.forEach(item => {
-                        html += `<tr><td style="padding:6px;border-bottom:1px solid #e2e8f0;">${item.label}${item.quantity ? ' (' + item.quantity + ' units)' : ''}</td><td style="text-align:right;padding:6px;border-bottom:1px solid #e2e8f0;">${fmt(item.amount)}</td></tr>`;
+                        const detail = item.detail ? `<div style="font-size:0.75rem;color:#64748b;">${item.detail}</div>` : '';
+                        const oneOff = item.is_one_off ? ' <span style="background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:4px;font-size:0.7rem;">one-off</span>' : '';
+                        html += `<tr><td style="padding:6px;border-bottom:1px solid #e2e8f0;">${item.label}${oneOff}${detail}</td><td style="text-align:center;padding:6px;border-bottom:1px solid #e2e8f0;">${item.rooms || item.quantity || ''}</td><td style="text-align:right;padding:6px;border-bottom:1px solid #e2e8f0;">${fmt(item.gross_amount || item.amount)}</td></tr>`;
+                        if (item.discount_amount && item.discount_amount > 0) {
+                            html += `<tr style="color:#16a34a;"><td style="padding:3px 6px;font-size:0.8rem;" colspan="2">↳ Discount (${item.discount_label})</td><td style="text-align:right;padding:3px 6px;">-${fmt(item.discount_amount)}</td></tr>`;
+                        }
                     });
                     html += '</table>';
                 }
