@@ -16165,171 +16165,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                         </div>
                     </div>
                     
-                    <!-- Billing & Invoice Settings Section -->
-                    <div style="background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); padding: 1rem; border-radius: 12px; margin-bottom: 1rem; border: 1px solid #86efac;">
-                        <h4 style="margin: 0 0 1rem 0; font-size: 0.85rem; color: #166534; font-weight: 600;">🧾 Billing & Invoice Settings</h4>
-                        
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
-                            <div class="form-group" style="margin: 0;">
-                                <label style="font-size: 0.8rem;">VAT / Tax Number</label>
-                                <input type="text" id="account-vat-number" class="form-input" placeholder="e.g. GB123456789" style="padding: 0.5rem;">
-                            </div>
-                            <div class="form-group" style="margin: 0;">
-                                <label style="font-size: 0.8rem;">Company Reg Number</label>
-                                <input type="text" id="account-company-reg" class="form-input" placeholder="e.g. 12345678" style="padding: 0.5rem;">
-                            </div>
-                        </div>
-                        
-                        <!-- GAS Services Discount -->
-                        <div style="background: white; padding: 0.75rem; border-radius: 8px; margin-bottom: 0.75rem; border: 1px solid #d1d5db;">
-                            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
-                                <input type="checkbox" id="account-website-billing" checked>
-                                <label style="font-size: 0.8rem; font-weight: 600; color: #1e40af; margin: 0;">💰 GAS Services</label>
-                            </div>
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
-                                <div class="form-group" style="margin: 0;">
-                                    <label style="font-size: 0.75rem;">Discount Type</label>
-                                    <select id="account-gas-discount-type" class="form-input" style="padding: 0.4rem; font-size: 0.8rem;" onchange="document.getElementById('account-gas-discount-value').disabled = this.value === 'none'">
-                                        <option value="none">No Discount</option>
-                                        <option value="percentage">Percentage (%)</option>
-                                        <option value="fixed">Fixed Amount</option>
-                                    </select>
-                                </div>
-                                <div class="form-group" style="margin: 0;">
-                                    <label style="font-size: 0.75rem;">Discount Value</label>
-                                    <input type="number" id="account-gas-discount-value" class="form-input" placeholder="0" step="0.01" min="0" style="padding: 0.4rem; font-size: 0.8rem;" disabled>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- Beds24 Discount (hidden if not connected) -->
-                        <div id="beds24-billing-section" style="background: white; padding: 0.75rem; border-radius: 8px; margin-bottom: 0.75rem; border: 1px solid #d1d5db; display: none;">
-                            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
-                                <input type="checkbox" id="account-beds24-billing" checked>
-                                <label style="font-size: 0.8rem; font-weight: 600; color: #92400e; margin: 0;">📊 Beds24 Channel Manager</label>
-                            </div>
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
-                                <div class="form-group" style="margin: 0;">
-                                    <label style="font-size: 0.75rem;">Discount Type</label>
-                                    <select id="account-beds24-discount-type" class="form-input" style="padding: 0.4rem; font-size: 0.8rem;" onchange="document.getElementById('account-beds24-discount-value').disabled = this.value === 'none'">
-                                        <option value="none">No Discount</option>
-                                        <option value="percentage">Percentage (%)</option>
-                                        <option value="fixed">Fixed Amount</option>
-                                    </select>
-                                </div>
-                                <div class="form-group" style="margin: 0;">
-                                    <label style="font-size: 0.75rem;">Discount Value</label>
-                                    <input type="number" id="account-beds24-discount-value" class="form-input" placeholder="0" step="0.01" min="0" style="padding: 0.4rem; font-size: 0.8rem;" disabled>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- VAT -->
-                        <div style="display: grid; grid-template-columns: auto 1fr; gap: 0.75rem; margin-bottom: 0.75rem; align-items: center;">
-                            <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                <input type="checkbox" id="account-vat-enabled" onchange="document.getElementById('account-vat-rate').disabled = !this.checked">
-                                <label style="font-size: 0.8rem; margin: 0; font-weight: 600;">VAT</label>
-                            </div>
-                            <div class="form-group" style="margin: 0;">
-                                <input type="number" id="account-vat-rate" class="form-input" placeholder="VAT Rate %" step="0.01" min="0" style="padding: 0.4rem; font-size: 0.8rem;" disabled>
-                            </div>
-                        </div>
-                        
-                        <!-- Custom Line Items -->
-                        <div style="padding-top: 0.75rem; border-top: 1px solid #86efac;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                                <label style="font-size: 0.8rem; font-weight: 600;">Custom Invoice Lines</label>
-                                <button type="button" class="btn btn-secondary" style="font-size: 0.75rem; padding: 0.25rem 0.75rem;" onclick="addCustomLine()">+ Add Line</button>
-                            </div>
-                            <div id="custom-lines-container" style="font-size: 0.8rem;"></div>
-                        </div>
-                        
-                        <!-- Invoice Actions -->
-                        <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #86efac; display: flex; gap: 0.5rem;">
-                            <button type="button" class="btn" style="font-size: 0.8rem; padding: 0.5rem 1rem; background: #166534;" onclick="previewInvoice()">📄 Preview Invoice</button>
-                            <button type="button" class="btn" style="font-size: 0.8rem; padding: 0.5rem 1rem; background: #6366f1;" onclick="generateInvoice()">🧾 Generate & Save Invoice</button>
-                            <button type="button" class="btn btn-secondary" style="font-size: 0.8rem; padding: 0.5rem 1rem;" onclick="viewInvoiceHistory()">📋 Invoice History</button>
-                        </div>
-                    </div>
-                    
-                    <!-- Security Section -->
-                    <div style="background: linear-gradient(135deg, #fefce8 0%, #fef9c3 100%); padding: 1rem; border-radius: 12px; margin-bottom: 1rem; border: 1px solid #fde047;">
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <div>
-                                <h4 style="margin: 0 0 0.25rem 0; font-size: 0.85rem; color: #854d0e; font-weight: 600;"> Security</h4>
-                                <div style="font-size: 0.8rem; color: #a16207;">Set a new password for this account</div>
-                            </div>
-                            <button type="button" class="btn btn-secondary" onclick="resetPasswordFromModal()" style="white-space: nowrap; font-size: 0.85rem;">
-                                 Reset Password
-                            </button>
-                        </div>
-                    </div>
-                    
-
-                    <!-- ============ BEDS24 CONNECTION SECTION ============ -->
-                    <div id="beds24-section" style="background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); padding: 1rem; border-radius: 12px; margin-bottom: 1rem; border: 1px solid #6ee7b7;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
-                            <h4 style="margin: 0; font-size: 0.85rem; color: #065f46; font-weight: 600;">🏨 Beds24 Connection</h4>
-                            <div id="beds24-status-badge"></div>
-                        </div>
-                        
-                        <div id="beds24-not-connected" style="display: none;">
-                            <p style="font-size: 0.8rem; color: #047857; margin-bottom: 0.75rem;">
-                                Enter the Beds24 invite code to connect this account. Generate one in Beds24 → Settings → Account Access → Invite Codes.
-                            </p>
-                            <div style="display: flex; gap: 0.5rem;">
-                                <input type="text" id="beds24-invite-code" class="form-input" placeholder="Paste invite code here..." style="padding: 0.5rem; flex: 1; font-family: monospace;">
-                                <button type="button" class="btn" onclick="connectBeds24()" style="white-space: nowrap; background: #059669; color: white; border: none; padding: 0.5rem 1rem; border-radius: 8px; cursor: pointer;">
-                                    ⚡ Connect
-                                </button>
-                            </div>
-                        </div>
-                        
-                        <div id="beds24-connected" style="display: none;">
-                            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
-                                <div style="text-align: center; background: white; padding: 0.5rem; border-radius: 8px;">
-                                    <div style="font-size: 1.2rem; font-weight: 700; color: #059669;" id="beds24-prop-count">0</div>
-                                    <div style="font-size: 0.7rem; color: #6b7280;">Properties</div>
-                                </div>
-                                <div style="text-align: center; background: white; padding: 0.5rem; border-radius: 8px;">
-                                    <div style="font-size: 1.2rem; font-weight: 700; color: #059669;" id="beds24-unit-count">0</div>
-                                    <div style="font-size: 0.7rem; color: #6b7280;">Units/Rooms</div>
-                                </div>
-                                <div style="text-align: center; background: white; padding: 0.5rem; border-radius: 8px;">
-                                    <div style="font-size: 1.2rem; font-weight: 700; color: #059669;" id="beds24-ai-price">€0</div>
-                                    <div style="font-size: 0.7rem; color: #6b7280;">AI Website/mo</div>
-                                </div>
-                            </div>
-                            <div style="display: flex; gap: 0.5rem; align-items: center;">
-                                <span id="beds24-last-sync" style="font-size: 0.75rem; color: #6b7280; flex: 1;"></span>
-                                <button type="button" class="btn btn-secondary" onclick="syncBeds24Properties()" style="font-size: 0.8rem; padding: 0.4rem 0.75rem;" id="beds24-sync-btn">
-                                    🔄 Sync Properties
-                                </button>
-                                <button type="button" class="btn btn-secondary" onclick="disconnectBeds24()" style="font-size: 0.8rem; padding: 0.4rem 0.75rem; color: #dc2626;">
-                                    ✕ Disconnect
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- ============ PROPERTIES LIST (expandable) ============ -->
-                    <div id="account-properties-section" style="display: none; background: #f8fafc; padding: 1rem; border-radius: 12px; margin-bottom: 1rem; border: 1px solid #e2e8f0;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;" onclick="togglePropertiesPanel()">
-                            <h4 style="margin: 0; font-size: 0.85rem; color: #475569; font-weight: 600;">
-                                🏠 Properties <span id="properties-count-badge" style="background: #6366f1; color: white; padding: 0.1rem 0.5rem; border-radius: 10px; font-size: 0.75rem; margin-left: 0.5rem;">0</span>
-                            </h4>
-                            <span id="properties-toggle-icon" style="color: #94a3b8; font-size: 1.2rem;">▼</span>
-                        </div>
-                        <div id="acct-properties-list-container" style="display: none; margin-top: 0.75rem; max-height: 250px; overflow-y: auto;">
-                            <div id="acct-properties-list" style="font-size: 0.85rem;">
-                                Loading...
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- ============ GAS SUBSCRIPTIONS SECTION ============ -->
+                    <!-- ============ SECTION 1: GAS SERVICES ============ -->
                     <div id="account-billing-section" style="background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); padding: 1rem; border-radius: 12px; margin-bottom: 1rem; border: 1px solid #93c5fd;">
-                        <h4 style="margin: 0 0 0.75rem 0; font-size: 0.85rem; color: #1e40af; font-weight: 600;">💰 GAS Subscriptions</h4>
+                        <h4 style="margin: 0 0 0.75rem 0; font-size: 0.85rem; color: #1e40af; font-weight: 600;">💰 1. GAS Services</h4>
                         
                         <!-- Deployed Sites (dynamic per-site billing) -->
                         <div id="per-site-billing-container" style="margin-bottom: 0.75rem;">
@@ -16391,29 +16229,83 @@ const promo = await fetch('/api/v1/offers/validate', {
                             <span id="sub-reviews-price" style="font-weight: 600; font-size: 0.85rem; min-width: 60px; text-align: right;">$0</span>
                         </div>
                         
-                        <!-- Total -->
-                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); border-radius: 8px; color: white;">
-                            <div style="font-weight: 600;">Monthly Total</div>
-                            <div>
-                                <span id="sub-total-eur" style="font-size: 1.2rem; font-weight: 700;">€0</span>
-                                <span style="font-size: 0.8rem; opacity: 0.8;">/mo</span>
-                            </div>
-                        </div>
-                        
-                        <button type="button" onclick="saveSubscriptions()" class="btn" style="width: 100%; margin-top: 0.75rem; background: #1e40af; color: white; border: none; padding: 0.5rem; border-radius: 8px; cursor: pointer; font-size: 0.85rem;">
-                            💾 Save Subscriptions
+                        <button type="button" onclick="saveSubscriptions()" class="btn" style="width: 100%; background: #1e40af; color: white; border: none; padding: 0.5rem; border-radius: 8px; cursor: pointer; font-size: 0.85rem;">
+                            💾 Save GAS Subscriptions
                         </button>
                     </div>
                     
-                    
-                    <!-- =====================================================
-                         JAVASCRIPT - Add to the
-
-                    <!-- Beds24 RRP Breakdown (client-facing) -->
+                    <!-- ============ SECTION 2: BEDS24 ============ -->
                     <div id="account-beds24-costs-section" style="background: linear-gradient(135deg, #fef3c7 0%, #fffbeb 100%); padding: 1rem; border-radius: 12px; margin-bottom: 1rem; border: 1px solid #fcd34d; display: none;">
-                        <h4 style="margin: 0 0 0.75rem 0; font-size: 0.85rem; color: #92400e; font-weight: 600;">📊 Beds24 Channel Manager (RRP)</h4>
+                        <h4 style="margin: 0 0 0.75rem 0; font-size: 0.85rem; color: #92400e; font-weight: 600;">📊 2. Beds24 Channel Manager</h4>
                         <div id="account-beds24-costs-content" style="font-size: 0.85rem;">
                             <p style="color: #64748b;">Loading...</p>
+                        </div>
+                        <!-- Beds24 Discount -->
+                        <div style="background: white; padding: 0.75rem; border-radius: 8px; margin-top: 0.75rem; border: 1px solid #fcd34d;">
+                            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                                <input type="checkbox" id="account-beds24-billing" checked>
+                                <label style="font-size: 0.8rem; font-weight: 600; color: #92400e; margin: 0;">Beds24 Discount</label>
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                                <div class="form-group" style="margin: 0;">
+                                    <label style="font-size: 0.75rem;">Discount Type</label>
+                                    <select id="account-beds24-discount-type" class="form-input" style="padding: 0.4rem; font-size: 0.8rem;" onchange="document.getElementById('account-beds24-discount-value').disabled = this.value === 'none'">
+                                        <option value="none">No Discount</option>
+                                        <option value="percentage">Percentage (%)</option>
+                                        <option value="fixed">Fixed Amount</option>
+                                    </select>
+                                </div>
+                                <div class="form-group" style="margin: 0;">
+                                    <label style="font-size: 0.75rem;">Discount Value</label>
+                                    <input type="number" id="account-beds24-discount-value" class="form-input" placeholder="0" step="0.01" min="0" style="padding: 0.4rem; font-size: 0.8rem;" disabled>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- ============ SECTION 3: CUSTOM ITEMS ============ -->
+                    <div style="background: linear-gradient(135deg, #fdf4ff 0%, #fae8ff 100%); padding: 1rem; border-radius: 12px; margin-bottom: 1rem; border: 1px solid #e879f9;">
+                        <h4 style="margin: 0 0 0.75rem 0; font-size: 0.85rem; color: #86198f; font-weight: 600;">📝 3. Custom Items</h4>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                            <span style="font-size: 0.8rem; color: #86198f;">Manual invoice line items</span>
+                            <button type="button" class="btn btn-secondary" style="font-size: 0.75rem; padding: 0.25rem 0.75rem;" onclick="addCustomLine()">+ Add Line</button>
+                        </div>
+                        <div id="custom-lines-container" style="font-size: 0.8rem;"></div>
+                    </div>
+                    
+                    <!-- ============ VAT & BILLING INFO ============ -->
+                    <div style="background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); padding: 1rem; border-radius: 12px; margin-bottom: 1rem; border: 1px solid #86efac;">
+                        <h4 style="margin: 0 0 0.75rem 0; font-size: 0.85rem; color: #166534; font-weight: 600;">🧾 VAT & Billing Info</h4>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
+                            <div class="form-group" style="margin: 0;">
+                                <label style="font-size: 0.8rem;">VAT / Tax Number</label>
+                                <input type="text" id="account-vat-number" class="form-input" placeholder="e.g. GB123456789" style="padding: 0.5rem;">
+                            </div>
+                            <div class="form-group" style="margin: 0;">
+                                <label style="font-size: 0.8rem;">Company Reg Number</label>
+                                <input type="text" id="account-company-reg" class="form-input" placeholder="e.g. 12345678" style="padding: 0.5rem;">
+                            </div>
+                        </div>
+                        
+                        <div style="display: grid; grid-template-columns: auto 1fr; gap: 0.75rem; align-items: center;">
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <input type="checkbox" id="account-vat-enabled" onchange="document.getElementById('account-vat-rate').disabled = !this.checked">
+                                <label style="font-size: 0.8rem; margin: 0; font-weight: 600;">VAT Enabled</label>
+                            </div>
+                            <div class="form-group" style="margin: 0;">
+                                <input type="number" id="account-vat-rate" class="form-input" placeholder="VAT Rate %" step="0.01" min="0" style="padding: 0.4rem; font-size: 0.8rem;" disabled>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- ============ INVOICE ACTIONS ============ -->
+                    <div style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); padding: 1rem; border-radius: 12px; margin-bottom: 1rem; border: 1px solid #cbd5e1;">
+                        <h4 style="margin: 0 0 0.75rem 0; font-size: 0.85rem; color: #334155; font-weight: 600;">📄 Invoice</h4>
+                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                            <button type="button" class="btn" style="font-size: 0.8rem; padding: 0.5rem 1rem; background: #166534;" onclick="previewInvoice()">📄 Preview Invoice</button>
+                            <button type="button" class="btn" style="font-size: 0.8rem; padding: 0.5rem 1rem; background: #6366f1;" onclick="generateInvoice()">🧾 Generate & Save</button>
+                            <button type="button" class="btn btn-secondary" style="font-size: 0.8rem; padding: 0.5rem 1rem;" onclick="viewInvoiceHistory()">📋 History</button>
                         </div>
                     </div>
 
@@ -24621,9 +24513,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                     // Billing fields
                     document.getElementById('account-vat-number').value = account.vat_number || '';
                     document.getElementById('account-company-reg').value = account.company_reg || '';
-                    document.getElementById('account-gas-discount-type').value = account.gas_discount_type || 'none';
-                    document.getElementById('account-gas-discount-value').value = account.gas_discount_value || 0;
-                    document.getElementById('account-gas-discount-value').disabled = (account.gas_discount_type === 'none' || !account.gas_discount_type);
                     document.getElementById('account-beds24-discount-type').value = account.beds24_discount_type || 'none';
                     document.getElementById('account-beds24-discount-value').value = account.beds24_discount_value || 0;
                     document.getElementById('account-beds24-discount-value').disabled = (account.beds24_discount_type === 'none' || !account.beds24_discount_type);
@@ -24631,12 +24520,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                     document.getElementById('account-vat-rate').value = account.vat_rate || 0;
                     document.getElementById('account-vat-rate').disabled = !account.vat_enabled;
                     document.getElementById('account-beds24-billing').checked = account.beds24_billing_enabled !== false;
-                    document.getElementById('account-website-billing').checked = account.website_billing_enabled !== false;
                     
-                    // Show/hide Beds24 section based on connection status
-                    const beds24Section = document.getElementById('beds24-billing-section');
-                    if (beds24Section) {
-                        beds24Section.style.display = account.beds24_connected ? 'block' : 'none';
+                    // Show/hide Beds24 costs section based on connection status
+                    const beds24CostsSection = document.getElementById('account-beds24-costs-section');
+                    if (beds24CostsSection) {
+                        beds24CostsSection.style.display = account.beds24_connected ? 'block' : 'none';
                     }
                     
                     // Load custom lines
@@ -24806,10 +24694,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                 postcode: document.getElementById('account-postcode').value,
                 country: document.getElementById('account-country').value,
                 default_currency: document.getElementById('account-currency').value,
-                billing_discount_type: document.getElementById('account-gas-discount-type').value,
-                billing_discount_value: parseFloat(document.getElementById('account-gas-discount-value').value) || 0,
-                gas_discount_type: document.getElementById('account-gas-discount-type').value,
-                gas_discount_value: parseFloat(document.getElementById('account-gas-discount-value').value) || 0,
                 beds24_discount_type: document.getElementById('account-beds24-discount-type').value,
                 beds24_discount_value: parseFloat(document.getElementById('account-beds24-discount-value').value) || 0,
                 vat_number: document.getElementById('account-vat-number').value,
@@ -24817,7 +24701,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 vat_enabled: document.getElementById('account-vat-enabled').checked,
                 vat_rate: parseFloat(document.getElementById('account-vat-rate').value) || 0,
                 beds24_billing_enabled: document.getElementById('account-beds24-billing').checked,
-                website_billing_enabled: document.getElementById('account-website-billing').checked,
+                website_billing_enabled: true,
                 payment_methods: {
                     card: document.getElementById('acct-edit-pm-card').checked,
                     pay_at_property: document.getElementById('acct-edit-pm-pay-at-property').checked,
@@ -52000,11 +51884,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 let html = '<div style="max-height: 60vh; overflow-y: auto;">';
                 
-                // GAS Services
+                // ===== SECTION 1: GAS Services =====
                 const gasItems = data.line_items.filter(i => i.category === 'gas');
                 if (gasItems.length > 0) {
                     html += '<h4 style="color:#1e40af;margin-bottom:0.5rem;">💰 GAS Services</h4>';
-                    html += '<table style="width:100%;border-collapse:collapse;margin-bottom:1rem;font-size:0.85rem;">';
+                    html += '<table style="width:100%;border-collapse:collapse;margin-bottom:0.25rem;font-size:0.85rem;">';
                     html += '<tr style="background:#f1f5f9;"><th style="text-align:left;padding:6px;">Item</th><th style="text-align:center;padding:6px;">Rooms</th><th style="text-align:right;padding:6px;">Amount</th></tr>';
                     gasItems.forEach(item => {
                         const detail = item.detail ? `<div style="font-size:0.75rem;color:#64748b;">${item.detail}</div>` : '';
@@ -52012,53 +51896,53 @@ const promo = await fetch('/api/v1/offers/validate', {
                         html += `<tr><td style="padding:6px;border-bottom:1px solid #e2e8f0;">${item.label}${oneOff}${detail}</td><td style="text-align:center;padding:6px;border-bottom:1px solid #e2e8f0;">${item.rooms || item.quantity || ''}</td><td style="text-align:right;padding:6px;border-bottom:1px solid #e2e8f0;">${fmt(item.gross_amount || item.amount)}</td></tr>`;
                         if (item.discount_amount && item.discount_amount > 0) {
                             html += `<tr style="color:#16a34a;"><td style="padding:3px 6px;font-size:0.8rem;" colspan="2">↳ Discount (${item.discount_label})</td><td style="text-align:right;padding:3px 6px;">-${fmt(item.discount_amount)}</td></tr>`;
+                            html += `<tr><td style="padding:3px 6px;font-size:0.8rem;font-weight:600;" colspan="2">Net</td><td style="text-align:right;padding:3px 6px;font-weight:600;">${fmt(item.amount)}</td></tr>`;
                         }
                     });
                     html += '</table>';
+                    html += `<div style="display:flex;justify-content:space-between;padding:0.5rem 6px;background:#eff6ff;border-radius:6px;font-weight:700;color:#1e40af;font-size:0.9rem;margin-bottom:1rem;"><span>GAS Subtotal</span><span>${fmt(data.sections.gas.subtotal)}</span></div>`;
                 }
                 
-                // Beds24
+                // ===== SECTION 2: Beds24 =====
                 const beds24Items = data.line_items.filter(i => i.category === 'beds24');
                 if (beds24Items.length > 0) {
                     html += '<h4 style="color:#92400e;margin-bottom:0.5rem;">📊 Beds24 Channel Manager</h4>';
                     beds24Items.forEach(item => {
                         html += `<div style="font-size:0.8rem;color:#64748b;margin-bottom:0.5rem;">${item.detail || ''}</div>`;
-                        html += '<table style="width:100%;border-collapse:collapse;margin-bottom:0.5rem;font-size:0.85rem;">';
+                        html += '<table style="width:100%;border-collapse:collapse;margin-bottom:0.25rem;font-size:0.85rem;">';
                         if (item.rrp_breakdown) {
                             item.rrp_breakdown.forEach(r => {
-                                html += `<tr><td style="padding:4px 6px;border-bottom:1px solid #f1f5f9;">${r.label}</td><td style="text-align:center;padding:4px;">${r.qty}</td><td style="text-align:right;padding:4px 6px;">€${r.total.toFixed(2)}</td></tr>`;
+                                html += `<tr><td style="padding:4px 6px;border-bottom:1px solid #f1f5f9;">${r.label}</td><td style="text-align:center;padding:4px;">${r.qty}</td><td style="text-align:right;padding:4px 6px;">${fmt(r.total)}</td></tr>`;
                             });
-                            html += `<tr style="font-style:italic;color:#64748b;"><td style="padding:4px 6px;">RRP Total</td><td></td><td style="text-align:right;padding:4px 6px;">€${item.rrp_total.toFixed(2)}</td></tr>`;
+                            html += `<tr style="font-style:italic;color:#64748b;"><td style="padding:4px 6px;">RRP Total</td><td></td><td style="text-align:right;padding:4px 6px;">${fmt(item.rrp_total)}</td></tr>`;
                         }
-                        html += `<tr style="font-weight:700;"><td style="padding:6px;">Beds24 Total</td><td></td><td style="text-align:right;padding:6px;">${fmt(item.amount)}</td></tr>`;
                         html += '</table>';
                     });
+                    if (data.sections.beds24.discount_amount > 0) {
+                        html += `<div style="display:flex;justify-content:space-between;padding:3px 6px;color:#16a34a;font-size:0.85rem;"><span>${data.sections.beds24.discount_label}</span><span>-${fmt(data.sections.beds24.discount_amount)}</span></div>`;
+                    }
+                    html += `<div style="display:flex;justify-content:space-between;padding:0.5rem 6px;background:#fef3c7;border-radius:6px;font-weight:700;color:#92400e;font-size:0.9rem;margin-bottom:1rem;"><span>Beds24 Subtotal</span><span>${fmt(data.sections.beds24.subtotal)}</span></div>`;
                 }
                 
-                // Custom
+                // ===== SECTION 3: Custom Items =====
                 const customItems = data.line_items.filter(i => i.category === 'custom');
                 if (customItems.length > 0) {
-                    html += '<h4 style="color:#525252;margin-bottom:0.5rem;">📝 Custom Items</h4>';
-                    html += '<table style="width:100%;border-collapse:collapse;margin-bottom:1rem;font-size:0.85rem;">';
+                    html += '<h4 style="color:#86198f;margin-bottom:0.5rem;">📝 Custom Items</h4>';
+                    html += '<table style="width:100%;border-collapse:collapse;margin-bottom:0.25rem;font-size:0.85rem;">';
                     customItems.forEach(item => {
                         html += `<tr><td style="padding:6px;border-bottom:1px solid #e2e8f0;">${item.label}</td><td style="text-align:right;padding:6px;border-bottom:1px solid #e2e8f0;">${fmt(item.amount)}</td></tr>`;
                     });
                     html += '</table>';
+                    html += `<div style="display:flex;justify-content:space-between;padding:0.5rem 6px;background:#fdf4ff;border-radius:6px;font-weight:700;color:#86198f;font-size:0.9rem;margin-bottom:1rem;"><span>Custom Subtotal</span><span>${fmt(data.sections.custom.subtotal)}</span></div>`;
                 }
                 
-                // Totals
-                html += '<div style="background:#f8fafc;padding:0.75rem;border-radius:8px;margin-top:0.5rem;">';
-                html += `<div style="display:flex;justify-content:space-between;margin-bottom:0.25rem;"><span>Subtotal</span><strong>${fmt(data.subtotal)}</strong></div>`;
-                if (data.discounts.gas.amount > 0) {
-                    html += `<div style="display:flex;justify-content:space-between;color:#16a34a;margin-bottom:0.25rem;"><span>${data.discounts.gas.label}</span><strong>-${fmt(data.discounts.gas.amount)}</strong></div>`;
-                }
-                if (data.discounts.beds24.amount > 0) {
-                    html += `<div style="display:flex;justify-content:space-between;color:#16a34a;margin-bottom:0.25rem;"><span>${data.discounts.beds24.label}</span><strong>-${fmt(data.discounts.beds24.amount)}</strong></div>`;
-                }
+                // ===== GRAND TOTAL =====
+                html += '<div style="background:#f8fafc;padding:0.75rem;border-radius:8px;margin-top:0.5rem;border:2px solid #1e3a5f;">';
                 if (data.vat.enabled && data.vat.amount > 0) {
-                    html += `<div style="display:flex;justify-content:space-between;margin-bottom:0.25rem;"><span>VAT (${data.vat.rate}%)</span><strong>${fmt(data.vat.amount)}</strong></div>`;
+                    html += `<div style="display:flex;justify-content:space-between;margin-bottom:0.25rem;font-size:0.9rem;"><span>Subtotal</span><strong>${fmt(data.subtotal)}</strong></div>`;
+                    html += `<div style="display:flex;justify-content:space-between;margin-bottom:0.25rem;font-size:0.9rem;"><span>VAT (${data.vat.rate}%)</span><strong>${fmt(data.vat.amount)}</strong></div>`;
                 }
-                html += `<div style="display:flex;justify-content:space-between;font-size:1.1rem;padding-top:0.5rem;border-top:2px solid #1e3a5f;margin-top:0.25rem;"><strong>Total</strong><strong style="color:#1e3a5f;">${fmt(data.grand_total)}</strong></div>`;
+                html += `<div style="display:flex;justify-content:space-between;font-size:1.2rem;${data.vat.enabled && data.vat.amount > 0 ? 'padding-top:0.5rem;border-top:2px solid #1e3a5f;margin-top:0.25rem;' : ''}"><strong>Grand Total</strong><strong style="color:#1e3a5f;">${fmt(data.grand_total)}</strong></div>`;
                 html += '</div>';
                 
                 html += '</div>';
@@ -52099,34 +51983,14 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const periodStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
                 const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
                 
-                // Add discounts as line items for storage
-                const allItems = [...preview.line_items];
-                if (preview.discounts.gas.amount > 0) {
-                    allItems.push({
-                        category: 'discount',
-                        product: 'discount',
-                        label: preview.discounts.gas.label,
-                        amount: -preview.discounts.gas.amount,
-                        currency: preview.billing.currency
-                    });
-                }
-                if (preview.discounts.beds24.amount > 0) {
-                    allItems.push({
-                        category: 'discount',
-                        product: 'discount',
-                        label: preview.discounts.beds24.label,
-                        amount: -preview.discounts.beds24.amount,
-                        currency: preview.billing.currency
-                    });
-                }
-                
                 const response = await fetch(`/api/accounts/${accountId}/invoices`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({
                         period_start: periodStart,
                         period_end: periodEnd,
-                        line_items: allItems,
+                        line_items: preview.line_items,
+                        sections: preview.sections,
                         subtotal: preview.subtotal,
                         vat: preview.vat.amount,
                         grand_total: preview.grand_total,
