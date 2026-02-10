@@ -40936,6 +40936,54 @@ app.delete('/api/partner/websites/:websiteId', async (req, res) => {
   }
 });
 
+// PUT /api/partner/websites/:websiteId/status - Activate or deactivate a website
+app.put('/api/partner/websites/:websiteId/status', async (req, res) => {
+  console.log('=== PARTNER API: UPDATE WEBSITE STATUS ===');
+  
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    
+    const { websiteId } = req.params;
+    const { status } = req.body;
+    
+    if (!status || !['active', 'inactive'].includes(status)) {
+      return res.status(400).json({ success: false, error: 'status must be "active" or "inactive"' });
+    }
+    
+    // Verify website belongs to partner's tenant
+    const wCheck = await pool.query(`
+      SELECT w.id, w.subdomain, w.status as current_status FROM websites w
+      JOIN accounts a ON a.id = w.account_id
+      WHERE w.id = $1 AND a.parent_id = $2
+    `, [websiteId, auth.partnerId]);
+    
+    if (wCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Website not found' });
+    }
+    
+    const website = wCheck.rows[0];
+    
+    // Update website status
+    await pool.query(`UPDATE websites SET status = $1, updated_at = NOW() WHERE id = $2`, [status, websiteId]);
+    
+    console.log(`[Partner API] Website ${websiteId} (${website.subdomain}) status changed: ${website.current_status} -> ${status}`);
+    
+    res.json({ 
+      success: true, 
+      message: `Website ${status === 'inactive' ? 'deactivated' : 'activated'} successfully`,
+      website_id: parseInt(websiteId),
+      status: status
+    });
+    
+  } catch (error) {
+    console.error('Partner API update website status error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // POST /api/partner/websites/:websiteId/deploy - Deploy website to VPS
 app.post('/api/partner/websites/:websiteId/deploy', async (req, res) => {
   console.log('=== PARTNER API: DEPLOY WEBSITE ===');
