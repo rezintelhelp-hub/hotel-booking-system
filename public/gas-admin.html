@@ -16167,41 +16167,63 @@ const promo = await fetch('/api/v1/offers/validate', {
                             </div>
                         </div>
                         
-                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
-                            <div class="form-group" style="margin: 0;">
-                                <label style="font-size: 0.8rem;">Discount Type</label>
-                                <select id="account-discount-type" class="form-input" style="padding: 0.5rem;" onchange="toggleDiscountValue()">
-                                    <option value="none">No Discount</option>
-                                    <option value="percentage">Percentage (%)</option>
-                                    <option value="fixed">Fixed Amount</option>
-                                </select>
+                        <!-- GAS Services Discount -->
+                        <div style="background: white; padding: 0.75rem; border-radius: 8px; margin-bottom: 0.75rem; border: 1px solid #d1d5db;">
+                            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                                <input type="checkbox" id="account-website-billing" checked>
+                                <label style="font-size: 0.8rem; font-weight: 600; color: #1e40af; margin: 0;">💰 GAS Services</label>
                             </div>
-                            <div class="form-group" style="margin: 0;">
-                                <label style="font-size: 0.8rem;">Discount Value</label>
-                                <input type="number" id="account-discount-value" class="form-input" placeholder="0" step="0.01" min="0" style="padding: 0.5rem;" disabled>
-                            </div>
-                            <div class="form-group" style="margin: 0;">
-                                <label style="font-size: 0.8rem;">VAT Rate (%)</label>
-                                <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                    <input type="checkbox" id="account-vat-enabled" onchange="document.getElementById('account-vat-rate').disabled = !this.checked">
-                                    <input type="number" id="account-vat-rate" class="form-input" placeholder="0" step="0.01" min="0" style="padding: 0.5rem; flex:1;" disabled>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                                <div class="form-group" style="margin: 0;">
+                                    <label style="font-size: 0.75rem;">Discount Type</label>
+                                    <select id="account-gas-discount-type" class="form-input" style="padding: 0.4rem; font-size: 0.8rem;" onchange="document.getElementById('account-gas-discount-value').disabled = this.value === 'none'">
+                                        <option value="none">No Discount</option>
+                                        <option value="percentage">Percentage (%)</option>
+                                        <option value="fixed">Fixed Amount</option>
+                                    </select>
+                                </div>
+                                <div class="form-group" style="margin: 0;">
+                                    <label style="font-size: 0.75rem;">Discount Value</label>
+                                    <input type="number" id="account-gas-discount-value" class="form-input" placeholder="0" step="0.01" min="0" style="padding: 0.4rem; font-size: 0.8rem;" disabled>
                                 </div>
                             </div>
                         </div>
                         
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
-                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <!-- Beds24 Discount (hidden if not connected) -->
+                        <div id="beds24-billing-section" style="background: white; padding: 0.75rem; border-radius: 8px; margin-bottom: 0.75rem; border: 1px solid #d1d5db; display: none;">
+                            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
                                 <input type="checkbox" id="account-beds24-billing" checked>
-                                <label style="font-size: 0.8rem; margin: 0;">Include Beds24 on invoices</label>
+                                <label style="font-size: 0.8rem; font-weight: 600; color: #92400e; margin: 0;">📊 Beds24 Channel Manager</label>
                             </div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                                <div class="form-group" style="margin: 0;">
+                                    <label style="font-size: 0.75rem;">Discount Type</label>
+                                    <select id="account-beds24-discount-type" class="form-input" style="padding: 0.4rem; font-size: 0.8rem;" onchange="document.getElementById('account-beds24-discount-value').disabled = this.value === 'none'">
+                                        <option value="none">No Discount</option>
+                                        <option value="percentage">Percentage (%)</option>
+                                        <option value="fixed">Fixed Amount</option>
+                                    </select>
+                                </div>
+                                <div class="form-group" style="margin: 0;">
+                                    <label style="font-size: 0.75rem;">Discount Value</label>
+                                    <input type="number" id="account-beds24-discount-value" class="form-input" placeholder="0" step="0.01" min="0" style="padding: 0.4rem; font-size: 0.8rem;" disabled>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- VAT -->
+                        <div style="display: grid; grid-template-columns: auto 1fr; gap: 0.75rem; margin-bottom: 0.75rem; align-items: center;">
                             <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                <input type="checkbox" id="account-website-billing" checked>
-                                <label style="font-size: 0.8rem; margin: 0;">Include GAS Services on invoices</label>
+                                <input type="checkbox" id="account-vat-enabled" onchange="document.getElementById('account-vat-rate').disabled = !this.checked">
+                                <label style="font-size: 0.8rem; margin: 0; font-weight: 600;">VAT</label>
+                            </div>
+                            <div class="form-group" style="margin: 0;">
+                                <input type="number" id="account-vat-rate" class="form-input" placeholder="VAT Rate %" step="0.01" min="0" style="padding: 0.4rem; font-size: 0.8rem;" disabled>
                             </div>
                         </div>
                         
                         <!-- Custom Line Items -->
-                        <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #86efac;">
+                        <div style="padding-top: 0.75rem; border-top: 1px solid #86efac;">
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
                                 <label style="font-size: 0.8rem; font-weight: 600;">Custom Invoice Lines</label>
                                 <button type="button" class="btn btn-secondary" style="font-size: 0.75rem; padding: 0.25rem 0.75rem;" onclick="addCustomLine()">+ Add Line</button>
@@ -24555,14 +24577,23 @@ const promo = await fetch('/api/v1/offers/validate', {
                     // Billing fields
                     document.getElementById('account-vat-number').value = account.vat_number || '';
                     document.getElementById('account-company-reg').value = account.company_reg || '';
-                    document.getElementById('account-discount-type').value = account.billing_discount_type || 'none';
-                    document.getElementById('account-discount-value').value = account.billing_discount_value || 0;
-                    document.getElementById('account-discount-value').disabled = (account.billing_discount_type === 'none' || !account.billing_discount_type);
+                    document.getElementById('account-gas-discount-type').value = account.gas_discount_type || 'none';
+                    document.getElementById('account-gas-discount-value').value = account.gas_discount_value || 0;
+                    document.getElementById('account-gas-discount-value').disabled = (account.gas_discount_type === 'none' || !account.gas_discount_type);
+                    document.getElementById('account-beds24-discount-type').value = account.beds24_discount_type || 'none';
+                    document.getElementById('account-beds24-discount-value').value = account.beds24_discount_value || 0;
+                    document.getElementById('account-beds24-discount-value').disabled = (account.beds24_discount_type === 'none' || !account.beds24_discount_type);
                     document.getElementById('account-vat-enabled').checked = account.vat_enabled || false;
                     document.getElementById('account-vat-rate').value = account.vat_rate || 0;
                     document.getElementById('account-vat-rate').disabled = !account.vat_enabled;
                     document.getElementById('account-beds24-billing').checked = account.beds24_billing_enabled !== false;
                     document.getElementById('account-website-billing').checked = account.website_billing_enabled !== false;
+                    
+                    // Show/hide Beds24 section based on connection status
+                    const beds24Section = document.getElementById('beds24-billing-section');
+                    if (beds24Section) {
+                        beds24Section.style.display = account.beds24_connected ? 'block' : 'none';
+                    }
                     
                     // Load custom lines
                     loadCustomLines(account.id);
@@ -24728,8 +24759,12 @@ const promo = await fetch('/api/v1/offers/validate', {
                 postcode: document.getElementById('account-postcode').value,
                 country: document.getElementById('account-country').value,
                 default_currency: document.getElementById('account-currency').value,
-                billing_discount_type: document.getElementById('account-discount-type').value,
-                billing_discount_value: parseFloat(document.getElementById('account-discount-value').value) || 0,
+                billing_discount_type: document.getElementById('account-gas-discount-type').value,
+                billing_discount_value: parseFloat(document.getElementById('account-gas-discount-value').value) || 0,
+                gas_discount_type: document.getElementById('account-gas-discount-type').value,
+                gas_discount_value: parseFloat(document.getElementById('account-gas-discount-value').value) || 0,
+                beds24_discount_type: document.getElementById('account-beds24-discount-type').value,
+                beds24_discount_value: parseFloat(document.getElementById('account-beds24-discount-value').value) || 0,
                 vat_number: document.getElementById('account-vat-number').value,
                 company_reg: document.getElementById('account-company-reg').value,
                 vat_enabled: document.getElementById('account-vat-enabled').checked,
@@ -51596,13 +51631,6 @@ const promo = await fetch('/api/v1/offers/validate', {
         // BILLING & INVOICE FUNCTIONS
         // =====================================================
         
-        function toggleDiscountValue() {
-            const type = document.getElementById('account-discount-type').value;
-            const valueInput = document.getElementById('account-discount-value');
-            valueInput.disabled = (type === 'none');
-            if (type === 'none') valueInput.value = 0;
-        }
-        
         async function loadCustomLines(accountId) {
             const container = document.getElementById('custom-lines-container');
             if (!container) return;
@@ -51730,8 +51758,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                 // Totals
                 html += '<div style="background:#f8fafc;padding:0.75rem;border-radius:8px;margin-top:0.5rem;">';
                 html += `<div style="display:flex;justify-content:space-between;margin-bottom:0.25rem;"><span>Subtotal</span><strong>${fmt(data.subtotal)}</strong></div>`;
-                if (data.discount.amount > 0) {
-                    html += `<div style="display:flex;justify-content:space-between;color:#16a34a;margin-bottom:0.25rem;"><span>${data.discount.label}</span><strong>-${fmt(data.discount.amount)}</strong></div>`;
+                if (data.discounts.gas.amount > 0) {
+                    html += `<div style="display:flex;justify-content:space-between;color:#16a34a;margin-bottom:0.25rem;"><span>${data.discounts.gas.label}</span><strong>-${fmt(data.discounts.gas.amount)}</strong></div>`;
+                }
+                if (data.discounts.beds24.amount > 0) {
+                    html += `<div style="display:flex;justify-content:space-between;color:#16a34a;margin-bottom:0.25rem;"><span>${data.discounts.beds24.label}</span><strong>-${fmt(data.discounts.beds24.amount)}</strong></div>`;
                 }
                 if (data.vat.enabled && data.vat.amount > 0) {
                     html += `<div style="display:flex;justify-content:space-between;margin-bottom:0.25rem;"><span>VAT (${data.vat.rate}%)</span><strong>${fmt(data.vat.amount)}</strong></div>`;
@@ -51777,14 +51808,23 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const periodStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
                 const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
                 
-                // Add discount as a line item for storage
+                // Add discounts as line items for storage
                 const allItems = [...preview.line_items];
-                if (preview.discount.amount > 0) {
+                if (preview.discounts.gas.amount > 0) {
                     allItems.push({
                         category: 'discount',
                         product: 'discount',
-                        label: preview.discount.label,
-                        amount: -preview.discount.amount,
+                        label: preview.discounts.gas.label,
+                        amount: -preview.discounts.gas.amount,
+                        currency: preview.billing.currency
+                    });
+                }
+                if (preview.discounts.beds24.amount > 0) {
+                    allItems.push({
+                        category: 'discount',
+                        product: 'discount',
+                        label: preview.discounts.beds24.label,
+                        amount: -preview.discounts.beds24.amount,
                         currency: preview.billing.currency
                     });
                 }
