@@ -60336,7 +60336,7 @@ app.post('/api/beds24-wizard/import', async (req, res) => {
     
     // Store connection info with ALL credentials for future syncs
     // Store as JSON to keep all three keys together
-    const credentials = JSON.stringify({
+    const credentialsJson = JSON.stringify({
       inviteCode: inviteCode,
       v1ApiKey: v1ApiKey || '',
       propCode: propCode || ''
@@ -60344,11 +60344,11 @@ app.post('/api/beds24-wizard/import', async (req, res) => {
     
     await pool.query(`
       INSERT INTO gas_sync_connections (
-        account_id, channel_manager, name, api_key, status, created_at
-      ) VALUES ($1, 'beds24', $2, $3, 'active', NOW())
+        account_id, channel_manager, name, api_key, credentials, status, created_at
+      ) VALUES ($1, 'beds24', $2, $3, $3, 'active', NOW())
       ON CONFLICT (account_id, channel_manager) 
-      DO UPDATE SET api_key = $3, status = 'active', updated_at = NOW()
-    `, [accountId, prop.name + ' Connection', credentials]).catch(e => console.log('Connection save:', e.message));
+      DO UPDATE SET api_key = $3, credentials = $3, status = 'active', updated_at = NOW()
+    `, [accountId, prop.name + ' Connection', credentialsJson]).catch(e => console.log('Connection save:', e.message));
     
     // Also store property-specific codes in gas_sync_properties if table exists
     await pool.query(`
