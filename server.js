@@ -13859,6 +13859,65 @@ app.get('/api/accounts/:id/beds24-rrp', async (req, res) => {
 });
 
 
+// List custom sites for an account (admin)
+app.get('/api/admin/custom-sites', async (req, res) => {
+  try {
+    const { account_id } = req.query;
+    let query = 'SELECT * FROM custom_sites';
+    let params = [];
+    if (account_id) {
+      query += ' WHERE account_id = $1';
+      params = [account_id];
+    }
+    query += ' ORDER BY created_at DESC';
+    const result = await pool.query(query, params);
+    res.json({ success: true, sites: result.rows });
+  } catch (error) {
+    if (error.code === '42P01') {
+      // Table doesn't exist yet
+      res.json({ success: true, sites: [] });
+    } else {
+      res.json({ success: false, error: error.message });
+    }
+  }
+});
+
+// Update custom site billing settings
+app.put('/api/admin/custom-sites/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { site_type, monthly_fee, setup_fee, setup_fee_invoiced, discount_type, discount_value, billing_enabled } = req.body;
+    
+    // Ensure billing columns exist on custom_sites
+    await pool.query(`ALTER TABLE custom_sites ADD COLUMN IF NOT EXISTS site_type VARCHAR(20) DEFAULT 'custom'`).catch(() => {});
+    await pool.query(`ALTER TABLE custom_sites ADD COLUMN IF NOT EXISTS monthly_fee DECIMAL(10,2)`).catch(() => {});
+    await pool.query(`ALTER TABLE custom_sites ADD COLUMN IF NOT EXISTS setup_fee DECIMAL(10,2) DEFAULT 0`).catch(() => {});
+    await pool.query(`ALTER TABLE custom_sites ADD COLUMN IF NOT EXISTS setup_fee_invoiced BOOLEAN DEFAULT false`).catch(() => {});
+    await pool.query(`ALTER TABLE custom_sites ADD COLUMN IF NOT EXISTS discount_type VARCHAR(10) DEFAULT 'none'`).catch(() => {});
+    await pool.query(`ALTER TABLE custom_sites ADD COLUMN IF NOT EXISTS discount_value DECIMAL(10,2) DEFAULT 0`).catch(() => {});
+    await pool.query(`ALTER TABLE custom_sites ADD COLUMN IF NOT EXISTS billing_enabled BOOLEAN DEFAULT true`).catch(() => {});
+    
+    const updates = [];
+    const values = [id];
+    let paramIndex = 2;
+    
+    if (site_type !== undefined) { updates.push(`site_type = $${paramIndex++}`); values.push(site_type); }
+    if (monthly_fee !== undefined) { updates.push(`monthly_fee = $${paramIndex++}`); values.push(monthly_fee); }
+    if (setup_fee !== undefined) { updates.push(`setup_fee = $${paramIndex++}`); values.push(setup_fee); }
+    if (setup_fee_invoiced !== undefined) { updates.push(`setup_fee_invoiced = $${paramIndex++}`); values.push(setup_fee_invoiced); }
+    if (discount_type !== undefined) { updates.push(`discount_type = $${paramIndex++}`); values.push(discount_type); }
+    if (discount_value !== undefined) { updates.push(`discount_value = $${paramIndex++}`); values.push(discount_value); }
+    if (billing_enabled !== undefined) { updates.push(`billing_enabled = $${paramIndex++}`); values.push(billing_enabled); }
+    
+    if (updates.length === 0) return res.json({ success: false, error: 'No fields to update' });
+    
+    const result = await pool.query(`UPDATE custom_sites SET ${updates.join(', ')} WHERE id = $1 RETURNING *`, values);
+    res.json({ success: true, site: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // =====================================================
 // INVOICE GENERATION SYSTEM
 // =====================================================
@@ -14039,6 +14098,66 @@ app.get('/api/accounts/:id/invoice-preview', async (req, res) => {
           });
           subtotal += parseFloat(site.setup_fee);
         }
+      }
+      
+      // Also include custom sites
+      try {
+        const customSites = await pool.query(`
+          SELECT * FROM custom_sites
+          WHERE account_id = $1 AND COALESCE(status, 'active') != 'deleted'
+        `, [accountId]);
+        
+        for (const cs of customSites.rows) {
+          const billingEnabled = cs.billing_enabled !== false;
+          if (!billingEnabled) continue;
+          
+          const csMonthly = parseFloat(cs.monthly_fee) || 0;
+          let csDiscount = 0;
+          let csDiscountLabel = '';
+          if (cs.discount_type === 'percentage' && cs.discount_value > 0) {
+            csDiscount = csMonthly * (cs.discount_value / 100);
+            csDiscountLabel = `${cs.discount_value}% off`;
+          } else if (cs.discount_type === 'fixed' && cs.discount_value > 0) {
+            csDiscount = parseFloat(cs.discount_value);
+            csDiscountLabel = `€${cs.discount_value} off`;
+          }
+          const csNet = Math.round((csMonthly - csDiscount) * 100) / 100;
+          
+          lineItems.push({
+            category: 'gas',
+            product: 'custom',
+            site_id: 'cs-' + cs.id,
+            label: `Custom Site: ${cs.site_name || cs.slug}`,
+            detail: cs.domain || '',
+            rooms: 0,
+            gross_amount: csMonthly,
+            discount_type: cs.discount_type || 'none',
+            discount_value: parseFloat(cs.discount_value) || 0,
+            discount_label: csDiscountLabel,
+            discount_amount: Math.round(csDiscount * 100) / 100,
+            amount: csNet,
+            currency: 'EUR'
+          });
+          subtotal += csNet;
+          
+          // Setup fee
+          if (parseFloat(cs.setup_fee) > 0 && !cs.setup_fee_invoiced) {
+            lineItems.push({
+              category: 'gas',
+              product: 'setup_fee',
+              site_id: 'cs-' + cs.id,
+              label: `Setup Fee: ${cs.site_name || cs.slug}`,
+              detail: 'One-off',
+              amount: parseFloat(cs.setup_fee),
+              currency: 'EUR',
+              is_one_off: true
+            });
+            subtotal += parseFloat(cs.setup_fee);
+          }
+        }
+      } catch (csError) {
+        // custom_sites table may not exist yet
+        console.log('Custom sites query skipped:', csError.message);
       }
       
       // Also include other account-level subscriptions (blog, attractions, lites, reviews)
