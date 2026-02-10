@@ -11403,7 +11403,8 @@ app.put('/api/accounts/:id', async (req, res) => {
     const { 
       account_code, name, email, phone, business_name, status, notes, role,
       contact_name, address_line1, address_line2, city, region, postcode, country, default_currency,
-      payment_methods
+      payment_methods, billing_discount_type, billing_discount_value, vat_number, company_reg,
+      vat_enabled, vat_rate, beds24_billing_enabled, website_billing_enabled
     } = req.body;
     
     // Ensure columns exist
@@ -11483,6 +11484,38 @@ app.put('/api/accounts/:id', async (req, res) => {
     if (default_currency !== undefined) {
       updates.push(`default_currency = $${paramIndex++}`);
       values.push(default_currency || null);
+    }
+    if (billing_discount_type !== undefined) {
+      updates.push(`billing_discount_type = $${paramIndex++}`);
+      values.push(billing_discount_type);
+    }
+    if (billing_discount_value !== undefined) {
+      updates.push(`billing_discount_value = $${paramIndex++}`);
+      values.push(billing_discount_value);
+    }
+    if (vat_number !== undefined) {
+      updates.push(`vat_number = $${paramIndex++}`);
+      values.push(vat_number || null);
+    }
+    if (company_reg !== undefined) {
+      updates.push(`company_reg = $${paramIndex++}`);
+      values.push(company_reg || null);
+    }
+    if (vat_enabled !== undefined) {
+      updates.push(`vat_enabled = $${paramIndex++}`);
+      values.push(vat_enabled);
+    }
+    if (vat_rate !== undefined) {
+      updates.push(`vat_rate = $${paramIndex++}`);
+      values.push(vat_rate);
+    }
+    if (beds24_billing_enabled !== undefined) {
+      updates.push(`beds24_billing_enabled = $${paramIndex++}`);
+      values.push(beds24_billing_enabled);
+    }
+    if (website_billing_enabled !== undefined) {
+      updates.push(`website_billing_enabled = $${paramIndex++}`);
+      values.push(website_billing_enabled);
     }
     
     if (updates.length === 0) {
@@ -12252,6 +12285,46 @@ app.get('/api/setup-accounts-billing', async (req, res) => {
     }
     console.log('✅ pricing_config table seeded');
 
+    // Add plugin pricing (same as ai_website)
+    await pool.query(`
+      INSERT INTO pricing_config (product, tier, tier_label, min_quantity, max_quantity, price_per_unit, flat_price, currency) VALUES
+      ('plugin', 0, 'Base Fee', 0, NULL, NULL, 19.00, 'EUR'),
+      ('plugin', 1, '1-50 units', 1, 50, 2.50, NULL, 'EUR'),
+      ('plugin', 2, '51-100 units', 51, 100, 2.00, NULL, 'EUR'),
+      ('plugin', 3, '101-250 units', 101, 250, 1.50, NULL, 'EUR'),
+      ('plugin', 4, '251-500 units', 251, 500, 1.00, NULL, 'EUR'),
+      ('plugin', 5, '501+ units', 501, NULL, 0.50, NULL, 'EUR')
+      ON CONFLICT DO NOTHING
+    `).catch(() => {});
+    console.log('✅ plugin pricing seeded');
+
+    // Add billing fields to accounts
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS billing_discount_type VARCHAR(10) DEFAULT 'none'`).catch(() => {});
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS billing_discount_value DECIMAL(10,2) DEFAULT 0`).catch(() => {});
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS vat_number VARCHAR(50)`).catch(() => {});
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS company_reg VARCHAR(50)`).catch(() => {});
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS vat_enabled BOOLEAN DEFAULT false`).catch(() => {});
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS vat_rate DECIMAL(5,2) DEFAULT 0`).catch(() => {});
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS beds24_billing_enabled BOOLEAN DEFAULT true`).catch(() => {});
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS website_billing_enabled BOOLEAN DEFAULT true`).catch(() => {});
+    console.log('✅ billing columns added to accounts');
+
+    // Custom invoice line items table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS invoice_custom_lines (
+        id SERIAL PRIMARY KEY,
+        account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
+        description TEXT NOT NULL,
+        amount DECIMAL(10,2) NOT NULL,
+        currency VARCHAR(3) DEFAULT 'EUR',
+        recurring BOOLEAN DEFAULT false,
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `).catch(() => {});
+    console.log('✅ invoice_custom_lines table created');
+
     res.json({ success: true, message: 'All billing tables created and seeded' });
   } catch (error) {
     console.error('Setup error:', error);
@@ -12675,6 +12748,8 @@ app.post('/api/accounts/:id/subscriptions', async (req, res) => {
     let price = 0;
     if (product === 'ai_website') {
       price = calculateAIWebsitePrice(quantity || 0);
+    } else if (product === 'plugin') {
+      price = calculatePluginPrice(quantity || 0);
     } else if (product === 'reviews') {
       price = calculateReviewsPrice(quantity || 0);
     } else {
@@ -13768,6 +13843,519 @@ app.get('/api/accounts/:id/beds24-rrp', async (req, res) => {
       rrp_total: Math.round(rrpTotal * 100) / 100,
       rrp_total_monthly: Math.round(rrpTotal * 100) / 100
     });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+
+// =====================================================
+// INVOICE GENERATION SYSTEM
+// =====================================================
+
+// Helper: Calculate plugin price (same as AI Website)
+function calculatePluginPrice(unitCount) {
+  return calculateAIWebsitePrice(unitCount);
+}
+
+// Custom line items CRUD
+app.get('/api/accounts/:id/custom-lines', async (req, res) => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS invoice_custom_lines (
+        id SERIAL PRIMARY KEY,
+        account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
+        description TEXT NOT NULL,
+        amount DECIMAL(10,2) NOT NULL,
+        currency VARCHAR(3) DEFAULT 'EUR',
+        recurring BOOLEAN DEFAULT false,
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `).catch(() => {});
+    const result = await pool.query(
+      'SELECT * FROM invoice_custom_lines WHERE account_id = $1 AND is_active = true ORDER BY id',
+      [req.params.id]
+    );
+    res.json({ success: true, lines: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/accounts/:id/custom-lines', async (req, res) => {
+  try {
+    const { description, amount, currency, recurring } = req.body;
+    if (!description || amount === undefined) {
+      return res.json({ success: false, error: 'description and amount required' });
+    }
+    const result = await pool.query(
+      `INSERT INTO invoice_custom_lines (account_id, description, amount, currency, recurring)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [req.params.id, description, amount, currency || 'EUR', recurring || false]
+    );
+    res.json({ success: true, line: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+app.delete('/api/accounts/:id/custom-lines/:lineId', async (req, res) => {
+  try {
+    await pool.query(
+      'UPDATE invoice_custom_lines SET is_active = false WHERE id = $1 AND account_id = $2',
+      [req.params.lineId, req.params.id]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Generate invoice preview (does not save)
+app.get('/api/accounts/:id/invoice-preview', async (req, res) => {
+  try {
+    const accountId = req.params.id;
+    const { period } = req.query; // e.g. "2026-02"
+    
+    // Get account details
+    const acctResult = await pool.query(`
+      SELECT a.*, 
+        COALESCE(a.billing_discount_type, 'none') as billing_discount_type,
+        COALESCE(a.billing_discount_value, 0) as billing_discount_value,
+        COALESCE(a.vat_enabled, false) as vat_enabled,
+        COALESCE(a.vat_rate, 0) as vat_rate,
+        COALESCE(a.beds24_billing_enabled, true) as beds24_billing_enabled,
+        COALESCE(a.website_billing_enabled, true) as website_billing_enabled
+      FROM accounts a WHERE a.id = $1
+    `, [accountId]);
+    
+    if (acctResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Account not found' });
+    }
+    
+    const account = acctResult.rows[0];
+    const invoiceCurrency = account.default_currency || 'EUR';
+    const lineItems = [];
+    let subtotal = 0;
+    
+    // ===== GAS SUBSCRIPTIONS =====
+    if (account.website_billing_enabled) {
+      const subs = await pool.query(
+        `SELECT * FROM account_subscriptions WHERE account_id = $1 AND status = 'active'`,
+        [accountId]
+      );
+      
+      for (const sub of subs.rows) {
+        const item = {
+          category: 'gas',
+          product: sub.product,
+          label: sub.product === 'ai_website' ? 'AI Website' :
+                 sub.product === 'plugin' ? 'Plugin' :
+                 sub.product === 'blog' ? 'Blog' :
+                 sub.product === 'attractions' ? 'Attractions' :
+                 sub.product === 'lites' ? 'Lites / Social' :
+                 sub.product === 'reviews' ? 'Reviews (Repuso)' : sub.product,
+          quantity: sub.quantity || 0,
+          tier: sub.tier,
+          amount: parseFloat(sub.monthly_price) || 0,
+          currency: sub.currency || 'EUR'
+        };
+        lineItems.push(item);
+        subtotal += item.amount;
+      }
+    }
+    
+    // ===== BEDS24 CHANNEL MANAGER =====
+    if (account.beds24_billing_enabled) {
+      const snap = await pool.query(`
+        SELECT * FROM beds24_usage_snapshots
+        WHERE account_id = $1
+        ORDER BY period_date DESC LIMIT 1
+      `, [accountId]);
+      
+      if (snap.rows.length > 0) {
+        const s = snap.rows[0];
+        const rrpLines = [
+          { label: 'Beds24 Account', rate: 12.90, qty: 1, total: 12.90 },
+          { label: 'Sub Accounts', rate: 2.00, qty: s.sub_account_count, total: s.sub_account_count * 2.00 },
+          { label: 'Rooms', rate: 2.60, qty: s.room_count, total: s.room_count * 2.60 },
+          { label: 'Channel Links', rate: 0.55, qty: s.link_count, total: s.link_count * 0.55 }
+        ];
+        
+        if (s.ssl_count > 0) {
+          rrpLines.push({ label: 'SSL Certificates', rate: 50.00, qty: s.ssl_count, total: s.ssl_count * 50.00 });
+        }
+        if (s.private_domain) {
+          rrpLines.push({ label: 'Private Booking Domain', rate: 19.00, qty: 1, total: 19.00 });
+        }
+        
+        const rrpTotal = rrpLines.reduce((sum, r) => sum + r.total, 0);
+        const contractDiscount = rrpTotal * 0.50; // 50% contract discount
+        const beds24Net = rrpTotal - contractDiscount;
+        
+        lineItems.push({
+          category: 'beds24',
+          product: 'beds24_rrp',
+          label: 'Beds24 Channel Manager (RRP)',
+          detail: `${s.beds24_username || 'Account'} · ${s.property_count} properties · ${s.room_count} rooms · ${s.link_count} links`,
+          rrp_breakdown: rrpLines,
+          rrp_total: Math.round(rrpTotal * 100) / 100,
+          contract_discount_pct: 50,
+          contract_discount: Math.round(contractDiscount * 100) / 100,
+          amount: Math.round(beds24Net * 100) / 100,
+          currency: 'EUR',
+          period: s.period_date
+        });
+        subtotal += beds24Net;
+      }
+    }
+    
+    // ===== CUSTOM LINE ITEMS =====
+    const customLines = await pool.query(
+      'SELECT * FROM invoice_custom_lines WHERE account_id = $1 AND is_active = true',
+      [accountId]
+    ).catch(() => ({ rows: [] }));
+    
+    for (const cl of customLines.rows) {
+      lineItems.push({
+        category: 'custom',
+        product: 'custom',
+        label: cl.description,
+        amount: parseFloat(cl.amount),
+        currency: cl.currency || 'EUR'
+      });
+      subtotal += parseFloat(cl.amount);
+    }
+    
+    // ===== DISCOUNT =====
+    let discountAmount = 0;
+    let discountLabel = '';
+    if (account.billing_discount_type === 'percentage' && account.billing_discount_value > 0) {
+      discountAmount = subtotal * (account.billing_discount_value / 100);
+      discountLabel = `Discount (${account.billing_discount_value}%)`;
+    } else if (account.billing_discount_type === 'fixed' && account.billing_discount_value > 0) {
+      discountAmount = parseFloat(account.billing_discount_value);
+      discountLabel = `Discount (fixed)`;
+    }
+    discountAmount = Math.round(discountAmount * 100) / 100;
+    
+    const afterDiscount = subtotal - discountAmount;
+    
+    // ===== VAT =====
+    let vatAmount = 0;
+    if (account.vat_enabled && account.vat_rate > 0) {
+      vatAmount = Math.round(afterDiscount * (account.vat_rate / 100) * 100) / 100;
+    }
+    
+    const grandTotal = Math.round((afterDiscount + vatAmount) * 100) / 100;
+    
+    res.json({
+      success: true,
+      account: {
+        id: account.id,
+        name: account.name,
+        email: account.email,
+        phone: account.phone,
+        contact_name: account.contact_name,
+        address_line1: account.address_line1,
+        address_line2: account.address_line2,
+        city: account.city,
+        region: account.region,
+        postcode: account.postcode,
+        country: account.country,
+        vat_number: account.vat_number,
+        company_reg: account.company_reg
+      },
+      billing: {
+        currency: invoiceCurrency,
+        beds24_enabled: account.beds24_billing_enabled,
+        website_enabled: account.website_billing_enabled,
+        discount_type: account.billing_discount_type,
+        discount_value: parseFloat(account.billing_discount_value) || 0,
+        vat_enabled: account.vat_enabled,
+        vat_rate: parseFloat(account.vat_rate) || 0
+      },
+      line_items: lineItems,
+      subtotal: Math.round(subtotal * 100) / 100,
+      discount: {
+        label: discountLabel,
+        amount: discountAmount
+      },
+      after_discount: Math.round(afterDiscount * 100) / 100,
+      vat: {
+        enabled: account.vat_enabled,
+        rate: parseFloat(account.vat_rate) || 0,
+        amount: vatAmount
+      },
+      grand_total: grandTotal
+    });
+  } catch (error) {
+    console.error('Invoice preview error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Save/finalise invoice
+app.post('/api/accounts/:id/invoices', async (req, res) => {
+  try {
+    const accountId = req.params.id;
+    const { period_start, period_end, line_items, subtotal, discount, vat, grand_total, currency, notes } = req.body;
+    
+    // Generate invoice number: INV-YYYY-NNNN
+    const year = new Date().getFullYear();
+    const lastInvoice = await pool.query(
+      `SELECT invoice_number FROM invoices WHERE invoice_number LIKE $1 ORDER BY id DESC LIMIT 1`,
+      [`INV-${year}-%`]
+    );
+    let nextNum = 1;
+    if (lastInvoice.rows.length > 0) {
+      const lastNum = parseInt(lastInvoice.rows[0].invoice_number.split('-')[2]);
+      nextNum = lastNum + 1;
+    }
+    const invoiceNumber = `INV-${year}-${String(nextNum).padStart(4, '0')}`;
+    
+    const result = await pool.query(`
+      INSERT INTO invoices (invoice_number, account_id, period_start, period_end, subtotal, tax, total, currency, status, line_items, notes)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'final', $9, $10)
+      RETURNING *
+    `, [
+      invoiceNumber, accountId,
+      period_start || new Date().toISOString().slice(0, 10),
+      period_end || new Date().toISOString().slice(0, 10),
+      subtotal || 0,
+      vat || 0,
+      grand_total || 0,
+      currency || 'EUR',
+      JSON.stringify(line_items || []),
+      notes || ''
+    ]);
+    
+    res.json({ success: true, invoice: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// List invoices for account
+app.get('/api/accounts/:id/invoices', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT * FROM invoices WHERE account_id = $1 ORDER BY created_at DESC',
+      [req.params.id]
+    );
+    res.json({ success: true, invoices: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get single invoice
+app.get('/api/invoices/:invoiceId', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT i.*, a.name as account_name, a.email as account_email, a.phone as account_phone,
+             a.contact_name, a.address_line1, a.address_line2, a.city, a.region, a.postcode, a.country,
+             a.vat_number, a.company_reg
+      FROM invoices i
+      JOIN accounts a ON i.account_id = a.id
+      WHERE i.id = $1
+    `, [req.params.invoiceId]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Invoice not found' });
+    }
+    res.json({ success: true, invoice: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Printable invoice HTML
+app.get('/api/invoices/:invoiceId/print', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT i.*, a.name as account_name, a.email as account_email, a.phone as account_phone,
+             a.contact_name, a.address_line1, a.address_line2, a.city, a.region, a.postcode, a.country,
+             a.vat_number, a.company_reg
+      FROM invoices i
+      JOIN accounts a ON i.account_id = a.id
+      WHERE i.id = $1
+    `, [req.params.invoiceId]);
+    
+    if (result.rows.length === 0) return res.status(404).send('Invoice not found');
+    
+    const inv = result.rows[0];
+    const items = typeof inv.line_items === 'string' ? JSON.parse(inv.line_items) : (inv.line_items || []);
+    const currencySymbol = { EUR: '€', GBP: '£', USD: '$', CHF: 'CHF', AUD: 'A$', CAD: 'C$', THB: '฿', PHP: '₱' }[inv.currency] || inv.currency + ' ';
+    
+    const formatMoney = (amt) => `${currencySymbol}${parseFloat(amt || 0).toFixed(2)}`;
+    
+    let itemsHtml = '';
+    for (const item of items) {
+      if (item.category === 'beds24' && item.rrp_breakdown) {
+        itemsHtml += `<tr class="section-header"><td colspan="3" style="font-weight:700;padding-top:16px;color:#1e3a5f;">Beds24 Channel Manager</td></tr>`;
+        for (const r of item.rrp_breakdown) {
+          itemsHtml += `<tr><td style="padding-left:20px;">${r.label}</td><td style="text-align:center;">${r.qty}</td><td style="text-align:right;">${formatMoney(r.total)}</td></tr>`;
+        }
+        itemsHtml += `<tr><td style="padding-left:20px;font-style:italic;">RRP Total</td><td></td><td style="text-align:right;font-style:italic;">${formatMoney(item.rrp_total)}</td></tr>`;
+        itemsHtml += `<tr><td style="padding-left:20px;color:#16a34a;">Contract Discount (${item.contract_discount_pct}%)</td><td></td><td style="text-align:right;color:#16a34a;">-${formatMoney(item.contract_discount)}</td></tr>`;
+        itemsHtml += `<tr style="font-weight:600;"><td style="padding-left:20px;">Beds24 Net</td><td></td><td style="text-align:right;">${formatMoney(item.amount)}</td></tr>`;
+      } else {
+        const catLabel = item.category === 'gas' ? 'GAS' : item.category === 'custom' ? 'Custom' : '';
+        itemsHtml += `<tr><td>${item.label}</td><td style="text-align:center;">${item.quantity || ''}</td><td style="text-align:right;">${formatMoney(item.amount)}</td></tr>`;
+      }
+    }
+    
+    // Build discount row
+    let discountRow = '';
+    const discount = items.find(i => i.category === 'discount');
+    // Check if discount info is in the stored data
+    const storedDiscount = items.find(i => i.product === 'discount');
+    if (storedDiscount) {
+      discountRow = `<tr style="color:#16a34a;"><td colspan="2" style="text-align:right;">${storedDiscount.label}</td><td style="text-align:right;">-${formatMoney(Math.abs(storedDiscount.amount))}</td></tr>`;
+    }
+    
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Invoice ${inv.invoice_number}</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; color:#334155; background:#fff; padding:40px; max-width:800px; margin:0 auto; }
+  .header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:40px; border-bottom:3px solid #1e3a5f; padding-bottom:20px; }
+  .company { }
+  .company h1 { font-size:28px; color:#1e3a5f; margin-bottom:4px; }
+  .company p { font-size:12px; color:#64748b; }
+  .invoice-title { text-align:right; }
+  .invoice-title h2 { font-size:32px; color:#1e3a5f; text-transform:uppercase; letter-spacing:2px; }
+  .invoice-title .inv-num { font-size:16px; color:#6366f1; font-weight:600; margin-top:4px; }
+  .invoice-title .inv-date { font-size:12px; color:#64748b; margin-top:2px; }
+  .addresses { display:flex; justify-content:space-between; margin-bottom:30px; }
+  .addr-block { }
+  .addr-block h4 { font-size:11px; text-transform:uppercase; letter-spacing:1px; color:#94a3b8; margin-bottom:8px; }
+  .addr-block p { font-size:13px; line-height:1.6; }
+  table { width:100%; border-collapse:collapse; margin-bottom:20px; }
+  th { background:#1e3a5f; color:white; padding:10px 12px; text-align:left; font-size:12px; text-transform:uppercase; letter-spacing:0.5px; }
+  th:last-child { text-align:right; }
+  th:nth-child(2) { text-align:center; }
+  td { padding:8px 12px; border-bottom:1px solid #e2e8f0; font-size:13px; }
+  .totals { margin-left:auto; width:300px; }
+  .totals table { margin-bottom:0; }
+  .totals td { border-bottom:1px solid #e2e8f0; padding:8px 12px; }
+  .totals tr:last-child td { border-bottom:none; background:#1e3a5f; color:white; font-size:16px; font-weight:700; }
+  .footer { margin-top:40px; padding-top:20px; border-top:1px solid #e2e8f0; text-align:center; font-size:11px; color:#94a3b8; }
+  @media print { body { padding:20px; } .no-print { display:none; } }
+</style>
+</head>
+<body>
+<div class="no-print" style="margin-bottom:20px; text-align:right;">
+  <button onclick="window.print()" style="background:#6366f1;color:white;border:none;padding:10px 24px;border-radius:8px;cursor:pointer;font-size:14px;">🖨️ Print / Save PDF</button>
+</div>
+
+<div class="header">
+  <div class="company">
+    <h1>GAS Travel</h1>
+    <p>Guest Accommodation System</p>
+    <p>steve@gas.travel</p>
+  </div>
+  <div class="invoice-title">
+    <h2>Invoice</h2>
+    <div class="inv-num">${inv.invoice_number}</div>
+    <div class="inv-date">Date: ${new Date(inv.created_at).toLocaleDateString('en-GB')}</div>
+    <div class="inv-date">Period: ${new Date(inv.period_start).toLocaleDateString('en-GB')} - ${new Date(inv.period_end).toLocaleDateString('en-GB')}</div>
+  </div>
+</div>
+
+<div class="addresses">
+  <div class="addr-block">
+    <h4>Bill To</h4>
+    <p><strong>${inv.account_name}</strong></p>
+    ${inv.contact_name ? `<p>${inv.contact_name}</p>` : ''}
+    ${inv.address_line1 ? `<p>${inv.address_line1}</p>` : ''}
+    ${inv.address_line2 ? `<p>${inv.address_line2}</p>` : ''}
+    <p>${[inv.city, inv.region, inv.postcode].filter(Boolean).join(', ')}</p>
+    ${inv.country ? `<p>${inv.country}</p>` : ''}
+    ${inv.account_email ? `<p>${inv.account_email}</p>` : ''}
+    ${inv.vat_number ? `<p>VAT: ${inv.vat_number}</p>` : ''}
+    ${inv.company_reg ? `<p>Reg: ${inv.company_reg}</p>` : ''}
+  </div>
+  <div class="addr-block" style="text-align:right;">
+    <h4>Status</h4>
+    <p style="font-size:18px; font-weight:700; color:${inv.status === 'paid' ? '#16a34a' : '#f59e0b'}">${inv.status.toUpperCase()}</p>
+  </div>
+</div>
+
+<table>
+  <thead>
+    <tr><th>Description</th><th>Qty</th><th>Amount</th></tr>
+  </thead>
+  <tbody>
+    ${itemsHtml}
+  </tbody>
+</table>
+
+<div class="totals">
+  <table>
+    <tr><td>Subtotal</td><td style="text-align:right;">${formatMoney(inv.subtotal)}</td></tr>
+    ${discountRow}
+    ${inv.tax > 0 ? `<tr><td>VAT</td><td style="text-align:right;">${formatMoney(inv.tax)}</td></tr>` : ''}
+    <tr><td>Total</td><td style="text-align:right;">${formatMoney(inv.total)}</td></tr>
+  </table>
+</div>
+
+${inv.notes ? `<div style="margin-top:20px;padding:12px;background:#f8fafc;border-radius:8px;font-size:12px;color:#64748b;"><strong>Notes:</strong> ${inv.notes}</div>` : ''}
+
+<div class="footer">
+  <p>GAS Travel · Guest Accommodation System · gas.travel</p>
+  <p>Thank you for your business</p>
+</div>
+</body>
+</html>`;
+    
+    res.set('Content-Type', 'text/html');
+    res.send(html);
+  } catch (error) {
+    res.status(500).send('Error generating invoice: ' + error.message);
+  }
+});
+
+// List all invoices (admin)
+app.get('/api/admin/invoices', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT i.*, a.name as account_name
+      FROM invoices i
+      JOIN accounts a ON i.account_id = a.id
+      ORDER BY i.created_at DESC
+      LIMIT 100
+    `);
+    res.json({ success: true, invoices: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Update invoice status
+app.put('/api/invoices/:invoiceId/status', async (req, res) => {
+  try {
+    const { status } = req.body;
+    const validStatuses = ['draft', 'final', 'sent', 'paid', 'overdue', 'void'];
+    if (!validStatuses.includes(status)) {
+      return res.json({ success: false, error: 'Invalid status' });
+    }
+    const updates = [`status = $1`, `updated_at = NOW()`];
+    const values = [status, req.params.invoiceId];
+    if (status === 'paid') {
+      updates.push(`paid_at = NOW()`);
+    }
+    await pool.query(
+      `UPDATE invoices SET ${updates.join(', ')} WHERE id = $2`,
+      values
+    );
+    res.json({ success: true });
   } catch (error) {
     res.json({ success: false, error: error.message });
   }
