@@ -12247,6 +12247,7 @@ app.get('/api/setup-accounts-billing', async (req, res) => {
     `);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_invoices_account ON invoices(account_id)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices(status)`);
+    await pool.query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS sections JSONB DEFAULT '{}'`);
     console.log('✅ invoices table created');
 
     // Pricing configuration table
@@ -14242,45 +14243,38 @@ app.get('/api/accounts/:id/invoice-preview', async (req, res) => {
       subtotal += parseFloat(cl.amount);
     }
     
-    // ===== ACCOUNT-LEVEL DISCOUNTS =====
-    // Per-site discounts are already applied in the line items above
-    // Account-level discounts apply on top as an additional discount
+    // ===== SECTION SUBTOTALS =====
     let gasSubtotal = lineItems.filter(i => i.category === 'gas').reduce((s, i) => s + i.amount, 0);
-    let beds24Subtotal = lineItems.filter(i => i.category === 'beds24').reduce((s, i) => s + i.amount, 0);
-    let customSubtotal = lineItems.filter(i => i.category === 'custom').reduce((s, i) => s + i.amount, 0);
+    gasSubtotal = Math.round(gasSubtotal * 100) / 100;
     
-    let gasDiscountAmount = 0;
-    let gasDiscountLabel = '';
-    if (account.gas_discount_type === 'percentage' && account.gas_discount_value > 0) {
-      gasDiscountAmount = gasSubtotal * (account.gas_discount_value / 100);
-      gasDiscountLabel = `GAS Account Discount (${account.gas_discount_value}%)`;
-    } else if (account.gas_discount_type === 'fixed' && account.gas_discount_value > 0) {
-      gasDiscountAmount = parseFloat(account.gas_discount_value);
-      gasDiscountLabel = `GAS Account Discount (fixed)`;
-    }
-    gasDiscountAmount = Math.round(gasDiscountAmount * 100) / 100;
+    let beds24RRP = lineItems.filter(i => i.category === 'beds24').reduce((s, i) => s + i.amount, 0);
+    beds24RRP = Math.round(beds24RRP * 100) / 100;
     
+    // Beds24 discount
     let beds24DiscountAmount = 0;
     let beds24DiscountLabel = '';
     if (account.beds24_discount_type === 'percentage' && account.beds24_discount_value > 0) {
-      beds24DiscountAmount = beds24Subtotal * (account.beds24_discount_value / 100);
-      beds24DiscountLabel = `Beds24 Account Discount (${account.beds24_discount_value}%)`;
+      beds24DiscountAmount = beds24RRP * (account.beds24_discount_value / 100);
+      beds24DiscountLabel = `Beds24 Discount (${account.beds24_discount_value}%)`;
     } else if (account.beds24_discount_type === 'fixed' && account.beds24_discount_value > 0) {
       beds24DiscountAmount = parseFloat(account.beds24_discount_value);
-      beds24DiscountLabel = `Beds24 Account Discount (fixed)`;
+      beds24DiscountLabel = `Beds24 Discount (€${account.beds24_discount_value} off)`;
     }
     beds24DiscountAmount = Math.round(beds24DiscountAmount * 100) / 100;
+    let beds24Subtotal = Math.round((beds24RRP - beds24DiscountAmount) * 100) / 100;
     
-    const totalDiscount = gasDiscountAmount + beds24DiscountAmount;
-    const afterDiscount = subtotal - totalDiscount;
+    let customSubtotal = lineItems.filter(i => i.category === 'custom').reduce((s, i) => s + i.amount, 0);
+    customSubtotal = Math.round(customSubtotal * 100) / 100;
+    
+    const grandSubtotal = Math.round((gasSubtotal + beds24Subtotal + customSubtotal) * 100) / 100;
     
     // ===== VAT =====
     let vatAmount = 0;
     if (account.vat_enabled && account.vat_rate > 0) {
-      vatAmount = Math.round(afterDiscount * (account.vat_rate / 100) * 100) / 100;
+      vatAmount = Math.round(grandSubtotal * (account.vat_rate / 100) * 100) / 100;
     }
     
-    const grandTotal = Math.round((afterDiscount + vatAmount) * 100) / 100;
+    const grandTotal = Math.round((grandSubtotal + vatAmount) * 100) / 100;
     
     res.json({
       success: true,
@@ -14304,21 +14298,23 @@ app.get('/api/accounts/:id/invoice-preview', async (req, res) => {
         beds24_enabled: account.beds24_billing_enabled,
         beds24_connected: account.beds24_connected,
         website_enabled: account.website_billing_enabled,
-        gas_discount_type: account.gas_discount_type,
-        gas_discount_value: parseFloat(account.gas_discount_value) || 0,
         beds24_discount_type: account.beds24_discount_type,
         beds24_discount_value: parseFloat(account.beds24_discount_value) || 0,
         vat_enabled: account.vat_enabled,
         vat_rate: parseFloat(account.vat_rate) || 0
       },
       line_items: lineItems,
-      subtotal: Math.round(subtotal * 100) / 100,
-      discounts: {
-        gas: { label: gasDiscountLabel, amount: gasDiscountAmount },
-        beds24: { label: beds24DiscountLabel, amount: beds24DiscountAmount },
-        total: totalDiscount
+      sections: {
+        gas: { subtotal: gasSubtotal },
+        beds24: { 
+          rrp: beds24RRP, 
+          discount_label: beds24DiscountLabel, 
+          discount_amount: beds24DiscountAmount, 
+          subtotal: beds24Subtotal 
+        },
+        custom: { subtotal: customSubtotal }
       },
-      after_discount: Math.round(afterDiscount * 100) / 100,
+      subtotal: grandSubtotal,
       vat: {
         enabled: account.vat_enabled,
         rate: parseFloat(account.vat_rate) || 0,
@@ -14352,8 +14348,8 @@ app.post('/api/accounts/:id/invoices', async (req, res) => {
     const invoiceNumber = `INV-${year}-${String(nextNum).padStart(4, '0')}`;
     
     const result = await pool.query(`
-      INSERT INTO invoices (invoice_number, account_id, period_start, period_end, subtotal, tax, total, currency, status, line_items, notes)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'final', $9, $10)
+      INSERT INTO invoices (invoice_number, account_id, period_start, period_end, subtotal, tax, total, currency, status, line_items, sections, notes)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'final', $9, $10, $11)
       RETURNING *
     `, [
       invoiceNumber, accountId,
@@ -14364,6 +14360,7 @@ app.post('/api/accounts/:id/invoices', async (req, res) => {
       grand_total || 0,
       currency || 'EUR',
       JSON.stringify(line_items || []),
+      JSON.stringify(req.body.sections || {}),
       notes || ''
     ]);
     
@@ -14428,16 +14425,12 @@ app.get('/api/invoices/:invoiceId/print', async (req, res) => {
     const formatMoney = (amt) => `${currencySymbol}${parseFloat(amt || 0).toFixed(2)}`;
     
     let itemsHtml = '';
-    for (const item of items) {
-      if (item.category === 'beds24' && item.rrp_breakdown) {
-        itemsHtml += `<tr class="section-header"><td colspan="3" style="font-weight:700;padding-top:16px;color:#1e3a5f;">Beds24 Channel Manager</td></tr>`;
-        for (const r of item.rrp_breakdown) {
-          itemsHtml += `<tr><td style="padding-left:20px;">${r.label}</td><td style="text-align:center;">${r.qty}</td><td style="text-align:right;">${formatMoney(r.total)}</td></tr>`;
-        }
-        itemsHtml += `<tr><td style="padding-left:20px;font-style:italic;">RRP Total</td><td></td><td style="text-align:right;font-style:italic;">${formatMoney(item.rrp_total)}</td></tr>`;
-        itemsHtml += `<tr style="font-weight:600;"><td style="padding-left:20px;">Beds24 Total</td><td></td><td style="text-align:right;">${formatMoney(item.amount)}</td></tr>`;
-      } else {
-        // GAS sites and other items
+    
+    // Section 1: GAS Services
+    const gasItems = items.filter(i => i.category === 'gas');
+    if (gasItems.length > 0) {
+      itemsHtml += `<tr class="section-header"><td colspan="3" style="font-weight:700;padding-top:16px;color:#1e40af;font-size:14px;">💰 GAS Services</td></tr>`;
+      for (const item of gasItems) {
         if (item.detail) {
           itemsHtml += `<tr><td>${item.label}<div style="font-size:11px;color:#64748b;">${item.detail}</div></td><td style="text-align:center;">${item.rooms || item.quantity || ''}</td><td style="text-align:right;">${formatMoney(item.gross_amount || item.amount)}</td></tr>`;
         } else {
@@ -14445,18 +14438,48 @@ app.get('/api/invoices/:invoiceId/print', async (req, res) => {
         }
         if (item.discount_amount && item.discount_amount > 0) {
           itemsHtml += `<tr style="color:#16a34a;"><td style="padding-left:20px;">Discount (${item.discount_label})</td><td></td><td style="text-align:right;">-${formatMoney(item.discount_amount)}</td></tr>`;
+          itemsHtml += `<tr><td style="padding-left:20px;font-weight:600;">Net</td><td></td><td style="text-align:right;font-weight:600;">${formatMoney(item.amount)}</td></tr>`;
         }
         if (item.is_one_off) {
           itemsHtml += `<tr><td style="padding-left:20px;font-size:11px;color:#64748b;">One-off charge</td><td></td><td></td></tr>`;
         }
       }
+      const gasSubtotal = gasItems.reduce((s, i) => s + parseFloat(i.amount || 0), 0);
+      itemsHtml += `<tr style="background:#eff6ff;"><td colspan="2" style="font-weight:700;color:#1e40af;">GAS Subtotal</td><td style="text-align:right;font-weight:700;color:#1e40af;">${formatMoney(gasSubtotal)}</td></tr>`;
     }
     
-    // Build discount rows
-    let discountRow = '';
-    const storedDiscounts = items.filter(i => i.product === 'discount');
-    for (const d of storedDiscounts) {
-      discountRow += `<tr style="color:#16a34a;"><td colspan="2" style="text-align:right;">${d.label}</td><td style="text-align:right;">-${formatMoney(Math.abs(d.amount))}</td></tr>`;
+    // Section 2: Beds24
+    const beds24Items = items.filter(i => i.category === 'beds24');
+    if (beds24Items.length > 0) {
+      itemsHtml += `<tr class="section-header"><td colspan="3" style="font-weight:700;padding-top:16px;color:#92400e;font-size:14px;">📊 Beds24 Channel Manager</td></tr>`;
+      for (const item of beds24Items) {
+        if (item.rrp_breakdown) {
+          for (const r of item.rrp_breakdown) {
+            itemsHtml += `<tr><td style="padding-left:20px;">${r.label}</td><td style="text-align:center;">${r.qty}</td><td style="text-align:right;">${formatMoney(r.total)}</td></tr>`;
+          }
+          itemsHtml += `<tr><td style="padding-left:20px;font-style:italic;">RRP Total</td><td></td><td style="text-align:right;font-style:italic;">${formatMoney(item.rrp_total)}</td></tr>`;
+        }
+      }
+      // Beds24 discount from stored sections data or recalculate
+      const beds24RRP = beds24Items.reduce((s, i) => s + parseFloat(i.amount || 0), 0);
+      const storedSections = typeof inv.sections === 'string' ? JSON.parse(inv.sections) : (inv.sections || {});
+      if (storedSections.beds24 && storedSections.beds24.discount_amount > 0) {
+        itemsHtml += `<tr style="color:#16a34a;"><td style="padding-left:20px;">${storedSections.beds24.discount_label}</td><td></td><td style="text-align:right;">-${formatMoney(storedSections.beds24.discount_amount)}</td></tr>`;
+        itemsHtml += `<tr style="background:#fef3c7;"><td colspan="2" style="font-weight:700;color:#92400e;">Beds24 Subtotal</td><td style="text-align:right;font-weight:700;color:#92400e;">${formatMoney(storedSections.beds24.subtotal)}</td></tr>`;
+      } else {
+        itemsHtml += `<tr style="background:#fef3c7;"><td colspan="2" style="font-weight:700;color:#92400e;">Beds24 Subtotal</td><td style="text-align:right;font-weight:700;color:#92400e;">${formatMoney(beds24RRP)}</td></tr>`;
+      }
+    }
+    
+    // Section 3: Custom Items
+    const customItems = items.filter(i => i.category === 'custom');
+    if (customItems.length > 0) {
+      itemsHtml += `<tr class="section-header"><td colspan="3" style="font-weight:700;padding-top:16px;color:#86198f;font-size:14px;">📝 Custom Items</td></tr>`;
+      for (const item of customItems) {
+        itemsHtml += `<tr><td>${item.label}</td><td style="text-align:center;">${item.quantity || ''}</td><td style="text-align:right;">${formatMoney(item.amount)}</td></tr>`;
+      }
+      const customSubtotal = customItems.reduce((s, i) => s + parseFloat(i.amount || 0), 0);
+      itemsHtml += `<tr style="background:#fdf4ff;"><td colspan="2" style="font-weight:700;color:#86198f;">Custom Subtotal</td><td style="text-align:right;font-weight:700;color:#86198f;">${formatMoney(customSubtotal)}</td></tr>`;
     }
     
     const html = `<!DOCTYPE html>
@@ -14541,10 +14564,9 @@ app.get('/api/invoices/:invoiceId/print', async (req, res) => {
 
 <div class="totals">
   <table>
-    <tr><td>Subtotal</td><td style="text-align:right;">${formatMoney(inv.subtotal)}</td></tr>
-    ${discountRow}
+    ${inv.tax > 0 ? `<tr><td>Subtotal</td><td style="text-align:right;">${formatMoney(inv.subtotal)}</td></tr>` : ''}
     ${inv.tax > 0 ? `<tr><td>VAT</td><td style="text-align:right;">${formatMoney(inv.tax)}</td></tr>` : ''}
-    <tr><td>Total</td><td style="text-align:right;">${formatMoney(inv.total)}</td></tr>
+    <tr><td>Grand Total</td><td style="text-align:right;">${formatMoney(inv.total)}</td></tr>
   </table>
 </div>
 
