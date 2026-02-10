@@ -13953,10 +13953,97 @@ app.get('/api/accounts/:id/invoice-preview', async (req, res) => {
     const lineItems = [];
     let subtotal = 0;
     
-    // ===== GAS SUBSCRIPTIONS =====
+    // ===== GAS SERVICES — PER SITE =====
     if (account.website_billing_enabled) {
+      const sites = await pool.query(`
+        SELECT ds.*, 
+          COALESCE(ds.site_type, 'standard') as site_type,
+          COALESCE(ds.billing_enabled, true) as billing_enabled,
+          COALESCE(ds.discount_type, 'none') as discount_type,
+          COALESCE(ds.discount_value, 0) as discount_value,
+          COALESCE(ds.setup_fee, 0) as setup_fee,
+          COALESCE(ds.setup_fee_invoiced, false) as setup_fee_invoiced,
+          ds.monthly_fee,
+          COALESCE(json_array_length(ds.room_ids::json), 0) as room_count
+        FROM deployed_sites ds
+        WHERE ds.account_id = $1 AND ds.status != 'deleted'
+        ORDER BY ds.id
+      `, [accountId]);
+      
+      for (const site of sites.rows) {
+        if (!site.billing_enabled) continue;
+        
+        let siteAmount = 0;
+        let siteLabel = '';
+        let siteDetail = '';
+        const roomCount = site.room_count || 0;
+        
+        if (site.site_type === 'custom') {
+          // Custom site — manual monthly fee
+          siteAmount = parseFloat(site.monthly_fee) || 0;
+          siteLabel = `Custom Site: ${site.site_name || site.slug}`;
+          siteDetail = site.custom_domain || site.site_url || '';
+        } else if (site.site_type === 'plugin') {
+          // Plugin only
+          siteAmount = site.monthly_fee !== null ? parseFloat(site.monthly_fee) : calculatePluginPrice(roomCount);
+          siteLabel = `Plugin: ${site.site_name || site.slug}`;
+          siteDetail = `${roomCount} rooms`;
+        } else {
+          // Standard AI Website
+          siteAmount = site.monthly_fee !== null ? parseFloat(site.monthly_fee) : calculateAIWebsitePrice(roomCount);
+          siteLabel = `AI Website: ${site.site_name || site.slug}`;
+          siteDetail = `${roomCount} rooms`;
+        }
+        
+        // Per-site discount
+        let siteDiscount = 0;
+        let siteDiscountLabel = '';
+        if (site.discount_type === 'percentage' && site.discount_value > 0) {
+          siteDiscount = siteAmount * (site.discount_value / 100);
+          siteDiscountLabel = `${site.discount_value}% off`;
+        } else if (site.discount_type === 'fixed' && site.discount_value > 0) {
+          siteDiscount = parseFloat(site.discount_value);
+          siteDiscountLabel = `€${site.discount_value} off`;
+        }
+        
+        const siteNet = Math.round((siteAmount - siteDiscount) * 100) / 100;
+        
+        lineItems.push({
+          category: 'gas',
+          product: site.site_type || 'ai_website',
+          site_id: site.id,
+          label: siteLabel,
+          detail: siteDetail,
+          rooms: roomCount,
+          gross_amount: Math.round(siteAmount * 100) / 100,
+          discount_type: site.discount_type,
+          discount_value: parseFloat(site.discount_value) || 0,
+          discount_label: siteDiscountLabel,
+          discount_amount: Math.round(siteDiscount * 100) / 100,
+          amount: siteNet,
+          currency: 'EUR'
+        });
+        subtotal += siteNet;
+        
+        // One-off setup fee for custom sites (if not yet invoiced)
+        if (site.site_type === 'custom' && parseFloat(site.setup_fee) > 0 && !site.setup_fee_invoiced) {
+          lineItems.push({
+            category: 'gas',
+            product: 'setup_fee',
+            site_id: site.id,
+            label: `Setup Fee: ${site.site_name || site.slug}`,
+            detail: 'One-off',
+            amount: parseFloat(site.setup_fee),
+            currency: 'EUR',
+            is_one_off: true
+          });
+          subtotal += parseFloat(site.setup_fee);
+        }
+      }
+      
+      // Also include other account-level subscriptions (blog, attractions, lites, reviews)
       const subs = await pool.query(
-        `SELECT * FROM account_subscriptions WHERE account_id = $1 AND status = 'active'`,
+        `SELECT * FROM account_subscriptions WHERE account_id = $1 AND status = 'active' AND product NOT IN ('ai_website', 'plugin')`,
         [accountId]
       );
       
@@ -13964,9 +14051,7 @@ app.get('/api/accounts/:id/invoice-preview', async (req, res) => {
         const item = {
           category: 'gas',
           product: sub.product,
-          label: sub.product === 'ai_website' ? 'AI Website' :
-                 sub.product === 'plugin' ? 'Plugin' :
-                 sub.product === 'blog' ? 'Blog' :
+          label: sub.product === 'blog' ? 'Blog' :
                  sub.product === 'attractions' ? 'Attractions' :
                  sub.product === 'lites' ? 'Lites / Social' :
                  sub.product === 'reviews' ? 'Reviews (Repuso)' : sub.product,
@@ -14042,8 +14127,9 @@ app.get('/api/accounts/:id/invoice-preview', async (req, res) => {
       subtotal += parseFloat(cl.amount);
     }
     
-    // ===== DISCOUNTS =====
-    // Calculate GAS subtotal and Beds24 subtotal separately
+    // ===== ACCOUNT-LEVEL DISCOUNTS =====
+    // Per-site discounts are already applied in the line items above
+    // Account-level discounts apply on top as an additional discount
     let gasSubtotal = lineItems.filter(i => i.category === 'gas').reduce((s, i) => s + i.amount, 0);
     let beds24Subtotal = lineItems.filter(i => i.category === 'beds24').reduce((s, i) => s + i.amount, 0);
     let customSubtotal = lineItems.filter(i => i.category === 'custom').reduce((s, i) => s + i.amount, 0);
@@ -14052,10 +14138,10 @@ app.get('/api/accounts/:id/invoice-preview', async (req, res) => {
     let gasDiscountLabel = '';
     if (account.gas_discount_type === 'percentage' && account.gas_discount_value > 0) {
       gasDiscountAmount = gasSubtotal * (account.gas_discount_value / 100);
-      gasDiscountLabel = `GAS Discount (${account.gas_discount_value}%)`;
+      gasDiscountLabel = `GAS Account Discount (${account.gas_discount_value}%)`;
     } else if (account.gas_discount_type === 'fixed' && account.gas_discount_value > 0) {
       gasDiscountAmount = parseFloat(account.gas_discount_value);
-      gasDiscountLabel = `GAS Discount (fixed)`;
+      gasDiscountLabel = `GAS Account Discount (fixed)`;
     }
     gasDiscountAmount = Math.round(gasDiscountAmount * 100) / 100;
     
@@ -14063,10 +14149,10 @@ app.get('/api/accounts/:id/invoice-preview', async (req, res) => {
     let beds24DiscountLabel = '';
     if (account.beds24_discount_type === 'percentage' && account.beds24_discount_value > 0) {
       beds24DiscountAmount = beds24Subtotal * (account.beds24_discount_value / 100);
-      beds24DiscountLabel = `Beds24 Discount (${account.beds24_discount_value}%)`;
+      beds24DiscountLabel = `Beds24 Account Discount (${account.beds24_discount_value}%)`;
     } else if (account.beds24_discount_type === 'fixed' && account.beds24_discount_value > 0) {
       beds24DiscountAmount = parseFloat(account.beds24_discount_value);
-      beds24DiscountLabel = `Beds24 Discount (fixed)`;
+      beds24DiscountLabel = `Beds24 Account Discount (fixed)`;
     }
     beds24DiscountAmount = Math.round(beds24DiscountAmount * 100) / 100;
     
@@ -14237,18 +14323,26 @@ app.get('/api/invoices/:invoiceId/print', async (req, res) => {
         itemsHtml += `<tr><td style="padding-left:20px;color:#16a34a;">Contract Discount (${item.contract_discount_pct}%)</td><td></td><td style="text-align:right;color:#16a34a;">-${formatMoney(item.contract_discount)}</td></tr>`;
         itemsHtml += `<tr style="font-weight:600;"><td style="padding-left:20px;">Beds24 Net</td><td></td><td style="text-align:right;">${formatMoney(item.amount)}</td></tr>`;
       } else {
-        const catLabel = item.category === 'gas' ? 'GAS' : item.category === 'custom' ? 'Custom' : '';
-        itemsHtml += `<tr><td>${item.label}</td><td style="text-align:center;">${item.quantity || ''}</td><td style="text-align:right;">${formatMoney(item.amount)}</td></tr>`;
+        // GAS sites and other items
+        if (item.detail) {
+          itemsHtml += `<tr><td>${item.label}<div style="font-size:11px;color:#64748b;">${item.detail}</div></td><td style="text-align:center;">${item.rooms || item.quantity || ''}</td><td style="text-align:right;">${formatMoney(item.gross_amount || item.amount)}</td></tr>`;
+        } else {
+          itemsHtml += `<tr><td>${item.label}</td><td style="text-align:center;">${item.rooms || item.quantity || ''}</td><td style="text-align:right;">${formatMoney(item.gross_amount || item.amount)}</td></tr>`;
+        }
+        if (item.discount_amount && item.discount_amount > 0) {
+          itemsHtml += `<tr style="color:#16a34a;"><td style="padding-left:20px;">Discount (${item.discount_label})</td><td></td><td style="text-align:right;">-${formatMoney(item.discount_amount)}</td></tr>`;
+        }
+        if (item.is_one_off) {
+          itemsHtml += `<tr><td style="padding-left:20px;font-size:11px;color:#64748b;">One-off charge</td><td></td><td></td></tr>`;
+        }
       }
     }
     
-    // Build discount row
+    // Build discount rows
     let discountRow = '';
-    const discount = items.find(i => i.category === 'discount');
-    // Check if discount info is in the stored data
-    const storedDiscount = items.find(i => i.product === 'discount');
-    if (storedDiscount) {
-      discountRow = `<tr style="color:#16a34a;"><td colspan="2" style="text-align:right;">${storedDiscount.label}</td><td style="text-align:right;">-${formatMoney(Math.abs(storedDiscount.amount))}</td></tr>`;
+    const storedDiscounts = items.filter(i => i.product === 'discount');
+    for (const d of storedDiscounts) {
+      discountRow += `<tr style="color:#16a34a;"><td colspan="2" style="text-align:right;">${d.label}</td><td style="text-align:right;">-${formatMoney(Math.abs(d.amount))}</td></tr>`;
     }
     
     const html = `<!DOCTYPE html>
@@ -18306,6 +18400,15 @@ app.get('/api/setup-deploy', async (req, res) => {
     
     // Pricing tier support - allows different pricing for different client types (corporate, wholesale, etc.)
     await pool.query(`ALTER TABLE deployed_sites ADD COLUMN IF NOT EXISTS pricing_tier VARCHAR(50) DEFAULT 'standard'`);
+    
+    // Per-site billing columns
+    await pool.query(`ALTER TABLE deployed_sites ADD COLUMN IF NOT EXISTS site_type VARCHAR(20) DEFAULT 'standard'`).catch(() => {}); // standard, plugin, custom
+    await pool.query(`ALTER TABLE deployed_sites ADD COLUMN IF NOT EXISTS monthly_fee DECIMAL(10,2)`).catch(() => {}); // override auto-calc, or custom site monthly
+    await pool.query(`ALTER TABLE deployed_sites ADD COLUMN IF NOT EXISTS setup_fee DECIMAL(10,2) DEFAULT 0`).catch(() => {}); // one-off fee for custom sites
+    await pool.query(`ALTER TABLE deployed_sites ADD COLUMN IF NOT EXISTS setup_fee_invoiced BOOLEAN DEFAULT false`).catch(() => {}); // track if one-off already billed
+    await pool.query(`ALTER TABLE deployed_sites ADD COLUMN IF NOT EXISTS discount_type VARCHAR(10) DEFAULT 'none'`).catch(() => {}); // none, percentage, fixed
+    await pool.query(`ALTER TABLE deployed_sites ADD COLUMN IF NOT EXISTS discount_value DECIMAL(10,2) DEFAULT 0`).catch(() => {}); 
+    await pool.query(`ALTER TABLE deployed_sites ADD COLUMN IF NOT EXISTS billing_enabled BOOLEAN DEFAULT true`).catch(() => {});
     await pool.query(`ALTER TABLE offers ADD COLUMN IF NOT EXISTS pricing_tier VARCHAR(50) DEFAULT 'standard'`);
     
     // Add website_url column to bookable_units if it doesn't exist
@@ -20737,7 +20840,14 @@ app.put('/api/admin/deployed-sites/:id', async (req, res) => {
       template,
       wp_username,
       ga4_measurement_id,
-      ga4_property_id
+      ga4_property_id,
+      site_type,
+      monthly_fee,
+      setup_fee,
+      setup_fee_invoiced,
+      discount_type,
+      discount_value,
+      billing_enabled
     } = req.body;
     
     // Build dynamic UPDATE query based on provided fields
@@ -20804,6 +20914,34 @@ app.put('/api/admin/deployed-sites/:id', async (req, res) => {
     if (ga4_property_id !== undefined) {
       updates.push(`ga4_property_id = $${paramIndex++}`);
       values.push(ga4_property_id);
+    }
+    if (site_type !== undefined) {
+      updates.push(`site_type = $${paramIndex++}`);
+      values.push(site_type);
+    }
+    if (monthly_fee !== undefined) {
+      updates.push(`monthly_fee = $${paramIndex++}`);
+      values.push(monthly_fee);
+    }
+    if (setup_fee !== undefined) {
+      updates.push(`setup_fee = $${paramIndex++}`);
+      values.push(setup_fee);
+    }
+    if (setup_fee_invoiced !== undefined) {
+      updates.push(`setup_fee_invoiced = $${paramIndex++}`);
+      values.push(setup_fee_invoiced);
+    }
+    if (discount_type !== undefined) {
+      updates.push(`discount_type = $${paramIndex++}`);
+      values.push(discount_type);
+    }
+    if (discount_value !== undefined) {
+      updates.push(`discount_value = $${paramIndex++}`);
+      values.push(discount_value);
+    }
+    if (billing_enabled !== undefined) {
+      updates.push(`billing_enabled = $${paramIndex++}`);
+      values.push(billing_enabled);
     }
     
     if (updates.length === 0) {
