@@ -48335,6 +48335,20 @@ app.post('/api/public/book', async (req, res) => {
     }
     // ========== END EMAIL ==========
     
+    // ========== SEND PARTNER WEBHOOKS ==========
+    try {
+        const webhookResult = await sendPartnerBookingWebhook(newBooking.id, 'booking.created');
+        if (webhookResult.sent) {
+            console.log(`[Webhook] Sent booking.created for booking ${newBooking.id}`);
+        } else {
+            console.log(`[Webhook] Not sent for booking ${newBooking.id}: ${webhookResult.reason}`);
+        }
+    } catch (webhookError) {
+        console.error(`[Webhook] Error sending webhook for booking ${newBooking.id}:`, webhookError.message);
+        // Don't fail the booking if webhook fails
+    }
+    // ========== END PARTNER WEBHOOKS ==========
+    
     res.json({
       success: true,
       booking_id: newBooking.id,
