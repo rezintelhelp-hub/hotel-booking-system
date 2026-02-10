@@ -32036,11 +32036,11 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (!propertyId) return;
             
             try {
-                const response = await fetch('/api/db/bookable-units');
+                const response = await fetch(`/api/db/bookable-units?property_id=${propertyId}`);
                 const data = await response.json();
                 
                 if (data.success && data.data) {
-                    const rooms = data.data.filter(r => r.property_id == propertyId);
+                    const rooms = data.data;
                     rooms.forEach(r => {
                         roomSelect.innerHTML += `<option value="${r.id}" data-property-id="${r.property_id}">${r.name}</option>`;
                     });
@@ -34878,9 +34878,9 @@ const promo = await fetch('/api/v1/offers/validate', {
             
             // Load rooms for this property
             try {
-                const roomsRes = await fetch('/api/db/bookable-units');
+                const roomsRes = await fetch(`/api/db/bookable-units?property_id=${propertyId}`);
                 const roomsData = await roomsRes.json();
-                propertyRooms = roomsData.success ? (roomsData.data || []).filter(r => r.property_id == propertyId) : [];
+                propertyRooms = roomsData.success ? (roomsData.data || []) : [];
             } catch (e) {
                 propertyRooms = [];
             }
@@ -37606,11 +37606,11 @@ const promo = await fetch('/api/v1/offers/validate', {
             
             try {
                 // Use bookable-units endpoint - same as Offers page
-                const response = await fetch('/api/db/bookable-units');
+                const response = await fetch(`/api/db/bookable-units?property_id=${propertyId}`);
                 const data = await response.json();
                 
                 if (data.success && data.data) {
-                    const units = data.data.filter(r => r.property_id == propertyId);
+                    const units = data.data;
                     
                     units.forEach(unit => {
                         unitSelect.innerHTML += `<option value="${unit.id}">${unit.name}</option>`;
@@ -38049,11 +38049,11 @@ const promo = await fetch('/api/v1/offers/validate', {
             
             try {
                 // Use bookable-units endpoint - same as Offers page
-                const response = await fetch('/api/db/bookable-units');
+                const response = await fetch(`/api/db/bookable-units?property_id=${propertyId}`);
                 const data = await response.json();
                 
                 if (data.success && data.data) {
-                    const units = data.data.filter(r => r.property_id == propertyId);
+                    const units = data.data;
                     
                     if (units.length > 0) {
                         units.forEach(unit => {
@@ -38765,11 +38765,11 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (!propertyId) return;
             
             try {
-                const response = await fetch('/api/db/bookable-units');
+                const response = await fetch(`/api/db/bookable-units?property_id=${propertyId}`);
                 const data = await response.json();
                 
                 if (data.success && data.data) {
-                    const units = data.data.filter(r => r.property_id == propertyId);
+                    const units = data.data;
                     units.forEach(unit => {
                         unitSelect.innerHTML += `<option value="${unit.id}">${unit.name}</option>`;
                     });
@@ -39850,11 +39850,11 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (!propertyId) return;
             
             try {
-                const response = await fetch('/api/db/bookable-units');
+                const response = await fetch(`/api/db/bookable-units?property_id=${propertyId}`);
                 const data = await response.json();
                 
                 if (data.success && data.data) {
-                    const units = data.data.filter(r => r.property_id == propertyId);
+                    const units = data.data;
                     units.forEach(unit => {
                         unitSelect.innerHTML += `<option value="${unit.id}">${unit.name}</option>`;
                     });
