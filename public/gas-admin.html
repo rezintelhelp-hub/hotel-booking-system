@@ -30730,9 +30730,18 @@ const promo = await fetch('/api/v1/offers/validate', {
                         
                         <p style="font-size: 0.8rem; color: #64748b; margin: 1rem 0 0 0;">Confirmation sent to ${email}</p>
                     `;
-                    submitBtn.textContent = '✅ Done';
+                    submitBtn.textContent = '✅ Done — View My Custom Sites';
                     submitBtn.disabled = false;
-                    submitBtn.onclick = () => closeModal('deployModal');
+                    submitBtn.onclick = () => {
+                        closeModal('deployModal');
+                        // Navigate to Website Builder / My Custom Sites
+                        const customSitesNav = document.querySelector('[data-view="website-builder"]') || document.querySelector('[data-view="custom-sites"]');
+                        if (customSitesNav) {
+                            customSitesNav.click();
+                        } else {
+                            navClick(null, 'deploy-sites');
+                        }
+                    };
                 } else {
                     submitBtn.disabled = false;
                     showNotification(data.error || 'Failed to create site', 'error');
