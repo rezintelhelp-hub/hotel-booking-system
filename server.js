@@ -3784,6 +3784,12 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         };
         
         // Get currency: first from Beds24/sync, then from country, then default to GBP
+        let parsedAddr = {};
+        if (rawData.address && typeof rawData.address === 'object') {
+          parsedAddr = rawData.address;
+        } else if (rawData.address && typeof rawData.address === 'string') {
+          try { parsedAddr = JSON.parse(rawData.address); } catch(e) { parsedAddr = { line1: rawData.address }; }
+        }
         const propCountry = parsedAddr.country || rawData.country || '';
         let propCurrency = prop.currency || rawData.currency;
         if (!propCurrency) {
