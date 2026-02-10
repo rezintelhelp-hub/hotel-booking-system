@@ -11403,8 +11403,8 @@ app.put('/api/accounts/:id', async (req, res) => {
     const { 
       account_code, name, email, phone, business_name, status, notes, role,
       contact_name, address_line1, address_line2, city, region, postcode, country, default_currency,
-      payment_methods, billing_discount_type, billing_discount_value, vat_number, company_reg,
-      vat_enabled, vat_rate, beds24_billing_enabled, website_billing_enabled
+      payment_methods, beds24_discount_type, beds24_discount_value, gas_discount_type, gas_discount_value,
+      vat_number, company_reg, vat_enabled, vat_rate, beds24_billing_enabled, website_billing_enabled
     } = req.body;
     
     // Ensure columns exist
@@ -11485,13 +11485,21 @@ app.put('/api/accounts/:id', async (req, res) => {
       updates.push(`default_currency = $${paramIndex++}`);
       values.push(default_currency || null);
     }
-    if (billing_discount_type !== undefined) {
-      updates.push(`billing_discount_type = $${paramIndex++}`);
-      values.push(billing_discount_type);
+    if (beds24_discount_type !== undefined) {
+      updates.push(`beds24_discount_type = $${paramIndex++}`);
+      values.push(beds24_discount_type);
     }
-    if (billing_discount_value !== undefined) {
-      updates.push(`billing_discount_value = $${paramIndex++}`);
-      values.push(billing_discount_value);
+    if (beds24_discount_value !== undefined) {
+      updates.push(`beds24_discount_value = $${paramIndex++}`);
+      values.push(beds24_discount_value);
+    }
+    if (gas_discount_type !== undefined) {
+      updates.push(`gas_discount_type = $${paramIndex++}`);
+      values.push(gas_discount_type);
+    }
+    if (gas_discount_value !== undefined) {
+      updates.push(`gas_discount_value = $${paramIndex++}`);
+      values.push(gas_discount_value);
     }
     if (vat_number !== undefined) {
       updates.push(`vat_number = $${paramIndex++}`);
@@ -12299,8 +12307,10 @@ app.get('/api/setup-accounts-billing', async (req, res) => {
     console.log('✅ plugin pricing seeded');
 
     // Add billing fields to accounts
-    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS billing_discount_type VARCHAR(10) DEFAULT 'none'`).catch(() => {});
-    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS billing_discount_value DECIMAL(10,2) DEFAULT 0`).catch(() => {});
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS beds24_discount_type VARCHAR(10) DEFAULT 'none'`).catch(() => {});
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS beds24_discount_value DECIMAL(10,2) DEFAULT 0`).catch(() => {});
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS gas_discount_type VARCHAR(10) DEFAULT 'none'`).catch(() => {});
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS gas_discount_value DECIMAL(10,2) DEFAULT 0`).catch(() => {});
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS vat_number VARCHAR(50)`).catch(() => {});
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS company_reg VARCHAR(50)`).catch(() => {});
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS vat_enabled BOOLEAN DEFAULT false`).catch(() => {});
@@ -13922,12 +13932,15 @@ app.get('/api/accounts/:id/invoice-preview', async (req, res) => {
     // Get account details
     const acctResult = await pool.query(`
       SELECT a.*, 
-        COALESCE(a.billing_discount_type, 'none') as billing_discount_type,
-        COALESCE(a.billing_discount_value, 0) as billing_discount_value,
+        COALESCE(a.beds24_discount_type, 'none') as beds24_discount_type,
+        COALESCE(a.beds24_discount_value, 0) as beds24_discount_value,
+        COALESCE(a.gas_discount_type, 'none') as gas_discount_type,
+        COALESCE(a.gas_discount_value, 0) as gas_discount_value,
         COALESCE(a.vat_enabled, false) as vat_enabled,
         COALESCE(a.vat_rate, 0) as vat_rate,
         COALESCE(a.beds24_billing_enabled, true) as beds24_billing_enabled,
-        COALESCE(a.website_billing_enabled, true) as website_billing_enabled
+        COALESCE(a.website_billing_enabled, true) as website_billing_enabled,
+        COALESCE(a.beds24_connected, false) as beds24_connected
       FROM accounts a WHERE a.id = $1
     `, [accountId]);
     
@@ -14029,19 +14042,36 @@ app.get('/api/accounts/:id/invoice-preview', async (req, res) => {
       subtotal += parseFloat(cl.amount);
     }
     
-    // ===== DISCOUNT =====
-    let discountAmount = 0;
-    let discountLabel = '';
-    if (account.billing_discount_type === 'percentage' && account.billing_discount_value > 0) {
-      discountAmount = subtotal * (account.billing_discount_value / 100);
-      discountLabel = `Discount (${account.billing_discount_value}%)`;
-    } else if (account.billing_discount_type === 'fixed' && account.billing_discount_value > 0) {
-      discountAmount = parseFloat(account.billing_discount_value);
-      discountLabel = `Discount (fixed)`;
-    }
-    discountAmount = Math.round(discountAmount * 100) / 100;
+    // ===== DISCOUNTS =====
+    // Calculate GAS subtotal and Beds24 subtotal separately
+    let gasSubtotal = lineItems.filter(i => i.category === 'gas').reduce((s, i) => s + i.amount, 0);
+    let beds24Subtotal = lineItems.filter(i => i.category === 'beds24').reduce((s, i) => s + i.amount, 0);
+    let customSubtotal = lineItems.filter(i => i.category === 'custom').reduce((s, i) => s + i.amount, 0);
     
-    const afterDiscount = subtotal - discountAmount;
+    let gasDiscountAmount = 0;
+    let gasDiscountLabel = '';
+    if (account.gas_discount_type === 'percentage' && account.gas_discount_value > 0) {
+      gasDiscountAmount = gasSubtotal * (account.gas_discount_value / 100);
+      gasDiscountLabel = `GAS Discount (${account.gas_discount_value}%)`;
+    } else if (account.gas_discount_type === 'fixed' && account.gas_discount_value > 0) {
+      gasDiscountAmount = parseFloat(account.gas_discount_value);
+      gasDiscountLabel = `GAS Discount (fixed)`;
+    }
+    gasDiscountAmount = Math.round(gasDiscountAmount * 100) / 100;
+    
+    let beds24DiscountAmount = 0;
+    let beds24DiscountLabel = '';
+    if (account.beds24_discount_type === 'percentage' && account.beds24_discount_value > 0) {
+      beds24DiscountAmount = beds24Subtotal * (account.beds24_discount_value / 100);
+      beds24DiscountLabel = `Beds24 Discount (${account.beds24_discount_value}%)`;
+    } else if (account.beds24_discount_type === 'fixed' && account.beds24_discount_value > 0) {
+      beds24DiscountAmount = parseFloat(account.beds24_discount_value);
+      beds24DiscountLabel = `Beds24 Discount (fixed)`;
+    }
+    beds24DiscountAmount = Math.round(beds24DiscountAmount * 100) / 100;
+    
+    const totalDiscount = gasDiscountAmount + beds24DiscountAmount;
+    const afterDiscount = subtotal - totalDiscount;
     
     // ===== VAT =====
     let vatAmount = 0;
@@ -14071,17 +14101,21 @@ app.get('/api/accounts/:id/invoice-preview', async (req, res) => {
       billing: {
         currency: invoiceCurrency,
         beds24_enabled: account.beds24_billing_enabled,
+        beds24_connected: account.beds24_connected,
         website_enabled: account.website_billing_enabled,
-        discount_type: account.billing_discount_type,
-        discount_value: parseFloat(account.billing_discount_value) || 0,
+        gas_discount_type: account.gas_discount_type,
+        gas_discount_value: parseFloat(account.gas_discount_value) || 0,
+        beds24_discount_type: account.beds24_discount_type,
+        beds24_discount_value: parseFloat(account.beds24_discount_value) || 0,
         vat_enabled: account.vat_enabled,
         vat_rate: parseFloat(account.vat_rate) || 0
       },
       line_items: lineItems,
       subtotal: Math.round(subtotal * 100) / 100,
-      discount: {
-        label: discountLabel,
-        amount: discountAmount
+      discounts: {
+        gas: { label: gasDiscountLabel, amount: gasDiscountAmount },
+        beds24: { label: beds24DiscountLabel, amount: beds24DiscountAmount },
+        total: totalDiscount
       },
       after_discount: Math.round(afterDiscount * 100) / 100,
       vat: {
