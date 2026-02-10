@@ -38951,7 +38951,7 @@ async function sendPartnerBookingWebhook(bookingId, eventType = 'booking.created
         pa.webhook_secret,
         pa.name as partner_name
       FROM bookings b
-      LEFT JOIN bookable_units bu ON bu.id = COALESCE(b.bookable_unit_id, b.room_id)
+      LEFT JOIN bookable_units bu ON bu.id = b.bookable_unit_id
       JOIN properties p ON b.property_id = p.id
       LEFT JOIN partner_tenant_mapping ptm ON p.account_id = ptm.gas_account_id
       LEFT JOIN accounts pa ON ptm.partner_account_id = pa.id
@@ -42199,6 +42199,24 @@ const SECTION_DEFAULTS = {
     'faq-enabled': false
   }
 };
+
+// GET /api/partner/content-schema - Get full field schema for all content sections
+app.get('/api/partner/content-schema', async (req, res) => {
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    
+    res.json({
+      success: true,
+      message: 'All fields shown with their default values. Send only fields you want to update — partial updates are supported.',
+      sections: SECTION_DEFAULTS
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
 
 // GET /api/partner/websites/:websiteId/content/:section - Get website content section
 app.get('/api/partner/websites/:websiteId/content/:section', async (req, res) => {
