@@ -14347,6 +14347,9 @@ app.post('/api/accounts/:id/invoices', async (req, res) => {
     }
     const invoiceNumber = `INV-${year}-${String(nextNum).padStart(4, '0')}`;
     
+    // Ensure sections column exists
+    await pool.query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS sections JSONB DEFAULT '{}'`);
+    
     const result = await pool.query(`
       INSERT INTO invoices (invoice_number, account_id, period_start, period_end, subtotal, tax, total, currency, status, line_items, sections, notes)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'final', $9, $10, $11)
@@ -14522,9 +14525,10 @@ app.get('/api/invoices/:invoiceId/print', async (req, res) => {
 
 <div class="header">
   <div class="company">
-    <h1>GAS Travel</h1>
-    <p>Guest Accommodation System</p>
-    <p>steve@gas.travel</p>
+    <h1>Park Row Web Developments Ltd</h1>
+    <p>43 Beacon Crescent, Hindhead, Surrey, GU26 6UG</p>
+    <p>Company Reg: 07994240</p>
+    <p>development@gas.travel</p>
   </div>
   <div class="invoice-title">
     <h2>Invoice</h2>
@@ -14573,7 +14577,7 @@ app.get('/api/invoices/:invoiceId/print', async (req, res) => {
 ${inv.notes ? `<div style="margin-top:20px;padding:12px;background:#f8fafc;border-radius:8px;font-size:12px;color:#64748b;"><strong>Notes:</strong> ${inv.notes}</div>` : ''}
 
 <div class="footer">
-  <p>GAS Travel · Guest Accommodation System · gas.travel</p>
+  <p>Park Row Web Developments Ltd · Company Reg: 07994240 · gas.travel</p>
   <p>Thank you for your business</p>
 </div>
 </body>
