@@ -14209,8 +14209,6 @@ app.get('/api/accounts/:id/invoice-preview', async (req, res) => {
         }
         
         const rrpTotal = rrpLines.reduce((sum, r) => sum + r.total, 0);
-        const contractDiscount = rrpTotal * 0.50; // 50% contract discount
-        const beds24Net = rrpTotal - contractDiscount;
         
         lineItems.push({
           category: 'beds24',
@@ -14219,13 +14217,11 @@ app.get('/api/accounts/:id/invoice-preview', async (req, res) => {
           detail: `${s.beds24_username || 'Account'} · ${s.property_count} properties · ${s.room_count} rooms · ${s.link_count} links`,
           rrp_breakdown: rrpLines,
           rrp_total: Math.round(rrpTotal * 100) / 100,
-          contract_discount_pct: 50,
-          contract_discount: Math.round(contractDiscount * 100) / 100,
-          amount: Math.round(beds24Net * 100) / 100,
+          amount: Math.round(rrpTotal * 100) / 100,
           currency: 'EUR',
           period: s.period_date
         });
-        subtotal += beds24Net;
+        subtotal += rrpTotal;
       }
     }
     
@@ -14439,8 +14435,7 @@ app.get('/api/invoices/:invoiceId/print', async (req, res) => {
           itemsHtml += `<tr><td style="padding-left:20px;">${r.label}</td><td style="text-align:center;">${r.qty}</td><td style="text-align:right;">${formatMoney(r.total)}</td></tr>`;
         }
         itemsHtml += `<tr><td style="padding-left:20px;font-style:italic;">RRP Total</td><td></td><td style="text-align:right;font-style:italic;">${formatMoney(item.rrp_total)}</td></tr>`;
-        itemsHtml += `<tr><td style="padding-left:20px;color:#16a34a;">Contract Discount (${item.contract_discount_pct}%)</td><td></td><td style="text-align:right;color:#16a34a;">-${formatMoney(item.contract_discount)}</td></tr>`;
-        itemsHtml += `<tr style="font-weight:600;"><td style="padding-left:20px;">Beds24 Net</td><td></td><td style="text-align:right;">${formatMoney(item.amount)}</td></tr>`;
+        itemsHtml += `<tr style="font-weight:600;"><td style="padding-left:20px;">Beds24 Total</td><td></td><td style="text-align:right;">${formatMoney(item.amount)}</td></tr>`;
       } else {
         // GAS sites and other items
         if (item.detail) {
