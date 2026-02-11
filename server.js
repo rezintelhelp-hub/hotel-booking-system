@@ -14555,7 +14555,10 @@ app.get('/api/invoices/:invoiceId/print', async (req, res) => {
       // Beds24 discount from stored sections data or recalculate
       const beds24RRP = beds24Items.reduce((s, i) => s + parseFloat(i.amount || 0), 0);
       if (storedSections.beds24 && storedSections.beds24.discount_amount > 0) {
-        itemsHtml += `<tr style="color:#16a34a;"><td style="padding-left:20px;">${storedSections.beds24.discount_label}</td><td></td><td style="text-align:right;">-${formatMoney(storedSections.beds24.discount_amount)}</td></tr>`;
+        const b24PrintLabel = storedSections.beds24.discount_label.includes(' off') && !storedSections.beds24.discount_label.includes('%')
+            ? `Beds24 Discount (${formatMoney(storedSections.beds24.discount_amount)} off)`
+            : storedSections.beds24.discount_label;
+        itemsHtml += `<tr style="color:#16a34a;"><td style="padding-left:20px;">${b24PrintLabel}</td><td></td><td style="text-align:right;">-${formatMoney(storedSections.beds24.discount_amount)}</td></tr>`;
         itemsHtml += `<tr style="background:#fef3c7;"><td colspan="2" style="font-weight:700;color:#92400e;">Beds24 Subtotal</td><td style="text-align:right;font-weight:700;color:#92400e;">${formatMoney(storedSections.beds24.subtotal)}</td></tr>`;
       } else {
         itemsHtml += `<tr style="background:#fef3c7;"><td colspan="2" style="font-weight:700;color:#92400e;">Beds24 Subtotal</td><td style="text-align:right;font-weight:700;color:#92400e;">${formatMoney(beds24RRP)}</td></tr>`;
