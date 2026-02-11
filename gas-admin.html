@@ -41900,7 +41900,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const select = document.getElementById('blog-category');
                 if (!select) return;
                 
-                const response = await fetch('/api/admin/blog-categories?client_id=' + currentClientId);
+                const response = await fetch('/api/admin/blog-categories?client_id=' + (typeof currentClientId !== 'undefined' ? currentClientId : (getClientId() || selectedAccountId || '')));
                 const data = await response.json();
                 
                 select.innerHTML = '<option value="">Select category...</option>';
@@ -45737,7 +45737,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const select = document.getElementById('ai-blog-category');
                 if (!select) return;
                 
-                const response = await fetch('/api/admin/blog-categories?client_id=' + currentClientId);
+                const response = await fetch('/api/admin/blog-categories?client_id=' + (typeof currentClientId !== 'undefined' ? currentClientId : (getClientId() || selectedAccountId || '')));
                 const data = await response.json();
                 
                 select.innerHTML = '<option value="General">General</option>';
