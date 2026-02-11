@@ -16355,12 +16355,14 @@ const promo = await fetch('/api/v1/offers/validate', {
                         <div style="margin-bottom: 0.75rem;">
                             <div class="form-group" style="margin: 0;">
                                 <label style="font-size: 0.8rem; font-weight: 600;">Billing Currency</label>
-                                <select id="account-billing-currency" class="form-input" style="padding: 0.5rem; font-size: 0.85rem;">
+                                <select id="account-billing-currency" class="form-input" style="padding: 0.5rem; font-size: 0.85rem;" onchange="fetchBillingExchangeRate()">
                                     <option value="EUR">€ EUR — Euro</option>
                                     <option value="GBP">£ GBP — British Pound</option>
                                     <option value="USD">$ USD — US Dollar</option>
                                     <option value="CAD">C$ CAD — Canadian Dollar</option>
                                 </select>
+                            </div>
+                            <div id="billing-exchange-rate-display" style="display:none; margin-top:0.5rem; padding:0.5rem 0.75rem; background:white; border-radius:8px; border:1px solid #86efac; font-size:0.8rem;">
                             </div>
                         </div>
                         
@@ -24600,6 +24602,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     
                     // Billing fields
                     document.getElementById('account-billing-currency').value = account.billing_currency || 'EUR';
+                    fetchBillingExchangeRate();
                     document.getElementById('account-vat-number').value = account.vat_number || '';
                     document.getElementById('account-company-reg').value = account.company_reg || '';
                     document.getElementById('account-beds24-discount-type').value = account.beds24_discount_type || 'none';
@@ -24823,9 +24826,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const data = await response.json();
                 
                 if (data.success) {
-                    closeModal('accountModal');
-                    loadAccounts();
                     showNotification('Account saved successfully', 'success');
+                    loadAccounts(); // refresh list in background
                 } else {
                     alert('Error saving account: ' + (data.error || 'Unknown error'));
                 }
@@ -51958,6 +51960,39 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
         
+        async function fetchBillingExchangeRate() {
+            const currency = document.getElementById('account-billing-currency').value;
+            const display = document.getElementById('billing-exchange-rate-display');
+            
+            if (currency === 'EUR') {
+                display.style.display = 'none';
+                return;
+            }
+            
+            const symbols = { GBP: '£', USD: '$', CAD: 'C$' };
+            const sym = symbols[currency] || currency;
+            display.style.display = 'block';
+            display.innerHTML = '<span style="color:#64748b;">Fetching rate...</span>';
+            
+            try {
+                const response = await fetch(`https://api.frankfurter.dev/v1/latest?symbols=${currency}`);
+                const data = await response.json();
+                const rate = data.rates[currency];
+                display.innerHTML = `
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <div>
+                            <span style="font-weight:600;color:#166534;">💱 €1 = ${sym}${rate.toFixed(4)}</span>
+                            <span style="color:#64748b;margin-left:0.5rem;font-size:0.75rem;">(${data.date})</span>
+                        </div>
+                        <div style="font-size:0.75rem;color:#64748b;">
+                            ${sym}1 = €${(1/rate).toFixed(4)}
+                        </div>
+                    </div>`;
+            } catch (err) {
+                display.innerHTML = '<span style="color:#dc2626;">⚠ Could not fetch rate</span>';
+            }
+        }
+
         async function previewInvoice() {
             const accountId = document.getElementById('edit-account-id').value;
             if (!accountId) return alert('No account selected');
