@@ -16351,6 +16351,19 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <div style="background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); padding: 1rem; border-radius: 12px; margin-bottom: 1rem; border: 1px solid #86efac;">
                         <h4 style="margin: 0 0 0.75rem 0; font-size: 0.85rem; color: #166534; font-weight: 600;">🧾 VAT & Billing Info</h4>
                         
+                        <!-- Billing Currency -->
+                        <div style="margin-bottom: 0.75rem;">
+                            <div class="form-group" style="margin: 0;">
+                                <label style="font-size: 0.8rem; font-weight: 600;">Billing Currency</label>
+                                <select id="account-billing-currency" class="form-input" style="padding: 0.5rem; font-size: 0.85rem;">
+                                    <option value="EUR">€ EUR — Euro</option>
+                                    <option value="GBP">£ GBP — British Pound</option>
+                                    <option value="USD">$ USD — US Dollar</option>
+                                    <option value="CAD">C$ CAD — Canadian Dollar</option>
+                                </select>
+                            </div>
+                        </div>
+                        
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
                             <div class="form-group" style="margin: 0;">
                                 <label style="font-size: 0.8rem;">VAT / Tax Number</label>
@@ -24586,6 +24599,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     document.getElementById('account-currency').value = account.default_currency || '';
                     
                     // Billing fields
+                    document.getElementById('account-billing-currency').value = account.billing_currency || 'EUR';
                     document.getElementById('account-vat-number').value = account.vat_number || '';
                     document.getElementById('account-company-reg').value = account.company_reg || '';
                     document.getElementById('account-beds24-discount-type').value = account.beds24_discount_type || 'none';
@@ -24771,6 +24785,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 default_currency: document.getElementById('account-currency').value,
                 beds24_discount_type: document.getElementById('account-beds24-discount-type').value,
                 beds24_discount_value: parseFloat(document.getElementById('account-beds24-discount-value').value) || 0,
+                billing_currency: document.getElementById('account-billing-currency').value,
                 vat_number: document.getElementById('account-vat-number').value,
                 company_reg: document.getElementById('account-company-reg').value,
                 vat_enabled: document.getElementById('account-vat-enabled').checked,
@@ -51953,11 +51968,33 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 if (!data.success) return alert('Error: ' + data.error);
                 
-                const currencySymbols = { EUR: '€', GBP: '£', USD: '$', CHF: 'CHF', AUD: 'A$', PHP: '₱', THB: '฿' };
-                const sym = currencySymbols[data.billing.currency] || data.billing.currency + ' ';
-                const fmt = (amt) => `${sym}${parseFloat(amt || 0).toFixed(2)}`;
+                const currencySymbols = { EUR: '€', GBP: '£', USD: '$', CAD: 'C$', CHF: 'CHF', AUD: 'A$', PHP: '₱', THB: '฿' };
+                const isConverted = data.billing.currency !== 'EUR' && data.converted;
+                const baseSym = '€';
+                const clientSym = currencySymbols[data.billing.currency] || data.billing.currency + ' ';
+                const fxRate = data.exchange_rate ? data.exchange_rate.rate : 1;
+                
+                // Format in EUR (base)
+                const fmtEur = (amt) => `€${parseFloat(amt || 0).toFixed(2)}`;
+                // Format in client currency
+                const fmtClient = (amt) => `${clientSym}${(parseFloat(amt || 0) * fxRate).toFixed(2)}`;
+                // Main format - use client currency if converted
+                const fmt = isConverted ? fmtClient : fmtEur;
+                // For line items - show EUR with client equiv
+                const fmtLine = (amt) => {
+                    if (!isConverted) return fmtEur(amt);
+                    return `${clientSym}${(parseFloat(amt || 0) * fxRate).toFixed(2)}`;
+                };
                 
                 let html = '<div style="max-height: 60vh; overflow-y: auto;">';
+                
+                // Exchange rate banner for non-EUR
+                if (isConverted) {
+                    html += `<div style="background:#fef3c7;padding:0.5rem 0.75rem;border-radius:8px;margin-bottom:0.75rem;font-size:0.8rem;color:#92400e;display:flex;justify-content:space-between;align-items:center;">
+                        <span>💱 Exchange Rate: €1 = ${clientSym}${fxRate.toFixed(4)}</span>
+                        <span style="font-size:0.75rem;color:#a16207;">${data.exchange_rate.date}${data.exchange_rate.fallback ? ' (fallback)' : ''}</span>
+                    </div>`;
+                }
                 
                 // ===== SECTION 1: GAS Services =====
                 const gasItems = data.line_items.filter(i => i.category === 'gas');
@@ -52069,7 +52106,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                         subtotal: preview.subtotal,
                         vat: preview.vat.amount,
                         grand_total: preview.grand_total,
-                        currency: preview.billing.currency
+                        currency: preview.billing.currency,
+                        exchange_rate: preview.exchange_rate || null,
+                        converted: preview.converted || null
                     })
                 });
                 
