@@ -1145,8 +1145,12 @@
         }
         
         // Check if already logged in - skip step 1
+        // If account_id is in URL, use that account (master admin connecting for a client)
         async function initWizard() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const targetAccountId = urlParams.get('account_id');
             const token = localStorage.getItem('gas_token');
+            
             if (token) {
                 try {
                     const response = await fetch('/api/accounts/me', {
@@ -1154,6 +1158,22 @@
                     });
                     const data = await response.json();
                     if (data.success && data.account) {
+                        // If master admin connecting for a specific client account
+                        if (targetAccountId && data.account.role === 'master_admin') {
+                            // Fetch the target account details
+                            const targetResponse = await fetch(`/api/accounts/${targetAccountId}`, {
+                                headers: { 'Authorization': 'Bearer ' + token }
+                            });
+                            const targetData = await targetResponse.json();
+                            if (targetData.success && targetData.account) {
+                                wizardData.account = targetData.account;
+                                wizardData.adminToken = token;
+                                currentStep = 2;
+                                showStep(2);
+                                return;
+                            }
+                        }
+                        // Otherwise use logged-in account
                         wizardData.account = data.account;
                         currentStep = 2;
                         showStep(2);

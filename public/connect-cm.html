@@ -188,7 +188,7 @@
 <body>
     <header class="header">
         <div class="logo">G<span>A</span>S</div>
-        <a href="https://gas.travel" style="color: var(--text-secondary); text-decoration: none;">← Back to Home</a>
+        <a href="/gas-admin.html#gas-sync-connections" style="color: var(--text-secondary); text-decoration: none;">← Back to Dashboard</a>
     </header>
     
     <main class="main">
@@ -298,19 +298,24 @@
         
         // Select CM - route to wizard
         function selectCM(id) {
+            // Pass through account_id if present
+            const urlParams = new URLSearchParams(window.location.search);
+            const accountId = urlParams.get('account_id');
+            const qs = accountId ? `?account_id=${accountId}` : '';
+            
             // Special cases
             if (id === 'booking-automation') {
-                window.location.href = '/booking-automation-wizard.html';
+                window.location.href = '/booking-automation-wizard.html' + qs;
                 return;
             }
             
             if (id === 'other') {
-                window.location.href = '/other-cm-wizard.html';
+                window.location.href = '/other-cm-wizard.html' + qs;
                 return;
             }
             
             // All others go to their dedicated wizard
-            window.location.href = `/${id}-wizard.html`;
+            window.location.href = `/${id}-wizard.html${qs}`;
         }
         
         // Search handler
