@@ -11404,7 +11404,8 @@ app.put('/api/accounts/:id', async (req, res) => {
       account_code, name, email, phone, business_name, status, notes, role,
       contact_name, address_line1, address_line2, city, region, postcode, country, default_currency,
       payment_methods, beds24_discount_type, beds24_discount_value, gas_discount_type, gas_discount_value,
-      vat_number, company_reg, vat_enabled, vat_rate, beds24_billing_enabled, website_billing_enabled
+      vat_number, company_reg, vat_enabled, vat_rate, beds24_billing_enabled, website_billing_enabled,
+      billing_currency
     } = req.body;
     
     // Ensure columns exist
@@ -11524,6 +11525,10 @@ app.put('/api/accounts/:id', async (req, res) => {
     if (website_billing_enabled !== undefined) {
       updates.push(`website_billing_enabled = $${paramIndex++}`);
       values.push(website_billing_enabled);
+    }
+    if (billing_currency !== undefined) {
+      updates.push(`billing_currency = $${paramIndex++}`);
+      values.push(billing_currency || 'EUR');
     }
     
     if (updates.length === 0) {
@@ -12318,6 +12323,7 @@ app.get('/api/setup-accounts-billing', async (req, res) => {
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS vat_rate DECIMAL(5,2) DEFAULT 0`).catch(() => {});
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS beds24_billing_enabled BOOLEAN DEFAULT true`).catch(() => {});
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS website_billing_enabled BOOLEAN DEFAULT true`).catch(() => {});
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS billing_currency VARCHAR(3) DEFAULT 'EUR'`).catch(() => {});
     console.log('✅ billing columns added to accounts');
 
     // Custom invoice line items table
@@ -13983,6 +13989,28 @@ app.delete('/api/accounts/:id/custom-lines/:lineId', async (req, res) => {
   }
 });
 
+// ===== EXCHANGE RATE HELPER =====
+async function getExchangeRate(targetCurrency) {
+  if (!targetCurrency || targetCurrency === 'EUR') return { rate: 1, date: new Date().toISOString().split('T')[0] };
+  
+  const supported = ['GBP', 'USD', 'CAD'];
+  if (!supported.includes(targetCurrency)) return { rate: 1, date: new Date().toISOString().split('T')[0], error: 'Unsupported currency' };
+  
+  try {
+    const axios = require('axios');
+    const response = await axios.get(`https://api.frankfurter.dev/v1/latest?symbols=${targetCurrency}`, { timeout: 5000 });
+    if (response.data && response.data.rates && response.data.rates[targetCurrency]) {
+      return { rate: response.data.rates[targetCurrency], date: response.data.date };
+    }
+    return { rate: 1, date: new Date().toISOString().split('T')[0], error: 'Rate not found' };
+  } catch (err) {
+    console.error('Exchange rate fetch error:', err.message);
+    // Fallback hardcoded rates (updated periodically)
+    const fallback = { GBP: 0.87, USD: 1.19, CAD: 1.55 };
+    return { rate: fallback[targetCurrency] || 1, date: new Date().toISOString().split('T')[0], fallback: true };
+  }
+}
+
 // Generate invoice preview (does not save)
 app.get('/api/accounts/:id/invoice-preview', async (req, res) => {
   try {
@@ -14009,7 +14037,12 @@ app.get('/api/accounts/:id/invoice-preview', async (req, res) => {
     }
     
     const account = acctResult.rows[0];
-    const invoiceCurrency = account.default_currency || 'EUR';
+    const invoiceCurrency = account.billing_currency || 'EUR';
+    
+    // Fetch exchange rate if non-EUR
+    const exchangeData = await getExchangeRate(invoiceCurrency);
+    const fxRate = exchangeData.rate;
+    
     const lineItems = [];
     let subtotal = 0;
     
@@ -14295,6 +14328,7 @@ app.get('/api/accounts/:id/invoice-preview', async (req, res) => {
       },
       billing: {
         currency: invoiceCurrency,
+        base_currency: 'EUR',
         beds24_enabled: account.beds24_billing_enabled,
         beds24_connected: account.beds24_connected,
         website_enabled: account.website_billing_enabled,
@@ -14302,6 +14336,13 @@ app.get('/api/accounts/:id/invoice-preview', async (req, res) => {
         beds24_discount_value: parseFloat(account.beds24_discount_value) || 0,
         vat_enabled: account.vat_enabled,
         vat_rate: parseFloat(account.vat_rate) || 0
+      },
+      exchange_rate: {
+        rate: fxRate,
+        date: exchangeData.date,
+        from: 'EUR',
+        to: invoiceCurrency,
+        fallback: exchangeData.fallback || false
       },
       line_items: lineItems,
       sections: {
@@ -14320,7 +14361,21 @@ app.get('/api/accounts/:id/invoice-preview', async (req, res) => {
         rate: parseFloat(account.vat_rate) || 0,
         amount: vatAmount
       },
-      grand_total: grandTotal
+      grand_total: grandTotal,
+      converted: invoiceCurrency !== 'EUR' ? {
+        subtotal: Math.round(grandSubtotal * fxRate * 100) / 100,
+        vat_amount: Math.round(vatAmount * fxRate * 100) / 100,
+        grand_total: Math.round(grandTotal * fxRate * 100) / 100,
+        sections: {
+          gas: { subtotal: Math.round(gasSubtotal * fxRate * 100) / 100 },
+          beds24: {
+            rrp: Math.round(beds24RRP * fxRate * 100) / 100,
+            discount_amount: Math.round(beds24DiscountAmount * fxRate * 100) / 100,
+            subtotal: Math.round(beds24Subtotal * fxRate * 100) / 100
+          },
+          custom: { subtotal: Math.round(customSubtotal * fxRate * 100) / 100 }
+        }
+      } : null
     });
   } catch (error) {
     console.error('Invoice preview error:', error);
@@ -14332,7 +14387,7 @@ app.get('/api/accounts/:id/invoice-preview', async (req, res) => {
 app.post('/api/accounts/:id/invoices', async (req, res) => {
   try {
     const accountId = req.params.id;
-    const { period_start, period_end, line_items, subtotal, discount, vat, grand_total, currency, notes } = req.body;
+    const { period_start, period_end, line_items, subtotal, discount, vat, grand_total, currency, notes, exchange_rate, converted } = req.body;
     
     // Generate invoice number: INV-YYYY-NNNN
     const year = new Date().getFullYear();
@@ -14363,7 +14418,7 @@ app.post('/api/accounts/:id/invoices', async (req, res) => {
       grand_total || 0,
       currency || 'EUR',
       JSON.stringify(line_items || []),
-      JSON.stringify(req.body.sections || {}),
+      JSON.stringify({ ...(req.body.sections || {}), exchange_rate: exchange_rate || null, converted: converted || null }),
       notes || ''
     ]);
     
@@ -14423,9 +14478,27 @@ app.get('/api/invoices/:invoiceId/print', async (req, res) => {
     
     const inv = result.rows[0];
     const items = typeof inv.line_items === 'string' ? JSON.parse(inv.line_items) : (inv.line_items || []);
+    const storedSections = typeof inv.sections === 'string' ? JSON.parse(inv.sections) : (inv.sections || {});
+    
+    // Exchange rate handling
+    const fxData = storedSections.exchange_rate || null;
+    const fxRate = (fxData && fxData.rate && inv.currency !== 'EUR') ? fxData.rate : 1;
+    const isConverted = fxRate !== 1;
+    
     const currencySymbol = { EUR: '€', GBP: '£', USD: '$', CHF: 'CHF', AUD: 'A$', CAD: 'C$', THB: '฿', PHP: '₱' }[inv.currency] || inv.currency + ' ';
     
-    const formatMoney = (amt) => `${currencySymbol}${parseFloat(amt || 0).toFixed(2)}`;
+    // Format in invoice currency (applies conversion if needed)
+    const formatMoney = (amt) => `${currencySymbol}${(parseFloat(amt || 0) * fxRate).toFixed(2)}`;
+    // Format in EUR only
+    const formatEur = (amt) => `€${parseFloat(amt || 0).toFixed(2)}`;
+    
+    // Exchange rate banner HTML
+    const fxBanner = isConverted ? `
+      <div style="background:#fef3c7;padding:8px 12px;border-radius:8px;margin-bottom:20px;font-size:11px;color:#92400e;display:flex;justify-content:space-between;">
+        <span>Exchange Rate: €1 = ${currencySymbol}${fxRate.toFixed(4)}</span>
+        <span>Rate Date: ${fxData.date || 'N/A'}</span>
+      </div>
+    ` : '';
     
     let itemsHtml = '';
     
@@ -14465,7 +14538,6 @@ app.get('/api/invoices/:invoiceId/print', async (req, res) => {
       }
       // Beds24 discount from stored sections data or recalculate
       const beds24RRP = beds24Items.reduce((s, i) => s + parseFloat(i.amount || 0), 0);
-      const storedSections = typeof inv.sections === 'string' ? JSON.parse(inv.sections) : (inv.sections || {});
       if (storedSections.beds24 && storedSections.beds24.discount_amount > 0) {
         itemsHtml += `<tr style="color:#16a34a;"><td style="padding-left:20px;">${storedSections.beds24.discount_label}</td><td></td><td style="text-align:right;">-${formatMoney(storedSections.beds24.discount_amount)}</td></tr>`;
         itemsHtml += `<tr style="background:#fef3c7;"><td colspan="2" style="font-weight:700;color:#92400e;">Beds24 Subtotal</td><td style="text-align:right;font-weight:700;color:#92400e;">${formatMoney(storedSections.beds24.subtotal)}</td></tr>`;
@@ -14556,6 +14628,8 @@ app.get('/api/invoices/:invoiceId/print', async (req, res) => {
     <p style="font-size:18px; font-weight:700; color:${inv.status === 'paid' ? '#16a34a' : '#f59e0b'}">${inv.status.toUpperCase()}</p>
   </div>
 </div>
+
+${fxBanner}
 
 <table>
   <thead>
