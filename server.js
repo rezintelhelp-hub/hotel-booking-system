@@ -14096,7 +14096,7 @@ app.get('/api/accounts/:id/invoice-preview', async (req, res) => {
           siteDiscountLabel = `${site.discount_value}% off`;
         } else if (site.discount_type === 'fixed' && site.discount_value > 0) {
           siteDiscount = parseFloat(site.discount_value);
-          siteDiscountLabel = `€${site.discount_value} off`;
+          siteDiscountLabel = `${site.discount_value} off`;
         }
         
         const siteNet = Math.round((siteAmount - siteDiscount) * 100) / 100;
@@ -14153,7 +14153,7 @@ app.get('/api/accounts/:id/invoice-preview', async (req, res) => {
             csDiscountLabel = `${cs.discount_value}% off`;
           } else if (cs.discount_type === 'fixed' && cs.discount_value > 0) {
             csDiscount = parseFloat(cs.discount_value);
-            csDiscountLabel = `€${cs.discount_value} off`;
+            csDiscountLabel = `${cs.discount_value} off`;
           }
           const csNet = Math.round((csMonthly - csDiscount) * 100) / 100;
           
@@ -14291,7 +14291,7 @@ app.get('/api/accounts/:id/invoice-preview', async (req, res) => {
       beds24DiscountLabel = `Beds24 Discount (${account.beds24_discount_value}%)`;
     } else if (account.beds24_discount_type === 'fixed' && account.beds24_discount_value > 0) {
       beds24DiscountAmount = parseFloat(account.beds24_discount_value);
-      beds24DiscountLabel = `Beds24 Discount (€${account.beds24_discount_value} off)`;
+      beds24DiscountLabel = `Beds24 Discount (${account.beds24_discount_value} off)`;
     }
     beds24DiscountAmount = Math.round(beds24DiscountAmount * 100) / 100;
     let beds24Subtotal = Math.round((beds24RRP - beds24DiscountAmount) * 100) / 100;
@@ -14513,7 +14513,7 @@ app.get('/api/invoices/:invoiceId/print', async (req, res) => {
           itemsHtml += `<tr><td>${item.label}</td><td style="text-align:center;">${item.rooms || item.quantity || ''}</td><td style="text-align:right;">${formatMoney(item.gross_amount || item.amount)}</td></tr>`;
         }
         if (item.discount_amount && item.discount_amount > 0) {
-          itemsHtml += `<tr style="color:#16a34a;"><td style="padding-left:20px;">Discount (${item.discount_label})</td><td></td><td style="text-align:right;">-${formatMoney(item.discount_amount)}</td></tr>`;
+          itemsHtml += `<tr style="color:#16a34a;"><td style="padding-left:20px;">Discount (${item.discount_type === 'fixed' ? formatMoney(item.discount_value) + ' off' : item.discount_label})</td><td></td><td style="text-align:right;">-${formatMoney(item.discount_amount)}</td></tr>`;
           itemsHtml += `<tr><td style="padding-left:20px;font-weight:600;">Net</td><td></td><td style="text-align:right;font-weight:600;">${formatMoney(item.amount)}</td></tr>`;
         }
         if (item.is_one_off) {
