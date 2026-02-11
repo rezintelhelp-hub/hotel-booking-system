@@ -14200,7 +14200,21 @@ app.get('/api/accounts/:id/invoice-preview', async (req, res) => {
         [accountId]
       );
       
+      // Get USD to EUR rate for plugin price conversion
+      let usdToEur = 0.84; // fallback
+      try {
+        const axios = require('axios');
+        const fxResp = await axios.get('https://api.frankfurter.dev/v1/latest?base=USD&symbols=EUR', { timeout: 5000 });
+        if (fxResp.data && fxResp.data.rates && fxResp.data.rates.EUR) {
+          usdToEur = fxResp.data.rates.EUR;
+        }
+      } catch (e) { /* use fallback */ }
+      
       for (const sub of subs.rows) {
+        const rawPrice = parseFloat(sub.monthly_price) || 0;
+        const isUSD = (sub.currency || 'USD') === 'USD';
+        const eurPrice = isUSD ? Math.round(rawPrice * usdToEur * 100) / 100 : rawPrice;
+        
         const item = {
           category: 'gas',
           product: sub.product,
@@ -14210,11 +14224,13 @@ app.get('/api/accounts/:id/invoice-preview', async (req, res) => {
                  sub.product === 'reviews' ? 'Reviews (Repuso)' : sub.product,
           quantity: sub.quantity || 0,
           tier: sub.tier,
-          amount: parseFloat(sub.monthly_price) || 0,
-          currency: sub.currency || 'EUR'
+          amount: eurPrice,
+          original_amount: rawPrice,
+          original_currency: sub.currency || 'USD',
+          currency: 'EUR'
         };
         lineItems.push(item);
-        subtotal += item.amount;
+        subtotal += eurPrice;
       }
     }
     
