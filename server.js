@@ -14327,7 +14327,7 @@ app.get('/api/accounts/:id/invoice-preview', async (req, res) => {
           rrp_total: Math.round(rrpTotal * 100) / 100,
           amount: Math.round(rrpTotal * 100) / 100,
           currency: 'EUR',
-          period: s.period_date
+          period: snap.rows[0].period_date
         });
         subtotal += rrpTotal;
       }
