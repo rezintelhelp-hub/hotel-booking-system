@@ -24205,7 +24205,19 @@ const promo = await fetch('/api/v1/offers/validate', {
         const blogPrices = { 0: 0, 1: 9.99, 2: 14.99, 3: 24.99 };
         const attractionsPrices = { 0: 0, 1: 4.99, 2: 9.99, 3: 14.99 };
         const litesPrices = { 0: 0, 1: 4.99, 2: 9.99, 3: 19.99 };
-        const EUR_USD_RATE = 0.92; // approx
+        let EUR_USD_RATE = 0.84; // fallback USD→EUR
+        
+        // Fetch live USD→EUR rate
+        (async () => {
+            try {
+                const resp = await fetch('https://api.frankfurter.dev/v1/latest?base=USD&symbols=EUR');
+                const data = await resp.json();
+                if (data.rates && data.rates.EUR) {
+                    EUR_USD_RATE = data.rates.EUR;
+                    updateSubscriptionPreview();
+                }
+            } catch (e) { /* use fallback */ }
+        })();
         
         function updateSubscriptionPreview() {
             const blogTier = parseInt(document.getElementById('sub-blog-tier').value) || 0;
