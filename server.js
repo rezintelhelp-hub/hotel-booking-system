@@ -15432,12 +15432,72 @@ app.post('/api/public/create-group-booking', async (req, res) => {
                         
                         if (hostawayResponse.data?.result?.id) {
                             const hostawayId = hostawayResponse.data.result.id;
-                            await client.query(`UPDATE bookings SET hostaway_reservation_id = $1 WHERE id = $2`, [hostawayId, booking.id]);
+                            await client.query(`UPDATE bookings SET hostaway_reservation_id = $1, cm_sync_status = 'synced' WHERE id = $2`, [hostawayId, booking.id]);
                             cmResults.hostaway.push({ roomId, hostawayId });
                         }
                     }
                 } catch (hostawayError) {
                     console.error('Error syncing to Hostaway:', hostawayError.response?.data || hostawayError.message);
+                    
+                    // Log failed CM push for notification
+                    try {
+                      await client.query(`
+                        INSERT INTO booking_cm_failures (booking_id, account_id, adapter_code, error_message, error_detail, created_at)
+                        VALUES ($1, $2, 'hostaway', $3, $4, NOW())
+                      `, [
+                        booking.id,
+                        booking.account_id || accountId,
+                        hostawayError.message || 'Unknown error',
+                        JSON.stringify(hostawayError.response?.data || {})
+                      ]);
+                      
+                      // Update booking status to flag the issue
+                      await client.query(`UPDATE bookings SET cm_sync_status = 'failed' WHERE id = $1`, [booking.id]);
+                      
+                      // Send email notification to property owner
+                      try {
+                        const ownerResult = await pool.query(`SELECT email, name, contact_name FROM accounts WHERE id = $1`, [booking.account_id || accountId]);
+                        const owner = ownerResult.rows[0];
+                        if (owner && owner.email) {
+                          await sendEmail({
+                            to: [owner.email, 'development@gas.travel'],
+                            subject: `⚠️ Booking Failed to Sync - ${booking.guest_first_name} ${booking.guest_last_name}`,
+                            html: `
+                              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                                <div style="background: #dc2626; color: white; padding: 20px; border-radius: 8px 8px 0 0;">
+                                  <h2 style="margin: 0;">⚠️ Booking Sync Failed</h2>
+                                  <p style="margin: 5px 0 0; opacity: 0.9;">A booking was received but failed to push to Hostaway</p>
+                                </div>
+                                <div style="background: #fff; border: 1px solid #e5e7eb; padding: 20px; border-radius: 0 0 8px 8px;">
+                                  <h3 style="color: #1e293b; margin-top: 0;">Booking Details</h3>
+                                  <table style="width: 100%; border-collapse: collapse;">
+                                    <tr><td style="padding: 6px 0; color: #6b7280;">Guest:</td><td style="padding: 6px 0; font-weight: 600;">${booking.guest_first_name} ${booking.guest_last_name}</td></tr>
+                                    <tr><td style="padding: 6px 0; color: #6b7280;">Email:</td><td style="padding: 6px 0;">${booking.guest_email}</td></tr>
+                                    <tr><td style="padding: 6px 0; color: #6b7280;">Phone:</td><td style="padding: 6px 0;">${booking.guest_phone || 'N/A'}</td></tr>
+                                    <tr><td style="padding: 6px 0; color: #6b7280;">Check-in:</td><td style="padding: 6px 0; font-weight: 600;">${booking.check_in}</td></tr>
+                                    <tr><td style="padding: 6px 0; color: #6b7280;">Check-out:</td><td style="padding: 6px 0; font-weight: 600;">${booking.check_out}</td></tr>
+                                    <tr><td style="padding: 6px 0; color: #6b7280;">Total Price:</td><td style="padding: 6px 0; font-weight: 600;">$${booking.total_price}</td></tr>
+                                    <tr><td style="padding: 6px 0; color: #6b7280;">GAS Booking ID:</td><td style="padding: 6px 0;">${booking.id}</td></tr>
+                                  </table>
+                                  <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 12px; margin-top: 16px;">
+                                    <p style="margin: 0; color: #991b1b; font-size: 0.9rem;"><strong>Error:</strong> ${hostawayError.message || 'Unknown error'}</p>
+                                  </div>
+                                  <p style="margin-top: 16px; color: #6b7280; font-size: 0.85rem;">
+                                    <strong>Action Required:</strong> Please manually create this reservation in Hostaway to avoid double-booking. 
+                                    Payment has already been processed via Stripe.
+                                  </p>
+                                </div>
+                              </div>
+                            `
+                          });
+                          console.log(`📧 CM failure notification sent to ${owner.email}`);
+                        }
+                      } catch (emailError) {
+                        console.error('Failed to send CM failure email:', emailError.message);
+                      }
+                    } catch (logError) {
+                      console.error('Failed to log CM failure:', logError.message);
+                    }
                 }
             }
         }
@@ -16378,6 +16438,19 @@ app.get('/api/setup-database', async (req, res) => {
     await pool.query(`CREATE TABLE IF NOT EXISTS properties (id SERIAL PRIMARY KEY, name VARCHAR(255) NOT NULL, description TEXT, address TEXT, city VARCHAR(100), country VARCHAR(100), property_type VARCHAR(50), star_rating INTEGER, hero_image_url TEXT, active BOOLEAN DEFAULT true, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
     await pool.query(`CREATE TABLE IF NOT EXISTS rooms (id SERIAL PRIMARY KEY, property_id INTEGER REFERENCES properties(id) ON DELETE CASCADE, name VARCHAR(255) NOT NULL, description TEXT, max_occupancy INTEGER, max_adults INTEGER, max_children INTEGER, base_price DECIMAL(10, 2), currency VARCHAR(3) DEFAULT 'USD', quantity INTEGER DEFAULT 1, active BOOLEAN DEFAULT true, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
     await pool.query(`CREATE TABLE IF NOT EXISTS bookings (id SERIAL PRIMARY KEY, property_id INTEGER REFERENCES properties(id), room_id INTEGER REFERENCES rooms(id), check_in DATE NOT NULL, check_out DATE NOT NULL, num_adults INTEGER NOT NULL, num_children INTEGER DEFAULT 0, guest_first_name VARCHAR(100) NOT NULL, guest_last_name VARCHAR(100) NOT NULL, guest_email VARCHAR(255) NOT NULL, guest_phone VARCHAR(50), total_price DECIMAL(10, 2) NOT NULL, status VARCHAR(50) DEFAULT 'confirmed', beds24_booking_id VARCHAR(50), created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS booking_cm_failures (
+      id SERIAL PRIMARY KEY,
+      booking_id INTEGER,
+      account_id INTEGER,
+      adapter_code VARCHAR(50),
+      error_message TEXT,
+      error_detail JSONB,
+      resolved BOOLEAN DEFAULT false,
+      resolved_at TIMESTAMP,
+      resolved_by VARCHAR(100),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS cm_sync_status VARCHAR(20) DEFAULT 'pending'`);
     // Add beds24_booking_id column if it doesn't exist
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS beds24_booking_id VARCHAR(50)`);
     // Add smoobu_booking_id column
@@ -65389,6 +65462,67 @@ app.post('/api/turbines/post/facebook', async (req, res) => {
   } catch (error) {
     console.error('Error posting to Facebook:', error);
     res.status(500).json({ error: 'Failed to post' });
+  }
+});
+
+// =====================================================
+// BOOKING CM FAILURE MANAGEMENT
+// =====================================================
+
+// Get all unresolved CM failures
+app.get('/api/admin/cm-failures', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT f.*, b.guest_first_name, b.guest_last_name, b.guest_email, b.check_in, b.check_out, 
+             b.total_price, b.property_id, b.room_id, a.name as account_name
+      FROM booking_cm_failures f
+      LEFT JOIN bookings b ON f.booking_id = b.id
+      LEFT JOIN accounts a ON f.account_id = a.id
+      WHERE f.resolved = false
+      ORDER BY f.created_at DESC
+    `);
+    res.json({ success: true, failures: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get failure count (for notification badge)
+app.get('/api/admin/cm-failures/count', async (req, res) => {
+  try {
+    const result = await pool.query(`SELECT COUNT(*) as count FROM booking_cm_failures WHERE resolved = false`);
+    res.json({ success: true, count: parseInt(result.rows[0].count) });
+  } catch (error) {
+    res.json({ success: false, count: 0 });
+  }
+});
+
+// Mark failure as resolved
+app.put('/api/admin/cm-failures/:id/resolve', async (req, res) => {
+  try {
+    await pool.query(`
+      UPDATE booking_cm_failures SET resolved = true, resolved_at = NOW(), resolved_by = $1 WHERE id = $2
+    `, [req.body.resolved_by || 'admin', req.params.id]);
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Retry CM push for a failed booking
+app.post('/api/admin/cm-failures/:id/retry', async (req, res) => {
+  try {
+    const failure = await pool.query(`SELECT * FROM booking_cm_failures WHERE id = $1`, [req.params.id]);
+    if (!failure.rows.length) return res.json({ success: false, error: 'Failure not found' });
+    
+    const f = failure.rows[0];
+    const booking = await pool.query(`SELECT * FROM bookings WHERE id = $1`, [f.booking_id]);
+    if (!booking.rows.length) return res.json({ success: false, error: 'Booking not found' });
+    
+    // TODO: Implement retry logic per adapter (hostaway, beds24, etc)
+    res.json({ success: false, error: 'Retry not yet implemented - please push manually via CM' });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
   }
 });
 
