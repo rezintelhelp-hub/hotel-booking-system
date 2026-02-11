@@ -52070,7 +52070,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                         const oneOff = item.is_one_off ? ' <span style="background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:4px;font-size:0.7rem;">one-off</span>' : '';
                         html += `<tr><td style="padding:6px;border-bottom:1px solid #e2e8f0;">${item.label}${oneOff}${detail}</td><td style="text-align:center;padding:6px;border-bottom:1px solid #e2e8f0;">${item.rooms || item.quantity || ''}</td><td style="text-align:right;padding:6px;border-bottom:1px solid #e2e8f0;">${fmt(item.gross_amount || item.amount)}</td></tr>`;
                         if (item.discount_amount && item.discount_amount > 0) {
-                            html += `<tr style="color:#16a34a;"><td style="padding:3px 6px;font-size:0.8rem;" colspan="2">↳ Discount (${item.discount_label})</td><td style="text-align:right;padding:3px 6px;">-${fmt(item.discount_amount)}</td></tr>`;
+                            html += `<tr style="color:#16a34a;"><td style="padding:3px 6px;font-size:0.8rem;" colspan="2">↳ Discount (${item.discount_type === 'fixed' ? fmt(item.discount_value) + ' off' : item.discount_label})</td><td style="text-align:right;padding:3px 6px;">-${fmt(item.discount_amount)}</td></tr>`;
                             html += `<tr><td style="padding:3px 6px;font-size:0.8rem;font-weight:600;" colspan="2">Net</td><td style="text-align:right;padding:3px 6px;font-weight:600;">${fmt(item.amount)}</td></tr>`;
                         }
                     });
