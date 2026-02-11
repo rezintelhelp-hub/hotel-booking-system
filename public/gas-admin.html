@@ -20368,7 +20368,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     body: JSON.stringify({
                         text: sourceText,
                         source_lang: 'en',
-                        target_langs: ['fr', 'es', 'nl']
+                        target_langs: getAccountLanguages().filter(l => l !== 'en')
                     })
                 });
                 
@@ -41900,7 +41900,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const select = document.getElementById('blog-category');
                 if (!select) return;
                 
-                const response = await fetch('/api/admin/blog-categories?client_id=' + currentClientId);
+                const response = await fetch('/api/admin/blog-categories?client_id=' + (typeof currentClientId !== 'undefined' ? currentClientId : (getClientId() || selectedAccountId || '')));
                 const data = await response.json();
                 
                 select.innerHTML = '<option value="">Select category...</option>';
@@ -44867,6 +44867,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                         document.getElementById('attraction-faq-schema').value = schemaScript;
                     }
                     
+                    const attractionTransLangs = getAccountLanguages().filter(l => l !== 'en');
+                    if (attractionTransLangs.length > 0) {
                     showNotification('AI details loaded! Translating...', 'success');
                     
                     // Auto-translate all multilingual fields directly via API
@@ -44881,7 +44883,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                     body: JSON.stringify({
                                         text: enEl.value.trim(),
                                         source_lang: 'en',
-                                        target_langs: ['fr', 'es', 'nl']
+                                        target_langs: attractionTransLangs
                                     })
                                 });
                                 const transData = await transResponse.json();
@@ -44897,6 +44899,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                         }
                     }
                     showNotification('AI details loaded and translated!', 'success');
+                    } else {
+                    showNotification('AI details loaded!', 'success');
+                    }
                 } else {
                     showNotification(data.error || 'AI generation failed', 'error');
                 }
@@ -45732,7 +45737,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const select = document.getElementById('ai-blog-category');
                 if (!select) return;
                 
-                const response = await fetch('/api/admin/blog-categories?client_id=' + currentClientId);
+                const response = await fetch('/api/admin/blog-categories?client_id=' + (typeof currentClientId !== 'undefined' ? currentClientId : (getClientId() || selectedAccountId || '')));
                 const data = await response.json();
                 
                 select.innerHTML = '<option value="General">General</option>';
@@ -45802,8 +45807,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                     const blogFaqSchema = data.blog.faq_schema || null;
                     const blogPropertyId = data.blog.property_id || propertyId || '';
                     
-                    showNotification('Blog generated! Saving and translating...', 'success');
-                    document.getElementById('ai-blog-loading').querySelector('div').textContent = 'Saving and translating...';
+                    const hasTranslationLangs = getAccountLanguages().filter(l => l !== 'en').length > 0;
+                    showNotification(hasTranslationLangs ? 'Blog generated! Saving and translating...' : 'Blog generated! Saving...', 'success');
+                    document.getElementById('ai-blog-loading').querySelector('div').textContent = hasTranslationLangs ? 'Saving and translating...' : 'Saving...';
                     
                     // Auto-save as draft immediately
                     let clientId = null;
@@ -45853,7 +45859,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                     
                     const postId = saveData.post.id;
                     
-                    // Auto-translate all fields
+                    // Auto-translate all fields (only if account has non-English languages)
+                    const accountLangs = getAccountLanguages().filter(l => l !== 'en');
+                    const translatedMl = {};
+                    
+                    if (accountLangs.length > 0) {
                     const fieldsToTranslate = {
                         title_ml: blogTitle,
                         excerpt_ml: blogExcerpt,
@@ -45862,7 +45872,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                         meta_description_ml: blogMetaDesc
                     };
                     
-                    const translatedMl = {};
                     for (const [mlField, enText] of Object.entries(fieldsToTranslate)) {
                         if (enText && enText.trim()) {
                             try {
@@ -45872,7 +45881,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                     body: JSON.stringify({
                                         text: enText.trim(),
                                         source_lang: 'en',
-                                        target_langs: ['fr', 'es', 'nl']
+                                        target_langs: getAccountLanguages().filter(l => l !== 'en')
                                     })
                                 });
                                 const transData = await transResponse.json();
@@ -45895,6 +45904,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                             });
                         } catch (e) {}
                     }
+                    } // end accountLangs check
                     
                     // Mark content idea as used if applicable
                     const contentIdeaId = document.getElementById('ai-blog-property-id')?.dataset?.contentIdeaId;
@@ -46042,9 +46052,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                     if (scheduledAt) {
                         message = `Blog scheduled for ${new Date(scheduledAt).toLocaleString()}`;
                     }
-                    showNotification(message + ' Translating...', 'success');
                     
-                    // Auto-translate all text fields
+                    // Auto-translate all text fields (only if account has non-English languages)
+                    const blogTransLangs = getAccountLanguages().filter(l => l !== 'en');
+                    const translatedMl = {};
+                    
+                    if (blogTransLangs.length > 0) {
+                    showNotification(message + ' Translating...', 'success');
                     const fieldsToTranslate = {
                         title_ml: blogData.title,
                         excerpt_ml: blogData.excerpt,
@@ -46053,7 +46067,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                         meta_description_ml: blogData.meta_description
                     };
                     
-                    const translatedMl = {};
                     for (const [mlField, enText] of Object.entries(fieldsToTranslate)) {
                         if (enText && enText.trim()) {
                             try {
@@ -46063,7 +46076,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                     body: JSON.stringify({
                                         text: enText.trim(),
                                         source_lang: 'en',
-                                        target_langs: ['fr', 'es', 'nl']
+                                        target_langs: blogTransLangs
                                     })
                                 });
                                 const transData = await transResponse.json();
@@ -46088,6 +46101,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                         } catch (e) {
                             console.log('Could not update translations:', e);
                         }
+                    }
+                    } else {
+                    showNotification(message, 'success');
                     }
                     
                     // Auto-mark content idea as used if this came from Ideas Library
