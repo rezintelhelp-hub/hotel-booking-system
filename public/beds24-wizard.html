@@ -1144,7 +1144,28 @@
             document.getElementById('final-image-count').textContent = wizardData.imageCount;
         }
         
-        showStep(1);
+        // Check if already logged in - skip step 1
+        async function initWizard() {
+            const token = localStorage.getItem('gas_token');
+            if (token) {
+                try {
+                    const response = await fetch('/api/accounts/me', {
+                        headers: { 'Authorization': 'Bearer ' + token }
+                    });
+                    const data = await response.json();
+                    if (data.success && data.account) {
+                        wizardData.account = data.account;
+                        currentStep = 2;
+                        showStep(2);
+                        return;
+                    }
+                } catch (e) {
+                    // Token invalid, fall through to step 1
+                }
+            }
+            showStep(1);
+        }
+        initWizard();
     </script>
 </body>
 </html>
