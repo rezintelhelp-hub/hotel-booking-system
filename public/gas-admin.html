@@ -16306,6 +16306,12 @@ const promo = await fetch('/api/v1/offers/validate', {
                         <button type="button" onclick="saveSubscriptions()" class="btn" style="width: 100%; background: #1e40af; color: white; border: none; padding: 0.5rem; border-radius: 8px; cursor: pointer; font-size: 0.85rem;">
                             💾 Save GAS Subscriptions
                         </button>
+                        
+                        <!-- GAS Services Total -->
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.6rem 0.75rem; background: #1e3a5f; border-radius: 8px; margin-top: 0.75rem;">
+                            <span style="font-size: 0.85rem; font-weight: 700; color: white;">💰 GAS Services Total</span>
+                            <span id="gas-services-total" style="font-weight: 700; color: #93c5fd; font-size: 1rem;">€0.00/mo</span>
+                        </div>
                     </div>
                     
                     <!-- ============ SECTION 2: BEDS24 ============ -->
@@ -24212,19 +24218,28 @@ const promo = await fetch('/api/v1/offers/validate', {
             const litesPrice = litesPrices[litesTier] || 0;
             const reviewsPrice = calculateReviewsPriceJS(reviewsApps);
             
-            document.getElementById('sub-blog-price').textContent = blogPrice > 0 ? '$' + blogPrice.toFixed(2) : '$0';
-            document.getElementById('sub-attractions-price').textContent = attractionsPrice > 0 ? '$' + attractionsPrice.toFixed(2) : '$0';
-            document.getElementById('sub-lites-price').textContent = litesPrice > 0 ? '$' + litesPrice.toFixed(2) : '$0';
-            document.getElementById('sub-reviews-price').textContent = reviewsPrice > 0 ? '$' + reviewsPrice.toFixed(2) : '$0';
+            // Convert USD prices to EUR for display
+            const blogEUR = blogPrice * EUR_USD_RATE;
+            const attractionsEUR = attractionsPrice * EUR_USD_RATE;
+            const litesEUR = litesPrice * EUR_USD_RATE;
+            const reviewsEUR = reviewsPrice * EUR_USD_RATE;
             
-            // Total in EUR
-            const aiWebsiteEl = document.getElementById('sub-ai-website-price');
-            const aiWebsiteEUR = aiWebsiteEl ? (parseFloat(aiWebsiteEl.textContent.replace('€', '')) || 0) : 0;
-            const usdTotal = blogPrice + attractionsPrice + litesPrice + reviewsPrice;
-            const totalEUR = aiWebsiteEUR + (usdTotal * EUR_USD_RATE);
+            document.getElementById('sub-blog-price').textContent = blogEUR > 0 ? '€' + blogEUR.toFixed(2) : '€0';
+            document.getElementById('sub-attractions-price').textContent = attractionsEUR > 0 ? '€' + attractionsEUR.toFixed(2) : '€0';
+            document.getElementById('sub-lites-price').textContent = litesEUR > 0 ? '€' + litesEUR.toFixed(2) : '€0';
+            document.getElementById('sub-reviews-price').textContent = reviewsEUR > 0 ? '€' + reviewsEUR.toFixed(2) : '€0';
+            
+            // GAS Services Total in EUR (sites + plugins)
+            const sitesTotalEl = document.getElementById('per-site-billing-total');
+            const sitesEUR = sitesTotalEl ? (parseFloat(sitesTotalEl.value) || 0) : 0;
+            const pluginsEUR = blogEUR + attractionsEUR + litesEUR + reviewsEUR;
+            const gasTotal = sitesEUR + pluginsEUR;
+            
+            const gasTotalEl = document.getElementById('gas-services-total');
+            if (gasTotalEl) gasTotalEl.textContent = '€' + gasTotal.toFixed(2) + '/mo';
             
             const subTotalEl = document.getElementById('sub-total-eur');
-            if (subTotalEl) subTotalEl.textContent = '€' + totalEUR.toFixed(2);
+            if (subTotalEl) subTotalEl.textContent = '€' + gasTotal.toFixed(2);
         }
         
         async function loadSubscriptions(accountId) {
@@ -51828,6 +51843,19 @@ const promo = await fetch('/api/v1/offers/validate', {
                 </div>`;
                 
                 container.innerHTML = html;
+                
+                // Store sites total for GAS Services Total calculation
+                const sitesTotalEl = document.getElementById('per-site-billing-total');
+                if (!sitesTotalEl) {
+                    const hidden = document.createElement('input');
+                    hidden.type = 'hidden';
+                    hidden.id = 'per-site-billing-total';
+                    hidden.value = totalMonthly.toFixed(2);
+                    container.appendChild(hidden);
+                }
+                
+                // Update GAS total
+                updateSubscriptionPreview();
             } catch (e) {
                 container.innerHTML = '<div style="color: #ef4444; font-size: 0.8rem;">Error loading sites: ' + e.message + '</div>';
             }
