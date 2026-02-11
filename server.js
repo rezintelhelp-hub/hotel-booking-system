@@ -65392,6 +65392,82 @@ app.post('/api/turbines/post/facebook', async (req, res) => {
   }
 });
 
+// =====================================================
+// WEEKLY REVIEW AUTO-SYNC
+// Syncs reviews from all connected Hostaway & Beds24 accounts once per week
+// =====================================================
+
+async function syncAllReviews() {
+  console.log('📝 [Review Sync] Starting weekly review sync for all accounts...');
+  try {
+    // Get all active Hostaway connections
+    const hostawayConns = await pool.query(
+      `SELECT * FROM gas_sync_connections WHERE adapter_code = 'hostaway' AND status = 'active'`
+    );
+    
+    for (const conn of hostawayConns.rows) {
+      try {
+        console.log(`📝 [Review Sync] Syncing Hostaway reviews for account ${conn.account_id}...`);
+        // Call the existing sync function internally
+        const axios = require('axios');
+        await axios.post(`http://localhost:${PORT}/api/hostaway/sync-reviews`, {
+          connectionId: conn.id,
+          accountId: conn.account_id
+        });
+        console.log(`✅ [Review Sync] Hostaway reviews synced for account ${conn.account_id}`);
+      } catch (e) {
+        console.log(`⚠️ [Review Sync] Failed for Hostaway account ${conn.account_id}: ${e.message}`);
+      }
+    }
+    
+    // Get all active Beds24 connections
+    const beds24Conns = await pool.query(
+      `SELECT * FROM gas_sync_connections WHERE adapter_code = 'beds24' AND status = 'active'`
+    );
+    
+    for (const conn of beds24Conns.rows) {
+      try {
+        console.log(`📝 [Review Sync] Syncing Beds24 reviews for account ${conn.account_id}...`);
+        const axios = require('axios');
+        await axios.post(`http://localhost:${PORT}/api/beds24/sync-reviews`, {
+          connectionId: conn.id,
+          accountId: conn.account_id
+        });
+        console.log(`✅ [Review Sync] Beds24 reviews synced for account ${conn.account_id}`);
+      } catch (e) {
+        console.log(`⚠️ [Review Sync] Failed for Beds24 account ${conn.account_id}: ${e.message}`);
+      }
+    }
+    
+    console.log(`📝 [Review Sync] Complete. Processed ${hostawayConns.rows.length} Hostaway + ${beds24Conns.rows.length} Beds24 connections.`);
+  } catch (error) {
+    console.error('❌ [Review Sync] Error:', error.message);
+  }
+}
+
+function startReviewSyncScheduler() {
+  // Run weekly - every 7 days (604800000ms)
+  const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+  
+  // Run first sync 5 minutes after startup, then weekly
+  setTimeout(() => {
+    syncAllReviews();
+    setInterval(syncAllReviews, WEEK_MS);
+  }, 5 * 60 * 1000);
+  
+  console.log('📝 Review auto-sync scheduled: weekly for all connected accounts');
+}
+
+// Also expose as a cron endpoint for manual trigger
+app.post('/api/cron/sync-reviews', async (req, res) => {
+  const cronSecret = req.headers['x-cron-secret'];
+  if (cronSecret !== process.env.CRON_SECRET) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  await syncAllReviews();
+  res.json({ success: true, message: 'Review sync triggered' });
+});
+
 app.listen(PORT, '0.0.0.0', async () => {
   console.log('🚀 Server running on port ' + PORT);
   console.log('🔄 Auto-sync scheduled: Prices every 15min, Beds24 bookings every 15min, Inventory every 6hrs');
@@ -65421,6 +65497,9 @@ app.listen(PORT, '0.0.0.0', async () => {
   
   // Start translation worker (auto-translate missing languages)
   startTranslationWorker();
+  
+  // Start weekly review auto-sync
+  startReviewSyncScheduler();
 });
 
 // =====================================================
