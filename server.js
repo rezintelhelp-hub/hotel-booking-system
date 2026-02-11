@@ -13819,6 +13819,16 @@ app.post('/api/admin/beds24-snapshot-manual', async (req, res) => {
       return res.json({ success: false, error: 'account_id, beds24_username, and period_date required' });
     }
     
+    // Check for existing snapshot - prevent duplicates
+    const existing = await pool.query(
+      `SELECT id FROM beds24_usage_snapshots WHERE account_id = $1 AND beds24_username = $2 AND period_date = $3`,
+      [account_id, beds24_username, period_date]
+    );
+    if (existing.rows.length > 0) {
+      // Delete existing and re-insert
+      await pool.query(`DELETE FROM beds24_usage_snapshots WHERE account_id = $1 AND beds24_username = $2 AND period_date = $3`, [account_id, beds24_username, period_date]);
+    }
+    
     // Calculate RRP
     const accountFee = 12.90;
     const subCost = (sub_account_count || 0) * 2.00;
@@ -13848,38 +13858,80 @@ app.post('/api/admin/beds24-snapshot-manual', async (req, res) => {
   }
 });
 
+// Delete duplicate/incorrect snapshots for an account
+app.delete('/api/admin/beds24-snapshot', async (req, res) => {
+  try {
+    const { account_id, beds24_username, period_date } = req.query;
+    if (!account_id) return res.json({ success: false, error: 'account_id required' });
+    
+    let query = 'DELETE FROM beds24_usage_snapshots WHERE account_id = $1';
+    let params = [account_id];
+    
+    if (beds24_username) {
+      query += ' AND beds24_username = $2';
+      params.push(beds24_username);
+    }
+    if (period_date) {
+      query += ` AND period_date = $${params.length + 1}`;
+      params.push(period_date);
+    }
+    
+    const result = await pool.query(query + ' RETURNING id', params);
+    res.json({ success: true, deleted: result.rows.length });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Get Beds24 RRP breakdown for a specific account (client-facing)
 app.get('/api/accounts/:id/beds24-rrp', async (req, res) => {
   try {
     const accountId = req.params.id;
     
-    // Get latest snapshot for this account
+    // Get all snapshots for the latest period for this account
     const result = await pool.query(`
       SELECT * FROM beds24_usage_snapshots
       WHERE account_id = $1
-      ORDER BY period_date DESC
-      LIMIT 1
+      AND period_date = (SELECT MAX(period_date) FROM beds24_usage_snapshots WHERE account_id = $1)
+      ORDER BY beds24_username
     `, [accountId]);
     
     if (result.rows.length === 0) {
       return res.json({ success: true, has_data: false });
     }
     
-    const snap = result.rows[0];
+    // Aggregate across all Beds24 accounts
+    let totalAccounts = result.rows.length;
+    let totalSubAccounts = 0;
+    let totalRooms = 0;
+    let totalLinks = 0;
+    let totalSSL = 0;
+    let hasPrivateDomain = false;
+    let totalProperties = 0;
+    let usernames = [];
     
-    // Calculate RRP at full Beds24 contract rates (pre-discount)
-    const rrp = {
-      account_fee: { label: 'Beds24 Account', rate: 12.90, qty: 1, total: 12.90 },
-      sub_accounts: { label: 'Sub Accounts', rate: 2.00, qty: snap.sub_account_count, total: snap.sub_account_count * 2.00 },
-      rooms: { label: 'Rooms', rate: 2.60, qty: snap.room_count, total: snap.room_count * 2.60 },
-      links: { label: 'Channel Links', rate: 0.55, qty: snap.link_count, total: snap.link_count * 0.55 },
-    };
-    
-    if (snap.ssl_count > 0) {
-      rrp.ssl = { label: 'SSL Certificates', rate: 50.00, qty: snap.ssl_count, total: snap.ssl_count * 50.00 };
+    for (const row of result.rows) {
+      totalSubAccounts += row.sub_account_count || 0;
+      totalRooms += row.room_count || 0;
+      totalLinks += row.link_count || 0;
+      totalSSL += row.ssl_count || 0;
+      if (row.private_domain) hasPrivateDomain = true;
+      totalProperties += row.property_count || 0;
+      usernames.push(row.beds24_username || 'Account');
     }
     
-    if (snap.private_domain) {
+    const rrp = {
+      account_fee: { label: `Beds24 Account${totalAccounts > 1 ? 's' : ''}`, rate: 12.90, qty: totalAccounts, total: totalAccounts * 12.90 },
+      sub_accounts: { label: 'Sub Accounts', rate: 2.00, qty: totalSubAccounts, total: totalSubAccounts * 2.00 },
+      rooms: { label: 'Rooms', rate: 2.60, qty: totalRooms, total: totalRooms * 2.60 },
+      links: { label: 'Channel Links', rate: 0.55, qty: totalLinks, total: totalLinks * 0.55 },
+    };
+    
+    if (totalSSL > 0) {
+      rrp.ssl = { label: 'SSL Certificates', rate: 50.00, qty: totalSSL, total: totalSSL * 50.00 };
+    }
+    
+    if (hasPrivateDomain) {
       rrp.private_domain = { label: 'Private Booking Domain', rate: 19.00, qty: 1, total: 19.00 };
     }
     
@@ -13888,12 +13940,12 @@ app.get('/api/accounts/:id/beds24-rrp', async (req, res) => {
     res.json({
       success: true,
       has_data: true,
-      period: snap.period_date,
-      beds24_username: snap.beds24_username,
-      property_count: snap.property_count,
-      room_count: snap.room_count,
-      link_count: snap.link_count,
-      sub_account_count: snap.sub_account_count,
+      period: result.rows[0].period_date,
+      beds24_username: usernames.join(' + '),
+      property_count: totalProperties,
+      room_count: totalRooms,
+      link_count: totalLinks,
+      sub_account_count: totalSubAccounts,
       rrp_breakdown: rrp,
       rrp_total: Math.round(rrpTotal * 100) / 100,
       rrp_total_monthly: Math.round(rrpTotal * 100) / 100
