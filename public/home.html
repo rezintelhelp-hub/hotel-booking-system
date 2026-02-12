@@ -160,7 +160,7 @@
            ============================================ */
         .hero {
             position: relative;
-            height: 100vh;
+            height: 75vh;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -206,22 +206,31 @@
             animation: fadeUp 1s ease 0.9s forwards;
         }
 
+        .hero-tagline-row {
+            display: flex;
+            align-items: baseline;
+            justify-content: center;
+            gap: 0.6rem;
+            opacity: 0;
+            animation: fadeUp 1s ease 1.2s forwards;
+            flex-wrap: nowrap;
+        }
+
         .hero-tagline {
             font-family: 'DM Serif Display', serif;
             font-size: clamp(1.5rem, 3vw, 2.2rem);
             color: var(--white);
-            margin-bottom: 0.25rem;
-            opacity: 0;
-            animation: fadeUp 1s ease 1.2s forwards;
+        }
+
+        .hero-separator {
+            font-size: clamp(1.2rem, 2vw, 1.6rem);
+            color: rgba(255, 255, 255, 0.3);
+            font-weight: 300;
         }
 
         .typewriter-container {
-            height: 2.5rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            opacity: 0;
-            animation: fadeUp 1s ease 1.5s forwards;
+            display: inline-flex;
+            align-items: baseline;
         }
 
         .typewriter-text {
@@ -743,10 +752,13 @@
             <p class="hero-welcome">Welcome to the</p>
             <h1 class="hero-title">Global Accommodation System</h1>
             <div class="hero-divider"></div>
-            <p class="hero-tagline">No Boundaries</p>
-            <div class="typewriter-container">
-                <span class="typewriter-text" id="typewriter"></span>
-                <span class="typewriter-cursor"></span>
+            <div class="hero-tagline-row">
+                <p class="hero-tagline">No Boundaries</p>
+                <span class="hero-separator">—</span>
+                <div class="typewriter-container">
+                    <span class="typewriter-text" id="typewriter"></span>
+                    <span class="typewriter-cursor"></span>
+                </div>
             </div>
         </div>
 
