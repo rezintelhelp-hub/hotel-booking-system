@@ -9578,9 +9578,12 @@
                         </div>
                         <div style="padding: 1rem 0;">
                             <div style="display: flex; flex-direction: column; gap: 1rem;">
-                                <div>
+                                <div id="currentPasswordSection">
                                     <label class="form-label">Current Password</label>
                                     <input type="password" id="currentPassword" class="form-input" placeholder="Enter current password">
+                                </div>
+                                <div id="adminResetNotice" style="display: none; background: linear-gradient(135deg, #fefce8 0%, #fef9c3 100%); padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid #fde047;">
+                                    <span style="font-size: 0.85rem; color: #854d0e;">🔑 Admin override — no current password required</span>
                                 </div>
                                 <div>
                                     <label class="form-label">New Password</label>
@@ -22063,6 +22066,20 @@ const promo = await fetch('/api/v1/offers/validate', {
                     
                     // Load language settings
                     loadLanguageSettingsUI();
+                    
+                    // If master admin viewing another account, hide current password requirement
+                    const isAdminViewingOther = currentAccount && currentAccount.role === 'master_admin' && selectedAccountId && selectedAccountId !== currentAccount.id;
+                    const currentPwSection = document.getElementById('currentPasswordSection');
+                    const adminNotice = document.getElementById('adminResetNotice');
+                    if (currentPwSection && adminNotice) {
+                        if (isAdminViewingOther) {
+                            currentPwSection.style.display = 'none';
+                            adminNotice.style.display = 'block';
+                        } else {
+                            currentPwSection.style.display = 'block';
+                            adminNotice.style.display = 'none';
+                        }
+                    }
                 }
             } catch (error) {
                 console.error('Error loading my account:', error);
@@ -22523,8 +22540,16 @@ const promo = await fetch('/api/v1/offers/validate', {
             const newPassword = document.getElementById('newPassword').value;
             const confirmNewPassword = document.getElementById('confirmNewPassword').value;
             
-            if (!currentPassword || !newPassword || !confirmNewPassword) {
-                showNotification('All password fields are required', 'error');
+            // Check if admin is viewing another account
+            const isAdminViewingOther = currentAccount && currentAccount.role === 'master_admin' && selectedAccountId && selectedAccountId !== currentAccount.id;
+            
+            if (!isAdminViewingOther && !currentPassword) {
+                showNotification('Current password is required', 'error');
+                return;
+            }
+            
+            if (!newPassword || !confirmNewPassword) {
+                showNotification('New password and confirmation are required', 'error');
                 return;
             }
             
@@ -22539,11 +22564,23 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
             
             try {
-                const response = await fetch('/api/accounts/change-password', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword })
-                });
+                let response;
+                
+                if (isAdminViewingOther) {
+                    // Admin override: use set-password endpoint (no current password needed)
+                    response = await fetch('/api/admin/set-password', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                        body: JSON.stringify({ account_id: selectedAccountId, password: newPassword })
+                    });
+                } else {
+                    // Normal user: use change-password endpoint (requires current password)
+                    response = await fetch('/api/accounts/change-password', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                        body: JSON.stringify({ current_password: currentPassword, new_password: newPassword })
+                    });
+                }
                 
                 const data = await response.json();
                 
@@ -29183,7 +29220,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                                         <a href="${site.admin_url}" target="_blank" class="btn btn-small btn-secondary" style="font-size: 0.75rem;">⚙️ WP Admin</a>
                                         <button onclick="manageWebsiteRooms(${site.id}, ${site.property_id}, '${(site.site_name || site.slug).replace(/'/g, "\\'")}')" class="btn btn-small" style="font-size: 0.75rem; background: #10b981; border-color: #10b981;">🛏️ Rooms</button>
                                                                                 <button onclick="deleteDeployedSite(${site.id}, '${(site.site_name || site.slug).replace(/'/g, "\\'")}')" class="btn btn-small" style="font-size: 0.75rem; background: #ef4444; border-color: #ef4444;">🗑️ Delete</button>
-                                        <button onclick="renameSubdomain(${site.id}, '${(site.slug || '').replace(/'/g, "\\'")}')" class="btn btn-small" style="font-size: 0.75rem; background: #f59e0b; border-color: #f59e0b;">🔄 Rename</button>
                                     </div>
                                 </div>
                                 <div style="text-align: right;">
@@ -29904,14 +29940,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     } else {
                         loadDeployedSites();
                     }
-                    // Show detailed status
-                    if (data.vps_deleted) {
-                        showNotification('✅ Site deleted from WordPress & database', 'success');
-                    } else if (data.vps_error) {
-                        showNotification('⚠️ Deleted from database. WordPress note: ' + data.vps_error, 'warning');
-                    } else {
-                        showNotification('Site deleted successfully', 'success');
-                    }
+                    showNotification('Site deleted successfully', 'success');
                 } else {
                     // Restore card if delete failed
                     if (card) {
@@ -29930,50 +29959,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                 showNotification('Error deleting site: ' + error.message, 'error');
             } finally {
                 window.deleteInProgress = false;
-            }
-        }
-        
-        async function renameSubdomain(siteId, currentSubdomain) {
-            const newSubdomain = prompt(
-                `Rename subdomain for this site.\n\nCurrent: ${currentSubdomain}.sites.gas.travel\n\nEnter new subdomain (letters, numbers, hyphens only):`,
-                currentSubdomain
-            );
-            
-            if (!newSubdomain || newSubdomain === currentSubdomain) return;
-            
-            // Clean it client-side for preview
-            const cleaned = newSubdomain.toLowerCase().replace(/[^a-z0-9-]/g, '').replace(/(^-|-$)/g, '');
-            
-            if (cleaned.length < 3) {
-                showNotification('Subdomain must be at least 3 characters', 'error');
-                return;
-            }
-            
-            const confirmRename = confirm(
-                `Rename subdomain?\n\nFrom: ${currentSubdomain}.sites.gas.travel\nTo: ${cleaned}.sites.gas.travel\n\nThis will update WordPress, all URLs, and database records.`
-            );
-            if (!confirmRename) return;
-            
-            showNotification('Renaming subdomain... this may take a moment', 'info');
-            
-            try {
-                const response = await fetch(`/api/admin/deployed-sites/${siteId}/rename-subdomain`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ new_subdomain: cleaned })
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    showNotification(`✅ Subdomain renamed to ${cleaned}.sites.gas.travel`, 'success');
-                    loadDeployedSites();
-                } else {
-                    showNotification('Rename failed: ' + (data.error || 'Unknown error'), 'error');
-                }
-            } catch (error) {
-                console.error('Rename error:', error);
-                showNotification('Error renaming subdomain: ' + error.message, 'error');
             }
         }
         
