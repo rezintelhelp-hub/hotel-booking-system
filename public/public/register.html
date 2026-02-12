@@ -1,0 +1,1552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Get Started — GAS</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --ink: #0f172a;
+            --ink-light: #334155;
+            --ink-muted: #64748b;
+            --surface: #ffffff;
+            --surface-subtle: #f8fafc;
+            --surface-hover: #f1f5f9;
+            --border: #e2e8f0;
+            --border-light: #f1f5f9;
+            --accent: #2563eb;
+            --accent-hover: #1d4ed8;
+            --accent-soft: #eff6ff;
+            --success: #10b981;
+            --success-soft: #ecfdf5;
+            --white: #ffffff;
+            --ai-bg: #fafbff;
+            --ai-bubble: #f0f4ff;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: var(--surface);
+            color: var(--ink);
+            min-height: 100vh;
+            display: flex;
+        }
+
+        /* =============================================
+           LEFT PANEL — FORM STEPS
+           ============================================= */
+        .panel-form {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        .panel-header {
+            padding: 1.5rem 2.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border-light);
+        }
+
+        .logo {
+            font-family: 'DM Sans', sans-serif;
+            font-size: 1.3rem;
+            font-weight: 700;
+            letter-spacing: 2px;
+            color: var(--ink);
+            text-decoration: none;
+        }
+
+        .step-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .step-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--border);
+            transition: all 0.4s ease;
+        }
+
+        .step-dot.active {
+            background: var(--accent);
+            width: 24px;
+            border-radius: 4px;
+        }
+
+        .step-dot.complete {
+            background: var(--success);
+        }
+
+        .panel-body {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem 2.5rem;
+        }
+
+        .step-container {
+            width: 100%;
+            max-width: 640px;
+        }
+
+        .step-view {
+            display: none;
+            animation: fadeSlideIn 0.4s ease forwards;
+        }
+
+        .step-view.active {
+            display: block;
+        }
+
+        @keyframes fadeSlideIn {
+            from { opacity: 0; transform: translateY(16px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .step-label {
+            font-size: 0.7rem;
+            font-weight: 600;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--accent);
+            margin-bottom: 0.75rem;
+        }
+
+        .step-title {
+            font-family: 'DM Serif Display', serif;
+            font-size: 1.8rem;
+            font-weight: 400;
+            color: var(--ink);
+            margin-bottom: 0.5rem;
+            line-height: 1.2;
+        }
+
+        .step-subtitle {
+            font-size: 0.95rem;
+            color: var(--ink-muted);
+            margin-bottom: 2rem;
+            line-height: 1.5;
+        }
+
+        /* Form fields */
+        .field {
+            margin-bottom: 1.25rem;
+        }
+
+        .field label {
+            display: block;
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: var(--ink-light);
+            margin-bottom: 0.4rem;
+        }
+
+        .field input {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.95rem;
+            border: 1.5px solid var(--border);
+            border-radius: 8px;
+            color: var(--ink);
+            background: var(--surface);
+            transition: all 0.2s ease;
+            outline: none;
+        }
+
+        .field input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        .field input::placeholder {
+            color: #94a3b8;
+        }
+
+        .btn-primary {
+            width: 100%;
+            padding: 0.85rem 1.5rem;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.95rem;
+            font-weight: 600;
+            background: var(--ink);
+            color: var(--white);
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-top: 0.5rem;
+        }
+
+        .btn-primary:hover {
+            background: #1e293b;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn-secondary {
+            width: 100%;
+            padding: 0.85rem 1.5rem;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.95rem;
+            font-weight: 500;
+            background: var(--surface);
+            color: var(--ink);
+            border: 1.5px solid var(--border);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-secondary:hover {
+            background: var(--surface-hover);
+            border-color: var(--ink-muted);
+        }
+
+        .step-footer {
+            text-align: center;
+            margin-top: 1.5rem;
+        }
+
+        .step-footer a {
+            font-size: 0.85rem;
+            color: var(--ink-muted);
+            text-decoration: none;
+        }
+
+        .step-footer a:hover {
+            color: var(--accent);
+        }
+
+        /* CM Cards */
+        .cm-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .cm-card {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1rem 1.25rem;
+            border: 1.5px solid var(--border);
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: var(--surface);
+        }
+
+        .cm-card:hover {
+            border-color: var(--accent);
+            background: var(--accent-soft);
+        }
+
+        .cm-card.selected {
+            border-color: var(--accent);
+            background: var(--accent-soft);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        .cm-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            background: var(--surface-hover);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--ink-light);
+            flex-shrink: 0;
+        }
+
+        .cm-card.selected .cm-icon {
+            background: var(--accent);
+            color: white;
+        }
+
+        .cm-info h4 {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--ink);
+        }
+
+        .cm-info p {
+            font-size: 0.8rem;
+            color: var(--ink-muted);
+            margin-top: 0.15rem;
+        }
+
+        /* Success state */
+        .success-icon {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            background: var(--success-soft);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .success-icon svg {
+            width: 32px;
+            height: 32px;
+            color: var(--success);
+        }
+
+        /* Checklist */
+        .checklist {
+            margin: 1.5rem 0;
+        }
+
+        .checklist-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.6rem 0;
+            font-size: 0.9rem;
+            color: var(--ink-light);
+        }
+
+        .checklist-item .check {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .checklist-item.done .check {
+            background: var(--success);
+            color: white;
+        }
+
+        .checklist-item.pending .check {
+            background: var(--border);
+            color: var(--ink-muted);
+        }
+
+        .checklist-item.current .check {
+            background: var(--accent);
+            color: white;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.3); }
+            50% { box-shadow: 0 0 0 6px rgba(37, 99, 235, 0); }
+        }
+
+        /* =============================================
+           RIGHT PANEL — AI ASSISTANT
+           ============================================= */
+        .panel-ai {
+            width: 380px;
+            background: var(--ai-bg);
+            border-left: 1px solid var(--border-light);
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        .ai-header {
+            padding: 1.5rem 1.5rem 1rem;
+            border-bottom: 1px solid var(--border-light);
+        }
+
+        .ai-identity {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+        }
+
+        .ai-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            background: var(--ink);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+
+        .ai-name {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--ink);
+        }
+
+        .ai-status {
+            font-size: 0.7rem;
+            color: var(--success);
+        }
+
+        .ai-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1.25rem 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .ai-message {
+            max-width: 100%;
+            animation: msgFadeIn 0.3s ease forwards;
+        }
+
+        @keyframes msgFadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .ai-bubble {
+            background: var(--ai-bubble);
+            padding: 0.85rem 1rem;
+            border-radius: 12px 12px 12px 4px;
+            font-size: 0.88rem;
+            line-height: 1.55;
+            color: var(--ink-light);
+        }
+
+        .ai-bubble strong {
+            color: var(--ink);
+        }
+
+        .ai-typing {
+            display: flex;
+            gap: 4px;
+            padding: 0.85rem 1rem;
+            background: var(--ai-bubble);
+            border-radius: 12px 12px 12px 4px;
+            width: fit-content;
+        }
+
+        .ai-typing span {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--ink-muted);
+            animation: typingDot 1.4s infinite;
+        }
+
+        .ai-typing span:nth-child(2) { animation-delay: 0.2s; }
+        .ai-typing span:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes typingDot {
+            0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
+            30% { opacity: 1; transform: translateY(-3px); }
+        }
+
+        .ai-input-area {
+            padding: 1rem 1.5rem;
+            border-top: 1px solid var(--border-light);
+        }
+
+        .ai-input-wrap {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .ai-input {
+            flex: 1;
+            padding: 0.65rem 0.85rem;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.85rem;
+            border: 1.5px solid var(--border);
+            border-radius: 8px;
+            outline: none;
+            color: var(--ink);
+            background: var(--surface);
+        }
+
+        .ai-input:focus {
+            border-color: var(--accent);
+        }
+
+        .ai-send {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            background: var(--ink);
+            color: white;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+        }
+
+        .ai-send:hover {
+            background: var(--accent);
+        }
+
+        /* =============================================
+           RESPONSIVE
+           ============================================= */
+        @media (max-width: 900px) {
+            body { flex-direction: column; }
+            .panel-ai {
+                width: 100%;
+                min-height: auto;
+                max-height: 300px;
+                border-left: none;
+                border-top: 1px solid var(--border-light);
+            }
+        }
+
+        /* CM Scroll Grid */
+        .cm-scroll-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0.6rem;
+            margin-bottom: 1rem;
+        }
+
+        .cm-tile {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.75rem 0.5rem;
+            border: 1.5px solid var(--border);
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: var(--surface);
+            text-align: center;
+        }
+
+        .cm-tile:hover {
+            border-color: var(--accent);
+            background: var(--accent-soft);
+            transform: translateY(-1px);
+        }
+
+        .cm-tile.selected {
+            border-color: var(--accent);
+            background: var(--accent-soft);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        .cm-tile-logo {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            font-weight: 700;
+            color: white;
+            flex-shrink: 0;
+        }
+
+        .cm-tile-name {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--ink);
+            line-height: 1.2;
+        }
+
+        .cm-tile-desc {
+            font-size: 0.65rem;
+            color: var(--ink-muted);
+        }
+
+        /* CM Brand Colors */
+        .cm-bg-beds24 { background: linear-gradient(135deg, #1a1a2e, #16213e); }
+        .cm-bg-hostaway { background: linear-gradient(135deg, #00BFA5, #00897B); }
+        .cm-bg-smoobu { background: linear-gradient(135deg, #ff6b35, #f7931e); }
+        .cm-bg-lodgify { background: linear-gradient(135deg, #E8545B, #D94952); }
+        .cm-bg-guesty { background: linear-gradient(135deg, #2563EB, #1D4ED8); }
+        .cm-bg-hostfully { background: linear-gradient(135deg, #4A90D9, #2E5C8A); }
+        .cm-bg-ownerrez { background: linear-gradient(135deg, #8b5cf6, #7c3aed); }
+        .cm-bg-hospitable { background: linear-gradient(135deg, #f59e0b, #d97706); }
+        .cm-bg-tokeet { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+        .cm-bg-uplisting { background: linear-gradient(135deg, #ec4899, #db2777); }
+        .cm-bg-hostify { background: linear-gradient(135deg, #14b8a6, #0d9488); }
+        .cm-bg-avantio { background: linear-gradient(135deg, #f97316, #ea580c); }
+        .cm-bg-mews { background: linear-gradient(135deg, #06b6d4, #0891b2); }
+        .cm-bg-cloudbeds { background: linear-gradient(135deg, #4f46e5, #4338ca); }
+        .cm-bg-bookingsync { background: linear-gradient(135deg, #84cc16, #65a30d); }
+        .cm-bg-streamline { background: linear-gradient(135deg, #6366f1, #4f46e5); }
+        .cm-bg-track { background: linear-gradient(135deg, #10b981, #059669); }
+        .cm-bg-apaleo { background: linear-gradient(135deg, #f43f5e, #e11d48); }
+        .cm-bg-escapia { background: linear-gradient(135deg, #7c3aed, #6d28d9); }
+        .cm-bg-zeevou { background: linear-gradient(135deg, #0ea5e9, #0284c7); }
+        .cm-bg-rms { background: linear-gradient(135deg, #dc2626, #b91c1c); }
+        .cm-bg-resly { background: linear-gradient(135deg, #059669, #047857); }
+        .cm-bg-hostex { background: linear-gradient(135deg, #7c3aed, #5b21b6); }
+        .cm-bg-elina { background: linear-gradient(135deg, #0891b2, #0e7490); }
+        .cm-bg-direct { background: linear-gradient(135deg, #475569, #334155); }
+        .cm-bg-fantasticstay { background: linear-gradient(135deg, #f472b6, #ec4899); }
+        .cm-bg-guestwisely { background: linear-gradient(135deg, #22c55e, #16a34a); }
+        .cm-bg-hosttools { background: linear-gradient(135deg, #8b5cf6, #7c3aed); }
+        .cm-bg-rentalwise { background: linear-gradient(135deg, #0ea5e9, #0284c7); }
+        .cm-bg-yourrentals { background: linear-gradient(135deg, #f97316, #ea580c); }
+        .cm-bg-avaibook { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+        .cm-bg-booking-automation { background: linear-gradient(135deg, #1a1a2e, #16213e); }
+        .cm-bg-other { background: linear-gradient(135deg, #667eea, #764ba2); }
+
+        /* Error state */
+        .field-error {
+            border-color: #ef4444 !important;
+        }
+
+        .error-msg {
+            font-size: 0.75rem;
+            color: #ef4444;
+            margin-top: 0.25rem;
+        }
+
+        /* Loading spinner */
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+            margin-right: 0.5rem;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ============================================= -->
+<!-- LEFT PANEL — FORM STEPS                       -->
+<!-- ============================================= -->
+<div class="panel-form">
+    <div class="panel-header">
+        <a href="/" class="logo">GAS</a>
+        <div class="step-indicator">
+            <div class="step-dot active" data-step="1"></div>
+            <div class="step-dot" data-step="2"></div>
+            <div class="step-dot" data-step="3"></div>
+            <div class="step-dot" data-step="4"></div>
+            <div class="step-dot" data-step="5"></div>
+        </div>
+    </div>
+
+    <div class="panel-body">
+        <div class="step-container">
+
+            <!-- STEP 1: Account -->
+            <div class="step-view active" id="step-1">
+                <p class="step-label">Step 1 of 5</p>
+                <h2 class="step-title">Let's get you started</h2>
+                <p class="step-subtitle">Just a few details and we'll have your account ready in seconds.</p>
+
+                <div class="field">
+                    <label>Your full name</label>
+                    <input type="text" id="reg-name" placeholder="e.g. Steve Driver" autocomplete="name">
+                </div>
+                <div class="field">
+                    <label>Business name</label>
+                    <input type="text" id="reg-business" placeholder="e.g. Sunergy Apartments">
+                </div>
+                <div class="field">
+                    <label>Email address</label>
+                    <input type="email" id="reg-email" placeholder="you@yourbusiness.com" autocomplete="email">
+                </div>
+                <div class="field">
+                    <label>Password</label>
+                    <input type="password" id="reg-password" placeholder="Choose a secure password">
+                </div>
+
+                <button class="btn-primary" onclick="submitStep1()">Create Account</button>
+
+                <div class="step-footer">
+                    <a href="/login">Already have an account? Sign in</a>
+                </div>
+            </div>
+
+            <!-- STEP 2: Connect Channel Manager -->
+            <div class="step-view" id="step-2">
+                <p class="step-label">Step 2 of 5</p>
+                <h2 class="step-title">Connect your Channel Manager</h2>
+                <p class="step-subtitle">We'll import your properties, rooms, photos, and pricing automatically.</p>
+
+                <div class="field" style="margin-bottom: 1rem;">
+                    <input type="text" id="cm-search" placeholder="Search channel managers..." oninput="filterCMs(this.value)">
+                </div>
+
+                <div class="cm-scroll-grid" id="cmScrollGrid">
+                    <!-- Populated by JS -->
+                </div>
+
+                <div id="cm-no-results" style="display: none; text-align: center; padding: 1.5rem 0; color: var(--ink-muted); font-size: 0.9rem;">
+                    No channel managers found. Try a different search or select "Other / Not Listed".
+                </div>
+
+                <!-- CM-specific fields appear here -->
+                <div id="cm-fields"></div>
+
+            </div>
+
+            <!-- STEP 3: Review Properties -->
+            <div class="step-view" id="step-3">
+                <p class="step-label">Step 3 of 5</p>
+                <h2 class="step-title">Review your properties</h2>
+                <p class="step-subtitle">Here's what we imported. Let's make sure everything looks right.</p>
+
+                <div id="property-review">
+                    <p style="color: var(--ink-muted); text-align: center; padding: 2rem 0;">
+                        Properties will appear here after sync...
+                    </p>
+                </div>
+
+                <button class="btn-primary" onclick="goToStep(4)">Looks Good — Continue</button>
+            </div>
+
+            <!-- STEP 4: Pricing -->
+            <div class="step-view" id="step-4">
+                <p class="step-label">Step 4 of 5</p>
+                <h2 class="step-title">Check your pricing</h2>
+                <p class="step-subtitle">We've pulled your rates from your channel manager. Confirm they're correct.</p>
+
+                <div id="pricing-review">
+                    <p style="color: var(--ink-muted); text-align: center; padding: 2rem 0;">
+                        Pricing details will appear here...
+                    </p>
+                </div>
+
+                <button class="btn-primary" onclick="goToStep(5)">Pricing Confirmed</button>
+            </div>
+
+            <!-- STEP 5: Payment Setup -->
+            <div class="step-view" id="step-5">
+                <p class="step-label">Step 5 of 5</p>
+                <h2 class="step-title">Set up payments</h2>
+                <p class="step-subtitle">Connect Stripe to accept bookings and deposits from your guests.</p>
+
+                <div id="stripe-setup">
+                    <button class="btn-primary" onclick="connectStripe()" style="background: #635bff;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: inline; vertical-align: middle; margin-right: 6px;"><path d="M2 12h20M12 2v20"/></svg>
+                        Connect with Stripe
+                    </button>
+
+                    <div style="margin-top: 1.5rem;">
+                        <button class="btn-secondary" onclick="skipStripe()">I'll set this up later</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- STEP: GAS Ready! -->
+            <div class="step-view" id="step-done">
+                <div class="success-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                </div>
+                <h2 class="step-title">You're GAS Ready!</h2>
+                <p class="step-subtitle">Welcome to the independent travel sector. Your property is live and visible to travel agents worldwide — no commissions, no platform lock-in.</p>
+
+                <div class="checklist">
+                    <div class="checklist-item done">
+                        <div class="check">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        </div>
+                        <span>Account created</span>
+                    </div>
+                    <div class="checklist-item done">
+                        <div class="check">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        </div>
+                        <span>Channel manager connected</span>
+                    </div>
+                    <div class="checklist-item done">
+                        <div class="check">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        </div>
+                        <span>Properties reviewed</span>
+                    </div>
+                    <div class="checklist-item done">
+                        <div class="check">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        </div>
+                        <span>Pricing confirmed</span>
+                    </div>
+                    <div class="checklist-item done">
+                        <div class="check">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        </div>
+                        <span>Payments configured</span>
+                    </div>
+                </div>
+
+                <button class="btn-primary" onclick="window.location.href='/admin'">Go to Dashboard</button>
+
+                <div style="margin-top: 1rem;">
+                    <button class="btn-secondary" onclick="showUpsells()">See what else GAS can do</button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<!-- ============================================= -->
+<!-- RIGHT PANEL — AI ASSISTANT                    -->
+<!-- ============================================= -->
+<div class="panel-ai">
+    <div class="ai-header">
+        <div class="ai-identity">
+            <div class="ai-avatar">GAS</div>
+            <div>
+                <div class="ai-name">GAS Setup Assistant</div>
+                <div class="ai-status">● Online</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="ai-messages" id="aiMessages">
+        <!-- Messages populated by JS -->
+    </div>
+
+    <div class="ai-input-area">
+        <div class="ai-input-wrap">
+            <input type="text" class="ai-input" id="aiInput" placeholder="Ask me anything about setup..." onkeydown="if(event.key==='Enter')sendAiMessage()">
+            <button class="ai-send" onclick="sendAiMessage()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // =============================================
+    // STATE
+    // =============================================
+    let currentStep = 1;
+    let selectedCM = null;
+    let accountData = null;
+    let conversationHistory = [];
+
+    // =============================================
+    // AI ASSISTANT
+    // =============================================
+    function addAiMessage(text, delay = 0) {
+        return new Promise(resolve => {
+            setTimeout(() => {
+                const container = document.getElementById('aiMessages');
+
+                // Remove any typing indicator
+                const typing = container.querySelector('.ai-typing');
+                if (typing) typing.parentElement.remove();
+
+                const msg = document.createElement('div');
+                msg.className = 'ai-message';
+                msg.innerHTML = `<div class="ai-bubble">${text}</div>`;
+                container.appendChild(msg);
+                container.scrollTop = container.scrollHeight;
+                resolve();
+            }, delay);
+        });
+    }
+
+    function showTyping() {
+        const container = document.getElementById('aiMessages');
+        const msg = document.createElement('div');
+        msg.className = 'ai-message';
+        msg.innerHTML = `<div class="ai-typing"><span></span><span></span><span></span></div>`;
+        container.appendChild(msg);
+        container.scrollTop = container.scrollHeight;
+    }
+
+    async function sendAiMessage() {
+        const input = document.getElementById('aiInput');
+        const text = input.value.trim();
+        if (!text) return;
+        input.value = '';
+
+        // Show user message (right-aligned bubble)
+        const container = document.getElementById('aiMessages');
+        const userMsg = document.createElement('div');
+        userMsg.className = 'ai-message';
+        userMsg.innerHTML = `<div class="ai-bubble" style="background: var(--ink); color: white; border-radius: 12px 12px 4px 12px; margin-left: auto; max-width: 85%;">${text}</div>`;
+        container.appendChild(userMsg);
+        container.scrollTop = container.scrollHeight;
+
+        // Build context for Claude
+        const systemPrompt = `You are the GAS Setup Assistant, helping property owners set up their account on GAS — the Global Accommodation System.
+
+GAS was created to facilitate the building of an independent travel sector. It connects independent property owners directly with travel agents worldwide, free from the big platform monopolies and their commissions. Property owners keep control, connect directly with agents, and build their own independent presence.
+
+The setup process has 5 steps:
+1. Create account (name, business name, email, password)
+2. Connect channel manager (Beds24, Hostaway, or 28+ others via Calry)
+3. Review imported properties
+4. Confirm pricing
+5. Set up Stripe payments
+
+The user is currently on Step ${currentStep}. Keep answers concise, friendly, and focused on helping them complete setup. If they ask about features beyond setup, briefly mention them but redirect to completing the current step first.
+
+After all 5 steps they are "GAS Ready" — their property gets a free booking page (GAS Lites) and becomes visible to travel agents worldwide. No commissions, no lock-in.
+
+Upsells (mention only if asked): GAS Turbines (social media management), custom websites, SEO blogs, attractions module, reviews integration.`;
+
+        conversationHistory.push({ role: 'user', content: text });
+
+        showTyping();
+
+        try {
+            const response = await fetch('https://api.anthropic.com/v1/messages', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    model: 'claude-sonnet-4-20250514',
+                    max_tokens: 300,
+                    system: systemPrompt,
+                    messages: conversationHistory.slice(-10) // Keep last 10 messages
+                })
+            });
+
+            const data = await response.json();
+            const reply = data.content?.[0]?.text || "Sorry, I couldn't process that. Try again?";
+
+            conversationHistory.push({ role: 'assistant', content: reply });
+
+            // Remove typing, add response
+            const typingEl = container.querySelector('.ai-typing');
+            if (typingEl) typingEl.parentElement.remove();
+
+            await addAiMessage(reply);
+        } catch (err) {
+            const typingEl = container.querySelector('.ai-typing');
+            if (typingEl) typingEl.parentElement.remove();
+            await addAiMessage("I'm having trouble connecting right now. Don't worry — you can continue with the setup steps on the left!");
+        }
+    }
+
+    // Step-specific AI messages
+    const stepMessages = {
+        1: [
+            "Welcome! I'm your GAS Setup Assistant. GAS was created to build an <strong>independent travel sector</strong> — connecting property owners directly with travel agents, free from the big platform fees.",
+            "Let's get you set up and part of this growing network. Just your <strong>name</strong>, <strong>business name</strong>, <strong>email</strong> and a <strong>password</strong> to start."
+        ],
+        2: [
+            "Great, your account is created! Now let's connect your <strong>Channel Manager</strong>.",
+            "We'll pull in your properties, rooms, photos, descriptions, and pricing automatically. Pick your CM below and enter your credentials."
+        ],
+        3: [
+            "Here's what we imported from your channel manager. Take a moment to check everything looks right.",
+            "If anything's missing, don't worry — you can update it later in your dashboard."
+        ],
+        4: [
+            "Let's check your pricing. We've pulled your rates from the channel manager.",
+            "Make sure your <strong>base rates</strong>, <strong>weekend pricing</strong>, and any <strong>fees</strong> are correct."
+        ],
+        5: [
+            "Nearly there! Last step — connect <strong>Stripe</strong> so guests and agents can book and pay directly.",
+            "Stripe handles all payment processing securely. Takes about 2 minutes to set up."
+        ],
+        done: [
+            "You're <strong>GAS Ready</strong>! 🎉 Welcome to the independent travel sector.",
+            "Your property now has a free booking page via <strong>GAS Lites</strong> and is visible to <strong>travel agents worldwide</strong>. No commissions, no platform lock-in — just direct connections between you and the agents who send you guests."
+        ]
+    };
+
+    async function showStepMessages(step) {
+        const messages = stepMessages[step] || [];
+        showTyping();
+        for (let i = 0; i < messages.length; i++) {
+            await addAiMessage(messages[i], i === 0 ? 800 : 600);
+            if (i < messages.length - 1) {
+                showTyping();
+            }
+        }
+    }
+
+    // =============================================
+    // STEP NAVIGATION
+    // =============================================
+    function goToStep(step) {
+        // Hide all steps
+        document.querySelectorAll('.step-view').forEach(el => el.classList.remove('active'));
+
+        // Show target step
+        const stepId = step === 'done' ? 'step-done' : `step-${step}`;
+        document.getElementById(stepId).classList.add('active');
+
+        // Update dots
+        document.querySelectorAll('.step-dot').forEach(dot => {
+            const dotStep = parseInt(dot.dataset.step);
+            dot.classList.remove('active', 'complete');
+            if (step === 'done' || dotStep < step) {
+                dot.classList.add('complete');
+            } else if (dotStep === step) {
+                dot.classList.add('active');
+            }
+        });
+
+        currentStep = step;
+        showStepMessages(step);
+
+        // Render CM grid when entering step 2
+        if (step === 2) renderCMGrid();
+    }
+
+    function skipStep(nextStep) {
+        goToStep(nextStep);
+    }
+
+    // =============================================
+    // STEP 1: CREATE ACCOUNT
+    // =============================================
+    async function submitStep1() {
+        const name = document.getElementById('reg-name').value.trim();
+        const business = document.getElementById('reg-business').value.trim();
+        const email = document.getElementById('reg-email').value.trim();
+        const password = document.getElementById('reg-password').value;
+
+        // Basic validation
+        if (!name || !business || !email || !password) {
+            addAiMessage("Please fill in all the fields — I need your <strong>name</strong>, <strong>business name</strong>, <strong>email</strong>, and a <strong>password</strong> to create your account.");
+            return;
+        }
+
+        if (password.length < 8) {
+            addAiMessage("Your password needs to be at least <strong>8 characters</strong>. Give it another go!");
+            return;
+        }
+
+        const btn = document.querySelector('#step-1 .btn-primary');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner"></span>Creating account...';
+
+        try {
+            const response = await fetch('/api/onboarding/create-account', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, business_name: business, email, password })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                accountData = result;
+                goToStep(2);
+            } else {
+                btn.disabled = false;
+                btn.textContent = 'Create Account';
+                addAiMessage(`Hmm, there was an issue: <strong>${result.error || 'Something went wrong'}</strong>. Can you try again?`);
+            }
+        } catch (err) {
+            btn.disabled = false;
+            btn.textContent = 'Create Account';
+            addAiMessage("I couldn't reach the server. Check your connection and try again.");
+        }
+    }
+
+    // =============================================
+    // STEP 2: CHANNEL MANAGER
+    // =============================================
+    const channelManagers = [
+        { id: 'beds24', name: 'Beds24', desc: 'Channel Manager', logo: 'beds24.webp' },
+        { id: 'booking-automation', name: 'Booking Automation', desc: 'Channel Manager', logo: 'beds24.webp' },
+        { id: 'hostaway', name: 'Hostaway', desc: 'Property Management', logo: 'hostaway .webp' },
+        { id: 'apaleo', name: 'Apaleo', desc: 'Hotel PMS', logo: 'apaleo.webp' },
+        { id: 'avaibook', name: 'AvaiBook', desc: 'Vacation Rental', logo: 'Avaibook.png' },
+        { id: 'avantio', name: 'Avantio', desc: 'Vacation Rental', logo: 'avantio.webp' },
+        { id: 'bookingsync', name: 'BookingSync', desc: 'Channel Manager', logo: 'smily.svg' },
+        { id: 'cloudbeds', name: 'Cloudbeds', desc: 'Hotel PMS', logo: 'cloudbeds .png' },
+        { id: 'direct', name: 'Direct Software', desc: 'Property Management', logo: 'directsoftwre.png' },
+        { id: 'elina', name: 'Elina', desc: 'Property Management', logo: 'elina.png' },
+        { id: 'escapia', name: 'Escapia', desc: 'Vacation Rental', logo: 'escapia.webp' },
+        { id: 'fantasticstay', name: 'FantasticStay', desc: 'Property Management', logo: 'fantastic stay.png' },
+        { id: 'guesty', name: 'Guesty', desc: 'Property Management', logo: 'guesty.png' },
+        { id: 'guestwisely', name: 'GuestWisely', desc: 'Property Management', logo: 'GuestWisely_Logo_Colored.png' },
+        { id: 'hospitable', name: 'Hospitable', desc: 'Automation', logo: 'Hospitable.svg' },
+        { id: 'hostex', name: 'Hostex', desc: 'Property Management', logo: 'hostex_logo_en.webp' },
+        { id: 'hostfully', name: 'Hostfully', desc: 'Property Management', logo: 'Hostfully.png' },
+        { id: 'hostify', name: 'Hostify', desc: 'Property Management', logo: 'Hostify.png' },
+        { id: 'hosttools', name: 'Host Tools', desc: 'Automation', logo: 'Host tools.png' },
+        { id: 'lodgify', name: 'Lodgify', desc: 'Vacation Rental', logo: 'Lodgify.png' },
+        { id: 'mews', name: 'Mews', desc: 'Hotel PMS', logo: 'mews.png' },
+        { id: 'ownerrez', name: 'OwnerRez', desc: 'Vacation Rental', logo: 'OwnerRez .png' },
+        { id: 'rentalwise', name: 'RentalWise', desc: 'Property Management', logo: 'rental-wise.svg' },
+        { id: 'resly', name: 'Resly', desc: 'Property Management', logo: 'resly.png' },
+        { id: 'rms', name: 'RMS Cloud', desc: 'Hotel PMS', logo: 'rms-cloud.jpg' },
+        { id: 'smoobu', name: 'Smoobu', desc: 'Channel Manager', logo: 'smoobu .webp' },
+        { id: 'streamline', name: 'Streamline', desc: 'Vacation Rental', logo: 'Streamline .jpg' },
+        { id: 'tokeet', name: 'Tokeet', desc: 'Channel Manager', logo: 'tokeet.png' },
+        { id: 'track', name: 'Track', desc: 'Hospitality PMS', logo: 'track.webp' },
+        { id: 'uplisting', name: 'Uplisting', desc: 'Property Management', logo: 'uplisting.png' },
+        { id: 'yourrentals', name: 'Your.Rentals', desc: 'Channel Manager', logo: 'yourrentals.png' },
+        { id: 'zeevou', name: 'Zeevou', desc: 'Property Management', logo: 'zeevou.png' },
+        { id: 'other', name: 'Other / Not Listed', desc: 'Request Integration', logo: null }
+    ];
+
+    // Sort alphabetically, keep "Other" at end
+    channelManagers.sort((a, b) => {
+        if (a.id === 'other') return 1;
+        if (b.id === 'other') return -1;
+        return a.name.localeCompare(b.name);
+    });
+
+    function renderCMGrid(filter = '') {
+        const search = filter.toLowerCase();
+        const filtered = channelManagers.filter(cm =>
+            cm.name.toLowerCase().includes(search) || cm.desc.toLowerCase().includes(search)
+        );
+
+        const grid = document.getElementById('cmScrollGrid');
+        const noResults = document.getElementById('cm-no-results');
+
+        if (filtered.length === 0) {
+            grid.style.display = 'none';
+            noResults.style.display = 'block';
+            return;
+        }
+
+        noResults.style.display = 'none';
+        grid.style.display = 'grid';
+        grid.innerHTML = filtered.map(cm => {
+            const abbr = cm.id === 'other' ? '?' : cm.name.substring(0, 2).toUpperCase();
+            const logoHtml = cm.logo
+                ? `<img src="/logos/${encodeURIComponent(cm.logo)}" alt="${cm.name}" style="width: 36px; height: 36px; border-radius: 8px; object-fit: contain;" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="cm-tile-logo cm-bg-${cm.id}" style="display:none">${abbr}</div>`
+                : `<div class="cm-tile-logo cm-bg-other">?</div>`;
+            return `
+                <div class="cm-tile ${selectedCM === cm.id ? 'selected' : ''}" onclick="selectCM('${cm.id}')">
+                    ${logoHtml}
+                    <div class="cm-tile-name">${cm.name}</div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    function filterCMs(value) {
+        renderCMGrid(value);
+    }
+
+    function selectCM(cm) {
+        selectedCM = cm;
+        renderCMGrid(document.getElementById('cm-search')?.value || '');
+
+        const fieldsDiv = document.getElementById('cm-fields');
+        const accountId = accountData?.account?.id || '';
+
+        // Beds24 — direct integration via invite code
+        if (cm === 'beds24' || cm === 'booking-automation') {
+            const cmLabel = cm === 'beds24' ? 'Beds24' : 'Booking Automation';
+            fieldsDiv.innerHTML = `
+                <div class="field" style="margin-top: 1rem;">
+                    <label>Invite Code</label>
+                    <input type="text" id="cm-invite-code" placeholder="Paste your invite code here">
+                    <p style="font-size: 0.75rem; color: var(--ink-muted); margin-top: 0.3rem;">This connects us to your Beds24 account securely</p>
+                </div>
+                <button class="btn-primary" onclick="connectBeds24()">Connect & Import</button>
+                <div id="cm-status" style="margin-top: 1rem;"></div>
+            `;
+            addAiMessage("To connect <strong>" + cmLabel + "</strong>:<br><br>1. Log into Beds24<br>2. Go to <strong>Settings → Marketplace → API</strong><br>3. In the Scope section, click <strong>\"select all\"</strong> for Read, Write, and Delete<br>4. Click <strong>\"Generate invite code\"</strong><br>5. Copy and paste it below");
+
+        // Hostaway — direct integration
+        } else if (cm === 'hostaway') {
+            fieldsDiv.innerHTML = `
+                <div class="field" style="margin-top: 1rem;">
+                    <label>Account ID (Client ID)</label>
+                    <input type="text" id="cm-account-id" placeholder="Your Hostaway Account ID">
+                </div>
+                <div class="field">
+                    <label>API Key (Client Secret)</label>
+                    <input type="password" id="cm-api-key" placeholder="Your Hostaway API Key">
+                    <p style="font-size: 0.75rem; color: var(--ink-muted); margin-top: 0.3rem;">Your credentials are encrypted and stored securely</p>
+                </div>
+                <button class="btn-primary" onclick="connectHostaway()">Connect & Import</button>
+                <div id="cm-status" style="margin-top: 1rem;"></div>
+            `;
+            addAiMessage("To connect <strong>Hostaway</strong>:<br><br>1. Log into your Hostaway dashboard<br>2. Go to <strong>Settings → API Keys</strong><br>3. Copy your <strong>Account ID (Client ID)</strong> and <strong>API Key (Client Secret)</strong><br><br>Paste them below and click Connect.");
+
+        // Other / Not Listed
+        } else if (cm === 'other') {
+            fieldsDiv.innerHTML = `
+                <div class="field" style="margin-top: 1rem;">
+                    <label>Which channel manager do you use?</label>
+                    <input type="text" id="cm-other-name" placeholder="e.g. MyAllocator, Sirvoy...">
+                </div>
+                <div class="field">
+                    <label>Your email (we'll contact you)</label>
+                    <input type="email" id="cm-other-email" placeholder="you@email.com" value="${accountData?.account?.email || ''}">
+                </div>
+                <button class="btn-primary" onclick="requestCMIntegration()">Request Integration</button>
+                <div id="cm-status" style="margin-top: 1rem;"></div>
+            `;
+            addAiMessage("Can't find your channel manager? No problem — tell us which one you use and we'll look into adding support for it.");
+
+        // All Calry-connected CMs
+        } else {
+            const cmName = channelManagers.find(c => c.id === cm)?.name || cm;
+            // Map CM IDs to Calry integration keys
+            const calryKeyMap = {
+                'smoobu': 'smoobu', 'lodgify': 'lodgify', 'guesty': 'guesty',
+                'hostfully': 'hostfully', 'ownerrez': 'ownerrez', 'hospitable': 'hospitable',
+                'tokeet': 'tokeet', 'uplisting': 'uplisting', 'hostify': 'hostify',
+                'avantio': 'avantio', 'mews': 'mews', 'cloudbeds': 'cloudbeds',
+                'bookingsync': 'smily', 'streamline': 'streamline', 'track': 'track',
+                'apaleo': 'apaleo', 'escapia': 'escapia', 'zeevou': 'zeevou',
+                'rms': 'rms_cloud', 'resly': 'resly', 'hostex': 'hostex',
+                'elina': 'elina', 'direct': 'direct', 'fantasticstay': 'fantasticstay',
+                'guestwisely': 'guestwisely', 'hosttools': 'host_tools',
+                'rentalwise': 'rentalwise', 'yourrentals': 'your_rentals',
+                'avaibook': 'avaibook'
+            };
+            const calryKey = calryKeyMap[cm] || cm;
+
+            fieldsDiv.innerHTML = `
+                <div style="margin-top: 1rem; text-align: center; padding: 1.5rem; background: var(--accent-soft); border-radius: 10px;">
+                    <p style="font-size: 0.95rem; color: var(--ink-light); margin-bottom: 1rem;">
+                        <strong>${cmName}</strong> connects securely through our integration partner. Click below to authorise the connection — it only takes a minute.
+                    </p>
+                    <button class="btn-primary" onclick="connectCalry('${calryKey}', '${cmName}')">Authorise ${cmName} Connection</button>
+                </div>
+                <div id="cm-status" style="margin-top: 1rem;"></div>
+            `;
+            addAiMessage(`<strong>${cmName}</strong> connects through a secure authorisation flow. Click the button below and you'll be taken to ${cmName} to grant access. Once authorised, we'll import your properties automatically.`);
+        }
+
+        // Scroll down to show the fields
+        scrollToFields();
+    }
+
+    // =============================================
+    // BEDS24 CONNECTION
+    // =============================================
+    async function connectBeds24() {
+        const inviteCode = document.getElementById('cm-invite-code')?.value?.trim();
+        const statusDiv = document.getElementById('cm-status');
+
+        if (!inviteCode) {
+            addAiMessage("Please paste your <strong>invite code</strong> from Beds24.");
+            return;
+        }
+
+        const btn = document.querySelector('#cm-fields .btn-primary');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner"></span>Connecting...';
+        statusDiv.innerHTML = '<p style="color: var(--ink-muted); font-size: 0.85rem;">Creating connection...</p>';
+
+        try {
+            const gasAccountId = accountData?.account?.id;
+
+            // Check for existing connection
+            const existingResp = await fetch(`/api/gas-sync/connections?account_id=${gasAccountId}`);
+            const existingData = await existingResp.json();
+            let connectionId = null;
+
+            if (existingData.success && existingData.connections?.length > 0) {
+                const beds24Conn = existingData.connections.find(c => c.adapter_code === 'beds24');
+                if (beds24Conn) connectionId = beds24Conn.id;
+            }
+
+            // Create connection if none exists
+            if (!connectionId) {
+                const createResp = await fetch('/api/gas-sync/connections', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        account_id: gasAccountId,
+                        adapter_code: 'beds24',
+                        credentials: { inviteCode }
+                    })
+                });
+                const createResult = await createResp.json();
+                if (!createResult.success) throw new Error(createResult.error || 'Failed to create connection');
+                connectionId = createResult.connection?.id || createResult.connectionId;
+            }
+
+            statusDiv.innerHTML = '<p style="color: var(--success); font-size: 0.85rem;">✓ Connection created</p>';
+            statusDiv.innerHTML += '<p style="color: var(--ink-muted); font-size: 0.85rem;">Syncing properties from Beds24...</p>';
+
+            // Trigger sync
+            await fetch(`/api/gas-sync/connections/${connectionId}/sync`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+
+            // Poll for properties
+            let attempts = 0;
+            const maxAttempts = 15;
+            let foundProperties = false;
+
+            while (attempts < maxAttempts && !foundProperties) {
+                statusDiv.innerHTML = `<p style="color: var(--success); font-size: 0.85rem;">✓ Connection created</p>`;
+                statusDiv.innerHTML += `<p style="color: var(--ink-muted); font-size: 0.85rem;">Syncing properties... (${attempts + 1}/${maxAttempts})</p>`;
+                await new Promise(r => setTimeout(r, 2000));
+
+                const propsResp = await fetch(`/api/gas-sync/connections/${connectionId}/properties`);
+                const propsData = await propsResp.json();
+
+                if (propsData.success && propsData.properties?.length > 0) {
+                    foundProperties = true;
+                    statusDiv.innerHTML = `<p style="color: var(--success); font-size: 0.85rem;">✓ Found ${propsData.properties.length} property/properties!</p>`;
+                    addAiMessage(`Imported <strong>${propsData.properties.length}</strong> property/properties from Beds24. Let's review them.`);
+                    setTimeout(() => goToStep(3), 1500);
+                }
+                attempts++;
+            }
+
+            if (!foundProperties) {
+                btn.disabled = false;
+                btn.textContent = 'Connect & Import';
+                statusDiv.innerHTML += `<p style="color: #f59e0b; font-size: 0.85rem;">Sync is taking a while. Check your invite code is correct, or try generating a fresh one.</p>`;
+                addAiMessage("The sync is taking longer than expected. Double-check your invite code — try generating a <strong>fresh one</strong> in Beds24 → Settings → Marketplace → API.");
+            }
+        } catch (err) {
+            btn.disabled = false;
+            btn.textContent = 'Connect & Import';
+            statusDiv.innerHTML = `<p style="color: #ef4444; font-size: 0.85rem;">Error: ${err.message}</p>`;
+            addAiMessage("Something went wrong. Check your invite code and try again.");
+        }
+    }
+
+    // =============================================
+    // HOSTAWAY CONNECTION
+    // =============================================
+    async function connectHostaway() {
+        const hostawayAccountId = document.getElementById('cm-account-id')?.value?.trim();
+        const apiKey = document.getElementById('cm-api-key')?.value?.trim();
+        const statusDiv = document.getElementById('cm-status');
+
+        if (!hostawayAccountId || !apiKey) {
+            addAiMessage("Please enter both your <strong>Account ID</strong> and <strong>API Key</strong>.");
+            return;
+        }
+
+        const btn = document.querySelector('#cm-fields .btn-primary');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner"></span>Connecting...';
+        statusDiv.innerHTML = '<p style="color: var(--ink-muted); font-size: 0.85rem;">Testing connection...</p>';
+
+        try {
+            // Test connection
+            const testResp = await fetch('/api/hostaway-wizard/test-connection', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ accountId: hostawayAccountId, apiKey })
+            });
+            const testResult = await testResp.json();
+
+            if (!testResult.success) {
+                btn.disabled = false;
+                btn.textContent = 'Connect & Import';
+                statusDiv.innerHTML = `<p style="color: #ef4444; font-size: 0.85rem;">${testResult.error}</p>`;
+                addAiMessage("Connection failed. Double-check your <strong>Account ID</strong> and <strong>API Key</strong> from Hostaway → Settings → API Keys.");
+                return;
+            }
+
+            const token = testResult.token;
+            statusDiv.innerHTML = '<p style="color: var(--success); font-size: 0.85rem;">✓ Connected to Hostaway</p>';
+
+            // Get properties
+            statusDiv.innerHTML += '<p style="color: var(--ink-muted); font-size: 0.85rem;">Fetching your properties...</p>';
+            const propsResp = await fetch('/api/hostaway-wizard/properties', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token })
+            });
+            const propsResult = await propsResp.json();
+
+            if (propsResult.success && propsResult.properties?.length > 0) {
+                statusDiv.innerHTML = `<p style="color: var(--success); font-size: 0.85rem;">✓ Found ${propsResult.properties.length} property/properties</p>`;
+                addAiMessage(`Connected! I found <strong>${propsResult.properties.length}</strong> property/properties. Importing them now...`);
+
+                // Import each property
+                for (const prop of propsResult.properties) {
+                    statusDiv.innerHTML += `<p style="color: var(--ink-muted); font-size: 0.85rem;">Importing ${prop.name}...</p>`;
+                    const importResp = await fetch('/api/hostaway-wizard/import', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            accountId: hostawayAccountId,
+                            apiKey,
+                            token,
+                            listingId: prop.id,
+                            importImages: true,
+                            gasAccountId: accountData?.account?.id
+                        })
+                    });
+                    const importResult = await importResp.json();
+                    if (importResult.success) {
+                        statusDiv.innerHTML += `<p style="color: var(--success); font-size: 0.85rem;">✓ Imported: ${prop.name}</p>`;
+                    } else {
+                        statusDiv.innerHTML += `<p style="color: #f59e0b; font-size: 0.85rem;">⚠ ${prop.name}: ${importResult.error || 'already imported'}</p>`;
+                    }
+                }
+
+                addAiMessage("Import complete! Let's review your properties.");
+                setTimeout(() => goToStep(3), 1500);
+            } else {
+                btn.disabled = false;
+                btn.textContent = 'Connect & Import';
+                statusDiv.innerHTML += `<p style="color: #ef4444; font-size: 0.85rem;">No properties found in your Hostaway account</p>`;
+                addAiMessage("I connected successfully but couldn't find any properties. Make sure you have active listings in Hostaway.");
+            }
+        } catch (err) {
+            btn.disabled = false;
+            btn.textContent = 'Connect & Import';
+            statusDiv.innerHTML = `<p style="color: #ef4444; font-size: 0.85rem;">Error: ${err.message}</p>`;
+            addAiMessage("Something went wrong. Check your credentials and try again.");
+        }
+    }
+
+    // =============================================
+    // CALRY CONNECTION (all other CMs)
+    // =============================================
+    async function connectCalry(pmsKey, cmName) {
+        const statusDiv = document.getElementById('cm-status');
+        const btn = document.querySelector('#cm-fields .btn-primary');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner"></span>Starting authorisation...';
+
+        try {
+            const accountId = accountData?.account?.id || '';
+            const finalRedirect = encodeURIComponent(window.location.origin + '/register.html?step=3');
+
+            const resp = await fetch(`/api/calry/link/start?account_id=${accountId}&pms=${pmsKey}&final_redirect=${finalRedirect}`);
+            const result = await resp.json();
+
+            if (result.success && result.link_url) {
+                statusDiv.innerHTML = `
+                    <div style="padding: 1rem; background: var(--accent-soft); border-radius: 8px; text-align: center;">
+                        <p style="font-size: 0.9rem; color: var(--ink-light); margin-bottom: 0.75rem;">
+                            A new window will open to authorise <strong>${cmName}</strong>.<br>Complete the authorisation and come back here.
+                        </p>
+                        <p style="font-size: 0.8rem; color: var(--ink-muted);">
+                            <a href="${result.link_url}" target="_blank" style="color: var(--accent);">Click here if the window didn't open</a>
+                        </p>
+                    </div>
+                `;
+                btn.disabled = false;
+                btn.textContent = 'Authorise ' + cmName + ' Connection';
+
+                // Open in new window
+                window.open(result.link_url, '_blank', 'width=600,height=700');
+
+                addAiMessage(`I've opened a window for you to authorise <strong>${cmName}</strong>. Complete the authorisation there, then come back here. Once connected, I'll import your properties automatically.`);
+
+                // Poll for completion
+                pollCalryStatus(result.link_id, cmName);
+            } else {
+                btn.disabled = false;
+                btn.textContent = 'Authorise ' + cmName + ' Connection';
+                statusDiv.innerHTML = `<p style="color: #ef4444; font-size: 0.85rem;">${result.error || 'Failed to start connection'}</p>`;
+                addAiMessage("There was an issue starting the authorisation. Please try again.");
+            }
+        } catch (err) {
+            btn.disabled = false;
+            btn.textContent = 'Authorise Connection';
+            statusDiv.innerHTML = `<p style="color: #ef4444; font-size: 0.85rem;">Error: ${err.message}</p>`;
+        }
+    }
+
+    async function pollCalryStatus(linkId, cmName) {
+        const statusDiv = document.getElementById('cm-status');
+        let attempts = 0;
+        const maxAttempts = 60; // 5 minutes
+
+        const poll = setInterval(async () => {
+            attempts++;
+            if (attempts > maxAttempts) {
+                clearInterval(poll);
+                return;
+            }
+
+            try {
+                const resp = await fetch(`/api/calry/link/status/${linkId}`);
+                const result = await resp.json();
+
+                if (result.success && result.status === 'completed') {
+                    clearInterval(poll);
+                    statusDiv.innerHTML = `<p style="color: var(--success); font-size: 0.85rem;">✓ ${cmName} connected successfully!</p>`;
+                    addAiMessage(`<strong>${cmName}</strong> is connected! I'm importing your properties now...`);
+                    setTimeout(() => goToStep(3), 2000);
+                }
+            } catch (e) { /* keep polling */ }
+        }, 5000);
+    }
+
+    // =============================================
+    // OTHER CM REQUEST
+    // =============================================
+    async function requestCMIntegration() {
+        const cmName = document.getElementById('cm-other-name')?.value?.trim();
+        const email = document.getElementById('cm-other-email')?.value?.trim();
+
+        if (!cmName) {
+            addAiMessage("Please tell us which channel manager you use.");
+            return;
+        }
+
+        addAiMessage(`Thanks! We've noted your request for <strong>${cmName}</strong> integration. We'll be in touch at <strong>${email || 'your registered email'}</strong> when it's available.`);
+        document.getElementById('cm-status').innerHTML = `<p style="color: var(--success); font-size: 0.85rem;">✓ Request submitted — we'll be in touch!</p>`;
+    }
+
+    // Scroll to fields after CM selection
+    function scrollToFields() {
+        setTimeout(() => {
+            const fields = document.getElementById('cm-fields');
+            if (fields && fields.innerHTML.trim()) {
+                fields.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }, 100);
+    }
+
+    // =============================================
+    // STEP 5: STRIPE
+    // =============================================
+    function connectStripe() {
+        // TODO: Wire to actual Stripe OAuth flow
+        addAiMessage("Redirecting you to Stripe to connect your account...");
+    }
+
+    function skipStripe() {
+        addAiMessage("No problem — you can set up Stripe later from your dashboard. Just remember, you'll need it to accept online bookings!");
+        goToStep('done');
+    }
+
+    function showUpsells() {
+        addAiMessage("Here's how you can grow with GAS:<br><br>🚀 <strong>GAS Turbines</strong> — Post your listings to social media automatically<br>🌐 <strong>Custom Website</strong> — Get a professional booking website<br>📝 <strong>SEO Blogs</strong> — Attract organic traffic with AI-written content<br>🏖️ <strong>Attractions Module</strong> — Showcase local activities<br>⭐ <strong>Reviews</strong> — Display reviews from multiple platforms");
+    }
+
+    // =============================================
+    // INIT
+    // =============================================
+    showStepMessages(1);
+</script>
+
+</body>
+</html>
