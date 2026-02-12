@@ -66876,7 +66876,7 @@ app.get('/api/app-settings/:app', async (req, res) => {
         );
         
         if (result.rows.length > 0) {
-            res.json({ success: true, colors: result.rows[0].settings?.colors || {} });
+            res.json({ success: true, colors: result.rows[0].settings?.colors || {}, fonts: result.rows[0].settings?.fonts || {} });
         } else {
             // Return defaults
             const defaults = {
@@ -66896,7 +66896,7 @@ app.get('/api/app-settings/:app', async (req, res) => {
 app.put('/api/app-settings/:app', async (req, res) => {
     try {
         const { app } = req.params;
-        const { colors } = req.body;
+        const { colors, fonts } = req.body;
         const validApps = ['blog', 'attractions', 'reviews', 'properties'];
         
         if (!validApps.includes(app)) {
@@ -66924,7 +66924,7 @@ app.put('/api/app-settings/:app', async (req, res) => {
              ON CONFLICT (account_id, app_name) 
              DO UPDATE SET settings = $3, updated_at = NOW()
              RETURNING *`,
-            [accountId, app, { colors }]
+            [accountId, app, { colors, fonts: fonts || {} }]
         );
         
         res.json({ success: true, message: 'Settings saved', settings: result.rows[0] });
@@ -66991,14 +66991,14 @@ app.get('/api/public/client/:clientId/app-settings/:app', async (req, res) => {
             );
             
             if (result.rows.length > 0 && result.rows[0].settings?.colors) {
-                res.json({ success: true, colors: result.rows[0].settings.colors });
+                res.json({ success: true, colors: result.rows[0].settings.colors, fonts: result.rows[0].settings.fonts || {} });
             } else {
-                res.json({ success: true, colors: defaults[app] });
+                res.json({ success: true, colors: defaults[app], fonts: {} });
             }
         } catch (tableError) {
             // Table doesn't exist yet, return defaults
             console.log('app_settings table not found, returning defaults');
-            res.json({ success: true, colors: defaults[app] });
+            res.json({ success: true, colors: defaults[app], fonts: {} });
         }
     } catch (error) {
         console.error('Error getting public app settings:', error);
