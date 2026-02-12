@@ -1156,49 +1156,334 @@ Upsells (mention only if asked): GAS Turbines (social media), custom websites, S
         renderCMGrid(document.getElementById('cm-search')?.value || '');
 
         const fieldsDiv = document.getElementById('cm-fields');
-
-        // Route to the existing wizard page
         const accountId = accountData?.account?.id || '';
-        const qs = accountId ? `?account_id=${accountId}` : '';
 
-        if (cm === 'beds24') {
+        // Beds24 — direct integration
+        if (cm === 'beds24' || cm === 'booking-automation') {
+            const cmLabel = cm === 'beds24' ? 'Beds24' : 'Booking Automation';
             fieldsDiv.innerHTML = `
-                <div style="margin-top: 1rem;">
-                    <button class="btn-primary" onclick="window.location.href='/beds24-wizard.html${qs}'">Set Up Beds24 Connection</button>
+                <div class="field" style="margin-top: 1rem;">
+                    <label>Beds24 API Key</label>
+                    <input type="text" id="cm-api-key" placeholder="Your Beds24 API key">
                 </div>
+                <div class="field">
+                    <label>Property Key</label>
+                    <input type="text" id="cm-prop-key" placeholder="Your property key from Beds24">
+                </div>
+                <button class="btn-primary" onclick="connectBeds24()">Connect & Import</button>
+                <div id="cm-status" style="margin-top: 1rem;"></div>
             `;
-            addAiMessage("To connect <strong>Beds24</strong>, you'll need your <strong>API key</strong> from Beds24 Settings → API, and your <strong>Property Key</strong> from the property's Access tab. Click the button to start the wizard.");
+            addAiMessage("To connect <strong>" + cmLabel + "</strong>:<br><br>1. Log into Beds24<br>2. Go to <strong>Settings → API</strong> and copy your API key<br>3. Go to your property's <strong>Access tab</strong> and copy the Property Key<br><br>Paste both below and click Connect.");
+
+        // Hostaway — direct integration
         } else if (cm === 'hostaway') {
             fieldsDiv.innerHTML = `
-                <div style="margin-top: 1rem;">
-                    <button class="btn-primary" onclick="window.location.href='/hostaway-wizard.html${qs}'">Set Up Hostaway Connection</button>
+                <div class="field" style="margin-top: 1rem;">
+                    <label>Hostaway Account ID</label>
+                    <input type="text" id="cm-account-id" placeholder="Your Hostaway account ID">
                 </div>
-            `;
-            addAiMessage("To connect <strong>Hostaway</strong>, go to your Hostaway dashboard → Settings → API Keys. You'll need your <strong>Account ID</strong> and <strong>API Key</strong>. Click the button to start the wizard.");
-        } else if (cm === 'booking-automation') {
-            fieldsDiv.innerHTML = `
-                <div style="margin-top: 1rem;">
-                    <button class="btn-primary" onclick="window.location.href='/booking-automation-wizard.html${qs}'">Set Up Booking Automation</button>
+                <div class="field">
+                    <label>API Key</label>
+                    <input type="text" id="cm-api-key" placeholder="Your Hostaway API key">
                 </div>
+                <button class="btn-primary" onclick="connectHostaway()">Connect & Import</button>
+                <div id="cm-status" style="margin-top: 1rem;"></div>
             `;
-            addAiMessage("<strong>Booking Automation</strong> uses the same setup as Beds24. Click the button to start the wizard.");
+            addAiMessage("To connect <strong>Hostaway</strong>:<br><br>1. Log into Hostaway<br>2. Go to <strong>Settings → API Keys</strong><br>3. Copy your <strong>Account ID</strong> and <strong>API Key</strong><br><br>Paste them below and click Connect.");
+
+        // Other / Not Listed
         } else if (cm === 'other') {
             fieldsDiv.innerHTML = `
-                <div style="margin-top: 1rem;">
-                    <button class="btn-primary" onclick="window.location.href='/other-cm-wizard.html${qs}'">Request Integration</button>
+                <div class="field" style="margin-top: 1rem;">
+                    <label>Which channel manager do you use?</label>
+                    <input type="text" id="cm-other-name" placeholder="e.g. MyAllocator, Sirvoy...">
                 </div>
+                <div class="field">
+                    <label>Your email (we'll contact you)</label>
+                    <input type="email" id="cm-other-email" placeholder="you@email.com" value="${accountData?.account?.email || ''}">
+                </div>
+                <button class="btn-primary" onclick="requestCMIntegration()">Request Integration</button>
+                <div id="cm-status" style="margin-top: 1rem;"></div>
             `;
-            addAiMessage("Can't find your channel manager? No problem — click the button and we'll look into adding support for it.");
+            addAiMessage("Can't find your channel manager? No problem — tell us which one you use and we'll look into adding support for it.");
+
+        // All Calry-connected CMs
         } else {
-            // All Calry-connected CMs
-            fieldsDiv.innerHTML = `
-                <div style="margin-top: 1rem;">
-                    <button class="btn-primary" onclick="window.location.href='/${cm}-wizard.html${qs}'">Set Up ${channelManagers.find(c => c.id === cm)?.name || cm} Connection</button>
-                </div>
-            `;
             const cmName = channelManagers.find(c => c.id === cm)?.name || cm;
-            addAiMessage(`<strong>${cmName}</strong> connects through our Calry integration. Click the button and follow the wizard — it only takes a couple of minutes.`);
+            // Map CM IDs to Calry integration keys
+            const calryKeyMap = {
+                'smoobu': 'smoobu', 'lodgify': 'lodgify', 'guesty': 'guesty',
+                'hostfully': 'hostfully', 'ownerrez': 'ownerrez', 'hospitable': 'hospitable',
+                'tokeet': 'tokeet', 'uplisting': 'uplisting', 'hostify': 'hostify',
+                'avantio': 'avantio', 'mews': 'mews', 'cloudbeds': 'cloudbeds',
+                'bookingsync': 'smily', 'streamline': 'streamline', 'track': 'track',
+                'apaleo': 'apaleo', 'escapia': 'escapia', 'zeevou': 'zeevou',
+                'rms': 'rms_cloud', 'resly': 'resly', 'hostex': 'hostex',
+                'elina': 'elina', 'direct': 'direct', 'fantasticstay': 'fantasticstay',
+                'guestwisely': 'guestwisely', 'hosttools': 'host_tools',
+                'rentalwise': 'rentalwise', 'yourrentals': 'your_rentals',
+                'avaibook': 'avaibook'
+            };
+            const calryKey = calryKeyMap[cm] || cm;
+
+            fieldsDiv.innerHTML = `
+                <div style="margin-top: 1rem; text-align: center; padding: 1.5rem; background: var(--accent-soft); border-radius: 10px;">
+                    <p style="font-size: 0.95rem; color: var(--ink-light); margin-bottom: 1rem;">
+                        <strong>${cmName}</strong> connects securely through our integration partner. Click below to authorise the connection — it only takes a minute.
+                    </p>
+                    <button class="btn-primary" onclick="connectCalry('${calryKey}', '${cmName}')">Authorise ${cmName} Connection</button>
+                </div>
+                <div id="cm-status" style="margin-top: 1rem;"></div>
+            `;
+            addAiMessage(`<strong>${cmName}</strong> connects through a secure authorisation flow. Click the button below and you'll be taken to ${cmName} to grant access. Once authorised, we'll import your properties automatically.`);
         }
+    }
+
+    // =============================================
+    // BEDS24 CONNECTION
+    // =============================================
+    async function connectBeds24() {
+        const apiKey = document.getElementById('cm-api-key')?.value?.trim();
+        const propKey = document.getElementById('cm-prop-key')?.value?.trim();
+        const statusDiv = document.getElementById('cm-status');
+
+        if (!apiKey || !propKey) {
+            addAiMessage("Please enter both your <strong>API key</strong> and <strong>Property Key</strong>.");
+            return;
+        }
+
+        const btn = document.querySelector('#cm-fields .btn-primary');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner"></span>Connecting...';
+        statusDiv.innerHTML = '<p style="color: var(--ink-muted); font-size: 0.85rem;">Testing connection...</p>';
+
+        try {
+            // Get properties from Beds24
+            const resp = await fetch('/api/beds24-wizard/properties', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ apiKey, propKey })
+            });
+            const result = await resp.json();
+
+            if (result.success && result.properties?.length > 0) {
+                statusDiv.innerHTML = `<p style="color: var(--success); font-size: 0.85rem;">✓ Found ${result.properties.length} property/properties</p>`;
+                addAiMessage(`Connected! I found <strong>${result.properties.length}</strong> property/properties in your Beds24 account. Importing now...`);
+
+                // Import each property
+                for (const prop of result.properties) {
+                    const importResp = await fetch('/api/beds24-wizard/import', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            apiKey, propKey,
+                            propertyId: prop.id,
+                            gasAccountId: accountData?.account?.id,
+                            importImages: true
+                        })
+                    });
+                    const importResult = await importResp.json();
+                    if (importResult.success) {
+                        statusDiv.innerHTML += `<p style="color: var(--success); font-size: 0.85rem;">✓ Imported: ${prop.name}</p>`;
+                    }
+                }
+
+                addAiMessage("Import complete! Let's review what came in.");
+                setTimeout(() => goToStep(3), 1500);
+            } else {
+                btn.disabled = false;
+                btn.textContent = 'Connect & Import';
+                statusDiv.innerHTML = `<p style="color: #ef4444; font-size: 0.85rem;">${result.error || 'No properties found'}</p>`;
+                addAiMessage("Hmm, I couldn't find any properties. Double-check your <strong>API key</strong> and <strong>Property Key</strong> are correct.");
+            }
+        } catch (err) {
+            btn.disabled = false;
+            btn.textContent = 'Connect & Import';
+            statusDiv.innerHTML = `<p style="color: #ef4444; font-size: 0.85rem;">Connection error: ${err.message}</p>`;
+            addAiMessage("Something went wrong connecting. Check your credentials and try again.");
+        }
+    }
+
+    // =============================================
+    // HOSTAWAY CONNECTION
+    // =============================================
+    async function connectHostaway() {
+        const hostawayAccountId = document.getElementById('cm-account-id')?.value?.trim();
+        const apiKey = document.getElementById('cm-api-key')?.value?.trim();
+        const statusDiv = document.getElementById('cm-status');
+
+        if (!hostawayAccountId || !apiKey) {
+            addAiMessage("Please enter both your <strong>Account ID</strong> and <strong>API Key</strong>.");
+            return;
+        }
+
+        const btn = document.querySelector('#cm-fields .btn-primary');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner"></span>Connecting...';
+        statusDiv.innerHTML = '<p style="color: var(--ink-muted); font-size: 0.85rem;">Testing connection...</p>';
+
+        try {
+            // Test connection
+            const testResp = await fetch('/api/hostaway-wizard/test-connection', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ accountId: hostawayAccountId, apiKey })
+            });
+            const testResult = await testResp.json();
+
+            if (!testResult.success) {
+                btn.disabled = false;
+                btn.textContent = 'Connect & Import';
+                statusDiv.innerHTML = `<p style="color: #ef4444; font-size: 0.85rem;">${testResult.error}</p>`;
+                addAiMessage("Connection failed. Double-check your <strong>Account ID</strong> and <strong>API Key</strong> from Hostaway → Settings → API Keys.");
+                return;
+            }
+
+            const token = testResult.token;
+            statusDiv.innerHTML = '<p style="color: var(--success); font-size: 0.85rem;">✓ Connected to Hostaway</p>';
+
+            // Get properties
+            statusDiv.innerHTML += '<p style="color: var(--ink-muted); font-size: 0.85rem;">Fetching your properties...</p>';
+            const propsResp = await fetch('/api/hostaway-wizard/properties', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token })
+            });
+            const propsResult = await propsResp.json();
+
+            if (propsResult.success && propsResult.properties?.length > 0) {
+                statusDiv.innerHTML = `<p style="color: var(--success); font-size: 0.85rem;">✓ Found ${propsResult.properties.length} property/properties</p>`;
+                addAiMessage(`Connected! I found <strong>${propsResult.properties.length}</strong> property/properties. Importing them now...`);
+
+                // Import each property
+                for (const prop of propsResult.properties) {
+                    statusDiv.innerHTML += `<p style="color: var(--ink-muted); font-size: 0.85rem;">Importing ${prop.name}...</p>`;
+                    const importResp = await fetch('/api/hostaway-wizard/import', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            accountId: hostawayAccountId,
+                            apiKey,
+                            token,
+                            listingId: prop.id,
+                            importImages: true,
+                            gasAccountId: accountData?.account?.id
+                        })
+                    });
+                    const importResult = await importResp.json();
+                    if (importResult.success) {
+                        statusDiv.innerHTML += `<p style="color: var(--success); font-size: 0.85rem;">✓ Imported: ${prop.name}</p>`;
+                    } else {
+                        statusDiv.innerHTML += `<p style="color: #f59e0b; font-size: 0.85rem;">⚠ ${prop.name}: ${importResult.error || 'already imported'}</p>`;
+                    }
+                }
+
+                addAiMessage("Import complete! Let's review your properties.");
+                setTimeout(() => goToStep(3), 1500);
+            } else {
+                btn.disabled = false;
+                btn.textContent = 'Connect & Import';
+                statusDiv.innerHTML += `<p style="color: #ef4444; font-size: 0.85rem;">No properties found in your Hostaway account</p>`;
+                addAiMessage("I connected successfully but couldn't find any properties. Make sure you have active listings in Hostaway.");
+            }
+        } catch (err) {
+            btn.disabled = false;
+            btn.textContent = 'Connect & Import';
+            statusDiv.innerHTML = `<p style="color: #ef4444; font-size: 0.85rem;">Error: ${err.message}</p>`;
+            addAiMessage("Something went wrong. Check your credentials and try again.");
+        }
+    }
+
+    // =============================================
+    // CALRY CONNECTION (all other CMs)
+    // =============================================
+    async function connectCalry(pmsKey, cmName) {
+        const statusDiv = document.getElementById('cm-status');
+        const btn = document.querySelector('#cm-fields .btn-primary');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner"></span>Starting authorisation...';
+
+        try {
+            const accountId = accountData?.account?.id || '';
+            const finalRedirect = encodeURIComponent(window.location.origin + '/register.html?step=3');
+
+            const resp = await fetch(`/api/calry/link/start?account_id=${accountId}&pms=${pmsKey}&final_redirect=${finalRedirect}`);
+            const result = await resp.json();
+
+            if (result.success && result.link_url) {
+                statusDiv.innerHTML = `
+                    <div style="padding: 1rem; background: var(--accent-soft); border-radius: 8px; text-align: center;">
+                        <p style="font-size: 0.9rem; color: var(--ink-light); margin-bottom: 0.75rem;">
+                            A new window will open to authorise <strong>${cmName}</strong>.<br>Complete the authorisation and come back here.
+                        </p>
+                        <p style="font-size: 0.8rem; color: var(--ink-muted);">
+                            <a href="${result.link_url}" target="_blank" style="color: var(--accent);">Click here if the window didn't open</a>
+                        </p>
+                    </div>
+                `;
+                btn.disabled = false;
+                btn.textContent = 'Authorise ' + cmName + ' Connection';
+
+                // Open in new window
+                window.open(result.link_url, '_blank', 'width=600,height=700');
+
+                addAiMessage(`I've opened a window for you to authorise <strong>${cmName}</strong>. Complete the authorisation there, then come back here. Once connected, I'll import your properties automatically.`);
+
+                // Poll for completion
+                pollCalryStatus(result.link_id, cmName);
+            } else {
+                btn.disabled = false;
+                btn.textContent = 'Authorise ' + cmName + ' Connection';
+                statusDiv.innerHTML = `<p style="color: #ef4444; font-size: 0.85rem;">${result.error || 'Failed to start connection'}</p>`;
+                addAiMessage("There was an issue starting the authorisation. Please try again.");
+            }
+        } catch (err) {
+            btn.disabled = false;
+            btn.textContent = 'Authorise Connection';
+            statusDiv.innerHTML = `<p style="color: #ef4444; font-size: 0.85rem;">Error: ${err.message}</p>`;
+        }
+    }
+
+    async function pollCalryStatus(linkId, cmName) {
+        const statusDiv = document.getElementById('cm-status');
+        let attempts = 0;
+        const maxAttempts = 60; // 5 minutes
+
+        const poll = setInterval(async () => {
+            attempts++;
+            if (attempts > maxAttempts) {
+                clearInterval(poll);
+                return;
+            }
+
+            try {
+                const resp = await fetch(`/api/calry/link/status/${linkId}`);
+                const result = await resp.json();
+
+                if (result.success && result.status === 'completed') {
+                    clearInterval(poll);
+                    statusDiv.innerHTML = `<p style="color: var(--success); font-size: 0.85rem;">✓ ${cmName} connected successfully!</p>`;
+                    addAiMessage(`<strong>${cmName}</strong> is connected! I'm importing your properties now...`);
+                    setTimeout(() => goToStep(3), 2000);
+                }
+            } catch (e) { /* keep polling */ }
+        }, 5000);
+    }
+
+    // =============================================
+    // OTHER CM REQUEST
+    // =============================================
+    async function requestCMIntegration() {
+        const cmName = document.getElementById('cm-other-name')?.value?.trim();
+        const email = document.getElementById('cm-other-email')?.value?.trim();
+
+        if (!cmName) {
+            addAiMessage("Please tell us which channel manager you use.");
+            return;
+        }
+
+        addAiMessage(`Thanks! We've noted your request for <strong>${cmName}</strong> integration. We'll be in touch at <strong>${email || 'your registered email'}</strong> when it's available.`);
+        document.getElementById('cm-status').innerHTML = `<p style="color: var(--success); font-size: 0.85rem;">✓ Request submitted — we'll be in touch!</p>`;
     }
 
     // =============================================
