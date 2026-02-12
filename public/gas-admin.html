@@ -29903,7 +29903,14 @@ const promo = await fetch('/api/v1/offers/validate', {
                     } else {
                         loadDeployedSites();
                     }
-                    showNotification('Site deleted successfully', 'success');
+                    // Show detailed status
+                    if (data.vps_deleted) {
+                        showNotification('✅ Site deleted from WordPress & database', 'success');
+                    } else if (data.vps_error) {
+                        showNotification('⚠️ Deleted from database. WordPress note: ' + data.vps_error, 'warning');
+                    } else {
+                        showNotification('Site deleted successfully', 'success');
+                    }
                 } else {
                     // Restore card if delete failed
                     if (card) {
