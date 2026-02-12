@@ -48468,23 +48468,23 @@ app.get('/api/public/unit/:unitId', async (req, res) => {
     let syncAmenities = [];
     try {
       const syncResult = await pool.query(`
-        SELECT a.name, a.category, 1 as quantity
+        SELECT a.name as name, 'General' as category, 1 as quantity
         FROM room_amenities ra
         JOIN amenities a ON ra.amenity_id = a.id
         WHERE ra.room_id = $1
-        ORDER BY a.category, a.name
+        ORDER BY a.name
       `, [unitId]);
       syncAmenities = syncResult.rows;
     } catch (e) {}
     
-    // Merge: room_amenity_selections takes priority, then bookable_unit_amenities, then room_amenities
+    // Merge: room_amenity_selections takes priority for matching categories
     const newCategories = new Set(newAmenities.map(a => a.category));
     const oldCategories = new Set(oldAmenities.map(a => a.category));
     
     const mergedAmenities = [
       ...newAmenities,
       ...oldAmenities.filter(a => !newCategories.has(a.category)),
-      ...syncAmenities.filter(a => !newCategories.has(a.category) && !oldCategories.has(a.category))
+      ...syncAmenities
     ];
     
     amenities = { rows: mergedAmenities };
