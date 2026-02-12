@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GAS - Global Accommodation System</title>
+    <title>GAS — Global Accommodation System</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet">
     <style>
         * {
             margin: 0;
@@ -15,25 +15,33 @@
         }
 
         :root {
-            --text-primary: #1e293b;
-            --text-secondary: #475569;
+            --text-primary: #0f172a;
+            --text-secondary: #334155;
             --text-muted: #64748b;
-            --glass-bg: rgba(255, 255, 255, 0.88);
-            --glass-border: rgba(255, 255, 255, 0.5);
-            --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            --text-light: #94a3b8;
+            --white: #ffffff;
+            --off-white: #f8fafc;
+            --accent: #1e3a5f;
+            --accent-light: #2563eb;
+            --warm: #d97706;
+        }
+
+        html {
+            scroll-behavior: smooth;
         }
 
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
             color: var(--text-primary);
             line-height: 1.6;
-            overflow: hidden;
-            height: 100vh;
+            overflow-x: hidden;
         }
 
-        /* Video Background */
+        /* ============================================
+           VIDEO BACKGROUND — HERO ONLY
+           ============================================ */
         .video-bg {
-            position: fixed;
+            position: absolute;
             top: 0;
             left: 0;
             width: 100%;
@@ -49,798 +57,948 @@
         }
 
         .video-overlay {
-            position: fixed;
+            position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background: linear-gradient(135deg, rgba(241, 245, 249, 0.82) 0%, rgba(226, 232, 240, 0.78) 100%);
+            background: linear-gradient(
+                180deg,
+                rgba(15, 23, 42, 0.55) 0%,
+                rgba(15, 23, 42, 0.45) 50%,
+                rgba(15, 23, 42, 0.65) 100%
+            );
             z-index: -1;
         }
 
-        /* Navigation */
+        /* ============================================
+           NAVIGATION
+           ============================================ */
         .nav {
             position: fixed;
             top: 0;
             left: 0;
             right: 0;
             z-index: 100;
-            padding: 1.25rem 2.5rem;
+            padding: 1.25rem 3rem;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            transition: all 0.4s ease;
+        }
+
+        .nav.scrolled {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+            padding: 0.85rem 3rem;
         }
 
         .nav-logo {
-            font-size: 1.1rem;
-            font-weight: 600;
-            letter-spacing: 0.5px;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 1.3rem;
+            font-weight: 700;
+            letter-spacing: 2px;
+            color: var(--white);
+            transition: color 0.4s;
+        }
+
+        .nav.scrolled .nav-logo {
             color: var(--text-primary);
         }
 
-        .nav-logo span {
-            font-weight: 300;
-            color: var(--text-muted);
-            margin-left: 0.75rem;
-            font-size: 0.85rem;
-        }
-
-        /* Main Layout: 60/40 Split */
-        .main-layout {
+        .nav-links {
             display: flex;
-            height: 100vh;
-            padding-top: 70px;
+            gap: 2rem;
+            align-items: center;
         }
 
-        /* Left Side - Cards */
-        .cards-section {
-            width: 60%;
+        .nav-links a {
+            text-decoration: none;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 0.85rem;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+            transition: color 0.3s;
+        }
+
+        .nav.scrolled .nav-links a {
+            color: var(--text-secondary);
+        }
+
+        .nav-links a:hover {
+            color: var(--white);
+        }
+
+        .nav.scrolled .nav-links a:hover {
+            color: var(--text-primary);
+        }
+
+        .nav-cta {
+            padding: 0.5rem 1.5rem !important;
+            border: 1.5px solid rgba(255, 255, 255, 0.6) !important;
+            border-radius: 6px;
+            transition: all 0.3s !important;
+        }
+
+        .nav-cta:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .nav.scrolled .nav-cta {
+            border-color: var(--accent) !important;
+            color: var(--accent) !important;
+        }
+
+        .nav.scrolled .nav-cta:hover {
+            background: var(--accent);
+            color: var(--white) !important;
+        }
+
+        /* ============================================
+           HERO SECTION
+           ============================================ */
+        .hero {
+            position: relative;
+            height: 100vh;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
+            text-align: center;
             padding: 2rem;
-            position: relative;
         }
 
-        /* Card Stack Container */
-        .stack-container {
+        .hero-content {
+            max-width: 800px;
+        }
+
+        .hero-welcome {
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.8rem;
+            font-weight: 500;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: rgba(255, 255, 255, 0.6);
+            margin-bottom: 1.5rem;
+            opacity: 0;
+            animation: fadeUp 1s ease 0.3s forwards;
+        }
+
+        .hero-title {
+            font-family: 'DM Serif Display', serif;
+            font-size: clamp(2.5rem, 5vw, 4rem);
+            font-weight: 400;
+            color: var(--white);
+            line-height: 1.15;
+            margin-bottom: 2.5rem;
+            opacity: 0;
+            animation: fadeUp 1s ease 0.6s forwards;
+        }
+
+        .hero-divider {
+            width: 60px;
+            height: 1px;
+            background: rgba(255, 255, 255, 0.3);
+            margin: 0 auto 2.5rem;
+            opacity: 0;
+            animation: fadeUp 1s ease 0.9s forwards;
+        }
+
+        .hero-tagline {
+            font-family: 'DM Serif Display', serif;
+            font-size: clamp(1.5rem, 3vw, 2.2rem);
+            color: var(--white);
+            margin-bottom: 0.5rem;
+            opacity: 0;
+            animation: fadeUp 1s ease 1.2s forwards;
+        }
+
+        .typewriter-container {
+            height: 3rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            animation: fadeUp 1s ease 1.5s forwards;
+        }
+
+        .typewriter-text {
+            font-family: 'DM Serif Display', serif;
+            font-size: clamp(1.3rem, 2.5vw, 1.8rem);
+            color: rgba(255, 255, 255, 0.5);
+            font-style: italic;
+            min-width: 1px;
+        }
+
+        .typewriter-cursor {
+            display: inline-block;
+            width: 2px;
+            height: 1.8rem;
+            background: rgba(255, 255, 255, 0.6);
+            margin-left: 3px;
+            animation: blink 1s infinite;
+        }
+
+        .hero-scroll {
+            position: absolute;
+            bottom: 2.5rem;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
+            opacity: 0;
+            animation: fadeUp 1s ease 2s forwards;
+        }
+
+        .hero-scroll span {
+            font-size: 0.7rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: rgba(255, 255, 255, 0.4);
+        }
+
+        .scroll-line {
+            width: 1px;
+            height: 40px;
             position: relative;
+            overflow: hidden;
+        }
+
+        .scroll-line::after {
+            content: '';
+            position: absolute;
+            top: -100%;
+            left: 0;
             width: 100%;
-            max-width: 520px;
-            height: 420px;
+            height: 100%;
+            background: linear-gradient(to bottom, transparent, rgba(255, 255, 255, 0.5));
+            animation: scrollDown 2s ease infinite;
         }
 
-        /* Glass Card */
-        .glass-card {
+        /* ============================================
+           SECTIONS — COMMON
+           ============================================ */
+        section {
+            padding: 7rem 3rem;
+        }
+
+        .section-inner {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .section-label {
+            font-size: 0.7rem;
+            font-weight: 600;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: var(--text-light);
+            margin-bottom: 1.5rem;
+        }
+
+        .section-title {
+            font-family: 'DM Serif Display', serif;
+            font-size: clamp(1.8rem, 3.5vw, 2.8rem);
+            font-weight: 400;
+            line-height: 1.2;
+            margin-bottom: 2rem;
+            color: var(--text-primary);
+        }
+
+        .section-text {
+            font-size: 1.1rem;
+            color: var(--text-secondary);
+            line-height: 1.8;
+            max-width: 680px;
+        }
+
+        /* ============================================
+           WHAT IS GAS
+           ============================================ */
+        .what-section {
+            background: var(--white);
+        }
+
+        .what-not {
+            display: flex;
+            gap: 1.5rem;
+            margin-bottom: 3rem;
+        }
+
+        .what-not-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.6rem;
+            padding: 0.6rem 1.2rem;
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: #991b1b;
+        }
+
+        .what-not-item .x {
+            font-weight: 700;
+            font-size: 1rem;
+        }
+
+        .what-is-text {
+            font-family: 'DM Serif Display', serif;
+            font-size: clamp(1.4rem, 2.5vw, 1.9rem);
+            color: var(--text-primary);
+            line-height: 1.5;
+            max-width: 700px;
+        }
+
+        .what-is-text em {
+            font-style: normal;
+            color: var(--accent-light);
+        }
+
+        /* ============================================
+           WHY REGISTER
+           ============================================ */
+        .why-section {
+            background: var(--off-white);
+        }
+
+        .why-cards {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-top: 3rem;
+        }
+
+        .why-card {
+            background: var(--white);
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            padding: 2.5rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .why-card::before {
+            content: '';
             position: absolute;
             top: 0;
             left: 0;
             right: 0;
-            background: var(--glass-bg);
-            backdrop-filter: blur(24px);
-            -webkit-backdrop-filter: blur(24px);
-            border: 1px solid var(--glass-border);
-            border-radius: 20px;
-            box-shadow: var(--glass-shadow);
-            padding: 2.5rem 3rem;
-            min-height: 320px;
-            opacity: 0;
-            transform: translateX(100%) rotate(2deg);
-            transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-            pointer-events: none;
+            height: 3px;
+            background: linear-gradient(90deg, var(--warm), #f59e0b);
         }
 
-        .glass-card.active {
-            opacity: 1;
-            transform: translateX(0) rotate(0deg);
-            pointer-events: auto;
-            z-index: 10;
+        .why-number {
+            font-family: 'DM Serif Display', serif;
+            font-size: 3rem;
+            color: #f1f5f9;
+            line-height: 1;
+            margin-bottom: 1rem;
         }
 
-        .glass-card.stacked {
-            opacity: 1;
-            pointer-events: none;
-        }
-
-        .glass-card.stacked-1 {
-            transform: translateX(-12px) translateY(6px) rotate(-0.5deg);
-            z-index: 9;
-        }
-
-        .glass-card.stacked-2 {
-            transform: translateX(-24px) translateY(12px) rotate(-1deg);
-            z-index: 8;
-        }
-
-        .glass-card.stacked-3 {
-            transform: translateX(-36px) translateY(18px) rotate(-1.5deg);
-            z-index: 7;
-            opacity: 0.8;
-        }
-
-        .glass-card.stacked-4 {
-            transform: translateX(-48px) translateY(24px) rotate(-2deg);
-            z-index: 6;
-            opacity: 0.5;
-        }
-
-        .glass-card.hidden {
-            transform: translateX(-60px) translateY(30px) rotate(-2.5deg);
-            opacity: 0;
-            z-index: 0;
-        }
-
-        .glass-card.waiting {
-            transform: translateX(100%) rotate(2deg);
-            opacity: 0;
-        }
-
-        .glass-card h1 {
-            font-size: 1.85rem;
-            font-weight: 600;
-            letter-spacing: -0.5px;
-            margin-bottom: 0.75rem;
-            line-height: 1.2;
-        }
-
-        .glass-card h2 {
-            font-size: 1.2rem;
-            font-weight: 500;
+        .why-card h3 {
+            font-family: 'DM Serif Display', serif;
+            font-size: 1.3rem;
+            font-weight: 400;
             margin-bottom: 1rem;
             color: var(--text-primary);
         }
 
-        .glass-card p {
-            font-size: 1rem;
-            color: var(--text-secondary);
-            margin-bottom: 0.6rem;
-            font-weight: 400;
-        }
-
-        .glass-card .tagline {
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            letter-spacing: 1.5px;
-            text-transform: uppercase;
-            margin-top: 1.25rem;
-        }
-
-        .glass-card ul {
-            list-style: none;
-            margin: 1rem 0;
-        }
-
-        .glass-card ul li {
+        .why-card p {
             font-size: 0.95rem;
             color: var(--text-secondary);
-            padding: 0.35rem 0;
-            border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+            line-height: 1.7;
         }
 
-        .glass-card ul li:last-child {
-            border-bottom: none;
+        /* ============================================
+           HOW IT WORKS
+           ============================================ */
+        .how-section {
+            background: var(--white);
         }
 
-        .glass-card .divider {
-            width: 40px;
-            height: 1px;
-            background: var(--text-muted);
-            margin: 1.5rem 0;
-        }
-
-        .glass-card .highlight {
-            font-weight: 500;
-            color: var(--text-primary);
-        }
-
-        .glass-card .small-heading {
-            font-size: 0.7rem;
-            font-weight: 600;
-            letter-spacing: 1.5px;
-            text-transform: uppercase;
-            color: var(--text-muted);
-            margin-bottom: 0.6rem;
-        }
-
-        /* Entry Points Grid */
-        .entry-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 0.6rem;
-            margin-top: 1.25rem;
-        }
-
-        .entry-btn {
-            padding: 0.85rem 1rem;
-            background: rgba(255, 255, 255, 0.6);
-            border: 1px solid rgba(0, 0, 0, 0.06);
-            border-radius: 10px;
-            text-align: center;
-            font-size: 0.85rem;
-            font-weight: 500;
-            color: var(--text-primary);
-            cursor: pointer;
-            transition: all 0.3s ease;
-            text-decoration: none;
-            display: block;
-        }
-
-        .entry-btn:hover {
-            background: rgba(255, 255, 255, 0.9);
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-        }
-
-        /* Card Navigation */
-        .card-nav {
-            display: flex;
-            align-items: center;
-            gap: 1.25rem;
-            margin-top: 2rem;
-        }
-
-        .nav-arrow {
-            width: 42px;
-            height: 42px;
-            background: var(--glass-bg);
-            backdrop-filter: blur(20px);
-            border: 1px solid var(--glass-border);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            color: var(--text-primary);
-        }
-
-        .nav-arrow:hover {
-            background: rgba(255, 255, 255, 0.95);
-            transform: scale(1.05);
-        }
-
-        .nav-arrow:disabled {
-            opacity: 0.3;
-            cursor: not-allowed;
-        }
-
-        .nav-arrow:disabled:hover {
-            transform: none;
-        }
-
-        .nav-arrow svg {
-            width: 18px;
-            height: 18px;
-        }
-
-        /* Progress Dots */
-        .progress-dots {
-            display: flex;
-            gap: 6px;
-        }
-
-        .progress-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: rgba(0, 0, 0, 0.15);
-            transition: all 0.3s ease;
-            cursor: pointer;
-        }
-
-        .progress-dot.active {
-            background: var(--text-primary);
-            transform: scale(1.2);
-        }
-
-        .progress-dot:hover {
-            background: var(--text-secondary);
-        }
-
-        /* Auto indicator */
-        .auto-indicator {
-            position: absolute;
-            bottom: 1.5rem;
-            left: 50%;
-            transform: translateX(-50%);
-            font-size: 0.7rem;
-            color: var(--text-muted);
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .auto-indicator button {
-            background: none;
-            border: none;
-            color: var(--text-muted);
-            cursor: pointer;
-            font-size: 0.7rem;
-            text-decoration: underline;
-        }
-
-        .auto-indicator button:hover {
-            color: var(--text-primary);
-        }
-
-        /* Right Side - CTA */
-        .chat-section {
-            width: 40%;
+        .how-steps {
             display: flex;
             flex-direction: column;
-            justify-content: center;
-            padding: 2rem 3rem 2rem 1.5rem;
+            gap: 0;
+            margin-top: 3rem;
+            position: relative;
         }
 
-        .cta-container {
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
-            padding: 3rem;
-            text-align: center;
+        .how-steps::before {
+            content: '';
+            position: absolute;
+            left: 24px;
+            top: 0;
+            bottom: 0;
+            width: 1px;
+            background: #e2e8f0;
         }
 
-        .cta-icon {
-            width: 64px;
-            height: 64px;
-            background: linear-gradient(135deg, #6366f1, #8b5cf6);
-            border-radius: 16px;
+        .how-step {
+            display: flex;
+            gap: 2rem;
+            align-items: flex-start;
+            padding: 1.5rem 0;
+        }
+
+        .step-dot {
+            width: 49px;
+            min-width: 49px;
+            height: 49px;
+            border-radius: 50%;
+            background: var(--accent);
+            color: var(--white);
             display: flex;
             align-items: center;
             justify-content: center;
-            margin: 0 auto 1.5rem;
+            font-family: 'DM Serif Display', serif;
+            font-size: 1.1rem;
+            position: relative;
+            z-index: 1;
         }
 
-        .cta-icon svg {
-            width: 32px;
-            height: 32px;
-            stroke: white;
-        }
-
-        .cta-container h2 {
-            font-size: 1.5rem;
-            font-weight: 600;
-            margin-bottom: 0.75rem;
+        .step-content h3 {
+            font-family: 'DM Serif Display', serif;
+            font-size: 1.2rem;
+            font-weight: 400;
+            margin-bottom: 0.3rem;
             color: var(--text-primary);
         }
 
-        .cta-container > p {
-            font-size: 1rem;
-            color: var(--text-secondary);
-            margin-bottom: 2rem;
+        .step-content p {
+            font-size: 0.95rem;
+            color: var(--text-muted);
+        }
+
+        .step-free {
+            display: inline-block;
+            font-size: 0.7rem;
+            font-weight: 600;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: #16a34a;
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            padding: 0.2rem 0.6rem;
+            border-radius: 4px;
+            margin-left: 0.5rem;
+        }
+
+        /* ============================================
+           GROW / UPGRADE
+           ============================================ */
+        .grow-section {
+            background: var(--accent);
+            color: var(--white);
+        }
+
+        .grow-section .section-label {
+            color: rgba(255, 255, 255, 0.4);
+        }
+
+        .grow-section .section-title {
+            color: var(--white);
+        }
+
+        .grow-intro {
+            font-size: 1.1rem;
+            color: rgba(255, 255, 255, 0.7);
+            max-width: 600px;
+            margin-bottom: 3rem;
+            line-height: 1.8;
+        }
+
+        .grow-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.5rem;
+        }
+
+        .grow-item {
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 2rem;
+            transition: all 0.3s ease;
+        }
+
+        .grow-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .grow-icon {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .grow-item h3 {
+            font-family: 'DM Serif Display', serif;
+            font-size: 1.05rem;
+            font-weight: 400;
+            margin-bottom: 0.5rem;
+            color: var(--white);
+        }
+
+        .grow-item p {
+            font-size: 0.85rem;
+            color: rgba(255, 255, 255, 0.5);
             line-height: 1.6;
         }
 
-        .cta-button {
-            display: inline-block;
-            padding: 1rem 2rem;
-            background: var(--text-primary);
-            color: white;
-            text-decoration: none;
-            border-radius: 12px;
+        .not-plugins {
+            margin-top: 3rem;
+            padding-top: 2rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
             font-size: 1rem;
-            font-weight: 500;
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .not-plugins strong {
+            color: var(--white);
+        }
+
+        /* ============================================
+           CTA / FOOTER
+           ============================================ */
+        .cta-section {
+            background: var(--off-white);
+            text-align: center;
+            padding: 6rem 3rem;
+        }
+
+        .cta-section .section-title {
+            margin-bottom: 1rem;
+        }
+
+        .cta-subtitle {
+            font-size: 1.05rem;
+            color: var(--text-muted);
+            margin-bottom: 2.5rem;
+        }
+
+        .cta-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .btn-primary {
+            display: inline-block;
+            padding: 0.9rem 2.5rem;
+            background: var(--accent);
+            color: var(--white);
+            border: none;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            text-decoration: none;
+            letter-spacing: 0.5px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .btn-primary:hover {
+            background: #162d4a;
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary-outline {
+            display: inline-block;
+            padding: 0.9rem 2.5rem;
+            background: transparent;
+            color: var(--accent);
+            border: 1.5px solid var(--accent);
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            text-decoration: none;
+            letter-spacing: 0.5px;
             transition: all 0.3s ease;
         }
 
-        .cta-button:hover {
-            background: #334155;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        .btn-secondary-outline:hover {
+            background: var(--accent);
+            color: var(--white);
         }
 
-        .cta-links {
-            margin-top: 2rem;
-            padding-top: 1.5rem;
-            border-top: 1px solid #f1f5f9;
-            display: flex;
-            justify-content: center;
-            gap: 2rem;
-        }
-
-        .cta-links a {
-            font-size: 0.9rem;
-            color: var(--text-muted);
-            text-decoration: none;
-            transition: color 0.2s;
-        }
-
-        .cta-links a:hover {
-            color: var(--text-primary);
-        }
-
-        /* Progress bar */
-        .progress-bar {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            width: 60%;
-            height: 3px;
-            background: transparent;
-            z-index: 100;
-        }
-
-        .progress-bar-fill {
-            height: 100%;
+        .footer {
             background: var(--text-primary);
-            opacity: 0.2;
-            transition: width 0.1s linear;
+            color: rgba(255, 255, 255, 0.4);
+            text-align: center;
+            padding: 2rem;
+            font-size: 0.8rem;
         }
 
-        /* Responsive */
-        @media (max-width: 1024px) {
-            .main-layout {
-                flex-direction: column;
+        /* ============================================
+           ANIMATIONS
+           ============================================ */
+        @keyframes fadeUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
             }
-
-            .cards-section {
-                width: 100%;
-                height: 60vh;
-                padding: 1rem;
-            }
-
-            .chat-section {
-                width: 100%;
-                height: 40vh;
-                padding: 0 1rem 1rem 1rem;
-            }
-
-            .stack-container {
-                max-width: 100%;
-                height: 300px;
-            }
-
-            .glass-card {
-                padding: 2rem;
-                min-height: 260px;
-            }
-
-            .chat-container {
-                max-height: 100%;
-            }
-
-            .progress-bar {
-                width: 100%;
+            to {
+                opacity: 1;
+                transform: translateY(0);
             }
         }
 
-        @media (max-width: 640px) {
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+
+        @keyframes scrollDown {
+            0% { top: -100%; }
+            100% { top: 100%; }
+        }
+
+        /* Scroll reveal */
+        .reveal {
+            opacity: 0;
+            transform: translateY(30px);
+            transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .reveal.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* ============================================
+           RESPONSIVE
+           ============================================ */
+        @media (max-width: 768px) {
             .nav {
-                padding: 1rem;
+                padding: 1rem 1.5rem;
             }
 
-            .nav-logo span {
+            .nav-links {
                 display: none;
             }
 
-            .glass-card h1 {
-                font-size: 1.5rem;
+            section {
+                padding: 4rem 1.5rem;
             }
 
-            .glass-card h2 {
-                font-size: 1.1rem;
+            .what-not {
+                flex-direction: column;
+                gap: 0.75rem;
             }
 
-            .entry-grid {
+            .why-cards {
                 grid-template-columns: 1fr;
+            }
+
+            .grow-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .hero-title {
+                font-size: 2.2rem;
+            }
+
+            .cta-buttons {
+                flex-direction: column;
+                align-items: center;
             }
         }
     </style>
 </head>
 <body>
-    <!-- Video Background -->
-    <div class="video-bg">
-        <video autoplay muted loop playsinline>
-            <source src="/hero-bg.mp4" type="video/mp4">
-        </video>
-    </div>
-    <div class="video-overlay"></div>
 
     <!-- Navigation -->
-    <nav class="nav">
-        <div class="nav-logo">GAS <span>Global Accommodation System</span></div>
+    <nav class="nav" id="mainNav">
+        <div class="nav-logo">GAS</div>
+        <div class="nav-links">
+            <a href="#what">What is GAS</a>
+            <a href="#why">Why Register</a>
+            <a href="#how">How It Works</a>
+            <a href="/agents">Travel Agents</a>
+            <a href="/register" class="nav-cta">Register Free</a>
+        </div>
     </nav>
 
-    <!-- Main Layout -->
-    <div class="main-layout">
-        <!-- Left Side - Cards -->
-        <div class="cards-section">
-            <div class="stack-container">
-                <!-- Card 1: Hero -->
-                <div class="glass-card" data-card="0">
-                    <h1>Global Accommodation System</h1>
-                    <p>A neutral platform for the global accommodation ecosystem.</p>
-                    <p class="tagline">Infrastructure · Network · Participation · Identity</p>
-                </div>
+    <!-- ============================================
+         HERO
+         ============================================ -->
+    <section class="hero">
+        <div class="video-bg">
+            <video autoplay muted loop playsinline>
+                <source src="/videos/hero-bg.mp4" type="video/mp4">
+            </video>
+        </div>
+        <div class="video-overlay"></div>
 
-                <!-- Card 2: Core Principle -->
-                <div class="glass-card" data-card="1">
-                    <p class="small-heading">Core Principle</p>
-                    <h2>The Structural Challenge is Dependency</h2>
-                    <p>Reducing dependency lowers commission exposure and increases long-term security.</p>
-                    <div class="divider"></div>
-                    <p>GAS exists to enable a diversified accommodation ecosystem built on neutral infrastructure.</p>
-                </div>
+        <div class="hero-content">
+            <p class="hero-welcome">Welcome to the</p>
+            <h1 class="hero-title">Global Accommodation<br>System</h1>
+            <div class="hero-divider"></div>
+            <p class="hero-tagline">No Boundaries</p>
+            <div class="typewriter-container">
+                <span class="typewriter-text" id="typewriter"></span>
+                <span class="typewriter-cursor"></span>
+            </div>
+        </div>
 
-                <!-- Card 3: What GAS Provides -->
-                <div class="glass-card" data-card="2">
-                    <h2>What GAS Provides</h2>
-                    <ul>
-                        <li>A global accommodation network</li>
-                        <li>A participation framework</li>
-                        <li>A professional quality system</li>
-                        <li>A trust and identity layer</li>
-                        <li>A platform others build on</li>
-                    </ul>
-                </div>
+        <div class="hero-scroll">
+            <span>Discover</span>
+            <div class="scroll-line"></div>
+        </div>
+    </section>
 
-                <!-- Card 4: Who Participates -->
-                <div class="glass-card" data-card="3">
-                    <h2>Who Participates in GAS</h2>
-                    <ul>
-                        <li>Accommodation owners</li>
-                        <li>Travel agents</li>
-                        <li>Travellers</li>
-                        <li>Suppliers</li>
-                        <li>Developers</li>
-                        <li>Marketing agencies</li>
-                        <li>Technology partners</li>
-                    </ul>
-                    <p class="tagline">All connected through one neutral system.</p>
-                </div>
+    <!-- ============================================
+         WHAT IS GAS
+         ============================================ -->
+    <section class="what-section" id="what">
+        <div class="section-inner reveal">
+            <p class="section-label">What is GAS</p>
 
-                <!-- Card 5: Quality & Trust -->
-                <div class="glass-card" data-card="4">
-                    <p class="small-heading">Quality & Trust</p>
-                    <h2>The GAS Review & Quality Framework</h2>
-                    <ul>
-                        <li>Verified stays</li>
-                        <li>Private professional feedback</li>
-                        <li>Improvement, not public scoring</li>
-                    </ul>
-                    <div class="divider"></div>
-                    <p><strong>The GAS Vault</strong> — A secure identity and booking layer for trusted participation.</p>
+            <div class="what-not">
+                <div class="what-not-item">
+                    <span class="x">✕</span> Not a Channel Manager
                 </div>
-
-                <!-- Card 6: Platform Components -->
-                <div class="glass-card" data-card="5">
-                    <p class="small-heading">The GAS Network in Use</p>
-                    <ul>
-                        <li><span class="highlight">GAS Board</span> — public participation surface</li>
-                        <li><span class="highlight">GAS Lites</span> — universal access & booking references</li>
-                        <li><span class="highlight">GAS Generators</span> — marketing utilities operating on GAS</li>
-                        <li><span class="highlight">GAS Turbine</span> — social & campaign activation engine</li>
-                    </ul>
+                <div class="what-not-item">
+                    <span class="x">✕</span> Not an OTA
                 </div>
+            </div>
 
-                <!-- Card 7: Platform Message -->
-                <div class="glass-card" data-card="6">
-                    <h2>GAS is a Platform</h2>
-                    <ul>
-                        <li>Owners <span class="highlight">operate</span> on GAS</li>
-                        <li>Agents <span class="highlight">distribute</span> through GAS</li>
-                        <li>Developers <span class="highlight">build</span> on GAS</li>
-                        <li>Agencies <span class="highlight">grow</span> on GAS</li>
-                    </ul>
-                    <div class="divider"></div>
-                    <p><strong>GAS enables. Others create.</strong></p>
+            <p class="what-is-text">
+                GAS has been created to help <em>independent property owners</em> connect to a developing market of <em>independent travel agents</em> worldwide.
+            </p>
+        </div>
+    </section>
+
+    <!-- ============================================
+         WHY REGISTER
+         ============================================ -->
+    <section class="why-section" id="why">
+        <div class="section-inner reveal">
+            <p class="section-label">So why should you register with GAS?</p>
+            <h2 class="section-title">Because something needs to change.</h2>
+
+            <div class="why-cards">
+                <div class="why-card">
+                    <div class="why-number">01</div>
+                    <h3>You're frustrated with dependency</h3>
+                    <p>Your business relies too heavily on the existing marketplace. OTAs control your visibility, your pricing, and your guest relationships. You know it, but the alternatives aren't clear.</p>
                 </div>
+                <div class="why-card">
+                    <div class="why-number">02</div>
+                    <h3>You don't know how to change it</h3>
+                    <p>You've thought about direct bookings, about reducing commission costs, about owning your own channel. But where do you start? Who helps you get there?</p>
+                </div>
+            </div>
+        </div>
+    </section>
 
-                <!-- Card 8: Entry Points -->
-                <div class="glass-card" data-card="7">
-                    <p>GAS is not a booking platform.</p>
-                    <p>It is the system accommodation participates in.</p>
-                    <div class="divider"></div>
-                    <p class="small-heading">Enter GAS as</p>
-                    <div class="entry-grid">
-                        <a href="/owners" class="entry-btn">Property Owner</a>
-                        <a href="/agents" class="entry-btn">Travel Agent</a>
-                        <a href="/build" class="entry-btn">Builder / Agency</a>
-                        <a href="/travellers" class="entry-btn">Traveller</a>
+    <!-- ============================================
+         HOW IT WORKS
+         ============================================ -->
+    <section class="how-section" id="how">
+        <div class="section-inner reveal">
+            <p class="section-label">Here's how</p>
+            <h2 class="section-title">Three steps to a new channel.</h2>
+
+            <div class="how-steps">
+                <div class="how-step">
+                    <div class="step-dot">1</div>
+                    <div class="step-content">
+                        <h3>Register for Free <span class="step-free">Free</span></h3>
+                        <p>Create your account in minutes. No credit card, no commitment.</p>
+                    </div>
+                </div>
+                <div class="how-step">
+                    <div class="step-dot">2</div>
+                    <div class="step-content">
+                        <h3>Create Your Profile</h3>
+                        <p>Add your properties, rooms, photos, and availability. Connect your channel manager for automatic sync.</p>
+                    </div>
+                </div>
+                <div class="how-step">
+                    <div class="step-dot">3</div>
+                    <div class="step-content">
+                        <h3>Available to Travel Agents Worldwide</h3>
+                        <p>Independent travel agents discover your property and recommend it to their clients. Personal referrals, not search results.</p>
                     </div>
                 </div>
             </div>
+        </div>
+    </section>
 
-            <!-- Card Navigation -->
-            <div class="card-nav">
-                <button class="nav-arrow" id="prevBtn" onclick="prevCard()">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M15 18l-6-6 6-6"/>
-                    </svg>
-                </button>
-                <div class="progress-dots" id="progressDots"></div>
-                <button class="nav-arrow" id="nextBtn" onclick="nextCard()">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M9 18l6-6-6-6"/>
-                    </svg>
-                </button>
+    <!-- ============================================
+         GROW / UPGRADE
+         ============================================ -->
+    <section class="grow-section" id="grow">
+        <div class="section-inner reveal">
+            <p class="section-label">Then grow</p>
+            <h2 class="section-title">Upgrade to our marketing tools.</h2>
+            <p class="grow-intro">Once you're listed and agents are finding you, take it further. Full marketing tools designed for independent property owners.</p>
+
+            <div class="grow-grid">
+                <div class="grow-item">
+                    <div class="grow-icon">🌐</div>
+                    <h3>Professional Websites</h3>
+                    <p>Quality, out-of-the-box booking websites. Deploy in minutes, customise everything.</p>
+                </div>
+                <div class="grow-item">
+                    <div class="grow-icon">🎨</div>
+                    <h3>Custom Websites</h3>
+                    <p>Bespoke design and build for properties that need something unique.</p>
+                </div>
+                <div class="grow-item">
+                    <div class="grow-icon">🔍</div>
+                    <h3>SEO Tools</h3>
+                    <p>Get found on Google. Meta tags, structured data, and content optimisation built in.</p>
+                </div>
+                <div class="grow-item">
+                    <div class="grow-icon">📱</div>
+                    <h3>Social Media Tools</h3>
+                    <p>Create, schedule, and publish content across your social channels.</p>
+                </div>
+                <div class="grow-item">
+                    <div class="grow-icon">⭐</div>
+                    <h3>Review Management</h3>
+                    <p>Collect, manage, and display guest reviews across all your platforms.</p>
+                </div>
+                <div class="grow-item">
+                    <div class="grow-icon">🔄</div>
+                    <h3>Channel Manager Integration</h3>
+                    <p>Seamless sync with Beds24, Hostaway, Lodgify, and more. One calendar everywhere.</p>
+                </div>
             </div>
 
-            <div class="auto-indicator">
-                <span id="autoStatus">Auto-advancing</span>
-                <button onclick="toggleAuto()" id="autoToggle">Pause</button>
+            <p class="not-plugins">
+                <strong>Not plugins.</strong> Full, integrated tools that work together as one system.
+            </p>
+        </div>
+    </section>
+
+    <!-- ============================================
+         CTA
+         ============================================ -->
+    <section class="cta-section">
+        <div class="section-inner reveal">
+            <h2 class="section-title">Ready to take control?</h2>
+            <p class="cta-subtitle">Register your properties for free. Start reaching travel agents today.</p>
+            <div class="cta-buttons">
+                <a href="/register" class="btn-primary">Register as Property Owner</a>
+                <a href="/agents" class="btn-secondary-outline">I'm a Travel Agent</a>
             </div>
         </div>
+    </section>
 
-        <!-- Right Side - CTA -->
-        <div class="chat-section">
-            <div class="cta-container">
-                <div class="cta-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                        <path d="M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349m-16.5 11.65V9.35m0 0a3.001 3.001 0 003.75-.615A2.993 2.993 0 009.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 002.25 1.016c.896 0 1.7-.393 2.25-1.016a3.001 3.001 0 003.75.614m-16.5 0a3.004 3.004 0 01-.621-4.72L4.318 3.44A1.5 1.5 0 015.378 3h13.243a1.5 1.5 0 011.06.44l1.19 1.189a3 3 0 01-.621 4.72m-13.5 8.65h3.75a.75.75 0 00.75-.75V13.5a.75.75 0 00-.75-.75H6.75a.75.75 0 00-.75.75v3.75c0 .415.336.75.75.75z" />
-                    </svg>
-                </div>
-                <h2>Property Owner?</h2>
-                <p>Connect your channel manager to register your properties on GAS for free.</p>
-                <a href="/owners-setup" class="cta-button">Connect Channel Manager</a>
-                <div class="cta-links">
-                    <a href="/agents">I'm a Travel Agent</a>
-                    <a href="/build">I'm a Developer</a>
-                </div>
-            </div>
-        </div>
-    </div>
+    <!-- Footer -->
+    <footer class="footer">
+        <p>&copy; 2026 GAS — Global Accommodation System. All rights reserved.</p>
+    </footer>
 
-    <!-- Progress Bar -->
-    <div class="progress-bar">
-        <div class="progress-bar-fill" id="progressBar"></div>
-    </div>
-
+    <!-- ============================================
+         SCRIPTS
+         ============================================ -->
     <script>
-        // =====================================================
-        // CARD STACK NAVIGATION
-        // =====================================================
-        const cards = document.querySelectorAll('.glass-card');
-        const totalCards = cards.length;
-        let currentCard = 0;
-        let autoAdvance = true;
-        let autoTimer = null;
-        let progressTimer = null;
-        const AUTO_INTERVAL = 6000;
+        // =============================================
+        // TYPEWRITER — "No Boundaries" in languages
+        // =============================================
+        const translations = [
+            { text: 'Sans Frontières', lang: 'French' },
+            { text: 'Sin Fronteras', lang: 'Spanish' },
+            { text: 'Ohne Grenzen', lang: 'German' },
+            { text: 'Zonder Grenzen', lang: 'Dutch' },
+            { text: '境界なし', lang: 'Japanese' },
+            { text: '无边界', lang: 'Chinese' },
+            { text: 'No Boundaries', lang: 'English' },
+        ];
 
-        function init() {
-            createProgressDots();
-            showCard(0);
-            if (autoAdvance) startAutoAdvance();
-        }
+        let currentIndex = 0;
+        const typewriterEl = document.getElementById('typewriter');
+        const typingSpeed = 80;
+        const deletingSpeed = 40;
+        const pauseAfterType = 2000;
+        const pauseAfterDelete = 300;
 
-        function createProgressDots() {
-            const container = document.getElementById('progressDots');
-            for (let i = 0; i < totalCards; i++) {
-                const dot = document.createElement('div');
-                dot.className = 'progress-dot';
-                dot.onclick = () => goToCard(i);
-                container.appendChild(dot);
-            }
-        }
-
-        function showCard(index) {
-            currentCard = index;
-
-            cards.forEach((card, i) => {
-                card.classList.remove('active', 'stacked', 'stacked-1', 'stacked-2', 'stacked-3', 'stacked-4', 'hidden', 'waiting');
-                
-                if (i === index) {
-                    card.classList.add('active');
-                } else if (i < index) {
-                    const stackPosition = index - i;
-                    if (stackPosition <= 4) {
-                        card.classList.add('stacked', `stacked-${stackPosition}`);
-                    } else {
-                        card.classList.add('hidden');
-                    }
-                } else {
-                    card.classList.add('waiting');
-                }
-            });
-
-            document.querySelectorAll('.progress-dot').forEach((dot, i) => {
-                dot.classList.toggle('active', i === index);
-            });
-
-            document.getElementById('prevBtn').disabled = index === 0;
-            document.getElementById('nextBtn').disabled = index === totalCards - 1;
-
-            resetProgressBar();
-        }
-
-        function nextCard() {
-            if (currentCard < totalCards - 1) {
-                showCard(currentCard + 1);
-                if (autoAdvance) restartAutoAdvance();
-            } else if (autoAdvance) {
-                showCard(0);
-                restartAutoAdvance();
-            }
-        }
-
-        function prevCard() {
-            if (currentCard > 0) {
-                showCard(currentCard - 1);
-                if (autoAdvance) restartAutoAdvance();
-            }
-        }
-
-        function goToCard(index) {
-            showCard(index);
-            if (autoAdvance) restartAutoAdvance();
-        }
-
-        function startAutoAdvance() {
-            stopAutoAdvance();
-            animateProgressBar();
-            autoTimer = setTimeout(() => {
-                nextCard();
-            }, AUTO_INTERVAL);
-        }
-
-        function stopAutoAdvance() {
-            if (autoTimer) clearTimeout(autoTimer);
-            if (progressTimer) cancelAnimationFrame(progressTimer);
-        }
-
-        function restartAutoAdvance() {
-            if (autoAdvance) {
-                stopAutoAdvance();
-                startAutoAdvance();
-            }
-        }
-
-        function toggleAuto() {
-            autoAdvance = !autoAdvance;
-            document.getElementById('autoStatus').textContent = autoAdvance ? 'Auto-advancing' : 'Paused';
-            document.getElementById('autoToggle').textContent = autoAdvance ? 'Pause' : 'Resume';
-            
-            if (autoAdvance) {
-                startAutoAdvance();
+        function typeText(text, charIndex, callback) {
+            if (charIndex <= text.length) {
+                typewriterEl.textContent = text.substring(0, charIndex);
+                setTimeout(() => typeText(text, charIndex + 1, callback), typingSpeed);
             } else {
-                stopAutoAdvance();
-                document.getElementById('progressBar').style.width = '0';
+                setTimeout(callback, pauseAfterType);
             }
         }
 
-        function animateProgressBar() {
-            const bar = document.getElementById('progressBar');
-            const startTime = Date.now();
-            
-            function update() {
-                const elapsed = Date.now() - startTime;
-                const progress = Math.min(elapsed / AUTO_INTERVAL, 1);
-                bar.style.width = `${progress * 100}%`;
-                
-                if (progress < 1 && autoAdvance) {
-                    progressTimer = requestAnimationFrame(update);
+        function deleteText(callback) {
+            const current = typewriterEl.textContent;
+            if (current.length > 0) {
+                typewriterEl.textContent = current.substring(0, current.length - 1);
+                setTimeout(() => deleteText(callback), deletingSpeed);
+            } else {
+                setTimeout(callback, pauseAfterDelete);
+            }
+        }
+
+        function typewriterLoop() {
+            const { text } = translations[currentIndex];
+            typeText(text, 0, () => {
+                deleteText(() => {
+                    currentIndex = (currentIndex + 1) % translations.length;
+                    typewriterLoop();
+                });
+            });
+        }
+
+        // Start after hero animations complete
+        setTimeout(typewriterLoop, 2200);
+
+        // =============================================
+        // NAV SCROLL EFFECT
+        // =============================================
+        const nav = document.getElementById('mainNav');
+        window.addEventListener('scroll', () => {
+            if (window.scrollY > 80) {
+                nav.classList.add('scrolled');
+            } else {
+                nav.classList.remove('scrolled');
+            }
+        });
+
+        // =============================================
+        // SCROLL REVEAL
+        // =============================================
+        const revealElements = document.querySelectorAll('.reveal');
+
+        const revealObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
                 }
-            }
-            
-            update();
-        }
+            });
+        }, {
+            threshold: 0.15,
+            rootMargin: '0px 0px -50px 0px'
+        });
 
-        function resetProgressBar() {
-            document.getElementById('progressBar').style.width = '0';
-        }
+        revealElements.forEach(el => revealObserver.observe(el));
 
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'ArrowRight') {
+        // =============================================
+        // SMOOTH SCROLL FOR NAV LINKS
+        // =============================================
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function(e) {
                 e.preventDefault();
-                nextCard();
-            } else if (e.key === 'ArrowLeft') {
-                e.preventDefault();
-                prevCard();
-            }
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            });
         });
-
-        document.querySelector('.stack-container').addEventListener('mouseenter', () => {
-            if (autoAdvance) stopAutoAdvance();
-        });
-
-        document.querySelector('.stack-container').addEventListener('mouseleave', () => {
-            if (autoAdvance) startAutoAdvance();
-        });
-
-        // Initialize
-        document.addEventListener('DOMContentLoaded', init);
     </script>
 </body>
 </html>
