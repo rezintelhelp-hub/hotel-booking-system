@@ -21398,7 +21398,64 @@ app.delete('/api/admin/deployed-sites/:id', async (req, res) => {
       return res.json({ success: false, error: 'Deployed site not found' });
     }
     
+    let vpsDeleted = false;
+    let vpsError = null;
+    
     if (permanent === 'true') {
+      
+      // ========== Step 1: Delete from WordPress VPS ==========
+      if (site.blog_id) {
+        try {
+          console.log(`[Delete Site] Deleting blog_id ${site.blog_id} from VPS for site "${site.site_name || site.slug}"...`);
+          const vpsResponse = await fetch(`${VPS_DEPLOY_URL}?action=delete-site`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-API-Key': VPS_DEPLOY_API_KEY
+            },
+            body: JSON.stringify({
+              blog_id: site.blog_id,
+              confirm: 'DELETE'
+            })
+          });
+          const vpsData = await vpsResponse.json();
+          vpsDeleted = vpsData.success;
+          if (!vpsData.success) {
+            vpsError = vpsData.error || 'VPS returned failure';
+            console.warn(`[Delete Site] VPS delete failed for blog_id ${site.blog_id}: ${vpsError}`);
+          } else {
+            console.log(`[Delete Site] VPS successfully deleted blog_id ${site.blog_id}`);
+          }
+        } catch (e) {
+          vpsError = e.message;
+          console.error(`[Delete Site] VPS request failed for blog_id ${site.blog_id}: ${e.message}`);
+        }
+      } else {
+        vpsError = 'No blog_id stored - cannot delete from WordPress VPS';
+        console.warn(`[Delete Site] Site ${id} has no blog_id, skipping VPS delete`);
+      }
+      
+      // ========== Step 2: Also try deleting custom domain config if present ==========
+      if (site.custom_domain && site.blog_id) {
+        try {
+          await fetch('https://sites.gas.travel/gas-api.php', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-API-Key': VPS_DEPLOY_API_KEY
+            },
+            body: JSON.stringify({
+              action: 'remove-custom-domain',
+              blog_id: site.blog_id,
+              domain: site.custom_domain
+            })
+          });
+        } catch (e) {
+          console.warn(`[Delete Site] Custom domain cleanup failed: ${e.message}`);
+        }
+      }
+      
+      // ========== Step 3: Clean up database ==========
       // Clear website URL from property
       if (site.property_id) {
         await pool.query('UPDATE properties SET website_url = NULL WHERE id = $1', [site.property_id]);
@@ -21422,7 +21479,15 @@ app.delete('/api/admin/deployed-sites/:id', async (req, res) => {
       
       // Permanently delete from deployed_sites
       await pool.query('DELETE FROM deployed_sites WHERE id = $1', [id]);
-      res.json({ success: true, message: 'Site permanently deleted' });
+      
+      res.json({ 
+        success: true, 
+        message: vpsDeleted 
+          ? 'Site deleted from WordPress and database' 
+          : `Site deleted from database${vpsError ? ` (VPS note: ${vpsError})` : ''}`,
+        vps_deleted: vpsDeleted,
+        vps_error: vpsError
+      });
     } else {
       // Soft delete - just change status
       await pool.query("UPDATE deployed_sites SET status = 'deleted', updated_at = NOW() WHERE id = $1", [id]);
