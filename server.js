@@ -65592,6 +65592,143 @@ function startReviewSyncScheduler() {
   console.log('📝 Review auto-sync scheduled: weekly for all connected accounts');
 }
 
+// Daily Hostaway availability sync - pulls full 365 days for all connected accounts
+async function syncAllHostawayAvailability() {
+  console.log('📅 Starting daily Hostaway availability sync for all accounts...');
+  
+  try {
+    // Get all active Hostaway connections via GasSync
+    const connections = await pool.query(`
+      SELECT gc.id, gc.account_id, gc.external_account_id, gc.credentials, gc.access_token
+      FROM gas_sync_connections gc
+      WHERE gc.adapter_code = 'hostaway' AND gc.sync_enabled = true AND gc.status = 'connected'
+    `);
+    
+    if (connections.rows.length === 0) {
+      console.log('📅 No active Hostaway connections found');
+      return;
+    }
+    
+    console.log(`📅 Found ${connections.rows.length} Hostaway connections to sync`);
+    
+    for (const conn of connections.rows) {
+      try {
+        // Get fresh Hostaway token from GasSync connection credentials
+        const credentials = typeof conn.credentials === 'string' 
+          ? JSON.parse(conn.credentials) 
+          : conn.credentials || {};
+        
+        let token = conn.access_token;
+        if (!token && credentials.accountId && credentials.apiKey) {
+          const tokenResponse = await axios.post(
+            'https://api.hostaway.com/v1/accessTokens',
+            `grant_type=client_credentials&client_id=${credentials.accountId}&client_secret=${credentials.apiKey}`,
+            { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+          );
+          token = tokenResponse.data?.access_token;
+          if (token) {
+            await pool.query('UPDATE gas_sync_connections SET access_token = $1 WHERE id = $2', [token, conn.id]);
+          }
+        }
+        
+        if (!token) {
+          console.log(`  ❌ Could not get Hostaway token for account ${conn.account_id}`);
+          continue;
+        }
+        
+        // Get rooms for this account
+        const roomsResult = await pool.query(`
+          SELECT bu.id as room_id, bu.hostaway_listing_id, bu.name
+          FROM bookable_units bu
+          JOIN properties p ON bu.property_id = p.id
+          WHERE p.account_id = $1 AND bu.hostaway_listing_id IS NOT NULL
+        `, [conn.account_id]);
+        
+        if (roomsResult.rows.length === 0) {
+          console.log(`  ⚠️ No Hostaway rooms for account ${conn.account_id}`);
+          continue;
+        }
+        
+        const today = new Date().toISOString().split('T')[0];
+        const endDate = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        let totalDays = 0;
+        
+        for (const room of roomsResult.rows) {
+          try {
+            await new Promise(resolve => setTimeout(resolve, 700)); // Rate limit
+            
+            const response = await axios.get(`https://api.hostaway.com/v1/listings/${room.hostaway_listing_id}/calendar`, {
+              headers: { 'Authorization': `Bearer ${token}`, 'Cache-control': 'no-cache' },
+              params: { startDate: today, endDate: endDate }
+            });
+            
+            if (response.data.status === 'success' && response.data.result) {
+              for (const day of response.data.result) {
+                const isAvailable = day.isAvailable === 1 || day.isAvailable === true;
+                const isBlocked = day.status === 'blocked' || day.isBlocked === 1;
+                const minStay = day.minimumStay || 1;
+                const price = day.price || null;
+                
+                await pool.query(`
+                  INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, source, updated_at)
+                  VALUES ($1, $2, $3, $3, $4, $5, $6, 'hostaway_daily_sync', NOW())
+                  ON CONFLICT (room_id, date)
+                  DO UPDATE SET
+                    cm_price = $3,
+                    direct_price = COALESCE(room_availability.direct_price, $3),
+                    is_available = $4,
+                    is_blocked = $5,
+                    min_stay = $6,
+                    source = 'hostaway_daily_sync',
+                    updated_at = NOW()
+                `, [room.room_id, day.date, price, isAvailable, isBlocked, minStay]);
+                
+                totalDays++;
+              }
+              console.log(`  ✓ ${room.name}: ${response.data.result.length} days synced`);
+            }
+          } catch (roomError) {
+            console.error(`  ✗ Error syncing ${room.name}:`, roomError.response?.data || roomError.message);
+            if (roomError.response?.status === 429) {
+              await new Promise(resolve => setTimeout(resolve, 10000));
+            }
+          }
+        }
+        
+        console.log(`📅 Account ${conn.account_id}: ${totalDays} availability records updated`);
+      } catch (connError) {
+        console.error(`📅 Error syncing account ${conn.account_id}:`, connError.message);
+      }
+    }
+    
+    console.log('📅 Daily Hostaway availability sync complete');
+  } catch (error) {
+    console.error('📅 Hostaway availability sync error:', error.message);
+  }
+}
+
+function startHostawayAvailabilitySyncScheduler() {
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  
+  // Run first sync 10 minutes after startup, then daily
+  setTimeout(() => {
+    syncAllHostawayAvailability();
+    setInterval(syncAllHostawayAvailability, DAY_MS);
+  }, 10 * 60 * 1000);
+  
+  console.log('📅 Hostaway availability sync scheduled: daily for all connected accounts');
+}
+
+// Manual trigger endpoint for Hostaway availability sync
+app.post('/api/cron/sync-hostaway-availability', async (req, res) => {
+  try {
+    await syncAllHostawayAvailability();
+    res.json({ success: true, message: 'Hostaway availability sync triggered' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Also expose as a cron endpoint for manual trigger
 app.post('/api/cron/sync-reviews', async (req, res) => {
   const cronSecret = req.headers['x-cron-secret'];
@@ -65634,6 +65771,9 @@ app.listen(PORT, '0.0.0.0', async () => {
   
   // Start weekly review auto-sync
   startReviewSyncScheduler();
+  
+  // Start daily Hostaway availability sync
+  startHostawayAvailabilitySyncScheduler();
 });
 
 // =====================================================
