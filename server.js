@@ -44998,7 +44998,12 @@ app.put('/api/elevate/:apiKey/room/:roomId/amenities', async (req, res) => {
     const gasRoomId = roomCheck.rows[0].id;
     
     // Clear existing room_amenity_selections for this room
-    await pool.query('DELETE FROM room_amenity_selections WHERE room_id = $1', [gasRoomId]);
+    // BUT preserve manually-set bed quantities (quantity > 1)
+    await pool.query(`
+      DELETE FROM room_amenity_selections 
+      WHERE room_id = $1 
+      AND (quantity IS NULL OR quantity <= 1)
+    `, [gasRoomId]);
     
     // Process and match each amenity
     const matched = [];
@@ -48421,39 +48426,56 @@ app.get('/api/public/unit/:unitId', async (req, res) => {
       }
     }
     
-    // Get amenities from room_amenity_selections joined with master_amenities
+    // Get amenities from BOTH room_amenity_selections and bookable_unit_amenities
     let amenities = { rows: [] };
+    
+    // First: get from room_amenity_selections (new table with quantities)
+    let newAmenities = [];
     try {
-      amenities = await pool.query(`
+      const newResult = await pool.query(`
         SELECT ma.amenity_name as name, ma.category, ma.icon, COALESCE(ras.quantity, 1) as quantity
         FROM room_amenity_selections ras
         JOIN master_amenities ma ON ras.amenity_id = ma.id
         WHERE ras.room_id = $1
         ORDER BY ma.category, ras.display_order
       `, [unitId]);
+      newAmenities = newResult.rows;
     } catch (e) {
-      // quantity column might not exist yet, try without it
+      // quantity column might not exist, try without
       try {
-        amenities = await pool.query(`
+        const newResult = await pool.query(`
           SELECT ma.amenity_name as name, ma.category, ma.icon, 1 as quantity
           FROM room_amenity_selections ras
           JOIN master_amenities ma ON ras.amenity_id = ma.id
           WHERE ras.room_id = $1
           ORDER BY ma.category, ras.display_order
         `, [unitId]);
-      } catch (e2) {
-        // Fallback to old table structure
-        try {
-          amenities = await pool.query(`
-            SELECT amenity_name as name, category, icon, 1 as quantity
-            FROM bookable_unit_amenities WHERE bookable_unit_id = $1
-            ORDER BY category, display_order
-          `, [unitId]);
-        } catch (e3) {
-          // Neither table exists
-        }
-      }
+        newAmenities = newResult.rows;
+      } catch (e2) {}
     }
+    
+    // Second: get from bookable_unit_amenities (old table from imports)
+    let oldAmenities = [];
+    try {
+      const oldResult = await pool.query(`
+        SELECT amenity_name as name, category, icon, 1 as quantity
+        FROM bookable_unit_amenities WHERE bookable_unit_id = $1
+        ORDER BY category, display_order
+      `, [unitId]);
+      oldAmenities = oldResult.rows;
+    } catch (e) {}
+    
+    // Merge: new table takes priority for categories that exist in it
+    // Get categories covered by new selections
+    const newCategories = new Set(newAmenities.map(a => a.category));
+    
+    // Include old amenities only for categories NOT in new selections
+    const mergedAmenities = [
+      ...newAmenities,
+      ...oldAmenities.filter(a => !newCategories.has(a.category))
+    ];
+    
+    amenities = { rows: mergedAmenities };
     
     res.json({
       success: true,
