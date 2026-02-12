@@ -16938,7 +16938,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 <!-- Stripe Payment Connection -->
                 <div style="margin-bottom: 1.5rem;">
                     <h4 style="margin: 0 0 1rem 0; color: var(--text-primary); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;">💳 Stripe Payment Connection</h4>
-                    <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 1rem;">Connect Stripe to receive payments. <a href="https://dashboard.stripe.com/apikeys" target="_blank" style="color: var(--accent);">Get your API Keys</a> - create a Restricted Key with: <strong>Charges, Payment Intents, Customers, Refunds</strong> (Write access).</p>
+                    <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 1rem;">Connect Stripe to receive payments. <a href="https://dashboard.stripe.com/apikeys" target="_blank" style="color: var(--accent);">Get your API Keys</a> — you need your <strong>Publishable Key</strong> (pk_live_...) and either a <strong>Secret Key</strong> or a <strong>Restricted Key</strong> with: <strong>Charges, Payment Intents, Customers, Refunds</strong> (Write access).</p>
                     
                     <div id="property-stripe-status" style="padding: 0.75rem; border-radius: 8px; margin-bottom: 1rem; background: #f1f5f9;">
                         <span style="color: #64748b;">Checking Stripe status...</span>
@@ -16951,9 +16951,15 @@ const promo = await fetch('/api/v1/offers/validate', {
                     </div>
                     
                     <div class="form-group" style="margin-bottom: 1rem;">
-                        <label class="form-label">Restricted Secret Key</label>
-                        <input type="password" class="form-input" id="edit-property-stripe-secret" placeholder="rk_live_... (from Stripe Dashboard → API Keys → Restricted Keys)">
-                        <small style="color: #64748b;">Create a Restricted Key in Stripe with the permissions listed above</small>
+                        <label class="form-label">Publishable Key</label>
+                        <input type="text" class="form-input" id="edit-property-stripe-publishable" placeholder="pk_live_... or pk_test_...">
+                        <small style="color: #64748b;">From Stripe Dashboard → API Keys → Publishable key</small>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label class="form-label">Secret Key or Restricted Key</label>
+                        <input type="password" class="form-input" id="edit-property-stripe-secret" placeholder="sk_live_... or rk_live_...">
+                        <small style="color: #64748b;">Use a Restricted Key with <strong>Charges, Payment Intents, Customers, Refunds</strong> (Write access) for best security</small>
                     </div>
                 </div>
                 
@@ -16982,14 +16988,18 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 <!-- Stripe Keys Input -->
                 <div style="background: #f8fafc; border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem; border: 1px solid #e2e8f0;">
-                    <h4 style="margin: 0 0 1rem 0; font-size: 0.9rem; color: #1e293b;">Stripe Restricted Key</h4>
+                    <h4 style="margin: 0 0 1rem 0; font-size: 0.9rem; color: #1e293b;">Stripe API Keys</h4>
                     <div class="form-group" style="margin-bottom: 1rem;">
                         <label class="form-label">Stripe Account Name</label>
                         <input type="text" class="form-input" id="bulk-stripe-name" placeholder="e.g. Main Account, Beach Villas, etc.">
                     </div>
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label class="form-label">Publishable Key</label>
+                        <input type="text" class="form-input" id="bulk-stripe-publishable" placeholder="pk_live_... or pk_test_...">
+                    </div>
                     <div class="form-group">
-                        <label class="form-label">Restricted Secret Key</label>
-                        <input type="password" class="form-input" id="bulk-stripe-secret" placeholder="rk_live_... (from Stripe Dashboard → API Keys → Restricted Keys)">
+                        <label class="form-label">Secret Key or Restricted Key</label>
+                        <input type="password" class="form-input" id="bulk-stripe-secret" placeholder="sk_live_... or rk_live_...">
                     </div>
                 </div>
                 
@@ -40252,14 +40262,21 @@ const promo = await fetch('/api/v1/offers/validate', {
                     
                     // Stripe fields
                     document.getElementById('edit-property-stripe-name').value = prop.stripe_name || '';
+                    document.getElementById('edit-property-stripe-publishable').value = ''; // Don't show key, just placeholder
                     document.getElementById('edit-property-stripe-secret').value = ''; // Don't show secret, just placeholder
                     
                     // Update Stripe status display
                     const stripeStatus = document.getElementById('property-stripe-status');
-                    if (prop.stripe_secret_key) {
+                    if (prop.stripe_secret_key && prop.stripe_publishable_key) {
                         const stripeName = prop.stripe_name ? ` (${prop.stripe_name})` : '';
                         stripeStatus.innerHTML = `<span style="color: #10b981;">✓ Stripe is connected${stripeName}</span>`;
                         stripeStatus.style.background = '#d1fae5';
+                        document.getElementById('edit-property-stripe-publishable').placeholder = '••••••••••••••••• (saved)';
+                        document.getElementById('edit-property-stripe-secret').placeholder = '••••••••••••••••• (saved)';
+                    } else if (prop.stripe_secret_key) {
+                        const stripeName = prop.stripe_name ? ` (${prop.stripe_name})` : '';
+                        stripeStatus.innerHTML = '<span style="color: #f59e0b;">⚠ Missing Publishable Key - payments may not work</span>';
+                        stripeStatus.style.background = '#fef3c7';
                         document.getElementById('edit-property-stripe-secret').placeholder = '••••••••••••••••• (saved)';
                     } else {
                         stripeStatus.innerHTML = '<span style="color: #f59e0b;">⚠ Stripe not connected - payments disabled for this property</span>';
@@ -40325,6 +40342,12 @@ const promo = await fetch('/api/v1/offers/validate', {
             const secretKey = document.getElementById('edit-property-stripe-secret').value;
             if (secretKey && !secretKey.includes('•')) {
                 data.stripe_secret_key = secretKey;
+            }
+            
+            // Only include publishable key if it was changed (not the placeholder)
+            const publishableKey = document.getElementById('edit-property-stripe-publishable').value;
+            if (publishableKey && !publishableKey.includes('•')) {
+                data.stripe_publishable_key = publishableKey;
             }
             
             // Master admin can change account_id
@@ -47734,6 +47757,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 // Reset form
                 document.getElementById('bulk-stripe-name').value = '';
+                document.getElementById('bulk-stripe-publishable').value = '';
                 document.getElementById('bulk-stripe-secret').value = '';
                 updateBulkStripeCount();
                 
@@ -47756,10 +47780,16 @@ const promo = await fetch('/api/v1/offers/validate', {
         
         async function applyBulkStripe() {
             const stripeName = document.getElementById('bulk-stripe-name').value.trim();
+            const publishableKey = document.getElementById('bulk-stripe-publishable').value.trim();
             const secretKey = document.getElementById('bulk-stripe-secret').value.trim();
             
+            if (!publishableKey) {
+                showNotification('Please enter the Publishable Key (pk_live_...)', 'error');
+                return;
+            }
+            
             if (!secretKey) {
-                showNotification('Please enter the Restricted Secret Key', 'error');
+                showNotification('Please enter the Secret Key or Restricted Key', 'error');
                 return;
             }
             
@@ -47787,6 +47817,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                             headers: { 'Content-Type': 'application/json', ...authHeaders() },
                             body: JSON.stringify({
                                 stripe_name: stripeName || null,
+                                stripe_publishable_key: publishableKey,
                                 stripe_secret_key: secretKey
                             })
                         });
