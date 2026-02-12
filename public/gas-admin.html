@@ -9966,6 +9966,44 @@
                                     </div>
                                 </div>
                                 
+                                <!-- Fonts Section -->
+                                <div style="background: var(--bg-secondary); border-radius: 12px; padding: 1.25rem;">
+                                    <h4 style="margin: 0 0 1rem 0; font-size: 0.9rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Fonts</h4>
+                                    
+                                    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                                        <div style="display: flex; align-items: center; justify-content: space-between;">
+                                            <label style="font-size: 0.9rem;">Heading Font</label>
+                                            <select id="blog-font-heading" style="width: 200px; padding: 0.35rem 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.85rem;">
+                                                <option value="inherit">Inherit from theme</option>
+                                                <option value="playfair">Playfair Display (Serif)</option>
+                                                <option value="montserrat">Montserrat (Sans)</option>
+                                                <option value="lora">Lora (Serif)</option>
+                                                <option value="poppins">Poppins (Sans)</option>
+                                                <option value="merriweather">Merriweather (Serif)</option>
+                                                <option value="raleway">Raleway (Sans)</option>
+                                                <option value="oswald">Oswald (Sans)</option>
+                                                <option value="inter">Inter (Sans)</option>
+                                                <option value="roboto">Roboto (Sans)</option>
+                                                <option value="nunito">Nunito (Sans)</option>
+                                            </select>
+                                        </div>
+                                        <div style="display: flex; align-items: center; justify-content: space-between;">
+                                            <label style="font-size: 0.9rem;">Body Font</label>
+                                            <select id="blog-font-body" style="width: 200px; padding: 0.35rem 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.85rem;">
+                                                <option value="inherit">Inherit from theme</option>
+                                                <option value="inter">Inter (Sans)</option>
+                                                <option value="roboto">Roboto (Sans)</option>
+                                                <option value="opensans">Open Sans (Sans)</option>
+                                                <option value="lato">Lato (Sans)</option>
+                                                <option value="sourcesans">Source Sans Pro (Sans)</option>
+                                                <option value="nunito">Nunito (Sans)</option>
+                                                <option value="poppins">Poppins (Sans)</option>
+                                                <option value="montserrat">Montserrat (Sans)</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                                
                                 <!-- Presets Section -->
                                 <div style="background: var(--bg-secondary); border-radius: 12px; padding: 1.25rem;">
                                     <h4 style="margin: 0 0 1rem 0; font-size: 0.9rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Quick Presets</h4>
@@ -10286,6 +10324,44 @@
                                     <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
                                         <label style="font-size: 0.8rem; color: #64748b; display: block; margin-bottom: 0.5rem;">Preview:</label>
                                         <span id="attractions-category-preview" style="background: #fef3c7; color: #92400e; padding: 4px 12px; border-radius: 12px; font-size: 0.85rem;">Restaurants</span>
+                                    </div>
+                                </div>
+                                
+                                <!-- Fonts Section -->
+                                <div style="background: var(--bg-secondary); border-radius: 12px; padding: 1.25rem;">
+                                    <h4 style="margin: 0 0 1rem 0; font-size: 0.9rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Fonts</h4>
+                                    
+                                    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                                        <div style="display: flex; align-items: center; justify-content: space-between;">
+                                            <label style="font-size: 0.9rem;">Heading Font</label>
+                                            <select id="attractions-font-heading" style="width: 200px; padding: 0.35rem 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.85rem;">
+                                                <option value="inherit">Inherit from theme</option>
+                                                <option value="playfair">Playfair Display (Serif)</option>
+                                                <option value="montserrat">Montserrat (Sans)</option>
+                                                <option value="lora">Lora (Serif)</option>
+                                                <option value="poppins">Poppins (Sans)</option>
+                                                <option value="merriweather">Merriweather (Serif)</option>
+                                                <option value="raleway">Raleway (Sans)</option>
+                                                <option value="oswald">Oswald (Sans)</option>
+                                                <option value="inter">Inter (Sans)</option>
+                                                <option value="roboto">Roboto (Sans)</option>
+                                                <option value="nunito">Nunito (Sans)</option>
+                                            </select>
+                                        </div>
+                                        <div style="display: flex; align-items: center; justify-content: space-between;">
+                                            <label style="font-size: 0.9rem;">Body Font</label>
+                                            <select id="attractions-font-body" style="width: 200px; padding: 0.35rem 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.85rem;">
+                                                <option value="inherit">Inherit from theme</option>
+                                                <option value="inter">Inter (Sans)</option>
+                                                <option value="roboto">Roboto (Sans)</option>
+                                                <option value="opensans">Open Sans (Sans)</option>
+                                                <option value="lato">Lato (Sans)</option>
+                                                <option value="sourcesans">Source Sans Pro (Sans)</option>
+                                                <option value="nunito">Nunito (Sans)</option>
+                                                <option value="poppins">Poppins (Sans)</option>
+                                                <option value="montserrat">Montserrat (Sans)</option>
+                                            </select>
+                                        </div>
                                     </div>
                                 </div>
                                 
@@ -42633,6 +42709,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 const data = await response.json();
                 const colors = data.colors || {};
+                const fonts = data.fonts || {};
                 
                 const defaults = app === 'attractions' 
                     ? { accent: '#f59e0b', catBg: '#fef3c7', catText: '#92400e' }
@@ -42655,6 +42732,12 @@ const promo = await fetch('/api/v1/offers/validate', {
                 setColor('cat-text', colors.category_text, defaults.catText);
                 if (app === 'reviews') setColor('star', colors.star, '#fbbf24');
                 
+                // Load fonts
+                const headingFont = document.getElementById(`${app}-font-heading`);
+                const bodyFont = document.getElementById(`${app}-font-body`);
+                if (headingFont) headingFont.value = fonts.heading || 'inherit';
+                if (bodyFont) bodyFont.value = fonts.body || 'inherit';
+                
                 updateAppPreview(app);
             } catch (error) {
                 console.error('Error loading app settings:', error);
@@ -42676,12 +42759,17 @@ const promo = await fetch('/api/v1/offers/validate', {
                 settings.star = document.getElementById('reviews-color-star')?.value;
             }
             
+            const fonts = {
+                heading: document.getElementById(`${app}-font-heading`)?.value || 'inherit',
+                body: document.getElementById(`${app}-font-body`)?.value || 'inherit'
+            };
+            
             try {
                 const accountId = selectedAccountId || currentAccount?.id;
                 const response = await fetch(`/api/app-settings/${app}?account_id=${accountId}`, {
                     method: 'PUT',
                     headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ colors: settings, account_id: accountId })
+                    body: JSON.stringify({ colors: settings, fonts: fonts, account_id: accountId })
                 });
                 
                 if (response.ok) {
