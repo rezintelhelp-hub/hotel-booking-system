@@ -21384,152 +21384,6 @@ app.put('/api/admin/deployed-sites/:id', async (req, res) => {
   }
 });
 
-// Rename subdomain for a deployed site
-app.put('/api/admin/deployed-sites/:id/rename-subdomain', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { new_subdomain } = req.body;
-    
-    if (!new_subdomain) {
-      return res.json({ success: false, error: 'new_subdomain is required' });
-    }
-    
-    // Clean and validate subdomain
-    const cleanSubdomain = new_subdomain.toLowerCase().replace(/[^a-z0-9-]/g, '').replace(/(^-|-$)/g, '');
-    
-    if (cleanSubdomain.length < 3) {
-      return res.json({ success: false, error: 'Subdomain must be at least 3 characters' });
-    }
-    if (cleanSubdomain.length > 50) {
-      return res.json({ success: false, error: 'Subdomain must be less than 50 characters' });
-    }
-    
-    // Get current site
-    const siteResult = await pool.query('SELECT * FROM deployed_sites WHERE id = $1', [id]);
-    const site = siteResult.rows[0];
-    
-    if (!site) {
-      return res.json({ success: false, error: 'Deployed site not found' });
-    }
-    
-    if (!site.blog_id) {
-      return res.json({ success: false, error: 'Site has no blog_id - cannot rename on VPS' });
-    }
-    
-    const oldSubdomain = site.slug;
-    if (cleanSubdomain === oldSubdomain) {
-      return res.json({ success: false, error: 'New subdomain is the same as current one' });
-    }
-    
-    // Check if subdomain is already taken
-    const existing = await pool.query(
-      "SELECT id FROM deployed_sites WHERE slug = $1 AND id != $2 AND status != 'deleted'",
-      [cleanSubdomain, id]
-    );
-    if (existing.rows.length > 0) {
-      return res.json({ success: false, error: `Subdomain "${cleanSubdomain}" is already taken` });
-    }
-    
-    const newSiteUrl = `https://${cleanSubdomain}.sites.gas.travel`;
-    const newAdminUrl = `https://${cleanSubdomain}.sites.gas.travel/wp-admin/`;
-    
-    console.log(`[Rename Subdomain] Renaming site ${id}: "${oldSubdomain}" → "${cleanSubdomain}" (blog_id: ${site.blog_id})`);
-    
-    // Call VPS to rename the site
-    let vpsSuccess = false;
-    let vpsError = null;
-    
-    try {
-      const vpsResponse = await fetch(`${VPS_DEPLOY_URL}?action=rename-site`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key': VPS_DEPLOY_API_KEY
-        },
-        body: JSON.stringify({
-          blog_id: site.blog_id,
-          old_subdomain: oldSubdomain,
-          new_subdomain: cleanSubdomain
-        })
-      });
-      const vpsData = await vpsResponse.json();
-      vpsSuccess = vpsData.success;
-      if (!vpsData.success) {
-        vpsError = vpsData.error || 'VPS rename failed';
-        console.warn(`[Rename Subdomain] VPS rename failed: ${vpsError}`);
-      } else {
-        console.log(`[Rename Subdomain] VPS successfully renamed site`);
-      }
-    } catch (e) {
-      vpsError = e.message;
-      console.error(`[Rename Subdomain] VPS request failed: ${e.message}`);
-    }
-    
-    if (!vpsSuccess) {
-      return res.json({ 
-        success: false, 
-        error: `VPS rename failed: ${vpsError}. Database not updated.`
-      });
-    }
-    
-    // Update database
-    await pool.query(`
-      UPDATE deployed_sites SET
-        slug = $1,
-        site_url = $2,
-        admin_url = $3,
-        updated_at = NOW()
-      WHERE id = $4
-    `, [cleanSubdomain, newSiteUrl, newAdminUrl, id]);
-    
-    // Update website URLs in rooms
-    if (site.room_ids) {
-      const roomIds = typeof site.room_ids === 'string'
-        ? JSON.parse(site.room_ids || '[]')
-        : (site.room_ids || []);
-      if (roomIds.length > 0) {
-        await pool.query(
-          'UPDATE bookable_units SET website_url = $1 WHERE id = ANY($2)',
-          [newSiteUrl, roomIds]
-        );
-      }
-    }
-    
-    // Update property website URL
-    if (site.property_id) {
-      await pool.query(
-        'UPDATE properties SET website_url = $1 WHERE id = $2',
-        [newSiteUrl, site.property_id]
-      );
-    }
-    
-    // Update websites table if linked
-    await pool.query(`
-      UPDATE websites SET 
-        site_url = $1,
-        admin_url = $2,
-        subdomain = $3,
-        slug = $3,
-        updated_at = NOW()
-      WHERE deployed_site_id = $4
-    `, [newSiteUrl, newAdminUrl, cleanSubdomain, id]);
-    
-    res.json({
-      success: true,
-      message: `Subdomain renamed from "${oldSubdomain}" to "${cleanSubdomain}"`,
-      old_subdomain: oldSubdomain,
-      new_subdomain: cleanSubdomain,
-      new_site_url: newSiteUrl,
-      new_admin_url: newAdminUrl,
-      vps_renamed: vpsSuccess
-    });
-    
-  } catch (error) {
-    console.error('Rename subdomain error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
 // Delete deployed site
 app.delete('/api/admin/deployed-sites/:id', async (req, res) => {
   try {
@@ -21544,64 +21398,7 @@ app.delete('/api/admin/deployed-sites/:id', async (req, res) => {
       return res.json({ success: false, error: 'Deployed site not found' });
     }
     
-    let vpsDeleted = false;
-    let vpsError = null;
-    
     if (permanent === 'true') {
-      
-      // ========== Step 1: Delete from WordPress VPS ==========
-      if (site.blog_id) {
-        try {
-          console.log(`[Delete Site] Deleting blog_id ${site.blog_id} from VPS for site "${site.site_name || site.slug}"...`);
-          const vpsResponse = await fetch(`${VPS_DEPLOY_URL}?action=delete-site`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-API-Key': VPS_DEPLOY_API_KEY
-            },
-            body: JSON.stringify({
-              blog_id: site.blog_id,
-              confirm: 'DELETE'
-            })
-          });
-          const vpsData = await vpsResponse.json();
-          vpsDeleted = vpsData.success;
-          if (!vpsData.success) {
-            vpsError = vpsData.error || 'VPS returned failure';
-            console.warn(`[Delete Site] VPS delete failed for blog_id ${site.blog_id}: ${vpsError}`);
-          } else {
-            console.log(`[Delete Site] VPS successfully deleted blog_id ${site.blog_id}`);
-          }
-        } catch (e) {
-          vpsError = e.message;
-          console.error(`[Delete Site] VPS request failed for blog_id ${site.blog_id}: ${e.message}`);
-        }
-      } else {
-        vpsError = 'No blog_id stored - cannot delete from WordPress VPS';
-        console.warn(`[Delete Site] Site ${id} has no blog_id, skipping VPS delete`);
-      }
-      
-      // ========== Step 2: Also try deleting custom domain config if present ==========
-      if (site.custom_domain && site.blog_id) {
-        try {
-          await fetch('https://sites.gas.travel/gas-api.php', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-API-Key': VPS_DEPLOY_API_KEY
-            },
-            body: JSON.stringify({
-              action: 'remove-custom-domain',
-              blog_id: site.blog_id,
-              domain: site.custom_domain
-            })
-          });
-        } catch (e) {
-          console.warn(`[Delete Site] Custom domain cleanup failed: ${e.message}`);
-        }
-      }
-      
-      // ========== Step 3: Clean up database ==========
       // Clear website URL from property
       if (site.property_id) {
         await pool.query('UPDATE properties SET website_url = NULL WHERE id = $1', [site.property_id]);
@@ -21625,15 +21422,7 @@ app.delete('/api/admin/deployed-sites/:id', async (req, res) => {
       
       // Permanently delete from deployed_sites
       await pool.query('DELETE FROM deployed_sites WHERE id = $1', [id]);
-      
-      res.json({ 
-        success: true, 
-        message: vpsDeleted 
-          ? 'Site deleted from WordPress and database' 
-          : `Site deleted from database${vpsError ? ` (VPS note: ${vpsError})` : ''}`,
-        vps_deleted: vpsDeleted,
-        vps_error: vpsError
-      });
+      res.json({ success: true, message: 'Site permanently deleted' });
     } else {
       // Soft delete - just change status
       await pool.query("UPDATE deployed_sites SET status = 'deleted', updated_at = NOW() WHERE id = $1", [id]);
@@ -39094,7 +38883,23 @@ app.get('/api/admin/properties/:id/bedrooms', async (req, res) => {
     
     query += ` ORDER BY pb.room_id NULLS FIRST, pb.display_order, pb.id`;
     
-    const result = await pool.query(query, params);
+    let result = await pool.query(query, params);
+    
+    // Fallback: if a room was specified but has no bedrooms, inherit from property level
+    let inherited = false;
+    if (roomId && result.rows.length === 0) {
+      const fallbackResult = await pool.query(`
+        SELECT pb.*, 
+          bu.name as room_name,
+          (SELECT name FROM property_bathrooms WHERE id = pb.ensuite_bathroom_id) as ensuite_bathroom_name
+        FROM property_bedrooms pb
+        LEFT JOIN bookable_units bu ON pb.room_id = bu.id
+        WHERE pb.property_id = $1 AND pb.room_id IS NULL
+        ORDER BY pb.display_order, pb.id
+      `, [propertyId]);
+      result = fallbackResult;
+      inherited = true;
+    }
     
     // Also get bedroom amenities from property_terms
     const termsResult = await pool.query(
@@ -39105,6 +38910,7 @@ app.get('/api/admin/properties/:id/bedrooms', async (req, res) => {
     res.json({ 
       success: true, 
       bedrooms: result.rows,
+      inherited_from_property: inherited,
       bedroom_amenities: termsResult.rows[0]?.bedroom_amenities || {}
     });
   } catch (error) {
@@ -39271,7 +39077,23 @@ app.get('/api/admin/properties/:id/bathrooms-detailed', async (req, res) => {
     
     query += ` ORDER BY pb.room_id NULLS FIRST, pb.display_order, pb.id`;
     
-    const result = await pool.query(query, params);
+    let result = await pool.query(query, params);
+    
+    // Fallback: if a room was specified but has no bathrooms, inherit from property level
+    let inherited = false;
+    if (roomId && result.rows.length === 0) {
+      const fallbackResult = await pool.query(`
+        SELECT pb.*,
+          bu.name as room_name,
+          (SELECT name FROM property_bedrooms WHERE id = pb.linked_bedroom_id) as linked_bedroom_name
+        FROM property_bathrooms pb
+        LEFT JOIN bookable_units bu ON pb.room_id = bu.id
+        WHERE pb.property_id = $1 AND pb.room_id IS NULL
+        ORDER BY pb.display_order, pb.id
+      `, [propertyId]);
+      result = fallbackResult;
+      inherited = true;
+    }
     
     // Also get bathroom amenities from property_terms
     const termsResult = await pool.query(
@@ -39282,6 +39104,7 @@ app.get('/api/admin/properties/:id/bathrooms-detailed', async (req, res) => {
     res.json({ 
       success: true, 
       bathrooms: result.rows,
+      inherited_from_property: inherited,
       bathroom_amenities: termsResult.rows[0]?.bathroom_features || {}
     });
   } catch (error) {
@@ -43141,282 +42964,6 @@ app.delete('/api/partner/websites/:websiteId/domain', async (req, res) => {
     
   } catch (error) {
     console.error('Partner API remove domain error:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// =====================================================
-// PARTNER API - DEPLOYED SITE MANAGEMENT
-// =====================================================
-
-// DELETE /api/partner/websites/:websiteId/site - Delete deployed site (WordPress + database)
-app.delete('/api/partner/websites/:websiteId/site', async (req, res) => {
-  console.log('=== PARTNER API: DELETE DEPLOYED SITE ===');
-  
-  try {
-    const auth = await validatePartnerApiKey(req);
-    if (!auth.valid) {
-      return res.status(401).json({ success: false, error: auth.error });
-    }
-    
-    const { websiteId } = req.params;
-    
-    // Get website and deployed site info with ownership check
-    const result = await pool.query(`
-      SELECT w.id as website_id, w.name, w.deployed_site_id, 
-             ds.id as ds_id, ds.blog_id, ds.slug, ds.site_url, ds.custom_domain,
-             ds.property_id, ds.room_ids
-      FROM websites w
-      LEFT JOIN deployed_sites ds ON ds.id = w.deployed_site_id
-      JOIN accounts a ON a.id = w.account_id
-      WHERE w.id = $1 AND a.parent_id = $2
-    `, [websiteId, auth.partnerId]);
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Website not found' });
-    }
-    
-    const website = result.rows[0];
-    
-    if (!website.deployed_site_id) {
-      return res.status(400).json({ success: false, error: 'Website is not deployed' });
-    }
-    
-    let vpsDeleted = false;
-    let vpsError = null;
-    
-    // Step 1: Delete from WordPress VPS
-    if (website.blog_id) {
-      try {
-        console.log(`[Partner API Delete] Deleting blog_id ${website.blog_id} from VPS...`);
-        const vpsResponse = await fetch(`${VPS_DEPLOY_URL}?action=delete-site`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-API-Key': VPS_DEPLOY_API_KEY
-          },
-          body: JSON.stringify({
-            blog_id: website.blog_id,
-            confirm: 'DELETE'
-          })
-        });
-        const vpsData = await vpsResponse.json();
-        vpsDeleted = vpsData.success;
-        if (!vpsData.success) vpsError = vpsData.error;
-      } catch (e) {
-        vpsError = e.message;
-      }
-    } else {
-      vpsError = 'No blog_id - cannot delete from WordPress';
-    }
-    
-    // Step 2: Clean up custom domain if present
-    if (website.custom_domain && website.blog_id) {
-      try {
-        await fetch('https://sites.gas.travel/gas-api.php', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-API-Key': VPS_DEPLOY_API_KEY
-          },
-          body: JSON.stringify({
-            action: 'remove-custom-domain',
-            blog_id: website.blog_id,
-            domain: website.custom_domain
-          })
-        });
-      } catch (e) {
-        console.warn(`[Partner API Delete] Custom domain cleanup failed: ${e.message}`);
-      }
-    }
-    
-    // Step 3: Clean up database
-    // Clear room website URLs
-    if (website.room_ids) {
-      const roomIds = typeof website.room_ids === 'string'
-        ? JSON.parse(website.room_ids || '[]')
-        : (website.room_ids || []);
-      if (roomIds.length > 0) {
-        await pool.query('UPDATE bookable_units SET website_url = NULL WHERE id = ANY($1)', [roomIds]);
-      }
-    }
-    
-    // Clear property website URL
-    if (website.property_id) {
-      await pool.query('UPDATE properties SET website_url = NULL WHERE id = $1', [website.property_id]);
-    }
-    
-    // Delete from website_settings
-    await pool.query('DELETE FROM website_settings WHERE deployed_site_id = $1', [website.ds_id]);
-    
-    // Delete deployed_sites record
-    await pool.query('DELETE FROM deployed_sites WHERE id = $1', [website.ds_id]);
-    
-    // Reset website record (keep it but clear deployment info)
-    await pool.query(`
-      UPDATE websites SET 
-        site_url = NULL, admin_url = NULL, slug = NULL, 
-        status = 'draft', deployed_site_id = NULL, updated_at = NOW()
-      WHERE id = $1
-    `, [websiteId]);
-    
-    console.log(`[Partner API Delete] Site deleted. VPS: ${vpsDeleted}, Error: ${vpsError}`);
-    
-    res.json({
-      success: true,
-      website_id: parseInt(websiteId),
-      message: vpsDeleted
-        ? 'Site deleted from WordPress and database'
-        : `Site deleted from database${vpsError ? ` (VPS note: ${vpsError})` : ''}`,
-      vps_deleted: vpsDeleted,
-      vps_error: vpsError
-    });
-    
-  } catch (error) {
-    console.error('Partner API delete site error:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// PUT /api/partner/websites/:websiteId/subdomain - Rename subdomain
-app.put('/api/partner/websites/:websiteId/subdomain', async (req, res) => {
-  console.log('=== PARTNER API: RENAME SUBDOMAIN ===');
-  
-  try {
-    const auth = await validatePartnerApiKey(req);
-    if (!auth.valid) {
-      return res.status(401).json({ success: false, error: auth.error });
-    }
-    
-    const { websiteId } = req.params;
-    const { new_subdomain } = req.body;
-    
-    if (!new_subdomain) {
-      return res.status(400).json({ success: false, error: 'new_subdomain is required' });
-    }
-    
-    // Clean and validate
-    const cleanSubdomain = new_subdomain.toLowerCase().replace(/[^a-z0-9-]/g, '').replace(/(^-|-$)/g, '');
-    
-    if (cleanSubdomain.length < 3) {
-      return res.status(400).json({ success: false, error: 'Subdomain must be at least 3 characters' });
-    }
-    if (cleanSubdomain.length > 50) {
-      return res.status(400).json({ success: false, error: 'Subdomain must be less than 50 characters' });
-    }
-    
-    // Get website and deployed site with ownership check
-    const result = await pool.query(`
-      SELECT w.id as website_id, w.name, w.deployed_site_id,
-             ds.id as ds_id, ds.blog_id, ds.slug as old_subdomain, ds.room_ids, ds.property_id
-      FROM websites w
-      LEFT JOIN deployed_sites ds ON ds.id = w.deployed_site_id
-      JOIN accounts a ON a.id = w.account_id
-      WHERE w.id = $1 AND a.parent_id = $2
-    `, [websiteId, auth.partnerId]);
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Website not found' });
-    }
-    
-    const website = result.rows[0];
-    
-    if (!website.deployed_site_id) {
-      return res.status(400).json({ success: false, error: 'Website must be deployed before renaming subdomain' });
-    }
-    if (!website.blog_id) {
-      return res.status(400).json({ success: false, error: 'Site has no blog_id - cannot rename on VPS' });
-    }
-    if (cleanSubdomain === website.old_subdomain) {
-      return res.status(400).json({ success: false, error: 'New subdomain is the same as current one' });
-    }
-    
-    // Check availability
-    const existing = await pool.query(
-      "SELECT id FROM deployed_sites WHERE slug = $1 AND id != $2 AND status != 'deleted'",
-      [cleanSubdomain, website.ds_id]
-    );
-    if (existing.rows.length > 0) {
-      return res.status(409).json({ success: false, error: `Subdomain "${cleanSubdomain}" is already taken` });
-    }
-    
-    console.log(`[Partner API Rename] ${website.old_subdomain} → ${cleanSubdomain} (blog_id: ${website.blog_id})`);
-    
-    // Call VPS to rename
-    let vpsSuccess = false;
-    let vpsError = null;
-    
-    try {
-      const vpsResponse = await fetch(`${VPS_DEPLOY_URL}?action=rename-site`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key': VPS_DEPLOY_API_KEY
-        },
-        body: JSON.stringify({
-          blog_id: website.blog_id,
-          old_subdomain: website.old_subdomain,
-          new_subdomain: cleanSubdomain
-        })
-      });
-      const vpsData = await vpsResponse.json();
-      vpsSuccess = vpsData.success;
-      if (!vpsData.success) vpsError = vpsData.error || 'VPS rename failed';
-    } catch (e) {
-      vpsError = e.message;
-    }
-    
-    if (!vpsSuccess) {
-      return res.status(500).json({ 
-        success: false, 
-        error: `VPS rename failed: ${vpsError}` 
-      });
-    }
-    
-    const newSiteUrl = `https://${cleanSubdomain}.sites.gas.travel`;
-    const newAdminUrl = `https://${cleanSubdomain}.sites.gas.travel/wp-admin/`;
-    
-    // Update deployed_sites
-    await pool.query(`
-      UPDATE deployed_sites SET
-        slug = $1, site_url = $2, admin_url = $3, updated_at = NOW()
-      WHERE id = $4
-    `, [cleanSubdomain, newSiteUrl, newAdminUrl, website.ds_id]);
-    
-    // Update websites table
-    await pool.query(`
-      UPDATE websites SET 
-        site_url = $1, admin_url = $2, subdomain = $3, slug = $3, updated_at = NOW()
-      WHERE id = $4
-    `, [newSiteUrl, newAdminUrl, cleanSubdomain, websiteId]);
-    
-    // Update room URLs
-    if (website.room_ids) {
-      const roomIds = typeof website.room_ids === 'string'
-        ? JSON.parse(website.room_ids || '[]')
-        : (website.room_ids || []);
-      if (roomIds.length > 0) {
-        await pool.query('UPDATE bookable_units SET website_url = $1 WHERE id = ANY($2)', [newSiteUrl, roomIds]);
-      }
-    }
-    
-    // Update property URL
-    if (website.property_id) {
-      await pool.query('UPDATE properties SET website_url = $1 WHERE id = $2', [newSiteUrl, website.property_id]);
-    }
-    
-    res.json({
-      success: true,
-      website_id: parseInt(websiteId),
-      old_subdomain: website.old_subdomain,
-      new_subdomain: cleanSubdomain,
-      new_site_url: newSiteUrl,
-      new_admin_url: newAdminUrl,
-      message: `Subdomain renamed from "${website.old_subdomain}" to "${cleanSubdomain}"`
-    });
-    
-  } catch (error) {
-    console.error('Partner API rename subdomain error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
