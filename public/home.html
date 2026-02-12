@@ -160,7 +160,7 @@
            ============================================ */
         .hero {
             position: relative;
-            height: 75vh;
+            height: 60vh;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -206,48 +206,63 @@
             animation: fadeUp 1s ease 0.9s forwards;
         }
 
-        .hero-tagline-row {
-            display: flex;
-            align-items: baseline;
-            justify-content: center;
-            gap: 0.6rem;
+        .hero-ticker {
+            width: 100%;
+            max-width: 700px;
+            overflow: hidden;
+            position: relative;
+            height: 2.5rem;
             opacity: 0;
             animation: fadeUp 1s ease 1.2s forwards;
-            flex-wrap: nowrap;
         }
 
-        .hero-tagline {
-            font-family: 'DM Serif Display', serif;
-            font-size: clamp(1.5rem, 3vw, 2.2rem);
-            color: var(--white);
+        .hero-ticker::before,
+        .hero-ticker::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 80px;
+            z-index: 2;
+            pointer-events: none;
         }
 
-        .hero-separator {
-            font-size: clamp(1.2rem, 2vw, 1.6rem);
-            color: rgba(255, 255, 255, 0.3);
-            font-weight: 300;
+        .hero-ticker::before {
+            left: 0;
+            background: linear-gradient(to right, rgba(15, 23, 42, 0.6), transparent);
         }
 
-        .typewriter-container {
-            display: inline-flex;
-            align-items: baseline;
+        .hero-ticker::after {
+            right: 0;
+            background: linear-gradient(to left, rgba(15, 23, 42, 0.6), transparent);
         }
 
-        .typewriter-text {
-            font-family: 'DM Serif Display', serif;
-            font-size: clamp(1.3rem, 2.5vw, 1.8rem);
-            color: rgba(255, 255, 255, 0.5);
-            font-style: italic;
-            min-width: 1px;
+        .ticker-track {
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+            white-space: nowrap;
+            animation: tickerScroll 20s linear infinite;
+            height: 100%;
         }
 
-        .typewriter-cursor {
-            display: inline-block;
-            width: 2px;
-            height: 1.8rem;
-            background: rgba(255, 255, 255, 0.6);
-            margin-left: 3px;
-            animation: blink 1s infinite;
+        .ticker-item {
+            font-family: 'Courier New', 'Courier', monospace;
+            font-size: clamp(1rem, 1.8vw, 1.3rem);
+            color: rgba(255, 255, 255, 0.55);
+            letter-spacing: 1px;
+            flex-shrink: 0;
+        }
+
+        .ticker-separator {
+            color: rgba(255, 255, 255, 0.2);
+            font-size: 0.8rem;
+            flex-shrink: 0;
+        }
+
+        @keyframes tickerScroll {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-50%); }
         }
 
         .hero-scroll {
@@ -292,7 +307,7 @@
            SECTIONS — COMMON
            ============================================ */
         section {
-            padding: 7rem 3rem;
+            padding: 4rem 3rem;
         }
 
         .section-inner {
@@ -752,12 +767,9 @@
             <p class="hero-welcome">Welcome to the</p>
             <h1 class="hero-title">Global Accommodation System</h1>
             <div class="hero-divider"></div>
-            <div class="hero-tagline-row">
-                <p class="hero-tagline">No Boundaries</p>
-                <span class="hero-separator">—</span>
-                <div class="typewriter-container">
-                    <span class="typewriter-text" id="typewriter"></span>
-                    <span class="typewriter-cursor"></span>
+            <div class="hero-ticker">
+                <div class="ticker-track" id="tickerTrack">
+                    <!-- Filled by JS — duplicated for seamless loop -->
                 </div>
             </div>
         </div>
@@ -919,56 +931,39 @@
          ============================================ -->
     <script>
         // =============================================
-        // TYPEWRITER — "No Boundaries" in languages
+        // SCROLLING TICKER — "No Boundaries" in languages
         // =============================================
         const translations = [
-            { text: 'Sans Frontières', lang: 'French' },
-            { text: 'Sin Fronteras', lang: 'Spanish' },
-            { text: 'Ohne Grenzen', lang: 'German' },
-            { text: 'Zonder Grenzen', lang: 'Dutch' },
-            { text: '境界なし', lang: 'Japanese' },
-            { text: '无边界', lang: 'Chinese' },
-            { text: 'No Boundaries', lang: 'English' },
+            'No Boundaries',
+            'Sans Frontières',
+            'Sin Fronteras',
+            'Ohne Grenzen',
+            'Zonder Grenzen',
+            '境界なし',
+            '无边界',
+            'Sem Fronteiras',
+            'Senza Confini',
+            'Без границ',
         ];
 
-        let currentIndex = 0;
-        const typewriterEl = document.getElementById('typewriter');
-        const typingSpeed = 80;
-        const deletingSpeed = 40;
-        const pauseAfterType = 2000;
-        const pauseAfterDelete = 300;
-
-        function typeText(text, charIndex, callback) {
-            if (charIndex <= text.length) {
-                typewriterEl.textContent = text.substring(0, charIndex);
-                setTimeout(() => typeText(text, charIndex + 1, callback), typingSpeed);
-            } else {
-                setTimeout(callback, pauseAfterType);
-            }
-        }
-
-        function deleteText(callback) {
-            const current = typewriterEl.textContent;
-            if (current.length > 0) {
-                typewriterEl.textContent = current.substring(0, current.length - 1);
-                setTimeout(() => deleteText(callback), deletingSpeed);
-            } else {
-                setTimeout(callback, pauseAfterDelete);
-            }
-        }
-
-        function typewriterLoop() {
-            const { text } = translations[currentIndex];
-            typeText(text, 0, () => {
-                deleteText(() => {
-                    currentIndex = (currentIndex + 1) % translations.length;
-                    typewriterLoop();
+        const tickerTrack = document.getElementById('tickerTrack');
+        
+        // Build ticker content — duplicate the set for seamless loop
+        function buildTicker() {
+            let html = '';
+            // Two full sets so when the first scrolls off, the second takes over
+            for (let r = 0; r < 2; r++) {
+                translations.forEach((t, i) => {
+                    html += `<span class="ticker-item">${t}</span>`;
+                    if (i < translations.length - 1 || r === 0) {
+                        html += `<span class="ticker-separator">◆</span>`;
+                    }
                 });
-            });
+            }
+            tickerTrack.innerHTML = html;
         }
-
-        // Start after hero animations complete
-        setTimeout(typewriterLoop, 2200);
+        
+        buildTicker();
 
         // =============================================
         // NAV SCROLL EFFECT
