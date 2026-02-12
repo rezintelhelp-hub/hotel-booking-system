@@ -392,6 +392,89 @@
         }
 
         /* ============================================
+           BENEFITS — TWO AUDIENCES
+           ============================================ */
+        .benefits-section {
+            background: var(--off-white);
+        }
+
+        .benefits-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-top: 3rem;
+        }
+
+        .benefit-box {
+            background: var(--white);
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            padding: 2.5rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .benefit-box::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+        }
+
+        .benefit-owner::before {
+            background: linear-gradient(90deg, var(--accent), var(--accent-light));
+        }
+
+        .benefit-agent::before {
+            background: linear-gradient(90deg, var(--warm), #f59e0b);
+        }
+
+        .benefit-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .benefit-icon {
+            font-size: 1.5rem;
+        }
+
+        .benefit-header h3 {
+            font-family: 'DM Serif Display', serif;
+            font-size: 1.3rem;
+            font-weight: 400;
+            color: var(--text-primary);
+        }
+
+        .benefit-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .benefit-list li {
+            position: relative;
+            padding: 0.5rem 0 0.5rem 1.5rem;
+            font-size: 0.95rem;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        .benefit-list li::before {
+            content: '✓';
+            position: absolute;
+            left: 0;
+            color: var(--accent);
+            font-weight: 700;
+        }
+
+        .benefit-agent .benefit-list li::before {
+            color: var(--warm);
+        }
+
+        /* ============================================
            WHY REGISTER
            ============================================ */
         .why-section {
@@ -730,6 +813,10 @@
                 grid-template-columns: 1fr;
             }
 
+            .benefits-grid {
+                grid-template-columns: 1fr;
+            }
+
             .grow-grid {
                 grid-template-columns: 1fr;
             }
@@ -771,14 +858,14 @@
         <div class="video-overlay"></div>
 
         <div class="hero-content">
-            <p class="hero-welcome">Welcome to the</p>
-            <h1 class="hero-title">Global Accommodation System</h1>
+            <h1 class="hero-title">No Boundaries</h1>
             <div class="hero-divider"></div>
             <div class="hero-ticker">
                 <div class="ticker-track" id="tickerTrack">
                     <!-- Filled by JS — duplicated for seamless loop -->
                 </div>
             </div>
+            <p class="hero-welcome" style="margin-top: 1.5rem; opacity: 0.85;">The Global Accommodation System</p>
         </div>
 
         <div class="hero-scroll">
@@ -788,31 +875,66 @@
     </section>
 
     <!-- ============================================
-         WHAT IS GAS
+         MISSION
          ============================================ -->
     <section class="what-section" id="what">
         <div class="section-inner reveal">
-            <p class="section-label">What is GAS</p>
-
-            <div class="what-not">
-                <div class="what-not-item">
-                    <span class="x">✕</span> Not a Channel Manager
-                </div>
-                <div class="what-not-item">
-                    <span class="x">✕</span> Not an OTA
-                </div>
-            </div>
+            <p class="section-label">Our Mission</p>
 
             <p class="what-is-text">
-                GAS has been created to help <em>independent property owners</em> connect to a developing market of <em>independent travel agents</em> worldwide.
+                GAS has been created to facilitate the building of an <em>independent travel sector</em> — connecting <em>independent property owners</em> with a developing market of <em>independent travel agents</em> worldwide.
             </p>
+        </div>
+    </section>
+
+    <!-- ============================================
+         BENEFITS — TWO AUDIENCES
+         ============================================ -->
+    <section class="benefits-section" id="why">
+        <div class="section-inner reveal">
+            <p class="section-label">Join the movement</p>
+            <h2 class="section-title">Two sides. One independent sector.</h2>
+
+            <div class="benefits-grid">
+                <div class="benefit-box benefit-owner">
+                    <div class="benefit-header">
+                        <span class="benefit-icon">🏠</span>
+                        <h3>For Property Owners</h3>
+                    </div>
+                    <ul class="benefit-list">
+                        <li>Reduce your dependency on OTAs</li>
+                        <li>Connect directly with travel agents who recommend your property to their clients</li>
+                        <li>Free listing — your property visible to agents worldwide</li>
+                        <li>Keep control of your pricing, your brand, your guest relationships</li>
+                        <li>Sync automatically with your existing channel manager</li>
+                        <li>Build your own independent channel alongside your existing ones</li>
+                    </ul>
+                    <a href="/register.html" class="btn-primary" style="margin-top: 1.5rem; display: inline-block;">Register Free</a>
+                </div>
+
+                <div class="benefit-box benefit-agent">
+                    <div class="benefit-header">
+                        <span class="benefit-icon">✈️</span>
+                        <h3>For Travel Agents</h3>
+                    </div>
+                    <ul class="benefit-list">
+                        <li>Discover independent properties you won't find on the big platforms</li>
+                        <li>Book directly with property owners — personal service, better rates</li>
+                        <li>Build real relationships with the properties you recommend</li>
+                        <li>Offer your clients unique, hand-picked accommodation</li>
+                        <li>Access a growing global network of independent properties</li>
+                        <li>Stand out from agencies that just resell OTA inventory</li>
+                    </ul>
+                    <a href="/agents" class="btn-primary" style="margin-top: 1.5rem; display: inline-block;">Register as Agent</a>
+                </div>
+            </div>
         </div>
     </section>
 
     <!-- ============================================
          WHY REGISTER
          ============================================ -->
-    <section class="why-section" id="why">
+    <section class="why-section">
         <div class="section-inner reveal">
             <p class="section-label">So why should you register with GAS?</p>
             <h2 class="section-title">Because something needs to change.</h2>
@@ -826,7 +948,7 @@
                 <div class="why-card">
                     <div class="why-number">02</div>
                     <h3>You don't know how to change it</h3>
-                    <p>You've thought about direct bookings, about reducing commission costs, about owning your own channel. But where do you start? Who helps you get there?</p>
+                    <p>You've thought about direct bookings, about reducing dependency, about owning your own channel. But where do you start? Who helps you get there?</p>
                 </div>
             </div>
         </div>
@@ -930,7 +1052,7 @@
 
     <!-- Footer -->
     <footer class="footer">
-        <p>&copy; 2026 GAS — Global Accommodation System. All rights reserved.</p>
+        <p>&copy; 2026 GAS — Building the Independent Travel Sector. All rights reserved.</p>
     </footer>
 
     <!-- ============================================

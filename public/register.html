@@ -773,7 +773,7 @@
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
                 </div>
                 <h2 class="step-title">You're GAS Ready!</h2>
-                <p class="step-subtitle">Your property is live and available to travel agents worldwide.</p>
+                <p class="step-subtitle">Welcome to the independent travel sector. Your property is live and visible to travel agents worldwide — no commissions, no platform lock-in.</p>
 
                 <div class="checklist">
                     <div class="checklist-item done">
@@ -902,20 +902,22 @@
         container.scrollTop = container.scrollHeight;
 
         // Build context for Claude
-        const systemPrompt = `You are the GAS Setup Assistant, helping property owners set up their account on the Global Accommodation System (GAS). 
-        
-GAS connects independent property owners to travel agents worldwide. The setup process has 5 steps:
-1. Create account (name, business, email, password)
-2. Connect channel manager (Beds24, Hostaway, or Calry/Lodgify)
+        const systemPrompt = `You are the GAS Setup Assistant, helping property owners set up their account on GAS — the Global Accommodation System.
+
+GAS was created to facilitate the building of an independent travel sector. It connects independent property owners directly with travel agents worldwide, free from the big platform monopolies and their commissions. Property owners keep control, connect directly with agents, and build their own independent presence.
+
+The setup process has 5 steps:
+1. Create account (name, business name, email, password)
+2. Connect channel manager (Beds24, Hostaway, or 28+ others via Calry)
 3. Review imported properties
 4. Confirm pricing
 5. Set up Stripe payments
 
 The user is currently on Step ${currentStep}. Keep answers concise, friendly, and focused on helping them complete setup. If they ask about features beyond setup, briefly mention them but redirect to completing the current step first.
 
-After all 5 steps they are "GAS Ready" — their property gets a free booking page (GAS Lites) and is available to travel agents.
+After all 5 steps they are "GAS Ready" — their property gets a free booking page (GAS Lites) and becomes visible to travel agents worldwide. No commissions, no lock-in.
 
-Upsells (mention only if asked): GAS Turbines (social media), custom websites, SEO blogs, attractions module, reviews.`;
+Upsells (mention only if asked): GAS Turbines (social media management), custom websites, SEO blogs, attractions module, reviews integration.`;
 
         conversationHistory.push({ role: 'user', content: text });
 
@@ -953,28 +955,28 @@ Upsells (mention only if asked): GAS Turbines (social media), custom websites, S
     // Step-specific AI messages
     const stepMessages = {
         1: [
-            "Welcome! I'm your GAS Setup Assistant. I'll guide you through getting your property live and bookable. 🏠",
-            "Let's start with the basics — just your <strong>name</strong>, <strong>business name</strong>, and <strong>email</strong>. We'll import everything else from your channel manager."
+            "Welcome! I'm your GAS Setup Assistant. GAS was created to build an <strong>independent travel sector</strong> — connecting property owners directly with travel agents, free from the big platform fees.",
+            "Let's get you set up and part of this growing network. Just your <strong>name</strong>, <strong>business name</strong>, <strong>email</strong> and a <strong>password</strong> to start."
         ],
         2: [
             "Great, your account is created! Now let's connect your <strong>Channel Manager</strong>.",
-            "This is where the magic happens — we'll automatically pull in your properties, rooms, photos, descriptions, and pricing. Just pick your CM below and enter your credentials."
+            "We'll pull in your properties, rooms, photos, descriptions, and pricing automatically. Pick your CM below and enter your credentials."
         ],
         3: [
-            "Here's what we imported from your channel manager. Take a moment to check everything looks right — property names, room details, photos.",
-            "If anything's missing or wrong, don't worry — you can always update it later in the dashboard."
+            "Here's what we imported from your channel manager. Take a moment to check everything looks right.",
+            "If anything's missing, don't worry — you can update it later in your dashboard."
         ],
         4: [
             "Let's check your pricing. We've pulled your rates from the channel manager.",
-            "Make sure your <strong>base rates</strong>, <strong>weekend pricing</strong>, and any <strong>cleaning fees</strong> are correct. These will show on your booking page."
+            "Make sure your <strong>base rates</strong>, <strong>weekend pricing</strong>, and any <strong>fees</strong> are correct."
         ],
         5: [
-            "Nearly there! Last step — connect <strong>Stripe</strong> so you can accept bookings and deposits.",
-            "Stripe handles all the payment processing securely. It takes about 2 minutes to set up. You can also skip this and add it later, but you won't be able to accept online bookings until it's connected."
+            "Nearly there! Last step — connect <strong>Stripe</strong> so guests and agents can book and pay directly.",
+            "Stripe handles all payment processing securely. Takes about 2 minutes to set up."
         ],
         done: [
-            "You're all set! 🎉 Your property is now <strong>GAS Ready</strong>.",
-            "You have a free booking page via <strong>GAS Lites</strong>, and your property is now visible to travel agents worldwide. Head to your dashboard to manage everything, or ask me about ways to grow your bookings — websites, social media, SEO, and more."
+            "You're <strong>GAS Ready</strong>! 🎉 Welcome to the independent travel sector.",
+            "Your property now has a free booking page via <strong>GAS Lites</strong> and is visible to <strong>travel agents worldwide</strong>. No commissions, no platform lock-in — just direct connections between you and the agents who send you guests."
         ]
     };
 
@@ -1158,38 +1160,36 @@ Upsells (mention only if asked): GAS Turbines (social media), custom websites, S
         const fieldsDiv = document.getElementById('cm-fields');
         const accountId = accountData?.account?.id || '';
 
-        // Beds24 — direct integration
+        // Beds24 — direct integration via invite code
         if (cm === 'beds24' || cm === 'booking-automation') {
             const cmLabel = cm === 'beds24' ? 'Beds24' : 'Booking Automation';
             fieldsDiv.innerHTML = `
                 <div class="field" style="margin-top: 1rem;">
-                    <label>Beds24 API Key</label>
-                    <input type="text" id="cm-api-key" placeholder="Your Beds24 API key">
-                </div>
-                <div class="field">
-                    <label>Property Key</label>
-                    <input type="text" id="cm-prop-key" placeholder="Your property key from Beds24">
+                    <label>Invite Code</label>
+                    <input type="text" id="cm-invite-code" placeholder="Paste your invite code here">
+                    <p style="font-size: 0.75rem; color: var(--ink-muted); margin-top: 0.3rem;">This connects us to your Beds24 account securely</p>
                 </div>
                 <button class="btn-primary" onclick="connectBeds24()">Connect & Import</button>
                 <div id="cm-status" style="margin-top: 1rem;"></div>
             `;
-            addAiMessage("To connect <strong>" + cmLabel + "</strong>:<br><br>1. Log into Beds24<br>2. Go to <strong>Settings → API</strong> and copy your API key<br>3. Go to your property's <strong>Access tab</strong> and copy the Property Key<br><br>Paste both below and click Connect.");
+            addAiMessage("To connect <strong>" + cmLabel + "</strong>:<br><br>1. Log into Beds24<br>2. Go to <strong>Settings → Marketplace → API</strong><br>3. In the Scope section, click <strong>\"select all\"</strong> for Read, Write, and Delete<br>4. Click <strong>\"Generate invite code\"</strong><br>5. Copy and paste it below");
 
         // Hostaway — direct integration
         } else if (cm === 'hostaway') {
             fieldsDiv.innerHTML = `
                 <div class="field" style="margin-top: 1rem;">
-                    <label>Hostaway Account ID</label>
-                    <input type="text" id="cm-account-id" placeholder="Your Hostaway account ID">
+                    <label>Account ID (Client ID)</label>
+                    <input type="text" id="cm-account-id" placeholder="Your Hostaway Account ID">
                 </div>
                 <div class="field">
-                    <label>API Key</label>
-                    <input type="text" id="cm-api-key" placeholder="Your Hostaway API key">
+                    <label>API Key (Client Secret)</label>
+                    <input type="password" id="cm-api-key" placeholder="Your Hostaway API Key">
+                    <p style="font-size: 0.75rem; color: var(--ink-muted); margin-top: 0.3rem;">Your credentials are encrypted and stored securely</p>
                 </div>
                 <button class="btn-primary" onclick="connectHostaway()">Connect & Import</button>
                 <div id="cm-status" style="margin-top: 1rem;"></div>
             `;
-            addAiMessage("To connect <strong>Hostaway</strong>:<br><br>1. Log into Hostaway<br>2. Go to <strong>Settings → API Keys</strong><br>3. Copy your <strong>Account ID</strong> and <strong>API Key</strong><br><br>Paste them below and click Connect.");
+            addAiMessage("To connect <strong>Hostaway</strong>:<br><br>1. Log into your Hostaway dashboard<br>2. Go to <strong>Settings → API Keys</strong><br>3. Copy your <strong>Account ID (Client ID)</strong> and <strong>API Key (Client Secret)</strong><br><br>Paste them below and click Connect.");
 
         // Other / Not Listed
         } else if (cm === 'other') {
@@ -1237,70 +1237,99 @@ Upsells (mention only if asked): GAS Turbines (social media), custom websites, S
             `;
             addAiMessage(`<strong>${cmName}</strong> connects through a secure authorisation flow. Click the button below and you'll be taken to ${cmName} to grant access. Once authorised, we'll import your properties automatically.`);
         }
+
+        // Scroll down to show the fields
+        scrollToFields();
     }
 
     // =============================================
     // BEDS24 CONNECTION
     // =============================================
     async function connectBeds24() {
-        const apiKey = document.getElementById('cm-api-key')?.value?.trim();
-        const propKey = document.getElementById('cm-prop-key')?.value?.trim();
+        const inviteCode = document.getElementById('cm-invite-code')?.value?.trim();
         const statusDiv = document.getElementById('cm-status');
 
-        if (!apiKey || !propKey) {
-            addAiMessage("Please enter both your <strong>API key</strong> and <strong>Property Key</strong>.");
+        if (!inviteCode) {
+            addAiMessage("Please paste your <strong>invite code</strong> from Beds24.");
             return;
         }
 
         const btn = document.querySelector('#cm-fields .btn-primary');
         btn.disabled = true;
         btn.innerHTML = '<span class="spinner"></span>Connecting...';
-        statusDiv.innerHTML = '<p style="color: var(--ink-muted); font-size: 0.85rem;">Testing connection...</p>';
+        statusDiv.innerHTML = '<p style="color: var(--ink-muted); font-size: 0.85rem;">Creating connection...</p>';
 
         try {
-            // Get properties from Beds24
-            const resp = await fetch('/api/beds24-wizard/properties', {
+            const gasAccountId = accountData?.account?.id;
+
+            // Check for existing connection
+            const existingResp = await fetch(`/api/gas-sync/connections?account_id=${gasAccountId}`);
+            const existingData = await existingResp.json();
+            let connectionId = null;
+
+            if (existingData.success && existingData.connections?.length > 0) {
+                const beds24Conn = existingData.connections.find(c => c.adapter_code === 'beds24');
+                if (beds24Conn) connectionId = beds24Conn.id;
+            }
+
+            // Create connection if none exists
+            if (!connectionId) {
+                const createResp = await fetch('/api/gas-sync/connections', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        account_id: gasAccountId,
+                        adapter_code: 'beds24',
+                        credentials: { inviteCode }
+                    })
+                });
+                const createResult = await createResp.json();
+                if (!createResult.success) throw new Error(createResult.error || 'Failed to create connection');
+                connectionId = createResult.connection?.id || createResult.connectionId;
+            }
+
+            statusDiv.innerHTML = '<p style="color: var(--success); font-size: 0.85rem;">✓ Connection created</p>';
+            statusDiv.innerHTML += '<p style="color: var(--ink-muted); font-size: 0.85rem;">Syncing properties from Beds24...</p>';
+
+            // Trigger sync
+            await fetch(`/api/gas-sync/connections/${connectionId}/sync`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ apiKey, propKey })
+                headers: { 'Content-Type': 'application/json' }
             });
-            const result = await resp.json();
 
-            if (result.success && result.properties?.length > 0) {
-                statusDiv.innerHTML = `<p style="color: var(--success); font-size: 0.85rem;">✓ Found ${result.properties.length} property/properties</p>`;
-                addAiMessage(`Connected! I found <strong>${result.properties.length}</strong> property/properties in your Beds24 account. Importing now...`);
+            // Poll for properties
+            let attempts = 0;
+            const maxAttempts = 15;
+            let foundProperties = false;
 
-                // Import each property
-                for (const prop of result.properties) {
-                    const importResp = await fetch('/api/beds24-wizard/import', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            apiKey, propKey,
-                            propertyId: prop.id,
-                            gasAccountId: accountData?.account?.id,
-                            importImages: true
-                        })
-                    });
-                    const importResult = await importResp.json();
-                    if (importResult.success) {
-                        statusDiv.innerHTML += `<p style="color: var(--success); font-size: 0.85rem;">✓ Imported: ${prop.name}</p>`;
-                    }
+            while (attempts < maxAttempts && !foundProperties) {
+                statusDiv.innerHTML = `<p style="color: var(--success); font-size: 0.85rem;">✓ Connection created</p>`;
+                statusDiv.innerHTML += `<p style="color: var(--ink-muted); font-size: 0.85rem;">Syncing properties... (${attempts + 1}/${maxAttempts})</p>`;
+                await new Promise(r => setTimeout(r, 2000));
+
+                const propsResp = await fetch(`/api/gas-sync/connections/${connectionId}/properties`);
+                const propsData = await propsResp.json();
+
+                if (propsData.success && propsData.properties?.length > 0) {
+                    foundProperties = true;
+                    statusDiv.innerHTML = `<p style="color: var(--success); font-size: 0.85rem;">✓ Found ${propsData.properties.length} property/properties!</p>`;
+                    addAiMessage(`Imported <strong>${propsData.properties.length}</strong> property/properties from Beds24. Let's review them.`);
+                    setTimeout(() => goToStep(3), 1500);
                 }
+                attempts++;
+            }
 
-                addAiMessage("Import complete! Let's review what came in.");
-                setTimeout(() => goToStep(3), 1500);
-            } else {
+            if (!foundProperties) {
                 btn.disabled = false;
                 btn.textContent = 'Connect & Import';
-                statusDiv.innerHTML = `<p style="color: #ef4444; font-size: 0.85rem;">${result.error || 'No properties found'}</p>`;
-                addAiMessage("Hmm, I couldn't find any properties. Double-check your <strong>API key</strong> and <strong>Property Key</strong> are correct.");
+                statusDiv.innerHTML += `<p style="color: #f59e0b; font-size: 0.85rem;">Sync is taking a while. Check your invite code is correct, or try generating a fresh one.</p>`;
+                addAiMessage("The sync is taking longer than expected. Double-check your invite code — try generating a <strong>fresh one</strong> in Beds24 → Settings → Marketplace → API.");
             }
         } catch (err) {
             btn.disabled = false;
             btn.textContent = 'Connect & Import';
-            statusDiv.innerHTML = `<p style="color: #ef4444; font-size: 0.85rem;">Connection error: ${err.message}</p>`;
-            addAiMessage("Something went wrong connecting. Check your credentials and try again.");
+            statusDiv.innerHTML = `<p style="color: #ef4444; font-size: 0.85rem;">Error: ${err.message}</p>`;
+            addAiMessage("Something went wrong. Check your invite code and try again.");
         }
     }
 
@@ -1484,6 +1513,16 @@ Upsells (mention only if asked): GAS Turbines (social media), custom websites, S
 
         addAiMessage(`Thanks! We've noted your request for <strong>${cmName}</strong> integration. We'll be in touch at <strong>${email || 'your registered email'}</strong> when it's available.`);
         document.getElementById('cm-status').innerHTML = `<p style="color: var(--success); font-size: 0.85rem;">✓ Request submitted — we'll be in touch!</p>`;
+    }
+
+    // Scroll to fields after CM selection
+    function scrollToFields() {
+        setTimeout(() => {
+            const fields = document.getElementById('cm-fields');
+            if (fields && fields.innerHTML.trim()) {
+                fields.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }, 100);
     }
 
     // =============================================
