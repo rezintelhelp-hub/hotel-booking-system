@@ -23352,6 +23352,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                         <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
                                             <button class="btn btn-secondary btn-small" onclick="viewAccount(${account.id})">View</button>
                                             ${currentAccount && currentAccount.role === 'master_admin' ? `
+                                                <button class="btn btn-secondary btn-small" onclick="connectStripeForAccount(${account.id})" title="Stripe Keys" style="${(!!account.stripe_account_id || !!account.stripe_secret_key || (parseInt(account.stripe_properties_count) || 0) > 0) ? 'color: #10b981;' : 'color: #f59e0b;'}">💳</button>
                                                 <button class="btn btn-secondary btn-small" onclick="editAccount(${account.id})">Edit</button>
                                                 <button class="btn btn-secondary btn-small" onclick="deleteAccount(${account.id}, \`${account.name.replace(/`/g, "'")}\`)" style="color: #dc2626;">Delete</button>
                                             ` : ''}
