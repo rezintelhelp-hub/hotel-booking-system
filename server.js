@@ -48426,10 +48426,10 @@ app.get('/api/public/unit/:unitId', async (req, res) => {
       }
     }
     
-    // Get amenities from BOTH room_amenity_selections and bookable_unit_amenities
+    // Get amenities from ALL three possible tables
     let amenities = { rows: [] };
     
-    // First: get from room_amenity_selections (new table with quantities)
+    // First: get from room_amenity_selections (admin UI with quantities)
     let newAmenities = [];
     try {
       const newResult = await pool.query(`
@@ -48441,7 +48441,6 @@ app.get('/api/public/unit/:unitId', async (req, res) => {
       `, [unitId]);
       newAmenities = newResult.rows;
     } catch (e) {
-      // quantity column might not exist, try without
       try {
         const newResult = await pool.query(`
           SELECT ma.amenity_name as name, ma.category, ma.icon, 1 as quantity
@@ -48454,7 +48453,7 @@ app.get('/api/public/unit/:unitId', async (req, res) => {
       } catch (e2) {}
     }
     
-    // Second: get from bookable_unit_amenities (old table from imports)
+    // Second: get from bookable_unit_amenities (old import table)
     let oldAmenities = [];
     try {
       const oldResult = await pool.query(`
@@ -48465,14 +48464,27 @@ app.get('/api/public/unit/:unitId', async (req, res) => {
       oldAmenities = oldResult.rows;
     } catch (e) {}
     
-    // Merge: new table takes priority for categories that exist in it
-    // Get categories covered by new selections
-    const newCategories = new Set(newAmenities.map(a => a.category));
+    // Third: get from room_amenities (channel manager sync table)
+    let syncAmenities = [];
+    try {
+      const syncResult = await pool.query(`
+        SELECT a.name, a.category, 1 as quantity
+        FROM room_amenities ra
+        JOIN amenities a ON ra.amenity_id = a.id
+        WHERE ra.room_id = $1
+        ORDER BY a.category, a.name
+      `, [unitId]);
+      syncAmenities = syncResult.rows;
+    } catch (e) {}
     
-    // Include old amenities only for categories NOT in new selections
+    // Merge: room_amenity_selections takes priority, then bookable_unit_amenities, then room_amenities
+    const newCategories = new Set(newAmenities.map(a => a.category));
+    const oldCategories = new Set(oldAmenities.map(a => a.category));
+    
     const mergedAmenities = [
       ...newAmenities,
-      ...oldAmenities.filter(a => !newCategories.has(a.category))
+      ...oldAmenities.filter(a => !newCategories.has(a.category)),
+      ...syncAmenities.filter(a => !newCategories.has(a.category) && !oldCategories.has(a.category))
     ];
     
     amenities = { rows: mergedAmenities };
