@@ -48422,7 +48422,7 @@ app.get('/api/public/unit/:unitId', async (req, res) => {
     let amenities = { rows: [] };
     try {
       amenities = await pool.query(`
-        SELECT ma.amenity_name as name, ma.category, ma.icon
+        SELECT ma.amenity_name as name, ma.category, ma.icon, ras.quantity
         FROM room_amenity_selections ras
         JOIN master_amenities ma ON ras.amenity_id = ma.id
         WHERE ras.room_id = $1
