@@ -523,6 +523,112 @@
             }
         }
 
+        /* CM Scroll Grid */
+        .cm-scroll-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.6rem;
+            max-height: 340px;
+            overflow-y: auto;
+            padding-right: 4px;
+            margin-bottom: 1rem;
+        }
+
+        .cm-scroll-grid::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .cm-scroll-grid::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 4px;
+        }
+
+        .cm-tile {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.75rem 0.5rem;
+            border: 1.5px solid var(--border);
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: var(--surface);
+            text-align: center;
+        }
+
+        .cm-tile:hover {
+            border-color: var(--accent);
+            background: var(--accent-soft);
+            transform: translateY(-1px);
+        }
+
+        .cm-tile.selected {
+            border-color: var(--accent);
+            background: var(--accent-soft);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        .cm-tile-logo {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            font-weight: 700;
+            color: white;
+            flex-shrink: 0;
+        }
+
+        .cm-tile-name {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--ink);
+            line-height: 1.2;
+        }
+
+        .cm-tile-desc {
+            font-size: 0.65rem;
+            color: var(--ink-muted);
+        }
+
+        /* CM Brand Colors */
+        .cm-bg-beds24 { background: linear-gradient(135deg, #1a1a2e, #16213e); }
+        .cm-bg-hostaway { background: linear-gradient(135deg, #00BFA5, #00897B); }
+        .cm-bg-smoobu { background: linear-gradient(135deg, #ff6b35, #f7931e); }
+        .cm-bg-lodgify { background: linear-gradient(135deg, #E8545B, #D94952); }
+        .cm-bg-guesty { background: linear-gradient(135deg, #2563EB, #1D4ED8); }
+        .cm-bg-hostfully { background: linear-gradient(135deg, #4A90D9, #2E5C8A); }
+        .cm-bg-ownerrez { background: linear-gradient(135deg, #8b5cf6, #7c3aed); }
+        .cm-bg-hospitable { background: linear-gradient(135deg, #f59e0b, #d97706); }
+        .cm-bg-tokeet { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+        .cm-bg-uplisting { background: linear-gradient(135deg, #ec4899, #db2777); }
+        .cm-bg-hostify { background: linear-gradient(135deg, #14b8a6, #0d9488); }
+        .cm-bg-avantio { background: linear-gradient(135deg, #f97316, #ea580c); }
+        .cm-bg-mews { background: linear-gradient(135deg, #06b6d4, #0891b2); }
+        .cm-bg-cloudbeds { background: linear-gradient(135deg, #4f46e5, #4338ca); }
+        .cm-bg-bookingsync { background: linear-gradient(135deg, #84cc16, #65a30d); }
+        .cm-bg-streamline { background: linear-gradient(135deg, #6366f1, #4f46e5); }
+        .cm-bg-track { background: linear-gradient(135deg, #10b981, #059669); }
+        .cm-bg-apaleo { background: linear-gradient(135deg, #f43f5e, #e11d48); }
+        .cm-bg-escapia { background: linear-gradient(135deg, #7c3aed, #6d28d9); }
+        .cm-bg-zeevou { background: linear-gradient(135deg, #0ea5e9, #0284c7); }
+        .cm-bg-rms { background: linear-gradient(135deg, #dc2626, #b91c1c); }
+        .cm-bg-resly { background: linear-gradient(135deg, #059669, #047857); }
+        .cm-bg-hostex { background: linear-gradient(135deg, #7c3aed, #5b21b6); }
+        .cm-bg-elina { background: linear-gradient(135deg, #0891b2, #0e7490); }
+        .cm-bg-direct { background: linear-gradient(135deg, #475569, #334155); }
+        .cm-bg-fantasticstay { background: linear-gradient(135deg, #f472b6, #ec4899); }
+        .cm-bg-guestwisely { background: linear-gradient(135deg, #22c55e, #16a34a); }
+        .cm-bg-hosttools { background: linear-gradient(135deg, #8b5cf6, #7c3aed); }
+        .cm-bg-rentalwise { background: linear-gradient(135deg, #0ea5e9, #0284c7); }
+        .cm-bg-yourrentals { background: linear-gradient(135deg, #f97316, #ea580c); }
+        .cm-bg-avaibook { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+        .cm-bg-booking-automation { background: linear-gradient(135deg, #1a1a2e, #16213e); }
+        .cm-bg-other { background: linear-gradient(135deg, #667eea, #764ba2); }
+
         /* Error state */
         .field-error {
             border-color: #ef4444 !important;
@@ -608,28 +714,16 @@
                 <h2 class="step-title">Connect your Channel Manager</h2>
                 <p class="step-subtitle">We'll import your properties, rooms, photos, and pricing automatically.</p>
 
-                <div class="cm-grid">
-                    <div class="cm-card" onclick="selectCM('beds24')">
-                        <div class="cm-icon">B24</div>
-                        <div class="cm-info">
-                            <h4>Beds24</h4>
-                            <p>Connect via API key and prop key</p>
-                        </div>
-                    </div>
-                    <div class="cm-card" onclick="selectCM('hostaway')">
-                        <div class="cm-icon">HW</div>
-                        <div class="cm-info">
-                            <h4>Hostaway</h4>
-                            <p>Connect via API credentials</p>
-                        </div>
-                    </div>
-                    <div class="cm-card" onclick="selectCM('calry')">
-                        <div class="cm-icon">CR</div>
-                        <div class="cm-info">
-                            <h4>Calry / Lodgify</h4>
-                            <p>Connect via integration key</p>
-                        </div>
-                    </div>
+                <div class="field" style="margin-bottom: 1rem;">
+                    <input type="text" id="cm-search" placeholder="Search channel managers..." oninput="filterCMs(this.value)">
+                </div>
+
+                <div class="cm-scroll-grid" id="cmScrollGrid">
+                    <!-- Populated by JS -->
+                </div>
+
+                <div id="cm-no-results" style="display: none; text-align: center; padding: 1.5rem 0; color: var(--ink-muted); font-size: 0.9rem;">
+                    No channel managers found. Try a different search or select "Other / Not Listed".
                 </div>
 
                 <!-- CM-specific fields appear here -->
@@ -934,6 +1028,9 @@ Upsells (mention only if asked): GAS Turbines (social media), custom websites, S
 
         currentStep = step;
         showStepMessages(step);
+
+        // Render CM grid when entering step 2
+        if (step === 2) renderCMGrid();
     }
 
     function skipStep(nextStep) {
@@ -991,68 +1088,127 @@ Upsells (mention only if asked): GAS Turbines (social media), custom websites, S
     // =============================================
     // STEP 2: CHANNEL MANAGER
     // =============================================
+    const channelManagers = [
+        { id: 'beds24', name: 'Beds24', desc: 'Channel Manager' },
+        { id: 'booking-automation', name: 'Booking Automation', desc: 'Channel Manager' },
+        { id: 'hostaway', name: 'Hostaway', desc: 'Property Management' },
+        { id: 'apaleo', name: 'Apaleo', desc: 'Hotel PMS' },
+        { id: 'avaibook', name: 'AvaiBook', desc: 'Vacation Rental' },
+        { id: 'avantio', name: 'Avantio', desc: 'Vacation Rental' },
+        { id: 'bookingsync', name: 'BookingSync', desc: 'Channel Manager' },
+        { id: 'cloudbeds', name: 'Cloudbeds', desc: 'Hotel PMS' },
+        { id: 'direct', name: 'Direct Software', desc: 'Property Management' },
+        { id: 'elina', name: 'Elina', desc: 'Property Management' },
+        { id: 'escapia', name: 'Escapia', desc: 'Vacation Rental' },
+        { id: 'fantasticstay', name: 'FantasticStay', desc: 'Property Management' },
+        { id: 'guesty', name: 'Guesty', desc: 'Property Management' },
+        { id: 'guestwisely', name: 'GuestWisely', desc: 'Property Management' },
+        { id: 'hospitable', name: 'Hospitable', desc: 'Automation' },
+        { id: 'hostex', name: 'Hostex', desc: 'Property Management' },
+        { id: 'hostfully', name: 'Hostfully', desc: 'Property Management' },
+        { id: 'hostify', name: 'Hostify', desc: 'Property Management' },
+        { id: 'hosttools', name: 'Host Tools', desc: 'Automation' },
+        { id: 'lodgify', name: 'Lodgify', desc: 'Vacation Rental' },
+        { id: 'mews', name: 'Mews', desc: 'Hotel PMS' },
+        { id: 'ownerrez', name: 'OwnerRez', desc: 'Vacation Rental' },
+        { id: 'rentalwise', name: 'RentalWise', desc: 'Property Management' },
+        { id: 'resly', name: 'Resly', desc: 'Property Management' },
+        { id: 'rms', name: 'RMS Cloud', desc: 'Hotel PMS' },
+        { id: 'smoobu', name: 'Smoobu', desc: 'Channel Manager' },
+        { id: 'streamline', name: 'Streamline', desc: 'Vacation Rental' },
+        { id: 'tokeet', name: 'Tokeet', desc: 'Channel Manager' },
+        { id: 'track', name: 'Track', desc: 'Hospitality PMS' },
+        { id: 'uplisting', name: 'Uplisting', desc: 'Property Management' },
+        { id: 'yourrentals', name: 'Your.Rentals', desc: 'Channel Manager' },
+        { id: 'zeevou', name: 'Zeevou', desc: 'Property Management' },
+        { id: 'other', name: 'Other / Not Listed', desc: 'Request Integration' }
+    ];
+
+    // Sort alphabetically, keep "Other" at end
+    channelManagers.sort((a, b) => {
+        if (a.id === 'other') return 1;
+        if (b.id === 'other') return -1;
+        return a.name.localeCompare(b.name);
+    });
+
+    function renderCMGrid(filter = '') {
+        const search = filter.toLowerCase();
+        const filtered = channelManagers.filter(cm =>
+            cm.name.toLowerCase().includes(search) || cm.desc.toLowerCase().includes(search)
+        );
+
+        const grid = document.getElementById('cmScrollGrid');
+        const noResults = document.getElementById('cm-no-results');
+
+        if (filtered.length === 0) {
+            grid.style.display = 'none';
+            noResults.style.display = 'block';
+            return;
+        }
+
+        noResults.style.display = 'none';
+        grid.style.display = 'grid';
+        grid.innerHTML = filtered.map(cm => `
+            <div class="cm-tile ${selectedCM === cm.id ? 'selected' : ''}" onclick="selectCM('${cm.id}')">
+                <div class="cm-tile-logo cm-bg-${cm.id}">${cm.id === 'other' ? '?' : cm.name.substring(0, 2).toUpperCase()}</div>
+                <div class="cm-tile-name">${cm.name}</div>
+                <div class="cm-tile-desc">${cm.desc}</div>
+            </div>
+        `).join('');
+    }
+
+    function filterCMs(value) {
+        renderCMGrid(value);
+    }
+
     function selectCM(cm) {
         selectedCM = cm;
-
-        // Visual selection
-        document.querySelectorAll('.cm-card').forEach(card => card.classList.remove('selected'));
-        event.currentTarget.classList.add('selected');
+        renderCMGrid(document.getElementById('cm-search')?.value || '');
 
         const fieldsDiv = document.getElementById('cm-fields');
 
+        // Route to the existing wizard page
+        const accountId = accountData?.account?.id || '';
+        const qs = accountId ? `?account_id=${accountId}` : '';
+
         if (cm === 'beds24') {
             fieldsDiv.innerHTML = `
-                <div class="field" style="margin-top: 1rem;">
-                    <label>Beds24 API Key</label>
-                    <input type="text" id="cm-api-key" placeholder="Your Beds24 API key">
+                <div style="margin-top: 1rem;">
+                    <button class="btn-primary" onclick="window.location.href='/beds24-wizard.html${qs}'">Set Up Beds24 Connection</button>
                 </div>
-                <div class="field">
-                    <label>Property Key</label>
-                    <input type="text" id="cm-prop-key" placeholder="Your property key">
-                </div>
-                <button class="btn-primary" onclick="connectCM()">Connect & Import</button>
             `;
-            addAiMessage("Good choice! To connect <strong>Beds24</strong>, you'll need your <strong>API key</strong> from Beds24 Settings → API, and your <strong>Property Key</strong> from the property's Access tab.");
+            addAiMessage("To connect <strong>Beds24</strong>, you'll need your <strong>API key</strong> from Beds24 Settings → API, and your <strong>Property Key</strong> from the property's Access tab. Click the button to start the wizard.");
         } else if (cm === 'hostaway') {
             fieldsDiv.innerHTML = `
-                <div class="field" style="margin-top: 1rem;">
-                    <label>Hostaway Account ID</label>
-                    <input type="text" id="cm-account-id" placeholder="Your Hostaway account ID">
+                <div style="margin-top: 1rem;">
+                    <button class="btn-primary" onclick="window.location.href='/hostaway-wizard.html${qs}'">Set Up Hostaway Connection</button>
                 </div>
-                <div class="field">
-                    <label>API Key</label>
-                    <input type="text" id="cm-api-key" placeholder="Your Hostaway API key">
-                </div>
-                <button class="btn-primary" onclick="connectCM()">Connect & Import</button>
             `;
-            addAiMessage("To connect <strong>Hostaway</strong>, go to your Hostaway dashboard → Settings → API Keys. You'll need your <strong>Account ID</strong> and <strong>API Key</strong>.");
-        } else if (cm === 'calry') {
+            addAiMessage("To connect <strong>Hostaway</strong>, go to your Hostaway dashboard → Settings → API Keys. You'll need your <strong>Account ID</strong> and <strong>API Key</strong>. Click the button to start the wizard.");
+        } else if (cm === 'booking-automation') {
             fieldsDiv.innerHTML = `
-                <div class="field" style="margin-top: 1rem;">
-                    <label>Calry Integration Key</label>
-                    <input type="text" id="cm-api-key" placeholder="Your integration key from Calry">
+                <div style="margin-top: 1rem;">
+                    <button class="btn-primary" onclick="window.location.href='/booking-automation-wizard.html${qs}'">Set Up Booking Automation</button>
                 </div>
-                <button class="btn-primary" onclick="connectCM()">Connect & Import</button>
             `;
-            addAiMessage("For <strong>Calry/Lodgify</strong>, you'll need your <strong>Integration Key</strong> from your Calry dashboard under Settings → Integrations.");
+            addAiMessage("<strong>Booking Automation</strong> uses the same setup as Beds24. Click the button to start the wizard.");
+        } else if (cm === 'other') {
+            fieldsDiv.innerHTML = `
+                <div style="margin-top: 1rem;">
+                    <button class="btn-primary" onclick="window.location.href='/other-cm-wizard.html${qs}'">Request Integration</button>
+                </div>
+            `;
+            addAiMessage("Can't find your channel manager? No problem — click the button and we'll look into adding support for it.");
+        } else {
+            // All Calry-connected CMs
+            fieldsDiv.innerHTML = `
+                <div style="margin-top: 1rem;">
+                    <button class="btn-primary" onclick="window.location.href='/${cm}-wizard.html${qs}'">Set Up ${channelManagers.find(c => c.id === cm)?.name || cm} Connection</button>
+                </div>
+            `;
+            const cmName = channelManagers.find(c => c.id === cm)?.name || cm;
+            addAiMessage(`<strong>${cmName}</strong> connects through our Calry integration. Click the button and follow the wizard — it only takes a couple of minutes.`);
         }
-    }
-
-    async function connectCM() {
-        showTyping();
-        const btn = document.querySelector('#cm-fields .btn-primary');
-        btn.disabled = true;
-        btn.innerHTML = '<span class="spinner"></span>Connecting & importing...';
-
-        // TODO: Wire up to actual CM sync endpoints
-        // For now, simulate
-        setTimeout(() => {
-            addAiMessage("Connected! I'm importing your properties now. This usually takes about 30 seconds...");
-            setTimeout(() => {
-                addAiMessage("Import complete! Let's review what came in.");
-                goToStep(3);
-            }, 2000);
-        }, 1500);
     }
 
     // =============================================
