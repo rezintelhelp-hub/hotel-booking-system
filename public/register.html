@@ -955,8 +955,8 @@ Upsells (mention only if asked): GAS Turbines (social media), custom websites, S
             return;
         }
 
-        if (password.length < 6) {
-            addAiMessage("Your password needs to be at least <strong>6 characters</strong>. Give it another go!");
+        if (password.length < 8) {
+            addAiMessage("Your password needs to be at least <strong>8 characters</strong>. Give it another go!");
             return;
         }
 
@@ -965,7 +965,7 @@ Upsells (mention only if asked): GAS Turbines (social media), custom websites, S
         btn.innerHTML = '<span class="spinner"></span>Creating account...';
 
         try {
-            const response = await fetch('/api/admin/register', {
+            const response = await fetch('/api/onboarding/create-account', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name, business_name: business, email, password })
