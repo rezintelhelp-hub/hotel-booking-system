@@ -187,11 +187,12 @@
 
         .hero-title {
             font-family: 'DM Serif Display', serif;
-            font-size: clamp(2.5rem, 5vw, 4rem);
+            font-size: clamp(2rem, 4.5vw, 3.5rem);
             font-weight: 400;
             color: var(--white);
             line-height: 1.15;
-            margin-bottom: 2.5rem;
+            margin-bottom: 2rem;
+            white-space: nowrap;
             opacity: 0;
             animation: fadeUp 1s ease 0.6s forwards;
         }
@@ -200,7 +201,7 @@
             width: 60px;
             height: 1px;
             background: rgba(255, 255, 255, 0.3);
-            margin: 0 auto 2.5rem;
+            margin: 0 auto 2rem;
             opacity: 0;
             animation: fadeUp 1s ease 0.9s forwards;
         }
@@ -209,13 +210,13 @@
             font-family: 'DM Serif Display', serif;
             font-size: clamp(1.5rem, 3vw, 2.2rem);
             color: var(--white);
-            margin-bottom: 0.5rem;
+            margin-bottom: 0.25rem;
             opacity: 0;
             animation: fadeUp 1s ease 1.2s forwards;
         }
 
         .typewriter-container {
-            height: 3rem;
+            height: 2.5rem;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -733,14 +734,14 @@
     <section class="hero">
         <div class="video-bg">
             <video autoplay muted loop playsinline>
-                <source src="/videos/hero-bg.mp4" type="video/mp4">
+                <source src="/hero-bg.mp4" type="video/mp4">
             </video>
         </div>
         <div class="video-overlay"></div>
 
         <div class="hero-content">
             <p class="hero-welcome">Welcome to the</p>
-            <h1 class="hero-title">Global Accommodation<br>System</h1>
+            <h1 class="hero-title">Global Accommodation System</h1>
             <div class="hero-divider"></div>
             <p class="hero-tagline">No Boundaries</p>
             <div class="typewriter-container">
