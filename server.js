@@ -48426,7 +48426,7 @@ app.get('/api/public/unit/:unitId', async (req, res) => {
       }
     }
     
-    // Get amenities from ALL three possible tables
+    // Get amenities from ALL possible sources
     let amenities = { rows: [] };
     
     // First: get from room_amenity_selections (admin UI with quantities)
@@ -48477,15 +48477,62 @@ app.get('/api/public/unit/:unitId', async (req, res) => {
       syncAmenities = syncResult.rows;
     } catch (e) {}
     
-    // Merge: room_amenity_selections takes priority for matching categories
-    const newCategories = new Set(newAmenities.map(a => a.category));
-    const oldCategories = new Set(oldAmenities.map(a => a.category));
+    // Fourth: get from property_amenities (Hostaway property-level amenities)
+    // For Hostaway, property = room, so these are relevant
+    let propAmenities = [];
+    try {
+      const propertyId = unit.rows[0].property_id;
+      if (propertyId) {
+        const propResult = await pool.query(`
+          SELECT a.name as name, 'General' as category, 1 as quantity
+          FROM property_amenities pa
+          JOIN amenities a ON pa.amenity_id = a.id
+          WHERE pa.property_id = $1
+          ORDER BY a.name
+        `, [propertyId]);
+        propAmenities = propResult.rows;
+      }
+    } catch (e) {}
     
-    const mergedAmenities = [
-      ...newAmenities,
-      ...oldAmenities.filter(a => !newCategories.has(a.category)),
-      ...syncAmenities
-    ];
+    // Merge: room_amenity_selections takes priority for matching categories
+    // Then old table, then sync table, then property-level
+    const newCategories = new Set(newAmenities.map(a => a.category));
+    
+    // Deduplicate by name across sources
+    const seenNames = new Set();
+    const mergedAmenities = [];
+    
+    // Add new amenities first (admin UI with quantities)
+    for (const a of newAmenities) {
+      const nameKey = typeof a.name === 'object' ? (a.name.en || '') : a.name;
+      seenNames.add(nameKey.toLowerCase());
+      mergedAmenities.push(a);
+    }
+    
+    // Add old amenities (categories not covered by new)
+    for (const a of oldAmenities) {
+      if (newCategories.has(a.category)) continue;
+      const nameKey = typeof a.name === 'object' ? (a.name.en || '') : a.name;
+      if (seenNames.has(nameKey.toLowerCase())) continue;
+      seenNames.add(nameKey.toLowerCase());
+      mergedAmenities.push(a);
+    }
+    
+    // Add sync amenities
+    for (const a of syncAmenities) {
+      const nameKey = typeof a.name === 'object' ? (a.name.en || '') : a.name;
+      if (seenNames.has(nameKey.toLowerCase())) continue;
+      seenNames.add(nameKey.toLowerCase());
+      mergedAmenities.push(a);
+    }
+    
+    // Add property-level amenities
+    for (const a of propAmenities) {
+      const nameKey = typeof a.name === 'object' ? (a.name.en || '') : a.name;
+      if (seenNames.has(nameKey.toLowerCase())) continue;
+      seenNames.add(nameKey.toLowerCase());
+      mergedAmenities.push(a);
+    }
     
     amenities = { rows: mergedAmenities };
     
