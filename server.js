@@ -35488,6 +35488,9 @@ app.put('/api/admin/units/:id/amenities', async (req, res) => {
     const { id } = req.params;
     const { amenities } = req.body; // Array of amenity IDs or objects with {id, quantity}
     
+    // Ensure quantity column exists
+    await pool.query('ALTER TABLE room_amenity_selections ADD COLUMN IF NOT EXISTS quantity INTEGER DEFAULT 1').catch(() => {});
+    
     // Delete existing selections for this room
     await pool.query('DELETE FROM room_amenity_selections WHERE room_id = $1', [id]);
     
@@ -48422,22 +48425,33 @@ app.get('/api/public/unit/:unitId', async (req, res) => {
     let amenities = { rows: [] };
     try {
       amenities = await pool.query(`
-        SELECT ma.amenity_name as name, ma.category, ma.icon, ras.quantity
+        SELECT ma.amenity_name as name, ma.category, ma.icon, COALESCE(ras.quantity, 1) as quantity
         FROM room_amenity_selections ras
         JOIN master_amenities ma ON ras.amenity_id = ma.id
         WHERE ras.room_id = $1
         ORDER BY ma.category, ras.display_order
       `, [unitId]);
     } catch (e) {
-      // Fallback to old table structure
+      // quantity column might not exist yet, try without it
       try {
         amenities = await pool.query(`
-          SELECT amenity_name as name, category, icon
-          FROM bookable_unit_amenities WHERE bookable_unit_id = $1
-          ORDER BY category, display_order
+          SELECT ma.amenity_name as name, ma.category, ma.icon, 1 as quantity
+          FROM room_amenity_selections ras
+          JOIN master_amenities ma ON ras.amenity_id = ma.id
+          WHERE ras.room_id = $1
+          ORDER BY ma.category, ras.display_order
         `, [unitId]);
       } catch (e2) {
-        // Neither table exists
+        // Fallback to old table structure
+        try {
+          amenities = await pool.query(`
+            SELECT amenity_name as name, category, icon, 1 as quantity
+            FROM bookable_unit_amenities WHERE bookable_unit_id = $1
+            ORDER BY category, display_order
+          `, [unitId]);
+        } catch (e3) {
+          // Neither table exists
+        }
       }
     }
     
@@ -64231,6 +64245,14 @@ app.post('/api/admin/run-migrations', async (req, res) => {
       results.push('Added custom_domain to deployed_sites');
     } catch (e) {
       results.push('custom_domain: ' + e.message);
+    }
+
+    // Add quantity to room_amenity_selections
+    try {
+      await pool.query(`ALTER TABLE room_amenity_selections ADD COLUMN IF NOT EXISTS quantity INTEGER DEFAULT 1`);
+      results.push('Added quantity to room_amenity_selections');
+    } catch (e) {
+      results.push('quantity: ' + e.message);
     }
     
     // Add account_id to custom_sites
