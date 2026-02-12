@@ -31608,10 +31608,10 @@ app.post('/api/admin/sync-hostaway-availability', async (req, res) => {
     
     console.log(`Syncing availability for ${roomsResult.rows.length} Hostaway listings...`);
     
-    // Calculate date range (today + 90 days)
+    // Calculate date range (today + 365 days)
     const today = new Date();
     const endDate = new Date();
-    endDate.setDate(endDate.getDate() + 90);
+    endDate.setDate(endDate.getDate() + 365);
     
     const startDateStr = today.toISOString().split('T')[0];
     const endDateStr = endDate.toISOString().split('T')[0];
@@ -58664,9 +58664,9 @@ async function syncAllChannelManagers() {
             continue;
           }
           
-          // Sync availability for next 90 days
+          // Sync availability for next 365 days
           const today = new Date().toISOString().split('T')[0];
-          const endDate = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+          const endDate = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
           let totalDays = 0;
           
           for (const room of roomsResult.rows) {
