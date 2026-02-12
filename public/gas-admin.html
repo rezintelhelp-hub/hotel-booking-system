@@ -26442,10 +26442,14 @@ const promo = await fetch('/api/v1/offers/validate', {
                 if (allAmenitiesData.success) {
                     const allAmenities = allAmenitiesData.amenities || [];
                     
-                    // Get selected amenity IDs
+                    // Get selected amenity IDs and quantities
                     const selectedIds = new Set();
+                    const selectedQuantities = {};
                     if (roomAmenitiesData.success && roomAmenitiesData.data) {
-                        roomAmenitiesData.data.forEach(a => selectedIds.add(a.amenity_id));
+                        roomAmenitiesData.data.forEach(a => {
+                            selectedIds.add(a.amenity_id);
+                            selectedQuantities[a.amenity_id] = a.quantity || 1;
+                        });
                     }
                     
                     // Define which categories go in which tab
@@ -26497,7 +26501,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 <div style="margin-bottom: 1.5rem;">
                                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
                                         <h4 style="margin: 0; color: #64748b;">${categoryNames[cat] || cat}</h4>
-                                        <span style="font-size: 0.8rem; color: #64748b;">${items.filter(a => selectedIds.has(a.id)).length}/${items.length}</span>
+                                        <span style="font-size: 0.8rem; color: #64748b;">${cat === 'beds' ? items.filter(a => (selectedQuantities[a.id] || 0) > 0).length : items.filter(a => selectedIds.has(a.id)).length}/${items.length}</span>
                                     </div>
                                     <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.5rem;">
                                         ${items.map(a => {
@@ -26505,6 +26509,18 @@ const promo = await fetch('/api/v1/offers/validate', {
                                                 (a.amenity_name.startsWith('{') ? JSON.parse(a.amenity_name).en : a.amenity_name) :
                                                 a.amenity_name?.en || a.amenity_code;
                                             const isSelected = selectedIds.has(a.id);
+                                            const qty = selectedQuantities[a.id] || 0;
+                                            
+                                            // Beds category: show number input instead of checkbox
+                                            if (cat === 'beds') {
+                                                return `
+                                                    <div style="display: flex; align-items: center; gap: 0.5rem; background: ${qty > 0 ? '#dcfce7' : 'var(--bg-secondary)'}; border: 1px solid ${qty > 0 ? '#10b981' : 'var(--border)'}; padding: 0.5rem 0.75rem; border-radius: 6px; font-size: 0.9rem;">
+                                                        <input type="number" class="room-amenity-qty" data-amenity-id="${a.id}" value="${qty}" min="0" max="20" style="width: 45px; padding: 0.2rem 0.3rem; border: 1px solid #cbd5e1; border-radius: 4px; text-align: center; font-size: 0.85rem; background: white;" onchange="this.closest('div').style.background = this.value > 0 ? '#dcfce7' : 'var(--bg-secondary)'; this.closest('div').style.borderColor = this.value > 0 ? '#10b981' : 'var(--border)';">
+                                                        <span>${a.icon || ''} ${name}</span>
+                                                    </div>
+                                                `;
+                                            }
+                                            
                                             return `
                                                 <label style="display: flex; align-items: center; gap: 0.5rem; background: ${isSelected ? '#dcfce7' : 'var(--bg-secondary)'}; border: 1px solid ${isSelected ? '#10b981' : 'var(--border)'}; padding: 0.5rem 0.75rem; border-radius: 6px; cursor: pointer; font-size: 0.9rem;">
                                                     <input type="checkbox" class="room-amenity-checkbox" value="${a.id}" ${isSelected ? 'checked' : ''} style="width: 16px; height: 16px; cursor: pointer;">
@@ -27459,10 +27475,18 @@ const promo = await fetch('/api/v1/offers/validate', {
                 return;
             }
             
-            // Get selected amenities
+            // Get selected amenities from checkboxes
             const selectedAmenities = [];
             document.querySelectorAll('.room-amenity-checkbox:checked').forEach(checkbox => {
-                selectedAmenities.push(checkbox.value);
+                selectedAmenities.push({ id: checkbox.value, quantity: 1 });
+            });
+            
+            // Get bed type quantities from number inputs
+            document.querySelectorAll('.room-amenity-qty').forEach(input => {
+                const qty = parseInt(input.value) || 0;
+                if (qty > 0) {
+                    selectedAmenities.push({ id: input.dataset.amenityId, quantity: qty });
+                }
             });
             
             try {
