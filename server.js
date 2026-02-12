@@ -35464,6 +35464,7 @@ app.get('/api/admin/units/:id/amenities', async (req, res) => {
       SELECT 
         ras.id as selection_id,
         ras.display_order,
+        ras.quantity,
         ma.id as amenity_id,
         ma.amenity_code,
         ma.amenity_name,
@@ -35485,7 +35486,7 @@ app.get('/api/admin/units/:id/amenities', async (req, res) => {
 app.put('/api/admin/units/:id/amenities', async (req, res) => {
   try {
     const { id } = req.params;
-    const { amenities } = req.body; // Array of amenity IDs
+    const { amenities } = req.body; // Array of amenity IDs or objects with {id, quantity}
     
     // Delete existing selections for this room
     await pool.query('DELETE FROM room_amenity_selections WHERE room_id = $1', [id]);
@@ -35494,10 +35495,11 @@ app.put('/api/admin/units/:id/amenities', async (req, res) => {
     if (amenities && amenities.length > 0) {
       for (let i = 0; i < amenities.length; i++) {
         const amenityId = typeof amenities[i] === 'object' ? amenities[i].id : amenities[i];
+        const quantity = typeof amenities[i] === 'object' ? (amenities[i].quantity || 1) : 1;
         await pool.query(`
-          INSERT INTO room_amenity_selections (room_id, amenity_id, display_order)
-          VALUES ($1, $2, $3)
-        `, [id, amenityId, i]);
+          INSERT INTO room_amenity_selections (room_id, amenity_id, quantity, display_order)
+          VALUES ($1, $2, $3, $4)
+        `, [id, amenityId, quantity, i]);
       }
     }
     
