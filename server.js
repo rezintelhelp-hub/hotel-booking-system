@@ -63742,6 +63742,315 @@ app.post('/api/hostaway-wizard/import', async (req, res) => {
 // Serve frontend - MUST BE LAST (after all API routes)
 
 // Plugin license GET routes (moved before catch-all)
+// Test webhook - simulate a booking.created webhook for a room
+app.get('/api/admin/test-webhook/:roomId', async (req, res) => {
+  const crypto = require('crypto');
+  const axios = require('axios');
+  
+  try {
+    const { roomId } = req.params;
+    const eventType = req.query.event || 'booking.created';
+    
+    // Get room and partner mapping
+    const roomResult = await pool.query(`
+      SELECT 
+        bu.id as room_id,
+        bu.name as room_name,
+        bu.cm_room_id as external_room_id,
+        p.id as property_id,
+        p.name as property_name,
+        p.beds24_property_id as external_property_id,
+        p.account_id,
+        ptm.external_tenant_id as tenant_id,
+        ptm.partner_account_id,
+        pa.booking_webhook_url,
+        pa.webhook_secret,
+        pa.name as partner_name
+      FROM bookable_units bu
+      JOIN properties p ON bu.property_id = p.id
+      LEFT JOIN partner_tenant_mapping ptm ON p.account_id = ptm.gas_account_id
+      LEFT JOIN accounts pa ON ptm.partner_account_id = pa.id
+      WHERE bu.id = $1
+    `, [roomId]);
+    
+    if (roomResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Room not found' });
+    }
+    
+    const room = roomResult.rows[0];
+    
+    // Diagnostic info
+    const diagnostics = {
+      room_id: room.room_id,
+      room_name: room.room_name,
+      property_id: room.property_id,
+      property_name: room.property_name,
+      account_id: room.account_id,
+      tenant_id: room.tenant_id || 'NOT SET - no partner_tenant_mapping',
+      partner_account_id: room.partner_account_id || 'NOT SET',
+      partner_name: room.partner_name || 'NOT SET',
+      webhook_url: room.booking_webhook_url || 'NOT SET',
+      webhook_secret: room.webhook_secret ? 'SET (' + room.webhook_secret.length + ' chars)' : 'NOT SET'
+    };
+    
+    if (!room.partner_account_id) {
+      return res.json({ 
+        success: false, 
+        error: 'No partner_tenant_mapping found for this property\'s account',
+        diagnostics,
+        fix: `INSERT INTO partner_tenant_mapping (partner_account_id, external_tenant_id, gas_account_id) VALUES (<ELEVATE_ACCOUNT_ID>, '<TENANT_ID>', ${room.account_id})`
+      });
+    }
+    
+    if (!room.booking_webhook_url) {
+      return res.json({ 
+        success: false, 
+        error: 'No booking_webhook_url set on partner account',
+        diagnostics,
+        fix: `UPDATE accounts SET booking_webhook_url = 'https://...' WHERE id = ${room.partner_account_id}`
+      });
+    }
+    
+    if (!room.webhook_secret) {
+      return res.json({ 
+        success: false, 
+        error: 'No webhook_secret set on partner account',
+        diagnostics,
+        fix: `UPDATE accounts SET webhook_secret = '${crypto.randomBytes(32).toString('hex')}' WHERE id = ${room.partner_account_id}`
+      });
+    }
+    
+    // Build test payload
+    const timestamp = new Date().toISOString();
+    const payload = {
+      event: eventType,
+      timestamp: timestamp,
+      test: true,
+      data: {
+        booking_id: 'TEST-' + Date.now(),
+        group_booking_id: null,
+        tenant_id: room.tenant_id,
+        property: {
+          gas_id: room.property_id,
+          external_id: room.external_property_id,
+          name: room.property_name
+        },
+        room: {
+          gas_id: room.room_id,
+          external_id: room.external_room_id,
+          name: room.room_name
+        },
+        dates: {
+          check_in: '2026-03-01',
+          check_out: '2026-03-05',
+          nights: 4
+        },
+        guest: {
+          first_name: 'Test',
+          last_name: 'Webhook',
+          email: 'test@gas.travel',
+          phone: null
+        },
+        guests: {
+          adults: 2,
+          children: 0,
+          total: 2
+        },
+        payment: {
+          total: 500.00,
+          deposit: 125.00,
+          currency: 'USD',
+          status: 'deposit_paid',
+          method: 'card'
+        },
+        status: 'confirmed',
+        source: 'direct',
+        created_at: timestamp
+      }
+    };
+    
+    // Generate HMAC signature
+    const signature = crypto
+      .createHmac('sha256', room.webhook_secret)
+      .update(JSON.stringify(payload))
+      .digest('hex');
+    
+    // Send test webhook
+    console.log(`[Webhook TEST] Sending ${eventType} to ${room.booking_webhook_url}`);
+    
+    const response = await axios.post(room.booking_webhook_url, payload, {
+      headers: {
+        'Content-Type': 'application/json',
+        'X-GAS-Signature': 'sha256=' + signature,
+        'X-GAS-Timestamp': timestamp,
+        'X-GAS-Event': eventType,
+        'User-Agent': 'GAS-Webhook/1.0'
+      },
+      timeout: 10000
+    });
+    
+    res.json({
+      success: true,
+      message: `Test webhook sent to ${room.partner_name}`,
+      diagnostics,
+      webhook_response: {
+        status: response.status,
+        statusText: response.statusText,
+        data: response.data
+      },
+      payload_sent: payload
+    });
+    
+  } catch (error) {
+    // If axios error, show response details
+    if (error.response) {
+      return res.json({
+        success: false,
+        error: `Webhook endpoint returned ${error.response.status}`,
+        response_status: error.response.status,
+        response_data: error.response.data,
+        message: 'The webhook was sent but the endpoint rejected it'
+      });
+    }
+    
+    if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+      return res.json({
+        success: false,
+        error: `Cannot reach webhook URL: ${error.message}`,
+        message: 'Check the webhook URL is correct and the server is running'
+      });
+    }
+    
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Fetch Hostaway amenities and populate property_amenities for a room
+app.get('/api/admin/hostaway-sync-amenities/:roomId', async (req, res) => {
+  try {
+    const { roomId } = req.params;
+    const axios = require('axios');
+    
+    // Get room's hostaway listing ID and property ID
+    const room = await pool.query(`
+      SELECT bu.id, bu.hostaway_listing_id, bu.property_id, p.account_id
+      FROM bookable_units bu
+      JOIN properties p ON bu.property_id = p.id
+      WHERE bu.id = $1
+    `, [roomId]);
+    
+    if (!room.rows[0]) return res.json({ success: false, error: 'Room not found' });
+    
+    const { hostaway_listing_id, property_id, account_id } = room.rows[0];
+    if (!hostaway_listing_id) return res.json({ success: false, error: 'No Hostaway listing ID on this room' });
+    
+    // Get Hostaway token
+    const conn = await pool.query(
+      `SELECT access_token FROM gas_sync_connections WHERE account_id = $1 AND adapter_code = 'hostaway' AND status IN ('connected', 'active') LIMIT 1`,
+      [account_id]
+    );
+    
+    if (!conn.rows[0]?.access_token) return res.json({ success: false, error: 'No Hostaway connection found' });
+    
+    const token = conn.rows[0].access_token;
+    
+    // Fetch listing from Hostaway
+    const response = await axios.get(`https://api.hostaway.com/v1/listings/${hostaway_listing_id}`, {
+      headers: { 'Authorization': `Bearer ${token}` },
+      timeout: 30000
+    });
+    
+    const listing = response.data?.result || response.data;
+    if (!listing) return res.json({ success: false, error: 'Listing not found in Hostaway' });
+    
+    // Extract amenities - Hostaway uses various fields
+    const amenityNames = [];
+    
+    // listing.amenities is typically an array of strings or objects
+    if (listing.amenities && Array.isArray(listing.amenities)) {
+      listing.amenities.forEach(a => {
+        if (typeof a === 'string') amenityNames.push(a);
+        else if (a.name) amenityNames.push(a.name);
+      });
+    }
+    
+    // Also check listingAmenities
+    if (listing.listingAmenities && Array.isArray(listing.listingAmenities)) {
+      listing.listingAmenities.forEach(a => {
+        if (typeof a === 'string') amenityNames.push(a);
+        else if (a.name) amenityNames.push(a.name);
+      });
+    }
+    
+    // Hostaway also has amenity boolean fields
+    const hostawayBoolFields = {
+      'isAirConditioning': 'Air Conditioning', 'isWifi': 'WiFi', 'isTV': 'TV',
+      'isKitchen': 'Kitchen', 'isParking': 'Parking', 'isPool': 'Pool',
+      'isHotTub': 'Hot Tub', 'isGym': 'Gym', 'isElevator': 'Elevator',
+      'isWheelchairAccessible': 'Wheelchair Accessible', 'isSmoking': 'Smoking Allowed',
+      'isPetsAllowed': 'Pets Allowed', 'isWasher': 'Washer', 'isDryer': 'Dryer',
+      'isHeating': 'Heating', 'isFireplace': 'Fireplace', 'isIntercom': 'Intercom',
+      'isDoorman': 'Doorman', 'isShampoo': 'Shampoo', 'isHangers': 'Hangers',
+      'isIron': 'Iron', 'isHairDryer': 'Hair Dryer', 'isLaptopFriendly': 'Laptop Friendly Workspace',
+      'isSelfCheckIn': 'Self Check-In', 'isSmokeDetector': 'Smoke Detector',
+      'isCarbonMonoxide': 'Carbon Monoxide Detector', 'isFirstAidKit': 'First Aid Kit',
+      'isFireExtinguisher': 'Fire Extinguisher', 'isCableTv': 'Cable TV',
+      'isCoffeeMaker': 'Coffee Maker', 'isCookingBasics': 'Cooking Basics',
+      'isDishesAndSilverware': 'Dishes and Silverware', 'isDishwasher': 'Dishwasher',
+      'isMicrowave': 'Microwave', 'isOven': 'Oven', 'isRefrigerator': 'Refrigerator',
+      'isStove': 'Stove', 'isBBQGrill': 'BBQ Grill', 'isGardenOrBackyard': 'Garden/Backyard',
+      'isLakeAccess': 'Lake Access', 'isBeachAccess': 'Beach Access',
+      'isWaterfront': 'Waterfront', 'isSkiInSkiOut': 'Ski-in/Ski-out'
+    };
+    
+    for (const [field, name] of Object.entries(hostawayBoolFields)) {
+      if (listing[field] === true || listing[field] === 1 || listing[field] === '1') {
+        amenityNames.push(name);
+      }
+    }
+    
+    if (amenityNames.length === 0) {
+      return res.json({ success: false, error: 'No amenities found in Hostaway listing', rawKeys: Object.keys(listing).filter(k => k.toLowerCase().includes('amen')) });
+    }
+    
+    // Write to property_amenities
+    // Ensure table exists
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS property_amenities (
+        id SERIAL PRIMARY KEY,
+        property_id INTEGER,
+        amenity_id INTEGER,
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(property_id, amenity_id)
+      )
+    `).catch(() => {});
+    
+    let synced = 0;
+    for (const name of amenityNames) {
+      try {
+        // Find or create in amenities table
+        let amenityId;
+        const existing = await pool.query("SELECT id FROM amenities WHERE LOWER(name) = LOWER($1) LIMIT 1", [name]);
+        if (existing.rows.length > 0) {
+          amenityId = existing.rows[0].id;
+        } else {
+          const created = await pool.query("INSERT INTO amenities (name, created_at) VALUES ($1, NOW()) ON CONFLICT DO NOTHING RETURNING id", [name]);
+          if (created.rows.length > 0) amenityId = created.rows[0].id;
+        }
+        if (amenityId) {
+          await pool.query(`INSERT INTO property_amenities (property_id, amenity_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`, [property_id, amenityId]);
+          synced++;
+        }
+      } catch (e) {}
+    }
+    
+    res.json({ success: true, message: `Synced ${synced} amenities from Hostaway`, amenityNames, total: amenityNames.length });
+  } catch (error) {
+    console.error('Hostaway amenity sync error:', error.response?.data || error.message);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 app.get('/api/plugin-licenses', async (req, res) => {
   try {
     const accountId = req.query.account_id;
