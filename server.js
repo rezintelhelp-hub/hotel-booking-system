@@ -10065,7 +10065,7 @@ app.post('/api/accounts/change-password', async (req, res) => {
 // Step 1: Create account during onboarding
 app.post('/api/onboarding/create-account', async (req, res) => {
   try {
-    const { name, email, password, channel_manager } = req.body;
+    const { name, email, password, channel_manager, business_name } = req.body;
     
     if (!name || !email || !password) {
       return res.json({ success: false, error: 'Name, email, and password are required' });
@@ -10100,9 +10100,9 @@ app.post('/api/onboarding/create-account', async (req, res) => {
         name, email, password_hash, business_name, role, parent_id,
         account_code, api_key, api_key_created_at, status
       )
-      VALUES ($1, $2, $3, $1, 'admin', $4, $5, $6, NOW(), 'active')
+      VALUES ($1, $2, $3, $4, 'admin', $5, $6, $7, NOW(), 'active')
       RETURNING id, public_id, name, email, role, business_name, account_code
-    `, [name, email.toLowerCase().trim(), passwordHash, parentId, accountCode, apiKey]);
+    `, [name, email.toLowerCase().trim(), passwordHash, business_name || name, parentId, accountCode, apiKey]);
     
     const account = result.rows[0];
     
