@@ -66946,13 +66946,18 @@ async function getLatestGitHubRelease() {
   }
   
   try {
+    const headers = { 'Accept': 'application/vnd.github.v3+json' };
+    if (process.env.GITHUB_TOKEN) {
+      headers['Authorization'] = `token ${process.env.GITHUB_TOKEN}`;
+    }
+    
     const response = await axios.get('https://api.github.com/repos/rezintelhelp-hub/gas-booking-plugin/releases/latest', {
-      headers: { 'Accept': 'application/vnd.github.v3+json' },
+      headers,
       timeout: 5000
     });
     
     const release = response.data;
-    const version = release.tag_name.replace('v', ''); // v1.0.165 -> 1.0.165
+    const version = release.tag_name.replace('v', ''); // v2.9.14 -> 2.9.14
     
     // Find the zip asset
     const zipAsset = release.assets.find(a => a.name.endsWith('.zip'));
@@ -66973,7 +66978,7 @@ async function getLatestGitHubRelease() {
     console.error('[GitHub] Error fetching release:', error.message);
     // Return fallback if API fails
     return {
-      version: '1.0.165',
+      version: '2.9.14',
       download_url: 'https://github.com/rezintelhelp-hub/gas-booking-plugin/releases/latest',
       published_at: new Date().toISOString(),
       body: ''
