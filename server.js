@@ -54122,19 +54122,65 @@ Return your response in this exact JSON format:
         });
         
         const responseText = claudeResponse.data.content[0].text;
+        console.log('AI Response (first 500 chars):', responseText.substring(0, 500));
         
         // Parse the JSON response
         let blogData;
         try {
             // Extract JSON from response (handle markdown code blocks)
-            const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-                blogData = JSON.parse(jsonMatch[0]);
-            } else {
-                throw new Error('No JSON found in response');
+            let cleanText = responseText;
+            // Remove markdown code fences if present
+            cleanText = cleanText.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+            
+            // Try direct parse first
+            try {
+                blogData = JSON.parse(cleanText);
+            } catch (e1) {
+                // Try extracting JSON object
+                const jsonMatch = cleanText.match(/\{[\s\S]*\}/);
+                if (jsonMatch) {
+                    try {
+                        blogData = JSON.parse(jsonMatch[0]);
+                    } catch (e2) {
+                        // Fix common JSON issues: unescaped newlines and quotes in content
+                        let fixedJson = jsonMatch[0];
+                        // Replace literal newlines inside strings
+                        fixedJson = fixedJson.replace(/(?<=":[ ]*")([\s\S]*?)(?="[ ]*[,}])/g, function(match) {
+                            return match.replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t');
+                        });
+                        try {
+                            blogData = JSON.parse(fixedJson);
+                        } catch (e3) {
+                            // Last resort: extract fields manually
+                            console.error('All JSON parse attempts failed, trying field extraction');
+                            const titleMatch = cleanText.match(/"title"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+                            const excerptMatch = cleanText.match(/"excerpt"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+                            const contentMatch = cleanText.match(/"content"\s*:\s*"([\s\S]*?)"\s*,\s*"meta_title"/);
+                            const metaTitleMatch = cleanText.match(/"meta_title"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+                            const metaDescMatch = cleanText.match(/"meta_description"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+                            
+                            if (titleMatch && contentMatch) {
+                                blogData = {
+                                    title: titleMatch[1],
+                                    excerpt: excerptMatch ? excerptMatch[1] : '',
+                                    content: contentMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"'),
+                                    meta_title: metaTitleMatch ? metaTitleMatch[1] : titleMatch[1].substring(0, 60),
+                                    meta_description: metaDescMatch ? metaDescMatch[1] : (excerptMatch ? excerptMatch[1] : ''),
+                                    suggested_tags: [],
+                                    faq: []
+                                };
+                            } else {
+                                throw new Error('Could not extract blog fields from response');
+                            }
+                        }
+                    }
+                } else {
+                    throw new Error('No JSON found in response');
+                }
             }
         } catch (parseError) {
             console.error('Failed to parse AI response:', parseError);
+            console.error('Raw response:', responseText.substring(0, 1000));
             return res.json({ success: false, error: 'Failed to parse AI response' });
         }
         
