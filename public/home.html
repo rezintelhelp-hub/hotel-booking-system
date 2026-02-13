@@ -101,14 +101,6 @@
             letter-spacing: 2px;
             color: var(--white);
             transition: color 0.4s;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .nav-compass {
-            width: 28px;
-            height: 28px;
         }
 
         .nav.scrolled .nav-logo {
@@ -186,51 +178,13 @@
             align-items: center;
         }
 
-        .hero-compass {
-            width: 70px;
-            height: 70px;
-            margin-bottom: 1.5rem;
-            opacity: 0;
-            animation: fadeUp 1s ease 0.1s forwards;
-        }
-
-        .hero-compass svg {
-            width: 100%;
-            height: 100%;
-        }
-
-        .hero-welcome {
-            font-family: 'DM Sans', sans-serif;
-            font-size: 0.8rem;
-            font-weight: 500;
-            letter-spacing: 3px;
-            text-transform: uppercase;
-            color: rgba(255, 255, 255, 0.6);
-            margin-bottom: 1.5rem;
+        .hero-logo-img {
+            max-width: 650px;
+            width: 90%;
+            height: auto;
             opacity: 0;
             animation: fadeUp 1s ease 0.3s forwards;
-        }
-
-        .hero-title {
-            font-family: 'DM Serif Display', serif;
-            font-size: clamp(2rem, 4.5vw, 3.5rem);
-            font-weight: 400;
-            color: var(--white);
-            line-height: 1.15;
-            margin-bottom: 2rem;
-            white-space: nowrap;
-            opacity: 0;
-            animation: fadeUp 1s ease 0.6s forwards;
-            text-align: center;
-        }
-
-        .hero-divider {
-            width: 60px;
-            height: 1px;
-            background: rgba(255, 255, 255, 0.3);
-            margin: 0 auto 2rem;
-            opacity: 0;
-            animation: fadeUp 1s ease 0.9s forwards;
+            margin-bottom: 0.3rem;
         }
 
         .hero-ticker {
@@ -240,8 +194,11 @@
             position: relative;
             height: 2.5rem;
             opacity: 0;
-            animation: fadeUp 1s ease 1.2s forwards;
+            animation: fadeUp 1s ease 0.8s forwards;
             margin: 0 auto;
+            /* Nudge right to align under the text, not the compass */
+            padding-left: 4rem;
+        }
         }
 
         .hero-ticker::before,
@@ -857,21 +814,7 @@
 
     <!-- Navigation -->
     <nav class="nav" id="mainNav">
-        <div class="nav-logo">
-            <svg class="nav-compass" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="50" cy="50" r="42" stroke="currentColor" stroke-width="2.5" opacity="0.4"/>
-                <circle cx="50" cy="50" r="38" stroke="currentColor" stroke-width="4" opacity="0.25"/>
-                <line x1="50" y1="8" x2="50" y2="14" stroke="currentColor" stroke-width="2" opacity="0.4"/>
-                <line x1="50" y1="86" x2="50" y2="92" stroke="currentColor" stroke-width="2" opacity="0.4"/>
-                <line x1="8" y1="50" x2="14" y2="50" stroke="currentColor" stroke-width="2" opacity="0.4"/>
-                <line x1="86" y1="50" x2="92" y2="50" stroke="currentColor" stroke-width="2" opacity="0.4"/>
-                <polygon points="50,8 46,28 50,20 54,28" fill="#3b82f6"/>
-                <polygon points="50,92 46,72 50,80 54,72" fill="#3b82f6"/>
-                <polygon points="92,50 72,46 80,50 72,54" fill="#3b82f6"/>
-                <polygon points="8,50 28,46 20,50 28,54" fill="#3b82f6"/>
-            </svg>
-            GAS
-        </div>
+        <div class="nav-logo">GAS</div>
         <div class="nav-links">
             <a href="#what">What is GAS</a>
             <a href="#why">Why Register</a>
@@ -893,34 +836,10 @@
         <div class="video-overlay"></div>
 
         <div class="hero-content">
-            <div class="hero-compass">
-                <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <circle cx="50" cy="50" r="42" stroke="rgba(255,255,255,0.3)" stroke-width="2.5"/>
-                    <circle cx="50" cy="50" r="38" stroke="rgba(255,255,255,0.15)" stroke-width="4"/>
-                    <line x1="50" y1="8" x2="50" y2="14" stroke="rgba(255,255,255,0.3)" stroke-width="2"/>
-                    <line x1="50" y1="86" x2="50" y2="92" stroke="rgba(255,255,255,0.3)" stroke-width="2"/>
-                    <line x1="8" y1="50" x2="14" y2="50" stroke="rgba(255,255,255,0.3)" stroke-width="2"/>
-                    <line x1="86" y1="50" x2="92" y2="50" stroke="rgba(255,255,255,0.3)" stroke-width="2"/>
-                    <line x1="27" y1="13" x2="29" y2="17" stroke="rgba(255,255,255,0.2)" stroke-width="1.5"/>
-                    <line x1="73" y1="13" x2="71" y2="17" stroke="rgba(255,255,255,0.2)" stroke-width="1.5"/>
-                    <line x1="13" y1="27" x2="17" y2="29" stroke="rgba(255,255,255,0.2)" stroke-width="1.5"/>
-                    <line x1="87" y1="27" x2="83" y2="29" stroke="rgba(255,255,255,0.2)" stroke-width="1.5"/>
-                    <line x1="13" y1="73" x2="17" y2="71" stroke="rgba(255,255,255,0.2)" stroke-width="1.5"/>
-                    <line x1="87" y1="73" x2="83" y2="71" stroke="rgba(255,255,255,0.2)" stroke-width="1.5"/>
-                    <line x1="27" y1="87" x2="29" y2="83" stroke="rgba(255,255,255,0.2)" stroke-width="1.5"/>
-                    <line x1="73" y1="87" x2="71" y2="83" stroke="rgba(255,255,255,0.2)" stroke-width="1.5"/>
-                    <polygon points="50,8 46,28 50,20 54,28" fill="#3b82f6"/>
-                    <polygon points="50,92 46,72 50,80 54,72" fill="#3b82f6"/>
-                    <polygon points="92,50 72,46 80,50 72,54" fill="#3b82f6"/>
-                    <polygon points="8,50 28,46 20,50 28,54" fill="#3b82f6"/>
-                </svg>
-            </div>
-            <p class="hero-welcome">No Boundaries</p>
-            <h1 class="hero-title">Global Accommodation System</h1>
-            <div class="hero-divider"></div>
+            <img src="/gas-logo-white.png" alt="Global Accommodation System" class="hero-logo-img">
             <div class="hero-ticker">
                 <div class="ticker-track" id="tickerTrack">
-                    <!-- Filled by JS — duplicated for seamless loop -->
+                    <!-- Filled by JS -->
                 </div>
             </div>
         </div>
