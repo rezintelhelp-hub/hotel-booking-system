@@ -42154,10 +42154,12 @@ app.delete('/api/partner/websites/:websiteId', async (req, res) => {
     
     const { websiteId } = req.params;
     
-    // Verify website belongs to partner's tenant
+    // Verify website belongs to partner's tenant and get deployment info
     const wCheck = await pool.query(`
-      SELECT w.id FROM websites w
+      SELECT w.id, w.deployed_site_id, w.site_url, w.subdomain, ds.blog_id, ds.room_ids, ds.property_id
+      FROM websites w
       JOIN accounts a ON a.id = w.account_id
+      LEFT JOIN deployed_sites ds ON ds.id = w.deployed_site_id
       WHERE w.id = $1 AND a.parent_id = $2
     `, [websiteId, auth.partnerId]);
     
@@ -42165,10 +42167,59 @@ app.delete('/api/partner/websites/:websiteId', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Website not found' });
     }
     
+    const website = wCheck.rows[0];
+    let vpsDeleted = false;
+    let vpsError = null;
+    
+    // If site was deployed to VPS, delete it there too
+    if (website.blog_id) {
+      try {
+        const response = await fetch(`${VPS_DEPLOY_URL}?action=delete-site`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-Key': VPS_DEPLOY_API_KEY
+          },
+          body: JSON.stringify({
+            blog_id: website.blog_id,
+            confirm: 'DELETE'
+          })
+        });
+        const data = await response.json();
+        vpsDeleted = data.success;
+        if (!data.success) vpsError = data.error;
+        console.log(`[Partner API] VPS delete-site blog_id=${website.blog_id}: ${vpsDeleted ? 'success' : vpsError}`);
+      } catch (e) {
+        vpsError = e.message;
+        console.error(`[Partner API] VPS delete-site error: ${e.message}`);
+      }
+    }
+    
+    // Delete from deployed_sites and clean up room references
+    if (website.deployed_site_id) {
+      const roomIds = typeof website.room_ids === 'string' 
+        ? JSON.parse(website.room_ids || '[]') 
+        : (website.room_ids || []);
+      for (const roomId of roomIds) {
+        await pool.query('UPDATE bookable_units SET website_url = NULL WHERE id = $1', [roomId]);
+      }
+      if (website.property_id) {
+        await pool.query('UPDATE properties SET website_url = NULL WHERE id = $1', [website.property_id]);
+      }
+      await pool.query('DELETE FROM deployed_sites WHERE id = $1', [website.deployed_site_id]);
+    }
+    
     // Delete website (cascade will delete website_rooms)
     await pool.query(`DELETE FROM websites WHERE id = $1`, [websiteId]);
     
-    res.json({ success: true, message: 'Website deleted' });
+    console.log(`[Partner API] Website ${websiteId} (${website.subdomain}) fully deleted. VPS: ${vpsDeleted ? 'removed' : website.blog_id ? 'failed - ' + vpsError : 'not deployed'}`);
+    
+    res.json({ 
+      success: true, 
+      message: 'Website deleted',
+      vps_deleted: vpsDeleted,
+      vps_error: vpsError || undefined
+    });
     
   } catch (error) {
     console.error('Partner API delete website error:', error);
