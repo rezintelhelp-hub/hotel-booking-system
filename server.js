@@ -21407,7 +21407,7 @@ app.post('/api/admin/deployed-sites/:id/rename', async (req, res) => {
     }
     
     const site = siteResult.rows[0];
-    const oldSub = site.slug || site.subdomain;
+    const oldSub = site.slug;
     
     if (!oldSub) {
       return res.json({ success: false, error: 'Cannot determine current subdomain' });
@@ -21419,7 +21419,7 @@ app.post('/api/admin/deployed-sites/:id/rename', async (req, res) => {
     
     // Check if new subdomain is already in use
     const existing = await pool.query(
-      'SELECT id FROM deployed_sites WHERE (slug = $1 OR subdomain = $1) AND id != $2', 
+      'SELECT id FROM deployed_sites WHERE slug = $1 AND id != $2', 
       [cleanSub, id]
     );
     if (existing.rows.length > 0) {
@@ -21459,7 +21459,7 @@ app.post('/api/admin/deployed-sites/:id/rename', async (req, res) => {
     
     await pool.query(`
       UPDATE deployed_sites SET 
-        slug = $1, subdomain = $1, site_url = $2, admin_url = $3, updated_at = NOW()
+        slug = $1, site_url = $2, admin_url = $3, updated_at = NOW()
       WHERE id = $4
     `, [cleanSub, newUrl, newAdminUrl, id]);
     
@@ -21468,7 +21468,14 @@ app.post('/api/admin/deployed-sites/:id/rename', async (req, res) => {
       UPDATE websites SET 
         subdomain = $1, slug = $1, site_url = $2, admin_url = $3, updated_at = NOW()
       WHERE deployed_site_id = $4
-    `, [cleanSub, newUrl, newAdminUrl, id]);
+    `, [cleanSub, newUrl, newAdminUrl, id]).catch(e => {
+      // If subdomain column doesn't exist on websites, try without it
+      return pool.query(`
+        UPDATE websites SET 
+          slug = $1, site_url = $2, admin_url = $3, updated_at = NOW()
+        WHERE deployed_site_id = $4
+      `, [cleanSub, newUrl, newAdminUrl, id]);
+    });
     
     // Update room website URLs
     const roomIds = typeof site.room_ids === 'string' 
