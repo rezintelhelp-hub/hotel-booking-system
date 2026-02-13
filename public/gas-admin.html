@@ -29254,6 +29254,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                         <a href="${site.site_url}" target="_blank" class="btn btn-small" style="font-size: 0.75rem;">🌐 View Site</a>
                                         <a href="${site.admin_url}" target="_blank" class="btn btn-small btn-secondary" style="font-size: 0.75rem;">⚙️ WP Admin</a>
                                         <button onclick="renameDeployedSite(${site.id}, '${(site.slug || '').replace(/'/g, "\\'")}')" class="btn btn-small" style="font-size: 0.75rem; background: #f59e0b; border-color: #f59e0b;">🔗 Rename</button>
+                                        <button onclick="renameDeployedSiteName(${site.id}, '${(site.site_name || site.slug || '').replace(/'/g, "\\'")}')" class="btn btn-small" style="font-size: 0.75rem; background: #8b5cf6; border-color: #8b5cf6;">✏️ Name</button>
                                         <button onclick="manageWebsiteRooms(${site.id}, ${site.property_id}, '${(site.site_name || site.slug).replace(/'/g, "\\'")}')" class="btn btn-small" style="font-size: 0.75rem; background: #10b981; border-color: #10b981;">🛏️ Rooms</button>
                                                                                 <button onclick="deleteDeployedSite(${site.id}, '${(site.site_name || site.slug).replace(/'/g, "\\'")}')" class="btn btn-small" style="font-size: 0.75rem; background: #ef4444; border-color: #ef4444;">🗑️ Delete</button>
                                     </div>
@@ -30034,6 +30035,44 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
         
+
+        async function renameDeployedSiteName(siteId, currentName) {
+            const newName = prompt('Change Site / Blog Name\n\nCurrent name: ' + currentName + '\n\nEnter new name:', currentName);
+            
+            if (!newName || newName.trim() === currentName) return;
+            
+            const cleanName = newName.trim();
+            if (!cleanName) {
+                showNotification('Invalid name', 'error');
+                return;
+            }
+            
+            if (!confirm('Update site name?\n\n"' + currentName + '"\n→ "' + cleanName + '"\n\nThis will update WordPress and the GAS database.')) return;
+            
+            try {
+                showNotification('Updating site name...', 'info');
+                
+                const response = await fetch('/api/admin/deployed-sites/' + siteId + '/rename', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ new_name: cleanName })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    const wpMsg = data.blog_name_updated ? ' (WordPress updated)' : ' (GAS updated, WordPress may need manual refresh)';
+                    showNotification('Name changed to "' + cleanName + '"' + wpMsg, 'success');
+                    loadDeployedSites();
+                } else {
+                    showNotification('Name change failed: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (error) {
+                console.error('Name change error:', error);
+                showNotification('Error changing name: ' + error.message, 'error');
+            }
+        }
+
         async function manageWebsiteRooms(siteId, propertyId, siteName) {
             try {
                 // Get all properties and rooms for the account from the deployed-sites endpoint
