@@ -17270,7 +17270,7 @@ Email: hello@gas.travel
         messages.push({ role: 'user', content: message });
         
         const claudeResponse = await axios.post('https://api.anthropic.com/v1/messages', {
-            model: 'claude-sonnet-4-20250514',
+            model: 'claude-sonnet-4-5-20250929',
             max_tokens: 1000,
             system: `You are a helpful support assistant for GAS (Global Accommodation System). You help property owners use the dashboard.
 
@@ -29936,7 +29936,7 @@ app.post('/api/import-property', async (req, res) => {
     
     // Use Claude API to extract COMPLETE structured data
     const claudeResponse = await axios.post('https://api.anthropic.com/v1/messages', {
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-5-20250929',
       max_tokens: 4096,
       messages: [{
         role: 'user',
@@ -48042,7 +48042,7 @@ Just return the new name, nothing else.`;
     }
     
     const claudeResponse = await axios.post('https://api.anthropic.com/v1/messages', {
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-5-20250929',
       max_tokens: 500,
       messages: [{ role: 'user', content: userPrompt }],
       system: systemPrompt
@@ -54110,7 +54110,7 @@ Return your response in this exact JSON format:
 }`;
 
         const claudeResponse = await axios.post('https://api.anthropic.com/v1/messages', {
-            model: 'claude-sonnet-4-20250514',
+            model: 'claude-sonnet-4-5-20250929',
             max_tokens: 2000,
             messages: [{ role: 'user', content: prompt }]
         }, {
@@ -55415,7 +55415,7 @@ Return ONLY valid JSON with this exact structure, no other text:
 {"meta_title": "Your title here", "meta_description": "Your description here"}`;
 
         const claudeResponse = await axios.post('https://api.anthropic.com/v1/messages', {
-            model: 'claude-sonnet-4-20250514',
+            model: 'claude-sonnet-4-5-20250929',
             max_tokens: 500,
             messages: [{ role: 'user', content: prompt }]
         }, {
@@ -55510,7 +55510,7 @@ Return ONLY a valid JSON array with this exact structure, no other text:
 ]`;
 
         const claudeResponse = await axios.post('https://api.anthropic.com/v1/messages', {
-            model: 'claude-sonnet-4-20250514',
+            model: 'claude-sonnet-4-5-20250929',
             max_tokens: 2000,
             messages: [{ role: 'user', content: prompt }]
         }, {
@@ -55710,7 +55710,7 @@ Generate the page content only, nothing else:`;
         }
         
         const claudeResponse = await axios.post('https://api.anthropic.com/v1/messages', {
-            model: 'claude-sonnet-4-20250514',
+            model: 'claude-sonnet-4-5-20250929',
             max_tokens: 1000,
             messages: [{ role: 'user', content: prompt }]
         }, {
@@ -55917,7 +55917,7 @@ Format as JSON array:
         
         // Call Claude API (same as blog generator)
         const claudeResponse = await axios.post('https://api.anthropic.com/v1/messages', {
-            model: 'claude-sonnet-4-20250514',
+            model: 'claude-sonnet-4-5-20250929',
             max_tokens: 2000,
             messages: [{ role: 'user', content: prompt }]
         }, {
@@ -56208,7 +56208,7 @@ Provide the following information in JSON format:
 Be accurate and helpful. If you're not certain about specific details like address or website, provide reasonable estimates or leave those fields empty.`;
 
         const claudeResponse = await axios.post('https://api.anthropic.com/v1/messages', {
-            model: 'claude-sonnet-4-20250514',
+            model: 'claude-sonnet-4-5-20250929',
             max_tokens: 2000,
             messages: [{ role: 'user', content: prompt }]
         }, {
@@ -58675,7 +58675,7 @@ app.post('/api/chat', async (req, res) => {
     
     // Call Claude API
     const response = await axios.post('https://api.anthropic.com/v1/messages', {
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-5-20250929',
       max_tokens: 800,
       system: systemPrompt,
       messages: messages
