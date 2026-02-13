@@ -42393,6 +42393,271 @@ app.put('/api/partner/websites/:websiteId/status', async (req, res) => {
   }
 });
 
+// PUT /api/partner/websites/:websiteId/subdomain - Rename website subdomain
+app.put('/api/partner/websites/:websiteId/subdomain', async (req, res) => {
+  console.log('=== PARTNER API: RENAME SUBDOMAIN ===');
+  
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    
+    const { websiteId } = req.params;
+    const { new_subdomain } = req.body;
+    
+    if (!new_subdomain) {
+      return res.status(400).json({ success: false, error: 'new_subdomain is required' });
+    }
+    
+    // Clean the subdomain
+    const cleanSub = new_subdomain.trim().toLowerCase().replace(/[^a-z0-9-]/g, '');
+    if (cleanSub.length < 3) {
+      return res.status(400).json({ success: false, error: 'Subdomain must be at least 3 characters' });
+    }
+    if (cleanSub.length > 50) {
+      return res.status(400).json({ success: false, error: 'Subdomain must be 50 characters or less' });
+    }
+    
+    // Get website with deployed site info
+    const result = await pool.query(`
+      SELECT w.id, w.subdomain, w.slug, ds.id as deployed_site_id, ds.blog_id, ds.slug as ds_slug, ds.room_ids
+      FROM websites w
+      LEFT JOIN deployed_sites ds ON ds.id = w.deployed_site_id
+      JOIN accounts a ON a.id = w.account_id
+      WHERE w.id = $1 AND a.parent_id = $2
+    `, [websiteId, auth.partnerId]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Website not found' });
+    }
+    
+    const website = result.rows[0];
+    const oldSub = website.ds_slug || website.slug || website.subdomain;
+    
+    if (!website.deployed_site_id) {
+      return res.status(400).json({ success: false, error: 'Website must be deployed before renaming subdomain' });
+    }
+    
+    if (!website.blog_id) {
+      return res.status(400).json({ success: false, error: 'Site has no blog_id — cannot rename on VPS' });
+    }
+    
+    if (oldSub === cleanSub) {
+      return res.status(400).json({ success: false, error: 'New subdomain is the same as current' });
+    }
+    
+    // Check if new subdomain is already in use
+    const existing = await pool.query(
+      'SELECT id FROM deployed_sites WHERE slug = $1 AND id != $2', 
+      [cleanSub, website.deployed_site_id]
+    );
+    if (existing.rows.length > 0) {
+      return res.status(409).json({ success: false, error: 'Subdomain already taken by another site' });
+    }
+    
+    console.log(`[Partner API] Renaming ${oldSub} -> ${cleanSub} (blog_id: ${website.blog_id})`);
+    
+    // Call VPS to rename the WordPress site
+    const vpsResponse = await fetch(`${VPS_DEPLOY_URL}?action=rename-site`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': VPS_DEPLOY_API_KEY
+      },
+      body: JSON.stringify({
+        blog_id: website.blog_id,
+        old_subdomain: oldSub,
+        new_subdomain: cleanSub
+      })
+    });
+    
+    const vpsData = await vpsResponse.json();
+    console.log('[Partner API] VPS rename response:', JSON.stringify(vpsData));
+    
+    if (!vpsData.success) {
+      return res.status(500).json({ success: false, error: `VPS rename failed: ${vpsData.error || 'Unknown error'}` });
+    }
+    
+    // Update database records
+    const newUrl = `https://${cleanSub}.sites.gas.travel`;
+    const newAdminUrl = `https://${cleanSub}.sites.gas.travel/wp-admin/`;
+    
+    // Update deployed_sites
+    await pool.query(`
+      UPDATE deployed_sites SET 
+        slug = $1, site_url = $2, admin_url = $3, updated_at = NOW()
+      WHERE id = $4
+    `, [cleanSub, newUrl, newAdminUrl, website.deployed_site_id]);
+    
+    // Update websites table
+    await pool.query(`
+      UPDATE websites SET 
+        subdomain = $1, slug = $1, site_url = $2, admin_url = $3, updated_at = NOW()
+      WHERE id = $4
+    `, [cleanSub, newUrl, newAdminUrl, websiteId]).catch(e => {
+      return pool.query(`
+        UPDATE websites SET 
+          slug = $1, site_url = $2, admin_url = $3, updated_at = NOW()
+        WHERE id = $4
+      `, [cleanSub, newUrl, newAdminUrl, websiteId]);
+    });
+    
+    // Update room website URLs
+    const roomIds = typeof website.room_ids === 'string' 
+      ? JSON.parse(website.room_ids || '[]') 
+      : (website.room_ids || []);
+    for (const roomId of roomIds) {
+      await pool.query('UPDATE bookable_units SET website_url = $1 WHERE id = $2', [newUrl, roomId]);
+    }
+    
+    // Update property website URLs
+    await pool.query(`
+      UPDATE properties SET website_url = $1 
+      WHERE id IN (
+        SELECT DISTINCT property_id FROM bookable_units WHERE id = ANY($2::int[])
+      )
+    `, [newUrl, roomIds]).catch(() => {});
+    
+    console.log(`[Partner API] Successfully renamed ${oldSub} -> ${cleanSub}`);
+    
+    res.json({ 
+      success: true, 
+      website_id: parseInt(websiteId),
+      old_subdomain: oldSub,
+      new_subdomain: cleanSub,
+      new_site_url: newUrl,
+      new_admin_url: newAdminUrl,
+      message: `Subdomain renamed from "${oldSub}" to "${cleanSub}"`
+    });
+    
+  } catch (error) {
+    console.error('Partner API rename subdomain error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// DELETE /api/partner/websites/:websiteId/site - Delete deployed site (teardown WordPress but keep website record)
+app.delete('/api/partner/websites/:websiteId/site', async (req, res) => {
+  console.log('=== PARTNER API: DELETE DEPLOYED SITE ===');
+  
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    
+    const { websiteId } = req.params;
+    
+    // Get website with deployed site info
+    const result = await pool.query(`
+      SELECT w.id, w.subdomain, ds.id as deployed_site_id, ds.blog_id, ds.room_ids, ds.property_id, ds.custom_domain
+      FROM websites w
+      LEFT JOIN deployed_sites ds ON ds.id = w.deployed_site_id
+      JOIN accounts a ON a.id = w.account_id
+      WHERE w.id = $1 AND a.parent_id = $2
+    `, [websiteId, auth.partnerId]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Website not found' });
+    }
+    
+    const website = result.rows[0];
+    
+    if (!website.deployed_site_id) {
+      return res.status(400).json({ success: false, error: 'Website is not deployed' });
+    }
+    
+    let vpsDeleted = false;
+    let vpsError = null;
+    
+    // Delete from VPS if we have a blog_id
+    if (website.blog_id) {
+      try {
+        // Remove custom domain first if present
+        if (website.custom_domain) {
+          const SITES_VPS_URL = 'https://sites.gas.travel/gas-api.php';
+          await fetch(SITES_VPS_URL, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-API-Key': process.env.VPS_DEPLOY_API_KEY || 'GAS-DEPLOY-SECRET-2024'
+            },
+            body: JSON.stringify({
+              action: 'remove-custom-domain',
+              blog_id: website.blog_id,
+              domain: website.custom_domain
+            })
+          }).catch(e => console.log('[Partner API] Custom domain removal note:', e.message));
+        }
+        
+        // Delete WordPress site
+        const response = await fetch(`${VPS_DEPLOY_URL}?action=delete-site`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-Key': VPS_DEPLOY_API_KEY
+          },
+          body: JSON.stringify({
+            blog_id: website.blog_id,
+            confirm: 'DELETE'
+          })
+        });
+        const data = await response.json();
+        vpsDeleted = data.success;
+        if (!data.success) vpsError = data.error;
+        console.log(`[Partner API] VPS delete-site blog_id=${website.blog_id}: ${vpsDeleted ? 'success' : vpsError}`);
+      } catch (e) {
+        vpsError = e.message;
+        console.error(`[Partner API] VPS delete-site error: ${e.message}`);
+      }
+    } else {
+      vpsError = 'No blog_id - cannot delete from WordPress';
+    }
+    
+    // Clear room website URLs
+    const roomIds = typeof website.room_ids === 'string' 
+      ? JSON.parse(website.room_ids || '[]') 
+      : (website.room_ids || []);
+    for (const roomId of roomIds) {
+      await pool.query('UPDATE bookable_units SET website_url = NULL WHERE id = $1', [roomId]);
+    }
+    
+    // Clear property website URL
+    if (website.property_id) {
+      await pool.query('UPDATE properties SET website_url = NULL WHERE id = $1', [website.property_id]);
+    }
+    
+    // Delete website_settings for this deployed site
+    await pool.query('DELETE FROM website_settings WHERE deployed_site_id = $1', [website.deployed_site_id]).catch(() => {});
+    
+    // Delete deployed_sites record
+    await pool.query('DELETE FROM deployed_sites WHERE id = $1', [website.deployed_site_id]);
+    
+    // Reset website back to draft status (ready for redeployment)
+    await pool.query(`
+      UPDATE websites SET 
+        site_url = NULL, admin_url = NULL, deployed_site_id = NULL, 
+        status = 'active', updated_at = NOW()
+      WHERE id = $1
+    `, [websiteId]);
+    
+    console.log(`[Partner API] Deployed site for website ${websiteId} (${website.subdomain}) deleted. VPS: ${vpsDeleted ? 'removed' : vpsError}`);
+    
+    res.json({ 
+      success: true, 
+      website_id: parseInt(websiteId),
+      message: 'Site deleted from WordPress and database',
+      vps_deleted: vpsDeleted,
+      vps_error: vpsError || undefined
+    });
+    
+  } catch (error) {
+    console.error('Partner API delete deployed site error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // POST /api/partner/websites/:websiteId/deploy - Deploy website to VPS
 app.post('/api/partner/websites/:websiteId/deploy', async (req, res) => {
   console.log('=== PARTNER API: DEPLOY WEBSITE ===');
