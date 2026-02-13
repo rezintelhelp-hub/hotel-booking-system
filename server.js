@@ -21384,20 +21384,14 @@ app.put('/api/admin/deployed-sites/:id', async (req, res) => {
   }
 });
 
-// Rename deployed site subdomain
+// Rename deployed site subdomain and/or blog name
 app.post('/api/admin/deployed-sites/:id/rename', async (req, res) => {
   try {
     const { id } = req.params;
-    const { new_subdomain } = req.body;
+    const { new_subdomain, new_name } = req.body;
     
-    if (!new_subdomain) {
-      return res.json({ success: false, error: 'new_subdomain is required' });
-    }
-    
-    // Clean the subdomain
-    const cleanSub = new_subdomain.trim().toLowerCase().replace(/[^a-z0-9-]/g, '');
-    if (!cleanSub) {
-      return res.json({ success: false, error: 'Invalid subdomain' });
+    if (!new_subdomain && !new_name) {
+      return res.json({ success: false, error: 'new_subdomain or new_name is required' });
     }
     
     // Get current site info
@@ -21407,94 +21401,156 @@ app.post('/api/admin/deployed-sites/:id/rename', async (req, res) => {
     }
     
     const site = siteResult.rows[0];
-    const oldSub = site.slug;
+    const result = { success: true };
     
-    if (!oldSub) {
-      return res.json({ success: false, error: 'Cannot determine current subdomain' });
-    }
-    
-    if (oldSub === cleanSub) {
-      return res.json({ success: false, error: 'New subdomain is the same as current' });
-    }
-    
-    // Check if new subdomain is already in use
-    const existing = await pool.query(
-      'SELECT id FROM deployed_sites WHERE slug = $1 AND id != $2', 
-      [cleanSub, id]
-    );
-    if (existing.rows.length > 0) {
-      return res.json({ success: false, error: 'Subdomain already in use' });
-    }
-    
-    if (!site.blog_id) {
-      return res.json({ success: false, error: 'Site has no blog_id — cannot rename on VPS' });
-    }
-    
-    // Call VPS to rename the WordPress site
-    console.log(`[Rename Site] Renaming ${oldSub} -> ${cleanSub} (blog_id: ${site.blog_id})`);
-    
-    const vpsResponse = await fetch(`${VPS_DEPLOY_URL}?action=rename-site`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': VPS_DEPLOY_API_KEY
-      },
-      body: JSON.stringify({
-        blog_id: site.blog_id,
-        old_subdomain: oldSub,
-        new_subdomain: cleanSub
-      })
-    });
-    
-    const vpsData = await vpsResponse.json();
-    console.log('[Rename Site] VPS response:', JSON.stringify(vpsData));
-    
-    if (!vpsData.success) {
-      return res.json({ success: false, error: `VPS rename failed: ${vpsData.error || 'Unknown error'}` });
-    }
-    
-    // Update deployed_sites in database
-    const newUrl = `https://${cleanSub}.sites.gas.travel`;
-    const newAdminUrl = `https://${cleanSub}.sites.gas.travel/wp-admin`;
-    
-    await pool.query(`
-      UPDATE deployed_sites SET 
-        slug = $1, site_url = $2, admin_url = $3, updated_at = NOW()
-      WHERE id = $4
-    `, [cleanSub, newUrl, newAdminUrl, id]);
-    
-    // Update linked websites table if exists
-    await pool.query(`
-      UPDATE websites SET 
-        subdomain = $1, slug = $1, site_url = $2, admin_url = $3, updated_at = NOW()
-      WHERE deployed_site_id = $4
-    `, [cleanSub, newUrl, newAdminUrl, id]).catch(e => {
-      // If subdomain column doesn't exist on websites, try without it
-      return pool.query(`
-        UPDATE websites SET 
+    // Handle subdomain rename
+    if (new_subdomain) {
+      const cleanSub = new_subdomain.trim().toLowerCase().replace(/[^a-z0-9-]/g, '');
+      if (!cleanSub) {
+        return res.json({ success: false, error: 'Invalid subdomain' });
+      }
+      
+      const oldSub = site.slug;
+      if (!oldSub) {
+        return res.json({ success: false, error: 'Cannot determine current subdomain' });
+      }
+      
+      if (oldSub === cleanSub) {
+        return res.json({ success: false, error: 'New subdomain is the same as current' });
+      }
+      
+      const existing = await pool.query(
+        'SELECT id FROM deployed_sites WHERE slug = $1 AND id != $2', 
+        [cleanSub, id]
+      );
+      if (existing.rows.length > 0) {
+        return res.json({ success: false, error: 'Subdomain already in use' });
+      }
+      
+      if (!site.blog_id) {
+        return res.json({ success: false, error: 'Site has no blog_id — cannot rename on VPS' });
+      }
+      
+      console.log(`[Rename Site] Renaming ${oldSub} -> ${cleanSub} (blog_id: ${site.blog_id})`);
+      
+      const vpsResponse = await fetch(`${VPS_DEPLOY_URL}?action=rename-site`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': VPS_DEPLOY_API_KEY
+        },
+        body: JSON.stringify({
+          blog_id: site.blog_id,
+          old_subdomain: oldSub,
+          new_subdomain: cleanSub
+        })
+      });
+      
+      const vpsData = await vpsResponse.json();
+      console.log('[Rename Site] VPS response:', JSON.stringify(vpsData));
+      
+      if (!vpsData.success) {
+        return res.json({ success: false, error: `VPS rename failed: ${vpsData.error || 'Unknown error'}` });
+      }
+      
+      const newUrl = `https://${cleanSub}.sites.gas.travel`;
+      const newAdminUrl = `https://${cleanSub}.sites.gas.travel/wp-admin`;
+      
+      await pool.query(`
+        UPDATE deployed_sites SET 
           slug = $1, site_url = $2, admin_url = $3, updated_at = NOW()
-        WHERE deployed_site_id = $4
+        WHERE id = $4
       `, [cleanSub, newUrl, newAdminUrl, id]);
-    });
-    
-    // Update room website URLs
-    const roomIds = typeof site.room_ids === 'string' 
-      ? JSON.parse(site.room_ids || '[]') 
-      : (site.room_ids || []);
-    for (const roomId of roomIds) {
-      await pool.query('UPDATE bookable_units SET website_url = $1 WHERE id = $2', [newUrl, roomId]);
+      
+      await pool.query(`
+        UPDATE websites SET 
+          subdomain = $1, slug = $1, site_url = $2, admin_url = $3, updated_at = NOW()
+        WHERE deployed_site_id = $4
+      `, [cleanSub, newUrl, newAdminUrl, id]).catch(e => {
+        return pool.query(`
+          UPDATE websites SET 
+            slug = $1, site_url = $2, admin_url = $3, updated_at = NOW()
+          WHERE deployed_site_id = $4
+        `, [cleanSub, newUrl, newAdminUrl, id]);
+      });
+      
+      const roomIds = typeof site.room_ids === 'string' 
+        ? JSON.parse(site.room_ids || '[]') 
+        : (site.room_ids || []);
+      for (const roomId of roomIds) {
+        await pool.query('UPDATE bookable_units SET website_url = $1 WHERE id = $2', [newUrl, roomId]);
+      }
+      
+      result.old_subdomain = oldSub;
+      result.new_subdomain = cleanSub;
+      result.new_url = newUrl;
+      result.new_admin_url = newAdminUrl;
+      result.message = `Renamed ${oldSub} to ${cleanSub}`;
+      
+      // Update site_url for blog name push below
+      site.site_url = newUrl;
     }
     
-    console.log(`[Rename Site] Successfully renamed ${oldSub} -> ${cleanSub}`);
+    // Handle blog name change
+    if (new_name) {
+      const cleanName = new_name.trim();
+      if (!cleanName) {
+        return res.json({ success: false, error: 'Invalid name' });
+      }
+      
+      const siteUrl = site.site_url;
+      if (!siteUrl) {
+        return res.json({ success: false, error: 'Site has no URL — cannot update blog name' });
+      }
+      
+      console.log(`[Rename Site] Updating blog name to "${cleanName}" on ${siteUrl}`);
+      
+      // Update WordPress blogname via gas-api.php
+      try {
+        const wpResponse = await fetch('https://sites.gas.travel/gas-api.php', {
+          method: 'POST',
+          headers: {
+            'X-API-Key': VPS_DEPLOY_API_KEY,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            action: 'update_option',
+            site_url: siteUrl,
+            option_name: 'blogname',
+            option_value: cleanName
+          })
+        });
+        const wpData = await wpResponse.json();
+        console.log('[Rename Site] WordPress blogname update:', wpData);
+        result.blog_name_updated = wpData.success;
+        if (!wpData.success) {
+          result.blog_name_error = wpData.error || 'WordPress update failed';
+        }
+      } catch (wpError) {
+        console.log('[Rename Site] WordPress blogname push failed:', wpError.message);
+        result.blog_name_updated = false;
+        result.blog_name_error = wpError.message;
+      }
+      
+      // Update GAS database
+      await pool.query(`
+        UPDATE deployed_sites SET site_name = $1, updated_at = NOW() WHERE id = $2
+      `, [cleanName, id]);
+      
+      await pool.query(`
+        UPDATE websites SET name = $1, updated_at = NOW() WHERE deployed_site_id = $2
+      `, [cleanName, id]).catch(() => {});
+      
+      result.new_name = cleanName;
+      if (!result.message) {
+        result.message = `Blog name updated to "${cleanName}"`;
+      } else {
+        result.message += ` and blog name updated to "${cleanName}"`;
+      }
+    }
     
-    res.json({ 
-      success: true, 
-      message: `Renamed ${oldSub} to ${cleanSub}`,
-      old_subdomain: oldSub,
-      new_subdomain: cleanSub,
-      new_url: newUrl,
-      new_admin_url: newAdminUrl
-    });
+    console.log(`[Rename Site] Complete:`, result);
+    res.json(result);
     
   } catch (error) {
     console.error('Rename deployed site error:', error);
@@ -42393,7 +42449,7 @@ app.put('/api/partner/websites/:websiteId/status', async (req, res) => {
   }
 });
 
-// PUT /api/partner/websites/:websiteId/subdomain - Rename website subdomain
+// PUT /api/partner/websites/:websiteId/subdomain - Rename website subdomain and/or blog name
 app.put('/api/partner/websites/:websiteId/subdomain', async (req, res) => {
   console.log('=== PARTNER API: RENAME SUBDOMAIN ===');
   
@@ -42421,7 +42477,7 @@ app.put('/api/partner/websites/:websiteId/subdomain', async (req, res) => {
     
     // Get website with deployed site info
     const result = await pool.query(`
-      SELECT w.id, w.subdomain, w.slug, ds.id as deployed_site_id, ds.blog_id, ds.slug as ds_slug, ds.room_ids
+      SELECT w.id, w.subdomain, w.slug, ds.id as deployed_site_id, ds.blog_id, ds.slug as ds_slug, ds.room_ids, ds.site_url
       FROM websites w
       LEFT JOIN deployed_sites ds ON ds.id = w.deployed_site_id
       JOIN accounts a ON a.id = w.account_id
@@ -42533,6 +42589,94 @@ app.put('/api/partner/websites/:websiteId/subdomain', async (req, res) => {
     
   } catch (error) {
     console.error('Partner API rename subdomain error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/partner/websites/:websiteId/name - Update website/blog name
+app.put('/api/partner/websites/:websiteId/name', async (req, res) => {
+  console.log('=== PARTNER API: UPDATE WEBSITE NAME ===');
+  
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    
+    const { websiteId } = req.params;
+    const { name } = req.body;
+    
+    if (!name || !name.trim()) {
+      return res.status(400).json({ success: false, error: 'name is required' });
+    }
+    
+    const cleanName = name.trim();
+    
+    // Get website with deployed site info
+    const result = await pool.query(`
+      SELECT w.id, w.name as old_name, ds.id as deployed_site_id, ds.site_url
+      FROM websites w
+      LEFT JOIN deployed_sites ds ON ds.id = w.deployed_site_id
+      JOIN accounts a ON a.id = w.account_id
+      WHERE w.id = $1 AND a.parent_id = $2
+    `, [websiteId, auth.partnerId]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Website not found' });
+    }
+    
+    const website = result.rows[0];
+    let wpUpdated = false;
+    let wpError = null;
+    
+    // Push to WordPress if site is deployed
+    if (website.deployed_site_id && website.site_url) {
+      try {
+        const wpResponse = await fetch('https://sites.gas.travel/gas-api.php', {
+          method: 'POST',
+          headers: {
+            'X-API-Key': VPS_DEPLOY_API_KEY,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            action: 'update_option',
+            site_url: website.site_url,
+            option_name: 'blogname',
+            option_value: cleanName
+          })
+        });
+        const wpData = await wpResponse.json();
+        console.log(`[Partner API] WordPress blogname update:`, wpData);
+        wpUpdated = wpData.success;
+        if (!wpData.success) wpError = wpData.error;
+      } catch (e) {
+        console.log(`[Partner API] WordPress blogname push failed:`, e.message);
+        wpError = e.message;
+      }
+    }
+    
+    // Update GAS database - websites table
+    await pool.query(`UPDATE websites SET name = $1, updated_at = NOW() WHERE id = $2`, [cleanName, websiteId]);
+    
+    // Update deployed_sites table if linked
+    if (website.deployed_site_id) {
+      await pool.query(`UPDATE deployed_sites SET site_name = $1, updated_at = NOW() WHERE id = $2`, [cleanName, website.deployed_site_id]);
+    }
+    
+    console.log(`[Partner API] Website ${websiteId} name updated: "${website.old_name}" -> "${cleanName}" (WP: ${wpUpdated})`);
+    
+    res.json({ 
+      success: true, 
+      website_id: parseInt(websiteId),
+      old_name: website.old_name,
+      new_name: cleanName,
+      wordpress_updated: wpUpdated,
+      wordpress_error: wpError || undefined,
+      message: `Website name updated to "${cleanName}"`
+    });
+    
+  } catch (error) {
+    console.error('Partner API update website name error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
