@@ -29253,6 +29253,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                         <button onclick="editWebsite(${site.id})" class="btn btn-small" style="font-size: 0.75rem; background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); border-color: #6366f1;">✏️ Edit</button>
                                         <a href="${site.site_url}" target="_blank" class="btn btn-small" style="font-size: 0.75rem;">🌐 View Site</a>
                                         <a href="${site.admin_url}" target="_blank" class="btn btn-small btn-secondary" style="font-size: 0.75rem;">⚙️ WP Admin</a>
+                                        <button onclick="renameDeployedSite(${site.id}, '${(site.slug || '').replace(/'/g, "\\'")}')" class="btn btn-small" style="font-size: 0.75rem; background: #f59e0b; border-color: #f59e0b;">🔗 Rename</button>
                                         <button onclick="manageWebsiteRooms(${site.id}, ${site.property_id}, '${(site.site_name || site.slug).replace(/'/g, "\\'")}')" class="btn btn-small" style="font-size: 0.75rem; background: #10b981; border-color: #10b981;">🛏️ Rooms</button>
                                                                                 <button onclick="deleteDeployedSite(${site.id}, '${(site.site_name || site.slug).replace(/'/g, "\\'")}')" class="btn btn-small" style="font-size: 0.75rem; background: #ef4444; border-color: #ef4444;">🗑️ Delete</button>
                                     </div>
@@ -29994,6 +29995,42 @@ const promo = await fetch('/api/v1/offers/validate', {
                 showNotification('Error deleting site: ' + error.message, 'error');
             } finally {
                 window.deleteInProgress = false;
+            }
+        }
+        
+        async function renameDeployedSite(siteId, currentSlug) {
+            const newSub = prompt('Rename subdomain\n\nCurrent: ' + currentSlug + '.sites.gas.travel\n\nEnter new subdomain (letters, numbers, hyphens only):', currentSlug);
+            
+            if (!newSub || newSub === currentSlug) return;
+            
+            const cleanSub = newSub.trim().toLowerCase().replace(/[^a-z0-9-]/g, '');
+            if (!cleanSub) {
+                showNotification('Invalid subdomain — use only letters, numbers, and hyphens', 'error');
+                return;
+            }
+            
+            if (!confirm('Rename site?\n\n' + currentSlug + '.sites.gas.travel\n→ ' + cleanSub + '.sites.gas.travel\n\nThis will update WordPress, the database, and all URLs.')) return;
+            
+            try {
+                showNotification('Renaming site...', 'info');
+                
+                const response = await fetch('/api/admin/deployed-sites/' + siteId + '/rename', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ new_subdomain: cleanSub })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Renamed to ' + cleanSub + '.sites.gas.travel', 'success');
+                    loadDeployedSites();
+                } else {
+                    showNotification('Rename failed: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (error) {
+                console.error('Rename error:', error);
+                showNotification('Error renaming site: ' + error.message, 'error');
             }
         }
         
