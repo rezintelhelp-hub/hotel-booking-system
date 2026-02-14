@@ -50706,8 +50706,11 @@ const GAS_TRANSLATIONS = {
         "apply": "Apply",
         "and": "and",
         "processing": "Processing...",
-        "coming_soon": "Coming soon"
-      },
+        "coming_soon": "Coming soon",
+        "less_info": "Less Information",
+        "connection_error": "Connection error. Please try again.",
+        "confirmed": "Confirmed"
+},
       "booking": {
         "book_now": "Book Now",
         "view_book": "View & Book",
@@ -50763,8 +50766,25 @@ const GAS_TRANSLATIONS = {
         "required": "required",
         "you_selected": "You selected",
         "choose_longer": "Please choose a longer stay.",
-        "guest": "guest"
-      },
+        "guest": "guest",
+        "not_available_dates": "Not available on selected dates",
+        "not_available_property": "Not available for this property",
+        "not_available_selected": "Not available for selected dates",
+        "view_calendar": "View Calendar",
+        "check_other_dates": "Check other dates",
+        "checking_availability": "Checking availability...",
+        "checking": "Checking...",
+        "error_checking": "Error checking availability",
+        "confirming": "Confirming booking...",
+        "processing": "Processing...",
+        "processing_payment": "Processing payment...",
+        "check_email": "Check your email for confirmation details.",
+        "confirmation_sent": "Confirmation sent to",
+        "cart_empty": "Your cart is empty.",
+        "browse_rooms": "Browse rooms",
+        "rooms_not_available_divider": "Rooms below are not available for selected dates",
+        "error_validating_voucher": "Error validating voucher"
+},
       "guest_details": {
         "guest_details": "Guest Details",
         "first_name": "First Name",
@@ -50819,8 +50839,11 @@ const GAS_TRANSLATIONS = {
         "cancellation_policy": "Cancellation Policy",
         "no_terms": "No general terms provided.",
         "no_rules": "No house rules provided.",
-        "no_cancellation": "No cancellation policy provided."
-      },
+        "no_cancellation": "No cancellation policy provided.",
+        "no_description": "No description available.",
+        "contact_cancellation": "Please contact the property for cancellation policy details.",
+        "unable_to_load": "Unable to load room details"
+},
       "properties_portfolio": {
         "page_title": "Our Properties",
         "page_subtitle": "Explore our collection of vacation rentals",
@@ -50892,8 +50915,14 @@ const GAS_TRANSLATIONS = {
         "all_locations": "All Locations",
         "amenities": "Amenities",
         "select_amenities": "Select Amenities",
-        "clear_filters": "Clear Filters"
-      },
+        "clear_filters": "Clear Filters",
+        "property": "Property",
+        "all_properties": "All Properties",
+        "load_more": "Load More Properties",
+        "more": "more",
+        "no_results": "No rooms match the selected filters. Please adjust your criteria.",
+        "verify_availability": "Check Availability"
+},
       "calendar": {
         "today": "Today",
         "mon": "Mon", "tue": "Tue", "wed": "Wed", "thu": "Thu", "fri": "Fri", "sat": "Sat", "sun": "Sun",
@@ -50981,8 +51010,11 @@ const GAS_TRANSLATIONS = {
         "apply": "Appliquer",
         "and": "et",
         "processing": "Traitement en cours...",
-        "coming_soon": "Bientôt disponible"
-      },
+        "coming_soon": "Bientôt disponible",
+        "less_info": "Moins d'informations",
+        "connection_error": "Erreur de connexion. Veuillez réessayer.",
+        "confirmed": "Confirmé"
+},
       "booking": {
         "book_now": "Réserver",
         "view_book": "Voir & Réserver",
@@ -51038,8 +51070,25 @@ const GAS_TRANSLATIONS = {
         "required": "requis",
         "you_selected": "Vous avez sélectionné",
         "choose_longer": "Veuillez choisir un séjour plus long.",
-        "guest": "voyageur"
-      },
+        "guest": "voyageur",
+        "not_available_dates": "Non disponible aux dates sélectionnées",
+        "not_available_property": "Non disponible pour cette propriété",
+        "not_available_selected": "Non disponible pour les dates sélectionnées",
+        "view_calendar": "Voir le calendrier",
+        "check_other_dates": "Vérifier d'autres dates",
+        "checking_availability": "Vérification de la disponibilité...",
+        "checking": "Vérification...",
+        "error_checking": "Erreur lors de la vérification",
+        "confirming": "Confirmation de la réservation...",
+        "processing": "Traitement en cours...",
+        "processing_payment": "Traitement du paiement...",
+        "check_email": "Consultez votre e-mail pour les détails de confirmation.",
+        "confirmation_sent": "Confirmation envoyée à",
+        "cart_empty": "Votre panier est vide.",
+        "browse_rooms": "Parcourir les chambres",
+        "rooms_not_available_divider": "Les chambres ci-dessous ne sont pas disponibles aux dates sélectionnées",
+        "error_validating_voucher": "Erreur lors de la validation du bon"
+},
       "guest_details": {
         "guest_details": "Informations voyageur",
         "first_name": "Prénom",
@@ -51094,8 +51143,11 @@ const GAS_TRANSLATIONS = {
         "cancellation_policy": "Politique d'annulation",
         "no_terms": "Aucune condition générale fournie.",
         "no_rules": "Aucun règlement intérieur fourni.",
-        "no_cancellation": "Aucune politique d'annulation fournie."
-      },
+        "no_cancellation": "Aucune politique d'annulation fournie.",
+        "no_description": "Aucune description disponible.",
+        "contact_cancellation": "Veuillez contacter la propriété pour les détails de la politique d'annulation.",
+        "unable_to_load": "Impossible de charger les détails de la chambre"
+},
       "properties_portfolio": {
         "page_title": "Nos Propriétés",
         "page_subtitle": "Découvrez notre collection de locations de vacances",
@@ -51167,8 +51219,14 @@ const GAS_TRANSLATIONS = {
         "all_locations": "Tous les emplacements",
         "amenities": "Équipements",
         "select_amenities": "Sélectionner équipements",
-        "clear_filters": "Effacer les filtres"
-      },
+        "clear_filters": "Effacer les filtres",
+        "property": "Propriété",
+        "all_properties": "Toutes les propriétés",
+        "load_more": "Charger plus de propriétés",
+        "more": "de plus",
+        "no_results": "Aucune chambre ne correspond aux filtres sélectionnés. Veuillez ajuster vos critères.",
+        "verify_availability": "Vérifier la disponibilité"
+},
       "calendar": {
         "today": "Aujourd'hui",
         "mon": "Lun", "tue": "Mar", "wed": "Mer", "thu": "Jeu", "fri": "Ven", "sat": "Sam", "sun": "Dim",
@@ -51256,8 +51314,11 @@ const GAS_TRANSLATIONS = {
         "apply": "Aplicar",
         "and": "y",
         "processing": "Procesando...",
-        "coming_soon": "Próximamente"
-      },
+        "coming_soon": "Próximamente",
+        "less_info": "Menos información",
+        "connection_error": "Error de conexión. Inténtelo de nuevo.",
+        "confirmed": "Confirmado"
+},
       "booking": {
         "book_now": "Reservar",
         "view_book": "Ver y Reservar",
@@ -51311,8 +51372,25 @@ const GAS_TRANSLATIONS = {
         "required": "requerido",
         "you_selected": "Has seleccionado",
         "choose_longer": "Por favor elige una estancia más larga.",
-        "guest": "huésped"
-      },
+        "guest": "huésped",
+        "not_available_dates": "No disponible en las fechas seleccionadas",
+        "not_available_property": "No disponible para esta propiedad",
+        "not_available_selected": "No disponible para las fechas seleccionadas",
+        "view_calendar": "Ver calendario",
+        "check_other_dates": "Consultar otras fechas",
+        "checking_availability": "Verificando disponibilidad...",
+        "checking": "Verificando...",
+        "error_checking": "Error al verificar disponibilidad",
+        "confirming": "Confirmando reserva...",
+        "processing": "Procesando...",
+        "processing_payment": "Procesando pago...",
+        "check_email": "Revise su correo electrónico para los detalles de confirmación.",
+        "confirmation_sent": "Confirmación enviada a",
+        "cart_empty": "Su carrito está vacío.",
+        "browse_rooms": "Explorar habitaciones",
+        "rooms_not_available_divider": "Las habitaciones a continuación no están disponibles para las fechas seleccionadas",
+        "error_validating_voucher": "Error al validar el cupón"
+},
       "guest_details": {
         "guest_details": "Datos del huésped",
         "first_name": "Nombre",
@@ -51367,8 +51445,11 @@ const GAS_TRANSLATIONS = {
         "cancellation_policy": "Política de cancelación",
         "no_terms": "No hay condiciones generales disponibles.",
         "no_rules": "No hay normas de la casa disponibles.",
-        "no_cancellation": "No hay política de cancelación disponible."
-      },
+        "no_cancellation": "No hay política de cancelación disponible.",
+        "no_description": "No hay descripción disponible.",
+        "contact_cancellation": "Contacte con la propiedad para los detalles de la política de cancelación.",
+        "unable_to_load": "No se pudieron cargar los detalles de la habitación"
+},
       "properties_portfolio": {
         "page_title": "Nuestras Propiedades",
         "page_subtitle": "Explore nuestra colección de alquileres vacacionales",
@@ -51440,8 +51521,14 @@ const GAS_TRANSLATIONS = {
         "all_locations": "Todas las ubicaciones",
         "amenities": "Servicios",
         "select_amenities": "Seleccionar servicios",
-        "clear_filters": "Borrar filtros"
-      },
+        "clear_filters": "Borrar filtros",
+        "property": "Propiedad",
+        "all_properties": "Todas las propiedades",
+        "load_more": "Cargar más propiedades",
+        "more": "más",
+        "no_results": "Ninguna habitación coincide con los filtros seleccionados. Ajuste sus criterios.",
+        "verify_availability": "Verificar disponibilidad"
+},
       "calendar": {
         "today": "Hoy",
         "mon": "Lun", "tue": "Mar", "wed": "Mié", "thu": "Jue", "fri": "Vie", "sat": "Sáb", "sun": "Dom",
@@ -51529,8 +51616,11 @@ const GAS_TRANSLATIONS = {
         "apply": "Toepassen",
         "and": "en",
         "processing": "Bezig...",
-        "coming_soon": "Binnenkort beschikbaar"
-      },
+        "coming_soon": "Binnenkort beschikbaar",
+        "less_info": "Minder informatie",
+        "connection_error": "Verbindingsfout. Probeer het opnieuw.",
+        "confirmed": "Bevestigd"
+},
       "booking": {
         "book_now": "Boek nu",
         "view_book": "Bekijk & Boek",
@@ -51586,8 +51676,25 @@ const GAS_TRANSLATIONS = {
         "required": "vereist",
         "you_selected": "U heeft geselecteerd",
         "choose_longer": "Kies alstublieft een langer verblijf.",
-        "guest": "gast"
-      },
+        "guest": "gast",
+        "not_available_dates": "Niet beschikbaar op geselecteerde data",
+        "not_available_property": "Niet beschikbaar voor dit object",
+        "not_available_selected": "Niet beschikbaar voor de geselecteerde data",
+        "view_calendar": "Bekijk kalender",
+        "check_other_dates": "Andere data bekijken",
+        "checking_availability": "Beschikbaarheid controleren...",
+        "checking": "Controleren...",
+        "error_checking": "Fout bij het controleren",
+        "confirming": "Boeking bevestigen...",
+        "processing": "Verwerken...",
+        "processing_payment": "Betaling verwerken...",
+        "check_email": "Controleer uw e-mail voor bevestigingsgegevens.",
+        "confirmation_sent": "Bevestiging verzonden naar",
+        "cart_empty": "Uw winkelwagen is leeg.",
+        "browse_rooms": "Kamers bekijken",
+        "rooms_not_available_divider": "Onderstaande kamers zijn niet beschikbaar voor de geselecteerde data",
+        "error_validating_voucher": "Fout bij het valideren van de voucher"
+},
       "guest_details": {
         "guest_details": "Gastgegevens",
         "first_name": "Voornaam",
@@ -51642,8 +51749,11 @@ const GAS_TRANSLATIONS = {
         "cancellation_policy": "Annuleringsbeleid",
         "no_terms": "Geen algemene voorwaarden beschikbaar.",
         "no_rules": "Geen huisregels beschikbaar.",
-        "no_cancellation": "Geen annuleringsbeleid beschikbaar."
-      },
+        "no_cancellation": "Geen annuleringsbeleid beschikbaar.",
+        "no_description": "Geen beschrijving beschikbaar.",
+        "contact_cancellation": "Neem contact op met het object voor annuleringsvoorwaarden.",
+        "unable_to_load": "Kan kamerdetails niet laden"
+},
       "properties_portfolio": {
         "page_title": "Onze Accommodaties",
         "page_subtitle": "Ontdek onze collectie vakantiewoningen",
@@ -51715,8 +51825,14 @@ const GAS_TRANSLATIONS = {
         "all_locations": "Alle locaties",
         "amenities": "Voorzieningen",
         "select_amenities": "Selecteer voorzieningen",
-        "clear_filters": "Filters wissen"
-      },
+        "clear_filters": "Filters wissen",
+        "property": "Object",
+        "all_properties": "Alle objecten",
+        "load_more": "Meer objecten laden",
+        "more": "meer",
+        "no_results": "Geen kamers gevonden met de geselecteerde filters. Pas uw criteria aan.",
+        "verify_availability": "Beschikbaarheid controleren"
+},
       "calendar": {
         "today": "Vandaag",
         "mon": "Ma", "tue": "Di", "wed": "Wo", "thu": "Do", "fri": "Vr", "sat": "Za", "sun": "Zo",
@@ -51804,8 +51920,11 @@ const GAS_TRANSLATIONS = {
         "apply": "Anwenden",
         "and": "und",
         "processing": "Wird verarbeitet...",
-        "coming_soon": "Demnächst verfügbar"
-      },
+        "coming_soon": "Demnächst verfügbar",
+        "less_info": "Weniger Informationen",
+        "connection_error": "Verbindungsfehler. Bitte versuchen Sie es erneut.",
+        "confirmed": "Bestätigt"
+},
       "booking": {
         "book_now": "Jetzt buchen",
         "view_book": "Ansehen & Buchen",
@@ -51859,8 +51978,25 @@ const GAS_TRANSLATIONS = {
         "required": "erforderlich",
         "you_selected": "Sie haben gewählt",
         "choose_longer": "Bitte wählen Sie einen längeren Aufenthalt.",
-        "guest": "Gast"
-      },
+        "guest": "Gast",
+        "not_available_dates": "An den gewählten Daten nicht verfügbar",
+        "not_available_property": "Für diese Unterkunft nicht verfügbar",
+        "not_available_selected": "Für die gewählten Daten nicht verfügbar",
+        "view_calendar": "Kalender anzeigen",
+        "check_other_dates": "Andere Daten prüfen",
+        "checking_availability": "Verfügbarkeit wird geprüft...",
+        "checking": "Prüfe...",
+        "error_checking": "Fehler bei der Verfügbarkeitsprüfung",
+        "confirming": "Buchung wird bestätigt...",
+        "processing": "Wird verarbeitet...",
+        "processing_payment": "Zahlung wird verarbeitet...",
+        "check_email": "Überprüfen Sie Ihre E-Mail für die Bestätigungsdetails.",
+        "confirmation_sent": "Bestätigung gesendet an",
+        "cart_empty": "Ihr Warenkorb ist leer.",
+        "browse_rooms": "Zimmer durchsuchen",
+        "rooms_not_available_divider": "Die folgenden Zimmer sind für die gewählten Daten nicht verfügbar",
+        "error_validating_voucher": "Fehler bei der Gutscheinvalidierung"
+},
       "guest_details": {
         "guest_details": "Gästedaten",
         "first_name": "Vorname",
@@ -51915,8 +52051,11 @@ const GAS_TRANSLATIONS = {
         "cancellation_policy": "Stornierungsbedingungen",
         "no_terms": "Keine allgemeinen Bedingungen vorhanden.",
         "no_rules": "Keine Hausordnung vorhanden.",
-        "no_cancellation": "Keine Stornierungsbedingungen vorhanden."
-      },
+        "no_cancellation": "Keine Stornierungsbedingungen vorhanden.",
+        "no_description": "Keine Beschreibung verfügbar.",
+        "contact_cancellation": "Bitte kontaktieren Sie die Unterkunft für Details zur Stornierungsrichtlinie.",
+        "unable_to_load": "Zimmerdetails konnten nicht geladen werden"
+},
       "properties_portfolio": {
         "page_title": "Unsere Unterkünfte",
         "page_subtitle": "Entdecken Sie unsere Auswahl an Ferienunterkünften",
@@ -51988,8 +52127,14 @@ const GAS_TRANSLATIONS = {
         "all_locations": "Alle Standorte",
         "amenities": "Ausstattung",
         "select_amenities": "Ausstattung auswählen",
-        "clear_filters": "Filter löschen"
-      },
+        "clear_filters": "Filter löschen",
+        "property": "Unterkunft",
+        "all_properties": "Alle Unterkünfte",
+        "load_more": "Mehr Unterkünfte laden",
+        "more": "mehr",
+        "no_results": "Keine Zimmer entsprechen den gewählten Filtern. Bitte passen Sie Ihre Kriterien an.",
+        "verify_availability": "Verfügbarkeit prüfen"
+},
       "calendar": {
         "today": "Heute",
         "mon": "Mo", "tue": "Di", "wed": "Mi", "thu": "Do", "fri": "Fr", "sat": "Sa", "sun": "So",
