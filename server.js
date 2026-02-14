@@ -21089,7 +21089,8 @@ app.post('/api/deploy/create', async (req, res) => {
           data.site.blog_id,
           data.site.url,
           data.site.admin_url,
-          data.site.slug,
+          // Extract slug from URL as VPS may return incorrect slug
+          (data.site.url ? data.site.url.match(/https?:\/\/([^.]+)\./)?.[1] : null) || data.site.slug,
           site_name,
           'deployed',
           data.credentials.username,
@@ -22128,6 +22129,25 @@ app.put('/api/admin/deployed-sites/:id/rooms', async (req, res) => {
     }
     
     res.json({ success: true, linkedCount: roomIds?.length || 0, wpUpdated });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Fix all deployed site slugs from site_url (one-time repair)
+app.post('/api/admin/fix-deployed-slugs', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT id, site_url, slug FROM deployed_sites WHERE site_url IS NOT NULL');
+    let fixed = 0;
+    for (const site of result.rows) {
+      const match = site.site_url.match(/https?:\/\/([^.]+)\./);
+      if (match && match[1] !== site.slug) {
+        await pool.query('UPDATE deployed_sites SET slug = $1 WHERE id = $2', [match[1], site.id]);
+        console.log(`Fixed slug for site ${site.id}: ${site.slug} -> ${match[1]}`);
+        fixed++;
+      }
+    }
+    res.json({ success: true, fixed, total: result.rows.length });
   } catch (error) {
     res.json({ success: false, error: error.message });
   }
