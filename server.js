@@ -21573,6 +21573,34 @@ app.delete('/api/admin/deployed-sites/:id', async (req, res) => {
       return res.json({ success: false, error: 'Deployed site not found' });
     }
     
+    let vpsDeleted = false;
+    let vpsError = null;
+    
+    // Delete from VPS if site has a blog_id
+    if (site.blog_id) {
+      try {
+        console.log(`[Admin] Deleting site from VPS: blog_id=${site.blog_id}, slug=${site.slug}`);
+        const response = await fetch(`${VPS_DEPLOY_URL}?action=delete-site`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-Key': VPS_DEPLOY_API_KEY
+          },
+          body: JSON.stringify({
+            blog_id: site.blog_id,
+            confirm: 'DELETE'
+          })
+        });
+        const data = await response.json();
+        vpsDeleted = data.success;
+        if (!data.success) vpsError = data.error;
+        console.log(`[Admin] VPS delete-site blog_id=${site.blog_id}: ${vpsDeleted ? 'success' : vpsError}`);
+      } catch (e) {
+        vpsError = e.message;
+        console.error(`[Admin] VPS delete-site error: ${e.message}`);
+      }
+    }
+    
     if (permanent === 'true') {
       // Clear website URL from property
       if (site.property_id) {
@@ -21597,15 +21625,204 @@ app.delete('/api/admin/deployed-sites/:id', async (req, res) => {
       
       // Permanently delete from deployed_sites
       await pool.query('DELETE FROM deployed_sites WHERE id = $1', [id]);
-      res.json({ success: true, message: 'Site permanently deleted' });
+      res.json({ 
+        success: true, 
+        message: 'Site permanently deleted',
+        vps_deleted: vpsDeleted,
+        vps_error: vpsError || undefined
+      });
     } else {
-      // Soft delete - just change status
+      // Soft delete - change status and remove from VPS
       await pool.query("UPDATE deployed_sites SET status = 'deleted', updated_at = NOW() WHERE id = $1", [id]);
-      res.json({ success: true, message: 'Site marked as deleted' });
+      res.json({ 
+        success: true, 
+        message: vpsDeleted ? 'Site deleted from VPS and marked as deleted' : 'Site marked as deleted',
+        vps_deleted: vpsDeleted,
+        vps_error: vpsError || undefined
+      });
     }
   } catch (error) {
     console.error('Delete deployed site error:', error);
     res.json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/admin/deployed-sites/:id/rename-subdomain - Rename subdomain from admin UI
+app.put('/api/admin/deployed-sites/:id/rename-subdomain', async (req, res) => {
+  console.log('=== ADMIN: RENAME SUBDOMAIN ===');
+  try {
+    const { id } = req.params;
+    const { new_subdomain } = req.body;
+    
+    if (!new_subdomain) {
+      return res.status(400).json({ success: false, error: 'new_subdomain is required' });
+    }
+    
+    const cleanSub = new_subdomain.trim().toLowerCase().replace(/[^a-z0-9-]/g, '');
+    if (cleanSub.length < 3) {
+      return res.status(400).json({ success: false, error: 'Subdomain must be at least 3 characters' });
+    }
+    if (cleanSub.length > 50) {
+      return res.status(400).json({ success: false, error: 'Subdomain must be 50 characters or less' });
+    }
+    
+    // Get site details
+    const result = await pool.query('SELECT * FROM deployed_sites WHERE id = $1', [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Deployed site not found' });
+    }
+    
+    const site = result.rows[0];
+    const oldSub = site.slug;
+    
+    if (oldSub === cleanSub) {
+      return res.status(400).json({ success: false, error: 'New subdomain is the same as current' });
+    }
+    
+    if (!site.blog_id) {
+      return res.status(400).json({ success: false, error: 'Site has no blog_id — cannot rename on VPS' });
+    }
+    
+    // Check if subdomain is already taken
+    const existing = await pool.query('SELECT id FROM deployed_sites WHERE slug = $1 AND id != $2', [cleanSub, id]);
+    if (existing.rows.length > 0) {
+      return res.status(409).json({ success: false, error: 'Subdomain already taken by another site' });
+    }
+    
+    console.log(`[Admin] Renaming subdomain: ${oldSub} -> ${cleanSub} (blog_id: ${site.blog_id})`);
+    
+    // Call VPS to rename
+    const vpsResponse = await fetch(`${VPS_DEPLOY_URL}?action=rename-site`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': VPS_DEPLOY_API_KEY
+      },
+      body: JSON.stringify({
+        blog_id: site.blog_id,
+        old_subdomain: oldSub,
+        new_subdomain: cleanSub
+      })
+    });
+    
+    const vpsData = await vpsResponse.json();
+    console.log('[Admin] VPS rename response:', JSON.stringify(vpsData));
+    
+    if (!vpsData.success) {
+      return res.status(500).json({ success: false, error: `VPS rename failed: ${vpsData.error || 'Unknown error'}` });
+    }
+    
+    const newUrl = `https://${cleanSub}.sites.gas.travel`;
+    const newAdminUrl = `https://${cleanSub}.sites.gas.travel/wp-admin/`;
+    
+    // Update deployed_sites
+    await pool.query(`UPDATE deployed_sites SET slug = $1, site_url = $2, admin_url = $3, updated_at = NOW() WHERE id = $4`,
+      [cleanSub, newUrl, newAdminUrl, id]);
+    
+    // Update websites table
+    await pool.query(`UPDATE websites SET subdomain = $1, slug = $1, site_url = $2, admin_url = $3, updated_at = NOW() WHERE deployed_site_id = $4`,
+      [cleanSub, newUrl, newAdminUrl, id]).catch(e => {
+      // Try without subdomain column in case it doesn't exist
+      return pool.query(`UPDATE websites SET slug = $1, site_url = $2, admin_url = $3, updated_at = NOW() WHERE deployed_site_id = $4`,
+        [cleanSub, newUrl, newAdminUrl, id]);
+    });
+    
+    // Update room website URLs
+    const roomIds = typeof site.room_ids === 'string' ? JSON.parse(site.room_ids || '[]') : (site.room_ids || []);
+    for (const roomId of roomIds) {
+      await pool.query('UPDATE bookable_units SET website_url = $1 WHERE id = $2', [newUrl, roomId]);
+    }
+    
+    // Update property website URL
+    if (site.property_id) {
+      await pool.query('UPDATE properties SET website_url = $1 WHERE id = $2', [newUrl, site.property_id]);
+    }
+    
+    console.log(`[Admin] Successfully renamed ${oldSub} -> ${cleanSub}`);
+    
+    res.json({
+      success: true,
+      old_subdomain: oldSub,
+      new_subdomain: cleanSub,
+      new_site_url: newUrl,
+      new_admin_url: newAdminUrl,
+      message: `Subdomain renamed from "${oldSub}" to "${cleanSub}"`
+    });
+    
+  } catch (error) {
+    console.error('Admin rename subdomain error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/admin/deployed-sites/:id/rename-name - Update site display name from admin UI
+app.put('/api/admin/deployed-sites/:id/rename-name', async (req, res) => {
+  console.log('=== ADMIN: RENAME SITE NAME ===');
+  try {
+    const { id } = req.params;
+    const { name } = req.body;
+    
+    if (!name || !name.trim()) {
+      return res.status(400).json({ success: false, error: 'name is required' });
+    }
+    
+    const newName = name.trim();
+    
+    // Get site details
+    const result = await pool.query('SELECT * FROM deployed_sites WHERE id = $1', [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Deployed site not found' });
+    }
+    
+    const site = result.rows[0];
+    const oldName = site.site_name || site.slug;
+    
+    // Update deployed_sites
+    await pool.query('UPDATE deployed_sites SET site_name = $1, updated_at = NOW() WHERE id = $2', [newName, id]);
+    
+    // Update websites table
+    await pool.query('UPDATE websites SET name = $1, updated_at = NOW() WHERE deployed_site_id = $2', [newName, id]).catch(() => {});
+    
+    // Update WordPress blog title if deployed
+    let wpUpdated = false;
+    if (site.blog_id && site.site_url) {
+      try {
+        const wpResponse = await fetch('https://sites.gas.travel/gas-api.php', {
+          method: 'POST',
+          headers: {
+            'X-API-Key': VPS_DEPLOY_API_KEY,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            action: 'update_option',
+            site_url: site.site_url,
+            option_name: 'blogname',
+            option_value: newName
+          })
+        });
+        const wpData = await wpResponse.json();
+        wpUpdated = wpData.success;
+        if (!wpUpdated) {
+          console.log(`[Admin] WP blogname update failed: ${wpData.error}`);
+        }
+      } catch (e) {
+        console.error(`[Admin] WP blogname update error: ${e.message}`);
+      }
+    }
+    
+    console.log(`[Admin] Site name updated: "${oldName}" -> "${newName}" (wp: ${wpUpdated})`);
+    
+    res.json({
+      success: true,
+      old_name: oldName,
+      new_name: newName,
+      wordpress_updated: wpUpdated,
+      message: `Site name updated to "${newName}"`
+    });
+    
+  } catch (error) {
+    console.error('Admin rename name error:', error);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
