@@ -40042,6 +40042,107 @@ Local honey and preserves"></textarea>
                 });
             });
         })();
+        
+        // === BILLING PRICING FUNCTIONS ===
+        function calculateAIWebsitePriceJS(units) {
+            let price = 19.00;
+            if (units <= 0) return price;
+            const tiers = [
+                { max: 50, rate: 2.50 },
+                { max: 100, rate: 2.00 },
+                { max: 250, rate: 1.50 },
+                { max: 500, rate: 1.00 },
+                { max: Infinity, rate: 0.50 }
+            ];
+            let remaining = units;
+            let prevMax = 0;
+            for (const tier of tiers) {
+                const tierUnits = Math.min(remaining, tier.max - prevMax);
+                if (tierUnits <= 0) break;
+                price += tierUnits * tier.rate;
+                remaining -= tierUnits;
+                prevMax = tier.max;
+                if (remaining <= 0) break;
+            }
+            return Math.round(price * 100) / 100;
+        }
+        
+        function calculateReviewsPriceJS(apps) {
+            if (apps <= 0) return 0;
+            let price = 0;
+            const tiers = [
+                { max: 9, rate: 5.00 },
+                { max: 49, rate: 3.00 },
+                { max: Infinity, rate: 1.50 }
+            ];
+            let remaining = apps;
+            let prevMax = 0;
+            for (const tier of tiers) {
+                const tierUnits = Math.min(remaining, tier.max - prevMax);
+                if (tierUnits <= 0) break;
+                price += tierUnits * tier.rate;
+                remaining -= tierUnits;
+                prevMax = tier.max;
+                if (remaining <= 0) break;
+            }
+            return Math.round(price * 100) / 100;
+        }
+        
+        const blogPrices = { 0: 0, 1: 9.99, 2: 14.99, 3: 24.99 };
+        const attractionsPrices = { 0: 0, 1: 4.99, 2: 9.99, 3: 14.99 };
+        const litesPrices = { 0: 0, 1: 4.99, 2: 9.99, 3: 19.99 };
+        let EUR_USD_RATE = 0.84; // fallback USD→EUR
+        
+        // Fetch live USD→EUR rate
+        (async () => {
+            try {
+                const resp = await fetch('https://api.frankfurter.dev/v1/latest?base=USD&symbols=EUR');
+                const data = await resp.json();
+                if (data.rates && data.rates.EUR) {
+                    EUR_USD_RATE = data.rates.EUR;
+                    updateSubscriptionPreview();
+                }
+            } catch (e) { /* use fallback */ }
+        })();
+        
+        function updateSubscriptionPreview() {
+            const blogTier = parseInt(document.getElementById('sub-blog-tier')?.value) || 0;
+            const attractionsTier = parseInt(document.getElementById('sub-attractions-tier')?.value) || 0;
+            const litesTier = parseInt(document.getElementById('sub-lites-tier')?.value) || 0;
+            const reviewsApps = parseInt(document.getElementById('sub-reviews-apps')?.value) || 0;
+            
+            const blogPrice = blogPrices[blogTier] || 0;
+            const attractionsPrice = attractionsPrices[attractionsTier] || 0;
+            const litesPrice = litesPrices[litesTier] || 0;
+            const reviewsPrice = calculateReviewsPriceJS(reviewsApps);
+            
+            const blogEUR = blogPrice * EUR_USD_RATE;
+            const attractionsEUR = attractionsPrice * EUR_USD_RATE;
+            const litesEUR = litesPrice * EUR_USD_RATE;
+            const reviewsEUR = reviewsPrice * EUR_USD_RATE;
+            
+            const el1 = document.getElementById('sub-blog-price');
+            if (el1) el1.textContent = blogEUR > 0 ? '€' + blogEUR.toFixed(2) : '€0';
+            const el2 = document.getElementById('sub-attractions-price');
+            if (el2) el2.textContent = attractionsEUR > 0 ? '€' + attractionsEUR.toFixed(2) : '€0';
+            const el3 = document.getElementById('sub-lites-price');
+            if (el3) el3.textContent = litesEUR > 0 ? '€' + litesEUR.toFixed(2) : '€0';
+            const el4 = document.getElementById('sub-reviews-price');
+            if (el4) el4.textContent = reviewsEUR > 0 ? '€' + reviewsEUR.toFixed(2) : '€0';
+            
+            const sitesTotalEl = document.getElementById('per-site-billing-total');
+            const sitesEUR = sitesTotalEl ? (parseFloat(sitesTotalEl.value) || 0) : 0;
+            const pluginsEUR = blogEUR + attractionsEUR + litesEUR + reviewsEUR;
+            const gasTotal = sitesEUR + pluginsEUR;
+            
+            const gasTotalEl = document.getElementById('gas-services-total');
+            if (gasTotalEl) gasTotalEl.textContent = '€' + gasTotal.toFixed(2) + '/mo';
+            
+            const subTotalEl = document.getElementById('sub-total-eur');
+            if (subTotalEl) subTotalEl.textContent = '€' + gasTotal.toFixed(2);
+        }
+        // === END BILLING PRICING FUNCTIONS ===
+        
         async function loadPerSiteBilling(accountId) {
             const container = document.getElementById('per-site-billing-container');
             if (!container) return;
