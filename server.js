@@ -21826,6 +21826,72 @@ app.put('/api/admin/deployed-sites/:id/rename-name', async (req, res) => {
   }
 });
 
+// PUT /api/admin/deployed-sites/:id/status - Activate or deactivate a site from admin UI
+app.put('/api/admin/deployed-sites/:id/status', async (req, res) => {
+  console.log('=== ADMIN: TOGGLE SITE STATUS ===');
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    
+    if (!status || !['active', 'inactive'].includes(status)) {
+      return res.status(400).json({ success: false, error: 'status must be "active" or "inactive"' });
+    }
+    
+    // Get site details
+    const result = await pool.query('SELECT * FROM deployed_sites WHERE id = $1', [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Deployed site not found' });
+    }
+    
+    const site = result.rows[0];
+    let vpsSuccess = false;
+    let vpsError = null;
+    
+    // Call VPS to deactivate or activate
+    if (site.blog_id) {
+      const vpsAction = status === 'inactive' ? 'deactivate-site' : 'activate-site';
+      try {
+        console.log(`[Admin] ${vpsAction} blog_id=${site.blog_id}`);
+        const response = await fetch(`${VPS_DEPLOY_URL}?action=${vpsAction}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-Key': VPS_DEPLOY_API_KEY
+          },
+          body: JSON.stringify({ blog_id: site.blog_id })
+        });
+        const data = await response.json();
+        vpsSuccess = data.success;
+        if (!data.success) vpsError = data.error;
+        console.log(`[Admin] VPS ${vpsAction} blog_id=${site.blog_id}: ${vpsSuccess ? 'success' : vpsError}`);
+      } catch (e) {
+        vpsError = e.message;
+        console.error(`[Admin] VPS ${vpsAction} error: ${e.message}`);
+      }
+    }
+    
+    // Update deployed_sites status
+    await pool.query('UPDATE deployed_sites SET status = $1, updated_at = NOW() WHERE id = $2', [status, id]);
+    
+    // Update websites table too
+    await pool.query('UPDATE websites SET status = $1, updated_at = NOW() WHERE deployed_site_id = $2', [status, id]).catch(() => {});
+    
+    console.log(`[Admin] Site ${id} (${site.slug}) status -> ${status} (VPS: ${vpsSuccess})`);
+    
+    res.json({
+      success: true,
+      message: `Site ${status === 'inactive' ? 'deactivated' : 'activated'} successfully`,
+      status: status,
+      vps_updated: vpsSuccess,
+      vps_error: vpsError || undefined
+    });
+    
+  } catch (error) {
+    console.error('Admin toggle site status error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // TEMPORARY: Add missing columns - visit once then remove
 app.get('/api/admin/fix-missing-columns-xK9mP2nL', async (req, res) => {
   try {
@@ -42655,10 +42721,12 @@ app.put('/api/partner/websites/:websiteId/status', async (req, res) => {
       return res.status(400).json({ success: false, error: 'status must be "active" or "inactive"' });
     }
     
-    // Verify website belongs to partner's tenant
+    // Verify website belongs to partner's tenant and get blog_id
     const wCheck = await pool.query(`
-      SELECT w.id, w.subdomain, w.status as current_status FROM websites w
+      SELECT w.id, w.subdomain, w.status as current_status, ds.blog_id
+      FROM websites w
       JOIN accounts a ON a.id = w.account_id
+      LEFT JOIN deployed_sites ds ON ds.id = w.deployed_site_id
       WHERE w.id = $1 AND a.parent_id = $2
     `, [websiteId, auth.partnerId]);
     
@@ -42667,9 +42735,40 @@ app.put('/api/partner/websites/:websiteId/status', async (req, res) => {
     }
     
     const website = wCheck.rows[0];
+    let vpsSuccess = false;
+    let vpsError = null;
     
-    // Update website status
+    // Call VPS to deactivate or activate the WordPress site
+    if (website.blog_id) {
+      const vpsAction = status === 'inactive' ? 'deactivate-site' : 'activate-site';
+      try {
+        console.log(`[Partner API] ${vpsAction} blog_id=${website.blog_id}`);
+        const response = await fetch(`${VPS_DEPLOY_URL}?action=${vpsAction}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-Key': VPS_DEPLOY_API_KEY
+          },
+          body: JSON.stringify({ blog_id: website.blog_id })
+        });
+        const data = await response.json();
+        vpsSuccess = data.success;
+        if (!data.success) vpsError = data.error;
+        console.log(`[Partner API] VPS ${vpsAction} blog_id=${website.blog_id}: ${vpsSuccess ? 'success' : vpsError}`);
+      } catch (e) {
+        vpsError = e.message;
+        console.error(`[Partner API] VPS ${vpsAction} error: ${e.message}`);
+      }
+    }
+    
+    // Update website status in database
     await pool.query(`UPDATE websites SET status = $1, updated_at = NOW() WHERE id = $2`, [status, websiteId]);
+    
+    // Also update deployed_sites status
+    await pool.query(`
+      UPDATE deployed_sites SET status = $1, updated_at = NOW() 
+      WHERE id = (SELECT deployed_site_id FROM websites WHERE id = $2)
+    `, [status, websiteId]).catch(() => {});
     
     console.log(`[Partner API] Website ${websiteId} (${website.subdomain}) status changed: ${website.current_status} -> ${status}`);
     
@@ -42677,7 +42776,9 @@ app.put('/api/partner/websites/:websiteId/status', async (req, res) => {
       success: true, 
       message: `Website ${status === 'inactive' ? 'deactivated' : 'activated'} successfully`,
       website_id: parseInt(websiteId),
-      status: status
+      status: status,
+      vps_updated: vpsSuccess,
+      vps_error: vpsError || undefined
     });
     
   } catch (error) {
