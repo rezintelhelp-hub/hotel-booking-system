@@ -13389,6 +13389,187 @@ Local honey and preserves"></textarea>
                         </div>
                     </div>
                     
+
+                    <!-- ============ SECTION 1: GAS SERVICES ============ -->
+                    <div id="account-billing-section" style="background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); padding: 1rem; border-radius: 12px; margin-bottom: 1rem; border: 1px solid #93c5fd;">
+                        <h4 style="margin: 0 0 0.75rem 0; font-size: 0.85rem; color: #1e40af; font-weight: 600;">💰 1. GAS Services</h4>
+                        
+                        <!-- Deployed Sites (dynamic per-site billing) -->
+                        <div id="per-site-billing-container" style="margin-bottom: 0.75rem;">
+                            <div style="font-size: 0.8rem; color: #64748b; padding: 0.5rem;">Loading sites...</div>
+                        </div>
+                        
+                        <!-- Blog -->
+                        <div style="display: grid; grid-template-columns: 1fr auto auto; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem; padding: 0.5rem; background: white; border-radius: 8px;">
+                            <div>
+                                <div style="font-weight: 600; font-size: 0.85rem;">Blog</div>
+                                <div style="font-size: 0.7rem; color: #6b7280;">AI content generation</div>
+                            </div>
+                            <select id="sub-blog-tier" class="form-input" onchange="updateSubscriptionPreview()" style="padding: 0.3rem; font-size: 0.8rem; width: 140px;">
+                                <option value="0">Not subscribed</option>
+                                <option value="1">0-19 ($9.99)</option>
+                                <option value="2">20-49 ($14.99)</option>
+                                <option value="3">50+ ($24.99)</option>
+                            </select>
+                            <span id="sub-blog-price" style="font-weight: 600; font-size: 0.85rem; min-width: 60px; text-align: right;">$0</span>
+                        </div>
+                        
+                        <!-- Attractions -->
+                        <div style="display: grid; grid-template-columns: 1fr auto auto; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem; padding: 0.5rem; background: white; border-radius: 8px;">
+                            <div>
+                                <div style="font-weight: 600; font-size: 0.85rem;">Attractions</div>
+                                <div style="font-size: 0.7rem; color: #6b7280;">Local content pages</div>
+                            </div>
+                            <select id="sub-attractions-tier" class="form-input" onchange="updateSubscriptionPreview()" style="padding: 0.3rem; font-size: 0.8rem; width: 140px;">
+                                <option value="0">Not subscribed</option>
+                                <option value="1">0-19 ($4.99)</option>
+                                <option value="2">20-49 ($9.99)</option>
+                                <option value="3">50+ ($14.99)</option>
+                            </select>
+                            <span id="sub-attractions-price" style="font-weight: 600; font-size: 0.85rem; min-width: 60px; text-align: right;">$0</span>
+                        </div>
+                        
+                        <!-- Lites/Social -->
+                        <div style="display: grid; grid-template-columns: 1fr auto auto; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem; padding: 0.5rem; background: white; border-radius: 8px;">
+                            <div>
+                                <div style="font-weight: 600; font-size: 0.85rem;">Lites / Social</div>
+                                <div style="font-size: 0.7rem; color: #6b7280;">Social media posts</div>
+                            </div>
+                            <select id="sub-lites-tier" class="form-input" onchange="updateSubscriptionPreview()" style="padding: 0.3rem; font-size: 0.8rem; width: 140px;">
+                                <option value="0">Not subscribed</option>
+                                <option value="1">0-19 ($4.99)</option>
+                                <option value="2">20-49 ($9.99)</option>
+                                <option value="3">50+ ($19.99)</option>
+                            </select>
+                            <span id="sub-lites-price" style="font-weight: 600; font-size: 0.85rem; min-width: 60px; text-align: right;">$0</span>
+                        </div>
+                        
+                        <!-- Reviews -->
+                        <div style="display: grid; grid-template-columns: 1fr auto auto; gap: 0.5rem; align-items: center; margin-bottom: 0.75rem; padding: 0.5rem; background: white; border-radius: 8px;">
+                            <div>
+                                <div style="font-weight: 600; font-size: 0.85rem;">Reviews (Repuso)</div>
+                                <div style="font-size: 0.7rem; color: #6b7280;">$5/1-9, $3/10-49, $1.50/50+</div>
+                            </div>
+                            <input type="number" id="sub-reviews-apps" class="form-input" onchange="updateSubscriptionPreview()" value="0" min="0" style="padding: 0.3rem; font-size: 0.8rem; width: 80px; text-align: center;" placeholder="# apps">
+                            <span id="sub-reviews-price" style="font-weight: 600; font-size: 0.85rem; min-width: 60px; text-align: right;">$0</span>
+                        </div>
+                        
+                        <button type="button" onclick="saveSubscriptions()" class="btn" style="width: 100%; background: #1e40af; color: white; border: none; padding: 0.5rem; border-radius: 8px; cursor: pointer; font-size: 0.85rem;">
+                            💾 Save GAS Subscriptions
+                        </button>
+                        
+                        <!-- GAS Services Total -->
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.6rem 0.75rem; background: #1e3a5f; border-radius: 8px; margin-top: 0.75rem;">
+                            <span style="font-size: 0.85rem; font-weight: 700; color: white;">💰 GAS Services Total</span>
+                            <span id="gas-services-total" style="font-weight: 700; color: #93c5fd; font-size: 1rem;">€0.00/mo</span>
+                        </div>
+                    </div>
+                    
+                    <!-- ============ SECTION 2: BEDS24 ============ -->
+                    <div id="account-beds24-costs-section" style="background: linear-gradient(135deg, #fef3c7 0%, #fffbeb 100%); padding: 1rem; border-radius: 12px; margin-bottom: 1rem; border: 1px solid #fcd34d; display: none;">
+                        <h4 style="margin: 0 0 0.75rem 0; font-size: 0.85rem; color: #92400e; font-weight: 600;">📊 2. Beds24 Channel Manager</h4>
+                        <div id="account-beds24-costs-content" style="font-size: 0.85rem;">
+                            <p style="color: #64748b;">Loading...</p>
+                        </div>
+                        <!-- Beds24 Discount -->
+                        <div style="background: white; padding: 0.75rem; border-radius: 8px; margin-top: 0.75rem; border: 1px solid #fcd34d;">
+                            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                                <input type="checkbox" id="account-beds24-billing" checked>
+                                <label style="font-size: 0.8rem; font-weight: 600; color: #92400e; margin: 0;">Beds24 Discount</label>
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                                <div class="form-group" style="margin: 0;">
+                                    <label style="font-size: 0.75rem;">Discount Type</label>
+                                    <select id="account-beds24-discount-type" class="form-input" style="padding: 0.4rem; font-size: 0.8rem;" onchange="document.getElementById('account-beds24-discount-value').disabled = this.value === 'none'">
+                                        <option value="none">No Discount</option>
+                                        <option value="percentage">Percentage (%)</option>
+                                        <option value="fixed">Fixed Amount</option>
+                                    </select>
+                                </div>
+                                <div class="form-group" style="margin: 0;">
+                                    <label style="font-size: 0.75rem;">Discount Value</label>
+                                    <input type="number" id="account-beds24-discount-value" class="form-input" placeholder="0" step="0.01" min="0" style="padding: 0.4rem; font-size: 0.8rem;" disabled>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- ============ SECTION 3: CUSTOM ITEMS ============ -->
+                    <div style="background: linear-gradient(135deg, #fdf4ff 0%, #fae8ff 100%); padding: 1rem; border-radius: 12px; margin-bottom: 1rem; border: 1px solid #e879f9;">
+                        <h4 style="margin: 0 0 0.75rem 0; font-size: 0.85rem; color: #86198f; font-weight: 600;">📝 3. Custom Items</h4>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                            <span style="font-size: 0.8rem; color: #86198f;">Manual invoice line items</span>
+                            <button type="button" class="btn btn-secondary" style="font-size: 0.75rem; padding: 0.25rem 0.75rem;" onclick="addCustomLine()">+ Add Line</button>
+                        </div>
+                        <div id="custom-lines-container" style="font-size: 0.8rem;"></div>
+                    </div>
+                    
+                    <!-- ============ VAT & BILLING INFO ============ -->
+                    <div style="background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); padding: 1rem; border-radius: 12px; margin-bottom: 1rem; border: 1px solid #86efac;">
+                        <h4 style="margin: 0 0 0.75rem 0; font-size: 0.85rem; color: #166534; font-weight: 600;">🧾 VAT & Billing Info</h4>
+                        
+                        <!-- Billing Currency -->
+                        <div style="margin-bottom: 0.75rem;">
+                            <div class="form-group" style="margin: 0;">
+                                <label style="font-size: 0.8rem; font-weight: 600;">Billing Currency</label>
+                                <select id="account-billing-currency" class="form-input" style="padding: 0.5rem; font-size: 0.85rem;" onchange="fetchBillingExchangeRate()">
+                                    <option value="EUR">€ EUR — Euro</option>
+                                    <option value="GBP">£ GBP — British Pound</option>
+                                    <option value="USD">$ USD — US Dollar</option>
+                                    <option value="CAD">C$ CAD — Canadian Dollar</option>
+                                </select>
+                            </div>
+                            <div id="billing-exchange-rate-display" style="display:none; margin-top:0.5rem; padding:0.5rem 0.75rem; background:white; border-radius:8px; border:1px solid #86efac; font-size:0.8rem;">
+                            </div>
+                        </div>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
+                            <div class="form-group" style="margin: 0;">
+                                <label style="font-size: 0.8rem;">VAT / Tax Number</label>
+                                <input type="text" id="account-vat-number" class="form-input" placeholder="e.g. GB123456789" style="padding: 0.5rem;">
+                            </div>
+                            <div class="form-group" style="margin: 0;">
+                                <label style="font-size: 0.8rem;">Company Reg Number</label>
+                                <input type="text" id="account-company-reg" class="form-input" placeholder="e.g. 12345678" style="padding: 0.5rem;">
+                            </div>
+                        </div>
+                        
+                        <div style="display: grid; grid-template-columns: auto 1fr; gap: 0.75rem; align-items: center;">
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <input type="checkbox" id="account-vat-enabled" onchange="document.getElementById('account-vat-rate').disabled = !this.checked">
+                                <label style="font-size: 0.8rem; margin: 0; font-weight: 600;">VAT Enabled</label>
+                            </div>
+                            <div class="form-group" style="margin: 0;">
+                                <input type="number" id="account-vat-rate" class="form-input" placeholder="VAT Rate %" step="0.01" min="0" style="padding: 0.4rem; font-size: 0.8rem;" disabled>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- ============ INVOICE ACTIONS ============ -->
+                    <div style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); padding: 1rem; border-radius: 12px; margin-bottom: 1rem; border: 1px solid #cbd5e1;">
+                        <h4 style="margin: 0 0 0.75rem 0; font-size: 0.85rem; color: #334155; font-weight: 600;">📄 Invoice</h4>
+                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                            <button type="button" class="btn" style="font-size: 0.8rem; padding: 0.5rem 1rem; background: #166534;" onclick="previewInvoice()">📄 Preview Invoice</button>
+                            <button type="button" class="btn" style="font-size: 0.8rem; padding: 0.5rem 1rem; background: #6366f1;" onclick="generateInvoice()">🧾 Generate & Save</button>
+                            <button type="button" class="btn btn-secondary" style="font-size: 0.8rem; padding: 0.5rem 1rem;" onclick="viewInvoiceHistory()">📋 History</button>
+                        </div>
+                    </div>
+
+                    <!-- Payment Methods -->
+                    <div style="background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%); padding: 1rem; border-radius: 12px; margin-bottom: 1rem; border: 1px solid #86efac;">
+                        <h4 style="margin: 0 0 0.75rem 0; font-size: 0.85rem; color: #166534; font-weight: 600;">💳 Checkout Payment Options</h4>
+                        <p style="font-size: 0.8rem; color: #64748b; margin-bottom: 0.75rem;">Choose which payment methods guests see at checkout</p>
+                        <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; cursor: pointer;">
+                            <input type="checkbox" id="acct-edit-pm-card"> 💳 Pay by Card
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; cursor: pointer;">
+                            <input type="checkbox" id="acct-edit-pm-pay-at-property"> 🏠 Pay at Property
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                            <input type="checkbox" id="acct-edit-pm-paypal" disabled> 🅿️ PayPal (coming soon)
+                        </label>
+                    </div>
+
                     <!-- Agency Management Section (only for admin/submaster) -->
                     <div id="account-agency-section" style="display: none;">
                         <div style="background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%); padding: 1rem; border-radius: 12px; margin-bottom: 1rem; border: 1px solid #d8b4fe;">
@@ -19029,6 +19210,39 @@ Local honey and preserves"></textarea>
                     document.getElementById('account-postcode').value = account.postcode || '';
                     document.getElementById('account-country').value = account.country || '';
                     
+                    // Billing fields
+                    if (document.getElementById('account-billing-currency')) {
+                        document.getElementById('account-billing-currency').value = account.billing_currency || 'EUR';
+                        fetchBillingExchangeRate();
+                    }
+                    if (document.getElementById('account-vat-number')) {
+                        document.getElementById('account-vat-number').value = account.vat_number || '';
+                    }
+                    if (document.getElementById('account-company-reg')) {
+                        document.getElementById('account-company-reg').value = account.company_reg || '';
+                    }
+                    if (document.getElementById('account-beds24-discount-type')) {
+                        document.getElementById('account-beds24-discount-type').value = account.beds24_discount_type || 'none';
+                        document.getElementById('account-beds24-discount-value').value = account.beds24_discount_value || 0;
+                        document.getElementById('account-beds24-discount-value').disabled = (account.beds24_discount_type === 'none' || !account.beds24_discount_type);
+                    }
+                    if (document.getElementById('account-vat-enabled')) {
+                        document.getElementById('account-vat-enabled').checked = account.vat_enabled || false;
+                        document.getElementById('account-vat-rate').value = account.vat_rate || 0;
+                        document.getElementById('account-vat-rate').disabled = !account.vat_enabled;
+                    }
+                    if (document.getElementById('account-beds24-billing')) {
+                        document.getElementById('account-beds24-billing').checked = account.beds24_billing_enabled !== false;
+                    }
+                    // Show/hide Beds24 costs section based on connection status
+                    const beds24CostsSection = document.getElementById('account-beds24-costs-section');
+                    if (beds24CostsSection) {
+                        beds24CostsSection.style.display = account.beds24_connected ? 'block' : 'none';
+                    }
+                    // Load custom lines and per-site billing
+                    if (typeof loadCustomLines === 'function') loadCustomLines(account.id);
+                    if (typeof loadPerSiteBilling === 'function') loadPerSiteBilling(account.id);
+                    
                     // Agency Management section (only for admin/submaster)
                     const agencySection = document.getElementById('account-agency-section');
                     const agencyStatus = document.getElementById('account-agency-status');
@@ -19166,7 +19380,21 @@ Local honey and preserves"></textarea>
                 city: document.getElementById('account-city').value,
                 region: document.getElementById('account-region').value,
                 postcode: document.getElementById('account-postcode').value,
-                country: document.getElementById('account-country').value
+                country: document.getElementById('account-country').value,
+                beds24_discount_type: document.getElementById('account-beds24-discount-type')?.value || 'none',
+                beds24_discount_value: parseFloat(document.getElementById('account-beds24-discount-value')?.value) || 0,
+                billing_currency: document.getElementById('account-billing-currency')?.value || 'EUR',
+                vat_number: document.getElementById('account-vat-number')?.value || '',
+                company_reg: document.getElementById('account-company-reg')?.value || '',
+                vat_enabled: document.getElementById('account-vat-enabled')?.checked || false,
+                vat_rate: parseFloat(document.getElementById('account-vat-rate')?.value) || 0,
+                beds24_billing_enabled: document.getElementById('account-beds24-billing')?.checked !== false,
+                website_billing_enabled: true,
+                payment_methods: {
+                    card: document.getElementById('acct-edit-pm-card')?.checked || false,
+                    pay_at_property: document.getElementById('acct-edit-pm-pay-at-property')?.checked || false,
+                    paypal: document.getElementById('acct-edit-pm-paypal')?.checked || false
+                }
             };
             
             // Master Admin can also update role and status
@@ -22679,6 +22907,7 @@ Local honey and preserves"></textarea>
                         'deployed': { color: '#7c3aed', icon: '🚀', label: 'Deployed' },
                         'live': { color: '#10b981', icon: '✅', label: 'Live' },
                         'on-hold': { color: '#6b7280', icon: '⏸️', label: 'On Hold' },
+                        'inactive': { color: '#ef4444', icon: '⛔', label: 'Inactive' },
                         // Legacy status mappings
                         'active': { color: '#10b981', icon: '✅', label: 'Live' },
                         'pending': { color: '#f59e0b', icon: '🔨', label: 'Development' },
@@ -22750,6 +22979,10 @@ Local honey and preserves"></textarea>
                                         <button onclick="manageWebsiteRooms(${site.id}, ${site.property_id}, '${(site.site_name || site.slug).replace(/'/g, "\\'")}')" class="btn btn-small" style="font-size: 0.75rem; background: #10b981; border-color: #10b981;">🛏️ Rooms</button>
                                         <button onclick="renameSubdomain(${site.id}, '${(site.slug || site.subdomain || '').replace(/'/g, "\\'")}')" class="btn btn-small" style="font-size: 0.75rem; background: #f59e0b; border-color: #f59e0b;">🔄 Rename</button>
                                         <button onclick="renameSiteName(${site.id}, '${(site.site_name || site.slug).replace(/'/g, "\\'")}')" class="btn btn-small" style="font-size: 0.75rem; background: #f59e0b; border-color: #f59e0b;">🏷️ Name</button>
+                                        ${effectiveStatus === 'inactive' 
+                                            ? `<button onclick="toggleSiteStatus(${site.id}, 'active', '${(site.site_name || site.slug).replace(/'/g, "\\'")}')" class="btn btn-small" style="font-size: 0.75rem; background: #10b981; border-color: #10b981;">▶️ Activate</button>`
+                                            : `<button onclick="toggleSiteStatus(${site.id}, 'inactive', '${(site.site_name || site.slug).replace(/'/g, "\\'")}')" class="btn btn-small" style="font-size: 0.75rem; background: #6b7280; border-color: #6b7280;">⏸️ Deactivate</button>`
+                                        }
                                                                                 <button onclick="deleteDeployedSite(${site.id}, '${(site.site_name || site.slug).replace(/'/g, "\\'")}')" class="btn btn-small" style="font-size: 0.75rem; background: #ef4444; border-color: #ef4444;">🗑️ Delete</button>
                                     </div>
                                 </div>
@@ -23285,6 +23518,35 @@ Local honey and preserves"></textarea>
             } catch (error) {
                 console.error('Rename site name error:', error);
                 showNotification('Error updating name: ' + error.message, 'error');
+            }
+        }
+        
+        async function toggleSiteStatus(siteId, newStatus, siteName) {
+            const action = newStatus === 'inactive' ? 'deactivate' : 'activate';
+            const message = newStatus === 'inactive' 
+                ? `⏸️ DEACTIVATE "${siteName}"?\n\nThe site will go offline and visitors will see an archived message.\nYou can reactivate it later.`
+                : `▶️ ACTIVATE "${siteName}"?\n\nThe site will go back online and be publicly accessible.`;
+            
+            if (!confirm(message)) return;
+            
+            try {
+                showNotification(`${action === 'deactivate' ? 'Deactivating' : 'Activating'} site...`, 'info');
+                const response = await fetch(`/api/admin/deployed-sites/${siteId}/status`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: newStatus })
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification(`Site ${action}d successfully${data.vps_updated ? '' : ' (database only - VPS update failed)'}`, data.vps_updated ? 'success' : 'warning');
+                    loadDeployedSites();
+                } else {
+                    showNotification('Error: ' + (data.error || `Failed to ${action}`), 'error');
+                }
+            } catch (error) {
+                console.error(`Toggle site status error:`, error);
+                showNotification(`Error: ${error.message}`, 'error');
             }
         }
         
@@ -39780,6 +40042,591 @@ Local honey and preserves"></textarea>
                 });
             });
         })();
+        async function loadPerSiteBilling(accountId) {
+            const container = document.getElementById('per-site-billing-container');
+            if (!container) return;
+            try {
+                // Load deployed sites
+                const response = await fetch(`/api/admin/deployed-sites?account_id=${accountId}`, { headers: authHeaders() });
+                const data = await response.json();
+                
+                // Load custom sites
+                let customSites = [];
+                try {
+                    const csResponse = await fetch(`/api/admin/custom-sites?account_id=${accountId}`, { headers: authHeaders() });
+                    const csData = await csResponse.json();
+                    if (csData.success && csData.sites) customSites = csData.sites;
+                } catch(e) {}
+                
+                const allSites = [];
+                
+                // Process deployed sites
+                if (data.success && data.sites) {
+                    data.sites.forEach(site => {
+                        const roomCount = site.room_ids ? (typeof site.room_ids === 'string' ? JSON.parse(site.room_ids) : site.room_ids).length : 0;
+                        const siteType = site.site_type || (site.template === 'plugin-only' ? 'plugin' : 'standard');
+                        allSites.push({ ...site, roomCount, siteType, source: 'deployed' });
+                    });
+                }
+                
+                // Process custom sites
+                customSites.forEach(cs => {
+                    allSites.push({
+                        id: 'custom-' + cs.id,
+                        custom_site_id: cs.id,
+                        site_name: cs.site_name || cs.slug,
+                        slug: cs.slug,
+                        site_url: cs.domain ? ('https://' + cs.domain) : '',
+                        roomCount: 0,
+                        siteType: 'custom',
+                        site_type: 'custom',
+                        monthly_fee: cs.monthly_fee || null,
+                        setup_fee: cs.setup_fee || 0,
+                        setup_fee_invoiced: cs.setup_fee_invoiced || false,
+                        discount_type: cs.discount_type || 'none',
+                        discount_value: cs.discount_value || 0,
+                        status: cs.status || 'active',
+                        source: 'custom'
+                    });
+                });
+                
+                if (allSites.length === 0) {
+                    container.innerHTML = '<div style="font-size: 0.8rem; color: #9ca3af; padding: 0.5rem; font-style: italic;">No deployed sites</div>';
+                    return;
+                }
+                
+                let html = '';
+                let totalMonthly = 0;
+                
+                allSites.forEach(site => {
+                    const siteType = site.siteType || 'standard';
+                    const icon = siteType === 'custom' ? '✨' : siteType === 'plugin' ? '🔌' : '🌐';
+                    const typeLabel = siteType === 'custom' ? 'Custom' : siteType === 'plugin' ? 'Plugin' : 'AI Website';
+                    const discountType = site.discount_type || 'none';
+                    const discountValue = parseFloat(site.discount_value) || 0;
+                    const monthlyFee = site.monthly_fee;
+                    const setupFee = parseFloat(site.setup_fee) || 0;
+                    const roomCount = site.roomCount || 0;
+                    
+                    // Calculate price
+                    let price = 0;
+                    if (monthlyFee !== null && monthlyFee !== undefined && monthlyFee !== '') {
+                        price = parseFloat(monthlyFee);
+                    } else if (siteType === 'custom') {
+                        price = 0; // Must be set manually
+                    } else {
+                        price = calculateAIWebsitePriceJS(roomCount);
+                    }
+                    
+                    // Apply discount
+                    let discount = 0;
+                    if (discountType === 'percentage' && discountValue > 0) {
+                        discount = price * (discountValue / 100);
+                    } else if (discountType === 'fixed' && discountValue > 0) {
+                        discount = parseFloat(discountValue);
+                    }
+                    const netPrice = Math.round((price - discount) * 100) / 100;
+                    totalMonthly += netPrice;
+                    
+                    const priceDisplay = siteType === 'custom' && (monthlyFee === null || monthlyFee === undefined) 
+                        ? '<span style="color:#f59e0b;font-size:0.8rem;">⚠️ Set price</span>' 
+                        : `<span style="font-weight:700;color:#1e40af;">€${netPrice.toFixed(2)}</span><span style="font-size:0.65rem;color:#6b7280;">/mo</span>`;
+                    
+                    const discountBadge = discount > 0 
+                        ? `<span style="font-size:0.65rem;background:#dcfce7;color:#16a34a;padding:1px 5px;border-radius:4px;margin-left:4px;">-€${discount.toFixed(2)}</span>` 
+                        : '';
+                    
+                    const siteIdAttr = site.source === 'custom' ? site.custom_site_id : site.id;
+                    const sitePrefix = site.source === 'custom' ? 'cs' : 'ds';
+                    
+                    html += `
+                    <div style="padding: 0.5rem; background: white; border-radius: 8px; margin-bottom: 0.5rem; border: 1px solid #e2e8f0;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <span style="font-weight: 600; font-size: 0.85rem;">${icon} ${site.site_name || site.slug}</span>
+                                <span style="font-size: 0.7rem; background: #f1f5f9; padding: 1px 6px; border-radius: 4px; margin-left: 4px;">${typeLabel}</span>
+                                ${roomCount > 0 ? `<span style="font-size: 0.7rem; color: #6b7280; margin-left: 4px;">${roomCount} rooms</span>` : ''}
+                            </div>
+                            <div style="display:flex;align-items:center;gap:0.5rem;">
+                                ${priceDisplay}${discountBadge}
+                                <button type="button" onclick="toggleSiteBilling('${sitePrefix}-${siteIdAttr}')" style="background:none;border:none;cursor:pointer;font-size:0.8rem;color:#6366f1;">⚙️</button>
+                            </div>
+                        </div>
+                        
+                        <div id="site-billing-edit-${sitePrefix}-${siteIdAttr}" style="display: none; padding-top: 0.35rem; border-top: 1px solid #e2e8f0; margin-top: 0.35rem;">
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.35rem;">
+                                <div>
+                                    <label style="font-size: 0.7rem; color: #6b7280;">Site Type</label>
+                                    <select id="site-type-${sitePrefix}-${siteIdAttr}" class="form-input" style="padding: 0.3rem; font-size: 0.8rem;" onchange="toggleCustomSiteFields('${sitePrefix}-${siteIdAttr}')">
+                                        <option value="standard" ${siteType === 'standard' ? 'selected' : ''}>Standard (auto-price)</option>
+                                        <option value="plugin" ${siteType === 'plugin' ? 'selected' : ''}>Plugin Only</option>
+                                        <option value="custom" ${siteType === 'custom' ? 'selected' : ''}>Custom Site</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label style="font-size: 0.7rem; color: #6b7280;">Monthly Fee (€)</label>
+                                    <input type="number" id="site-monthly-${sitePrefix}-${siteIdAttr}" class="form-input" value="${monthlyFee !== null && monthlyFee !== undefined ? monthlyFee : ''}" placeholder="${siteType === 'custom' ? 'Set price' : 'Auto: €' + price.toFixed(2)}" step="0.01" min="0" style="padding: 0.3rem; font-size: 0.8rem;">
+                                </div>
+                            </div>
+                            <div id="custom-site-fields-${sitePrefix}-${siteIdAttr}" style="display: ${siteType === 'custom' ? 'grid' : 'none'}; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.35rem;">
+                                <div>
+                                    <label style="font-size: 0.7rem; color: #6b7280;">Setup Fee (one-off, €)</label>
+                                    <input type="number" id="site-setup-${sitePrefix}-${siteIdAttr}" class="form-input" value="${setupFee}" step="0.01" min="0" style="padding: 0.3rem; font-size: 0.8rem;">
+                                </div>
+                                <div style="display:flex;align-items:flex-end;">
+                                    <label style="font-size: 0.7rem; color: #6b7280; display:flex; align-items:center; gap:4px;">
+                                        <input type="checkbox" id="site-setup-invoiced-${sitePrefix}-${siteIdAttr}" ${site.setup_fee_invoiced ? 'checked' : ''}>
+                                        Already invoiced
+                                    </label>
+                                </div>
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.35rem;">
+                                <div>
+                                    <label style="font-size: 0.7rem; color: #6b7280;">Discount Type</label>
+                                    <select id="site-discount-type-${sitePrefix}-${siteIdAttr}" class="form-input" style="padding: 0.3rem; font-size: 0.8rem;">
+                                        <option value="none" ${discountType === 'none' ? 'selected' : ''}>No Discount</option>
+                                        <option value="percentage" ${discountType === 'percentage' ? 'selected' : ''}>Percentage (%)</option>
+                                        <option value="fixed" ${discountType === 'fixed' ? 'selected' : ''}>Fixed (€)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label style="font-size: 0.7rem; color: #6b7280;">Discount Value</label>
+                                    <input type="number" id="site-discount-value-${sitePrefix}-${siteIdAttr}" class="form-input" value="${discountValue}" step="0.01" min="0" style="padding: 0.3rem; font-size: 0.8rem;">
+                                </div>
+                            </div>
+                            <button type="button" onclick="saveSiteBilling('${sitePrefix}', ${siteIdAttr})" class="btn" style="font-size: 0.75rem; padding: 0.25rem 0.75rem; background: #1e40af;">💾 Save</button>
+                        </div>
+                    </div>`;
+                });
+                
+                // Sites total
+                html += `
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.4rem 0.5rem; background: #eef2ff; border-radius: 6px; margin-top: 0.25rem;">
+                    <span style="font-size: 0.8rem; font-weight: 600; color: #4338ca;">Sites Subtotal</span>
+                    <span style="font-weight: 700; color: #4338ca;">€${totalMonthly.toFixed(2)}/mo</span>
+                </div>`;
+                
+                container.innerHTML = html;
+                
+                // Store sites total for GAS Services Total calculation
+                const sitesTotalEl = document.getElementById('per-site-billing-total');
+                if (!sitesTotalEl) {
+                    const hidden = document.createElement('input');
+                    hidden.type = 'hidden';
+                    hidden.id = 'per-site-billing-total';
+                    hidden.value = totalMonthly.toFixed(2);
+                    container.appendChild(hidden);
+                }
+                
+                // Update GAS total
+                updateSubscriptionPreview();
+            } catch (e) {
+                container.innerHTML = '<div style="color: #ef4444; font-size: 0.8rem;">Error loading sites: ' + e.message + '</div>';
+            }
+        }
+        
+        function toggleSiteBilling(siteKey) {
+            const el = document.getElementById(`site-billing-edit-${siteKey}`);
+            if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+        }
+        
+        function toggleCustomSiteFields(siteKey) {
+            const type = document.getElementById(`site-type-${siteKey}`).value;
+            const fields = document.getElementById(`custom-site-fields-${siteKey}`);
+            if (fields) fields.style.display = type === 'custom' ? 'grid' : 'none';
+        }
+        
+        async function saveSiteBilling(prefix, siteId) {
+            const key = `${prefix}-${siteId}`;
+            try {
+                const monthlyVal = document.getElementById(`site-monthly-${key}`).value;
+                const payload = {
+                    site_type: document.getElementById(`site-type-${key}`).value,
+                    monthly_fee: monthlyVal !== '' ? parseFloat(monthlyVal) : null,
+                    setup_fee: parseFloat(document.getElementById(`site-setup-${key}`)?.value) || 0,
+                    setup_fee_invoiced: document.getElementById(`site-setup-invoiced-${key}`)?.checked || false,
+                    discount_type: document.getElementById(`site-discount-type-${key}`).value,
+                    discount_value: parseFloat(document.getElementById(`site-discount-value-${key}`).value) || 0
+                };
+                
+                const url = prefix === 'cs' 
+                    ? `/api/admin/custom-sites/${siteId}` 
+                    : `/api/admin/deployed-sites/${siteId}`;
+                
+                const response = await fetch(url, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify(payload)
+                });
+                const data = await response.json();
+                if (data.success) {
+                    showNotification('Site billing saved', 'success');
+                    const accountId = document.getElementById('edit-account-id').value;
+                    loadPerSiteBilling(accountId);
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (e) {
+                alert('Error saving site billing: ' + e.message);
+            }
+        }
+        
+        async function loadCustomLines(accountId) {
+            const container = document.getElementById('custom-lines-container');
+            if (!container) return;
+            try {
+                const response = await fetch(`/api/accounts/${accountId}/custom-lines`, { headers: authHeaders() });
+                const data = await response.json();
+                if (data.success && data.lines.length > 0) {
+                    container.innerHTML = data.lines.map(line => `
+                        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.35rem; padding: 0.35rem 0.5rem; background: white; border-radius: 6px; border: 1px solid #d1d5db;">
+                            <span style="flex:1;">${line.description}</span>
+                            <span style="font-weight: 600;">€${parseFloat(line.amount).toFixed(2)}</span>
+                            ${line.recurring ? '<span style="font-size:0.7rem;background:#dbeafe;color:#1e40af;padding:1px 6px;border-radius:4px;">recurring</span>' : ''}
+                            <button type="button" onclick="deleteCustomLine(${line.id})" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:1rem;">×</button>
+                        </div>
+                    `).join('');
+                } else {
+                    container.innerHTML = '<div style="color: #9ca3af; font-style: italic;">No custom lines</div>';
+                }
+            } catch (e) {
+                container.innerHTML = '<div style="color: #ef4444;">Error loading custom lines</div>';
+            }
+        }
+        
+        async function addCustomLine() {
+            const accountId = document.getElementById('edit-account-id').value;
+            if (!accountId) return alert('Save the account first');
+            
+            const description = prompt('Line item description:');
+            if (!description) return;
+            const amount = prompt('Amount (EUR):');
+            if (!amount || isNaN(amount)) return alert('Invalid amount');
+            const recurringAnswer = await new Promise(resolve => {
+                const modal = document.createElement('div');
+                modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:10001;display:flex;align-items:center;justify-content:center;';
+                modal.innerHTML = `
+                    <div style="background:white;border-radius:12px;padding:1.5rem;max-width:350px;width:90%;text-align:center;">
+                        <p style="margin:0 0 1rem;font-size:0.95rem;font-weight:600;">Is this a recurring monthly charge?</p>
+                        <div style="display:flex;gap:0.75rem;justify-content:center;">
+                            <button onclick="this.closest('div').closest('div').remove()" style="padding:0.5rem 1.5rem;border-radius:8px;border:1px solid #d1d5db;background:white;cursor:pointer;font-size:0.9rem;" id="recurring-no">No</button>
+                            <button style="padding:0.5rem 1.5rem;border-radius:8px;border:none;background:#6366f1;color:white;cursor:pointer;font-size:0.9rem;" id="recurring-yes">Yes</button>
+                        </div>
+                    </div>`;
+                document.body.appendChild(modal);
+                modal.querySelector('#recurring-yes').onclick = () => { modal.remove(); resolve(true); };
+                modal.querySelector('#recurring-no').onclick = () => { modal.remove(); resolve(false); };
+            });
+            const recurring = recurringAnswer;
+            
+            try {
+                const response = await fetch(`/api/accounts/${accountId}/custom-lines`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ description, amount: parseFloat(amount), recurring })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    loadCustomLines(accountId);
+                    showNotification('Custom line added', 'success');
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (e) {
+                alert('Error adding custom line');
+            }
+        }
+        
+        async function deleteCustomLine(lineId) {
+            if (!confirm('Remove this line item?')) return;
+            const accountId = document.getElementById('edit-account-id').value;
+            try {
+                await fetch(`/api/accounts/${accountId}/custom-lines/${lineId}`, {
+                    method: 'DELETE',
+                    headers: authHeaders()
+                });
+                loadCustomLines(accountId);
+                showNotification('Line removed', 'success');
+            } catch (e) {
+                alert('Error removing line');
+            }
+        }
+        
+        async function fetchBillingExchangeRate() {
+            const currency = document.getElementById('account-billing-currency').value;
+            const display = document.getElementById('billing-exchange-rate-display');
+            
+            if (currency === 'EUR') {
+                display.style.display = 'none';
+                return;
+            }
+            
+            const symbols = { GBP: '£', USD: '$', CAD: 'C$' };
+            const sym = symbols[currency] || currency;
+            display.style.display = 'block';
+            display.innerHTML = '<span style="color:#64748b;">Fetching rate...</span>';
+            
+            try {
+                const response = await fetch(`https://api.frankfurter.dev/v1/latest?symbols=${currency}`);
+                const data = await response.json();
+                const rate = data.rates[currency];
+                display.innerHTML = `
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <div>
+                            <span style="font-weight:600;color:#166534;">💱 €1 = ${sym}${rate.toFixed(4)}</span>
+                            <span style="color:#64748b;margin-left:0.5rem;font-size:0.75rem;">(${data.date})</span>
+                        </div>
+                        <div style="font-size:0.75rem;color:#64748b;">
+                            ${sym}1 = €${(1/rate).toFixed(4)}
+                        </div>
+                    </div>`;
+            } catch (err) {
+                display.innerHTML = '<span style="color:#dc2626;">⚠ Could not fetch rate</span>';
+            }
+        }
+
+        async function previewInvoice() {
+            const accountId = document.getElementById('edit-account-id').value;
+            if (!accountId) return alert('No account selected');
+            
+            try {
+                const response = await fetch(`/api/accounts/${accountId}/invoice-preview`, { headers: authHeaders() });
+                const data = await response.json();
+                
+                if (!data.success) return alert('Error: ' + data.error);
+                
+                const currencySymbols = { EUR: '€', GBP: '£', USD: '$', CAD: 'C$', CHF: 'CHF', AUD: 'A$', PHP: '₱', THB: '฿' };
+                const isConverted = data.billing.currency !== 'EUR' && data.converted;
+                const baseSym = '€';
+                const clientSym = currencySymbols[data.billing.currency] || data.billing.currency + ' ';
+                const fxRate = data.exchange_rate ? data.exchange_rate.rate : 1;
+                
+                // Format in EUR (base)
+                const fmtEur = (amt) => `€${parseFloat(amt || 0).toFixed(2)}`;
+                // Format in client currency
+                const fmtClient = (amt) => `${clientSym}${(parseFloat(amt || 0) * fxRate).toFixed(2)}`;
+                // Main format - use client currency if converted
+                const fmt = isConverted ? fmtClient : fmtEur;
+                // For line items - show EUR with client equiv
+                const fmtLine = (amt) => {
+                    if (!isConverted) return fmtEur(amt);
+                    return `${clientSym}${(parseFloat(amt || 0) * fxRate).toFixed(2)}`;
+                };
+                
+                let html = '<div style="max-height: 60vh; overflow-y: auto;">';
+                
+                // Exchange rate banner for non-EUR
+                if (isConverted) {
+                    html += `<div style="background:#fef3c7;padding:0.5rem 0.75rem;border-radius:8px;margin-bottom:0.75rem;font-size:0.8rem;color:#92400e;display:flex;justify-content:space-between;align-items:center;">
+                        <span>💱 Exchange Rate: €1 = ${clientSym}${fxRate.toFixed(4)}</span>
+                        <span style="font-size:0.75rem;color:#a16207;">${data.exchange_rate.date}${data.exchange_rate.fallback ? ' (fallback)' : ''}</span>
+                    </div>`;
+                }
+                
+                // ===== SECTION 1: GAS Services =====
+                const gasItems = data.line_items.filter(i => i.category === 'gas');
+                if (gasItems.length > 0) {
+                    html += '<h4 style="color:#1e40af;margin-bottom:0.5rem;">💰 GAS Services</h4>';
+                    html += '<table style="width:100%;border-collapse:collapse;margin-bottom:0.25rem;font-size:0.85rem;">';
+                    html += '<tr style="background:#f1f5f9;"><th style="text-align:left;padding:6px;">Item</th><th style="text-align:center;padding:6px;">Rooms</th><th style="text-align:right;padding:6px;">Amount</th></tr>';
+                    gasItems.forEach(item => {
+                        const detail = item.detail ? `<div style="font-size:0.75rem;color:#64748b;">${item.detail}</div>` : '';
+                        const oneOff = item.is_one_off ? ' <span style="background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:4px;font-size:0.7rem;">one-off</span>' : '';
+                        html += `<tr><td style="padding:6px;border-bottom:1px solid #e2e8f0;">${item.label}${oneOff}${detail}</td><td style="text-align:center;padding:6px;border-bottom:1px solid #e2e8f0;">${item.rooms || item.quantity || ''}</td><td style="text-align:right;padding:6px;border-bottom:1px solid #e2e8f0;">${fmt(item.gross_amount || item.amount)}</td></tr>`;
+                        if (item.discount_amount && item.discount_amount > 0) {
+                            html += `<tr style="color:#16a34a;"><td style="padding:3px 6px;font-size:0.8rem;" colspan="2">↳ Discount (${item.discount_type === 'fixed' ? fmt(item.discount_value) + ' off' : item.discount_label})</td><td style="text-align:right;padding:3px 6px;">-${fmt(item.discount_amount)}</td></tr>`;
+                            html += `<tr><td style="padding:3px 6px;font-size:0.8rem;font-weight:600;" colspan="2">Net</td><td style="text-align:right;padding:3px 6px;font-weight:600;">${fmt(item.amount)}</td></tr>`;
+                        }
+                    });
+                    html += '</table>';
+                    html += `<div style="display:flex;justify-content:space-between;padding:0.5rem 6px;background:#eff6ff;border-radius:6px;font-weight:700;color:#1e40af;font-size:0.9rem;margin-bottom:1rem;"><span>GAS Subtotal</span><span>${fmt(data.sections.gas.subtotal)}</span></div>`;
+                }
+                
+                // ===== SECTION 2: Beds24 =====
+                const beds24Items = data.line_items.filter(i => i.category === 'beds24');
+                if (beds24Items.length > 0) {
+                    html += '<h4 style="color:#92400e;margin-bottom:0.5rem;">📊 Beds24 Channel Manager</h4>';
+                    beds24Items.forEach(item => {
+                        html += `<div style="font-size:0.8rem;color:#64748b;margin-bottom:0.5rem;">${item.detail || ''}</div>`;
+                        html += '<table style="width:100%;border-collapse:collapse;margin-bottom:0.25rem;font-size:0.85rem;">';
+                        if (item.rrp_breakdown) {
+                            item.rrp_breakdown.forEach(r => {
+                                html += `<tr><td style="padding:4px 6px;border-bottom:1px solid #f1f5f9;">${r.label}</td><td style="text-align:center;padding:4px;">${r.qty}</td><td style="text-align:right;padding:4px 6px;">${fmt(r.total)}</td></tr>`;
+                            });
+                            html += `<tr style="font-style:italic;color:#64748b;"><td style="padding:4px 6px;">RRP Total</td><td></td><td style="text-align:right;padding:4px 6px;">${fmt(item.rrp_total)}</td></tr>`;
+                        }
+                        html += '</table>';
+                    });
+                    if (data.sections.beds24.discount_amount > 0) {
+                        const b24Label = data.billing.beds24_discount_type === 'fixed' 
+                            ? `Beds24 Discount (${fmt(data.billing.beds24_discount_value)} off)` 
+                            : data.sections.beds24.discount_label;
+                        html += `<div style="display:flex;justify-content:space-between;padding:3px 6px;color:#16a34a;font-size:0.85rem;"><span>${b24Label}</span><span>-${fmt(data.sections.beds24.discount_amount)}</span></div>`;
+                    }
+                    html += `<div style="display:flex;justify-content:space-between;padding:0.5rem 6px;background:#fef3c7;border-radius:6px;font-weight:700;color:#92400e;font-size:0.9rem;margin-bottom:1rem;"><span>Beds24 Subtotal</span><span>${fmt(data.sections.beds24.subtotal)}</span></div>`;
+                }
+                
+                // ===== SECTION 3: Custom Items =====
+                const customItems = data.line_items.filter(i => i.category === 'custom');
+                if (customItems.length > 0) {
+                    html += '<h4 style="color:#86198f;margin-bottom:0.5rem;">📝 Custom Items</h4>';
+                    html += '<table style="width:100%;border-collapse:collapse;margin-bottom:0.25rem;font-size:0.85rem;">';
+                    customItems.forEach(item => {
+                        html += `<tr><td style="padding:6px;border-bottom:1px solid #e2e8f0;">${item.label}</td><td style="text-align:right;padding:6px;border-bottom:1px solid #e2e8f0;">${fmt(item.amount)}</td></tr>`;
+                    });
+                    html += '</table>';
+                    html += `<div style="display:flex;justify-content:space-between;padding:0.5rem 6px;background:#fdf4ff;border-radius:6px;font-weight:700;color:#86198f;font-size:0.9rem;margin-bottom:1rem;"><span>Custom Subtotal</span><span>${fmt(data.sections.custom.subtotal)}</span></div>`;
+                }
+                
+                // ===== GRAND TOTAL =====
+                html += '<div style="background:#f8fafc;padding:0.75rem;border-radius:8px;margin-top:0.5rem;border:2px solid #1e3a5f;">';
+                if (data.vat.enabled && data.vat.amount > 0) {
+                    html += `<div style="display:flex;justify-content:space-between;margin-bottom:0.25rem;font-size:0.9rem;"><span>Subtotal</span><strong>${fmt(data.subtotal)}</strong></div>`;
+                    html += `<div style="display:flex;justify-content:space-between;margin-bottom:0.25rem;font-size:0.9rem;"><span>VAT (${data.vat.rate}%)</span><strong>${fmt(data.vat.amount)}</strong></div>`;
+                }
+                html += `<div style="display:flex;justify-content:space-between;font-size:1.2rem;${data.vat.enabled && data.vat.amount > 0 ? 'padding-top:0.5rem;border-top:2px solid #1e3a5f;margin-top:0.25rem;' : ''}"><strong>Grand Total</strong><strong style="color:#1e3a5f;">${fmt(data.grand_total)}</strong></div>`;
+                html += '</div>';
+                
+                html += '</div>';
+                
+                // Show in a simple modal
+                const modal = document.createElement('div');
+                modal.id = 'invoice-preview-modal';
+                modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:10000;display:flex;align-items:center;justify-content:center;';
+                modal.innerHTML = `
+                    <div style="background:white;border-radius:16px;padding:1.5rem;max-width:600px;width:90%;max-height:85vh;overflow-y:auto;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+                            <h3 style="margin:0;color:#1e3a5f;">📄 Invoice Preview — ${data.account.name}</h3>
+                            <button onclick="document.getElementById('invoice-preview-modal').remove()" style="background:none;border:none;font-size:1.5rem;cursor:pointer;">&times;</button>
+                        </div>
+                        ${html}
+                    </div>
+                `;
+                document.body.appendChild(modal);
+                modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+                
+            } catch (e) {
+                alert('Error loading invoice preview: ' + e.message);
+            }
+        }
+        
+        async function generateInvoice() {
+            const accountId = document.getElementById('edit-account-id').value;
+            if (!accountId) return alert('No account selected');
+            if (!confirm('Generate and save this invoice? This will create a final invoice with a unique number.')) return;
+            
+            try {
+                // Get preview data first
+                const previewRes = await fetch(`/api/accounts/${accountId}/invoice-preview`, { headers: authHeaders() });
+                const preview = await previewRes.json();
+                if (!preview.success) return alert('Error: ' + preview.error);
+                
+                const now = new Date();
+                const periodStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+                const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
+                
+                const response = await fetch(`/api/accounts/${accountId}/invoices`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({
+                        period_start: periodStart,
+                        period_end: periodEnd,
+                        line_items: preview.line_items,
+                        sections: preview.sections,
+                        subtotal: preview.subtotal,
+                        vat: preview.vat.amount,
+                        grand_total: preview.grand_total,
+                        currency: preview.billing.currency,
+                        exchange_rate: preview.exchange_rate || null,
+                        converted: preview.converted || null
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    showNotification(`Invoice ${data.invoice.invoice_number} created!`, 'success');
+                    // Open printable version
+                    window.open(`/api/invoices/${data.invoice.id}/print`, '_blank');
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (e) {
+                alert('Error generating invoice: ' + e.message);
+            }
+        }
+        
+        async function viewInvoiceHistory() {
+            const accountId = document.getElementById('edit-account-id').value;
+            if (!accountId) return alert('No account selected');
+            
+            try {
+                const response = await fetch(`/api/accounts/${accountId}/invoices`, { headers: authHeaders() });
+                const data = await response.json();
+                
+                if (!data.success) return alert('Error: ' + data.error);
+                
+                let html = '';
+                if (data.invoices.length === 0) {
+                    html = '<div style="text-align:center;color:#9ca3af;padding:2rem;">No invoices yet</div>';
+                } else {
+                    html = '<table style="width:100%;border-collapse:collapse;font-size:0.85rem;">';
+                    html += '<tr style="background:#f1f5f9;"><th style="padding:8px;text-align:left;">Invoice #</th><th style="padding:8px;">Date</th><th style="padding:8px;">Period</th><th style="padding:8px;text-align:right;">Total</th><th style="padding:8px;">Status</th><th style="padding:8px;"></th></tr>';
+                    data.invoices.forEach(inv => {
+                        const sym = { EUR: '€', GBP: '£', USD: '$', CHF: 'CHF' }[inv.currency] || inv.currency;
+                        const statusColor = inv.status === 'paid' ? '#16a34a' : inv.status === 'final' ? '#2563eb' : inv.status === 'void' ? '#ef4444' : '#f59e0b';
+                        html += `<tr>
+                            <td style="padding:8px;border-bottom:1px solid #e2e8f0;font-weight:600;">${inv.invoice_number}</td>
+                            <td style="padding:8px;border-bottom:1px solid #e2e8f0;text-align:center;">${new Date(inv.created_at).toLocaleDateString('en-GB')}</td>
+                            <td style="padding:8px;border-bottom:1px solid #e2e8f0;text-align:center;">${new Date(inv.period_start).toLocaleDateString('en-GB', {month:'short', year:'numeric'})}</td>
+                            <td style="padding:8px;border-bottom:1px solid #e2e8f0;text-align:right;font-weight:600;">${sym}${parseFloat(inv.total).toFixed(2)}</td>
+                            <td style="padding:8px;border-bottom:1px solid #e2e8f0;"><span style="background:${statusColor}20;color:${statusColor};padding:2px 8px;border-radius:4px;font-size:0.75rem;font-weight:600;">${inv.status.toUpperCase()}</span></td>
+                            <td style="padding:8px;border-bottom:1px solid #e2e8f0;">
+                                <button onclick="window.open('/api/invoices/${inv.id}/print','_blank')" style="background:none;border:1px solid #d1d5db;border-radius:4px;padding:2px 8px;cursor:pointer;font-size:0.75rem;">🖨️</button>
+                                ${inv.status !== 'paid' ? `<button onclick="markInvoicePaid(${inv.id})" style="background:none;border:1px solid #86efac;border-radius:4px;padding:2px 8px;cursor:pointer;font-size:0.75rem;color:#16a34a;">✓ Paid</button>` : ''}
+                            </td>
+                        </tr>`;
+                    });
+                    html += '</table>';
+                }
+                
+                const modal = document.createElement('div');
+                modal.id = 'invoice-history-modal';
+                modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:10000;display:flex;align-items:center;justify-content:center;';
+                modal.innerHTML = `
+                    <div style="background:white;border-radius:16px;padding:1.5rem;max-width:700px;width:90%;max-height:80vh;overflow-y:auto;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+                            <h3 style="margin:0;color:#1e3a5f;">📋 Invoice History</h3>
+                            <button onclick="document.getElementById('invoice-history-modal').remove()" style="background:none;border:none;font-size:1.5rem;cursor:pointer;">&times;</button>
+                        </div>
+                        ${html}
+                    </div>
+                `;
+                document.body.appendChild(modal);
+                modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+            } catch (e) {
+                alert('Error loading invoices: ' + e.message);
+            }
+        }
+        
+        async function markInvoicePaid(invoiceId) {
+            if (!confirm('Mark this invoice as paid?')) return;
+            try {
+                await fetch(`/api/invoices/${invoiceId}/status`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ status: 'paid' })
+                });
+                showNotification('Invoice marked as paid', 'success');
+                // Refresh history
+                const historyModal = document.getElementById('invoice-history-modal');
+                if (historyModal) historyModal.remove();
+                viewInvoiceHistory();
+            } catch (e) {
+                alert('Error updating invoice');
+            }
+        }
+    </script>
+
     </script>
 
     <!-- AI Chat Widget Styles -->
