@@ -13886,6 +13886,12 @@ Local honey and preserves"></textarea>
                     <button onclick="cancelBooking(currentViewingBookingId)" class="btn" style="background: #ef4444; display: flex; align-items: center; gap: 0.5rem;">
                         <span></span> Cancel Booking
                     </button>
+                    <button onclick="closeModal('viewBookingModal'); editBooking(currentViewingBookingId)" class="btn" style="background: #6366f1; display: flex; align-items: center; gap: 0.5rem;">
+                        <span>✏️</span> Edit Booking
+                    </button>
+                    <button onclick="if(confirm('Delete this booking? This cannot be undone.')){deleteBooking(currentViewingBookingId); closeModal('viewBookingModal');}" class="btn" style="background: #991b1b; display: flex; align-items: center; gap: 0.5rem;">
+                        <span>🗑️</span> Delete
+                    </button>
                 </div>
                 
             </div>
@@ -28253,12 +28259,12 @@ Local honey and preserves"></textarea>
                 const pStatus = paymentColors[b.payment_status] || paymentColors['pending'];
                 
                 document.getElementById('view-booking-status').innerHTML = `
-                    <span style="background: ${bStatus.bg}; color: ${bStatus.color}; padding: 0.4rem 0.75rem; border-radius: 20px; font-size: 0.85rem; font-weight: 500; text-transform: capitalize;">
+                    <span style="background: ${bStatus.bg}; color: ${bStatus.color}; padding: 0.4rem 0.75rem; border-radius: 20px; font-size: 0.85rem; font-weight: 500; text-transform: capitalize; cursor: pointer;" onclick="changeBookingStatusInline()" title="Click to change status">
                         ${bStatus.icon} ${b.status || 'pending'}
                     </span>
                 `;
                 document.getElementById('view-payment-status').innerHTML = `
-                    <span style="background: ${pStatus.bg}; color: ${pStatus.color}; padding: 0.4rem 0.75rem; border-radius: 20px; font-size: 0.85rem; font-weight: 500;">
+                    <span style="background: ${pStatus.bg}; color: ${pStatus.color}; padding: 0.4rem 0.75rem; border-radius: 20px; font-size: 0.85rem; font-weight: 500; cursor: pointer;" onclick="changePaymentStatusInline()" title="Click to change payment status">
                         ${pStatus.icon} ${pStatus.label}
                     </span>
                 `;
@@ -28464,6 +28470,58 @@ Local honey and preserves"></textarea>
             } catch (error) {
                 console.error('Error cancelling booking:', error);
                 alert('Error cancelling booking');
+            }
+        }
+
+        async function changeBookingStatusInline() {
+            const statusEl = document.getElementById('view-booking-status');
+            const statuses = ['pending', 'confirmed', 'cancelled', 'completed', 'no_show'];
+            statusEl.innerHTML = `
+                <select id="inline-booking-status" style="padding: 0.4rem 0.5rem; border-radius: 8px; border: 2px solid #6366f1; font-size: 0.85rem; font-weight: 500;" onchange="saveInlineBookingStatus(this.value)">
+                    ${statuses.map(s => `<option value="${s}">${s.replace('_', ' ')}</option>`).join('')}
+                </select>
+            `;
+        }
+
+        async function changePaymentStatusInline() {
+            const statusEl = document.getElementById('view-payment-status');
+            const statuses = ['pending', 'deposit_paid', 'fully_paid', 'overdue', 'refunded'];
+            const labels = ['Pending', 'Deposit Paid', 'Fully Paid', 'Overdue', 'Refunded'];
+            statusEl.innerHTML = `
+                <select id="inline-payment-status" style="padding: 0.4rem 0.5rem; border-radius: 8px; border: 2px solid #6366f1; font-size: 0.85rem; font-weight: 500;" onchange="saveInlinePaymentStatus(this.value)">
+                    ${statuses.map((s, i) => `<option value="${s}">${labels[i]}</option>`).join('')}
+                </select>
+            `;
+        }
+
+        async function saveInlineBookingStatus(status) {
+            try {
+                await fetch(`/api/bookings/${currentViewingBookingId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ status })
+                });
+                showNotification('Booking status updated to ' + status, 'success');
+                loadBookingsForProperty();
+                // Refresh the view modal
+                viewBooking(currentViewingBookingId);
+            } catch (e) {
+                showNotification('Error updating status', 'error');
+            }
+        }
+
+        async function saveInlinePaymentStatus(paymentStatus) {
+            try {
+                await fetch(`/api/bookings/${currentViewingBookingId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ payment_status: paymentStatus })
+                });
+                showNotification('Payment status updated to ' + paymentStatus, 'success');
+                loadBookingsForProperty();
+                viewBooking(currentViewingBookingId);
+            } catch (e) {
+                showNotification('Error updating payment status', 'error');
             }
         }
         
