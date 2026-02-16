@@ -1,0 +1,1139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GAS — Global Accommodation System</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --text-primary: #0f172a;
+            --text-secondary: #334155;
+            --text-muted: #64748b;
+            --text-light: #94a3b8;
+            --white: #ffffff;
+            --off-white: #f8fafc;
+            --accent: #1e3a5f;
+            --accent-light: #2563eb;
+            --warm: #d97706;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            color: var(--text-primary);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        /* ============================================
+           VIDEO BACKGROUND — HERO ONLY
+           ============================================ */
+        .video-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -2;
+            overflow: hidden;
+        }
+
+        .video-bg video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .video-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(
+                180deg,
+                rgba(15, 23, 42, 0.55) 0%,
+                rgba(15, 23, 42, 0.45) 50%,
+                rgba(15, 23, 42, 0.65) 100%
+            );
+            z-index: -1;
+        }
+
+        /* ============================================
+           NAVIGATION
+           ============================================ */
+        .nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 100;
+            padding: 1.25rem 3rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.4s ease;
+        }
+
+        .nav.scrolled {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+            padding: 0.85rem 3rem;
+        }
+
+        .nav-logo {
+            font-family: 'DM Sans', sans-serif;
+            font-size: 1.3rem;
+            font-weight: 700;
+            letter-spacing: 2px;
+            color: var(--white);
+            transition: color 0.4s;
+        }
+
+        .nav.scrolled .nav-logo {
+            color: var(--text-primary);
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+            align-items: center;
+        }
+
+        .nav-links a {
+            text-decoration: none;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 0.85rem;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+            transition: color 0.3s;
+        }
+
+        .nav.scrolled .nav-links a {
+            color: var(--text-secondary);
+        }
+
+        .nav-links a:hover {
+            color: var(--white);
+        }
+
+        .nav.scrolled .nav-links a:hover {
+            color: var(--text-primary);
+        }
+
+        .nav-cta {
+            padding: 0.5rem 1.5rem !important;
+            border: 1.5px solid rgba(255, 255, 255, 0.6) !important;
+            border-radius: 6px;
+            transition: all 0.3s !important;
+        }
+
+        .nav-cta:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .nav.scrolled .nav-cta {
+            border-color: var(--accent) !important;
+            color: var(--accent) !important;
+        }
+
+        .nav.scrolled .nav-cta:hover {
+            background: var(--accent);
+            color: var(--white) !important;
+        }
+
+        /* ============================================
+           HERO SECTION
+           ============================================ */
+        .hero {
+            position: relative;
+            height: 60vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 2rem;
+        }
+
+        .hero-content {
+            max-width: 800px;
+            width: 100%;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .hero-compass-icon {
+            width: 120px;
+            height: 120px;
+            opacity: 0;
+            animation: fadeUp 1s ease 0.1s forwards;
+            margin-bottom: 1rem;
+        }
+
+        .hero-logo-text {
+            font-family: 'DM Serif Display', serif;
+            font-size: 4rem;
+            font-weight: 400;
+            color: #ffffff;
+            letter-spacing: -0.02em;
+            line-height: 1.1;
+            text-align: center;
+            opacity: 0;
+            animation: fadeUp 1s ease 0.3s forwards;
+            margin-bottom: 0.5rem;
+        }
+
+        .hero-ticker {
+            width: 100%;
+            max-width: 600px;
+            overflow: hidden;
+            position: relative;
+            height: 2.5rem;
+            opacity: 0;
+            animation: fadeUp 1s ease 0.8s forwards;
+            margin: 0 auto;
+            /* Nudge right to align under the text, not the compass */
+            padding-left: 4rem;
+        }
+        }
+
+        .hero-ticker::before,
+        .hero-ticker::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 60px;
+            z-index: 2;
+            pointer-events: none;
+        }
+
+        .hero-ticker::before {
+            left: 0;
+            background: linear-gradient(to right, rgba(0, 0, 0, 0.35), transparent);
+        }
+
+        .hero-ticker::after {
+            right: 0;
+            background: linear-gradient(to left, rgba(0, 0, 0, 0.35), transparent);
+        }
+
+        .ticker-track {
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+            white-space: nowrap;
+            animation: tickerScroll 20s linear infinite;
+            height: 100%;
+        }
+
+        .ticker-item {
+            font-family: 'Courier New', 'Courier', monospace;
+            font-size: clamp(1rem, 1.8vw, 1.3rem);
+            color: rgba(255, 255, 255, 0.55);
+            letter-spacing: 1px;
+            flex-shrink: 0;
+        }
+
+        .ticker-separator {
+            color: rgba(255, 255, 255, 0.2);
+            font-size: 0.8rem;
+            flex-shrink: 0;
+        }
+
+        @keyframes tickerScroll {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-50%); }
+        }
+
+        .hero-scroll {
+            position: absolute;
+            bottom: 2.5rem;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
+            opacity: 0;
+            animation: fadeUp 1s ease 2s forwards;
+        }
+
+        .hero-scroll span {
+            font-size: 0.7rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: rgba(255, 255, 255, 0.4);
+        }
+
+        .scroll-line {
+            width: 1px;
+            height: 40px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .scroll-line::after {
+            content: '';
+            position: absolute;
+            top: -100%;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(to bottom, transparent, rgba(255, 255, 255, 0.5));
+            animation: scrollDown 2s ease infinite;
+        }
+
+        /* ============================================
+           SECTIONS — COMMON
+           ============================================ */
+        section {
+            padding: 4rem 3rem;
+        }
+
+        .section-inner {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .section-label {
+            font-size: 0.7rem;
+            font-weight: 600;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: var(--text-light);
+            margin-bottom: 1.5rem;
+        }
+
+        .section-title {
+            font-family: 'DM Serif Display', serif;
+            font-size: clamp(1.8rem, 3.5vw, 2.8rem);
+            font-weight: 400;
+            line-height: 1.2;
+            margin-bottom: 2rem;
+            color: var(--text-primary);
+        }
+
+        .section-text {
+            font-size: 1.1rem;
+            color: var(--text-secondary);
+            line-height: 1.8;
+            max-width: 680px;
+        }
+
+        /* ============================================
+           WHAT IS GAS
+           ============================================ */
+        .what-section {
+            background: var(--white);
+        }
+
+        .what-not {
+            display: flex;
+            gap: 1.5rem;
+            margin-bottom: 3rem;
+        }
+
+        .what-not-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.6rem;
+            padding: 0.6rem 1.2rem;
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: #991b1b;
+        }
+
+        .what-not-item .x {
+            font-weight: 700;
+            font-size: 1rem;
+        }
+
+        .what-is-text {
+            font-family: 'DM Serif Display', serif;
+            font-size: clamp(1.4rem, 2.5vw, 1.9rem);
+            color: var(--text-primary);
+            line-height: 1.5;
+            max-width: 700px;
+        }
+
+        .what-is-text em {
+            font-style: normal;
+            color: var(--accent-light);
+        }
+
+        /* ============================================
+           BENEFITS — TWO AUDIENCES
+           ============================================ */
+        .benefits-section {
+            background: var(--off-white);
+        }
+
+        .benefits-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-top: 3rem;
+        }
+
+        .benefit-box {
+            background: var(--white);
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            padding: 2.5rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .benefit-box::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+        }
+
+        .benefit-owner::before {
+            background: linear-gradient(90deg, var(--accent), var(--accent-light));
+        }
+
+        .benefit-agent::before {
+            background: linear-gradient(90deg, var(--warm), #f59e0b);
+        }
+
+        .benefit-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .benefit-icon {
+            font-size: 1.5rem;
+        }
+
+        .benefit-header h3 {
+            font-family: 'DM Serif Display', serif;
+            font-size: 1.3rem;
+            font-weight: 400;
+            color: var(--text-primary);
+        }
+
+        .benefit-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .benefit-list li {
+            position: relative;
+            padding: 0.5rem 0 0.5rem 1.5rem;
+            font-size: 0.95rem;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        .benefit-list li::before {
+            content: '✓';
+            position: absolute;
+            left: 0;
+            color: var(--accent);
+            font-weight: 700;
+        }
+
+        .benefit-agent .benefit-list li::before {
+            color: var(--warm);
+        }
+
+        /* ============================================
+           WHY REGISTER
+           ============================================ */
+        .why-section {
+            background: var(--off-white);
+        }
+
+        .why-cards {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-top: 3rem;
+        }
+
+        .why-card {
+            background: var(--white);
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            padding: 2.5rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .why-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--warm), #f59e0b);
+        }
+
+        .why-number {
+            font-family: 'DM Serif Display', serif;
+            font-size: 3rem;
+            color: #f1f5f9;
+            line-height: 1;
+            margin-bottom: 1rem;
+        }
+
+        .why-card h3 {
+            font-family: 'DM Serif Display', serif;
+            font-size: 1.3rem;
+            font-weight: 400;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+        }
+
+        .why-card p {
+            font-size: 0.95rem;
+            color: var(--text-secondary);
+            line-height: 1.7;
+        }
+
+        /* ============================================
+           HOW IT WORKS
+           ============================================ */
+        .how-section {
+            background: var(--white);
+        }
+
+        .how-steps {
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+            margin-top: 3rem;
+            position: relative;
+        }
+
+        .how-steps::before {
+            content: '';
+            position: absolute;
+            left: 24px;
+            top: 0;
+            bottom: 0;
+            width: 1px;
+            background: #e2e8f0;
+        }
+
+        .how-step {
+            display: flex;
+            gap: 2rem;
+            align-items: flex-start;
+            padding: 1.5rem 0;
+        }
+
+        .step-dot {
+            width: 49px;
+            min-width: 49px;
+            height: 49px;
+            border-radius: 50%;
+            background: var(--accent);
+            color: var(--white);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'DM Serif Display', serif;
+            font-size: 1.1rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        .step-content h3 {
+            font-family: 'DM Serif Display', serif;
+            font-size: 1.2rem;
+            font-weight: 400;
+            margin-bottom: 0.3rem;
+            color: var(--text-primary);
+        }
+
+        .step-content p {
+            font-size: 0.95rem;
+            color: var(--text-muted);
+        }
+
+        .step-free {
+            display: inline-block;
+            font-size: 0.7rem;
+            font-weight: 600;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: #16a34a;
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            padding: 0.2rem 0.6rem;
+            border-radius: 4px;
+            margin-left: 0.5rem;
+        }
+
+        /* ============================================
+           GROW / UPGRADE
+           ============================================ */
+        .grow-section {
+            background: var(--accent);
+            color: var(--white);
+        }
+
+        .grow-section .section-label {
+            color: rgba(255, 255, 255, 0.4);
+        }
+
+        .grow-section .section-title {
+            color: var(--white);
+        }
+
+        .grow-intro {
+            font-size: 1.1rem;
+            color: rgba(255, 255, 255, 0.7);
+            max-width: 600px;
+            margin-bottom: 3rem;
+            line-height: 1.8;
+        }
+
+        .grow-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.5rem;
+        }
+
+        .grow-item {
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 2rem;
+            transition: all 0.3s ease;
+        }
+
+        .grow-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .grow-icon {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .grow-item h3 {
+            font-family: 'DM Serif Display', serif;
+            font-size: 1.05rem;
+            font-weight: 400;
+            margin-bottom: 0.5rem;
+            color: var(--white);
+        }
+
+        .grow-item p {
+            font-size: 0.85rem;
+            color: rgba(255, 255, 255, 0.5);
+            line-height: 1.6;
+        }
+
+        .not-plugins {
+            margin-top: 3rem;
+            padding-top: 2rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 1rem;
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .not-plugins strong {
+            color: var(--white);
+        }
+
+        /* ============================================
+           CTA / FOOTER
+           ============================================ */
+        .cta-section {
+            background: var(--off-white);
+            text-align: center;
+            padding: 6rem 3rem;
+        }
+
+        .cta-section .section-title {
+            margin-bottom: 1rem;
+        }
+
+        .cta-subtitle {
+            font-size: 1.05rem;
+            color: var(--text-muted);
+            margin-bottom: 2.5rem;
+        }
+
+        .cta-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .btn-primary {
+            display: inline-block;
+            padding: 0.9rem 2.5rem;
+            background: var(--accent);
+            color: var(--white);
+            border: none;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            text-decoration: none;
+            letter-spacing: 0.5px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .btn-primary:hover {
+            background: #162d4a;
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary-outline {
+            display: inline-block;
+            padding: 0.9rem 2.5rem;
+            background: transparent;
+            color: var(--accent);
+            border: 1.5px solid var(--accent);
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            text-decoration: none;
+            letter-spacing: 0.5px;
+            transition: all 0.3s ease;
+        }
+
+        .btn-secondary-outline:hover {
+            background: var(--accent);
+            color: var(--white);
+        }
+
+        .footer {
+            background: var(--text-primary);
+            color: rgba(255, 255, 255, 0.4);
+            text-align: center;
+            padding: 2rem;
+            font-size: 0.8rem;
+        }
+
+        /* ============================================
+           ANIMATIONS
+           ============================================ */
+        @keyframes fadeUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+
+        @keyframes scrollDown {
+            0% { top: -100%; }
+            100% { top: 100%; }
+        }
+
+        /* Scroll reveal */
+        .reveal {
+            opacity: 0;
+            transform: translateY(30px);
+            transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .reveal.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* ============================================
+           RESPONSIVE
+           ============================================ */
+        @media (max-width: 768px) {
+            .nav {
+                padding: 1rem 1.5rem;
+            }
+
+            .nav-links {
+                display: none;
+            }
+
+            section {
+                padding: 4rem 1.5rem;
+            }
+
+            .what-not {
+                flex-direction: column;
+                gap: 0.75rem;
+            }
+
+            .why-cards {
+                grid-template-columns: 1fr;
+            }
+
+            .benefits-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .grow-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .hero-title {
+                font-size: 2.2rem;
+            }
+
+            .hero-logo-text {
+                font-size: 2.5rem;
+            }
+
+            .hero-compass-icon {
+                width: 80px;
+                height: 80px;
+            }
+
+            .cta-buttons {
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Navigation -->
+    <nav class="nav" id="mainNav">
+        <div class="nav-logo">GAS</div>
+        <div class="nav-links">
+            <a href="#what">What is GAS</a>
+            <a href="#why">Why Register</a>
+            <a href="#how">How It Works</a>
+            <a href="/agents">Travel Agents</a>
+            <a href="/register.html" class="nav-cta">Register Free</a>
+        </div>
+    </nav>
+
+    <!-- ============================================
+         HERO
+         ============================================ -->
+    <section class="hero">
+        <div class="video-bg">
+            <video autoplay muted loop playsinline>
+                <source src="/hero-bg.mp4" type="video/mp4">
+            </video>
+        </div>
+        <div class="video-overlay"></div>
+
+        <div class="hero-content">
+            <img src="/gas-compass-white.png" alt="GAS" class="hero-compass-icon">
+            <h1 class="hero-logo-text">Global Accommodation System</h1>
+            <div class="hero-ticker">
+                <div class="ticker-track" id="tickerTrack">
+                    <!-- Filled by JS -->
+                </div>
+            </div>
+        </div>
+
+        <div class="hero-scroll">
+            <span>Discover</span>
+            <div class="scroll-line"></div>
+        </div>
+    </section>
+
+    <!-- ============================================
+         MISSION
+         ============================================ -->
+    <section class="what-section" id="what">
+        <div class="section-inner reveal">
+            <p class="section-label">Our Mission</p>
+
+            <p class="what-is-text" style="font-style: italic; color: var(--text-primary);">
+                "Our aim is to facilitate the creation of an independent travel sector"
+            </p>
+        </div>
+    </section>
+
+    <!-- ============================================
+         BENEFITS — TWO AUDIENCES
+         ============================================ -->
+    <section class="benefits-section" id="why">
+        <div class="section-inner reveal">
+            <p class="section-label">Join the movement</p>
+            <h2 class="section-title">Two sides. One independent sector.</h2>
+
+            <div class="benefits-grid">
+                <div class="benefit-box benefit-owner">
+                    <div class="benefit-header">
+                        <span class="benefit-icon">🏠</span>
+                        <h3>For Property Owners</h3>
+                    </div>
+                    <ul class="benefit-list">
+                        <li>Reduce your dependency on OTAs</li>
+                        <li>Connect directly with travel agents who recommend your property to their clients</li>
+                        <li>Free listing — your property visible to agents worldwide</li>
+                        <li>Keep control of your pricing, your brand, your guest relationships</li>
+                        <li>Sync automatically with your existing channel manager</li>
+                        <li>Build your own independent channel alongside your existing ones</li>
+                    </ul>
+                    <a href="/register.html" class="btn-primary" style="margin-top: 1.5rem; display: inline-block;">Register Free</a>
+                </div>
+
+                <div class="benefit-box benefit-agent">
+                    <div class="benefit-header">
+                        <span class="benefit-icon">✈️</span>
+                        <h3>For Travel Agents</h3>
+                    </div>
+                    <ul class="benefit-list">
+                        <li>Discover independent properties you won't find on the big platforms</li>
+                        <li>Book directly with property owners — personal service, better rates</li>
+                        <li>Build real relationships with the properties you recommend</li>
+                        <li>Offer your clients unique, hand-picked accommodation</li>
+                        <li>Access a growing global network of independent properties</li>
+                        <li>Stand out from agencies that just resell OTA inventory</li>
+                    </ul>
+                    <a href="/agents" class="btn-primary" style="margin-top: 1.5rem; display: inline-block;">Register as Agent</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============================================
+         WHY REGISTER
+         ============================================ -->
+    <section class="why-section">
+        <div class="section-inner reveal">
+            <p class="section-label">So why should you register with GAS?</p>
+            <h2 class="section-title">Because something needs to change.</h2>
+
+            <div class="why-cards">
+                <div class="why-card">
+                    <div class="why-number">01</div>
+                    <h3>You're frustrated with dependency</h3>
+                    <p>Your business relies too heavily on the existing marketplace. OTAs control your visibility, your pricing, and your guest relationships. You know it, but the alternatives aren't clear.</p>
+                </div>
+                <div class="why-card">
+                    <div class="why-number">02</div>
+                    <h3>You don't know how to change it</h3>
+                    <p>You've thought about direct bookings, about reducing dependency, about owning your own channel. But where do you start? Who helps you get there?</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============================================
+         HOW IT WORKS
+         ============================================ -->
+    <section class="how-section" id="how">
+        <div class="section-inner reveal">
+            <p class="section-label">Here's how</p>
+            <h2 class="section-title">Three steps to a new channel.</h2>
+
+            <div class="how-steps">
+                <div class="how-step">
+                    <div class="step-dot">1</div>
+                    <div class="step-content">
+                        <h3>Register for Free <span class="step-free">Free</span></h3>
+                        <p>Create your account in minutes. No credit card, no commitment.</p>
+                    </div>
+                </div>
+                <div class="how-step">
+                    <div class="step-dot">2</div>
+                    <div class="step-content">
+                        <h3>Create Your Profile</h3>
+                        <p>Add your properties, rooms, photos, and availability. Connect your channel manager for automatic sync.</p>
+                    </div>
+                </div>
+                <div class="how-step">
+                    <div class="step-dot">3</div>
+                    <div class="step-content">
+                        <h3>Available to Travel Agents Worldwide</h3>
+                        <p>Independent travel agents discover your property and recommend it to their clients. Personal referrals, not search results.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============================================
+         GROW / UPGRADE
+         ============================================ -->
+    <section class="grow-section" id="grow">
+        <div class="section-inner reveal">
+            <p class="section-label">Then grow</p>
+            <h2 class="section-title">Upgrade to our marketing tools.</h2>
+            <p class="grow-intro">Once you're listed and agents are finding you, take it further. Full marketing tools designed for independent property owners.</p>
+
+            <div class="grow-grid">
+                <div class="grow-item">
+                    <div class="grow-icon">🌐</div>
+                    <h3>Professional Websites</h3>
+                    <p>Quality, out-of-the-box booking websites. Deploy in minutes, customise everything.</p>
+                </div>
+                <div class="grow-item">
+                    <div class="grow-icon">🎨</div>
+                    <h3>Custom Websites</h3>
+                    <p>Bespoke design and build for properties that need something unique.</p>
+                </div>
+                <div class="grow-item">
+                    <div class="grow-icon">🔍</div>
+                    <h3>SEO Tools</h3>
+                    <p>Get found on Google. Meta tags, structured data, and content optimisation built in.</p>
+                </div>
+                <div class="grow-item">
+                    <div class="grow-icon">📱</div>
+                    <h3>Social Media Tools</h3>
+                    <p>Create, schedule, and publish content across your social channels.</p>
+                </div>
+                <div class="grow-item">
+                    <div class="grow-icon">⭐</div>
+                    <h3>Review Management</h3>
+                    <p>Collect, manage, and display guest reviews across all your platforms.</p>
+                </div>
+                <div class="grow-item">
+                    <div class="grow-icon">🔄</div>
+                    <h3>Channel Manager Integration</h3>
+                    <p>Seamless sync with Beds24, Hostaway, Lodgify, and more. One calendar everywhere.</p>
+                </div>
+            </div>
+
+            <p class="not-plugins">
+                <strong>Not plugins.</strong> Full, integrated tools that work together as one system.
+            </p>
+        </div>
+    </section>
+
+    <!-- ============================================
+         CTA
+         ============================================ -->
+    <section class="cta-section">
+        <div class="section-inner reveal">
+            <h2 class="section-title">Ready to take control?</h2>
+            <p class="cta-subtitle">Register your properties for free. Start reaching travel agents today.</p>
+            <div class="cta-buttons">
+                <a href="/register.html" class="btn-primary">Register as Property Owner</a>
+                <a href="/agents" class="btn-secondary-outline">I'm a Travel Agent</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <p>&copy; 2026 GAS — Building the Independent Travel Sector. All rights reserved.</p>
+    </footer>
+
+    <!-- ============================================
+         SCRIPTS
+         ============================================ -->
+    <script>
+        // =============================================
+        // SCROLLING TICKER — "No Boundaries" in languages
+        // =============================================
+        const translations = [
+            'Sans Frontières',
+            'No Boundaries',
+            'Sin Fronteras',
+            'Ohne Grenzen',
+            'Zonder Grenzen',
+            '境界なし',
+            '无边界',
+            'Sem Fronteiras',
+            'Senza Confini',
+            'Без границ',
+        ];
+
+        const tickerTrack = document.getElementById('tickerTrack');
+        
+        // Build ticker content — duplicate the set for seamless loop
+        function buildTicker() {
+            let html = '';
+            // Two full sets so when the first scrolls off, the second takes over
+            for (let r = 0; r < 2; r++) {
+                translations.forEach((t, i) => {
+                    html += `<span class="ticker-item">${t}</span>`;
+                    if (i < translations.length - 1 || r === 0) {
+                        html += `<span class="ticker-separator">◆</span>`;
+                    }
+                });
+            }
+            tickerTrack.innerHTML = html;
+        }
+        
+        buildTicker();
+
+        // =============================================
+        // NAV SCROLL EFFECT
+        // =============================================
+        const nav = document.getElementById('mainNav');
+        window.addEventListener('scroll', () => {
+            if (window.scrollY > 80) {
+                nav.classList.add('scrolled');
+            } else {
+                nav.classList.remove('scrolled');
+            }
+        });
+
+        // =============================================
+        // SCROLL REVEAL
+        // =============================================
+        const revealElements = document.querySelectorAll('.reveal');
+
+        const revealObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
+                }
+            });
+        }, {
+            threshold: 0.15,
+            rootMargin: '0px 0px -50px 0px'
+        });
+
+        revealElements.forEach(el => revealObserver.observe(el));
+
+        // =============================================
+        // SMOOTH SCROLL FOR NAV LINKS
+        // =============================================
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function(e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            });
+        });
+    </script>
+</body>
+</html>
