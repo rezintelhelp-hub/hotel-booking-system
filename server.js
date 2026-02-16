@@ -35019,13 +35019,13 @@ app.delete('/api/bookings/:id', async (req, res) => {
     }
     
     // Delete payment transactions first
-    await pool.query('DELETE FROM payment_transactions WHERE booking_id = $1', [id]);
+    await pool.query('DELETE FROM payment_transactions WHERE booking_id = $1', [id]).catch(() => {});
     
     // Delete webhook logs
-    await pool.query('DELETE FROM webhook_logs WHERE booking_id = $1', [id]);
+    await pool.query('DELETE FROM webhook_logs WHERE booking_id = $1', [id]).catch(() => {});
     
     // Delete CM failure records
-    await pool.query('DELETE FROM booking_cm_failures WHERE booking_id = $1', [id]);
+    await pool.query('DELETE FROM booking_cm_failures WHERE booking_id = $1', [id]).catch(() => {});
     
     // Delete the booking
     await pool.query('DELETE FROM bookings WHERE id = $1', [id]);
