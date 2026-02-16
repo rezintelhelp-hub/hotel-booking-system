@@ -14832,6 +14832,36 @@ app.put('/api/invoices/:invoiceId/status', async (req, res) => {
   }
 });
 
+// Delete an invoice
+app.delete('/api/invoices/:invoiceId', async (req, res) => {
+  try {
+    const { invoiceId } = req.params;
+    
+    // Check invoice exists and get status
+    const invoice = await pool.query('SELECT id, status, invoice_number FROM invoices WHERE id = $1', [invoiceId]);
+    if (invoice.rows.length === 0) {
+      return res.json({ success: false, error: 'Invoice not found' });
+    }
+    
+    const inv = invoice.rows[0];
+    
+    // Only allow deletion of draft or void invoices, or force with confirm
+    if (inv.status === 'paid') {
+      return res.json({ success: false, error: 'Cannot delete a paid invoice. Void it first.' });
+    }
+    
+    // Delete invoice line items first
+    await pool.query('DELETE FROM invoice_line_items WHERE invoice_id = $1', [invoiceId]);
+    
+    // Delete the invoice
+    await pool.query('DELETE FROM invoices WHERE id = $1', [invoiceId]);
+    
+    res.json({ success: true, message: `Invoice ${inv.invoice_number} deleted` });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 
 // =====================================================
 // PAYMENT PROCESSING API
