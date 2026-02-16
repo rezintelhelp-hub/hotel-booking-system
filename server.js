@@ -14850,9 +14850,6 @@ app.delete('/api/invoices/:invoiceId', async (req, res) => {
       return res.json({ success: false, error: 'Cannot delete a paid invoice. Void it first.' });
     }
     
-    // Delete invoice line items first
-    await pool.query('DELETE FROM invoice_line_items WHERE invoice_id = $1', [invoiceId]);
-    
     // Delete the invoice
     await pool.query('DELETE FROM invoices WHERE id = $1', [invoiceId]);
     
