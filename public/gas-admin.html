@@ -40798,6 +40798,7 @@ Local honey and preserves"></textarea>
                             <td style="padding:8px;border-bottom:1px solid #e2e8f0;">
                                 <button onclick="window.open('/api/invoices/${inv.id}/print','_blank')" style="background:none;border:1px solid #d1d5db;border-radius:4px;padding:2px 8px;cursor:pointer;font-size:0.75rem;">🖨️</button>
                                 ${inv.status !== 'paid' ? `<button onclick="markInvoicePaid(${inv.id})" style="background:none;border:1px solid #86efac;border-radius:4px;padding:2px 8px;cursor:pointer;font-size:0.75rem;color:#16a34a;">✓ Paid</button>` : ''}
+                                ${inv.status !== 'paid' ? `<button onclick="deleteInvoice(${inv.id}, '${inv.invoice_number}')" style="background:none;border:1px solid #fca5a5;border-radius:4px;padding:2px 8px;cursor:pointer;font-size:0.75rem;color:#dc2626;">🗑️</button>` : ''}
                             </td>
                         </tr>`;
                     });
@@ -40838,6 +40839,27 @@ Local honey and preserves"></textarea>
                 viewInvoiceHistory();
             } catch (e) {
                 alert('Error updating invoice');
+            }
+        }
+
+        async function deleteInvoice(invoiceId, invoiceNumber) {
+            if (!confirm(`Delete invoice ${invoiceNumber}? This cannot be undone.`)) return;
+            try {
+                const response = await fetch(`/api/invoices/${invoiceId}`, {
+                    method: 'DELETE',
+                    headers: authHeaders()
+                });
+                const data = await response.json();
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                    const historyModal = document.getElementById('invoice-history-modal');
+                    if (historyModal) historyModal.remove();
+                    viewInvoiceHistory();
+                } else {
+                    showNotification('Error: ' + data.error, 'error');
+                }
+            } catch (e) {
+                alert('Error deleting invoice');
             }
         }
         // =====================================================
