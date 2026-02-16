@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Travel Agent Registration — GAS</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --ink: #0f172a;
+            --ink-light: #334155;
+            --ink-muted: #64748b;
+            --surface: #ffffff;
+            --surface-subtle: #f8fafc;
+            --surface-hover: #f1f5f9;
+            --border: #e2e8f0;
+            --border-light: #f1f5f9;
+            --accent: #2563eb;
+            --accent-hover: #1d4ed8;
+            --accent-soft: #eff6ff;
+            --success: #10b981;
+            --success-soft: #ecfdf5;
+            --warm: #d97706;
+            --warm-soft: #fffbeb;
+            --white: #ffffff;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: var(--surface);
+            color: var(--ink);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* =============================================
+           HEADER
+           ============================================= */
+        .panel-header {
+            padding: 1.5rem 2.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border-light);
+        }
+
+        .logo {
+            font-family: 'DM Sans', sans-serif;
+            font-size: 1.3rem;
+            font-weight: 700;
+            letter-spacing: 2px;
+            color: var(--ink);
+            text-decoration: none;
+        }
+
+        .header-badge {
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: var(--warm);
+            background: var(--warm-soft);
+            border: 1px solid #fde68a;
+            padding: 0.3rem 0.8rem;
+            border-radius: 4px;
+        }
+
+        /* =============================================
+           MAIN CONTENT
+           ============================================= */
+        .main {
+            flex: 1;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            padding: 3rem 2.5rem;
+        }
+
+        .form-container {
+            width: 100%;
+            max-width: 580px;
+        }
+
+        .step-label {
+            font-size: 0.7rem;
+            font-weight: 600;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--warm);
+            margin-bottom: 0.75rem;
+        }
+
+        .step-title {
+            font-family: 'DM Serif Display', serif;
+            font-size: 1.8rem;
+            font-weight: 400;
+            color: var(--ink);
+            margin-bottom: 0.5rem;
+            line-height: 1.2;
+        }
+
+        .step-subtitle {
+            font-size: 0.95rem;
+            color: var(--ink-muted);
+            margin-bottom: 2rem;
+            line-height: 1.5;
+        }
+
+        /* Form fields */
+        .field {
+            margin-bottom: 1.25rem;
+        }
+
+        .field label {
+            display: block;
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: var(--ink-light);
+            margin-bottom: 0.4rem;
+        }
+
+        .field input,
+        .field select,
+        .field textarea {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.95rem;
+            border: 1.5px solid var(--border);
+            border-radius: 8px;
+            color: var(--ink);
+            background: var(--surface);
+            transition: all 0.2s ease;
+            outline: none;
+        }
+
+        .field input:focus,
+        .field select:focus,
+        .field textarea:focus {
+            border-color: var(--warm);
+            box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.1);
+        }
+
+        .field input::placeholder,
+        .field textarea::placeholder {
+            color: #94a3b8;
+        }
+
+        .field textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .field-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .field-hint {
+            font-size: 0.75rem;
+            color: var(--ink-muted);
+            margin-top: 0.3rem;
+        }
+
+        /* Checkboxes for specialist sectors */
+        .checkbox-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5rem;
+            margin-top: 0.4rem;
+        }
+
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 0.75rem;
+            border: 1.5px solid var(--border);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 0.85rem;
+            color: var(--ink-light);
+        }
+
+        .checkbox-item:hover {
+            border-color: var(--warm);
+            background: var(--warm-soft);
+        }
+
+        .checkbox-item input {
+            width: auto;
+            accent-color: var(--warm);
+        }
+
+        .checkbox-item.checked {
+            border-color: var(--warm);
+            background: var(--warm-soft);
+            color: var(--ink);
+        }
+
+        /* Buttons */
+        .btn-primary {
+            width: 100%;
+            padding: 0.85rem 1.5rem;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.95rem;
+            font-weight: 600;
+            background: var(--ink);
+            color: var(--white);
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-top: 0.5rem;
+        }
+
+        .btn-primary:hover {
+            background: #1e293b;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .step-footer {
+            text-align: center;
+            margin-top: 1.5rem;
+        }
+
+        .step-footer a {
+            font-size: 0.85rem;
+            color: var(--ink-muted);
+            text-decoration: none;
+        }
+
+        .step-footer a:hover {
+            color: var(--warm);
+        }
+
+        /* Coming soon banner */
+        .coming-soon-banner {
+            background: var(--warm-soft);
+            border: 1px solid #fde68a;
+            border-radius: 10px;
+            padding: 1rem 1.25rem;
+            margin-bottom: 2rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .coming-soon-banner .icon {
+            font-size: 1.3rem;
+        }
+
+        .coming-soon-banner p {
+            font-size: 0.88rem;
+            color: var(--ink-light);
+            line-height: 1.5;
+        }
+
+        .coming-soon-banner strong {
+            color: var(--ink);
+        }
+
+        /* Success state */
+        .success-view {
+            display: none;
+            text-align: center;
+            padding: 2rem 0;
+        }
+
+        .success-icon {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            background: var(--success-soft);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1.5rem;
+        }
+
+        .success-icon svg {
+            width: 32px;
+            height: 32px;
+            color: var(--success);
+        }
+
+        /* Loading spinner */
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+            margin-right: 0.5rem;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Error state */
+        .field-error {
+            border-color: #ef4444 !important;
+        }
+
+        .error-msg {
+            font-size: 0.75rem;
+            color: #ef4444;
+            margin-top: 0.25rem;
+        }
+
+        /* =============================================
+           RESPONSIVE
+           ============================================= */
+        @media (max-width: 640px) {
+            .main {
+                padding: 2rem 1.5rem;
+            }
+
+            .field-row {
+                grid-template-columns: 1fr;
+            }
+
+            .checkbox-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .panel-header {
+                padding: 1rem 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="panel-header">
+    <a href="/" class="logo">gas.travel</a>
+    <span class="header-badge">Travel Agents</span>
+</div>
+
+<div class="main">
+    <div class="form-container">
+
+        <!-- REGISTRATION FORM -->
+        <div id="form-view">
+            <p class="step-label">Coming Soon</p>
+            <h2 class="step-title">Register as a Travel Agent</h2>
+            <p class="step-subtitle">Join the independent travel sector. Access unique properties you won't find on the big platforms — and build direct relationships with the owners.</p>
+
+            <div class="coming-soon-banner">
+                <span class="icon">✈️</span>
+                <p>The GAS Agent platform is <strong>coming soon</strong>. Register your interest now and we'll be in touch as soon as it's ready.</p>
+            </div>
+
+            <div class="field-row">
+                <div class="field">
+                    <label>Your full name <span style="color: #ef4444;">*</span></label>
+                    <input type="text" id="agent-name" placeholder="e.g. Jane Smith" required>
+                </div>
+                <div class="field">
+                    <label>Business name <span style="color: #ef4444;">*</span></label>
+                    <input type="text" id="agent-business" placeholder="e.g. Sunshine Travel Ltd">
+                </div>
+            </div>
+
+            <div class="field-row">
+                <div class="field">
+                    <label>Email address <span style="color: #ef4444;">*</span></label>
+                    <input type="email" id="agent-email" placeholder="you@yourbusiness.com">
+                </div>
+                <div class="field">
+                    <label>Phone number</label>
+                    <input type="tel" id="agent-phone" placeholder="+44 7700 900000">
+                </div>
+            </div>
+
+            <div class="field">
+                <label>Country / Region you sell <span style="color: #ef4444;">*</span></label>
+                <input type="text" id="agent-region" placeholder="e.g. UK, Europe, Worldwide">
+            </div>
+
+            <div class="field">
+                <label>How many properties do you typically book per year?</label>
+                <select id="agent-property-count">
+                    <option value="">Select...</option>
+                    <option value="1-10">1 – 10</option>
+                    <option value="11-50">11 – 50</option>
+                    <option value="51-200">51 – 200</option>
+                    <option value="200+">200+</option>
+                </select>
+            </div>
+
+            <div class="field">
+                <label>Trade body membership</label>
+                <input type="text" id="agent-trade-body" placeholder="e.g. ABTA, ATOL, ASTA, IATA">
+                <p class="field-hint">Leave blank if not applicable</p>
+            </div>
+
+            <div class="field">
+                <label>Specialist sector(s)</label>
+                <div class="checkbox-grid" id="sector-grid">
+                    <label class="checkbox-item" onclick="toggleCheckbox(this)">
+                        <input type="checkbox" value="Luxury"> Luxury
+                    </label>
+                    <label class="checkbox-item" onclick="toggleCheckbox(this)">
+                        <input type="checkbox" value="Adventure"> Adventure
+                    </label>
+                    <label class="checkbox-item" onclick="toggleCheckbox(this)">
+                        <input type="checkbox" value="Family"> Family
+                    </label>
+                    <label class="checkbox-item" onclick="toggleCheckbox(this)">
+                        <input type="checkbox" value="Corporate"> Corporate
+                    </label>
+                    <label class="checkbox-item" onclick="toggleCheckbox(this)">
+                        <input type="checkbox" value="Honeymoon / Romance"> Honeymoon / Romance
+                    </label>
+                    <label class="checkbox-item" onclick="toggleCheckbox(this)">
+                        <input type="checkbox" value="Eco / Sustainable"> Eco / Sustainable
+                    </label>
+                    <label class="checkbox-item" onclick="toggleCheckbox(this)">
+                        <input type="checkbox" value="Wellness / Spa"> Wellness / Spa
+                    </label>
+                    <label class="checkbox-item" onclick="toggleCheckbox(this)">
+                        <input type="checkbox" value="Groups"> Groups
+                    </label>
+                </div>
+            </div>
+
+            <button class="btn-primary" id="submit-btn" onclick="submitAgentRegistration()">Register Interest</button>
+
+            <div class="step-footer">
+                <a href="/">← Back to gas.travel</a> &nbsp;·&nbsp; <a href="/register.html">I'm a Property Owner</a>
+            </div>
+        </div>
+
+        <!-- SUCCESS VIEW -->
+        <div id="success-view" class="success-view">
+            <div class="success-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            </div>
+            <h2 class="step-title">You're on the list!</h2>
+            <p class="step-subtitle">Thanks for registering your interest. We'll be in touch as soon as the GAS Agent platform is ready. In the meantime, keep an eye on your inbox.</p>
+
+            <div class="step-footer">
+                <a href="/">← Back to gas.travel</a>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    function toggleCheckbox(label) {
+        const cb = label.querySelector('input[type="checkbox"]');
+        // Let the default checkbox behaviour happen first
+        setTimeout(() => {
+            if (cb.checked) {
+                label.classList.add('checked');
+            } else {
+                label.classList.remove('checked');
+            }
+        }, 10);
+    }
+
+    async function submitAgentRegistration() {
+        const name = document.getElementById('agent-name').value.trim();
+        const business = document.getElementById('agent-business').value.trim();
+        const email = document.getElementById('agent-email').value.trim();
+        const phone = document.getElementById('agent-phone').value.trim();
+        const region = document.getElementById('agent-region').value.trim();
+        const propertyCount = document.getElementById('agent-property-count').value;
+        const tradeBody = document.getElementById('agent-trade-body').value.trim();
+
+        // Get selected sectors
+        const sectors = [];
+        document.querySelectorAll('#sector-grid input[type="checkbox"]:checked').forEach(cb => {
+            sectors.push(cb.value);
+        });
+
+        // Validation
+        if (!name || !business || !email || !region) {
+            alert('Please fill in the required fields: Name, Business Name, Email, and Country/Region.');
+            return;
+        }
+
+        const btn = document.getElementById('submit-btn');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner"></span>Submitting...';
+
+        try {
+            const response = await fetch('/api/agent-registration', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name,
+                    business_name: business,
+                    email,
+                    phone,
+                    region,
+                    property_count: propertyCount,
+                    trade_body: tradeBody,
+                    specialist_sectors: sectors
+                })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                document.getElementById('form-view').style.display = 'none';
+                document.getElementById('success-view').style.display = 'block';
+            } else {
+                btn.disabled = false;
+                btn.textContent = 'Register Interest';
+                alert('Error: ' + (result.error || 'Something went wrong. Please try again.'));
+            }
+        } catch (err) {
+            btn.disabled = false;
+            btn.textContent = 'Register Interest';
+            alert('Could not reach the server. Please check your connection and try again.');
+        }
+    }
+</script>
+
+</body>
+</html>
