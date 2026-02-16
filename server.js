@@ -10139,6 +10139,46 @@ app.post('/api/onboarding/create-account', async (req, res) => {
   }
 });
 
+// Agent Registration — coming soon interest form
+app.post('/api/agent-registration', async (req, res) => {
+  try {
+    const { name, business_name, email, phone, region, property_count, trade_body, specialist_sectors } = req.body;
+    
+    if (!name || !business_name || !email || !region) {
+      return res.json({ success: false, error: 'Name, business name, email and region are required' });
+    }
+    
+    // Create table if it doesn't exist
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS agent_registrations (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        business_name VARCHAR(255) NOT NULL,
+        email VARCHAR(255) NOT NULL,
+        phone VARCHAR(100),
+        region VARCHAR(255),
+        property_count VARCHAR(50),
+        trade_body VARCHAR(255),
+        specialist_sectors JSONB DEFAULT '[]',
+        status VARCHAR(50) DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    
+    await pool.query(`
+      INSERT INTO agent_registrations (name, business_name, email, phone, region, property_count, trade_body, specialist_sectors)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `, [name, business_name, email, phone || null, region, property_count || null, trade_body || null, JSON.stringify(specialist_sectors || [])]);
+    
+    console.log(`[Agent Registration] New interest: ${business_name} (${email}) — ${region}`);
+    
+    res.json({ success: true, message: 'Agent registration submitted' });
+  } catch (error) {
+    console.error('[Agent Registration] Error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // CM Integration Requests - track unsupported CM demand
 app.post('/api/onboarding/cm-request', async (req, res) => {
   try {
@@ -11644,12 +11684,6 @@ app.delete('/api/accounts/:id', async (req, res) => {
     const { id } = req.params;
     
     console.log(`Deleting account ${id} and all related data...`);
-    
-    // Check for custom site requests
-    const customSites = await pool.query('SELECT COUNT(*) FROM custom_site_requests WHERE account_id = $1', [id]).catch(() => ({ rows: [{ count: 0 }] }));
-    if (parseInt(customSites.rows[0].count) > 0) {
-      return res.json({ success: false, error: `Cannot delete account — it has ${customSites.rows[0].count} custom site request(s). Please delete the custom site(s) first.` });
-    }
     
     // Get all properties for this account
     const props = await pool.query('SELECT id FROM properties WHERE account_id = $1', [id]);
