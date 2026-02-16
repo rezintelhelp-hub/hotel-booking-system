@@ -89,9 +89,10 @@
         .panel-body {
             flex: 1;
             display: flex;
-            align-items: center;
+            align-items: flex-start;
             justify-content: center;
             padding: 2rem 2.5rem;
+            overflow-y: auto;
         }
 
         .step-container {
@@ -653,7 +654,7 @@
 <!-- ============================================= -->
 <div class="panel-form">
     <div class="panel-header">
-        <a href="/" class="logo">GAS</a>
+        <a href="/" class="logo">gas.travel</a>
         <div class="step-indicator">
             <div class="step-dot active" data-step="1"></div>
             <div class="step-dot" data-step="2"></div>
@@ -1779,14 +1780,48 @@ Upsells (mention only if asked): GAS Turbines (social media management), custom 
     async function requestCMIntegration() {
         const cmName = document.getElementById('cm-other-name')?.value?.trim();
         const email = document.getElementById('cm-other-email')?.value?.trim();
+        const statusDiv = document.getElementById('cm-status');
 
         if (!cmName) {
             addAiMessage("Please tell us which channel manager you use.");
             return;
         }
 
-        addAiMessage(`Thanks! We've noted your request for <strong>${cmName}</strong> integration. We'll be in touch at <strong>${email || 'your registered email'}</strong> when it's available.`);
-        document.getElementById('cm-status').innerHTML = `<p style="color: var(--success); font-size: 0.85rem;">✓ Request submitted — we'll be in touch!</p>`;
+        const btn = document.querySelector('#cm-fields .btn-primary');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner"></span>Submitting...';
+
+        try {
+            const resp = await fetch('/api/onboarding/cm-request', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    account_id: accountData?.account?.id,
+                    cm_name: cmName,
+                    email: email || accountData?.account?.email
+                })
+            });
+            const result = await resp.json();
+
+            if (result.success) {
+                statusDiv.innerHTML = `<p style="color: var(--success); font-size: 0.85rem;">✓ Request submitted for ${cmName}</p>`;
+                addAiMessage(`Thanks! We've logged your request for <strong>${cmName}</strong> integration. We'll be in touch at <strong>${email || accountData?.account?.email || 'your registered email'}</strong> when it's available.<br><br>In the meantime, you can still set up your account manually. Click <strong>Continue</strong> to proceed.`);
+                
+                btn.disabled = false;
+                btn.textContent = 'Continue Without CM';
+                btn.onclick = () => goToStep(5);
+            } else {
+                throw new Error(result.error);
+            }
+        } catch (err) {
+            btn.disabled = false;
+            btn.textContent = 'Request Integration';
+            statusDiv.innerHTML = `<p style="color: #ef4444; font-size: 0.85rem;">Error: ${err.message}</p>`;
+            addAiMessage(`Thanks! We've noted your request for <strong>${cmName}</strong> integration. We'll be in touch at <strong>${email || 'your registered email'}</strong> when it's available.`);
+            
+            // Still allow continuing even if the save failed
+            statusDiv.innerHTML += `<p style="margin-top: 0.5rem;"><button class="btn-primary" onclick="goToStep(5)" style="font-size: 0.85rem;">Continue Without CM</button></p>`;
+        }
     }
 
     // Scroll to fields after CM selection
