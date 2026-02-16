@@ -1164,13 +1164,81 @@ Upsells (mention only if asked): GAS Turbines (social media management), custom 
         if (cm === 'beds24' || cm === 'booking-automation') {
             const cmLabel = cm === 'beds24' ? 'Beds24' : 'Booking Automation';
             fieldsDiv.innerHTML = `
-                <div class="field" style="margin-top: 1rem;">
-                    <label>Invite Code</label>
-                    <input type="text" id="cm-invite-code" placeholder="Paste your invite code here">
-                    <p style="font-size: 0.75rem; color: var(--ink-muted); margin-top: 0.3rem;">This connects us to your Beds24 account securely</p>
+                <!-- Phase 1: Invite Code -->
+                <div id="beds24-phase-1" class="cm-phase">
+                    <div class="field" style="margin-top: 1rem;">
+                        <label>Invite Code</label>
+                        <input type="text" id="cm-invite-code" placeholder="Paste your invite code here">
+                        <p style="font-size: 0.75rem; color: var(--ink-muted); margin-top: 0.3rem;">This connects us to your Beds24 account securely</p>
+                    </div>
+                    <button class="btn-primary" onclick="connectBeds24Phase1()">Connect & Import</button>
+                    <div id="cm-status" style="margin-top: 1rem;"></div>
                 </div>
-                <button class="btn-primary" onclick="connectBeds24()">Connect & Import</button>
-                <div id="cm-status" style="margin-top: 1rem;"></div>
+
+                <!-- Phase 2: V1 API Key (for images) -->
+                <div id="beds24-phase-2" class="cm-phase" style="display: none;">
+                    <div style="padding: 1rem; background: var(--success-soft); border-radius: 10px; margin-bottom: 1.5rem;">
+                        <p style="color: var(--success); font-weight: 600; font-size: 0.9rem;" id="beds24-sync-result">✓ Connected and synced!</p>
+                    </div>
+
+                    <h3 style="font-size: 1.1rem; margin-bottom: 0.5rem; color: var(--ink);">Image Sync <span style="font-size: 0.75rem; color: var(--ink-muted); font-weight: 400;">(Optional)</span></h3>
+                    <p style="font-size: 0.85rem; color: var(--ink-light); margin-bottom: 1rem;">An additional API key is needed to sync property images from Beds24.</p>
+
+                    <div style="background: var(--accent-soft); border-radius: 10px; padding: 1rem; margin-bottom: 1rem;">
+                        <p style="font-size: 0.85rem; color: var(--ink-light); margin-bottom: 0.5rem; font-weight: 600;">How to find your API key:</p>
+                        <ol style="font-size: 0.8rem; color: var(--ink-muted); padding-left: 1.2rem; line-height: 1.8;">
+                            <li>In Beds24, go to <strong>Settings → Accounts → Account Access</strong></li>
+                            <li>Set IP Access to <strong>"Allow any IP"</strong></li>
+                            <li>Set Allow writes to <strong>"Yes"</strong></li>
+                            <li>Set Property access to <strong>"Owned or linked to this account"</strong></li>
+                            <li>Copy the <strong>API Key</strong></li>
+                        </ol>
+                    </div>
+
+                    <div class="field">
+                        <label>V1 API Key</label>
+                        <input type="text" id="beds24-v1-key" placeholder="Paste your V1 API key here">
+                    </div>
+                    <div style="display: flex; gap: 0.75rem;">
+                        <button class="btn-primary" onclick="saveBeds24V1Key()">Save & Continue</button>
+                        <button class="btn-secondary" onclick="skipToWebhookPhase()">Skip for now</button>
+                    </div>
+                    <div id="v1-status" style="margin-top: 1rem;"></div>
+                </div>
+
+                <!-- Phase 3: Webhook Setup -->
+                <div id="beds24-phase-3" class="cm-phase" style="display: none;">
+                    <h3 style="font-size: 1.1rem; margin-bottom: 0.5rem; color: var(--ink);">Webhook Setup</h3>
+                    <p style="font-size: 0.85rem; color: var(--ink-light); margin-bottom: 1rem;">Enable real-time booking updates from Beds24. When a booking is made or changed, GAS is notified instantly.</p>
+
+                    <div style="background: var(--accent-soft); border-radius: 10px; padding: 1rem; margin-bottom: 1rem;">
+                        <p style="font-size: 0.85rem; color: var(--ink-light); margin-bottom: 0.5rem; font-weight: 600;">For each property in Beds24:</p>
+                        <ol style="font-size: 0.8rem; color: var(--ink-muted); padding-left: 1.2rem; line-height: 1.8;">
+                            <li>Go to <strong>Settings → Properties → Access</strong></li>
+                            <li>Select the property from the dropdown</li>
+                            <li>Find the <strong>Booking Webhook</strong> section</li>
+                            <li>Set Webhook Version to <strong>2</strong> (with personal data)</li>
+                            <li>Paste the webhook URL below into the URL field</li>
+                            <li>Click <strong>Save</strong></li>
+                        </ol>
+                    </div>
+
+                    <div class="field">
+                        <label>Your Webhook URL <span style="font-size: 0.75rem; color: var(--ink-muted); font-weight: 400;">(copy this)</span></label>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <input type="text" id="beds24-webhook-url" readonly style="flex: 1; background: var(--surface-subtle); font-family: monospace; font-size: 0.8rem;">
+                            <button class="btn-secondary" onclick="copyBeds24Webhook()" style="white-space: nowrap; padding: 0.5rem 1rem;">Copy</button>
+                        </div>
+                        <p style="font-size: 0.75rem; color: var(--ink-muted); margin-top: 0.3rem;">The <code>[PROPERTYID]</code> part will be automatically filled by Beds24</p>
+                    </div>
+
+                    <div id="beds24-property-webhooks" style="margin-top: 1rem;"></div>
+
+                    <div style="display: flex; gap: 0.75rem; margin-top: 1rem;">
+                        <button class="btn-primary" onclick="completeBeds24Setup()">Done — Review Properties</button>
+                        <button class="btn-secondary" onclick="completeBeds24Setup()">I'll do this later</button>
+                    </div>
+                </div>
             `;
             addAiMessage("To connect <strong>" + cmLabel + "</strong>:<br><br>1. Log into Beds24<br>2. Go to <strong>Settings → Marketplace → API</strong><br>3. In the Scope section, click <strong>\"select all\"</strong> for Read, Write, and Delete<br>4. Click <strong>\"Generate invite code\"</strong><br>5. Copy and paste it below");
 
@@ -1243,9 +1311,12 @@ Upsells (mention only if asked): GAS Turbines (social media management), custom 
     }
 
     // =============================================
-    // BEDS24 CONNECTION
+    // BEDS24 CONNECTION — PHASED FLOW
     // =============================================
-    async function connectBeds24() {
+    let beds24ConnectionId = null;
+    let beds24Properties = [];
+
+    async function connectBeds24Phase1() {
         const inviteCode = document.getElementById('cm-invite-code')?.value?.trim();
         const statusDiv = document.getElementById('cm-status');
 
@@ -1254,7 +1325,7 @@ Upsells (mention only if asked): GAS Turbines (social media management), custom 
             return;
         }
 
-        const btn = document.querySelector('#cm-fields .btn-primary');
+        const btn = document.querySelector('#beds24-phase-1 .btn-primary');
         btn.disabled = true;
         btn.innerHTML = '<span class="spinner"></span>Connecting...';
         statusDiv.innerHTML = '<p style="color: var(--ink-muted); font-size: 0.85rem;">Creating connection...</p>';
@@ -1265,15 +1336,14 @@ Upsells (mention only if asked): GAS Turbines (social media management), custom 
             // Check for existing connection
             const existingResp = await fetch(`/api/gas-sync/connections?account_id=${gasAccountId}`);
             const existingData = await existingResp.json();
-            let connectionId = null;
 
             if (existingData.success && existingData.connections?.length > 0) {
                 const beds24Conn = existingData.connections.find(c => c.adapter_code === 'beds24');
-                if (beds24Conn) connectionId = beds24Conn.id;
+                if (beds24Conn) beds24ConnectionId = beds24Conn.id;
             }
 
             // Create connection if none exists
-            if (!connectionId) {
+            if (!beds24ConnectionId) {
                 const createResp = await fetch('/api/gas-sync/connections', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1284,15 +1354,21 @@ Upsells (mention only if asked): GAS Turbines (social media management), custom 
                     })
                 });
                 const createResult = await createResp.json();
-                if (!createResult.success) throw new Error(createResult.error || 'Failed to create connection');
-                connectionId = createResult.connection?.id || createResult.connectionId;
+                if (!createResult.success) {
+                    if (createResult.existing_id) {
+                        beds24ConnectionId = createResult.existing_id;
+                    } else {
+                        throw new Error(createResult.error || 'Failed to create connection');
+                    }
+                } else {
+                    beds24ConnectionId = createResult.connection_id || createResult.connection?.id;
+                }
             }
 
             statusDiv.innerHTML = '<p style="color: var(--success); font-size: 0.85rem;">✓ Connection created</p>';
-            statusDiv.innerHTML += '<p style="color: var(--ink-muted); font-size: 0.85rem;">Syncing properties from Beds24...</p>';
 
             // Trigger sync
-            await fetch(`/api/gas-sync/connections/${connectionId}/sync`, {
+            await fetch(`/api/gas-sync/connections/${beds24ConnectionId}/sync`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' }
             });
@@ -1307,14 +1383,24 @@ Upsells (mention only if asked): GAS Turbines (social media management), custom 
                 statusDiv.innerHTML += `<p style="color: var(--ink-muted); font-size: 0.85rem;">Syncing properties... (${attempts + 1}/${maxAttempts})</p>`;
                 await new Promise(r => setTimeout(r, 2000));
 
-                const propsResp = await fetch(`/api/gas-sync/connections/${connectionId}/properties`);
+                const propsResp = await fetch(`/api/gas-sync/connections/${beds24ConnectionId}/properties`);
                 const propsData = await propsResp.json();
 
                 if (propsData.success && propsData.properties?.length > 0) {
                     foundProperties = true;
-                    statusDiv.innerHTML = `<p style="color: var(--success); font-size: 0.85rem;">✓ Found ${propsData.properties.length} property/properties!</p>`;
-                    addAiMessage(`Imported <strong>${propsData.properties.length}</strong> property/properties from Beds24. Let's review them.`);
-                    setTimeout(() => goToStep(3), 1500);
+                    beds24Properties = propsData.properties;
+                    const propCount = propsData.properties.length;
+                    const roomCount = propsData.properties.reduce((sum, p) => sum + parseInt(p.room_type_count || 0), 0);
+
+                    statusDiv.innerHTML = `<p style="color: var(--success); font-size: 0.85rem;">✓ Found ${propCount} property/properties with ${roomCount} rooms!</p>`;
+                    addAiMessage(`Imported <strong>${propCount}</strong> property/properties from Beds24! Now let's set up <strong>image sync</strong> — this needs an additional API key from Beds24.`);
+
+                    // Move to phase 2
+                    setTimeout(() => {
+                        document.getElementById('beds24-phase-1').style.display = 'none';
+                        document.getElementById('beds24-phase-2').style.display = 'block';
+                        document.getElementById('beds24-sync-result').textContent = `✓ Connected — ${propCount} properties, ${roomCount} rooms imported`;
+                    }, 1000);
                 }
                 attempts++;
             }
@@ -1331,6 +1417,92 @@ Upsells (mention only if asked): GAS Turbines (social media management), custom 
             statusDiv.innerHTML = `<p style="color: #ef4444; font-size: 0.85rem;">Error: ${err.message}</p>`;
             addAiMessage("Something went wrong. Check your invite code and try again.");
         }
+    }
+
+    async function saveBeds24V1Key() {
+        const v1Key = document.getElementById('beds24-v1-key')?.value?.trim();
+        const statusDiv = document.getElementById('v1-status');
+
+        if (!v1Key) {
+            addAiMessage("Please paste your <strong>V1 API key</strong>, or click <strong>Skip</strong> to set it up later.");
+            return;
+        }
+
+        const btn = document.querySelector('#beds24-phase-2 .btn-primary');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner"></span>Saving...';
+
+        try {
+            await fetch(`/api/gas-sync/connections/${beds24ConnectionId}/set-v1-api-key`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ v1ApiKey: v1Key })
+            });
+
+            statusDiv.innerHTML = '<p style="color: var(--success); font-size: 0.85rem;">✓ API key saved — images will sync automatically</p>';
+            addAiMessage("API key saved! Your property images will now sync from Beds24. Let's set up <strong>webhooks</strong> for real-time booking updates.");
+
+            setTimeout(() => showWebhookPhase(), 1000);
+        } catch (err) {
+            btn.disabled = false;
+            btn.textContent = 'Save & Continue';
+            statusDiv.innerHTML = `<p style="color: #ef4444; font-size: 0.85rem;">Error: ${err.message}</p>`;
+        }
+    }
+
+    function skipToWebhookPhase() {
+        addAiMessage("No problem — you can add the image sync API key later from your dashboard. Let's set up <strong>webhooks</strong> for real-time booking updates.");
+        showWebhookPhase();
+    }
+
+    function showWebhookPhase() {
+        document.getElementById('beds24-phase-2').style.display = 'none';
+        document.getElementById('beds24-phase-3').style.display = 'block';
+
+        // Set webhook URL
+        const baseUrl = window.location.origin;
+        const webhookUrl = `${baseUrl}/api/webhooks/beds24?connectionId=${beds24ConnectionId}&propertyId=[PROPERTYID]`;
+        document.getElementById('beds24-webhook-url').value = webhookUrl;
+
+        // Render per-property webhook URLs
+        if (beds24Properties.length > 0) {
+            const container = document.getElementById('beds24-property-webhooks');
+            container.innerHTML = '<h4 style="font-size: 0.9rem; color: var(--ink); margin-bottom: 0.75rem;">Property-specific URLs:</h4>';
+            container.innerHTML += beds24Properties.map(prop => {
+                const propUrl = `${baseUrl}/api/webhooks/beds24?propertyId=${prop.gas_property_id || prop.id}`;
+                return `
+                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; padding: 0.5rem; background: var(--surface-subtle); border-radius: 8px;">
+                        <span style="font-size: 0.8rem; font-weight: 500; min-width: 120px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${prop.name || prop.property_name}</span>
+                        <input type="text" value="${propUrl}" readonly style="flex: 1; font-family: monospace; font-size: 0.7rem; padding: 0.3rem 0.5rem; background: white; border: 1px solid var(--border); border-radius: 4px;">
+                        <button class="btn-secondary" onclick="copyToClipboard(this, '${propUrl}')" style="padding: 0.3rem 0.6rem; font-size: 0.75rem; white-space: nowrap;">Copy</button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        addAiMessage("Almost done! Set up <strong>webhooks</strong> so GAS gets instant booking updates from Beds24.<br><br>Copy the webhook URL below and paste it into each property's settings in Beds24. Or click <strong>\"I'll do this later\"</strong> to finish setup and do it from your dashboard.");
+    }
+
+    function copyBeds24Webhook() {
+        const url = document.getElementById('beds24-webhook-url').value;
+        copyToClipboard(document.querySelector('#beds24-phase-3 .btn-secondary'), url);
+    }
+
+    function copyToClipboard(btn, text) {
+        navigator.clipboard.writeText(text).then(() => {
+            const original = btn.textContent;
+            btn.textContent = '✓ Copied!';
+            btn.style.color = 'var(--success)';
+            setTimeout(() => {
+                btn.textContent = original;
+                btn.style.color = '';
+            }, 2000);
+        });
+    }
+
+    function completeBeds24Setup() {
+        addAiMessage("Beds24 setup complete! Let's review your imported properties.");
+        goToStep(3);
     }
 
     // =============================================
