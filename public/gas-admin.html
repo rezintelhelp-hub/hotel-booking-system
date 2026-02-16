@@ -1968,11 +1968,23 @@
 
                 <!-- Role Filter -->
                 <div class="card" style="margin-bottom: 1rem; padding: 1rem;">
-                    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.75rem;">
                         <button class="btn btn-secondary account-filter active" data-role="all" onclick="filterAccounts('all')">All</button>
                         <button class="btn btn-secondary account-filter" data-role="agency_admin" onclick="filterAccounts('agency_admin')"> Agency Admins</button>
                         <button class="btn btn-secondary account-filter" data-role="submaster_admin" onclick="filterAccounts('submaster_admin')"> Sub Masters</button>
                         <button class="btn btn-secondary account-filter" data-role="admin" onclick="filterAccounts('admin')"> Admins</button>
+                    </div>
+                    <div style="display: flex; gap: 0.75rem; align-items: center;">
+                        <div style="flex: 1; position: relative;">
+                            <input type="text" id="account-search-input" class="form-input" placeholder="Search accounts by name, email, or code..." style="padding: 0.5rem; width: 100%;" oninput="filterAccountsList()">
+                        </div>
+                        <select id="account-sort-select" class="form-input" style="padding: 0.5rem; width: auto; min-width: 160px;" onchange="filterAccountsList()">
+                            <option value="id-desc">ID (newest)</option>
+                            <option value="id-asc">ID (oldest)</option>
+                            <option value="name-asc">Name A-Z</option>
+                            <option value="name-desc">Name Z-A</option>
+                        </select>
+                        <span id="account-count-label" style="font-size: 0.8rem; color: #64748b; white-space: nowrap;"></span>
                     </div>
                 </div>
 
@@ -18490,17 +18502,45 @@ Local honey and preserves"></textarea>
             });
             
             // Filter and render
+            filterAccountsList();
+        }
+
+        function filterAccountsList() {
+            const search = (document.getElementById('account-search-input')?.value || '').toLowerCase().trim();
+            const sort = document.getElementById('account-sort-select')?.value || 'id-desc';
+
+            // Start with role filter
             let filtered = allAccounts;
-            if (role !== 'all') {
-                filtered = allAccounts.filter(a => a.role === role);
+            if (currentAccountFilter !== 'all') {
+                filtered = filtered.filter(a => a.role === currentAccountFilter);
             }
-            // Don't show master_admin in filtered views unless specifically viewing "all"
-            if (role === 'all') {
-                // Show everyone
-            } else {
-                filtered = allAccounts.filter(a => a.role === role);
+
+            // Apply search
+            if (search) {
+                filtered = filtered.filter(a => 
+                    (a.name || '').toLowerCase().includes(search) ||
+                    (a.email || '').toLowerCase().includes(search) ||
+                    (a.business_name || '').toLowerCase().includes(search) ||
+                    (a.account_code || '').toLowerCase().includes(search) ||
+                    String(a.id).includes(search)
+                );
             }
-            
+
+            // Apply sort
+            filtered.sort((a, b) => {
+                switch (sort) {
+                    case 'id-asc': return (a.id || 0) - (b.id || 0);
+                    case 'id-desc': return (b.id || 0) - (a.id || 0);
+                    case 'name-asc': return (a.name || '').localeCompare(b.name || '');
+                    case 'name-desc': return (b.name || '').localeCompare(a.name || '');
+                    default: return (b.id || 0) - (a.id || 0);
+                }
+            });
+
+            // Update count
+            const label = document.getElementById('account-count-label');
+            if (label) label.textContent = `${filtered.length} of ${allAccounts.length}`;
+
             renderAccountsTable(filtered);
         }
         
