@@ -62315,9 +62315,35 @@ app.delete('/api/admin/properties/:id/full-delete', async (req, res) => {
       await pool.query('DELETE FROM bookable_unit_amenities WHERE bookable_unit_id = ANY($1)', [roomIds]);
       await pool.query('DELETE FROM room_availability WHERE room_id = ANY($1)', [roomIds]).catch(() => {});
       
+      // Delete bookings and their dependencies for these rooms
+      const bookings = await pool.query('SELECT id FROM bookings WHERE bookable_unit_id = ANY($1)', [roomIds]);
+      const bookingIds = bookings.rows.map(b => b.id);
+      if (bookingIds.length > 0) {
+        await pool.query('DELETE FROM payment_transactions WHERE booking_id = ANY($1)', [bookingIds]).catch(() => {});
+        await pool.query('DELETE FROM webhook_logs WHERE booking_id = ANY($1)', [bookingIds]).catch(() => {});
+        await pool.query('DELETE FROM booking_cm_failures WHERE booking_id = ANY($1)', [bookingIds]).catch(() => {});
+        await pool.query('DELETE FROM vendor_service_requests WHERE booking_id = ANY($1)', [bookingIds]).catch(() => {});
+        console.log(`  Deleting ${bookingIds.length} bookings for rooms`);
+      }
+      
+      // Delete bookings linked to these rooms
+      await pool.query('DELETE FROM bookings WHERE bookable_unit_id = ANY($1)', [roomIds]).catch(() => {});
+      
       // Delete rooms
       await pool.query('DELETE FROM bookable_units WHERE property_id = $1', [id]);
       console.log(`  Deleted ${roomIds.length} rooms`);
+    }
+    
+    // Delete any bookings linked directly to the property (not via room)
+    const propBookings = await pool.query('SELECT id FROM bookings WHERE property_id = $1', [id]);
+    const propBookingIds = propBookings.rows.map(b => b.id);
+    if (propBookingIds.length > 0) {
+      await pool.query('DELETE FROM payment_transactions WHERE booking_id = ANY($1)', [propBookingIds]).catch(() => {});
+      await pool.query('DELETE FROM webhook_logs WHERE booking_id = ANY($1)', [propBookingIds]).catch(() => {});
+      await pool.query('DELETE FROM booking_cm_failures WHERE booking_id = ANY($1)', [propBookingIds]).catch(() => {});
+      await pool.query('DELETE FROM vendor_service_requests WHERE booking_id = ANY($1)', [propBookingIds]).catch(() => {});
+      await pool.query('DELETE FROM bookings WHERE property_id = $1', [id]);
+      console.log(`  Deleted ${propBookingIds.length} property-level bookings`);
     }
     
     // Delete property-related data
