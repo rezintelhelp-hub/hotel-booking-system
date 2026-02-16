@@ -178,6 +178,14 @@
             align-items: center;
         }
 
+        .hero-compass-icon {
+            width: 120px;
+            height: 120px;
+            opacity: 0;
+            animation: fadeUp 1s ease 0.1s forwards;
+            margin-bottom: 1rem;
+        }
+
         .hero-logo-text {
             font-family: 'DM Serif Display', serif;
             font-size: 4rem;
@@ -811,6 +819,11 @@
                 font-size: 2.5rem;
             }
 
+            .hero-compass-icon {
+                width: 80px;
+                height: 80px;
+            }
+
             .cta-buttons {
                 flex-direction: column;
                 align-items: center;
@@ -844,6 +857,7 @@
         <div class="video-overlay"></div>
 
         <div class="hero-content">
+            <img src="/gas-compass-white.png" alt="GAS" class="hero-compass-icon">
             <h1 class="hero-logo-text">Global Accommodation System</h1>
             <div class="hero-ticker">
                 <div class="ticker-track" id="tickerTrack">
