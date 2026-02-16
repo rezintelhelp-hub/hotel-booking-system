@@ -673,12 +673,12 @@
                 <p class="step-subtitle">Just a few details and we'll have your account ready in seconds.</p>
 
                 <div class="field">
-                    <label>Your full name</label>
-                    <input type="text" id="reg-name" placeholder="e.g. Steve Driver" autocomplete="name">
+                    <label>Business / Property Name <span style="color: #ef4444;">*</span></label>
+                    <input type="text" id="reg-business" placeholder="e.g. Sunergy Apartments" required>
                 </div>
                 <div class="field">
-                    <label>Business name</label>
-                    <input type="text" id="reg-business" placeholder="e.g. Sunergy Apartments">
+                    <label>Your full name</label>
+                    <input type="text" id="reg-name" placeholder="e.g. Steve Driver" autocomplete="name">
                 </div>
                 <div class="field">
                     <label>Email address</label>
@@ -808,7 +808,7 @@
                     </div>
                 </div>
 
-                <button class="btn-primary" onclick="window.location.href='/admin'">Go to Dashboard</button>
+                <button class="btn-primary" onclick="goToDashboard()">Go to Dashboard</button>
 
                 <div style="margin-top: 1rem;">
                     <button class="btn-secondary" onclick="showUpsells()">See what else GAS can do</button>
@@ -956,7 +956,7 @@ Upsells (mention only if asked): GAS Turbines (social media management), custom 
     const stepMessages = {
         1: [
             "Welcome! I'm your GAS Setup Assistant. GAS was created to build an <strong>independent travel sector</strong> — connecting property owners directly with travel agents, free from the big platform fees.",
-            "Let's get you set up and part of this growing network. Just your <strong>name</strong>, <strong>business name</strong>, <strong>email</strong> and a <strong>password</strong> to start."
+            "Let's get you set up and part of this growing network. Just your <strong>business or property name</strong>, <strong>email</strong> and a <strong>password</strong> to start."
         ],
         2: [
             "Great, your account is created! Now let's connect your <strong>Channel Manager</strong>.",
@@ -1016,6 +1016,12 @@ Upsells (mention only if asked): GAS Turbines (social media management), custom 
         currentStep = step;
         showStepMessages(step);
 
+        // Scroll to top of step
+        const targetEl = document.getElementById(stepId);
+        if (targetEl) {
+            targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
         // Render CM grid when entering step 2
         if (step === 2) renderCMGrid();
     }
@@ -1034,8 +1040,8 @@ Upsells (mention only if asked): GAS Turbines (social media management), custom 
         const password = document.getElementById('reg-password').value;
 
         // Basic validation
-        if (!name || !business || !email || !password) {
-            addAiMessage("Please fill in all the fields — I need your <strong>name</strong>, <strong>business name</strong>, <strong>email</strong>, and a <strong>password</strong> to create your account.");
+        if (!business || !email || !password) {
+            addAiMessage("Please fill in at least the <strong>business/property name</strong>, <strong>email</strong>, and a <strong>password</strong> to create your account.");
             return;
         }
 
@@ -1052,7 +1058,7 @@ Upsells (mention only if asked): GAS Turbines (social media management), custom 
             const response = await fetch('/api/onboarding/create-account', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, business_name: business, email, password })
+                body: JSON.stringify({ name: business, business_name: business, contact_name: name, email, password })
             });
 
             const result = await response.json();
@@ -1201,13 +1207,38 @@ Upsells (mention only if asked): GAS Turbines (social media management), custom 
                     </div>
                     <div style="display: flex; gap: 0.75rem;">
                         <button class="btn-primary" onclick="saveBeds24V1Key()">Save & Continue</button>
-                        <button class="btn-secondary" onclick="skipToWebhookPhase()">Skip for now</button>
+                        <button class="btn-secondary" onclick="skipToPropKeyPhase()">Skip for now</button>
                     </div>
                     <div id="v1-status" style="margin-top: 1rem;"></div>
                 </div>
 
-                <!-- Phase 3: Webhook Setup -->
+                <!-- Phase 3: Property Keys -->
                 <div id="beds24-phase-3" class="cm-phase" style="display: none;">
+                    <h3 style="font-size: 1.1rem; margin-bottom: 0.5rem; color: var(--ink);">Property Keys</h3>
+                    <p style="font-size: 0.85rem; color: var(--ink-light); margin-bottom: 1rem;">Each property needs its own <strong>PropKey</strong> for image sync and booking updates to work per-property.</p>
+
+                    <div style="background: var(--accent-soft); border-radius: 10px; padding: 1rem; margin-bottom: 1rem;">
+                        <p style="font-size: 0.85rem; color: var(--ink-light); margin-bottom: 0.5rem; font-weight: 600;">For each property below:</p>
+                        <ol style="font-size: 0.8rem; color: var(--ink-muted); padding-left: 1.2rem; line-height: 1.8;">
+                            <li>In Beds24, go to <strong>Settings → Properties</strong></li>
+                            <li>Select the property from the dropdown</li>
+                            <li>Go to <strong>Access → Api Access (V1 Only)</strong></li>
+                            <li>Copy the <strong>PropKey</strong></li>
+                            <li>Paste it into the field below</li>
+                        </ol>
+                    </div>
+
+                    <div id="beds24-propkey-list" style="margin-bottom: 1rem;"></div>
+
+                    <div style="display: flex; gap: 0.75rem;">
+                        <button class="btn-primary" onclick="saveBeds24PropKeys()">Save & Continue</button>
+                        <button class="btn-secondary" onclick="skipToWebhookPhase()">Skip for now</button>
+                    </div>
+                    <div id="propkey-status" style="margin-top: 1rem;"></div>
+                </div>
+
+                <!-- Phase 4: Webhook Setup -->
+                <div id="beds24-phase-4" class="cm-phase" style="display: none;">
                     <h3 style="font-size: 1.1rem; margin-bottom: 0.5rem; color: var(--ink);">Webhook Setup</h3>
                     <p style="font-size: 0.85rem; color: var(--ink-light); margin-bottom: 1rem;">Enable real-time booking updates from Beds24. When a booking is made or changed, GAS is notified instantly.</p>
 
@@ -1400,6 +1431,7 @@ Upsells (mention only if asked): GAS Turbines (social media management), custom 
                         document.getElementById('beds24-phase-1').style.display = 'none';
                         document.getElementById('beds24-phase-2').style.display = 'block';
                         document.getElementById('beds24-sync-result').textContent = `✓ Connected — ${propCount} properties, ${roomCount} rooms imported`;
+                        scrollToElement('beds24-phase-2');
                     }, 1000);
                 }
                 attempts++;
@@ -1440,9 +1472,9 @@ Upsells (mention only if asked): GAS Turbines (social media management), custom 
             });
 
             statusDiv.innerHTML = '<p style="color: var(--success); font-size: 0.85rem;">✓ API key saved — images will sync automatically</p>';
-            addAiMessage("API key saved! Your property images will now sync from Beds24. Let's set up <strong>webhooks</strong> for real-time booking updates.");
+            addAiMessage("API key saved! Now let's add the <strong>PropKey</strong> for each property — this links each property to its images and booking data.");
 
-            setTimeout(() => showWebhookPhase(), 1000);
+            setTimeout(() => showPropKeyPhase(), 1000);
         } catch (err) {
             btn.disabled = false;
             btn.textContent = 'Save & Continue';
@@ -1450,14 +1482,84 @@ Upsells (mention only if asked): GAS Turbines (social media management), custom 
         }
     }
 
+    function skipToPropKeyPhase() {
+        addAiMessage("No problem — you can add the image sync API key later. Let's set up <strong>PropKeys</strong> for each property.");
+        showPropKeyPhase();
+    }
+
+    function showPropKeyPhase() {
+        document.getElementById('beds24-phase-2').style.display = 'none';
+        document.getElementById('beds24-phase-3').style.display = 'block';
+        scrollToElement('beds24-phase-3');
+
+        // Render prop key inputs for each property
+        const container = document.getElementById('beds24-propkey-list');
+        if (beds24Properties.length > 0) {
+            container.innerHTML = beds24Properties.map(prop => `
+                <div style="padding: 0.75rem; background: var(--surface-subtle); border-radius: 8px; margin-bottom: 0.5rem;">
+                    <p style="font-size: 0.85rem; font-weight: 600; margin-bottom: 0.4rem;">${prop.name || prop.property_name}</p>
+                    <p style="font-size: 0.75rem; color: var(--ink-muted); margin-bottom: 0.4rem;">Find in Beds24: Settings → Properties → select "${prop.name || prop.property_name}" → Access → Api Access (V1 Only)</p>
+                    <input type="text" class="beds24-propkey-input" data-property-id="${prop.id}" placeholder="Paste PropKey for this property" style="width: 100%; padding: 0.5rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.85rem;">
+                </div>
+            `).join('');
+        } else {
+            container.innerHTML = '<p style="color: var(--ink-muted); font-size: 0.85rem;">No properties to configure.</p>';
+        }
+
+        addAiMessage("Enter the <strong>PropKey</strong> for each property. You can find it in Beds24 under <strong>Settings → Properties → [select property] → Access → Api Access (V1 Only)</strong>.");
+    }
+
+    async function saveBeds24PropKeys() {
+        const inputs = document.querySelectorAll('.beds24-propkey-input');
+        const statusDiv = document.getElementById('propkey-status');
+        let savedCount = 0;
+        let errorCount = 0;
+
+        const btn = document.querySelector('#beds24-phase-3 .btn-primary');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner"></span>Saving...';
+
+        for (const input of inputs) {
+            const propKey = input.value.trim();
+            const propertyId = input.dataset.propertyId;
+
+            if (propKey && propertyId) {
+                try {
+                    await fetch(`/api/gas-sync/properties/${propertyId}/set-prop-key`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ propKey })
+                    });
+                    input.style.borderColor = 'var(--success)';
+                    savedCount++;
+                } catch (err) {
+                    input.style.borderColor = '#ef4444';
+                    errorCount++;
+                }
+            }
+        }
+
+        if (savedCount > 0) {
+            statusDiv.innerHTML = `<p style="color: var(--success); font-size: 0.85rem;">✓ ${savedCount} prop key(s) saved</p>`;
+            addAiMessage(`Saved <strong>${savedCount}</strong> prop key(s). Now let's set up <strong>webhooks</strong> for real-time booking updates.`);
+            setTimeout(() => showWebhookPhase(), 1000);
+        } else {
+            btn.disabled = false;
+            btn.textContent = 'Save & Continue';
+            addAiMessage("No prop keys were entered. You can enter them now or click <strong>Skip</strong> to set them up later.");
+        }
+    }
+
     function skipToWebhookPhase() {
-        addAiMessage("No problem — you can add the image sync API key later from your dashboard. Let's set up <strong>webhooks</strong> for real-time booking updates.");
+        addAiMessage("No problem — you can add prop keys later from your dashboard. Let's set up <strong>webhooks</strong> for real-time booking updates.");
         showWebhookPhase();
     }
 
     function showWebhookPhase() {
         document.getElementById('beds24-phase-2').style.display = 'none';
-        document.getElementById('beds24-phase-3').style.display = 'block';
+        document.getElementById('beds24-phase-3').style.display = 'none';
+        document.getElementById('beds24-phase-4').style.display = 'block';
+        scrollToElement('beds24-phase-4');
 
         // Set webhook URL
         const baseUrl = window.location.origin;
@@ -1485,7 +1587,7 @@ Upsells (mention only if asked): GAS Turbines (social media management), custom 
 
     function copyBeds24Webhook() {
         const url = document.getElementById('beds24-webhook-url').value;
-        copyToClipboard(document.querySelector('#beds24-phase-3 .btn-secondary'), url);
+        copyToClipboard(document.querySelector('#beds24-phase-4 .btn-secondary'), url);
     }
 
     function copyToClipboard(btn, text) {
@@ -1692,9 +1794,18 @@ Upsells (mention only if asked): GAS Turbines (social media management), custom 
         setTimeout(() => {
             const fields = document.getElementById('cm-fields');
             if (fields && fields.innerHTML.trim()) {
-                fields.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                fields.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }
         }, 100);
+    }
+
+    function scrollToElement(id) {
+        setTimeout(() => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }, 150);
     }
 
     // =============================================
@@ -1712,6 +1823,20 @@ Upsells (mention only if asked): GAS Turbines (social media management), custom 
 
     function showUpsells() {
         addAiMessage("Here's how you can grow with GAS:<br><br>🚀 <strong>GAS Turbines</strong> — Post your listings to social media automatically<br>🌐 <strong>Custom Website</strong> — Get a professional booking website<br>📝 <strong>SEO Blogs</strong> — Attract organic traffic with AI-written content<br>🏖️ <strong>Attractions Module</strong> — Showcase local activities<br>⭐ <strong>Reviews</strong> — Display reviews from multiple platforms");
+    }
+
+    function goToDashboard() {
+        // Set the session token so the dashboard loads as the correct account
+        if (accountData?.token) {
+            document.cookie = `gas_session=${accountData.token}; path=/; max-age=${7 * 24 * 60 * 60}`;
+        }
+        // Redirect to admin with the account ID
+        const accountId = accountData?.account?.id;
+        if (accountId) {
+            window.location.href = `/gas-admin.html?account_id=${accountId}`;
+        } else {
+            window.location.href = '/gas-admin.html';
+        }
     }
 
     // =============================================
