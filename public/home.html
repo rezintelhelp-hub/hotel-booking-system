@@ -188,13 +188,14 @@
 
         .hero-logo-text {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            font-size: 2.6rem;
+            font-size: 2.1rem;
             font-weight: 300;
             color: #ffffff;
-            letter-spacing: 0.12em;
+            letter-spacing: 0.15em;
             text-transform: uppercase;
             line-height: 1.2;
             text-align: center;
+            white-space: nowrap;
             opacity: 0;
             animation: fadeUp 1s ease 0.3s forwards;
             margin-bottom: 0.5rem;
@@ -265,7 +266,7 @@
 
         .hero-scroll {
             position: absolute;
-            bottom: 2.5rem;
+            bottom: 3.5rem;
             left: 50%;
             transform: translateX(-50%);
             display: flex;
@@ -274,6 +275,7 @@
             gap: 0.5rem;
             opacity: 0;
             animation: fadeUp 1s ease 2s forwards;
+            text-align: center;
         }
 
         .hero-scroll span {
@@ -374,7 +376,8 @@
             font-size: clamp(1.4rem, 2.5vw, 1.9rem);
             color: var(--text-primary);
             line-height: 1.5;
-            max-width: 700px;
+            max-width: 900px;
+            white-space: nowrap;
         }
 
         .what-is-text em {
@@ -817,13 +820,18 @@
             }
 
             .hero-logo-text {
-                font-size: 1.6rem;
+                font-size: 1.2rem;
                 letter-spacing: 0.08em;
+                white-space: nowrap;
             }
 
             .hero-compass-icon {
                 width: 80px;
                 height: 80px;
+            }
+
+            .what-is-text {
+                white-space: normal;
             }
 
             .cta-buttons {
