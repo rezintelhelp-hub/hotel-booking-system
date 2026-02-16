@@ -10139,6 +10139,81 @@ app.post('/api/onboarding/create-account', async (req, res) => {
   }
 });
 
+// CM Integration Requests - track unsupported CM demand
+app.post('/api/onboarding/cm-request', async (req, res) => {
+  try {
+    const { account_id, cm_name, email, notes } = req.body;
+
+    if (!cm_name) {
+      return res.json({ success: false, error: 'Channel manager name is required' });
+    }
+
+    // Ensure table exists
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS cm_integration_requests (
+        id SERIAL PRIMARY KEY,
+        account_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL,
+        cm_name VARCHAR(255) NOT NULL,
+        email VARCHAR(255),
+        notes TEXT,
+        status VARCHAR(50) DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
+    const result = await pool.query(`
+      INSERT INTO cm_integration_requests (account_id, cm_name, email, notes)
+      VALUES ($1, $2, $3, $4)
+      RETURNING *
+    `, [account_id || null, cm_name.trim(), email || null, notes || null]);
+
+    res.json({ success: true, request: result.rows[0] });
+  } catch (error) {
+    console.error('CM request error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get all CM integration requests (admin)
+app.get('/api/admin/cm-requests', async (req, res) => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS cm_integration_requests (
+        id SERIAL PRIMARY KEY,
+        account_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL,
+        cm_name VARCHAR(255) NOT NULL,
+        email VARCHAR(255),
+        notes TEXT,
+        status VARCHAR(50) DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
+    const result = await pool.query(`
+      SELECT r.*, a.name as account_name, a.business_name
+      FROM cm_integration_requests r
+      LEFT JOIN accounts a ON r.account_id = a.id
+      ORDER BY r.created_at DESC
+    `);
+
+    // Also get summary counts by CM name
+    const summary = await pool.query(`
+      SELECT cm_name, COUNT(*) as request_count, 
+             MIN(created_at) as first_requested,
+             MAX(created_at) as last_requested
+      FROM cm_integration_requests
+      GROUP BY cm_name
+      ORDER BY request_count DESC
+    `);
+
+    res.json({ success: true, requests: result.rows, summary: summary.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Step 2: Save channel manager credentials
 app.post('/api/onboarding/save-credentials', async (req, res) => {
   try {
@@ -11569,6 +11644,12 @@ app.delete('/api/accounts/:id', async (req, res) => {
     const { id } = req.params;
     
     console.log(`Deleting account ${id} and all related data...`);
+    
+    // Check for custom site requests
+    const customSites = await pool.query('SELECT COUNT(*) FROM custom_site_requests WHERE account_id = $1', [id]).catch(() => ({ rows: [{ count: 0 }] }));
+    if (parseInt(customSites.rows[0].count) > 0) {
+      return res.json({ success: false, error: `Cannot delete account — it has ${customSites.rows[0].count} custom site request(s). Please delete the custom site(s) first.` });
+    }
     
     // Get all properties for this account
     const props = await pool.query('SELECT id FROM properties WHERE account_id = $1', [id]);
@@ -19655,6 +19736,385 @@ app.get('/api/partner/v1/reservations', authenticatePartner, async (req, res) =>
     res.json({ success: true, reservations: result.rows });
   } catch (error) {
     res.json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
+// PARTNER LIFECYCLE MANAGEMENT
+// Update, Cancel & Delete Reservations, Rooms, Properties, Tenants
+// =====================================================
+
+// PUT /api/partner/v1/reservations/:bookingId - Update a reservation
+app.put('/api/partner/v1/reservations/:bookingId', authenticatePartner, async (req, res) => {
+  if (!hasPartnerPermission(req, 'sync:write')) {
+    return res.status(403).json({ success: false, error: 'Permission denied' });
+  }
+
+  try {
+    const { bookingId } = req.params;
+
+    // Find booking and verify it belongs to this partner's tenant
+    const booking = await pool.query(`
+      SELECT b.*, bu.id as room_id, p.id as property_id
+      FROM bookings b
+      JOIN bookable_units bu ON b.room_id = bu.id OR b.bookable_unit_id = bu.id
+      JOIN properties p ON b.property_id = p.id
+      JOIN accounts a ON p.account_id = a.id
+      WHERE b.id = $1 AND (a.partner_id = $2 OR a.parent_id = $2)
+    `, [bookingId, req.partner.id]);
+
+    if (booking.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Reservation not found or not owned by your tenants' });
+    }
+
+    const existing = booking.rows[0];
+    const updates = req.body;
+    const setClauses = [];
+    const values = [];
+    let paramIndex = 1;
+
+    // Allowed fields to update
+    const allowedFields = {
+      status: 'status',
+      payment_status: 'payment_status',
+      check_in: 'check_in',
+      check_out: 'check_out',
+      guest_first_name: 'guest_first_name',
+      guest_last_name: 'guest_last_name',
+      guest_email: 'guest_email',
+      guest_phone: 'guest_phone',
+      num_adults: 'num_adults',
+      num_children: 'num_children',
+      total_price: 'total_price',
+      notes: 'notes',
+      special_requests: 'special_requests'
+    };
+
+    for (const [key, dbField] of Object.entries(allowedFields)) {
+      if (updates[key] !== undefined) {
+        setClauses.push(`${dbField} = $${paramIndex++}`);
+        values.push(updates[key]);
+      }
+    }
+
+    if (setClauses.length === 0) {
+      return res.status(400).json({ success: false, error: 'No valid fields to update' });
+    }
+
+    setClauses.push(`updated_at = NOW()`);
+    values.push(bookingId);
+
+    await pool.query(
+      `UPDATE bookings SET ${setClauses.join(', ')} WHERE id = $${paramIndex}`,
+      values
+    );
+
+    // Handle date changes - free old dates, block new dates
+    const newCheckIn = updates.check_in || existing.check_in || existing.arrival_date;
+    const newCheckOut = updates.check_out || existing.check_out || existing.departure_date;
+    const oldCheckIn = existing.check_in || existing.arrival_date;
+    const oldCheckOut = existing.check_out || existing.departure_date;
+    const roomId = existing.room_id || existing.bookable_unit_id;
+
+    if (roomId && (updates.check_in || updates.check_out)) {
+      // Free old dates
+      await pool.query(`
+        UPDATE room_availability SET is_available = true, is_blocked = false, source = 'booking_modified', updated_at = NOW()
+        WHERE room_id = $1 AND date >= $2 AND date < $3 AND source IN ('booking', 'beds24_sync', 'beds24_webhook', 'partner_api')
+      `, [roomId, oldCheckIn, oldCheckOut]);
+
+      // Block new dates
+      const startDate = new Date(newCheckIn);
+      const endDate = new Date(newCheckOut);
+      for (let d = new Date(startDate); d < endDate; d.setDate(d.getDate() + 1)) {
+        const dateStr = d.toISOString().split('T')[0];
+        await pool.query(`
+          INSERT INTO room_availability (room_id, date, is_available, is_blocked, source, updated_at)
+          VALUES ($1, $2, false, true, 'partner_api', NOW())
+          ON CONFLICT (room_id, date) DO UPDATE SET is_available = false, is_blocked = true, source = 'partner_api', updated_at = NOW()
+        `, [roomId, dateStr]);
+      }
+    }
+
+    // Handle cancellation - free dates
+    if (updates.status === 'cancelled' && roomId) {
+      await pool.query(`
+        UPDATE room_availability SET is_available = true, is_blocked = false, source = 'booking_cancelled', updated_at = NOW()
+        WHERE room_id = $1 AND date >= $2 AND date < $3 AND source IN ('booking', 'beds24_sync', 'beds24_webhook', 'partner_api')
+      `, [roomId, oldCheckIn, oldCheckOut]);
+    }
+
+    res.json({ success: true, message: `Reservation ${bookingId} updated`, updated_fields: Object.keys(updates) });
+  } catch (error) {
+    console.error('Partner update reservation error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// DELETE /api/partner/v1/reservations/:bookingId - Delete a reservation
+app.delete('/api/partner/v1/reservations/:bookingId', authenticatePartner, async (req, res) => {
+  if (!hasPartnerPermission(req, 'sync:write')) {
+    return res.status(403).json({ success: false, error: 'Permission denied' });
+  }
+
+  try {
+    const { bookingId } = req.params;
+
+    // Find booking and verify ownership
+    const booking = await pool.query(`
+      SELECT b.*, bu.id as unit_id
+      FROM bookings b
+      LEFT JOIN bookable_units bu ON b.room_id = bu.id OR b.bookable_unit_id = bu.id
+      JOIN properties p ON b.property_id = p.id
+      JOIN accounts a ON p.account_id = a.id
+      WHERE b.id = $1 AND (a.partner_id = $2 OR a.parent_id = $2)
+    `, [bookingId, req.partner.id]);
+
+    if (booking.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Reservation not found or not owned by your tenants' });
+    }
+
+    const b = booking.rows[0];
+    const roomId = b.unit_id || b.room_id || b.bookable_unit_id;
+    const checkIn = b.check_in || b.arrival_date;
+    const checkOut = b.check_out || b.departure_date;
+
+    // Free dates in availability
+    if (roomId && checkIn && checkOut) {
+      await pool.query(`
+        UPDATE room_availability SET is_available = true, is_blocked = false, source = 'booking_deleted', updated_at = NOW()
+        WHERE room_id = $1 AND date >= $2 AND date < $3
+      `, [roomId, checkIn, checkOut]);
+    }
+
+    // Clean up dependent records
+    await pool.query('DELETE FROM payment_transactions WHERE booking_id = $1', [bookingId]).catch(() => {});
+    await pool.query('DELETE FROM webhook_logs WHERE booking_id = $1', [bookingId]).catch(() => {});
+    await pool.query('DELETE FROM booking_cm_failures WHERE booking_id = $1', [bookingId]).catch(() => {});
+    await pool.query('DELETE FROM vendor_service_requests WHERE booking_id = $1', [bookingId]).catch(() => {});
+
+    // Delete the booking
+    await pool.query('DELETE FROM bookings WHERE id = $1', [bookingId]);
+
+    res.json({ success: true, message: `Reservation ${bookingId} deleted and dates freed` });
+  } catch (error) {
+    console.error('Partner delete reservation error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// DELETE /api/elevate/:apiKey/room/:roomId - Delete a room
+app.delete('/api/elevate/:apiKey/room/:roomId', async (req, res) => {
+  console.log('=== ELEVATE: DELETE ROOM ===');
+
+  try {
+    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: 'Invalid API key' });
+    }
+
+    const { roomId } = req.params;
+
+    // Find room and verify it belongs to partner's tenant
+    const room = await pool.query(`
+      SELECT bu.id, bu.name, p.id as property_id
+      FROM bookable_units bu
+      JOIN properties p ON bu.property_id = p.id
+      JOIN accounts a ON p.account_id = a.id
+      WHERE bu.id = $1 AND (a.parent_id = $2 OR a.id = $2)
+    `, [roomId, ELEVATE_MASTER_ACCOUNT_ID]);
+
+    if (room.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Room not found or not owned by your tenants' });
+    }
+
+    // Check for active bookings
+    const activeBookings = await pool.query(`
+      SELECT COUNT(*) FROM bookings
+      WHERE (room_id = $1 OR bookable_unit_id = $1)
+      AND status NOT IN ('cancelled', 'completed')
+      AND check_out >= CURRENT_DATE
+    `, [roomId]);
+
+    if (parseInt(activeBookings.rows[0].count) > 0) {
+      return res.status(400).json({
+        success: false,
+        error: `Cannot delete room - ${activeBookings.rows[0].count} active booking(s) exist. Cancel or delete them first.`
+      });
+    }
+
+    // Clean up old/completed bookings for this room
+    const oldBookings = await pool.query('SELECT id FROM bookings WHERE room_id = $1 OR bookable_unit_id = $1', [roomId]);
+    const oldBookingIds = oldBookings.rows.map(b => b.id);
+    if (oldBookingIds.length > 0) {
+      await pool.query('DELETE FROM payment_transactions WHERE booking_id = ANY($1)', [oldBookingIds]).catch(() => {});
+      await pool.query('DELETE FROM webhook_logs WHERE booking_id = ANY($1)', [oldBookingIds]).catch(() => {});
+      await pool.query('DELETE FROM booking_cm_failures WHERE booking_id = ANY($1)', [oldBookingIds]).catch(() => {});
+      await pool.query('DELETE FROM vendor_service_requests WHERE booking_id = ANY($1)', [oldBookingIds]).catch(() => {});
+      await pool.query('DELETE FROM bookings WHERE room_id = $1 OR bookable_unit_id = $1', [roomId]);
+    }
+
+    // Delete room data
+    await pool.query('DELETE FROM room_images WHERE room_id = $1', [roomId]).catch(() => {});
+    await pool.query('DELETE FROM bookable_unit_amenities WHERE bookable_unit_id = $1', [roomId]).catch(() => {});
+    await pool.query('DELETE FROM room_availability WHERE room_id = $1', [roomId]).catch(() => {});
+    await pool.query('DELETE FROM property_bedrooms WHERE room_id = $1', [roomId]).catch(() => {});
+    await pool.query('DELETE FROM property_bathrooms WHERE room_id = $1', [roomId]).catch(() => {});
+
+    // Unlink from room types
+    await pool.query('DELETE FROM room_type_units WHERE unit_id = $1', [roomId]).catch(() => {});
+
+    // Unlink from gas_sync
+    await pool.query('UPDATE gas_sync_room_types SET gas_room_id = NULL WHERE gas_room_id = $1', [roomId]).catch(() => {});
+
+    // Delete the room
+    await pool.query('DELETE FROM bookable_units WHERE id = $1', [roomId]);
+
+    res.json({ success: true, message: `Room ${room.rows[0].name} (ID: ${roomId}) deleted`, property_id: room.rows[0].property_id });
+  } catch (error) {
+    console.error('Elevate delete room error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// DELETE /api/partner/tenants/:tenantId - Delete a tenant and all their data
+app.delete('/api/partner/tenants/:tenantId', async (req, res) => {
+  console.log('=== PARTNER API: DELETE TENANT ===');
+
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+
+    const { tenantId } = req.params;
+
+    // Find the tenant mapping
+    const mapping = await pool.query(`
+      SELECT ptm.gas_account_id, a.name
+      FROM partner_tenant_mapping ptm
+      JOIN accounts a ON a.id = ptm.gas_account_id
+      WHERE ptm.partner_account_id = $1 AND ptm.external_tenant_id = $2
+    `, [auth.partnerId, tenantId]);
+
+    if (mapping.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Tenant not found' });
+    }
+
+    const accountId = mapping.rows[0].gas_account_id;
+    const accountName = mapping.rows[0].name;
+
+    // Check for active bookings across all properties
+    const activeBookings = await pool.query(`
+      SELECT COUNT(*) FROM bookings b
+      JOIN properties p ON b.property_id = p.id
+      WHERE p.account_id = $1
+      AND b.status NOT IN ('cancelled', 'completed')
+      AND b.check_out >= CURRENT_DATE
+    `, [accountId]);
+
+    if (parseInt(activeBookings.rows[0].count) > 0) {
+      return res.status(400).json({
+        success: false,
+        error: `Cannot delete tenant "${accountName}" - ${activeBookings.rows[0].count} active booking(s) exist across their properties. Cancel or delete them first.`
+      });
+    }
+
+    // Delete websites (VPS cleanup)
+    const websites = await pool.query('SELECT id, subdomain FROM websites WHERE account_id = $1', [accountId]);
+    for (const site of websites.rows) {
+      // Delete from VPS
+      const deployedSite = await pool.query('SELECT blog_id FROM deployed_sites WHERE website_id = $1', [site.id]);
+      if (deployedSite.rows.length > 0 && deployedSite.rows[0].blog_id) {
+        try {
+          const axios = require('axios');
+          await axios.post(`${process.env.VPS_API_URL || 'http://31.97.119.90:3001'}/api/delete-site`, {
+            blog_id: deployedSite.rows[0].blog_id
+          }, { timeout: 30000 });
+        } catch (vpsErr) {
+          console.error(`VPS delete failed for site ${site.subdomain}:`, vpsErr.message);
+        }
+      }
+      await pool.query('DELETE FROM deployed_sites WHERE website_id = $1', [site.id]).catch(() => {});
+    }
+    await pool.query('DELETE FROM websites WHERE account_id = $1', [accountId]).catch(() => {});
+
+    // Delete all properties and their data
+    const properties = await pool.query('SELECT id FROM properties WHERE account_id = $1', [accountId]);
+    for (const prop of properties.rows) {
+      const rooms = await pool.query('SELECT id FROM bookable_units WHERE property_id = $1', [prop.id]);
+      const roomIds = rooms.rows.map(r => r.id);
+
+      if (roomIds.length > 0) {
+        // Clean up bookings
+        const bookings = await pool.query('SELECT id FROM bookings WHERE property_id = $1 OR room_id = ANY($2) OR bookable_unit_id = ANY($2)', [prop.id, roomIds]);
+        const bookingIds = bookings.rows.map(b => b.id);
+        if (bookingIds.length > 0) {
+          await pool.query('DELETE FROM payment_transactions WHERE booking_id = ANY($1)', [bookingIds]).catch(() => {});
+          await pool.query('DELETE FROM webhook_logs WHERE booking_id = ANY($1)', [bookingIds]).catch(() => {});
+          await pool.query('DELETE FROM booking_cm_failures WHERE booking_id = ANY($1)', [bookingIds]).catch(() => {});
+          await pool.query('DELETE FROM vendor_service_requests WHERE booking_id = ANY($1)', [bookingIds]).catch(() => {});
+          await pool.query('DELETE FROM bookings WHERE id = ANY($1)', [bookingIds]);
+        }
+
+        // Clean up rooms
+        await pool.query('DELETE FROM room_images WHERE room_id = ANY($1)', [roomIds]).catch(() => {});
+        await pool.query('DELETE FROM bookable_unit_amenities WHERE bookable_unit_id = ANY($1)', [roomIds]).catch(() => {});
+        await pool.query('DELETE FROM room_availability WHERE room_id = ANY($1)', [roomIds]).catch(() => {});
+        await pool.query('DELETE FROM property_bedrooms WHERE room_id = ANY($1)', [roomIds]).catch(() => {});
+        await pool.query('DELETE FROM property_bathrooms WHERE room_id = ANY($1)', [roomIds]).catch(() => {});
+        await pool.query('DELETE FROM room_type_units WHERE unit_id = ANY($1)', [roomIds]).catch(() => {});
+        await pool.query('DELETE FROM bookable_units WHERE property_id = $1', [prop.id]);
+      }
+
+      // Clean up property data
+      await pool.query('DELETE FROM property_images WHERE property_id = $1', [prop.id]).catch(() => {});
+      await pool.query('DELETE FROM property_amenity_selections WHERE property_id = $1', [prop.id]).catch(() => {});
+      await pool.query('DELETE FROM property_policies WHERE property_id = $1', [prop.id]).catch(() => {});
+      await pool.query('UPDATE gas_sync_properties SET gas_property_id = NULL WHERE gas_property_id = $1', [prop.id]).catch(() => {});
+      await pool.query('DELETE FROM properties WHERE id = $1', [prop.id]);
+    }
+
+    // Clean up room types
+    await pool.query('DELETE FROM room_types WHERE account_id = $1', [accountId]).catch(() => {});
+
+    // Clean up GasSync data
+    const connections = await pool.query('SELECT id FROM gas_sync_connections WHERE account_id = $1', [accountId]);
+    for (const conn of connections.rows) {
+      await pool.query('DELETE FROM gas_sync_logs WHERE connection_id = $1', [conn.id]).catch(() => {});
+      await pool.query('DELETE FROM gas_sync_images WHERE connection_id = $1', [conn.id]).catch(() => {});
+      await pool.query('DELETE FROM gas_sync_reservations WHERE connection_id = $1', [conn.id]).catch(() => {});
+      await pool.query('DELETE FROM gas_sync_room_types WHERE connection_id = $1', [conn.id]).catch(() => {});
+      await pool.query('DELETE FROM gas_sync_properties WHERE connection_id = $1', [conn.id]).catch(() => {});
+    }
+    await pool.query('DELETE FROM gas_sync_connections WHERE account_id = $1', [accountId]).catch(() => {});
+
+    // Clean up invoices
+    await pool.query('DELETE FROM invoices WHERE account_id = $1', [accountId]).catch(() => {});
+    await pool.query('DELETE FROM invoice_custom_lines WHERE account_id = $1', [accountId]).catch(() => {});
+
+    // Clean up billing
+    await pool.query('DELETE FROM beds24_usage_snapshots WHERE account_id = $1', [accountId]).catch(() => {});
+    await pool.query('DELETE FROM bought_ledger WHERE account_id = $1', [accountId]).catch(() => {});
+
+    // Delete tenant mapping
+    await pool.query('DELETE FROM partner_tenant_mapping WHERE gas_account_id = $1', [accountId]);
+
+    // Delete the account
+    await pool.query('DELETE FROM accounts WHERE id = $1', [accountId]);
+
+    res.json({
+      success: true,
+      message: `Tenant "${accountName}" (${tenantId}) and all associated data deleted`,
+      deleted: {
+        account_id: accountId,
+        properties: properties.rows.length,
+        websites: websites.rows.length
+      }
+    });
+  } catch (error) {
+    console.error('Partner delete tenant error:', error);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
@@ -45469,14 +45929,60 @@ app.delete('/api/elevate/:apiKey/property/:propertyId', async (req, res) => {
     if (propCheck.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Property not found' });
     }
+
+    const propId = propCheck.rows[0].id;
+
+    // Check for active bookings
+    const activeBookings = await pool.query(`
+      SELECT COUNT(*) FROM bookings
+      WHERE property_id = $1
+      AND status NOT IN ('cancelled', 'completed')
+      AND check_out >= CURRENT_DATE
+    `, [propId]);
+
+    if (parseInt(activeBookings.rows[0].count) > 0) {
+      return res.status(400).json({
+        success: false,
+        error: `Cannot delete property - ${activeBookings.rows[0].count} active booking(s) exist. Cancel or delete them first.`
+      });
+    }
+
+    // Get rooms for cleanup
+    const rooms = await pool.query('SELECT id FROM bookable_units WHERE property_id = $1', [propId]);
+    const roomIds = rooms.rows.map(r => r.id);
+
+    if (roomIds.length > 0) {
+      // Clean up old bookings
+      const oldBookings = await pool.query('SELECT id FROM bookings WHERE property_id = $1 OR room_id = ANY($2) OR bookable_unit_id = ANY($2)', [propId, roomIds]);
+      const bookingIds = oldBookings.rows.map(b => b.id);
+      if (bookingIds.length > 0) {
+        await pool.query('DELETE FROM payment_transactions WHERE booking_id = ANY($1)', [bookingIds]).catch(() => {});
+        await pool.query('DELETE FROM webhook_logs WHERE booking_id = ANY($1)', [bookingIds]).catch(() => {});
+        await pool.query('DELETE FROM booking_cm_failures WHERE booking_id = ANY($1)', [bookingIds]).catch(() => {});
+        await pool.query('DELETE FROM vendor_service_requests WHERE booking_id = ANY($1)', [bookingIds]).catch(() => {});
+        await pool.query('DELETE FROM bookings WHERE id = ANY($1)', [bookingIds]);
+      }
+
+      // Clean up rooms
+      await pool.query('DELETE FROM room_images WHERE room_id = ANY($1)', [roomIds]).catch(() => {});
+      await pool.query('DELETE FROM bookable_unit_amenities WHERE bookable_unit_id = ANY($1)', [roomIds]).catch(() => {});
+      await pool.query('DELETE FROM room_availability WHERE room_id = ANY($1)', [roomIds]).catch(() => {});
+      await pool.query('DELETE FROM property_bedrooms WHERE room_id = ANY($1)', [roomIds]).catch(() => {});
+      await pool.query('DELETE FROM property_bathrooms WHERE room_id = ANY($1)', [roomIds]).catch(() => {});
+      await pool.query('DELETE FROM room_type_units WHERE unit_id = ANY($1)', [roomIds]).catch(() => {});
+      await pool.query('DELETE FROM bookable_units WHERE property_id = $1', [propId]);
+    }
+
+    // Clean up property data
+    await pool.query('DELETE FROM property_images WHERE property_id = $1', [propId]).catch(() => {});
+    await pool.query('DELETE FROM property_amenity_selections WHERE property_id = $1', [propId]).catch(() => {});
+    await pool.query('DELETE FROM property_policies WHERE property_id = $1', [propId]).catch(() => {});
+    await pool.query('UPDATE gas_sync_properties SET gas_property_id = NULL WHERE gas_property_id = $1', [propId]).catch(() => {});
+
+    // Delete the property
+    await pool.query('DELETE FROM properties WHERE id = $1', [propId]);
     
-    // Soft delete - set status to inactive
-    await pool.query(
-      "UPDATE properties SET status = 'inactive', updated_at = NOW() WHERE id = $1",
-      [propCheck.rows[0].id]
-    );
-    
-    res.json({ success: true, property_id: propCheck.rows[0].id, status: 'inactive' });
+    res.json({ success: true, message: `Property ${propId} and all associated data permanently deleted`, property_id: propId, rooms_deleted: roomIds.length });
     
   } catch (error) {
     console.error('Elevate delete property error:', error);
