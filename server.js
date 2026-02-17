@@ -16618,6 +16618,33 @@ app.get('/api/setup-database', async (req, res) => {
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS stripe_customer_id VARCHAR(100)`);
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS refund_amount DECIMAL(10,2)`);
     
+    // Enigma Card Vault columns
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS enigma_card_token VARCHAR(100)`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS enigma_card_last_four VARCHAR(4)`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS enigma_card_first_six VARCHAR(6)`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS enigma_card_type VARCHAR(20)`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS enigma_card_name VARCHAR(200)`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS enigma_card_exp_month INTEGER`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS enigma_card_exp_year INTEGER`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS enigma_reference_id VARCHAR(100)`);
+    
+    // Enigma usage tracking table
+    await pool.query(`CREATE TABLE IF NOT EXISTS enigma_usage_log (
+      id SERIAL PRIMARY KEY,
+      account_id INTEGER REFERENCES accounts(id),
+      property_id INTEGER REFERENCES properties(id),
+      booking_id INTEGER REFERENCES bookings(id),
+      action VARCHAR(30) NOT NULL,
+      api_calls INTEGER DEFAULT 1,
+      enigma_cost DECIMAL(10,4) DEFAULT 0,
+      fee_charged DECIMAL(10,4) DEFAULT 0,
+      details JSONB DEFAULT '{}',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_enigma_usage_account ON enigma_usage_log(account_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_enigma_usage_booking ON enigma_usage_log(booking_id)`);
+    console.log('  ✓ Enigma Card Vault schema ready');
+    
     // Create payment_transactions table if not exists
     await pool.query(`CREATE TABLE IF NOT EXISTS payment_transactions (
       id SERIAL PRIMARY KEY,
@@ -69937,6 +69964,513 @@ app.get('*', (req, res) => {
 app.all('/api/*', (req, res) => {
   res.status(404).json({ error: 'API endpoint not found', method: req.method, path: req.path });
 });
+
+// ============================================
+// ENIGMA CARD VAULT INTEGRATION
+// ============================================
+
+// Helper: Get Enigma OAuth2 access token
+async function getEnigmaAccessToken() {
+  const clientId = process.env.ENIGMA_CLIENT_ID;
+  const clientSecret = process.env.ENIGMA_CLIENT_SECRET;
+  const authUrl = process.env.ENIGMA_AUTH_URL || 'https://api-auth.enigmavault.io';
+  
+  if (!clientId || !clientSecret) {
+    throw new Error('Enigma Vault credentials not configured');
+  }
+  
+  const response = await fetch(`${authUrl}/oauth2/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: `grant_type=client_credentials&client_id=${clientId}&client_secret=${clientSecret}&scope=io.enigmavault/cardvault`
+  });
+  
+  if (!response.ok) {
+    const err = await response.text();
+    throw new Error(`Enigma auth failed: ${response.status} - ${err}`);
+  }
+  
+  const data = await response.json();
+  return data.access_token;
+}
+
+// Helper: Log Enigma usage for billing
+async function logEnigmaUsage(accountId, propertyId, bookingId, action, apiCalls = 1, details = {}) {
+  try {
+    // Cost per API call based on Lite tier overage ($0.08/request)
+    const enigmaCost = apiCalls * 0.08;
+    // Fee charged to owner - configurable, default $0.50 per card capture, $1.00 per charge
+    const feeRates = { form_request: 0, card_capture: 0.50, card_search: 0, card_charge: 1.00, cvv_capture: 0.25 };
+    const feeCharged = feeRates[action] || 0;
+    
+    await pool.query(`
+      INSERT INTO enigma_usage_log (account_id, property_id, booking_id, action, api_calls, enigma_cost, fee_charged, details)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `, [accountId, propertyId, bookingId, action, apiCalls, enigmaCost, feeCharged, JSON.stringify(details)]);
+  } catch (err) {
+    console.error('Failed to log Enigma usage:', err.message);
+  }
+}
+
+// GET /api/public/enigma/form-url - Generate hosted card capture form URL
+// Called by the booking plugin when guest reaches payment step
+app.get('/api/public/enigma/form-url', async (req, res) => {
+  try {
+    const { property_id, booking_ref, callback_url, parent_url, embed, language, css } = req.query;
+    
+    if (!property_id) {
+      return res.status(400).json({ success: false, error: 'property_id required' });
+    }
+    
+    // Check property exists and get account info
+    const propResult = await pool.query(
+      'SELECT p.id, p.account_id, p.name FROM properties p WHERE p.id = $1',
+      [property_id]
+    );
+    if (propResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Property not found' });
+    }
+    const property = propResult.rows[0];
+    
+    // Check card_guarantee is enabled for this account
+    const settingsResult = await pool.query(
+      'SELECT settings FROM account_settings WHERE account_id = $1',
+      [property.account_id]
+    );
+    const settings = settingsResult.rows[0]?.settings || {};
+    const paymentMethods = typeof settings === 'string' ? JSON.parse(settings) : settings;
+    const pmConfig = paymentMethods.payment_methods || {};
+    
+    if (!pmConfig.card_guarantee) {
+      return res.status(400).json({ success: false, error: 'Card Guarantee not enabled for this property' });
+    }
+    
+    // Get Enigma access token
+    const accessToken = await getEnigmaAccessToken();
+    const enigmaApiUrl = process.env.ENIGMA_API_URL || 'https://api.enigmavault.io';
+    
+    // Build form URL request
+    const isEmbed = embed === 'true';
+    const referenceId = booking_ref || `gas-${property_id}-${Date.now()}`;
+    
+    const params = new URLSearchParams({
+      showTimer: 'false',
+      showCard: 'true',
+      walletSave: 'true',
+      embedFormForControl: isEmbed ? 'true' : 'false',
+      ttl: '900',
+      preserveFormat: 'true',
+      language: language || 'en',
+      submitButtonText: 'Secure Card'
+    });
+    
+    // Add card types
+    params.append('cardTypes', 'visa,mastercard,amex');
+    
+    if (isEmbed && parent_url) {
+      params.append('parentUrl', parent_url);
+    } else if (!isEmbed) {
+      params.append('callbackUrl', callback_url || `${req.protocol}://${req.get('host')}/api/public/enigma/card-stored?ref=${referenceId}`);
+    }
+    
+    if (css) {
+      params.append('css', css);
+    }
+    
+    const formResponse = await fetch(`${enigmaApiUrl}/cardvault/store/forms?${params.toString()}`, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+        'referenceId': referenceId,
+        'x-api-version': '1.12'
+      }
+    });
+    
+    if (!formResponse.ok) {
+      const err = await formResponse.text();
+      console.error('Enigma form request failed:', err);
+      return res.status(500).json({ success: false, error: 'Failed to generate card form' });
+    }
+    
+    const formData = await formResponse.json();
+    
+    // Log usage
+    await logEnigmaUsage(property.account_id, property.id, null, 'form_request', 1, { referenceId });
+    
+    res.json({
+      success: true,
+      form_url: formData.url,
+      reference_id: referenceId,
+      expires_in: 900
+    });
+    
+  } catch (error) {
+    console.error('Enigma form-url error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/public/enigma/card-stored - Save card token to booking after capture
+// Called by the plugin after the guest's card is successfully stored
+app.post('/api/public/enigma/card-stored', async (req, res) => {
+  try {
+    const { booking_id, reference_id, property_id } = req.body;
+    
+    if (!reference_id || !property_id) {
+      return res.status(400).json({ success: false, error: 'reference_id and property_id required' });
+    }
+    
+    // Get property info
+    const propResult = await pool.query(
+      'SELECT id, account_id FROM properties WHERE id = $1',
+      [property_id]
+    );
+    if (propResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Property not found' });
+    }
+    const property = propResult.rows[0];
+    
+    // Get card details from Enigma using the reference ID
+    const accessToken = await getEnigmaAccessToken();
+    const enigmaApiUrl = process.env.ENIGMA_API_URL || 'https://api.enigmavault.io';
+    
+    const cardResponse = await fetch(`${enigmaApiUrl}/cardvault/cards?stealthRead=false`, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+        'referenceId': reference_id,
+        'x-api-version': '1.12'
+      }
+    });
+    
+    if (!cardResponse.ok) {
+      const err = await cardResponse.text();
+      console.error('Enigma card search failed:', err);
+      return res.status(500).json({ success: false, error: 'Failed to retrieve card from vault' });
+    }
+    
+    const cards = await cardResponse.json();
+    
+    if (!cards || cards.length === 0) {
+      return res.status(404).json({ success: false, error: 'No card found for this reference' });
+    }
+    
+    const card = cards[0];
+    
+    // Update booking with card info
+    if (booking_id) {
+      await pool.query(`
+        UPDATE bookings SET 
+          enigma_card_token = $1,
+          enigma_card_last_four = $2,
+          enigma_card_first_six = $3,
+          enigma_card_type = $4,
+          enigma_card_name = $5,
+          enigma_card_exp_month = $6,
+          enigma_card_exp_year = $7,
+          enigma_reference_id = $8,
+          payment_method = COALESCE(payment_method, 'card_guarantee')
+        WHERE id = $9
+      `, [
+        card.token,
+        card.lastFour,
+        card.firstSix,
+        card.cardType,
+        card.fullName,
+        card.expMonth,
+        card.expYear,
+        reference_id,
+        booking_id
+      ]);
+    }
+    
+    // Log usage
+    await logEnigmaUsage(property.account_id, property.id, booking_id, 'card_capture', 2, {
+      reference_id,
+      card_type: card.cardType,
+      last_four: card.lastFour
+    });
+    
+    console.log(`✅ [Enigma] Card stored for booking ${booking_id || 'pending'} - ${card.cardType} ****${card.lastFour}`);
+    
+    res.json({
+      success: true,
+      card: {
+        last_four: card.lastFour,
+        card_type: card.cardType,
+        cardholder: card.fullName,
+        exp_month: card.expMonth,
+        exp_year: card.expYear
+      },
+      reference_id
+    });
+    
+  } catch (error) {
+    console.error('Enigma card-stored error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/bookings/:id/card-info - Get card-on-file info for admin view
+app.get('/api/bookings/:id/card-info', requireAuth, async (req, res) => {
+  try {
+    const bookingId = req.params.id;
+    
+    const result = await pool.query(`
+      SELECT enigma_card_token, enigma_card_last_four, enigma_card_first_six,
+             enigma_card_type, enigma_card_name, enigma_card_exp_month, 
+             enigma_card_exp_year, enigma_reference_id
+      FROM bookings WHERE id = $1
+    `, [bookingId]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Booking not found' });
+    }
+    
+    const booking = result.rows[0];
+    
+    if (!booking.enigma_card_token) {
+      return res.json({ success: true, has_card: false });
+    }
+    
+    res.json({
+      success: true,
+      has_card: true,
+      card: {
+        last_four: booking.enigma_card_last_four,
+        first_six: booking.enigma_card_first_six,
+        card_type: booking.enigma_card_type,
+        cardholder: booking.enigma_card_name,
+        exp_month: booking.enigma_card_exp_month,
+        exp_year: booking.enigma_card_exp_year
+      }
+    });
+    
+  } catch (error) {
+    console.error('Card info error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/bookings/:id/charge-card - Charge stored card via Enigma proxy
+// Used by property owners for no-shows / cancellations
+app.post('/api/bookings/:id/charge-card', requireAuth, async (req, res) => {
+  try {
+    const bookingId = req.params.id;
+    const { amount, currency, description, gateway_config } = req.body;
+    
+    if (!amount || !currency) {
+      return res.status(400).json({ success: false, error: 'amount and currency required' });
+    }
+    
+    // Get booking with card token
+    const bookingResult = await pool.query(`
+      SELECT b.id, b.enigma_card_token, b.enigma_reference_id, b.enigma_card_last_four,
+             b.enigma_card_type, b.property_id, p.account_id, p.name as property_name
+      FROM bookings b
+      JOIN properties p ON b.property_id = p.id
+      WHERE b.id = $1
+    `, [bookingId]);
+    
+    if (bookingResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Booking not found' });
+    }
+    
+    const booking = bookingResult.rows[0];
+    
+    // Verify the user owns this property
+    if (booking.account_id !== req.user.id && !req.user.is_master) {
+      return res.status(403).json({ success: false, error: 'Not authorized' });
+    }
+    
+    if (!booking.enigma_card_token) {
+      return res.status(400).json({ success: false, error: 'No card on file for this booking' });
+    }
+    
+    // If no gateway config provided, we can't charge yet
+    // The property owner needs to have a payment gateway configured
+    if (!gateway_config) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Payment gateway configuration required. Configure your gateway in property settings.' 
+      });
+    }
+    
+    // Get Enigma access token
+    const accessToken = await getEnigmaAccessToken();
+    const enigmaApiUrl = process.env.ENIGMA_API_URL || 'https://api.enigmavault.io';
+    
+    // Use Enigma Proxy to charge via the owner's gateway
+    // The proxy replaces ${ccn}, ${cvv}, ${fullName}, ${mm}, ${yyyy} with real card data
+    const proxyPayload = {
+      token: booking.enigma_card_token,
+      referenceId: booking.enigma_reference_id,
+      request: {
+        url: gateway_config.url,
+        method: gateway_config.method || 'POST',
+        headers: gateway_config.headers || { 'Content-Type': 'application/json' },
+        body: gateway_config.body
+      }
+    };
+    
+    const proxyResponse = await fetch(`${enigmaApiUrl}/cardvault/proxy`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+        'x-api-version': '1.12'
+      },
+      body: JSON.stringify(proxyPayload)
+    });
+    
+    const proxyResult = await proxyResponse.json();
+    
+    // Log usage
+    await logEnigmaUsage(booking.account_id, booking.property_id, bookingId, 'card_charge', 3, {
+      amount,
+      currency,
+      card_type: booking.enigma_card_type,
+      last_four: booking.enigma_card_last_four,
+      proxy_success: proxyResponse.ok
+    });
+    
+    // Log as payment transaction
+    try {
+      await pool.query(`
+        INSERT INTO payment_transactions (booking_id, type, amount, currency, status, provider, details, created_at)
+        VALUES ($1, 'charge', $2, $3, $4, 'enigma_proxy', $5, CURRENT_TIMESTAMP)
+      `, [
+        bookingId,
+        amount,
+        currency,
+        proxyResponse.ok ? 'completed' : 'failed',
+        JSON.stringify({ gateway_response: proxyResult, description })
+      ]);
+    } catch (txErr) {
+      console.error('Failed to log payment transaction:', txErr.message);
+    }
+    
+    if (!proxyResponse.ok) {
+      console.error(`❌ [Enigma] Charge failed for booking ${bookingId}:`, proxyResult);
+      return res.status(400).json({ success: false, error: 'Charge failed', details: proxyResult });
+    }
+    
+    // Update booking payment status
+    await pool.query(`
+      UPDATE bookings SET payment_status = 'charged', updated_at = CURRENT_TIMESTAMP WHERE id = $1
+    `, [bookingId]);
+    
+    console.log(`✅ [Enigma] Charged ${currency} ${amount} for booking ${bookingId} - ${booking.enigma_card_type} ****${booking.enigma_card_last_four}`);
+    
+    res.json({
+      success: true,
+      message: `Successfully charged ${currency} ${amount}`,
+      booking_id: bookingId,
+      gateway_response: proxyResult
+    });
+    
+  } catch (error) {
+    console.error('Enigma charge-card error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/enigma/usage - Get usage stats for billing (admin/master only)
+app.get('/api/enigma/usage', requireAuth, async (req, res) => {
+  try {
+    const { account_id, from_date, to_date } = req.query;
+    const targetAccountId = req.user.is_master ? (account_id || null) : req.user.id;
+    
+    let query, params;
+    
+    if (targetAccountId) {
+      query = `
+        SELECT action, COUNT(*) as count, SUM(api_calls) as total_api_calls,
+               SUM(enigma_cost) as total_enigma_cost, SUM(fee_charged) as total_fee_charged
+        FROM enigma_usage_log 
+        WHERE account_id = $1
+        ${from_date ? 'AND created_at >= $2' : ''}
+        ${to_date ? `AND created_at <= $${from_date ? 3 : 2}` : ''}
+        GROUP BY action
+      `;
+      params = [targetAccountId];
+      if (from_date) params.push(from_date);
+      if (to_date) params.push(to_date);
+    } else {
+      // Master: get all accounts summary
+      query = `
+        SELECT e.account_id, a.business_name, a.email,
+               COUNT(*) as total_transactions, SUM(e.api_calls) as total_api_calls,
+               SUM(e.enigma_cost) as total_enigma_cost, SUM(e.fee_charged) as total_fees_charged
+        FROM enigma_usage_log e
+        JOIN accounts a ON e.account_id = a.id
+        ${from_date ? 'WHERE e.created_at >= $1' : ''}
+        ${to_date ? `${from_date ? 'AND' : 'WHERE'} e.created_at <= $${from_date ? 2 : 1}` : ''}
+        GROUP BY e.account_id, a.business_name, a.email
+        ORDER BY total_transactions DESC
+      `;
+      params = [];
+      if (from_date) params.push(from_date);
+      if (to_date) params.push(to_date);
+    }
+    
+    const result = await pool.query(query, params);
+    
+    res.json({
+      success: true,
+      usage: result.rows
+    });
+    
+  } catch (error) {
+    console.error('Enigma usage error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/public/property/:id/card-guarantee-info - Check if card guarantee is available
+// Called by the booking plugin to show/hide the card guarantee option
+app.get('/api/public/property/:id/card-guarantee-info', async (req, res) => {
+  try {
+    const propertyId = req.params.id;
+    
+    const result = await pool.query(`
+      SELECT p.id, p.account_id, 
+             COALESCE(
+               (SELECT settings FROM account_settings WHERE account_id = p.account_id LIMIT 1),
+               '{}'
+             )::text as account_settings
+      FROM properties p WHERE p.id = $1
+    `, [propertyId]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: true, card_guarantee_enabled: false });
+    }
+    
+    const property = result.rows[0];
+    const settings = typeof property.account_settings === 'string' 
+      ? JSON.parse(property.account_settings) 
+      : (property.account_settings || {});
+    const pmConfig = settings.payment_methods || {};
+    
+    // Check if Enigma credentials are configured at platform level
+    const enigmaConfigured = !!(process.env.ENIGMA_CLIENT_ID && process.env.ENIGMA_CLIENT_SECRET);
+    
+    res.json({
+      success: true,
+      card_guarantee_enabled: !!(pmConfig.card_guarantee && enigmaConfigured),
+      label: pmConfig.card_guarantee_label || 'Card Guarantee',
+      description: pmConfig.card_guarantee_description || 'Your card is held securely as a booking guarantee. No charge unless you cancel or no-show.'
+    });
+    
+  } catch (error) {
+    console.error('Card guarantee info error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+console.log('✅ Enigma Card Vault endpoints loaded');
 
 // Global error handler - ALWAYS return JSON, never HTML
 app.use((err, req, res, next) => {
