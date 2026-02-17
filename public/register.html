@@ -660,6 +660,7 @@
             <div class="step-dot" data-step="2"></div>
             <div class="step-dot" data-step="3"></div>
             <div class="step-dot" data-step="4"></div>
+            <div class="step-dot" data-step="5"></div>
         </div>
     </div>
 
@@ -668,7 +669,7 @@
 
             <!-- STEP 1: Account -->
             <div class="step-view active" id="step-1">
-                <p class="step-label">Step 1 of 4</p>
+                <p class="step-label">Step 1 of 5</p>
                 <h2 class="step-title">Let's get you started</h2>
                 <p class="step-subtitle">Just a few details and we'll have your account ready in seconds.</p>
 
@@ -698,7 +699,7 @@
 
             <!-- STEP 2: Connect Channel Manager -->
             <div class="step-view" id="step-2">
-                <p class="step-label">Step 2 of 4</p>
+                <p class="step-label">Step 2 of 5</p>
                 <h2 class="step-title">Connect your Channel Manager</h2>
                 <p class="step-subtitle">We'll import your properties, rooms, photos, and pricing automatically.</p>
 
@@ -721,7 +722,7 @@
 
             <!-- STEP 3: Review Properties -->
             <div class="step-view" id="step-3">
-                <p class="step-label">Step 3 of 4</p>
+                <p class="step-label">Step 3 of 5</p>
                 <h2 class="step-title">Review your properties</h2>
                 <p class="step-subtitle">Here's what we imported. Let's make sure everything looks right.</p>
 
@@ -736,7 +737,7 @@
 
             <!-- STEP 4: Pricing -->
             <div class="step-view" id="step-4">
-                <p class="step-label">Step 4 of 4</p>
+                <p class="step-label">Step 4 of 5</p>
                 <h2 class="step-title">Check your pricing</h2>
                 <p class="step-subtitle">We've pulled your rates from your channel manager. Confirm they're correct.</p>
 
@@ -746,7 +747,25 @@
                     </p>
                 </div>
 
-                <button class="btn-primary" onclick="goToStep('done')">Pricing Confirmed</button>
+                <button class="btn-primary" onclick="goToStep(5)">Pricing Confirmed</button>
+            </div>
+
+            <!-- STEP 5: Payment Setup -->
+            <div class="step-view" id="step-5">
+                <p class="step-label">Step 5 of 5</p>
+                <h2 class="step-title">Set up payments</h2>
+                <p class="step-subtitle">Connect Stripe to accept bookings and deposits from your guests.</p>
+
+                <div id="stripe-setup">
+                    <button class="btn-primary" onclick="connectStripe()" style="background: #635bff;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: inline; vertical-align: middle; margin-right: 6px;"><path d="M2 12h20M12 2v20"/></svg>
+                        Connect with Stripe
+                    </button>
+
+                    <div style="margin-top: 1.5rem;">
+                        <button class="btn-secondary" onclick="skipStripe()">I'll set this up later</button>
+                    </div>
+                </div>
             </div>
 
             <!-- STEP: GAS Ready! -->
@@ -781,6 +800,12 @@
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
                         </div>
                         <span>Pricing confirmed</span>
+                    </div>
+                    <div class="checklist-item done">
+                        <div class="check">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        </div>
+                        <span>Payments configured</span>
                     </div>
                 </div>
 
@@ -882,17 +907,18 @@
 
 GAS was created to facilitate the building of an independent travel sector. It connects independent property owners directly with travel agents worldwide, free from the big platform monopolies and their commissions. Property owners keep control, connect directly with agents, and build their own independent presence.
 
-The setup process has 4 steps:
+The setup process has 5 steps:
 1. Create account (name, business name, email, password)
 2. Connect channel manager (Beds24, Hostaway, or 28+ others via Calry)
 3. Review imported properties
 4. Confirm pricing
+5. Set up Stripe payments
 
 The user is currently on Step ${currentStep}. Keep answers concise, friendly, and focused on helping them complete setup. If they ask about features beyond setup, briefly mention them but redirect to completing the current step first.
 
-After all 4 steps they are "GAS Ready" — their property gets a free booking page (GAS Lites) and becomes visible to travel agents worldwide. No commissions, no lock-in.
+After all 5 steps they are "GAS Ready" — their property gets a free booking page (GAS Lites) and becomes visible to travel agents worldwide. No commissions, no lock-in.
 
-Upsells (mention only if asked): GAS Turbines (social media management), custom websites, SEO blogs, attractions module, reviews integration. Payment setup can be done later from the dashboard.`;
+Upsells (mention only if asked): GAS Turbines (social media management), custom websites, SEO blogs, attractions module, reviews integration.`;
 
         conversationHistory.push({ role: 'user', content: text });
 
@@ -944,6 +970,10 @@ Upsells (mention only if asked): GAS Turbines (social media management), custom 
         4: [
             "Let's check your pricing. We've pulled your rates from the channel manager.",
             "Make sure your <strong>base rates</strong>, <strong>weekend pricing</strong>, and any <strong>fees</strong> are correct."
+        ],
+        5: [
+            "Nearly there! Last step — connect <strong>Stripe</strong> so guests and agents can book and pay directly.",
+            "Stripe handles all payment processing securely. Takes about 2 minutes to set up."
         ],
         done: [
             "You're <strong>GAS Ready</strong>! 🎉 Welcome to the independent travel sector.",
@@ -1779,7 +1809,7 @@ Upsells (mention only if asked): GAS Turbines (social media management), custom 
                 
                 btn.disabled = false;
                 btn.textContent = 'Continue Without CM';
-                btn.onclick = () => goToStep('done');
+                btn.onclick = () => goToStep(5);
             } else {
                 throw new Error(result.error);
             }
@@ -1790,7 +1820,7 @@ Upsells (mention only if asked): GAS Turbines (social media management), custom 
             addAiMessage(`Thanks! We've noted your request for <strong>${cmName}</strong> integration. We'll be in touch at <strong>${email || 'your registered email'}</strong> when it's available.`);
             
             // Still allow continuing even if the save failed
-            statusDiv.innerHTML += `<p style="margin-top: 0.5rem;"><button class="btn-primary" onclick="goToStep('done')" style="font-size: 0.85rem;">Continue Without CM</button></p>`;
+            statusDiv.innerHTML += `<p style="margin-top: 0.5rem;"><button class="btn-primary" onclick="goToStep(5)" style="font-size: 0.85rem;">Continue Without CM</button></p>`;
         }
     }
 
@@ -1814,8 +1844,17 @@ Upsells (mention only if asked): GAS Turbines (social media management), custom 
     }
 
     // =============================================
-    // STRIPE — removed, set up from dashboard later
+    // STEP 5: STRIPE
     // =============================================
+    function connectStripe() {
+        // TODO: Wire to actual Stripe OAuth flow
+        addAiMessage("Redirecting you to Stripe to connect your account...");
+    }
+
+    function skipStripe() {
+        addAiMessage("No problem — you can set up Stripe later from your dashboard. Just remember, you'll need it to accept online bookings!");
+        goToStep('done');
+    }
 
     function showUpsells() {
         addAiMessage("Here's how you can grow with GAS:<br><br>🚀 <strong>GAS Turbines</strong> — Post your listings to social media automatically<br>🌐 <strong>Custom Website</strong> — Get a professional booking website<br>📝 <strong>SEO Blogs</strong> — Attract organic traffic with AI-written content<br>🏖️ <strong>Attractions Module</strong> — Showcase local activities<br>⭐ <strong>Reviews</strong> — Display reviews from multiple platforms");
