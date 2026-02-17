@@ -70066,11 +70066,10 @@ app.get('/api/public/enigma/form-url', async (req, res) => {
     // Add card types
     params.append('cardTypes', 'visa,mastercard,amex');
     
-    if (isEmbed && parent_url) {
-      params.append('parentUrl', parent_url);
-    } else if (!isEmbed) {
-      params.append('callbackUrl', callback_url || `${req.protocol}://${req.get('host')}/api/public/enigma/card-stored?ref=${referenceId}`);
-    }
+    // Always use server callback - Enigma redirects iframe to this URL after card capture
+    // Our callback page will then postMessage back to the parent booking page
+    const serverCallbackUrl = `${req.protocol}://${req.get('host')}/api/public/enigma/card-captured-callback`;
+    params.append('callbackUrl', serverCallbackUrl);
     
     if (css) {
       params.append('css', css);
@@ -70108,6 +70107,40 @@ app.get('/api/public/enigma/form-url', async (req, res) => {
     console.error('Enigma form-url error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
+});
+
+// GET /api/public/enigma/card-captured-callback - Enigma redirects here after card capture
+// This page sends postMessage to parent window so the booking plugin knows the card was captured
+app.get('/api/public/enigma/card-captured-callback', (req, res) => {
+  const { referenceId, status, error } = req.query;
+  console.log(`[Enigma Callback] referenceId=${referenceId}, status=${status}`);
+  
+  // Return an HTML page that posts message to parent and shows success
+  res.send(`<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head>
+<body style="margin:0; display:flex; align-items:center; justify-content:center; min-height:200px; font-family:-apple-system,BlinkMacSystemFont,sans-serif; background:#f0fdf4;">
+<div style="text-align:center; padding:20px;">
+  <div style="font-size:2.5rem; margin-bottom:8px;">&#x2705;</div>
+  <strong style="color:#059669; font-size:1.1rem;">Card secured successfully</strong>
+  <p style="color:#64748b; font-size:0.85rem; margin:8px 0 0 0;">Your card details are encrypted and stored securely.<br>No payment will be taken now.</p>
+</div>
+<script>
+  try {
+    var data = {
+      source: 'enigma-vault',
+      status: '${status || 'success'}',
+      referenceId: '${referenceId || ''}'
+    };
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage(data, '*');
+    }
+  } catch(e) {
+    console.error('PostMessage error:', e);
+  }
+</script>
+</body>
+</html>`);
 });
 
 // POST /api/public/enigma/card-stored - Save card token to booking after capture
