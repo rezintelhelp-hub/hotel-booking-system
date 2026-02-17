@@ -70119,9 +70119,10 @@ setInterval(() => {
 }, 60000);
 
 // GET /api/public/enigma/card-captured-callback - Enigma redirects here after card capture
-app.get('/api/public/enigma/card-captured-callback', (req, res) => {
-  const referenceId = req.query.referenceId || req.query.ref || '';
-  const status = req.query.status || 'success';
+app.all('/api/public/enigma/card-captured-callback', (req, res) => {
+  const params = { ...req.query, ...req.body };
+  const referenceId = params.referenceId || params.ref || '';
+  const status = params.status || 'success';
   console.log(`[Enigma Callback] referenceId=${referenceId}, status=${status}, all params:`, req.query);
   
   // Store capture status so plugin can poll for it
