@@ -70054,7 +70054,7 @@ app.get('/api/public/enigma/form-url', async (req, res) => {
     
     const params = new URLSearchParams({
       showTimer: 'false',
-      showCard: 'false',
+      showCard: 'true',
       walletSave: 'true',
       embedFormForControl: 'false',
       ttl: '900',
