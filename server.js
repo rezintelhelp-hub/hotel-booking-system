@@ -15307,7 +15307,9 @@ app.post('/api/public/create-group-booking', async (req, res) => {
             notes,
             stripe_payment_intent_id,
             deposit_amount,
-            total_amount
+            total_amount,
+            payment_method,
+            enigma_reference_id
         } = req.body;
         
         if (!rooms || !Array.isArray(rooms) || rooms.length === 0) {
@@ -15434,8 +15436,11 @@ app.post('/api/public/create-group-booking', async (req, res) => {
                         city: guest_city || '',
                         postcode: guest_postcode || '',
                         country: guest_country || '',
-                        referer: `Direct website GAS-${booking.id}`,
-                        notes: `GAS Booking ID: ${booking.id} | Group: ${groupBookingId} (Room ${i + 1}/${rooms.length})`,
+                        referer: 'GAS Direct',
+                        apiReference: `GAS-${booking.id}`,
+                        notes: payment_method === 'card_guarantee'
+                            ? `Booked via GAS | Card Guarantee on file | Group: ${groupBookingId} (Room ${i + 1}/${rooms.length}) | Ref: GAS-${booking.id}`
+                            : `Booked via GAS | Group: ${groupBookingId} (Room ${i + 1}/${rooms.length}) | Ref: GAS-${booking.id}`,
                         price: roomPrice,
                         invoiceItems: [{
                             description: 'Accommodation',
@@ -25634,7 +25639,7 @@ app.post('/api/db/rooms', async (req, res) => {
 });
 
 app.post('/api/db/book', async (req, res) => {
-  const { property_id, room_id, check_in, check_out, num_adults, num_children, guest_first_name, guest_last_name, guest_email, guest_phone, total_price, guest_address, guest_city, guest_country, guest_postcode } = req.body;
+  const { property_id, room_id, check_in, check_out, num_adults, num_children, guest_first_name, guest_last_name, guest_email, guest_phone, total_price, guest_address, guest_city, guest_country, guest_postcode, payment_method, enigma_reference_id } = req.body;
   
   const client = await pool.connect();
   try {
@@ -25702,8 +25707,11 @@ app.post('/api/db/book', async (req, res) => {
           city: guest_city || '',
           country: guest_country || '',
           postcode: guest_postcode || '',
-          referer: `Direct website GAS-${booking.id}`,
-          notes: `GAS Booking ID: ${booking.id}`,
+          referer: 'GAS Direct',
+          apiReference: `GAS-${booking.id}`,
+          notes: payment_method === 'card_guarantee' 
+            ? `Booked via GAS | Card Guarantee on file | Ref: GAS-${booking.id}` 
+            : `Booked via GAS | Ref: GAS-${booking.id}`,
           // Price and financial info
           price: parseFloat(total_price) || 0,
           deposit: parseFloat(deposit_amount) || 0,
