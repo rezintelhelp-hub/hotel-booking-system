@@ -70109,14 +70109,27 @@ app.get('/api/public/enigma/form-url', async (req, res) => {
   }
 });
 
+// In-memory store for card capture status (TTL 30 mins)
+const enigmaCaptureStatus = {};
+setInterval(() => {
+  const now = Date.now();
+  Object.keys(enigmaCaptureStatus).forEach(key => {
+    if (now - enigmaCaptureStatus[key].timestamp > 30 * 60 * 1000) delete enigmaCaptureStatus[key];
+  });
+}, 60000);
+
 // GET /api/public/enigma/card-captured-callback - Enigma redirects here after card capture
-// This page sends postMessage to parent window so the booking plugin knows the card was captured
 app.get('/api/public/enigma/card-captured-callback', (req, res) => {
   const referenceId = req.query.referenceId || req.query.ref || '';
   const status = req.query.status || 'success';
   console.log(`[Enigma Callback] referenceId=${referenceId}, status=${status}, all params:`, req.query);
   
-  // Return an HTML page that posts message to parent and shows success
+  // Store capture status so plugin can poll for it
+  if (referenceId) {
+    enigmaCaptureStatus[referenceId] = { status: 'captured', timestamp: Date.now(), params: req.query };
+    console.log(`[Enigma] Stored capture status for ref: ${referenceId}`);
+  }
+  
   res.send(`<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head>
@@ -70127,25 +70140,21 @@ app.get('/api/public/enigma/card-captured-callback', (req, res) => {
   <p style="color:#64748b; font-size:0.85rem; margin:8px 0 0 0;">Your card details are encrypted and stored securely.<br>No payment will be taken now.</p>
 </div>
 <script>
-  try {
-    var data = {
-      source: 'enigma-vault',
-      status: '${status}',
-      referenceId: '${referenceId}'
-    };
-    console.log('Enigma callback posting message:', data);
-    if (window.parent && window.parent !== window) {
-      window.parent.postMessage(data, '*');
-    }
-    if (window.opener) {
-      window.opener.postMessage(data, '*');
-    }
-  } catch(e) {
-    console.error('PostMessage error:', e);
-  }
+try {
+  var data = { source: 'enigma-vault', status: '${status}', referenceId: '${referenceId}' };
+  if (window.parent && window.parent !== window) window.parent.postMessage(data, '*');
+  if (window.opener) window.opener.postMessage(data, '*');
+} catch(e) {}
 </script>
 </body>
 </html>`);
+});
+
+// GET /api/public/enigma/capture-status/:ref - Plugin polls this to check if card was captured
+app.get('/api/public/enigma/capture-status/:ref', (req, res) => {
+  const ref = req.params.ref;
+  const status = enigmaCaptureStatus[ref];
+  res.json({ success: true, captured: !!status, referenceId: ref });
 });
 
 // POST /api/public/enigma/card-stored - Save card token to booking after capture
