@@ -40150,6 +40150,63 @@ async function updateBedroomCount(propertyId, roomId) {
   }
 }
 
+// Sync all bedroom counts from property_bedrooms to bookable_units
+app.post('/api/admin/sync-bedroom-counts', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      UPDATE bookable_units bu SET num_bedrooms = sub.count
+      FROM (
+        SELECT room_id, COUNT(*) as count 
+        FROM property_bedrooms 
+        WHERE room_id IS NOT NULL 
+        GROUP BY room_id
+      ) sub
+      WHERE bu.id = sub.room_id AND (bu.num_bedrooms IS NULL OR bu.num_bedrooms != sub.count)
+    `);
+    
+    // Also sync max_guests from bed config if needed
+    const bedrooms = await pool.query(`
+      SELECT room_id, bed_config FROM property_bedrooms WHERE room_id IS NOT NULL
+    `);
+    
+    const roomGuests = {};
+    for (const br of bedrooms.rows) {
+      const config = typeof br.bed_config === 'string' ? JSON.parse(br.bed_config) : (br.bed_config || []);
+      let guests = 0;
+      for (const bed of config) {
+        const qty = parseInt(bed.quantity || bed.count || 1);
+        const type = (bed.type || bed.bed_type || '').toLowerCase();
+        if (type === 'king' || type === 'queen' || type === 'double') guests += 2 * qty;
+        else if (type === 'single' || type === 'twin') guests += 1 * qty;
+        else if (type === 'bunk') guests += 2 * qty;
+        else if (type === 'sofa') guests += 2 * qty;
+        else if (type === 'cot' || type === 'crib') guests += 1 * qty;
+        else guests += 2 * qty;
+      }
+      roomGuests[br.room_id] = (roomGuests[br.room_id] || 0) + guests;
+    }
+    
+    let guestUpdates = 0;
+    for (const [roomId, maxGuests] of Object.entries(roomGuests)) {
+      if (maxGuests > 0) {
+        const updated = await pool.query(
+          'UPDATE bookable_units SET max_guests = $1 WHERE id = $2 AND (max_guests IS NULL OR max_guests < $1)',
+          [maxGuests, roomId]
+        );
+        guestUpdates += updated.rowCount;
+      }
+    }
+    
+    res.json({ 
+      success: true, 
+      bedrooms_synced: result.rowCount,
+      guests_updated: guestUpdates
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // =========================================================
 // ENHANCED BATHROOM CONFIGURATION API
 // =========================================================
