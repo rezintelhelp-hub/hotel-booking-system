@@ -70071,9 +70071,9 @@ app.get('/api/public/enigma/form-url', async (req, res) => {
     const serverCallbackUrl = `https://${req.get('host')}/api/public/enigma/card-captured-callback?ref=${referenceId}`;
     params.append('callbackUrl', serverCallbackUrl);
     
-    if (css) {
-      params.append('css', css);
-    }
+    // Always include GAS styling for the Enigma form
+    const gasCssUrl = `https://${req.get('host')}/api/public/enigma/form-styles.css`;
+    params.append('css', css || gasCssUrl);
     
     const formResponse = await fetch(`${enigmaApiUrl}/cardvault/store/forms?${params.toString()}`, {
       method: 'GET',
@@ -70107,6 +70107,127 @@ app.get('/api/public/enigma/form-url', async (req, res) => {
     console.error('Enigma form-url error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
+});
+
+// GET /api/public/enigma/form-styles.css - Custom CSS for Enigma hosted form
+app.get('/api/public/enigma/form-styles.css', (req, res) => {
+  res.setHeader('Content-Type', 'text/css');
+  res.setHeader('Cache-Control', 'public, max-age=3600');
+  res.send(`
+    /* GAS Card Guarantee - Enigma Form Styling */
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+      background: transparent !important;
+      margin: 0 !important;
+      padding: 12px 4px 4px 4px !important;
+    }
+    
+    /* Hide the card visual preview */
+    .card-container, .credit-card, .card-preview, 
+    [class*="card-visual"], [class*="CardVisual"],
+    .credit-card-preview, #card-preview, .card-image,
+    canvas, .card-wrapper {
+      display: none !important;
+    }
+    
+    /* Form container */
+    form, .form-container, .store-form, [class*="Form"] {
+      max-width: 100% !important;
+      padding: 0 !important;
+      margin: 0 !important;
+    }
+    
+    /* Input fields */
+    input[type="text"], input[type="tel"], input[type="number"],
+    input, .form-control, [class*="input"], [class*="Input"] {
+      width: 100% !important;
+      padding: 12px 14px !important;
+      border: 2px solid #e2e8f0 !important;
+      border-radius: 10px !important;
+      font-size: 15px !important;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+      color: #1e293b !important;
+      background: #fff !important;
+      box-sizing: border-box !important;
+      transition: border-color 0.2s !important;
+      outline: none !important;
+      margin-bottom: 10px !important;
+    }
+    
+    input:focus, .form-control:focus, [class*="input"]:focus {
+      border-color: #6d28d9 !important;
+      box-shadow: 0 0 0 3px rgba(109, 40, 217, 0.1) !important;
+    }
+    
+    input::placeholder {
+      color: #94a3b8 !important;
+    }
+    
+    /* Labels */
+    label, .form-label, [class*="label"], [class*="Label"] {
+      font-size: 13px !important;
+      font-weight: 600 !important;
+      color: #475569 !important;
+      margin-bottom: 4px !important;
+      display: block !important;
+    }
+    
+    /* Submit button */
+    button[type="submit"], .submit-btn, .btn-primary,
+    [class*="submit"], [class*="Submit"], button.btn {
+      width: 100% !important;
+      padding: 14px 20px !important;
+      background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%) !important;
+      color: white !important;
+      border: none !important;
+      border-radius: 10px !important;
+      font-size: 15px !important;
+      font-weight: 600 !important;
+      cursor: pointer !important;
+      transition: all 0.2s !important;
+      margin-top: 6px !important;
+    }
+    
+    button[type="submit"]:hover, .submit-btn:hover, .btn-primary:hover,
+    [class*="submit"]:hover, [class*="Submit"]:hover {
+      background: linear-gradient(135deg, #6d28d9 0%, #5b21b6 100%) !important;
+      transform: translateY(-1px) !important;
+    }
+    
+    /* Cancel/secondary button */
+    button.btn-secondary, .cancel-btn, [class*="cancel"], [class*="Cancel"] {
+      width: 100% !important;
+      padding: 12px 20px !important;
+      background: #f1f5f9 !important;
+      color: #475569 !important;
+      border: 1px solid #e2e8f0 !important;
+      border-radius: 10px !important;
+      font-size: 14px !important;
+      font-weight: 500 !important;
+      cursor: pointer !important;
+      margin-top: 6px !important;
+    }
+    
+    /* Footer / branding text */
+    .footer, .branding, [class*="footer"], [class*="Footer"],
+    [class*="powered"], [class*="Powered"] {
+      font-size: 11px !important;
+      color: #94a3b8 !important;
+      text-align: center !important;
+      margin-top: 12px !important;
+    }
+    
+    a {
+      color: #6d28d9 !important;
+    }
+    
+    /* Error messages */
+    .error, .form-error, [class*="error"], [class*="Error"] {
+      color: #ef4444 !important;
+      font-size: 12px !important;
+      margin-top: 2px !important;
+    }
+  `);
 });
 
 // In-memory store for card capture status (TTL 30 mins)
