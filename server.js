@@ -70054,7 +70054,7 @@ app.get('/api/public/enigma/form-url', async (req, res) => {
     
     const params = new URLSearchParams({
       showTimer: 'false',
-      showCard: 'true',
+      showCard: 'false',
       walletSave: 'true',
       embedFormForControl: 'false',
       ttl: '900',
@@ -70071,10 +70071,7 @@ app.get('/api/public/enigma/form-url', async (req, res) => {
     const serverCallbackUrl = `https://${req.get('host')}/api/public/enigma/card-captured-callback?ref=${referenceId}`;
     params.append('callbackUrl', serverCallbackUrl);
     
-    // CSS styling - only add if explicitly provided
-    if (css) {
-      params.append('css', css);
-    }
+    // Note: Enigma doesn't support external CSS param - styling handled by wrapper container
     
     const formResponse = await fetch(`${enigmaApiUrl}/cardvault/store/forms?${params.toString()}`, {
       method: 'GET',
