@@ -15266,6 +15266,10 @@ app.get('/api/public/property/:propertyId/stripe-info', async (req, res) => {
             paypal: false 
         };
         
+        // Get pay at property mode and bank details
+        const payPropertyMode = accountSettings.pay_property_mode || 'no_payment';
+        const bankDetails = accountSettings.bank_details || {};
+        
         res.json({
             success: true,
             stripe_enabled: stripeEnabled,
@@ -15273,7 +15277,13 @@ app.get('/api/public/property/:propertyId/stripe-info', async (req, res) => {
             stripe_publishable_key: hasPropertyStripe ? data.stripe_publishable_key : (hasAccountKeys ? data.account_stripe_publishable_key : (hasAccountStripe ? process.env.STRIPE_PUBLISHABLE_KEY : null)),
             stripe_account_id: hasAccountStripe ? data.stripe_account_id : null,
             deposit_rule: depositRule,
-            payment_methods: paymentMethods
+            payment_methods: paymentMethods,
+            pay_property_mode: payPropertyMode,
+            bank_details: (payPropertyMode === 'bank_optional' || payPropertyMode === 'bank_required') ? {
+                accounts: bankDetails.accounts || [],
+                instructions: bankDetails.instructions || '',
+                deadline_hours: bankDetails.deadline_hours || 48
+            } : null
         });
         
     } catch (error) {
@@ -24432,7 +24442,7 @@ app.post('/api/property/:propertyId/payment-settings', async (req, res) => {
     const {
       payment_enabled, deposit_type, deposit_amount, balance_due_days,
       stripe_account_id, paypal_email, bank_details, accepted_methods,
-      currency, cancellation_policy, refund_policy, card_guarantee
+      currency, cancellation_policy, refund_policy, card_guarantee, pay_property_mode
     } = req.body;
     
     const result = await pool.query(`
@@ -24468,6 +24478,35 @@ app.post('/api/property/:propertyId/payment-settings', async (req, res) => {
       } catch (cgErr) {
         console.log('Could not store card_guarantee in bank_details, storing in accepted_methods context:', cgErr.message);
       }
+    }
+    
+    // Also save payment methods, pay_property_mode and bank_details to account settings
+    // so the stripe-info public endpoint can access them
+    try {
+      const propResult = await pool.query('SELECT account_id FROM properties WHERE id = $1', [propertyId]);
+      if (propResult.rows[0]) {
+        const accountId = propResult.rows[0].account_id;
+        const existingSettings = await pool.query('SELECT settings FROM accounts WHERE id = $1', [accountId]);
+        const currentSettings = typeof existingSettings.rows[0]?.settings === 'string' 
+          ? JSON.parse(existingSettings.rows[0].settings) 
+          : (existingSettings.rows[0]?.settings || {});
+        
+        // Build payment_methods object
+        const methods = accepted_methods || ['card'];
+        currentSettings.payment_methods = {
+          card: methods.includes('card'),
+          pay_at_property: methods.includes('pay_at_property'),
+          card_guarantee: methods.includes('card_guarantee'),
+          paypal: methods.includes('paypal') || false
+        };
+        currentSettings.pay_property_mode = pay_property_mode || 'no_payment';
+        currentSettings.bank_details = bank_details || {};
+        if (card_guarantee) currentSettings.card_guarantee = card_guarantee;
+        
+        await pool.query('UPDATE accounts SET settings = $1 WHERE id = $2', [JSON.stringify(currentSettings), accountId]);
+      }
+    } catch (syncErr) {
+      console.log('Could not sync payment settings to account:', syncErr.message);
     }
     
     res.json({ success: true, data: result.rows[0] });
@@ -50787,9 +50826,10 @@ app.post('/api/public/book', async (req, res) => {
     
     // Get unit and property info
     const unit = await pool.query(`
-      SELECT bu.*, p.id as property_id, p.name as property_name
+      SELECT bu.*, p.id as property_id, p.name as property_name, a.settings as account_settings
       FROM bookable_units bu
       LEFT JOIN properties p ON bu.property_id = p.id
+      LEFT JOIN accounts a ON p.account_id = a.id
       WHERE bu.id = $1
     `, [unit_id]);
     
@@ -51023,7 +51063,17 @@ app.post('/api/public/book', async (req, res) => {
         
         const beds24Booking = [{
           roomId: cmData.beds24_room_id,
-          status: 'confirmed',
+          status: (function() {
+            // Check pay_property_mode - if bank_required, send as request
+            if (payment_method === 'pay_at_property' || payment_method === 'property') {
+              try {
+                const accSettings = unit.rows[0]?.account_settings || '{}';
+                const parsed = typeof accSettings === 'string' ? JSON.parse(accSettings) : accSettings;
+                if (parsed.pay_property_mode === 'bank_required') return 'request';
+              } catch(e) {}
+            }
+            return 'confirmed';
+          })(),
           arrival: check_in,
           departure: check_out,
           numAdult: guests || 1,
