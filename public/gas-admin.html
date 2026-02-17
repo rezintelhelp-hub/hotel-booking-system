@@ -2069,6 +2069,9 @@
                 </div>
 
                 <div class="card">
+                    <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-bottom: 1rem;">
+                        <button class="btn btn-secondary" onclick="openBulkStripeModal()">&#x1F4B3; Bulk Stripe Setup</button>
+                    </div>
                     <div id="properties-list">
                         <div class="loading">
                             <div class="spinner"></div>
@@ -14094,6 +14097,54 @@ Local honey and preserves"></textarea>
         </div>
     </div>
 
+    <!-- Bulk Stripe Setup Modal -->
+    <div id="bulkStripeModal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #635bff 0%, #4338ca 100%);">
+                <h3 style="color: white; margin: 0;">&#x1F4B3; Bulk Stripe Setup</h3>
+                <button class="modal-close" onclick="closeModal('bulkStripeModal')" style="color: white; font-size: 1.5rem;">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="font-size: 0.9rem; color: #64748b; margin-bottom: 1rem;">Apply the same Stripe keys to multiple properties at once. Create a <a href="https://dashboard.stripe.com/apikeys" target="_blank" style="color: #4338ca;">Restricted API Key</a> with permissions for: <strong>Charges, Payment Intents, Customers, Refunds</strong> (Write access).</p>
+                
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label class="form-label">Stripe Account Name</label>
+                    <input type="text" class="form-input" id="bulk-stripe-name" placeholder="e.g. Main Business Account">
+                </div>
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label class="form-label">Publishable Key</label>
+                    <input type="text" class="form-input" id="bulk-stripe-publishable-key" placeholder="pk_live_...">
+                </div>
+                <div class="form-group" style="margin-bottom: 1.5rem;">
+                    <label class="form-label">Restricted Secret Key</label>
+                    <input type="text" class="form-input" id="bulk-stripe-secret-key" placeholder="rk_live_...">
+                </div>
+                
+                <div style="margin-bottom: 1rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                        <h4 style="margin: 0;">Select Properties</h4>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button type="button" class="btn btn-secondary btn-small" onclick="selectAllBulkStripeProperties(true)">Select All</button>
+                            <button type="button" class="btn btn-secondary btn-small" onclick="selectAllBulkStripeProperties(false)">Deselect All</button>
+                        </div>
+                    </div>
+                    <div id="bulk-stripe-properties" style="max-height: 300px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.5rem;">
+                        <p style="color: #64748b; padding: 1rem; text-align: center;">Loading properties...</p>
+                    </div>
+                </div>
+                
+                <div id="bulk-stripe-selected-count" style="font-size: 0.85rem; color: #64748b; margin-bottom: 1rem;">
+                    0 properties selected
+                </div>
+                
+                <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('bulkStripeModal')">Cancel</button>
+                    <button type="button" class="btn" onclick="applyBulkStripe()" style="background: #635bff;">&#x1F4B3; Apply to Selected Properties</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Payment Settings Modal -->
     <div id="paymentSettingsModal" class="modal">
         <div class="modal-content" style="max-width: 700px; border-radius: 16px;">
@@ -20653,6 +20704,7 @@ Local honey and preserves"></textarea>
                                         <th>Location</th>
                                         <th>Currency</th>
                                         <th>Account</th>
+                                        <th>Stripe</th>
                                         <th>Status</th>
                                         <th>Actions</th>
                                     </tr>
@@ -20694,11 +20746,17 @@ Local honey and preserves"></textarea>
                                             <td>
                                                 ${currentAccount ? `<span style="color: #10b981; font-weight: 500;">${currentAccount.name}</span>` : '<span style="color: #94a3b8;">-- None --</span>'}
                                             </td>
+                                            <td style="text-align: center;">
+                                                ${prop.stripe_enabled && prop.stripe_publishable_key ? 
+                                                    `<span style="color: #10b981; cursor: pointer;" onclick="openPaymentSettings(${prop.id}, '${(prop.name || '').replace(/'/g, "\\\\'")}')" title="Stripe Connected${prop.stripe_name ? ' (' + prop.stripe_name + ')' : ''}">&#x2705;</span>` :
+                                                    `<span style="color: #f59e0b; cursor: pointer;" onclick="openPaymentSettings(${prop.id}, '${(prop.name || '').replace(/'/g, "\\\\'")}')" title="Click to connect Stripe">&#x26A0;&#xFE0F;</span>`
+                                                }
+                                            </td>
                                             <td><span class="badge ${prop.status === 'active' ? 'badge-success' : prop.status === 'draft' ? 'badge-warning' : 'badge-secondary'}">${prop.status || 'active'}</span></td>
                                             <td>
                                                 <div style="display: flex; gap: 0.25rem;">
                                                     <button class="btn btn-secondary btn-small" onclick="editProperty(${prop.id})">Edit</button>
-                                                    <button class="btn btn-secondary btn-small" onclick="openPaymentSettings(${prop.id}, '${(prop.name || '').replace(/'/g, "\\'")}')" title="Payment Settings"></button>
+                                                    <button class="btn btn-secondary btn-small" onclick="openPaymentSettings(${prop.id}, '${(prop.name || '').replace(/'/g, "\\\\'")}')" title="Payment Settings">&#x1F4B3;</button>
                                                 </div>
                                             </td>
                                         </tr>
@@ -37224,6 +37282,104 @@ Local honey and preserves"></textarea>
             } catch (error) {
                 showNotification('Error saving settings', 'error');
             }
+        }
+        
+        // Bulk Stripe Setup functions
+        async function openBulkStripeModal() {
+            document.getElementById('bulk-stripe-name').value = '';
+            document.getElementById('bulk-stripe-publishable-key').value = '';
+            document.getElementById('bulk-stripe-secret-key').value = '';
+            
+            const container = document.getElementById('bulk-stripe-properties');
+            container.innerHTML = '<p style="color: #64748b; padding: 1rem; text-align: center;">Loading properties...</p>';
+            
+            openModal('bulkStripeModal');
+            
+            try {
+                let queryParams = [];
+                if (selectedAccountId) queryParams.push(`account_id=${selectedAccountId}`);
+                const queryString = queryParams.length > 0 ? '?' + queryParams.join('&') : '';
+                
+                const response = await fetch(`/api/db/properties${queryString}`);
+                const data = await response.json();
+                
+                if (data.success && data.data.length > 0) {
+                    container.innerHTML = data.data.map(prop => `
+                        <label style="display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem; border-bottom: 1px solid #f1f5f9; cursor: pointer;">
+                            <input type="checkbox" class="bulk-stripe-prop-checkbox" value="${prop.id}" onchange="updateBulkStripeCount()">
+                            <span style="flex: 1;">
+                                <strong>${prop.name}</strong>
+                                <span style="color: #64748b; font-size: 0.85rem; margin-left: 0.5rem;">${prop.city || ''}, ${prop.country || ''}</span>
+                            </span>
+                            <span style="font-size: 0.8rem; ${prop.stripe_enabled && prop.stripe_publishable_key ? 'color: #10b981;' : 'color: #f59e0b;'}">
+                                ${prop.stripe_enabled && prop.stripe_publishable_key ? '&#x2705; Connected' : '&#x26A0;&#xFE0F; Not set'}
+                            </span>
+                        </label>
+                    `).join('');
+                } else {
+                    container.innerHTML = '<p style="color: #64748b; padding: 1rem; text-align: center;">No properties found</p>';
+                }
+            } catch (error) {
+                console.error('Error loading properties for bulk stripe:', error);
+                container.innerHTML = '<p style="color: #ef4444; padding: 1rem; text-align: center;">Error loading properties</p>';
+            }
+        }
+        
+        function selectAllBulkStripeProperties(selectAll) {
+            document.querySelectorAll('.bulk-stripe-prop-checkbox').forEach(cb => cb.checked = selectAll);
+            updateBulkStripeCount();
+        }
+        
+        function updateBulkStripeCount() {
+            const count = document.querySelectorAll('.bulk-stripe-prop-checkbox:checked').length;
+            document.getElementById('bulk-stripe-selected-count').textContent = count + ' properties selected';
+        }
+        
+        async function applyBulkStripe() {
+            const name = document.getElementById('bulk-stripe-name').value.trim();
+            const publishableKey = document.getElementById('bulk-stripe-publishable-key').value.trim();
+            const secretKey = document.getElementById('bulk-stripe-secret-key').value.trim();
+            
+            if (!publishableKey || !secretKey) {
+                showNotification('Please enter both Stripe keys', 'error');
+                return;
+            }
+            
+            const selectedIds = Array.from(document.querySelectorAll('.bulk-stripe-prop-checkbox:checked')).map(cb => parseInt(cb.value));
+            
+            if (selectedIds.length === 0) {
+                showNotification('Please select at least one property', 'error');
+                return;
+            }
+            
+            if (!confirm(`Apply Stripe keys to ${selectedIds.length} properties?`)) return;
+            
+            let successCount = 0;
+            let failCount = 0;
+            
+            for (const propId of selectedIds) {
+                try {
+                    const response = await fetch(`/api/properties/${propId}/stripe`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            stripe_publishable_key: publishableKey,
+                            stripe_secret_key: secretKey,
+                            stripe_name: name
+                        })
+                    });
+                    const data = await response.json();
+                    if (data.success) successCount++;
+                    else failCount++;
+                } catch (error) {
+                    console.error(`Failed to set Stripe for property ${propId}:`, error);
+                    failCount++;
+                }
+            }
+            
+            showNotification(`Stripe applied to ${successCount} properties${failCount > 0 ? `, ${failCount} failed` : ''}`, failCount > 0 ? 'warning' : 'success');
+            closeModal('bulkStripeModal');
+            loadProperties();
         }
         
         async function testStripeConnection() {
