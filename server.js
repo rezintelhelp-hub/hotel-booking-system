@@ -70528,13 +70528,13 @@ app.get('/api/public/property/:id/card-guarantee-info', async (req, res) => {
       : (settings.bank_details || {});
     const cgSettings = bankDetails.card_guarantee || {};
     
-    // Card guarantee is enabled if it's in accepted_methods AND Enigma is configured
-    const enigmaConfigured = !!(process.env.ENIGMA_CLIENT_ID && process.env.ENIGMA_CLIENT_SECRET);
+    // Card guarantee is enabled if it's in accepted_methods
+    // Enigma credentials checked at charge time, not at display time
     const cardGuaranteeInMethods = Array.isArray(methods) && methods.includes('card_guarantee');
     
     res.json({
       success: true,
-      card_guarantee_enabled: !!(cardGuaranteeInMethods && enigmaConfigured),
+      card_guarantee_enabled: !!cardGuaranteeInMethods,
       label: cgSettings.label || 'Card Guarantee',
       description: cgSettings.description || 'Your card is held securely as a booking guarantee. No charge unless you cancel or no-show.'
     });
