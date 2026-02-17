@@ -70029,7 +70029,7 @@ app.get('/api/public/enigma/form-url', async (req, res) => {
       return res.status(400).json({ success: false, error: 'property_id required' });
     }
     
-    // Check property exists and get account info
+    // Check property exists
     const propResult = await pool.query(
       'SELECT p.id, p.account_id, p.name FROM properties p WHERE p.id = $1',
       [property_id]
@@ -70039,17 +70039,9 @@ app.get('/api/public/enigma/form-url', async (req, res) => {
     }
     const property = propResult.rows[0];
     
-    // Check card_guarantee is enabled for this account
-    const settingsResult = await pool.query(
-      'SELECT settings FROM account_settings WHERE account_id = $1',
-      [property.account_id]
-    );
-    const settings = settingsResult.rows[0]?.settings || {};
-    const paymentMethods = typeof settings === 'string' ? JSON.parse(settings) : settings;
-    const pmConfig = paymentMethods.payment_methods || {};
-    
-    if (!pmConfig.card_guarantee) {
-      return res.status(400).json({ success: false, error: 'Card Guarantee not enabled for this property' });
+    // Check Enigma credentials are configured
+    if (!process.env.ENIGMA_CLIENT_ID || !process.env.ENIGMA_CLIENT_SECRET) {
+      return res.json({ success: false, error: 'Card guarantee service not yet configured', setup_required: true });
     }
     
     // Get Enigma access token
