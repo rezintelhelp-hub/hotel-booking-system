@@ -70071,6 +70071,11 @@ app.get('/api/public/enigma/form-url', async (req, res) => {
     const serverCallbackUrl = `${req.protocol}://${req.get('host')}/api/public/enigma/card-captured-callback`;
     params.append('callbackUrl', serverCallbackUrl);
     
+    // parentUrl is required when embedFormForControl is true
+    if (isEmbed && parent_url) {
+      params.append('parentUrl', parent_url);
+    }
+    
     if (css) {
       params.append('css', css);
     }
