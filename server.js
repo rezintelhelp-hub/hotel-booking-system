@@ -40153,7 +40153,8 @@ async function updateBedroomCount(propertyId, roomId) {
 // Sync all bedroom counts from property_bedrooms to bookable_units
 app.post('/api/admin/sync-bedroom-counts', async (req, res) => {
   try {
-    const result = await pool.query(`
+    // 1. Sync rooms that have bedrooms linked directly (room_id set)
+    const directResult = await pool.query(`
       UPDATE bookable_units bu SET num_bedrooms = sub.count
       FROM (
         SELECT room_id, COUNT(*) as count 
@@ -40164,10 +40165,38 @@ app.post('/api/admin/sync-bedroom-counts', async (req, res) => {
       WHERE bu.id = sub.room_id AND (bu.num_bedrooms IS NULL OR bu.num_bedrooms != sub.count)
     `);
     
-    // Also sync max_guests from bed config if needed
-    const bedrooms = await pool.query(`
-      SELECT room_id, bed_config FROM property_bedrooms WHERE room_id IS NOT NULL
+    // 2. For properties with only 1 active unit: count property-level bedrooms (room_id IS NULL)
+    const singleUnitResult = await pool.query(`
+      UPDATE bookable_units bu SET num_bedrooms = sub.count
+      FROM (
+        SELECT p.id as property_id, COUNT(pb.id) as count
+        FROM properties p
+        JOIN property_bedrooms pb ON pb.property_id = p.id AND pb.room_id IS NULL
+        WHERE (SELECT COUNT(*) FROM bookable_units bu2 WHERE bu2.property_id = p.id AND bu2.status = 'active') = 1
+        GROUP BY p.id
+      ) sub
+      WHERE bu.property_id = sub.property_id 
+        AND bu.status = 'active'
+        AND (bu.num_bedrooms IS NULL OR bu.num_bedrooms != sub.count)
     `);
+    
+    // 3. Sync max_guests from bed config
+    const bedrooms = await pool.query(`
+      SELECT pb.room_id, pb.property_id, pb.bed_config FROM property_bedrooms pb
+    `);
+    
+    // For room_id linked bedrooms, map directly
+    // For property-level bedrooms (room_id IS NULL), find the single unit for that property
+    const singleUnits = await pool.query(`
+      SELECT bu.id as unit_id, bu.property_id
+      FROM bookable_units bu
+      WHERE bu.status = 'active'
+      AND (SELECT COUNT(*) FROM bookable_units bu2 WHERE bu2.property_id = bu.property_id AND bu2.status = 'active') = 1
+    `);
+    const propertyToUnit = {};
+    for (const su of singleUnits.rows) {
+      propertyToUnit[su.property_id] = su.unit_id;
+    }
     
     const roomGuests = {};
     for (const br of bedrooms.rows) {
@@ -40184,7 +40213,11 @@ app.post('/api/admin/sync-bedroom-counts', async (req, res) => {
         else if (type === 'cot' || type === 'crib') guests += 1 * qty;
         else guests += 2 * qty;
       }
-      roomGuests[br.room_id] = (roomGuests[br.room_id] || 0) + guests;
+      // Map to room_id, or to single unit if property-level
+      const targetRoom = br.room_id || propertyToUnit[br.property_id];
+      if (targetRoom) {
+        roomGuests[targetRoom] = (roomGuests[targetRoom] || 0) + guests;
+      }
     }
     
     let guestUpdates = 0;
@@ -40200,7 +40233,8 @@ app.post('/api/admin/sync-bedroom-counts', async (req, res) => {
     
     res.json({ 
       success: true, 
-      bedrooms_synced: result.rowCount,
+      bedrooms_direct_synced: directResult.rowCount,
+      bedrooms_single_unit_synced: singleUnitResult.rowCount,
       guests_updated: guestUpdates
     });
   } catch (error) {
@@ -49917,7 +49951,17 @@ app.get('/api/public/unit/:unitId', async (req, res) => {
       SELECT bu.*, 
              p.name as property_name, 
              p.currency, 
-             p.timezone
+             p.timezone,
+             COALESCE(
+               NULLIF((SELECT COUNT(*) FROM property_bedrooms pb WHERE pb.room_id = bu.id), 0),
+               (SELECT CASE 
+                 WHEN (SELECT COUNT(*) FROM bookable_units bu2 WHERE bu2.property_id = p.id AND bu2.status = 'active') = 1
+                 THEN NULLIF((SELECT COUNT(*) FROM property_bedrooms pb2 WHERE pb2.property_id = p.id AND pb2.room_id IS NULL), 0)
+                 ELSE NULL
+               END),
+               NULLIF(bu.num_bedrooms, 0),
+               1
+             ) as computed_num_bedrooms
       FROM bookable_units bu
       LEFT JOIN properties p ON bu.property_id = p.id
       WHERE bu.id = $1
@@ -50058,9 +50102,15 @@ app.get('/api/public/unit/:unitId', async (req, res) => {
     
     amenities = { rows: mergedAmenities };
     
+    // Override num_bedrooms with computed value from property_bedrooms
+    const unitData = unit.rows[0];
+    if (unitData.computed_num_bedrooms) {
+      unitData.num_bedrooms = parseInt(unitData.computed_num_bedrooms);
+    }
+    
     res.json({
       success: true,
-      unit: unit.rows[0],
+      unit: unitData,
       images: images.rows,
       amenities: amenities.rows
     });
@@ -53408,7 +53458,20 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
         bu.base_price,
         bu.max_guests,
         bu.max_adults,
-        bu.num_bedrooms,
+        bu.num_bedrooms as raw_num_bedrooms,
+        COALESCE(
+          -- First: count bedrooms linked directly to this unit
+          NULLIF((SELECT COUNT(*) FROM property_bedrooms pb WHERE pb.room_id = bu.id), 0),
+          -- Second: if property has only 1 unit, count all property-level bedrooms
+          (SELECT CASE 
+            WHEN (SELECT COUNT(*) FROM bookable_units bu2 WHERE bu2.property_id = p.id AND bu2.status = 'active') = 1
+            THEN NULLIF((SELECT COUNT(*) FROM property_bedrooms pb2 WHERE pb2.property_id = p.id AND pb2.room_id IS NULL), 0)
+            ELSE NULL
+          END),
+          -- Third: fall back to stored num_bedrooms or default 1
+          NULLIF(bu.num_bedrooms, 0),
+          1
+        ) as num_bedrooms,
         bu.num_bathrooms,
         bu.beds24_room_id,
         p.latitude,
