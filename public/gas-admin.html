@@ -17060,12 +17060,15 @@ const promo = await fetch('/api/v1/offers/validate', {
                             <span style="font-size: 0.75rem; background: #10b981; color: white; padding: 0.15rem 0.5rem; border-radius: 10px;">Online</span>
                         </label>
                         
-                        <!-- Bank Transfer -->
-                        <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer; padding: 0.75rem; background: white; border-radius: 8px; border: 2px solid transparent; transition: all 0.2s;" id="provider-bank-label">
-                            <input type="checkbox" name="payment-provider" value="bank_transfer" id="payment-provider-bank" style="width: 18px; height: 18px;" onchange="togglePaymentSections()">
-                            <span style="font-size: 1.25rem;">🏦</span>
-                            <span style="flex: 1; font-weight: 500;">Bank Transfer</span>
-                            <span style="font-size: 0.75rem; background: #3b82f6; color: white; padding: 0.15rem 0.5rem; border-radius: 10px;">Manual</span>
+                        <!-- Pay at Property -->
+                        <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer; padding: 0.75rem; background: white; border-radius: 8px; border: 2px solid transparent; transition: all 0.2s;" id="provider-pay-property-label">
+                            <input type="checkbox" name="payment-provider" value="pay_at_property" id="payment-provider-pay-property" style="width: 18px; height: 18px;" onchange="togglePaymentSections()" checked>
+                            <span style="font-size: 1.25rem;">🏠</span>
+                            <div style="flex: 1;">
+                                <span style="font-weight: 500;">Pay at Property</span>
+                                <p style="font-size: 0.75rem; color: #64748b; margin: 0.15rem 0 0 0;">Guest pays on arrival or by bank transfer before arrival</p>
+                            </div>
+                            <span style="font-size: 0.75rem; background: #f59e0b; color: white; padding: 0.15rem 0.5rem; border-radius: 10px;">Flexible</span>
                         </label>
                         
                         <!-- PayPal -->
@@ -17156,29 +17159,61 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 <!-- Bank Transfer Details Section -->
                 <div id="bank-transfer-section" style="display: none; background: var(--bg-secondary); border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                        <h4 style="margin: 0; font-size: 0.95rem;">🏦 Bank Account Details</h4>
-                        <button type="button" class="btn btn-small" onclick="addBankAccount()" style="font-size: 0.8rem;">+ Add Bank Account</button>
-                    </div>
-                    <p style="font-size: 0.8rem; color: #64748b; margin: -0.5rem 0 1rem 0;">
-                        These details will be shown to guests when they choose to pay by bank transfer
-                    </p>
+                    <h4 style="margin: 0 0 1rem 0; font-size: 0.95rem;">🏠 Pay at Property Settings</h4>
                     
-                    <div id="bank-accounts-container">
-                        <!-- Bank accounts will be rendered here -->
+                    <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1rem;">
+                        <label style="display: flex; align-items: flex-start; gap: 0.75rem; cursor: pointer; padding: 0.75rem; background: white; border-radius: 8px; border: 2px solid transparent; transition: all 0.2s;" class="pay-property-mode-label">
+                            <input type="radio" name="pay-property-mode" value="no_payment" id="pay-mode-no-payment" style="width: 18px; height: 18px; margin-top: 2px;" onchange="togglePayPropertyMode()" checked>
+                            <div>
+                                <strong style="font-size: 0.9rem;">Book Only — No payment needed</strong>
+                                <p style="font-size: 0.8rem; color: #64748b; margin: 0.25rem 0 0 0;">Guest books, pays on arrival. No bank details shown.</p>
+                            </div>
+                        </label>
+                        
+                        <label style="display: flex; align-items: flex-start; gap: 0.75rem; cursor: pointer; padding: 0.75rem; background: white; border-radius: 8px; border: 2px solid transparent; transition: all 0.2s;" class="pay-property-mode-label">
+                            <input type="radio" name="pay-property-mode" value="bank_optional" id="pay-mode-bank-optional" style="width: 18px; height: 18px; margin-top: 2px;" onchange="togglePayPropertyMode()">
+                            <div>
+                                <strong style="font-size: 0.9rem;">Bank Transfer Optional — Show bank details</strong>
+                                <p style="font-size: 0.8rem; color: #64748b; margin: 0.25rem 0 0 0;">Booking confirmed. Guest can transfer in advance or pay at the property.</p>
+                            </div>
+                        </label>
+                        
+                        <label style="display: flex; align-items: flex-start; gap: 0.75rem; cursor: pointer; padding: 0.75rem; background: white; border-radius: 8px; border: 2px solid transparent; transition: all 0.2s;" class="pay-property-mode-label" id="pay-mode-required-label">
+                            <input type="radio" name="pay-property-mode" value="bank_required" id="pay-mode-bank-required" style="width: 18px; height: 18px; margin-top: 2px;" onchange="togglePayPropertyMode()">
+                            <div>
+                                <strong style="font-size: 0.9rem;">Bank Transfer Required — Booking as request</strong>
+                                <p style="font-size: 0.8rem; color: #64748b; margin: 0.25rem 0 0 0;">Booking sent as request until payment received. Owner confirms manually.</p>
+                                <p style="font-size: 0.75rem; color: #f59e0b; margin: 0.25rem 0 0 0; display: none;" id="pay-mode-beds24-only">⚠️ Only available for Beds24-connected properties</p>
+                            </div>
+                        </label>
                     </div>
                     
-                    <!-- Bank Transfer Instructions -->
-                    <div class="form-group" style="margin-top: 1rem; margin-bottom: 0.5rem;">
-                        <label class="form-label">Custom Instructions (shown to guest)</label>
-                        <textarea id="bank-transfer-instructions" class="form-input" rows="3" placeholder="e.g., To complete your reservation, please make a bank transfer for the amount above. We will hold this reservation for a maximum of 48 hours. Please send proof of payment to our email."></textarea>
-                    </div>
-                    
-                    <div class="form-group" style="margin-bottom: 0;">
-                        <label class="form-label">Payment Deadline (hours)</label>
-                        <div style="display: flex; align-items: center; gap: 0.5rem;">
-                            <input type="number" id="bank-transfer-deadline-hours" class="form-input" value="48" min="0" style="max-width: 100px;">
-                            <span style="font-size: 0.85rem; color: #64748b;">hours to complete transfer (0 = no deadline)</span>
+                    <!-- Bank Details (shown for bank_optional and bank_required) -->
+                    <div id="bank-details-subsection" style="display: none;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                            <h5 style="margin: 0; font-size: 0.9rem;">🏦 Bank Account Details</h5>
+                            <button type="button" class="btn btn-small" onclick="addBankAccount()" style="font-size: 0.8rem;">+ Add Bank Account</button>
+                        </div>
+                        <p style="font-size: 0.8rem; color: #64748b; margin: 0 0 0.75rem 0;">
+                            These details will be shown to guests when bank transfer is available
+                        </p>
+                        
+                        <div id="bank-accounts-container">
+                            <!-- Bank accounts will be rendered here -->
+                        </div>
+                        
+                        <!-- Bank Transfer Instructions -->
+                        <div class="form-group" style="margin-top: 1rem; margin-bottom: 0.5rem;">
+                            <label class="form-label">Custom Instructions (shown to guest)</label>
+                            <textarea id="bank-transfer-instructions" class="form-input" rows="3" placeholder="e.g., To complete your reservation, please make a bank transfer for the amount above. We will hold this reservation for a maximum of 48 hours. Please send proof of payment to our email."></textarea>
+                        </div>
+                        
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label">Payment Deadline (hours)</label>
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <input type="number" id="bank-transfer-deadline-hours" class="form-input" value="48" min="0" style="max-width: 100px;">
+                                <span style="font-size: 0.85rem; color: #64748b;">hours to complete transfer (0 = no deadline)</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -48454,7 +48489,10 @@ const promo = await fetch('/api/v1/offers/validate', {
             
             // Reset form
             document.getElementById('payment-provider-stripe').checked = false;
-            document.getElementById('payment-provider-bank').checked = false;
+            const ppReset = document.getElementById('payment-provider-pay-property');
+            if (ppReset) ppReset.checked = true;
+            const noPayRadio = document.getElementById('pay-mode-no-payment');
+            if (noPayRadio) noPayRadio.checked = true;
             const cgCheckbox = document.getElementById('payment-provider-card-guarantee');
             if (cgCheckbox) cgCheckbox.checked = false;
             if (document.getElementById('card-guarantee-label')) document.getElementById('card-guarantee-label').value = 'Card Guarantee';
@@ -48537,8 +48575,14 @@ const promo = await fetch('/api/v1/offers/validate', {
                     if (methods.includes('card') || methods.includes('stripe')) {
                         document.getElementById('payment-provider-stripe').checked = true;
                     }
-                    if (methods.includes('bank_transfer')) {
-                        document.getElementById('payment-provider-bank').checked = true;
+                    if (methods.includes('bank_transfer') || methods.includes('pay_at_property')) {
+                        const ppCb = document.getElementById('payment-provider-pay-property');
+                        if (ppCb) ppCb.checked = true;
+                    }
+                    // Load pay at property mode
+                    if (settings.pay_property_mode) {
+                        var modeRadio = document.getElementById('pay-mode-' + settings.pay_property_mode.replace(/_/g, '-'));
+                        if (modeRadio) modeRadio.checked = true;
                     }
                     if (methods.includes('card_guarantee')) {
                         const cgCb = document.getElementById('payment-provider-card-guarantee');
@@ -48625,25 +48669,44 @@ const promo = await fetch('/api/v1/offers/validate', {
         
         function togglePaymentSections() {
             const stripeChecked = document.getElementById('payment-provider-stripe').checked;
-            const bankChecked = document.getElementById('payment-provider-bank').checked;
+            const payPropertyChecked = document.getElementById('payment-provider-pay-property')?.checked || false;
             const cardGuaranteeChecked = document.getElementById('payment-provider-card-guarantee')?.checked || false;
             
             document.getElementById('stripe-keys-section').style.display = stripeChecked ? 'block' : 'none';
             document.getElementById('stripe-setup-link-section').style.display = stripeChecked ? 'block' : 'none';
-            document.getElementById('bank-transfer-section').style.display = bankChecked ? 'block' : 'none';
+            document.getElementById('bank-transfer-section').style.display = payPropertyChecked ? 'block' : 'none';
             const cgSection = document.getElementById('card-guarantee-section');
             if (cgSection) cgSection.style.display = cardGuaranteeChecked ? 'block' : 'none';
             
             // Highlight selected providers
             document.getElementById('provider-stripe-label').style.borderColor = stripeChecked ? '#4f46e5' : 'transparent';
             document.getElementById('provider-stripe-label').style.background = stripeChecked ? '#eef2ff' : 'white';
-            document.getElementById('provider-bank-label').style.borderColor = bankChecked ? '#3b82f6' : 'transparent';
-            document.getElementById('provider-bank-label').style.background = bankChecked ? '#eff6ff' : 'white';
+            const ppLabel = document.getElementById('provider-pay-property-label');
+            if (ppLabel) {
+                ppLabel.style.borderColor = payPropertyChecked ? '#f59e0b' : 'transparent';
+                ppLabel.style.background = payPropertyChecked ? '#fffbeb' : 'white';
+            }
             const cgLabel = document.getElementById('provider-card-guarantee-label');
             if (cgLabel) {
                 cgLabel.style.borderColor = cardGuaranteeChecked ? '#8b5cf6' : 'transparent';
                 cgLabel.style.background = cardGuaranteeChecked ? '#faf5ff' : 'white';
             }
+            
+            if (payPropertyChecked) togglePayPropertyMode();
+        }
+        
+        function togglePayPropertyMode() {
+            var mode = document.querySelector('input[name="pay-property-mode"]:checked')?.value || 'no_payment';
+            var bankSection = document.getElementById('bank-details-subsection');
+            if (bankSection) {
+                bankSection.style.display = (mode === 'bank_optional' || mode === 'bank_required') ? 'block' : 'none';
+            }
+            // Highlight selected mode
+            document.querySelectorAll('.pay-property-mode-label').forEach(function(label) {
+                var radio = label.querySelector('input[type="radio"]');
+                label.style.borderColor = radio.checked ? '#f59e0b' : 'transparent';
+                label.style.background = radio.checked ? '#fffbeb' : 'white';
+            });
         }
         
         function addBankAccount() {
@@ -48794,8 +48857,11 @@ const promo = await fetch('/api/v1/offers/validate', {
             // Save deposit/payment settings
             const acceptedMethods = [];
             if (document.getElementById('payment-provider-stripe').checked) acceptedMethods.push('card');
-            if (document.getElementById('payment-provider-bank').checked) acceptedMethods.push('bank_transfer');
+            if (document.getElementById('payment-provider-pay-property')?.checked) acceptedMethods.push('pay_at_property');
             if (document.getElementById('payment-provider-card-guarantee')?.checked) acceptedMethods.push('card_guarantee');
+            
+            // Build pay at property settings
+            const payPropertyMode = document.querySelector('input[name="pay-property-mode"]:checked')?.value || 'no_payment';
             
             // Build card guarantee settings
             const cardGuaranteeSettings = {};
@@ -48823,6 +48889,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 currency: document.getElementById('payment-currency').value,
                 accepted_methods: acceptedMethods.length > 0 ? acceptedMethods : ['card'],
                 bank_details: bankDetails,
+                pay_property_mode: payPropertyMode,
                 card_guarantee: cardGuaranteeSettings,
                 cancellation_policy: document.getElementById('payment-cancellation').value
             };
