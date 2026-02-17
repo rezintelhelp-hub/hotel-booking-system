@@ -70050,7 +70050,7 @@ app.get('/api/public/enigma/form-url', async (req, res) => {
     
     // Build form URL request
     const isEmbed = embed === 'true';
-    const referenceId = booking_ref || `gas-${property_id}-${Date.now()}`;
+    const referenceId = `gas-${property_id}-${Date.now()}`;
     
     const params = new URLSearchParams({
       showTimer: 'false',
