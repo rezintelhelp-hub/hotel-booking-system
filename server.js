@@ -70056,7 +70056,7 @@ app.get('/api/public/enigma/form-url', async (req, res) => {
       showTimer: 'false',
       showCard: 'true',
       walletSave: 'true',
-      embedFormForControl: isEmbed ? 'true' : 'false',
+      embedFormForControl: 'false',
       ttl: '900',
       preserveFormat: 'true',
       language: language || 'en',
@@ -70066,15 +70066,10 @@ app.get('/api/public/enigma/form-url', async (req, res) => {
     // Add card types
     params.append('cardTypes', 'visa,mastercard,amex');
     
-    // Always use server callback - Enigma redirects iframe to this URL after card capture
-    // Our callback page will then postMessage back to the parent booking page
-    const serverCallbackUrl = `${req.protocol}://${req.get('host')}/api/public/enigma/card-captured-callback`;
+    // Use server callback - Enigma redirects iframe to this URL after card capture
+    // Our callback page returns HTML with postMessage to parent window
+    const serverCallbackUrl = `${req.protocol}://${req.get('host')}/api/public/enigma/card-captured-callback?ref=${referenceId}`;
     params.append('callbackUrl', serverCallbackUrl);
-    
-    // parentUrl is required when embedFormForControl is true
-    if (isEmbed && parent_url) {
-      params.append('parentUrl', parent_url);
-    }
     
     if (css) {
       params.append('css', css);
@@ -70117,8 +70112,9 @@ app.get('/api/public/enigma/form-url', async (req, res) => {
 // GET /api/public/enigma/card-captured-callback - Enigma redirects here after card capture
 // This page sends postMessage to parent window so the booking plugin knows the card was captured
 app.get('/api/public/enigma/card-captured-callback', (req, res) => {
-  const { referenceId, status, error } = req.query;
-  console.log(`[Enigma Callback] referenceId=${referenceId}, status=${status}`);
+  const referenceId = req.query.referenceId || req.query.ref || '';
+  const status = req.query.status || 'success';
+  console.log(`[Enigma Callback] referenceId=${referenceId}, status=${status}, all params:`, req.query);
   
   // Return an HTML page that posts message to parent and shows success
   res.send(`<!DOCTYPE html>
@@ -70134,11 +70130,15 @@ app.get('/api/public/enigma/card-captured-callback', (req, res) => {
   try {
     var data = {
       source: 'enigma-vault',
-      status: '${status || 'success'}',
-      referenceId: '${referenceId || ''}'
+      status: '${status}',
+      referenceId: '${referenceId}'
     };
+    console.log('Enigma callback posting message:', data);
     if (window.parent && window.parent !== window) {
       window.parent.postMessage(data, '*');
+    }
+    if (window.opener) {
+      window.opener.postMessage(data, '*');
     }
   } catch(e) {
     console.error('PostMessage error:', e);
