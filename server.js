@@ -70019,69 +70019,6 @@ app.post('/api/admin/translate-text', async (req, res) => {
 // END TRANSLATION WORKER
 // ============================================
 
-// ============================================
-// CATCH-ALL HANDLER (must be last route)
-// ============================================
-app.get('*', (req, res) => {
-  // Don't serve index.html for API routes - return 404 instead
-  if (req.path.startsWith('/api')) {
-    return res.status(404).json({ error: 'API endpoint not found', path: req.path });
-  }
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-// Catch-all for non-GET API routes (POST, PUT, DELETE to unknown endpoints)
-app.all('/api/*', (req, res) => {
-  res.status(404).json({ error: 'API endpoint not found', method: req.method, path: req.path });
-});
-
-// ============================================
-// ENIGMA CARD VAULT INTEGRATION
-// ============================================
-
-// Helper: Get Enigma OAuth2 access token
-async function getEnigmaAccessToken() {
-  const clientId = process.env.ENIGMA_CLIENT_ID;
-  const clientSecret = process.env.ENIGMA_CLIENT_SECRET;
-  const authUrl = process.env.ENIGMA_AUTH_URL || 'https://api-auth.enigmavault.io';
-  
-  if (!clientId || !clientSecret) {
-    throw new Error('Enigma Vault credentials not configured');
-  }
-  
-  const response = await fetch(`${authUrl}/oauth2/token`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: `grant_type=client_credentials&client_id=${clientId}&client_secret=${clientSecret}&scope=io.enigmavault/cardvault`
-  });
-  
-  if (!response.ok) {
-    const err = await response.text();
-    throw new Error(`Enigma auth failed: ${response.status} - ${err}`);
-  }
-  
-  const data = await response.json();
-  return data.access_token;
-}
-
-// Helper: Log Enigma usage for billing
-async function logEnigmaUsage(accountId, propertyId, bookingId, action, apiCalls = 1, details = {}) {
-  try {
-    // Cost per API call based on Lite tier overage ($0.08/request)
-    const enigmaCost = apiCalls * 0.08;
-    // Fee charged to owner - configurable, default $0.50 per card capture, $1.00 per charge
-    const feeRates = { form_request: 0, card_capture: 0.50, card_search: 0, card_charge: 1.00, cvv_capture: 0.25 };
-    const feeCharged = feeRates[action] || 0;
-    
-    await pool.query(`
-      INSERT INTO enigma_usage_log (account_id, property_id, booking_id, action, api_calls, enigma_cost, fee_charged, details)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-    `, [accountId, propertyId, bookingId, action, apiCalls, enigmaCost, feeCharged, JSON.stringify(details)]);
-  } catch (err) {
-    console.error('Failed to log Enigma usage:', err.message);
-  }
-}
-
 // GET /api/public/enigma/form-url - Generate hosted card capture form URL
 // Called by the booking plugin when guest reaches payment step
 app.get('/api/public/enigma/form-url', async (req, res) => {
@@ -70546,6 +70483,69 @@ app.get('/api/public/property/:id/card-guarantee-info', async (req, res) => {
 });
 
 console.log('✅ Enigma Card Vault endpoints loaded');
+// ============================================
+// CATCH-ALL HANDLER (must be last route)
+// ============================================
+app.get('*', (req, res) => {
+  // Don't serve index.html for API routes - return 404 instead
+  if (req.path.startsWith('/api')) {
+    return res.status(404).json({ error: 'API endpoint not found', path: req.path });
+  }
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Catch-all for non-GET API routes (POST, PUT, DELETE to unknown endpoints)
+app.all('/api/*', (req, res) => {
+  res.status(404).json({ error: 'API endpoint not found', method: req.method, path: req.path });
+});
+
+// ============================================
+// ENIGMA CARD VAULT INTEGRATION
+// ============================================
+
+// Helper: Get Enigma OAuth2 access token
+async function getEnigmaAccessToken() {
+  const clientId = process.env.ENIGMA_CLIENT_ID;
+  const clientSecret = process.env.ENIGMA_CLIENT_SECRET;
+  const authUrl = process.env.ENIGMA_AUTH_URL || 'https://api-auth.enigmavault.io';
+  
+  if (!clientId || !clientSecret) {
+    throw new Error('Enigma Vault credentials not configured');
+  }
+  
+  const response = await fetch(`${authUrl}/oauth2/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: `grant_type=client_credentials&client_id=${clientId}&client_secret=${clientSecret}&scope=io.enigmavault/cardvault`
+  });
+  
+  if (!response.ok) {
+    const err = await response.text();
+    throw new Error(`Enigma auth failed: ${response.status} - ${err}`);
+  }
+  
+  const data = await response.json();
+  return data.access_token;
+}
+
+// Helper: Log Enigma usage for billing
+async function logEnigmaUsage(accountId, propertyId, bookingId, action, apiCalls = 1, details = {}) {
+  try {
+    // Cost per API call based on Lite tier overage ($0.08/request)
+    const enigmaCost = apiCalls * 0.08;
+    // Fee charged to owner - configurable, default $0.50 per card capture, $1.00 per charge
+    const feeRates = { form_request: 0, card_capture: 0.50, card_search: 0, card_charge: 1.00, cvv_capture: 0.25 };
+    const feeCharged = feeRates[action] || 0;
+    
+    await pool.query(`
+      INSERT INTO enigma_usage_log (account_id, property_id, booking_id, action, api_calls, enigma_cost, fee_charged, details)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `, [accountId, propertyId, bookingId, action, apiCalls, enigmaCost, feeCharged, JSON.stringify(details)]);
+  } catch (err) {
+    console.error('Failed to log Enigma usage:', err.message);
+  }
+}
+
 
 // Global error handler - ALWAYS return JSON, never HTML
 app.use((err, req, res, next) => {
