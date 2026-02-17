@@ -51037,8 +51037,12 @@ app.post('/api/public/book', async (req, res) => {
           city: guest_city || '',
           postcode: guest_postcode || '',
           country: guest_country || '',
-          referer: `Direct website GAS-${newBooking.id}`,
-          notes: `GAS Booking ID: ${newBooking.id}`,
+          referer: 'GAS Direct',
+          refererEditable: 'GAS Direct',
+          reference: `GAS-${newBooking.id}`,
+          notes: payment_method === 'card_guarantee'
+            ? `Booked via GAS | Card Guarantee on file | Ref: GAS-${newBooking.id}`
+            : `Booked via GAS | Ref: GAS-${newBooking.id}`,
           price: parseFloat(total_price) || 0,
           deposit: deposit_amount ? parseFloat(deposit_amount) : 0,
           invoiceItems: [{
