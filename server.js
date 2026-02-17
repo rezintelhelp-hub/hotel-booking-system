@@ -40172,11 +40172,11 @@ app.post('/api/admin/sync-bedroom-counts', async (req, res) => {
         SELECT p.id as property_id, COUNT(pb.id) as count
         FROM properties p
         JOIN property_bedrooms pb ON pb.property_id = p.id AND pb.room_id IS NULL
-        WHERE (SELECT COUNT(*) FROM bookable_units bu2 WHERE bu2.property_id = p.id AND bu2.status = 'active') = 1
+        WHERE (SELECT COUNT(*) FROM bookable_units bu2 WHERE bu2.property_id = p.id AND bu2.status IN ('active','available')) = 1
         GROUP BY p.id
       ) sub
       WHERE bu.property_id = sub.property_id 
-        AND bu.status = 'active'
+        AND bu.status IN ('active','available')
         AND (bu.num_bedrooms IS NULL OR bu.num_bedrooms != sub.count)
     `);
     
@@ -40190,8 +40190,8 @@ app.post('/api/admin/sync-bedroom-counts', async (req, res) => {
     const singleUnits = await pool.query(`
       SELECT bu.id as unit_id, bu.property_id
       FROM bookable_units bu
-      WHERE bu.status = 'active'
-      AND (SELECT COUNT(*) FROM bookable_units bu2 WHERE bu2.property_id = bu.property_id AND bu2.status = 'active') = 1
+      WHERE bu.status IN ('active','available')
+      AND (SELECT COUNT(*) FROM bookable_units bu2 WHERE bu2.property_id = bu.property_id AND bu2.status IN ('active','available')) = 1
     `);
     const propertyToUnit = {};
     for (const su of singleUnits.rows) {
@@ -49955,7 +49955,7 @@ app.get('/api/public/unit/:unitId', async (req, res) => {
              COALESCE(
                NULLIF((SELECT COUNT(*) FROM property_bedrooms pb WHERE pb.room_id = bu.id), 0),
                (SELECT CASE 
-                 WHEN (SELECT COUNT(*) FROM bookable_units bu2 WHERE bu2.property_id = p.id AND bu2.status = 'active') = 1
+                 WHEN (SELECT COUNT(*) FROM bookable_units bu2 WHERE bu2.property_id = p.id AND bu2.status IN ('active','available')) = 1
                  THEN NULLIF((SELECT COUNT(*) FROM property_bedrooms pb2 WHERE pb2.property_id = p.id AND pb2.room_id IS NULL), 0)
                  ELSE NULL
                END),
@@ -53464,7 +53464,7 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
           NULLIF((SELECT COUNT(*) FROM property_bedrooms pb WHERE pb.room_id = bu.id), 0),
           -- Second: if property has only 1 unit, count all property-level bedrooms
           (SELECT CASE 
-            WHEN (SELECT COUNT(*) FROM bookable_units bu2 WHERE bu2.property_id = p.id AND bu2.status = 'active') = 1
+            WHEN (SELECT COUNT(*) FROM bookable_units bu2 WHERE bu2.property_id = p.id AND bu2.status IN ('active','available')) = 1
             THEN NULLIF((SELECT COUNT(*) FROM property_bedrooms pb2 WHERE pb2.property_id = p.id AND pb2.room_id IS NULL), 0)
             ELSE NULL
           END),
