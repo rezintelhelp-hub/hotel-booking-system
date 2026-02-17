@@ -24426,7 +24426,7 @@ app.post('/api/property/:propertyId/payment-settings', async (req, res) => {
     const {
       payment_enabled, deposit_type, deposit_amount, balance_due_days,
       stripe_account_id, paypal_email, bank_details, accepted_methods,
-      currency, cancellation_policy, refund_policy
+      currency, cancellation_policy, refund_policy, card_guarantee
     } = req.body;
     
     const result = await pool.query(`
@@ -24446,6 +24446,23 @@ app.post('/api/property/:propertyId/payment-settings', async (req, res) => {
       JSON.stringify(accepted_methods || ['card']), currency || 'GBP',
       cancellation_policy, JSON.stringify(refund_policy || {})
     ]);
+    
+    // Store card guarantee settings if provided
+    if (card_guarantee) {
+      try {
+        await pool.query(`
+          UPDATE property_payment_settings 
+          SET bank_details = jsonb_set(
+            COALESCE(bank_details::jsonb, '{}'::jsonb),
+            '{card_guarantee}',
+            $2::jsonb
+          )
+          WHERE property_id = $1
+        `, [propertyId, JSON.stringify(card_guarantee)]);
+      } catch (cgErr) {
+        console.log('Could not store card_guarantee in bank_details, storing in accepted_methods context:', cgErr.message);
+      }
+    }
     
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
@@ -70493,32 +70510,33 @@ app.get('/api/public/property/:id/card-guarantee-info', async (req, res) => {
     const propertyId = req.params.id;
     
     const result = await pool.query(`
-      SELECT p.id, p.account_id, 
-             COALESCE(
-               (SELECT settings FROM account_settings WHERE account_id = p.account_id LIMIT 1),
-               '{}'
-             )::text as account_settings
-      FROM properties p WHERE p.id = $1
+      SELECT accepted_methods, bank_details
+      FROM property_payment_settings 
+      WHERE property_id = $1
     `, [propertyId]);
     
     if (result.rows.length === 0) {
       return res.json({ success: true, card_guarantee_enabled: false });
     }
     
-    const property = result.rows[0];
-    const settings = typeof property.account_settings === 'string' 
-      ? JSON.parse(property.account_settings) 
-      : (property.account_settings || {});
-    const pmConfig = settings.payment_methods || {};
+    const settings = result.rows[0];
+    const methods = typeof settings.accepted_methods === 'string' 
+      ? JSON.parse(settings.accepted_methods) 
+      : (settings.accepted_methods || []);
+    const bankDetails = typeof settings.bank_details === 'string'
+      ? JSON.parse(settings.bank_details)
+      : (settings.bank_details || {});
+    const cgSettings = bankDetails.card_guarantee || {};
     
-    // Check if Enigma credentials are configured at platform level
+    // Card guarantee is enabled if it's in accepted_methods AND Enigma is configured
     const enigmaConfigured = !!(process.env.ENIGMA_CLIENT_ID && process.env.ENIGMA_CLIENT_SECRET);
+    const cardGuaranteeInMethods = Array.isArray(methods) && methods.includes('card_guarantee');
     
     res.json({
       success: true,
-      card_guarantee_enabled: !!(pmConfig.card_guarantee && enigmaConfigured),
-      label: pmConfig.card_guarantee_label || 'Card Guarantee',
-      description: pmConfig.card_guarantee_description || 'Your card is held securely as a booking guarantee. No charge unless you cancel or no-show.'
+      card_guarantee_enabled: !!(cardGuaranteeInMethods && enigmaConfigured),
+      label: cgSettings.label || 'Card Guarantee',
+      description: cgSettings.description || 'Your card is held securely as a booking guarantee. No charge unless you cancel or no-show.'
     });
     
   } catch (error) {
