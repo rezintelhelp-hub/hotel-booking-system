@@ -15437,7 +15437,8 @@ app.post('/api/public/create-group-booking', async (req, res) => {
                         postcode: guest_postcode || '',
                         country: guest_country || '',
                         referer: 'GAS Direct',
-                        apiReference: `GAS-${booking.id}`,
+                        refererEditable: 'GAS Direct',
+                        reference: `GAS-${booking.id}`,
                         notes: payment_method === 'card_guarantee'
                             ? `Booked via GAS | Card Guarantee on file | Group: ${groupBookingId} (Room ${i + 1}/${rooms.length}) | Ref: GAS-${booking.id}`
                             : `Booked via GAS | Group: ${groupBookingId} (Room ${i + 1}/${rooms.length}) | Ref: GAS-${booking.id}`,
@@ -25708,7 +25709,8 @@ app.post('/api/db/book', async (req, res) => {
           country: guest_country || '',
           postcode: guest_postcode || '',
           referer: 'GAS Direct',
-          apiReference: `GAS-${booking.id}`,
+          refererEditable: 'GAS Direct',
+          reference: `GAS-${booking.id}`,
           notes: payment_method === 'card_guarantee' 
             ? `Booked via GAS | Card Guarantee on file | Ref: GAS-${booking.id}` 
             : `Booked via GAS | Ref: GAS-${booking.id}`,
