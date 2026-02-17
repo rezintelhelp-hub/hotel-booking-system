@@ -50749,7 +50749,8 @@ app.post('/api/public/book', async (req, res) => {
       guest_first_name, guest_last_name, guest_email, guest_phone,
       guest_address, guest_city, guest_country, guest_postcode,
       voucher_code, notes, total_price,
-      stripe_payment_intent_id, deposit_amount, balance_amount, payment_method
+      stripe_payment_intent_id, deposit_amount, balance_amount, payment_method,
+      enigma_reference_id
     } = req.body;
     
     // Validate required fields
@@ -50881,6 +50882,55 @@ app.post('/api/public/book', async (req, res) => {
       await pool.query(`
         UPDATE vouchers SET times_used = times_used + 1 WHERE code = $1
       `, [voucher_code.toUpperCase()]);
+    }
+    
+    // If card guarantee was used, store card token from Enigma
+    if (enigma_reference_id && payment_method === 'card_guarantee') {
+      try {
+        console.log(`[Enigma] Storing card for booking ${newBooking.id}, reference: ${enigma_reference_id}`);
+        const accessToken = await getEnigmaAccessToken();
+        
+        // Search for the card by reference ID
+        const searchResponse = await fetch(`${process.env.ENIGMA_API_URL || 'https://api.enigmavault.io'}/cardvault/cards?referenceId=${enigma_reference_id}`, {
+          headers: { 'Authorization': `Bearer ${accessToken}` }
+        });
+        const searchData = await searchResponse.json();
+        
+        if (searchData && searchData.length > 0) {
+          const card = searchData[0];
+          await pool.query(`
+            UPDATE bookings SET 
+              enigma_card_token = $1,
+              enigma_card_last_four = $2,
+              enigma_card_first_six = $3,
+              enigma_card_type = $4,
+              enigma_card_name = $5,
+              enigma_card_exp_month = $6,
+              enigma_card_exp_year = $7,
+              enigma_reference_id = $8
+            WHERE id = $9
+          `, [
+            card.token || card.cardToken,
+            card.lastFour || card.last4,
+            card.firstSix || card.first6,
+            card.cardType || card.brand,
+            card.cardholderName || card.name,
+            card.expiryMonth || card.expMonth,
+            card.expiryYear || card.expYear,
+            enigma_reference_id,
+            newBooking.id
+          ]);
+          console.log(`[Enigma] Card stored for booking ${newBooking.id}: **** ${card.lastFour || card.last4}`);
+          
+          // Log usage
+          await logEnigmaUsage(pool, unit.rows[0].property_id, newBooking.id, 'card_capture', 2, 0.16, 0.50);
+        } else {
+          console.log(`[Enigma] No card found for reference ${enigma_reference_id}`);
+        }
+      } catch (enigmaError) {
+        console.error('[Enigma] Error storing card:', enigmaError.message);
+        // Don't fail the booking - card storage is secondary
+      }
     }
     
     // Block availability for these dates
