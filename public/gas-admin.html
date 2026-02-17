@@ -16663,6 +16663,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                             </div>
                         </div>
                         
+                        <!-- Card on File -->
+                        <div id="view-card-on-file" style="display: none; margin-bottom: 1.5rem;"></div>
+                        
                         <!-- Channel Manager Info -->
                         <div style="margin-bottom: 1.5rem;">
                             <h4 style="margin: 0 0 1rem 0; color: #374151; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 0.5rem;">
@@ -17072,6 +17075,17 @@ const promo = await fetch('/api/v1/offers/validate', {
                             <span style="flex: 1; font-weight: 500;">PayPal</span>
                             <span style="font-size: 0.75rem; background: #94a3b8; color: white; padding: 0.15rem 0.5rem; border-radius: 10px;">Coming Soon</span>
                         </label>
+                        
+                        <!-- Card Guarantee (Enigma Vault) -->
+                        <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer; padding: 0.75rem; background: white; border-radius: 8px; border: 2px solid transparent; transition: all 0.2s;" id="provider-card-guarantee-label">
+                            <input type="checkbox" name="payment-provider" value="card_guarantee" id="payment-provider-card-guarantee" style="width: 18px; height: 18px;" onchange="togglePaymentSections()">
+                            <span style="font-size: 1.25rem;">&#x1F6E1;</span>
+                            <div style="flex: 1;">
+                                <span style="font-weight: 500;">Card Guarantee</span>
+                                <p style="font-size: 0.75rem; color: #64748b; margin: 0.15rem 0 0 0;">Securely capture guest card as booking guarantee (no charge at booking)</p>
+                            </div>
+                            <span style="font-size: 0.75rem; background: #8b5cf6; color: white; padding: 0.15rem 0.5rem; border-radius: 10px;">PCI Secure</span>
+                        </label>
                     </div>
                 </div>
                 
@@ -17166,6 +17180,50 @@ const promo = await fetch('/api/v1/offers/validate', {
                             <input type="number" id="bank-transfer-deadline-hours" class="form-input" value="48" min="0" style="max-width: 100px;">
                             <span style="font-size: 0.85rem; color: #64748b;">hours to complete transfer (0 = no deadline)</span>
                         </div>
+                    </div>
+                </div>
+                
+                <!-- Card Guarantee Section (Enigma Vault) -->
+                <div id="card-guarantee-section" style="display: none; background: linear-gradient(135deg, #faf5ff 0%, #f0e7ff 100%); border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem; border: 1px solid #c4b5fd;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h4 style="margin: 0; font-size: 0.95rem; color: #6d28d9;">&#x1F6E1; Card Guarantee Settings</h4>
+                        <span style="font-size: 0.7rem; background: #8b5cf6; color: white; padding: 0.2rem 0.6rem; border-radius: 10px;">Powered by Enigma Vault</span>
+                    </div>
+                    
+                    <div style="background: white; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+                        <p style="font-size: 0.85rem; color: #4c1d95; margin: 0 0 0.75rem 0; font-weight: 500;">How it works:</p>
+                        <div style="font-size: 0.8rem; color: #64748b; line-height: 1.6;">
+                            <p style="margin: 0 0 0.4rem 0;">1. Guest enters card details in a secure PCI-compliant form at booking</p>
+                            <p style="margin: 0 0 0.4rem 0;">2. Card is tokenised and stored securely — no card data touches your server</p>
+                            <p style="margin: 0 0 0.4rem 0;">3. Guest pays at property (cash, bank transfer, etc.) — no charge at booking</p>
+                            <p style="margin: 0;">4. For no-shows or cancellations, you can charge the stored card</p>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label class="form-label">Guest-facing Label</label>
+                        <input type="text" class="form-input" id="card-guarantee-label" placeholder="e.g. Card Guarantee (no charge at booking)" value="Card Guarantee">
+                        <p style="font-size: 0.75rem; color: #64748b; margin-top: 0.25rem;">This text appears in the booking plugin payment options</p>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label class="form-label">Guest-facing Description</label>
+                        <textarea class="form-input" id="card-guarantee-description" rows="2" placeholder="e.g. Your card will be securely stored as a guarantee. No charge will be made unless you cancel or no-show.">Your card will be securely stored as a booking guarantee. No charge will be made at the time of booking.</textarea>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label">No-show / Late Cancellation Charge</label>
+                        <div style="display: flex; gap: 0.75rem; align-items: center;">
+                            <select id="card-guarantee-noshow-type" class="form-input" style="max-width: 180px;">
+                                <option value="first_night">First night</option>
+                                <option value="percentage">Percentage</option>
+                                <option value="fixed">Fixed amount</option>
+                                <option value="full">Full booking</option>
+                            </select>
+                            <input type="number" id="card-guarantee-noshow-amount" class="form-input" value="100" min="0" style="max-width: 100px;">
+                            <span id="card-guarantee-noshow-symbol" style="font-weight: 500;">%</span>
+                        </div>
+                        <p style="font-size: 0.75rem; color: #64748b; margin-top: 0.25rem;">Amount to charge the guest's card in case of no-show or late cancellation</p>
                     </div>
                 </div>
                 
@@ -37154,6 +37212,41 @@ const promo = await fetch('/api/v1/offers/validate', {
         let currentViewingBookingId = null;
         
 
+
+        async function chargeCardGuarantee(bookingId) {
+            const amountStr = prompt('Enter amount to charge (e.g. 150.00):');
+            if (!amountStr) return;
+            const amount = parseFloat(amountStr);
+            if (isNaN(amount) || amount <= 0) {
+                showNotification('Please enter a valid amount', 'error');
+                return;
+            }
+            
+            const description = prompt('Reason for charge:', 'No-show charge');
+            if (description === null) return;
+            
+            if (!confirm(`Charge ${amount.toFixed(2)} to guest's card on file?\n\nReason: ${description}\n\nThis action cannot be undone.`)) return;
+            
+            try {
+                showNotification('Processing charge...', 'info');
+                const response = await fetch(`/api/bookings/${bookingId}/charge-card`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ amount, description })
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification(`Successfully charged ${amount.toFixed(2)} to card`, 'success');
+                    viewBooking(bookingId); // Refresh the detail view
+                } else {
+                    showNotification('Charge failed: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (error) {
+                showNotification('Error processing charge: ' + error.message, 'error');
+            }
+        }
+
         async function changeBookingStatusInline() {
             const statusEl = document.getElementById('view-booking-status');
             const statuses = ['pending', 'confirmed', 'cancelled', 'completed', 'no_show'];
@@ -37345,6 +37438,46 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 // Channel Manager
                 document.getElementById('view-booking-source').textContent = b.booking_source || 'Direct';
+                
+                // Card Guarantee / Card on File
+                const cardInfoEl = document.getElementById('view-card-on-file');
+                if (cardInfoEl) {
+                    if (b.enigma_card_token) {
+                        const cardType = (b.enigma_card_type || 'card').toUpperCase();
+                        const lastFour = b.enigma_card_last_four || '****';
+                        const expiry = b.enigma_card_exp_month && b.enigma_card_exp_year ? `${String(b.enigma_card_exp_month).padStart(2,'0')}/${b.enigma_card_exp_year}` : '';
+                        cardInfoEl.style.display = 'block';
+                        cardInfoEl.innerHTML = `
+                            <div style="background: linear-gradient(135deg, #faf5ff 0%, #f0e7ff 100%); border: 1px solid #c4b5fd; border-radius: 10px; padding: 1rem; margin-top: 0.75rem;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                                    <span style="font-weight: 600; color: #6d28d9; font-size: 0.9rem;">&#x1F6E1; Card on File</span>
+                                    <span style="font-size: 0.75rem; background: #dcfce7; color: #166534; padding: 0.15rem 0.5rem; border-radius: 8px;">Secured</span>
+                                </div>
+                                <div style="display: flex; gap: 1.5rem; align-items: center; margin-bottom: 0.75rem;">
+                                    <div>
+                                        <div style="font-size: 0.75rem; color: #64748b;">Card</div>
+                                        <div style="font-weight: 600;">${cardType} **** ${lastFour}</div>
+                                    </div>
+                                    ${b.enigma_card_name ? `<div>
+                                        <div style="font-size: 0.75rem; color: #64748b;">Cardholder</div>
+                                        <div style="font-weight: 500;">${b.enigma_card_name}</div>
+                                    </div>` : ''}
+                                    ${expiry ? `<div>
+                                        <div style="font-size: 0.75rem; color: #64748b;">Expires</div>
+                                        <div style="font-weight: 500;">${expiry}</div>
+                                    </div>` : ''}
+                                </div>
+                                <div style="display: flex; gap: 0.5rem;">
+                                    <button class="btn btn-small" onclick="chargeCardGuarantee(${b.id})" style="background: #dc2626; color: white; font-size: 0.8rem;">&#x1F4B3; Charge Card</button>
+                                    <span style="font-size: 0.75rem; color: #64748b; align-self: center;">For no-show or late cancellation</span>
+                                </div>
+                            </div>
+                        `;
+                    } else {
+                        cardInfoEl.style.display = 'none';
+                        cardInfoEl.innerHTML = '';
+                    }
+                }
                 
                 if (b.beds24_booking_id) {
                     document.getElementById('view-beds24-row').style.display = 'flex';
@@ -48316,6 +48449,12 @@ const promo = await fetch('/api/v1/offers/validate', {
             // Reset form
             document.getElementById('payment-provider-stripe').checked = false;
             document.getElementById('payment-provider-bank').checked = false;
+            const cgCheckbox = document.getElementById('payment-provider-card-guarantee');
+            if (cgCheckbox) cgCheckbox.checked = false;
+            if (document.getElementById('card-guarantee-label')) document.getElementById('card-guarantee-label').value = 'Card Guarantee';
+            if (document.getElementById('card-guarantee-description')) document.getElementById('card-guarantee-description').value = 'Your card will be securely stored as a booking guarantee. No charge will be made at the time of booking.';
+            if (document.getElementById('card-guarantee-noshow-type')) document.getElementById('card-guarantee-noshow-type').value = 'first_night';
+            if (document.getElementById('card-guarantee-noshow-amount')) document.getElementById('card-guarantee-noshow-amount').value = 100;
             document.getElementById('stripe-publishable-key').value = '';
             document.getElementById('stripe-secret-key').value = '';
             document.getElementById('stripe-test-mode').checked = false;
@@ -48394,6 +48533,25 @@ const promo = await fetch('/api/v1/offers/validate', {
                     if (methods.includes('bank_transfer')) {
                         document.getElementById('payment-provider-bank').checked = true;
                     }
+                    if (methods.includes('card_guarantee')) {
+                        const cgCb = document.getElementById('payment-provider-card-guarantee');
+                        if (cgCb) cgCb.checked = true;
+                    }
+                    
+                    // Load card guarantee settings
+                    const cgSettings = settings.card_guarantee || {};
+                    if (cgSettings.label && document.getElementById('card-guarantee-label')) {
+                        document.getElementById('card-guarantee-label').value = cgSettings.label;
+                    }
+                    if (cgSettings.description && document.getElementById('card-guarantee-description')) {
+                        document.getElementById('card-guarantee-description').value = cgSettings.description;
+                    }
+                    if (cgSettings.noshow_charge_type && document.getElementById('card-guarantee-noshow-type')) {
+                        document.getElementById('card-guarantee-noshow-type').value = cgSettings.noshow_charge_type;
+                    }
+                    if (cgSettings.noshow_charge_amount && document.getElementById('card-guarantee-noshow-amount')) {
+                        document.getElementById('card-guarantee-noshow-amount').value = cgSettings.noshow_charge_amount;
+                    }
                     
                     // Load bank details
                     const bankDetails = typeof settings.bank_details === 'string' ? JSON.parse(settings.bank_details) : (settings.bank_details || {});
@@ -48458,16 +48616,24 @@ const promo = await fetch('/api/v1/offers/validate', {
         function togglePaymentSections() {
             const stripeChecked = document.getElementById('payment-provider-stripe').checked;
             const bankChecked = document.getElementById('payment-provider-bank').checked;
+            const cardGuaranteeChecked = document.getElementById('payment-provider-card-guarantee')?.checked || false;
             
             document.getElementById('stripe-keys-section').style.display = stripeChecked ? 'block' : 'none';
             document.getElementById('stripe-setup-link-section').style.display = stripeChecked ? 'block' : 'none';
             document.getElementById('bank-transfer-section').style.display = bankChecked ? 'block' : 'none';
+            const cgSection = document.getElementById('card-guarantee-section');
+            if (cgSection) cgSection.style.display = cardGuaranteeChecked ? 'block' : 'none';
             
             // Highlight selected providers
             document.getElementById('provider-stripe-label').style.borderColor = stripeChecked ? '#4f46e5' : 'transparent';
             document.getElementById('provider-stripe-label').style.background = stripeChecked ? '#eef2ff' : 'white';
             document.getElementById('provider-bank-label').style.borderColor = bankChecked ? '#3b82f6' : 'transparent';
             document.getElementById('provider-bank-label').style.background = bankChecked ? '#eff6ff' : 'white';
+            const cgLabel = document.getElementById('provider-card-guarantee-label');
+            if (cgLabel) {
+                cgLabel.style.borderColor = cardGuaranteeChecked ? '#8b5cf6' : 'transparent';
+                cgLabel.style.background = cardGuaranteeChecked ? '#faf5ff' : 'white';
+            }
         }
         
         function addBankAccount() {
@@ -48619,6 +48785,17 @@ const promo = await fetch('/api/v1/offers/validate', {
             const acceptedMethods = [];
             if (document.getElementById('payment-provider-stripe').checked) acceptedMethods.push('card');
             if (document.getElementById('payment-provider-bank').checked) acceptedMethods.push('bank_transfer');
+            if (document.getElementById('payment-provider-card-guarantee')?.checked) acceptedMethods.push('card_guarantee');
+            
+            // Build card guarantee settings
+            const cardGuaranteeSettings = {};
+            if (document.getElementById('payment-provider-card-guarantee')?.checked) {
+                cardGuaranteeSettings.enabled = true;
+                cardGuaranteeSettings.label = document.getElementById('card-guarantee-label')?.value || 'Card Guarantee';
+                cardGuaranteeSettings.description = document.getElementById('card-guarantee-description')?.value || '';
+                cardGuaranteeSettings.noshow_charge_type = document.getElementById('card-guarantee-noshow-type')?.value || 'first_night';
+                cardGuaranteeSettings.noshow_charge_amount = parseFloat(document.getElementById('card-guarantee-noshow-amount')?.value) || 100;
+            }
             
             // Build bank details object
             const bankDetails = {
@@ -48635,6 +48812,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 currency: document.getElementById('payment-currency').value,
                 accepted_methods: acceptedMethods.length > 0 ? acceptedMethods : ['card'],
                 bank_details: bankDetails,
+                card_guarantee: cardGuaranteeSettings,
                 cancellation_policy: document.getElementById('payment-cancellation').value
             };
             
