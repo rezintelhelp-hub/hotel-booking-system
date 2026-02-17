@@ -40173,7 +40173,8 @@ app.post('/api/admin/sync-bedroom-counts', async (req, res) => {
     for (const br of bedrooms.rows) {
       const config = typeof br.bed_config === 'string' ? JSON.parse(br.bed_config) : (br.bed_config || []);
       let guests = 0;
-      for (const bed of config) {
+      const configArr = Array.isArray(config) ? config : (config && typeof config === 'object' ? [config] : []);
+      for (const bed of configArr) {
         const qty = parseInt(bed.quantity || bed.count || 1);
         const type = (bed.type || bed.bed_type || '').toLowerCase();
         if (type === 'king' || type === 'queen' || type === 'double') guests += 2 * qty;
