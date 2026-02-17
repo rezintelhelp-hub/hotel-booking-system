@@ -70071,9 +70071,10 @@ app.get('/api/public/enigma/form-url', async (req, res) => {
     const serverCallbackUrl = `https://${req.get('host')}/api/public/enigma/card-captured-callback?ref=${referenceId}`;
     params.append('callbackUrl', serverCallbackUrl);
     
-    // Always include GAS styling for the Enigma form
-    const gasCssUrl = `https://${req.get('host')}/api/public/enigma/form-styles.css`;
-    params.append('css', css || gasCssUrl);
+    // CSS styling - only add if explicitly provided
+    if (css) {
+      params.append('css', css);
+    }
     
     const formResponse = await fetch(`${enigmaApiUrl}/cardvault/store/forms?${params.toString()}`, {
       method: 'GET',
@@ -70087,8 +70088,8 @@ app.get('/api/public/enigma/form-url', async (req, res) => {
     
     if (!formResponse.ok) {
       const err = await formResponse.text();
-      console.error('Enigma form request failed:', err);
-      return res.status(500).json({ success: false, error: 'Failed to generate card form' });
+      console.error('Enigma form request failed:', formResponse.status, err);
+      return res.status(500).json({ success: false, error: 'Failed to generate card form', enigma_status: formResponse.status, enigma_error: err });
     }
     
     const formData = await formResponse.json();
