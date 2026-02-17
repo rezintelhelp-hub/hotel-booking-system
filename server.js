@@ -70068,7 +70068,7 @@ app.get('/api/public/enigma/form-url', async (req, res) => {
     
     // Use server callback - Enigma redirects iframe to this URL after card capture
     // Our callback page returns HTML with postMessage to parent window
-    const serverCallbackUrl = `${req.protocol}://${req.get('host')}/api/public/enigma/card-captured-callback?ref=${referenceId}`;
+    const serverCallbackUrl = `https://${req.get('host')}/api/public/enigma/card-captured-callback?ref=${referenceId}`;
     params.append('callbackUrl', serverCallbackUrl);
     
     if (css) {
