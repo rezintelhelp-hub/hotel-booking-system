@@ -17224,6 +17224,12 @@ const promo = await fetch('/api/v1/offers/validate', {
                             <span id="card-guarantee-noshow-symbol" style="font-weight: 500;">%</span>
                         </div>
                         <p style="font-size: 0.75rem; color: #64748b; margin-top: 0.25rem;">Amount to charge the guest's card in case of no-show or late cancellation</p>
+                        
+                        <div class="form-group" style="margin-top: 1rem;">
+                            <label>Post-capture Message</label>
+                            <textarea class="form-input" id="card-guarantee-success-msg" rows="2" placeholder="e.g. Thank you! Your card is secured. Please confirm your booking below.">Thank you! Your card is secured. Please now confirm your booking below.</textarea>
+                            <p style="font-size: 0.75rem; color: #64748b; margin-top: 0.25rem;">Shown to the guest after their card is successfully captured</p>
+                        </div>
                     </div>
                 </div>
                 
@@ -48455,6 +48461,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (document.getElementById('card-guarantee-description')) document.getElementById('card-guarantee-description').value = 'Your card will be securely stored as a booking guarantee. No charge will be made at the time of booking.';
             if (document.getElementById('card-guarantee-noshow-type')) document.getElementById('card-guarantee-noshow-type').value = 'first_night';
             if (document.getElementById('card-guarantee-noshow-amount')) document.getElementById('card-guarantee-noshow-amount').value = 100;
+            if (document.getElementById('card-guarantee-success-msg')) document.getElementById('card-guarantee-success-msg').value = 'Thank you! Your card is secured. Please now confirm your booking below.';
             document.getElementById('stripe-publishable-key').value = '';
             document.getElementById('stripe-secret-key').value = '';
             document.getElementById('stripe-test-mode').checked = false;
@@ -48551,6 +48558,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                     }
                     if (cgSettings.noshow_charge_amount && document.getElementById('card-guarantee-noshow-amount')) {
                         document.getElementById('card-guarantee-noshow-amount').value = cgSettings.noshow_charge_amount;
+                    }
+                    if (cgSettings.success_message && document.getElementById('card-guarantee-success-msg')) {
+                        document.getElementById('card-guarantee-success-msg').value = cgSettings.success_message;
                     }
                     
                     // Load bank details
@@ -48795,6 +48805,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 cardGuaranteeSettings.description = document.getElementById('card-guarantee-description')?.value || '';
                 cardGuaranteeSettings.noshow_charge_type = document.getElementById('card-guarantee-noshow-type')?.value || 'first_night';
                 cardGuaranteeSettings.noshow_charge_amount = parseFloat(document.getElementById('card-guarantee-noshow-amount')?.value) || 100;
+                cardGuaranteeSettings.success_message = document.getElementById('card-guarantee-success-msg')?.value || 'Thank you! Your card is secured. Please now confirm your booking below.';
             }
             
             // Build bank details object
