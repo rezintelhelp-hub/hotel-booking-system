@@ -70634,7 +70634,8 @@ app.get('/api/public/property/:id/card-guarantee-info', async (req, res) => {
       success: true,
       card_guarantee_enabled: !!cardGuaranteeInMethods,
       label: cgSettings.label || 'Card Guarantee',
-      description: cgSettings.description || 'Your card is held securely as a booking guarantee. No charge unless you cancel or no-show.'
+      description: cgSettings.description || 'Your card is held securely as a booking guarantee. No charge unless you cancel or no-show.',
+      success_message: cgSettings.success_message || 'Thank you! Your card is secured. Please now confirm your booking below.'
     });
     
   } catch (error) {
