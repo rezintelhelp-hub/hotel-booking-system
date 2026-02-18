@@ -25740,6 +25740,17 @@ app.put('/api/payment-configurations/:id', async (req, res) => {
 });
 
 // Delete payment configuration
+// Delete payment configuration by property ID (must be before :id route)
+app.delete('/api/payment-configurations/by-property/:propertyId', async (req, res) => {
+  try {
+    const { propertyId } = req.params;
+    await pool.query('DELETE FROM payment_configurations WHERE property_id = $1 AND provider = $2', [propertyId, 'stripe']);
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 app.delete('/api/payment-configurations/:id', async (req, res) => {
   try {
     const { id } = req.params;
