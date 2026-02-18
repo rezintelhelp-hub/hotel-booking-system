@@ -24874,6 +24874,102 @@ app.post('/api/property/:propertyId/payment-settings', async (req, res) => {
   }
 });
 
+// Bulk update: Direct/Pay at Property mode ONLY (safe - touches nothing else)
+app.post('/api/property/:propertyId/set-direct-payment', async (req, res) => {
+  try {
+    const { propertyId } = req.params;
+    const { pay_property_mode, bank_details } = req.body;
+    
+    // Get account ID for this property
+    const propResult = await pool.query('SELECT account_id FROM properties WHERE id = $1', [propertyId]);
+    if (!propResult.rows[0]) return res.json({ success: false, error: 'Property not found' });
+    const accountId = propResult.rows[0].account_id;
+    
+    // Update ONLY pay_property_mode and bank_details in account settings
+    const existingSettings = await pool.query('SELECT settings FROM accounts WHERE id = $1', [accountId]);
+    const currentSettings = typeof existingSettings.rows[0]?.settings === 'string' 
+      ? JSON.parse(existingSettings.rows[0].settings) 
+      : (existingSettings.rows[0]?.settings || {});
+    
+    currentSettings.pay_property_mode = pay_property_mode || 'no_payment';
+    if (bank_details && Object.keys(bank_details).length > 0) {
+      currentSettings.bank_details = bank_details;
+    }
+    
+    // Ensure pay_at_property is enabled in payment_methods
+    if (!currentSettings.payment_methods) currentSettings.payment_methods = {};
+    currentSettings.payment_methods.pay_at_property = true;
+    
+    await pool.query('UPDATE accounts SET settings = $1 WHERE id = $2', [JSON.stringify(currentSettings), accountId]);
+    
+    // Also ensure property_payment_settings has pay_at_property in accepted_methods
+    const ppsResult = await pool.query('SELECT accepted_methods FROM property_payment_settings WHERE property_id = $1', [propertyId]);
+    if (ppsResult.rows[0]) {
+      let methods = ppsResult.rows[0].accepted_methods || [];
+      if (typeof methods === 'string') { try { methods = JSON.parse(methods); } catch(e) { methods = []; } }
+      if (!methods.includes('pay_at_property')) {
+        methods.push('pay_at_property');
+        await pool.query('UPDATE property_payment_settings SET accepted_methods = $1 WHERE property_id = $2', [JSON.stringify(methods), propertyId]);
+      }
+    } else {
+      await pool.query(`INSERT INTO property_payment_settings (property_id, accepted_methods, payment_enabled) VALUES ($1, $2, true) ON CONFLICT (property_id) DO UPDATE SET accepted_methods = $2`, [propertyId, JSON.stringify(['pay_at_property'])]);
+    }
+    
+    res.json({ success: true, message: 'Direct payment settings updated' });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Bulk update: Card Guarantee ONLY (safe - touches nothing else)
+app.post('/api/property/:propertyId/set-card-guarantee', async (req, res) => {
+  try {
+    const { propertyId } = req.params;
+    const { api_key, checkout_id, label } = req.body;
+    
+    // Get account ID
+    const propResult = await pool.query('SELECT account_id FROM properties WHERE id = $1', [propertyId]);
+    if (!propResult.rows[0]) return res.json({ success: false, error: 'Property not found' });
+    const accountId = propResult.rows[0].account_id;
+    
+    // Update ONLY card_guarantee in account settings
+    const existingSettings = await pool.query('SELECT settings FROM accounts WHERE id = $1', [accountId]);
+    const currentSettings = typeof existingSettings.rows[0]?.settings === 'string' 
+      ? JSON.parse(existingSettings.rows[0].settings) 
+      : (existingSettings.rows[0]?.settings || {});
+    
+    currentSettings.card_guarantee = {
+      enabled: true,
+      api_key: api_key,
+      checkout_id: checkout_id,
+      label: label || 'Card Guarantee'
+    };
+    
+    // Ensure card_guarantee is enabled in payment_methods
+    if (!currentSettings.payment_methods) currentSettings.payment_methods = {};
+    currentSettings.payment_methods.card_guarantee = true;
+    
+    await pool.query('UPDATE accounts SET settings = $1 WHERE id = $2', [JSON.stringify(currentSettings), accountId]);
+    
+    // Also ensure property_payment_settings has card_guarantee in accepted_methods
+    const ppsResult = await pool.query('SELECT accepted_methods FROM property_payment_settings WHERE property_id = $1', [propertyId]);
+    if (ppsResult.rows[0]) {
+      let methods = ppsResult.rows[0].accepted_methods || [];
+      if (typeof methods === 'string') { try { methods = JSON.parse(methods); } catch(e) { methods = []; } }
+      if (!methods.includes('card_guarantee')) {
+        methods.push('card_guarantee');
+        await pool.query('UPDATE property_payment_settings SET accepted_methods = $1 WHERE property_id = $2', [JSON.stringify(methods), propertyId]);
+      }
+    } else {
+      await pool.query(`INSERT INTO property_payment_settings (property_id, accepted_methods, payment_enabled) VALUES ($1, $2, true) ON CONFLICT (property_id) DO UPDATE SET accepted_methods = $2`, [propertyId, JSON.stringify(['card_guarantee'])]);
+    }
+    
+    res.json({ success: true, message: 'Card guarantee settings updated' });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // =====================================================
 // GUEST PAYMENTS (for booking checkout)
 // =====================================================
