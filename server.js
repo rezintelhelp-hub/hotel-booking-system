@@ -40159,6 +40159,16 @@ async function updateBedroomCount(propertyId, roomId) {
 }
 
 // Sync all bedroom counts from property_bedrooms to bookable_units
+app.post('/api/admin/fix-columns', async (req, res) => {
+  try {
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS source_site_url VARCHAR(500)`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payment_method VARCHAR(50)`);
+    res.json({ success: true, message: 'Columns ensured' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 app.post('/api/admin/sync-bedroom-counts', async (req, res) => {
   try {
     // 1. Sync rooms that have bedrooms linked directly (room_id set)
