@@ -50949,7 +50949,7 @@ app.post('/api/public/book', async (req, res) => {
     
     // Get unit and property info
     const unit = await pool.query(`
-      SELECT bu.*, p.id as property_id, p.name as property_name, a.settings as account_settings
+      SELECT bu.*, p.id as property_id, p.name as property_name, p.currency, a.settings as account_settings
       FROM bookable_units bu
       LEFT JOIN properties p ON bu.property_id = p.id
       LEFT JOIN accounts a ON p.account_id = a.id
@@ -51050,7 +51050,7 @@ app.post('/api/public/book', async (req, res) => {
       stripe_payment_intent_id || null,
       paymentStatus,
       bookingStatus,
-      roomData.currency || 'EUR',
+      unit.rows[0].currency || 'EUR',
       notes || null,
       source_site_url || null
     ]);
@@ -68405,7 +68405,7 @@ async function getLatestGitHubRelease() {
     console.error('[GitHub] Error fetching release:', error.message);
     // Return fallback if API fails
     return {
-      version: '2.9.14',
+      version: '3.1.13',
       download_url: 'https://github.com/rezintelhelp-hub/gas-booking-plugin/releases/latest',
       published_at: new Date().toISOString(),
       body: ''
