@@ -48764,11 +48764,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     </div>
                     
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
-                        <div class="form-group" style="margin-bottom: 0.5rem;">
-                            <label style="font-size: 0.75rem; font-weight: 600; color: #64748b;">Label (e.g. "Local PHP" or "International USD")</label>
-                            <input type="text" class="form-input" value="${account.label || ''}" onchange="updateBankAccount(${i}, 'label', this.value)" placeholder="e.g. Local Bank Account" style="font-size: 0.85rem;">
-                        </div>
-                        <div class="form-group" style="margin-bottom: 0.5rem;">
+                        <div class="form-group" style="margin-bottom: 0.5rem; grid-column: 1 / -1;">
                             <label style="font-size: 0.75rem; font-weight: 600; color: #64748b;">Bank Name *</label>
                             <input type="text" class="form-input" value="${account.bank_name || ''}" onchange="updateBankAccount(${i}, 'bank_name', this.value)" placeholder="e.g. BPI, HSBC, Barclays" style="font-size: 0.85rem;" required>
                         </div>
