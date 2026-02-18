@@ -22065,6 +22065,54 @@ app.post('/api/admin/create-master-user', async (req, res) => {
   }
 });
 
+// Reset WordPress password via VPS WP-CLI and optionally create GAS master user
+app.post('/api/admin/wp-reset-password', async (req, res) => {
+  try {
+    const { slug, username, new_password, create_master_user } = req.body;
+    if (!slug) return res.json({ success: false, error: 'slug required' });
+    
+    const wpUser = username || 'admin';
+    const wpPass = new_password || require('crypto').randomBytes(16).toString('base64').slice(0, 20);
+    
+    // Call VPS deploy script to reset password via WP-CLI
+    const response = await fetch(`${VPS_DEPLOY_URL}?action=wp-cli`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        slug: slug,
+        command: `user update ${wpUser} --user_pass="${wpPass}"`
+      })
+    });
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      // Update stored password in database
+      await pool.query(`UPDATE deployed_sites SET wp_password_temp = $1 WHERE slug = $2`, [wpPass, slug]);
+      
+      // Optionally create GAS master user with the new credentials
+      let masterResult = null;
+      if (create_master_user !== false) {
+        const siteResult = await pool.query(`SELECT site_url FROM deployed_sites WHERE slug = $1`, [slug]);
+        if (siteResult.rows[0]?.site_url) {
+          masterResult = await createGASMasterUser(siteResult.rows[0].site_url, wpUser, wpPass);
+        }
+      }
+      
+      res.json({ 
+        success: true, 
+        message: `Password reset for ${wpUser}`,
+        new_password: wpPass,
+        master_user: masterResult
+      });
+    } else {
+      res.json({ success: false, error: data.error || 'VPS command failed', details: data });
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Add existing deployed site (for legacy sites not deployed through GAS)
 app.post('/api/admin/deployed-sites/add-existing', async (req, res) => {
   try {
