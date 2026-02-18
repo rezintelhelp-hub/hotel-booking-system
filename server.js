@@ -15162,172 +15162,138 @@ app.get('/api/public/property/:propertyId/stripe-info', async (req, res) => {
     try {
         const { propertyId } = req.params;
         
-        // First check new payment_configurations table
-        let paymentConfig = await pool.query(`
-            SELECT pc.*
-            FROM payment_configurations pc
-            WHERE pc.property_id = $1 AND pc.provider = 'stripe' AND pc.is_enabled = true
-            LIMIT 1
-        `, [propertyId]);
-        
-        // Fall back to account-level config
-        if (paymentConfig.rows.length === 0) {
-            paymentConfig = await pool.query(`
-                SELECT pc.*
-                FROM payment_configurations pc
-                JOIN properties p ON pc.account_id = p.account_id
-                WHERE p.id = $1 AND pc.property_id IS NULL AND pc.provider = 'stripe' AND pc.is_enabled = true
-                LIMIT 1
-            `, [propertyId]);
-        }
-        
-        // If found in new table, use it
-        if (paymentConfig.rows.length > 0) {
-            const config = paymentConfig.rows[0];
-            
-            // Get deposit rules
-            let depositRule = null;
-            const ruleResult = await pool.query(`
-                SELECT * FROM deposit_rules 
-                WHERE (property_id = $1 OR (property_id IS NULL AND account_id = $2)) AND is_active = true 
-                ORDER BY property_id NULLS LAST, created_at DESC LIMIT 1
-            `, [propertyId, config.account_id]);
-            
-            if (ruleResult.rows.length > 0) {
-                depositRule = ruleResult.rows[0];
-            }
-            
-            // Get payment methods from property_payment_settings or account settings
-            let paymentMethods = { card: true, pay_at_property: false, paypal: false, card_guarantee: false };
-            let payPropertyMode = 'no_payment';
-            let bankDetails = null;
-            
-            const ppsResult = await pool.query(`
-                SELECT pps.accepted_methods, pps.pay_property_mode, pps.bank_details, pps.card_guarantee,
-                       a.settings as account_settings
-                FROM properties p
-                LEFT JOIN property_payment_settings pps ON pps.property_id = p.id
-                LEFT JOIN accounts a ON p.account_id = a.id
-                WHERE p.id = $1
-            `, [propertyId]);
-            
-            if (ppsResult.rows.length > 0) {
-                const ppsRow = ppsResult.rows[0];
-                const acctSettings = typeof ppsRow.account_settings === 'string' ? JSON.parse(ppsRow.account_settings) : (ppsRow.account_settings || {});
-                
-                if (ppsRow.accepted_methods) {
-                    const methods = typeof ppsRow.accepted_methods === 'string' ? JSON.parse(ppsRow.accepted_methods) : ppsRow.accepted_methods;
-                    paymentMethods = {
-                        card: Array.isArray(methods) ? methods.includes('card') : !!methods.card,
-                        pay_at_property: Array.isArray(methods) ? methods.includes('pay_at_property') : !!methods.pay_at_property,
-                        paypal: Array.isArray(methods) ? methods.includes('paypal') : !!methods.paypal,
-                        card_guarantee: Array.isArray(methods) ? methods.includes('card_guarantee') : !!methods.card_guarantee
-                    };
-                } else if (acctSettings.payment_methods) {
-                    paymentMethods = acctSettings.payment_methods;
-                }
-                
-                payPropertyMode = ppsRow.pay_property_mode || acctSettings.pay_property_mode || 'no_payment';
-                const bd = ppsRow.bank_details || acctSettings.bank_details || {};
-                if (payPropertyMode === 'bank_optional' || payPropertyMode === 'bank_required') {
-                    bankDetails = {
-                        accounts: bd.accounts || [],
-                        instructions: bd.instructions || '',
-                        deadline_hours: bd.deadline_hours || 48
-                    };
-                }
-            }
-            
-            return res.json({
-                success: true,
-                stripe_enabled: true,
-                stripe_type: 'config',
-                stripe_publishable_key: config.credentials?.publishable_key,
-                deposit_rule: depositRule,
-                payment_methods: paymentMethods,
-                pay_property_mode: payPropertyMode,
-                bank_details: bankDetails
-            });
-        }
-        
-        // Fall back to legacy property/account stripe fields
-        const result = await pool.query(`
-            SELECT p.id, p.account_id, p.stripe_publishable_key, p.stripe_secret_key, p.stripe_enabled,
-                   a.stripe_account_id, a.stripe_account_status, a.stripe_onboarding_complete,
-                   a.stripe_publishable_key as account_stripe_publishable_key,
-                   a.stripe_secret_key as account_stripe_secret_key,
+        // === STEP 1: Get payment methods from property_payment_settings (SINGLE SOURCE OF TRUTH) ===
+        const ppsResult = await pool.query(`
+            SELECT pps.accepted_methods, pps.bank_details,
                    a.settings as account_settings
             FROM properties p
-            JOIN accounts a ON p.account_id = a.id
+            LEFT JOIN property_payment_settings pps ON pps.property_id = p.id
+            LEFT JOIN accounts a ON p.account_id = a.id
             WHERE p.id = $1
         `, [propertyId]);
         
-        if (result.rows.length === 0) {
-            return res.json({ success: true, stripe_enabled: false });
+        let paymentMethods = { card: false, pay_at_property: false, paypal: false, card_guarantee: false };
+        let payPropertyMode = 'no_payment';
+        let bankDetails = null;
+        
+        if (ppsResult.rows.length > 0) {
+            const pps = ppsResult.rows[0];
+            const acctSettings = typeof pps.account_settings === 'string' ? JSON.parse(pps.account_settings) : (pps.account_settings || {});
+            
+            if (pps.accepted_methods) {
+                const methods = typeof pps.accepted_methods === 'string' ? JSON.parse(pps.accepted_methods) : pps.accepted_methods;
+                paymentMethods = {
+                    card: Array.isArray(methods) ? methods.includes('card') : !!methods.card,
+                    pay_at_property: Array.isArray(methods) ? methods.includes('pay_at_property') : !!methods.pay_at_property,
+                    paypal: Array.isArray(methods) ? methods.includes('paypal') : !!methods.paypal,
+                    card_guarantee: Array.isArray(methods) ? methods.includes('card_guarantee') : !!methods.card_guarantee
+                };
+            }
+            
+            // pay_property_mode and card_guarantee are stored in account settings, not pps table
+            payPropertyMode = acctSettings.pay_property_mode || 'no_payment';
+            if (payPropertyMode === 'bank_optional' || payPropertyMode === 'bank_required') {
+                const bd = pps.bank_details || acctSettings.bank_details || {};
+                const parsedBd = typeof bd === 'string' ? JSON.parse(bd) : bd;
+                bankDetails = {
+                    accounts: parsedBd.accounts || [],
+                    instructions: parsedBd.instructions || '',
+                    deadline_hours: parsedBd.deadline_hours || 48
+                };
+            }
         }
         
-        const data = result.rows[0];
+        // === STEP 2: If card is selected, find Stripe keys (check config table, then property, then account) ===
+        let stripeEnabled = false;
+        let stripePublishableKey = null;
+        let stripeAccountId = null;
+        let stripeType = null;
         
-        // Property-level Stripe takes priority
-        const hasPropertyStripe = data.stripe_enabled && data.stripe_publishable_key && data.stripe_secret_key;
-        const hasAccountStripe = !!(data.stripe_account_id && data.stripe_onboarding_complete);
-        const hasAccountKeys = !!(data.account_stripe_publishable_key && data.account_stripe_secret_key);
-        const stripeEnabled = hasPropertyStripe || hasAccountStripe || hasAccountKeys;
-        
-        // Get deposit rules for this property (or fall back to account-level rule)
-        let depositRule = null;
-        if (stripeEnabled) {
-            // First try property-specific rule
-            const ruleResult = await pool.query(`
-                SELECT * FROM deposit_rules 
-                WHERE property_id = $1 AND is_active = true 
-                ORDER BY created_at DESC LIMIT 1
+        if (paymentMethods.card) {
+            // Check payment_configurations table first (property-level)
+            let paymentConfig = await pool.query(`
+                SELECT pc.*
+                FROM payment_configurations pc
+                WHERE pc.property_id = $1 AND pc.provider = 'stripe' AND pc.is_enabled = true
+                LIMIT 1
             `, [propertyId]);
             
-            if (ruleResult.rows.length > 0) {
-                depositRule = ruleResult.rows[0];
+            // Fall back to account-level config
+            if (paymentConfig.rows.length === 0) {
+                paymentConfig = await pool.query(`
+                    SELECT pc.*
+                    FROM payment_configurations pc
+                    JOIN properties p ON pc.account_id = p.account_id
+                    WHERE p.id = $1 AND pc.property_id IS NULL AND pc.provider = 'stripe' AND pc.is_enabled = true
+                    LIMIT 1
+                `, [propertyId]);
+            }
+            
+            if (paymentConfig.rows.length > 0) {
+                stripeEnabled = true;
+                stripeType = 'config';
+                stripePublishableKey = paymentConfig.rows[0].credentials?.publishable_key;
             } else {
-                // Fall back to account-level rule
-                const accountRuleResult = await pool.query(`
-                    SELECT dr.* FROM deposit_rules dr
-                    JOIN properties p ON dr.account_id = p.account_id
-                    WHERE p.id = $1 AND dr.property_id IS NULL AND dr.is_active = true
-                    ORDER BY dr.created_at DESC LIMIT 1
+                // Fall back to legacy fields
+                const legacyResult = await pool.query(`
+                    SELECT p.stripe_publishable_key, p.stripe_secret_key, p.stripe_enabled,
+                           a.stripe_account_id, a.stripe_onboarding_complete,
+                           a.stripe_publishable_key as account_stripe_publishable_key,
+                           a.stripe_secret_key as account_stripe_secret_key
+                    FROM properties p
+                    JOIN accounts a ON p.account_id = a.id
+                    WHERE p.id = $1
                 `, [propertyId]);
                 
-                if (accountRuleResult.rows.length > 0) {
-                    depositRule = accountRuleResult.rows[0];
+                if (legacyResult.rows.length > 0) {
+                    const data = legacyResult.rows[0];
+                    const hasPropertyStripe = data.stripe_enabled && data.stripe_publishable_key && data.stripe_secret_key;
+                    const hasAccountStripe = !!(data.stripe_account_id && data.stripe_onboarding_complete);
+                    const hasAccountKeys = !!(data.account_stripe_publishable_key && data.account_stripe_secret_key);
+                    
+                    if (hasPropertyStripe) {
+                        stripeEnabled = true;
+                        stripeType = 'property';
+                        stripePublishableKey = data.stripe_publishable_key;
+                    } else if (hasAccountKeys) {
+                        stripeEnabled = true;
+                        stripeType = 'account_keys';
+                        stripePublishableKey = data.account_stripe_publishable_key;
+                    } else if (hasAccountStripe) {
+                        stripeEnabled = true;
+                        stripeType = 'connect';
+                        stripePublishableKey = process.env.STRIPE_PUBLISHABLE_KEY;
+                        stripeAccountId = data.stripe_account_id;
+                    }
                 }
             }
         }
         
-        // Get payment methods config from account settings
-        const accountSettings = typeof data.account_settings === 'string' ? JSON.parse(data.account_settings) : (data.account_settings || {});
-        // Default: card enabled, pay_at_property disabled, paypal disabled
-        const paymentMethods = accountSettings.payment_methods || { 
-            card: stripeEnabled, 
-            pay_at_property: false, 
-            paypal: false 
-        };
+        // === STEP 3: Get deposit rules ===
+        let depositRule = null;
+        if (stripeEnabled) {
+            const ruleResult = await pool.query(`
+                SELECT dr.* FROM deposit_rules dr
+                LEFT JOIN properties p ON p.id = $1
+                WHERE (dr.property_id = $1 OR (dr.property_id IS NULL AND dr.account_id = p.account_id)) AND dr.is_active = true
+                ORDER BY dr.property_id NULLS LAST, dr.created_at DESC LIMIT 1
+            `, [propertyId]);
+            if (ruleResult.rows.length > 0) {
+                depositRule = ruleResult.rows[0];
+            }
+        }
         
-        // Get pay at property mode and bank details
-        const payPropertyMode = accountSettings.pay_property_mode || 'no_payment';
-        const bankDetails = accountSettings.bank_details || {};
-        
+        // === STEP 4: Return everything ===
         res.json({
             success: true,
             stripe_enabled: stripeEnabled,
-            stripe_type: hasPropertyStripe ? 'property' : (hasAccountStripe ? 'connect' : (hasAccountKeys ? 'account_keys' : null)),
-            stripe_publishable_key: hasPropertyStripe ? data.stripe_publishable_key : (hasAccountKeys ? data.account_stripe_publishable_key : (hasAccountStripe ? process.env.STRIPE_PUBLISHABLE_KEY : null)),
-            stripe_account_id: hasAccountStripe ? data.stripe_account_id : null,
+            stripe_type: stripeType,
+            stripe_publishable_key: stripePublishableKey,
+            stripe_account_id: stripeAccountId,
             deposit_rule: depositRule,
             payment_methods: paymentMethods,
             pay_property_mode: payPropertyMode,
-            bank_details: (payPropertyMode === 'bank_optional' || payPropertyMode === 'bank_required') ? {
-                accounts: bankDetails.accounts || [],
-                instructions: bankDetails.instructions || '',
-                deadline_hours: bankDetails.deadline_hours || 48
-            } : null
+            bank_details: bankDetails
         });
         
     } catch (error) {
