@@ -15203,47 +15203,46 @@ app.get('/api/public/property/:propertyId/stripe-info', async (req, res) => {
             }
         }
         
-        // === STEP 2: If card is selected, find Stripe keys (check config table, then property, then account) ===
+        // === STEP 2: Always find Stripe keys (check config table, then property, then account) ===
         let stripeEnabled = false;
         let stripePublishableKey = null;
         let stripeAccountId = null;
         let stripeType = null;
         
-        if (paymentMethods.card) {
-            // Check payment_configurations table first (property-level)
-            let paymentConfig = await pool.query(`
+        // Check payment_configurations table first (property-level)
+        let paymentConfig = await pool.query(`
+            SELECT pc.*
+            FROM payment_configurations pc
+            WHERE pc.property_id = $1 AND pc.provider = 'stripe' AND pc.is_enabled = true
+            LIMIT 1
+        `, [propertyId]);
+        
+        // Fall back to account-level config
+        if (paymentConfig.rows.length === 0) {
+            paymentConfig = await pool.query(`
                 SELECT pc.*
                 FROM payment_configurations pc
-                WHERE pc.property_id = $1 AND pc.provider = 'stripe' AND pc.is_enabled = true
+                JOIN properties p ON pc.account_id = p.account_id
+                WHERE p.id = $1 AND pc.property_id IS NULL AND pc.provider = 'stripe' AND pc.is_enabled = true
                 LIMIT 1
             `, [propertyId]);
-            
-            // Fall back to account-level config
-            if (paymentConfig.rows.length === 0) {
-                paymentConfig = await pool.query(`
-                    SELECT pc.*
-                    FROM payment_configurations pc
-                    JOIN properties p ON pc.account_id = p.account_id
-                    WHERE p.id = $1 AND pc.property_id IS NULL AND pc.provider = 'stripe' AND pc.is_enabled = true
-                    LIMIT 1
-                `, [propertyId]);
-            }
-            
-            if (paymentConfig.rows.length > 0) {
-                stripeEnabled = true;
-                stripeType = 'config';
-                stripePublishableKey = paymentConfig.rows[0].credentials?.publishable_key;
-            } else {
-                // Fall back to legacy fields
-                const legacyResult = await pool.query(`
-                    SELECT p.stripe_publishable_key, p.stripe_secret_key, p.stripe_enabled,
-                           a.stripe_account_id, a.stripe_onboarding_complete,
-                           a.stripe_publishable_key as account_stripe_publishable_key,
-                           a.stripe_secret_key as account_stripe_secret_key
-                    FROM properties p
-                    JOIN accounts a ON p.account_id = a.id
-                    WHERE p.id = $1
-                `, [propertyId]);
+        }
+        
+        if (paymentConfig.rows.length > 0) {
+            stripeEnabled = true;
+            stripeType = 'config';
+            stripePublishableKey = paymentConfig.rows[0].credentials?.publishable_key;
+        } else {
+            // Fall back to legacy fields
+            const legacyResult = await pool.query(`
+                SELECT p.stripe_publishable_key, p.stripe_secret_key, p.stripe_enabled,
+                       a.stripe_account_id, a.stripe_onboarding_complete,
+                       a.stripe_publishable_key as account_stripe_publishable_key,
+                       a.stripe_secret_key as account_stripe_secret_key
+                FROM properties p
+                JOIN accounts a ON p.account_id = a.id
+                WHERE p.id = $1
+            `, [propertyId]);
                 
                 if (legacyResult.rows.length > 0) {
                     const data = legacyResult.rows[0];
@@ -15267,7 +15266,6 @@ app.get('/api/public/property/:propertyId/stripe-info', async (req, res) => {
                     }
                 }
             }
-        }
         
         // === STEP 3: Get deposit rules ===
         let depositRule = null;
@@ -15283,7 +15281,15 @@ app.get('/api/public/property/:propertyId/stripe-info', async (req, res) => {
             }
         }
         
-        // === STEP 4: Return everything ===
+        // === STEP 4: If no accepted_methods set but Stripe keys exist, default card to true (backwards compatibility) ===
+        if (stripeEnabled && !ppsResult.rows.length) {
+            paymentMethods.card = true;
+        }
+        if (stripeEnabled && ppsResult.rows.length > 0 && !ppsResult.rows[0].accepted_methods) {
+            paymentMethods.card = true;
+        }
+        
+        // === STEP 5: Return everything ===
         res.json({
             success: true,
             stripe_enabled: stripeEnabled,
@@ -25746,6 +25752,17 @@ app.delete('/api/payment-configurations/by-property/:propertyId', async (req, re
   try {
     const { propertyId } = req.params;
     await pool.query('DELETE FROM payment_configurations WHERE property_id = $1 AND provider = $2', [propertyId, 'stripe']);
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Delete account-level Stripe config (property_id IS NULL)
+app.delete('/api/payment-configurations/by-account/:accountId', async (req, res) => {
+  try {
+    const { accountId } = req.params;
+    await pool.query('DELETE FROM payment_configurations WHERE account_id = $1 AND property_id IS NULL AND provider = $2', [accountId, 'stripe']);
     res.json({ success: true });
   } catch (error) {
     res.json({ success: false, error: error.message });
