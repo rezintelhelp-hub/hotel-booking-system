@@ -48706,15 +48706,15 @@ const promo = await fetch('/api/v1/offers/validate', {
                 return '<span style="color: #f59e0b; font-size: 0.8rem;">Not connected</span>';
             }
             if (tab === 'direct') {
-                if (prop.direct_mode === 'no_payment') return '<span style="color: #10b981; font-size: 0.8rem;">✓ Book Only</span>';
+                if (!prop.has_pay_at_property) return '<span style="color: #f59e0b; font-size: 0.8rem;">Not configured</span>';
                 if (prop.direct_mode === 'bank_optional') return '<span style="color: #10b981; font-size: 0.8rem;">✓ Bank Optional</span>';
                 if (prop.direct_mode === 'bank_required') return '<span style="color: #10b981; font-size: 0.8rem;">✓ Bank Required</span>';
-                return '<span style="color: #f59e0b; font-size: 0.8rem;">Not connected</span>';
+                return '<span style="color: #10b981; font-size: 0.8rem;">✓ Book Only</span>';
             }
             if (tab === 'guarantee') {
-                return prop.guarantee_enabled
-                    ? '<span style="color: #10b981; font-size: 0.8rem;">✓ Connected</span>'
-                    : '<span style="color: #f59e0b; font-size: 0.8rem;">Not connected</span>';
+                return prop.has_card_guarantee
+                    ? '<span style="color: #10b981; font-size: 0.8rem;">✓ Enabled</span>'
+                    : '<span style="color: #f59e0b; font-size: 0.8rem;">Not configured</span>';
             }
             return '<span style="color: #f59e0b; font-size: 0.8rem;">Not connected</span>';
         }
@@ -48861,7 +48861,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     const statusEl = document.getElementById('stripe-keys-status');
                     if (config.is_enabled) {
                         document.getElementById('payment-provider-stripe').checked = true;
-                        statusEl.innerHTML = '<span style="color: var(--success);"> Stripe connected and enabled</span>';
+                        statusEl.innerHTML = '<div style="display: flex; justify-content: space-between; align-items: center;"><span style="color: var(--success);"> Stripe connected and enabled</span><button type="button" onclick="disconnectStripe()" style="background: #dc2626; color: white; border: none; padding: 0.3rem 0.75rem; border-radius: 6px; font-size: 0.8rem; cursor: pointer;">Disconnect Stripe</button></div>';
                         statusEl.style.background = '#d1fae5';
                         statusEl.style.display = 'block';
                     }
@@ -49223,12 +49223,44 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const data = await response.json();
                 if (data.success) {
                     showNotification('Payment settings saved!', 'success');
-                    closeModal('paymentSettingsModal');
                 } else {
                     showNotification('Error: ' + data.error, 'error');
                 }
             } catch (error) {
                 showNotification('Error saving settings', 'error');
+            }
+        }
+        
+        async function disconnectStripe() {
+            if (!confirm('Are you sure you want to disconnect Stripe for this property? This will remove the Stripe API keys.')) return;
+            
+            const propertyId = document.getElementById('payment-settings-property-id').value;
+            const accountId = document.getElementById('payment-settings-account-id').value;
+            
+            try {
+                // Delete from payment_configurations
+                const response = await fetch(`/api/payment-configurations/by-property/${propertyId}`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() }
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    // Clear the UI
+                    document.getElementById('stripe-publishable-key').value = '';
+                    document.getElementById('stripe-secret-key').value = '';
+                    document.getElementById('stripe-test-mode').checked = false;
+                    document.getElementById('payment-provider-stripe').checked = false;
+                    const statusEl = document.getElementById('stripe-keys-status');
+                    statusEl.innerHTML = '<span style="color: #f59e0b;">⚠ Stripe disconnected</span>';
+                    statusEl.style.background = '#fef3c7';
+                    statusEl.style.display = 'block';
+                    showNotification('Stripe disconnected successfully', 'success');
+                } else {
+                    showNotification('Error disconnecting Stripe: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showNotification('Error disconnecting Stripe', 'error');
             }
         }
         
