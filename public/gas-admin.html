@@ -48734,13 +48734,14 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 for (const propertyId of selectedIds) {
                     try {
-                        const response = await fetch(`/api/db/properties/${propertyId}`, {
+                        const response = await fetch(`/api/properties/${propertyId}/stripe`, {
                             method: 'PUT',
                             headers: { 'Content-Type': 'application/json', ...authHeaders() },
                             body: JSON.stringify({
-                                stripe_name: stripeName || null,
                                 stripe_publishable_key: publishableKey,
-                                stripe_secret_key: secretKey
+                                stripe_secret_key: secretKey,
+                                stripe_enabled: true,
+                                stripe_name: stripeName || null
                             })
                         });
                         
