@@ -51150,18 +51150,18 @@ app.post('/api/public/calculate-price', async (req, res) => {
       
       if (taxType === 'percentage') {
         taxAmount = subtotalAfterDiscounts * (taxRate / 100);
-      } else if (taxType === 'per_night') {
+      } else if (taxType === 'per_night' || taxType === 'per_room_per_night' || taxType === 'per_booking_per_night') {
         taxAmount = taxRate * nights;
       } else if (taxType === 'per_person_per_night') {
         taxAmount = taxRate * nights * (guests || 1);
       } else {
-        // Fixed amount
+        // Fixed amount (per_booking or default)
         taxAmount = taxRate;
       }
       
       // Apply max_nights limit if set
       if (tax.max_nights && nights > tax.max_nights) {
-        if (taxType === 'per_night') {
+        if (taxType === 'per_night' || taxType === 'per_room_per_night' || taxType === 'per_booking_per_night') {
           taxAmount = taxRate * tax.max_nights;
         } else if (taxType === 'per_person_per_night') {
           taxAmount = taxRate * tax.max_nights * (guests || 1);
@@ -52138,6 +52138,7 @@ async function calculateLocalQuote(pool, unit, checkin, checkout, guests, nights
       // Fixed amount
       switch (fee.apply_per) {
         case 'per_night': feeAmount = baseAmount * nights; break;
+        case 'per_booking_per_night': feeAmount = baseAmount * nights; break;
         case 'per_guest': feeAmount = baseAmount * guests; break;
         case 'per_guest_per_night': feeAmount = baseAmount * guests * nights; break;
         default: feeAmount = baseAmount; // per_booking
