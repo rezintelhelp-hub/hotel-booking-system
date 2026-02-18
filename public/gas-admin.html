@@ -48598,7 +48598,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                         if (result.success) successCount++; else errorCount++;
                     } catch (e) { errorCount++; }
                 }
-                }
                 
                 closeModal('bulkStripeModal');
                 if (errorCount === 0) showNotification('✓ Direct payment applied to ' + successCount + ' properties', 'success');
