@@ -24413,11 +24413,25 @@ app.delete('/api/account/:accountId/website', async (req, res) => {
 app.get('/api/property/:propertyId/payment-settings', async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT * FROM property_payment_settings WHERE property_id = $1
+      SELECT pps.*, a.settings as account_settings
+      FROM property_payment_settings pps
+      LEFT JOIN properties p ON pps.property_id = p.id
+      LEFT JOIN accounts a ON p.account_id = a.id
+      WHERE pps.property_id = $1
     `, [req.params.propertyId]);
     
     // Return defaults if no settings exist
     if (result.rows.length === 0) {
+      // Still try to get account settings for pay_property_mode
+      const acctResult = await pool.query(`
+        SELECT a.settings as account_settings FROM properties p
+        LEFT JOIN accounts a ON p.account_id = a.id
+        WHERE p.id = $1
+      `, [req.params.propertyId]);
+      const acctSettings = typeof acctResult.rows[0]?.account_settings === 'string'
+        ? JSON.parse(acctResult.rows[0].account_settings)
+        : (acctResult.rows[0]?.account_settings || {});
+      
       res.json({ 
         success: true, 
         data: {
@@ -24427,12 +24441,29 @@ app.get('/api/property/:propertyId/payment-settings', async (req, res) => {
           deposit_amount: 25,
           balance_due_days: 14,
           stripe_connected: false,
-          accepted_methods: ['card'],
-          currency: 'GBP'
+          accepted_methods: acctSettings.payment_methods ? 
+            Object.entries(acctSettings.payment_methods).filter(([k,v]) => v).map(([k]) => k === 'pay_at_property' ? 'pay_at_property' : k) : ['card'],
+          currency: 'GBP',
+          pay_property_mode: acctSettings.pay_property_mode || 'no_payment',
+          bank_details: acctSettings.bank_details || {},
+          card_guarantee: acctSettings.card_guarantee || {}
         }
       });
     } else {
-      res.json({ success: true, data: result.rows[0] });
+      const row = result.rows[0];
+      const acctSettings = typeof row.account_settings === 'string'
+        ? JSON.parse(row.account_settings)
+        : (row.account_settings || {});
+      
+      // Merge pay_property_mode and card_guarantee from account settings
+      row.pay_property_mode = acctSettings.pay_property_mode || 'no_payment';
+      if (!row.card_guarantee) row.card_guarantee = acctSettings.card_guarantee || {};
+      if (acctSettings.bank_details && (!row.bank_details || row.bank_details === '{}')) {
+        row.bank_details = acctSettings.bank_details;
+      }
+      delete row.account_settings;
+      
+      res.json({ success: true, data: row });
     }
   } catch (error) {
     res.json({ success: false, error: error.message });
