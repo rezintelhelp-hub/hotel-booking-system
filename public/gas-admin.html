@@ -25161,12 +25161,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 vat_enabled: document.getElementById('account-vat-enabled').checked,
                 vat_rate: parseFloat(document.getElementById('account-vat-rate').value) || 0,
                 beds24_billing_enabled: document.getElementById('account-beds24-billing').checked,
-                website_billing_enabled: true,
-                payment_methods: {
-                    card: true,
-                    pay_at_property: true,
-                    paypal: false
-                }
+                website_billing_enabled: true
             };
             
             // Master Admin can also update role and status
@@ -48704,9 +48699,10 @@ const promo = await fetch('/api/v1/offers/validate', {
         
         function getBulkPropertyStatus(prop, tab) {
             if (tab === 'stripe') {
-                return prop.stripe_secret_key
-                    ? '<span style="color: #10b981; font-size: 0.8rem;">✓ Connected</span>'
-                    : '<span style="color: #f59e0b; font-size: 0.8rem;">Not connected</span>';
+                if (prop.stripe_secret_key || prop.account_stripe_secret_key || prop.has_payment_config) {
+                    return '<span style="color: #10b981; font-size: 0.8rem;">✓ Connected' + (prop.account_stripe_secret_key && !prop.stripe_secret_key ? ' (Account)' : '') + '</span>';
+                }
+                return '<span style="color: #f59e0b; font-size: 0.8rem;">Not connected</span>';
             }
             if (tab === 'direct') {
                 if (prop.direct_mode === 'no_payment') return '<span style="color: #10b981; font-size: 0.8rem;">✓ Book Only</span>';
@@ -48816,7 +48812,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             // Reset form
             document.getElementById('payment-provider-stripe').checked = false;
             const ppReset = document.getElementById('payment-provider-pay-property');
-            if (ppReset) ppReset.checked = true;
+            if (ppReset) ppReset.checked = false;
             const noPayRadio = document.getElementById('pay-mode-no-payment');
             if (noPayRadio) noPayRadio.checked = true;
             const cgCheckbox = document.getElementById('payment-provider-card-guarantee');
