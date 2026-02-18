@@ -24926,9 +24926,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                     // Load payment methods from account settings
                     const settings = typeof account.settings === 'string' ? JSON.parse(account.settings || '{}') : (account.settings || {});
                     const pm = settings.payment_methods || {};
-                    document.getElementById('acct-edit-pm-card').checked = pm.card !== false;
-                    document.getElementById('acct-edit-pm-pay-at-property').checked = pm.pay_at_property === true;
-                    document.getElementById('acct-edit-pm-paypal').checked = pm.paypal === true;
+                    // Payment methods now managed at property level
+                    // (checkboxes removed from account edit)
                     
                     // Load Beds24 status and subscriptions
                     loadBeds24Status(account.id);
@@ -25052,9 +25051,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                 beds24_billing_enabled: document.getElementById('account-beds24-billing').checked,
                 website_billing_enabled: true,
                 payment_methods: {
-                    card: document.getElementById('acct-edit-pm-card').checked,
-                    pay_at_property: document.getElementById('acct-edit-pm-pay-at-property').checked,
-                    paypal: document.getElementById('acct-edit-pm-paypal').checked
+                    card: true,
+                    pay_at_property: true,
+                    paypal: false
                 }
             };
             
