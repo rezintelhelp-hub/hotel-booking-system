@@ -15319,7 +15319,8 @@ app.post('/api/public/create-group-booking', async (req, res) => {
             deposit_amount,
             total_amount,
             payment_method,
-            enigma_reference_id
+            enigma_reference_id,
+            source_site_url
         } = req.body;
         
         if (!rooms || !Array.isArray(rooms) || rooms.length === 0) {
@@ -15369,9 +15370,9 @@ app.post('/api/public/create-group-booking', async (req, res) => {
                     num_adults, num_children,
                     guest_first_name, guest_last_name, guest_email, guest_phone,
                     accommodation_price, subtotal, grand_total,
-                    status, booking_source, currency, group_booking_id
+                    status, booking_source, currency, group_booking_id, source_site_url
                 )
-                VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11, $11, 'confirmed', 'direct', $12, $13)
+                VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11, $11, 'confirmed', 'direct', $12, $13, $14)
                 RETURNING *
             `, [
                 roomData.property_id,
@@ -15386,7 +15387,8 @@ app.post('/api/public/create-group-booking', async (req, res) => {
                 guest_phone || '',
                 roomPrice,
                 roomData.currency,
-                groupBookingId
+                groupBookingId,
+                source_site_url || null
             ]);
             
             const booking = bookingResult.rows[0];
@@ -16644,6 +16646,7 @@ app.get('/api/setup-database', async (req, res) => {
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS enigma_card_exp_month INTEGER`);
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS enigma_card_exp_year INTEGER`);
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS enigma_reference_id VARCHAR(100)`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS source_site_url VARCHAR(500)`);
     
     // Enigma usage tracking table
     await pool.query(`CREATE TABLE IF NOT EXISTS enigma_usage_log (
@@ -25680,7 +25683,7 @@ app.post('/api/db/rooms', async (req, res) => {
 });
 
 app.post('/api/db/book', async (req, res) => {
-  const { property_id, room_id, check_in, check_out, num_adults, num_children, guest_first_name, guest_last_name, guest_email, guest_phone, total_price, guest_address, guest_city, guest_country, guest_postcode, payment_method, enigma_reference_id } = req.body;
+  const { property_id, room_id, check_in, check_out, num_adults, num_children, guest_first_name, guest_last_name, guest_email, guest_phone, total_price, guest_address, guest_city, guest_country, guest_postcode, payment_method, enigma_reference_id, source_site_url } = req.body;
   
   const client = await pool.connect();
   try {
@@ -25701,11 +25704,11 @@ app.post('/api/db/book', async (req, res) => {
         num_adults, num_children, 
         guest_first_name, guest_last_name, guest_email, guest_phone,
         accommodation_price, subtotal, grand_total, 
-        status, booking_source, currency
+        status, booking_source, currency, source_site_url
       ) 
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12, $12, 'confirmed', 'direct', $13) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12, $12, 'confirmed', 'direct', $13, $14) 
       RETURNING *
-    `, [property_id, propertyOwnerId, room_id, check_in, check_out, num_adults, num_children || 0, guest_first_name, guest_last_name, guest_email, guest_phone, total_price, bookingCurrency]);
+    `, [property_id, propertyOwnerId, room_id, check_in, check_out, num_adults, num_children || 0, guest_first_name, guest_last_name, guest_email, guest_phone, total_price, bookingCurrency, source_site_url || null]);
     
     const booking = result.rows[0];
     
@@ -41436,7 +41439,11 @@ async function sendPartnerBookingWebhook(bookingId, eventType = 'booking.created
           first_name: booking.guest_first_name,
           last_name: booking.guest_last_name,
           email: booking.guest_email,
-          phone: booking.guest_phone || null
+          phone: booking.guest_phone || null,
+          address: booking.guest_address || null,
+          city: booking.guest_city || null,
+          postcode: booking.guest_postcode || null,
+          country: booking.guest_country || null
         },
         guests: {
           adults: booking.num_adults || 1,
@@ -41446,12 +41453,15 @@ async function sendPartnerBookingWebhook(bookingId, eventType = 'booking.created
         payment: {
           total: parseFloat(booking.grand_total) || 0,
           deposit: parseFloat(booking.deposit_amount) || null,
-          currency: booking.currency || 'USD',
+          currency: booking.currency || 'EUR',
           status: booking.payment_status || 'pending',
-          method: booking.stripe_payment_intent_id ? 'card' : 'property'
+          method: booking.payment_method || (booking.stripe_payment_intent_id ? 'card' : 'property')
         },
+        notes: booking.notes || null,
+        special_requests: booking.special_requests || booking.guest_comments || null,
         status: booking.status,
         source: booking.booking_source || 'direct',
+        source_site: booking.source_site_url || null,
         created_at: booking.created_at
       }
     };
@@ -50929,7 +50939,7 @@ app.post('/api/public/book', async (req, res) => {
       guest_address, guest_city, guest_country, guest_postcode,
       voucher_code, notes, total_price,
       stripe_payment_intent_id, deposit_amount, balance_amount, payment_method,
-      enigma_reference_id
+      enigma_reference_id, source_site_url
     } = req.body;
     
     // Validate required fields
@@ -51019,9 +51029,9 @@ app.post('/api/public/book', async (req, res) => {
         accommodation_price, subtotal, grand_total, 
         deposit_amount, balance_amount, balance_due_date,
         stripe_payment_intent_id, payment_status,
-        status, booking_source, currency, notes
+        status, booking_source, currency, notes, source_site_url
       ) 
-      VALUES ($1, 1, $2, $3, $4, $5, 0, $6, $7, $8, $9, $10, $10, $10, $11, $12, $13, $14, $15, $16, 'direct', 'USD', $17)
+      VALUES ($1, 1, $2, $3, $4, $5, 0, $6, $7, $8, $9, $10, $10, $10, $11, $12, $13, $14, $15, $16, 'direct', $17, $18, $19)
       RETURNING *
     `, [
       unit.rows[0].property_id,
@@ -51040,7 +51050,9 @@ app.post('/api/public/book', async (req, res) => {
       stripe_payment_intent_id || null,
       paymentStatus,
       bookingStatus,
-      notes || null
+      roomData.currency || 'EUR',
+      notes || null,
+      source_site_url || null
     ]);
     
     const newBooking = booking.rows[0];
