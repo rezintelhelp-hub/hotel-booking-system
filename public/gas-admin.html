@@ -48499,7 +48499,7 @@ const promo = await fetch('/api/v1/offers/validate', {
         
         var currentBulkPayTab = 'stripe';
         
-        function switchBulkPayTab(tab) {
+        function switchBulkPayTab(tab, evt) {
             currentBulkPayTab = tab;
             document.querySelectorAll('.bulk-pay-panel').forEach(function(p) { p.style.display = 'none'; });
             document.getElementById('bulk-tab-' + tab).style.display = 'block';
@@ -48507,8 +48507,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                 t.style.background = '#f8fafc';
                 t.style.color = '#64748b';
             });
-            event.target.style.background = '#6366f1';
-            event.target.style.color = 'white';
+            if (evt && evt.target) {
+                evt.target.style.background = '#6366f1';
+                evt.target.style.color = 'white';
+            }
+            // Reset property selection when switching tabs
+            document.querySelectorAll('.bulk-stripe-checkbox').forEach(function(cb) { cb.checked = false; });
+            updateBulkStripeCount();
         }
         
         // Show/hide bank details when radio changes
@@ -48554,12 +48559,22 @@ const promo = await fetch('/api/v1/offers/validate', {
                 if (!confirm('Apply ' + (modeLabels[mode] || mode) + ' to ' + selectedIds.length + ' properties?')) return;
                 
                 showNotification('Applying Direct payment settings...', 'info');
+                
+                // Get unique account IDs from selected properties
+                var accountIds = [];
+                for (var i = 0; i < selectedIds.length; i++) {
+                    var prop = bulkStripeProperties.find(function(p) { return p.id === selectedIds[i]; });
+                    if (prop && prop.account_id && accountIds.indexOf(prop.account_id) === -1) {
+                        accountIds.push(prop.account_id);
+                    }
+                }
+                
                 var successCount = 0;
                 var errorCount = 0;
                 
-                for (var i = 0; i < selectedIds.length; i++) {
+                for (var a = 0; a < accountIds.length; a++) {
                     try {
-                        var response = await fetch('/api/property/' + selectedIds[i] + '/set-direct-payment', {
+                        var response = await fetch('/api/account/' + accountIds[a] + '/set-direct-payment', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json', ...authHeaders() },
                             body: JSON.stringify({
@@ -48591,12 +48606,22 @@ const promo = await fetch('/api/v1/offers/validate', {
                 if (!confirm('Apply Card Guarantee to ' + selectedIds.length + ' properties?')) return;
                 
                 showNotification('Applying Card Guarantee settings...', 'info');
+                
+                // Get unique account IDs from selected properties
+                var accountIds = [];
+                for (var i = 0; i < selectedIds.length; i++) {
+                    var prop = bulkStripeProperties.find(function(p) { return p.id === selectedIds[i]; });
+                    if (prop && prop.account_id && accountIds.indexOf(prop.account_id) === -1) {
+                        accountIds.push(prop.account_id);
+                    }
+                }
+                
                 var successCount = 0;
                 var errorCount = 0;
                 
-                for (var i = 0; i < selectedIds.length; i++) {
+                for (var a = 0; a < accountIds.length; a++) {
                     try {
-                        var response = await fetch('/api/property/' + selectedIds[i] + '/set-card-guarantee', {
+                        var response = await fetch('/api/account/' + accountIds[a] + '/set-card-guarantee', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json', ...authHeaders() },
                             body: JSON.stringify({
