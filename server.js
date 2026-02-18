@@ -15293,6 +15293,182 @@ app.get('/api/public/property/:propertyId/stripe-info', async (req, res) => {
 });
 
 // =====================================================
+// PAYMENT FAILED NOTIFICATION ENDPOINT
+// Notifies property owner and pushes inquiry to CM
+// =====================================================
+app.post('/api/public/payment-failed', async (req, res) => {
+    try {
+        const { unit_id, check_in, check_out, guests, guest_first_name, guest_last_name, 
+                guest_email, guest_phone, guest_address, guest_city, guest_postcode, guest_country,
+                total_price, payment_type, error_message, source_site_url } = req.body;
+        
+        if (!unit_id || !guest_email) {
+            return res.json({ success: false, error: 'Missing required fields' });
+        }
+        
+        // Get property/room/owner info
+        const unitResult = await pool.query(`
+            SELECT bu.id, bu.name as room_name, bu.beds24_room_id, bu.hostaway_listing_id,
+                   p.id as property_id, p.name as property_name, p.account_id,
+                   a.email as owner_email, a.name as owner_name, a.contact_name,
+                   bu.currency
+            FROM bookable_units bu
+            LEFT JOIN properties p ON bu.property_id = p.id
+            LEFT JOIN accounts a ON p.account_id = a.id
+            WHERE bu.id = $1
+        `, [unit_id]);
+        
+        if (unitResult.rows.length === 0) {
+            return res.json({ success: false, error: 'Unit not found' });
+        }
+        
+        const unit = unitResult.rows[0];
+        const currency = unit.currency || 'EUR';
+        
+        console.log(`⚠️ Payment failed for ${guest_first_name} ${guest_last_name} - ${unit.property_name} / ${unit.room_name}`);
+        
+        // 1. SEND EMAIL TO PROPERTY OWNER
+        if (unit.owner_email) {
+            try {
+                await sendEmail({
+                    to: [unit.owner_email, 'development@gas.travel'],
+                    subject: `⚠️ Failed Payment — ${guest_first_name} ${guest_last_name} tried to book ${unit.room_name}`,
+                    html: `
+                        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                            <div style="background: linear-gradient(135deg, #f59e0b, #d97706); color: white; padding: 20px; border-radius: 8px 8px 0 0;">
+                                <h2 style="margin: 0;">⚠️ Failed Payment — Booking Opportunity</h2>
+                                <p style="margin: 5px 0 0; opacity: 0.9;">A guest tried to book but payment failed. Contact them to complete the booking.</p>
+                            </div>
+                            <div style="background: #fff; border: 1px solid #e5e7eb; padding: 20px; border-radius: 0 0 8px 8px;">
+                                <h3 style="color: #1e293b; margin-top: 0;">Guest Details</h3>
+                                <table style="width: 100%; border-collapse: collapse;">
+                                    <tr><td style="padding: 6px 0; color: #6b7280; width: 35%;">Guest:</td><td style="padding: 6px 0; font-weight: 600;">${guest_first_name} ${guest_last_name}</td></tr>
+                                    <tr><td style="padding: 6px 0; color: #6b7280;">Email:</td><td style="padding: 6px 0;"><a href="mailto:${guest_email}" style="color: #2563eb;">${guest_email}</a></td></tr>
+                                    ${guest_phone ? `<tr><td style="padding: 6px 0; color: #6b7280;">Phone:</td><td style="padding: 6px 0;"><a href="tel:${guest_phone}" style="color: #2563eb;">${guest_phone}</a></td></tr>` : ''}
+                                </table>
+                                
+                                <h3 style="color: #1e293b; margin-top: 16px;">Booking Details</h3>
+                                <table style="width: 100%; border-collapse: collapse;">
+                                    <tr><td style="padding: 6px 0; color: #6b7280; width: 35%;">Property:</td><td style="padding: 6px 0; font-weight: 600;">${unit.property_name}</td></tr>
+                                    <tr><td style="padding: 6px 0; color: #6b7280;">Room:</td><td style="padding: 6px 0; font-weight: 600;">${unit.room_name}</td></tr>
+                                    <tr><td style="padding: 6px 0; color: #6b7280;">Check-in:</td><td style="padding: 6px 0;">${check_in}</td></tr>
+                                    <tr><td style="padding: 6px 0; color: #6b7280;">Check-out:</td><td style="padding: 6px 0;">${check_out}</td></tr>
+                                    <tr><td style="padding: 6px 0; color: #6b7280;">Guests:</td><td style="padding: 6px 0;">${guests || 'N/A'}</td></tr>
+                                    <tr><td style="padding: 6px 0; color: #6b7280;">Total:</td><td style="padding: 6px 0; font-weight: 600;">${currency} ${total_price || 'N/A'}</td></tr>
+                                </table>
+                                
+                                <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 12px; margin-top: 16px;">
+                                    <p style="margin: 0; color: #991b1b; font-size: 0.9rem;"><strong>Payment Failed:</strong> ${payment_type === 'card' ? 'Stripe card payment' : 'Card guarantee (Enigma)'} — ${error_message || 'Unknown error'}</p>
+                                </div>
+                                
+                                <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; padding: 12px; margin-top: 12px;">
+                                    <p style="margin: 0; color: #92400e; font-size: 0.9rem;">💡 <strong>Tip:</strong> Reply to this guest quickly before they book elsewhere. Offer them an alternative payment method such as bank transfer.</p>
+                                </div>
+                                
+                                ${source_site_url ? `<p style="margin-top: 12px; font-size: 0.8rem; color: #9ca3af;">Source: ${source_site_url}</p>` : ''}
+                            </div>
+                        </div>
+                    `
+                });
+                console.log(`📧 Payment failed notification sent to ${unit.owner_email}`);
+            } catch (emailError) {
+                console.error('Failed to send payment failed email:', emailError.message);
+            }
+        }
+        
+        // 2. PUSH INQUIRY TO BEDS24 (does NOT block inventory)
+        if (unit.beds24_room_id) {
+            try {
+                const accessToken = await getBeds24AccessToken(pool);
+                if (accessToken) {
+                    const beds24Inquiry = [{
+                        roomId: unit.beds24_room_id,
+                        status: 'inquiry',
+                        arrival: check_in,
+                        departure: check_out,
+                        numAdult: parseInt(guests) || 1,
+                        numChild: 0,
+                        firstName: guest_first_name || '',
+                        lastName: guest_last_name || '',
+                        email: guest_email || '',
+                        mobile: guest_phone || '',
+                        phone: guest_phone || '',
+                        address: guest_address || '',
+                        city: guest_city || '',
+                        postcode: guest_postcode || '',
+                        country: guest_country || '',
+                        referer: 'GAS - Payment Failed',
+                        refererEditable: 'GAS - Payment Failed',
+                        reference: 'GAS-INQUIRY',
+                        notes: `⚠️ PAYMENT FAILED - ${payment_type === 'card' ? 'Stripe' : 'Enigma'}: ${error_message || 'Unknown'}\nGuest tried to book via GAS but payment failed.\nContact: ${guest_email}${guest_phone ? ' / ' + guest_phone : ''}`,
+                        price: parseFloat(total_price) || 0,
+                        invoiceItems: [{
+                            description: 'Accommodation (Payment Failed - Inquiry Only)',
+                            status: '',
+                            qty: 1,
+                            amount: parseFloat(total_price) || 0,
+                            vatRate: 0
+                        }]
+                    }];
+                    
+                    const beds24Response = await axios.post('https://beds24.com/api/v2/bookings', beds24Inquiry, {
+                        headers: { 'token': accessToken, 'Content-Type': 'application/json' }
+                    });
+                    
+                    if (beds24Response.data?.[0]?.success) {
+                        console.log(`📋 Beds24 inquiry created for failed payment: ${beds24Response.data[0]?.new?.id}`);
+                    }
+                }
+            } catch (beds24Error) {
+                console.error('Failed to push inquiry to Beds24:', beds24Error.response?.data || beds24Error.message);
+            }
+        }
+        
+        // 3. PUSH INQUIRY TO HOSTAWAY (does NOT block inventory)
+        if (unit.hostaway_listing_id) {
+            try {
+                const stored = await getStoredHostawayToken(pool);
+                if (stored?.accessToken) {
+                    const hostawayInquiry = {
+                        listingMapId: unit.hostaway_listing_id,
+                        channelId: 2000,
+                        source: 'GAS - Payment Failed',
+                        arrivalDate: check_in,
+                        departureDate: check_out,
+                        guestFirstName: guest_first_name || '',
+                        guestLastName: guest_last_name || '',
+                        guestEmail: guest_email || '',
+                        guestPhone: guest_phone || '',
+                        numberOfGuests: parseInt(guests) || 1,
+                        adults: parseInt(guests) || 1,
+                        children: 0,
+                        totalPrice: parseFloat(total_price) || 0,
+                        status: 'inquiry',
+                        comment: `⚠️ PAYMENT FAILED - ${payment_type === 'card' ? 'Stripe' : 'Enigma'}: ${error_message || 'Unknown'}\nGuest tried to book via GAS but payment failed.\nContact: ${guest_email}${guest_phone ? ' / ' + guest_phone : ''}`
+                    };
+                    
+                    const hostawayResponse = await axios.post('https://api.hostaway.com/v1/reservations', hostawayInquiry, {
+                        headers: { 'Authorization': `Bearer ${stored.accessToken}`, 'Content-Type': 'application/json' }
+                    });
+                    
+                    if (hostawayResponse.data?.result?.id) {
+                        console.log(`📋 Hostaway inquiry created for failed payment: ${hostawayResponse.data.result.id}`);
+                    }
+                }
+            } catch (hostawayError) {
+                console.error('Failed to push inquiry to Hostaway:', hostawayError.response?.data || hostawayError.message);
+            }
+        }
+        
+        res.json({ success: true, message: 'Payment failure notification sent' });
+        
+    } catch (error) {
+        console.error('Error handling payment failure:', error);
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// =====================================================
 // GROUP BOOKING ENDPOINT
 // Creates multiple bookings linked by a group_booking_id
 // =====================================================
@@ -68446,7 +68622,7 @@ async function getLatestGitHubRelease() {
     console.error('[GitHub] Error fetching release:', error.message);
     // Return fallback if API fails
     return {
-      version: '3.1.13',
+      version: '3.1.18',
       download_url: 'https://github.com/rezintelhelp-hub/gas-booking-plugin/releases/latest',
       published_at: new Date().toISOString(),
       body: ''
