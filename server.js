@@ -25315,7 +25315,7 @@ app.put('/api/db/properties/:id', async (req, res) => {
 app.put('/api/properties/:id/stripe', async (req, res) => {
   try {
     const { id } = req.params;
-    const { stripe_publishable_key, stripe_secret_key, stripe_enabled } = req.body;
+    const { stripe_publishable_key, stripe_secret_key, stripe_enabled, stripe_name } = req.body;
     
     // Validate the keys if provided
     if (stripe_secret_key && stripe_publishable_key) {
@@ -25333,10 +25333,11 @@ app.put('/api/properties/:id/stripe', async (req, res) => {
       SET stripe_publishable_key = $1,
           stripe_secret_key = $2,
           stripe_enabled = $3,
+          stripe_name = $4,
           updated_at = NOW()
-      WHERE id = $4
-      RETURNING id, name, stripe_enabled
-    `, [stripe_publishable_key || null, stripe_secret_key || null, stripe_enabled || false, id]);
+      WHERE id = $5
+      RETURNING id, name, stripe_enabled, stripe_name
+    `, [stripe_publishable_key || null, stripe_secret_key || null, stripe_enabled || false, stripe_name || null, id]);
     
     if (result.rows.length === 0) {
       return res.json({ success: false, error: 'Property not found' });
