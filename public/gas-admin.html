@@ -48566,8 +48566,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                         var existingMethods = existing.accepted_methods || [];
                         if (typeof existingMethods === 'string') { try { existingMethods = JSON.parse(existingMethods); } catch(e) { existingMethods = []; } }
                         
-                        // Only add pay_at_property if not already there
-                        if (!existingMethods.includes('pay_at_property')) existingMethods.push('pay_at_property');
+                        // For Book Only, set ONLY pay_at_property
+                        // For bank modes, also set only pay_at_property (bank is a sub-mode of pay_at_property)
+                        var newMethods = ['pay_at_property'];
                         
                         // Merge bank details only if mode requires it, otherwise keep existing
                         var mergedBankDetails = existing.bank_details || {};
@@ -48581,7 +48582,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                             headers: { 'Content-Type': 'application/json', ...authHeaders() },
                             body: JSON.stringify({
                                 payment_enabled: existing.payment_enabled !== false,
-                                accepted_methods: existingMethods,
+                                accepted_methods: newMethods,
                                 pay_property_mode: mode,
                                 bank_details: mergedBankDetails,
                                 card_guarantee: existing.card_guarantee || null,
