@@ -48699,8 +48699,9 @@ const promo = await fetch('/api/v1/offers/validate', {
         
         function getBulkPropertyStatus(prop, tab) {
             if (tab === 'stripe') {
-                if (prop.stripe_secret_key || prop.account_stripe_secret_key || prop.has_payment_config) {
-                    return '<span style="color: #10b981; font-size: 0.8rem;">✓ Connected' + (prop.account_stripe_secret_key && !prop.stripe_secret_key ? ' (Account)' : '') + '</span>';
+                if (prop.has_stripe || prop.stripe_secret_key || prop.account_stripe_secret_key || prop.has_payment_config) {
+                    var source = prop.stripe_secret_key ? '' : ' (Account)';
+                    return '<span style="color: #10b981; font-size: 0.8rem;">✓ Connected' + source + '</span>';
                 }
                 return '<span style="color: #f59e0b; font-size: 0.8rem;">Not connected</span>';
             }
