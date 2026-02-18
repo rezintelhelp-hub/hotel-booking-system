@@ -16968,34 +16968,131 @@ const promo = await fetch('/api/v1/offers/validate', {
         </div>
     </div>
 
-    <!-- Bulk Stripe Setup Modal -->
+    <!-- Bulk Payment Setup Modal -->
     <div id="bulkStripeModal" class="modal">
         <div class="modal-content" style="max-width: 700px; border-radius: 16px;">
             <div class="modal-header" style="background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
-                <h3 class="modal-title" style="margin: 0;">💳 Bulk Stripe Setup</h3>
+                <h3 class="modal-title" style="margin: 0;">💳 Bulk Payment Setup</h3>
                 <button class="modal-close" onclick="closeModal('bulkStripeModal')" style="color: white; font-size: 1.5rem;">&times;</button>
             </div>
             <div class="modal-body" style="padding: 1.5rem;">
-                <p style="color: #64748b; margin-bottom: 1.5rem;">Apply Stripe keys to multiple properties at once. Select the properties and enter your <a href="https://dashboard.stripe.com/apikeys" target="_blank" style="color: var(--accent);">Restricted API Keys</a>.</p>
                 
-                <!-- Stripe Keys Input -->
-                <div style="background: #f8fafc; border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem; border: 1px solid #e2e8f0;">
-                    <h4 style="margin: 0 0 1rem 0; font-size: 0.9rem; color: #1e293b;">Stripe API Keys</h4>
-                    <div class="form-group" style="margin-bottom: 1rem;">
-                        <label class="form-label">Stripe Account Name</label>
-                        <input type="text" class="form-input" id="bulk-stripe-name" placeholder="e.g. Main Account, Beach Villas, etc.">
-                    </div>
-                    <div class="form-group" style="margin-bottom: 1rem;">
-                        <label class="form-label">Publishable Key</label>
-                        <input type="text" class="form-input" id="bulk-stripe-publishable" placeholder="pk_live_... or pk_test_...">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Secret Key or Restricted Key</label>
-                        <input type="password" class="form-input" id="bulk-stripe-secret" placeholder="sk_live_... or rk_live_...">
+                <!-- Payment Type Tabs -->
+                <div style="display: flex; gap: 0; margin-bottom: 1.5rem; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden;">
+                    <button type="button" class="bulk-pay-tab active" onclick="switchBulkPayTab('stripe')" style="flex: 1; padding: 0.75rem; border: none; cursor: pointer; font-weight: 600; font-size: 0.85rem; background: #6366f1; color: white; transition: all 0.2s;">💳 Stripe</button>
+                    <button type="button" class="bulk-pay-tab" onclick="switchBulkPayTab('direct')" style="flex: 1; padding: 0.75rem; border: none; border-left: 1px solid #e2e8f0; cursor: pointer; font-weight: 600; font-size: 0.85rem; background: #f8fafc; color: #64748b; transition: all 0.2s;">🏠 Direct</button>
+                    <button type="button" class="bulk-pay-tab" onclick="switchBulkPayTab('guarantee')" style="flex: 1; padding: 0.75rem; border: none; border-left: 1px solid #e2e8f0; cursor: pointer; font-weight: 600; font-size: 0.85rem; background: #f8fafc; color: #64748b; transition: all 0.2s;">🔒 Guarantee</button>
+                </div>
+                
+                <!-- STRIPE TAB -->
+                <div id="bulk-tab-stripe" class="bulk-pay-panel">
+                    <p style="color: #64748b; margin-bottom: 1rem; font-size: 0.85rem;">Apply Stripe keys to multiple properties. Get keys from <a href="https://dashboard.stripe.com/apikeys" target="_blank" style="color: #6366f1;">Stripe Dashboard → API Keys</a>.</p>
+                    <div style="background: #f8fafc; border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem; border: 1px solid #e2e8f0;">
+                        <div class="form-group" style="margin-bottom: 1rem;">
+                            <label class="form-label">Stripe Account Name</label>
+                            <input type="text" class="form-input" id="bulk-stripe-name" placeholder="e.g. Main Account, Beach Villas, etc.">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 1rem;">
+                            <label class="form-label">Publishable Key</label>
+                            <input type="text" class="form-input" id="bulk-stripe-publishable" placeholder="pk_live_... or pk_test_...">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Secret Key or Restricted Key</label>
+                            <input type="password" class="form-input" id="bulk-stripe-secret" placeholder="sk_live_... or rk_live_...">
+                        </div>
                     </div>
                 </div>
                 
-                <!-- Property Selection -->
+                <!-- DIRECT (PAY AT PROPERTY) TAB -->
+                <div id="bulk-tab-direct" class="bulk-pay-panel" style="display:none;">
+                    <p style="color: #64748b; margin-bottom: 1rem; font-size: 0.85rem;">Configure Pay at Property settings and apply to multiple properties.</p>
+                    <div style="background: #f8fafc; border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem; border: 1px solid #e2e8f0;">
+                        <h4 style="margin: 0 0 1rem 0; font-size: 0.9rem; color: #1e293b;">Payment Mode</h4>
+                        <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1rem;">
+                            <label style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: white; border-radius: 8px; border: 1px solid #e2e8f0; cursor: pointer;">
+                                <input type="radio" name="bulk-pay-mode" value="no_payment" checked style="width: 18px; height: 18px;">
+                                <div><strong style="font-size: 0.85rem;">Book Only</strong><br><span style="font-size: 0.75rem; color: #64748b;">No payment needed — guest pays on arrival</span></div>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: white; border-radius: 8px; border: 1px solid #e2e8f0; cursor: pointer;">
+                                <input type="radio" name="bulk-pay-mode" value="bank_optional" style="width: 18px; height: 18px;" onchange="document.getElementById('bulk-bank-details').style.display=this.checked?'block':'none'">
+                                <div><strong style="font-size: 0.85rem;">Bank Transfer Optional</strong><br><span style="font-size: 0.75rem; color: #64748b;">Show bank details — guest can transfer or pay at property</span></div>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: white; border-radius: 8px; border: 1px solid #e2e8f0; cursor: pointer;">
+                                <input type="radio" name="bulk-pay-mode" value="bank_required" style="width: 18px; height: 18px;" onchange="document.getElementById('bulk-bank-details').style.display=this.checked?'block':'none'">
+                                <div><strong style="font-size: 0.85rem;">Bank Transfer Required</strong><br><span style="font-size: 0.75rem; color: #64748b;">Booking held as request until payment confirmed</span></div>
+                            </label>
+                        </div>
+                        
+                        <div id="bulk-bank-details" style="display:none; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #e2e8f0;">
+                            <h4 style="margin: 0 0 1rem 0; font-size: 0.9rem; color: #1e293b;">🏦 Bank Details</h4>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                                <div class="form-group" style="margin: 0; grid-column: 1 / -1;">
+                                    <label class="form-label">Bank Name *</label>
+                                    <input type="text" class="form-input" id="bulk-bank-name" placeholder="e.g. Lloyds, HSBC, BNP Paribas">
+                                </div>
+                                <div class="form-group" style="margin: 0;">
+                                    <label class="form-label">Account Name *</label>
+                                    <input type="text" class="form-input" id="bulk-bank-account-name" placeholder="e.g. MBG Travel Ltd">
+                                </div>
+                                <div class="form-group" style="margin: 0;">
+                                    <label class="form-label">Account Number</label>
+                                    <input type="text" class="form-input" id="bulk-bank-account-number" placeholder="e.g. 12345678">
+                                </div>
+                                <div class="form-group" style="margin: 0;">
+                                    <label class="form-label">Sort Code</label>
+                                    <input type="text" class="form-input" id="bulk-bank-sort-code" placeholder="e.g. 12-34-56">
+                                </div>
+                                <div class="form-group" style="margin: 0;">
+                                    <label class="form-label">IBAN</label>
+                                    <input type="text" class="form-input" id="bulk-bank-iban" placeholder="e.g. GB29 NWBK 6016 1331 9268 19">
+                                </div>
+                                <div class="form-group" style="margin: 0;">
+                                    <label class="form-label">SWIFT/BIC</label>
+                                    <input type="text" class="form-input" id="bulk-bank-swift" placeholder="e.g. NWBKGB2L">
+                                </div>
+                                <div class="form-group" style="margin: 0;">
+                                    <label class="form-label">Currency</label>
+                                    <select class="form-input" id="bulk-bank-currency">
+                                        <option value="EUR">€ EUR</option>
+                                        <option value="GBP">£ GBP</option>
+                                        <option value="USD">$ USD</option>
+                                        <option value="CHF">CHF</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-group" style="margin-top: 0.75rem;">
+                                <label class="form-label">Transfer Instructions (shown to guest)</label>
+                                <textarea class="form-input" id="bulk-bank-instructions" rows="2" placeholder="e.g. Please use your booking reference as the payment reference"></textarea>
+                            </div>
+                            <div class="form-group" style="margin-top: 0.75rem;">
+                                <label class="form-label">Transfer Deadline (hours)</label>
+                                <input type="number" class="form-input" id="bulk-bank-deadline" value="48" min="0" style="width: 120px;">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- CARD GUARANTEE TAB -->
+                <div id="bulk-tab-guarantee" class="bulk-pay-panel" style="display:none;">
+                    <p style="color: #64748b; margin-bottom: 1rem; font-size: 0.85rem;">Configure Card Guarantee (Enigma Vault) and apply to multiple properties.</p>
+                    <div style="background: #f8fafc; border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem; border: 1px solid #e2e8f0;">
+                        <div class="form-group" style="margin-bottom: 1rem;">
+                            <label class="form-label">Enigma Vault API Key</label>
+                            <input type="text" class="form-input" id="bulk-enigma-api-key" placeholder="Your Enigma Vault API key">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 1rem;">
+                            <label class="form-label">Checkout ID</label>
+                            <input type="text" class="form-input" id="bulk-enigma-checkout-id" placeholder="Your Enigma checkout ID">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Display Label</label>
+                            <input type="text" class="form-input" id="bulk-enigma-label" value="Card Guarantee" placeholder="Label shown to guest">
+                        </div>
+                        <p style="font-size: 0.8rem; color: #64748b; margin-top: 0.75rem;">Card is stored securely — no charge at booking. Used as guarantee for no-shows.</p>
+                    </div>
+                </div>
+                
+                <!-- Property Selection (shared across tabs) -->
                 <div style="margin-bottom: 1rem;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
                         <h4 style="margin: 0; font-size: 0.9rem; color: #1e293b;">Select Properties</h4>
@@ -17015,7 +17112,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 <div style="display: flex; gap: 1rem; justify-content: flex-end;">
                     <button type="button" class="btn btn-secondary" onclick="closeModal('bulkStripeModal')">Cancel</button>
-                    <button type="button" class="btn" onclick="applyBulkStripe()">💳 Apply to Selected Properties</button>
+                    <button type="button" class="btn" onclick="applyBulkPayment()">💳 Apply to Selected Properties</button>
                 </div>
             </div>
         </div>
@@ -48357,6 +48454,153 @@ const promo = await fetch('/api/v1/offers/validate', {
 
         // Bulk Stripe Setup
         let bulkStripeProperties = [];
+        
+        var currentBulkPayTab = 'stripe';
+        
+        function switchBulkPayTab(tab) {
+            currentBulkPayTab = tab;
+            document.querySelectorAll('.bulk-pay-panel').forEach(function(p) { p.style.display = 'none'; });
+            document.getElementById('bulk-tab-' + tab).style.display = 'block';
+            document.querySelectorAll('.bulk-pay-tab').forEach(function(t) {
+                t.style.background = '#f8fafc';
+                t.style.color = '#64748b';
+            });
+            event.target.style.background = '#6366f1';
+            event.target.style.color = 'white';
+        }
+        
+        // Show/hide bank details when radio changes
+        document.addEventListener('change', function(e) {
+            if (e.target.name === 'bulk-pay-mode') {
+                var show = (e.target.value === 'bank_optional' || e.target.value === 'bank_required');
+                document.getElementById('bulk-bank-details').style.display = show ? 'block' : 'none';
+            }
+        });
+        
+        async function applyBulkPayment() {
+            var selectedIds = Array.from(document.querySelectorAll('.bulk-stripe-checkbox:checked')).map(function(cb) { return parseInt(cb.value); });
+            if (selectedIds.length === 0) {
+                showNotification('Please select at least one property', 'error');
+                return;
+            }
+            
+            if (currentBulkPayTab === 'stripe') {
+                applyBulkStripe();
+                return;
+            }
+            
+            if (currentBulkPayTab === 'direct') {
+                var mode = document.querySelector('input[name="bulk-pay-mode"]:checked').value;
+                var bankDetails = {};
+                if (mode === 'bank_optional' || mode === 'bank_required') {
+                    bankDetails = {
+                        accounts: [{
+                            bank_name: document.getElementById('bulk-bank-name').value,
+                            account_name: document.getElementById('bulk-bank-account-name').value,
+                            account_number: document.getElementById('bulk-bank-account-number').value,
+                            sort_code: document.getElementById('bulk-bank-sort-code').value,
+                            iban: document.getElementById('bulk-bank-iban').value,
+                            swift_bic: document.getElementById('bulk-bank-swift').value,
+                            currency: document.getElementById('bulk-bank-currency').value
+                        }],
+                        instructions: document.getElementById('bulk-bank-instructions').value,
+                        deadline_hours: parseInt(document.getElementById('bulk-bank-deadline').value) || 48
+                    };
+                }
+                
+                if (!confirm('Apply Pay at Property (' + mode + ') to ' + selectedIds.length + ' properties?')) return;
+                
+                showNotification('Applying Direct payment settings...', 'info');
+                var successCount = 0;
+                var errorCount = 0;
+                
+                for (var i = 0; i < selectedIds.length; i++) {
+                    try {
+                        // Get current property settings
+                        var propResult = await fetch('/api/property/' + selectedIds[i] + '/payment-settings');
+                        var propData = await propResult.json();
+                        var existingMethods = propData.data?.accepted_methods || [];
+                        if (typeof existingMethods === 'string') existingMethods = JSON.parse(existingMethods);
+                        if (!existingMethods.includes('pay_at_property')) existingMethods.push('pay_at_property');
+                        
+                        var response = await fetch('/api/property/' + selectedIds[i] + '/payment-settings', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                            body: JSON.stringify({
+                                payment_enabled: true,
+                                accepted_methods: existingMethods,
+                                pay_property_mode: mode,
+                                bank_details: bankDetails,
+                                deposit_type: propData.data?.deposit_type || 'percentage',
+                                deposit_amount: propData.data?.deposit_amount || 25,
+                                balance_due_days: propData.data?.balance_due_days || 14,
+                                currency: propData.data?.currency || 'EUR'
+                            })
+                        });
+                        var result = await response.json();
+                        if (result.success) successCount++; else errorCount++;
+                    } catch (e) { errorCount++; }
+                }
+                
+                closeModal('bulkStripeModal');
+                if (errorCount === 0) showNotification('✓ Direct payment applied to ' + successCount + ' properties', 'success');
+                else showNotification('Applied to ' + successCount + ', ' + errorCount + ' failed', 'warning');
+                return;
+            }
+            
+            if (currentBulkPayTab === 'guarantee') {
+                var apiKey = document.getElementById('bulk-enigma-api-key').value.trim();
+                var checkoutId = document.getElementById('bulk-enigma-checkout-id').value.trim();
+                var label = document.getElementById('bulk-enigma-label').value.trim() || 'Card Guarantee';
+                
+                if (!apiKey || !checkoutId) {
+                    showNotification('Please enter Enigma API Key and Checkout ID', 'error');
+                    return;
+                }
+                
+                if (!confirm('Apply Card Guarantee to ' + selectedIds.length + ' properties?')) return;
+                
+                showNotification('Applying Card Guarantee settings...', 'info');
+                var successCount = 0;
+                var errorCount = 0;
+                
+                for (var i = 0; i < selectedIds.length; i++) {
+                    try {
+                        var propResult = await fetch('/api/property/' + selectedIds[i] + '/payment-settings');
+                        var propData = await propResult.json();
+                        var existingMethods = propData.data?.accepted_methods || [];
+                        if (typeof existingMethods === 'string') existingMethods = JSON.parse(existingMethods);
+                        if (!existingMethods.includes('card_guarantee')) existingMethods.push('card_guarantee');
+                        
+                        var response = await fetch('/api/property/' + selectedIds[i] + '/payment-settings', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                            body: JSON.stringify({
+                                payment_enabled: true,
+                                accepted_methods: existingMethods,
+                                card_guarantee: {
+                                    enabled: true,
+                                    api_key: apiKey,
+                                    checkout_id: checkoutId,
+                                    label: label
+                                },
+                                deposit_type: propData.data?.deposit_type || 'percentage',
+                                deposit_amount: propData.data?.deposit_amount || 25,
+                                balance_due_days: propData.data?.balance_due_days || 14,
+                                currency: propData.data?.currency || 'EUR'
+                            })
+                        });
+                        var result = await response.json();
+                        if (result.success) successCount++; else errorCount++;
+                    } catch (e) { errorCount++; }
+                }
+                
+                closeModal('bulkStripeModal');
+                if (errorCount === 0) showNotification('✓ Card Guarantee applied to ' + successCount + ' properties', 'success');
+                else showNotification('Applied to ' + successCount + ', ' + errorCount + ' failed', 'warning');
+                return;
+            }
+        }
         
         async function openBulkStripeModal() {
             // Load properties
