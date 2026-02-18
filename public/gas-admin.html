@@ -15523,6 +15523,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                         <select id="fee-apply-per" class="form-input" style="padding: 0.75rem; border-radius: 8px;">
                             <option value="per_booking">Per Booking</option>
                             <option value="per_night">Per Night</option>
+                            <option value="per_booking_per_night">Per Booking Per Night</option>
                             <option value="per_guest">Per Guest</option>
                             <option value="per_guest_per_night">Per Guest/Night</option>
                         </select>
@@ -15662,6 +15663,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 <select id="tax-charge-per" class="form-input" style="padding: 0.6rem; border-radius: 8px;">
                                     <option value="per_person_per_night">Per Person Per Night (PPPN)</option>
                                     <option value="per_room_per_night">Per Room Per Night (PRPN)</option>
+                                    <option value="per_booking_per_night">Per Booking Per Night</option>
                                     <option value="per_booking">Per Booking (one-time)</option>
                                     <option value="percentage">% of Room Rate</option>
                                 </select>
