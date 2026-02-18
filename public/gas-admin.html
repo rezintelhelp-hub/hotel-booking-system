@@ -2497,8 +2497,8 @@
                             <p>Manage your property listings</p>
                         </div>
                         <div style="display: flex; gap: 0.5rem;">
-                            <button class="btn btn-secondary" onclick="openBulkStripeModal()">
-                                💳 Bulk Stripe Setup
+                            <button class="btn btn-secondary bulk-stripe-btn" onclick="openBulkStripeModal()" title="Payment Setup">
+                                💳 Bulk Payment Setup
                             </button>
                             <a href="#" onclick="openWizard('beds24')" class="btn">
                                 <span>+</span>
@@ -16423,7 +16423,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     </div>
                     
                     <!-- ============ SECTION 3: CUSTOM ITEMS ============ -->
-                    <div style="background: linear-gradient(135deg, #fdf4ff 0%, #fae8ff 100%); padding: 1rem; border-radius: 12px; margin-bottom: 1rem; border: 1px solid #e879f9;">
+                    <div id="invoice-custom-items-section" style="background: linear-gradient(135deg, #fdf4ff 0%, #fae8ff 100%); padding: 1rem; border-radius: 12px; margin-bottom: 1rem; border: 1px solid #e879f9;">
                         <h4 style="margin: 0 0 0.75rem 0; font-size: 0.85rem; color: #86198f; font-weight: 600;">📝 3. Custom Items</h4>
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
                             <span style="font-size: 0.8rem; color: #86198f;">Manual invoice line items</span>
@@ -16433,7 +16433,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     </div>
                     
                     <!-- ============ VAT & BILLING INFO ============ -->
-                    <div style="background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); padding: 1rem; border-radius: 12px; margin-bottom: 1rem; border: 1px solid #86efac;">
+                    <div id="invoice-vat-billing-section" style="background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); padding: 1rem; border-radius: 12px; margin-bottom: 1rem; border: 1px solid #86efac;">
                         <h4 style="margin: 0 0 0.75rem 0; font-size: 0.85rem; color: #166534; font-weight: 600;">🧾 VAT & Billing Info</h4>
                         
                         <!-- Billing Currency -->
@@ -16474,7 +16474,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     </div>
                     
                     <!-- ============ INVOICE ACTIONS ============ -->
-                    <div style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); padding: 1rem; border-radius: 12px; margin-bottom: 1rem; border: 1px solid #cbd5e1;">
+                    <div id="invoice-actions-section" style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); padding: 1rem; border-radius: 12px; margin-bottom: 1rem; border: 1px solid #cbd5e1;">
                         <h4 style="margin: 0 0 0.75rem 0; font-size: 0.85rem; color: #334155; font-weight: 600;">📄 Invoice</h4>
                         <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
                             <button type="button" class="btn" style="font-size: 0.8rem; padding: 0.5rem 1rem; background: #166534;" onclick="previewInvoice()">📄 Preview Invoice</button>
@@ -16483,19 +16483,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                         </div>
                     </div>
 
-                    <!-- Payment Methods -->
+                    <!-- Payment Methods - Link to Bulk Setup -->
                     <div style="background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%); padding: 1rem; border-radius: 12px; margin-bottom: 1rem; border: 1px solid #86efac;">
-                        <h4 style="margin: 0 0 0.75rem 0; font-size: 0.85rem; color: #166534; font-weight: 600;">💳 Checkout Payment Options</h4>
-                        <p style="font-size: 0.8rem; color: #64748b; margin-bottom: 0.75rem;">Choose which payment methods guests see at checkout</p>
-                        <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; cursor: pointer;">
-                            <input type="checkbox" id="acct-edit-pm-card"> 💳 Pay by Card
-                        </label>
-                        <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; cursor: pointer;">
-                            <input type="checkbox" id="acct-edit-pm-pay-at-property"> 🏠 Pay at Property
-                        </label>
-                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                            <input type="checkbox" id="acct-edit-pm-paypal" disabled> 🅿️ PayPal (coming soon)
-                        </label>
+                        <h4 style="margin: 0 0 0.75rem 0; font-size: 0.85rem; color: #166534; font-weight: 600;">💳 Payment Setup</h4>
+                        <p style="font-size: 0.8rem; color: #64748b; margin-bottom: 0.75rem;">Payment methods are configured per property</p>
+                        <button type="button" class="btn" style="font-size: 0.8rem; padding: 0.5rem 1rem; background: #166534;" onclick="closeModal('accountModal'); navigateToView('properties'); setTimeout(function(){ document.querySelector('.bulk-stripe-btn')?.click(); }, 500);">💳 Bulk Payment Setup</button>
                     </div>
                     
                     <!-- Agency Management Section (only for admin/submaster) -->
@@ -24797,6 +24789,14 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 if (data.success && data.account) {
                     const account = data.account;
+                    
+                    // Hide invoice/billing sections for non-master admins
+                    const isMaster = currentAccount && currentAccount.role === 'master_admin';
+                    const invoiceSections = ['account-billing-section', 'account-beds24-costs-section', 'invoice-custom-items-section', 'invoice-vat-billing-section', 'invoice-actions-section'];
+                    invoiceSections.forEach(function(id) {
+                        const el = document.getElementById(id);
+                        if (el) el.style.display = isMaster ? '' : 'none';
+                    });
                     
                     // Header
                     document.getElementById('account-modal-title').textContent = account.name || 'Edit Account';
