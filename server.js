@@ -25117,6 +25117,83 @@ app.get('/api/db/properties', async (req, res) => {
   }
 });
 
+// GET properties with account payment settings (for bulk payment modal)
+app.get('/api/db/properties-payment-status', async (req, res) => {
+  try {
+    const accountId = req.query.account_id;
+    let query;
+    let params = [];
+
+    if (accountId) {
+      const accountCheck = await pool.query(`
+        SELECT a.role, 
+               (SELECT COUNT(*) FROM accounts WHERE parent_id = a.id) as sub_account_count
+        FROM accounts a WHERE a.id = $1
+      `, [accountId]);
+      
+      const isAgency = accountCheck.rows.length > 0 && accountCheck.rows[0].role === 'agency_admin';
+      const hasSubAccounts = accountCheck.rows.length > 0 && parseInt(accountCheck.rows[0].sub_account_count) > 0;
+      
+      if (isAgency || hasSubAccounts) {
+        query = `
+          SELECT p.id, p.name, p.city, p.country, p.account_id, p.stripe_secret_key,
+                 a.settings as account_settings
+          FROM properties p
+          LEFT JOIN accounts a ON p.account_id = a.id
+          WHERE p.account_id = $1 OR a.managed_by_id = $1 OR a.parent_id = $1
+          ORDER BY p.name
+        `;
+        params = [accountId];
+      } else {
+        query = `
+          SELECT p.id, p.name, p.city, p.country, p.account_id, p.stripe_secret_key,
+                 a.settings as account_settings
+          FROM properties p
+          LEFT JOIN accounts a ON p.account_id = a.id
+          WHERE p.account_id = $1
+          ORDER BY p.name
+        `;
+        params = [accountId];
+      }
+    } else {
+      query = `
+        SELECT p.id, p.name, p.city, p.country, p.account_id, p.stripe_secret_key,
+               a.settings as account_settings
+        FROM properties p
+        LEFT JOIN accounts a ON p.account_id = a.id
+        ORDER BY p.name
+      `;
+    }
+
+    const result = await pool.query(query, params);
+
+    // Parse account_settings for each property
+    const data = result.rows.map(row => {
+      let settings = {};
+      if (row.account_settings) {
+        settings = typeof row.account_settings === 'string' ? JSON.parse(row.account_settings) : row.account_settings;
+      }
+      return {
+        id: row.id,
+        name: row.name,
+        city: row.city,
+        country: row.country,
+        account_id: row.account_id,
+        stripe_secret_key: row.stripe_secret_key,
+        direct_mode: settings.pay_property_mode || null,
+        direct_bank_details: settings.bank_details || null,
+        guarantee_enabled: !!(settings.card_guarantee && settings.card_guarantee.enabled),
+        payment_methods: settings.payment_methods || {}
+      };
+    });
+
+    res.json({ success: true, data });
+  } catch (error) {
+    console.error('Properties payment status error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Reorder properties portfolio
 app.put('/api/db/properties/reorder', async (req, res) => {
   try {
