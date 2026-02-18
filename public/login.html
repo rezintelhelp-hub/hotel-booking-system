@@ -265,7 +265,7 @@
                     
                     <div class="form-group">
                         <label for="login-password">Password</label>
-                        <input type="password" id="login-password" name="password" required placeholder="••••••••" autocomplete="current-password">
+                        <div style="position: relative;"><input type="password" id="login-password" name="password" required placeholder="Enter password" autocomplete="current-password" style="padding-right: 3rem; width: 100%;"><button type="button" onclick="togglePasswordVisibility('login-password', this)" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 1.1rem; color: #6b7280; padding: 4px;" title="Show password">👁️</button></div>
                     </div>
                     
                     <div class="remember-me">
@@ -348,6 +348,19 @@
             .catch(() => {
                 // Network error, stay on login page
             });
+        }
+        
+        function togglePasswordVisibility(inputId, btn) {
+            const input = document.getElementById(inputId);
+            if (input.type === 'password') {
+                input.type = 'text';
+                btn.textContent = '🙈';
+                btn.title = 'Hide password';
+            } else {
+                input.type = 'password';
+                btn.textContent = '👁️';
+                btn.title = 'Show password';
+            }
         }
         
         function showTab(tab) {

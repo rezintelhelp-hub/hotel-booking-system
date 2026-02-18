@@ -24129,12 +24129,18 @@ const promo = await fetch('/api/v1/offers/validate', {
                             
                             <div class="form-group" style="margin-bottom: 1rem;">
                                 <label>New Password *</label>
-                                <input type="password" id="new-password-input" class="form-input" placeholder="Enter new password (min 8 characters)" minlength="8" required>
+                                <div style="position: relative;">
+                                    <input type="password" id="new-password-input" class="form-input" placeholder="Enter new password (min 8 characters)" minlength="8" required style="padding-right: 3rem;">
+                                    <button type="button" onclick="var i=document.getElementById('new-password-input');i.type=i.type==='password'?'text':'password';this.textContent=i.type==='password'?'👁️':'🙈'" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1.1rem;color:#6b7280;">👁️</button>
+                                </div>
                             </div>
                             
                             <div class="form-group" style="margin-bottom: 1.5rem;">
                                 <label>Confirm Password *</label>
-                                <input type="password" id="confirm-password-input" class="form-input" placeholder="Confirm new password" required>
+                                <div style="position: relative;">
+                                    <input type="password" id="confirm-password-input" class="form-input" placeholder="Confirm new password" required style="padding-right: 3rem;">
+                                    <button type="button" onclick="var i=document.getElementById('confirm-password-input');i.type=i.type==='password'?'text':'password';this.textContent=i.type==='password'?'👁️':'🙈'" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1.1rem;color:#6b7280;">👁️</button>
+                                </div>
                             </div>
                             
                             <div style="display: flex; gap: 1rem;">
