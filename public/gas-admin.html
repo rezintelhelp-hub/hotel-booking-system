@@ -29327,6 +29327,25 @@ const promo = await fetch('/api/v1/offers/validate', {
             btn.disabled = false;
         }
 
+        async function createMasterUser(siteId) {
+            try {
+                showNotification('Creating GAS support access...', 'info');
+                const response = await fetch(`/api/admin/deployed-sites/${siteId}/create-master-user`, {
+                    method: 'POST',
+                    headers: authHeaders()
+                });
+                const result = await response.json();
+                if (result.success) {
+                    showNotification('✓ GAS support user created', 'success');
+                    loadDeployedSites();
+                } else {
+                    showNotification('Failed: ' + (result.error || 'Unknown error'), 'error');
+                }
+            } catch (error) {
+                showNotification('Error: ' + error.message, 'error');
+            }
+        }
+        
         async function loadDeployedSites() {
             const container = document.getElementById('deployed-sites-list');
             if (!container) return;
@@ -29473,8 +29492,15 @@ const promo = await fetch('/api/v1/offers/validate', {
                                     </div>
                                     ${site.wp_username ? `
                                         <div style="margin-top: 0.5rem; font-size: 0.7rem; background: #f1f5f9; padding: 0.25rem 0.5rem; border-radius: 4px;">
-                                             ${site.wp_username}
+                                             Client: ${site.wp_username}
                                         </div>
+                                        <div style="margin-top: 0.25rem; font-size: 0.7rem; background: #ecfdf5; padding: 0.25rem 0.5rem; border-radius: 4px; color: #065f46;">
+                                            🔑 GAS: gas-support
+                                            <button onclick="navigator.clipboard.writeText('G4S-M@ster-2025!Secure'); this.textContent='✓'; setTimeout(() => this.textContent='📋', 1500);" style="border:none; background:none; cursor:pointer; font-size: 0.7rem; padding: 0 2px;">📋</button>
+                                        </div>
+                                    ` : ''}
+                                    ${!site.wp_username ? `
+                                        <button class="btn btn-small btn-secondary" style="margin-top: 0.5rem; font-size: 0.65rem;" onclick="createMasterUser(${site.id})">🔑 Create GAS Access</button>
                                     ` : ''}
                                     ${statusDropdown}
                                     ${pricingDropdown}
