@@ -16995,9 +16995,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 <!-- Payment Type Tabs -->
                 <div style="display: flex; gap: 0; margin-bottom: 1.5rem; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden;">
-                    <button type="button" class="bulk-pay-tab active" onclick="switchBulkPayTab('stripe')" style="flex: 1; padding: 0.75rem; border: none; cursor: pointer; font-weight: 600; font-size: 0.85rem; background: #6366f1; color: white; transition: all 0.2s;">💳 Stripe</button>
-                    <button type="button" class="bulk-pay-tab" onclick="switchBulkPayTab('direct')" style="flex: 1; padding: 0.75rem; border: none; border-left: 1px solid #e2e8f0; cursor: pointer; font-weight: 600; font-size: 0.85rem; background: #f8fafc; color: #64748b; transition: all 0.2s;">🏠 Direct</button>
-                    <button type="button" class="bulk-pay-tab" onclick="switchBulkPayTab('guarantee')" style="flex: 1; padding: 0.75rem; border: none; border-left: 1px solid #e2e8f0; cursor: pointer; font-weight: 600; font-size: 0.85rem; background: #f8fafc; color: #64748b; transition: all 0.2s;">🔒 Guarantee</button>
+                    <button type="button" class="bulk-pay-tab active" onclick="switchBulkPayTab('stripe', event)" style="flex: 1; padding: 0.75rem; border: none; cursor: pointer; font-weight: 600; font-size: 0.85rem; background: #6366f1; color: white; transition: all 0.2s;">💳 Stripe</button>
+                    <button type="button" class="bulk-pay-tab" onclick="switchBulkPayTab('direct', event)" style="flex: 1; padding: 0.75rem; border: none; border-left: 1px solid #e2e8f0; cursor: pointer; font-weight: 600; font-size: 0.85rem; background: #f8fafc; color: #64748b; transition: all 0.2s;">🏠 Direct</button>
+                    <button type="button" class="bulk-pay-tab" onclick="switchBulkPayTab('guarantee', event)" style="flex: 1; padding: 0.75rem; border: none; border-left: 1px solid #e2e8f0; cursor: pointer; font-weight: 600; font-size: 0.85rem; background: #f8fafc; color: #64748b; transition: all 0.2s;">🔒 Guarantee</button>
                 </div>
                 
                 <!-- STRIPE TAB -->
@@ -48511,8 +48511,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                 evt.target.style.background = '#6366f1';
                 evt.target.style.color = 'white';
             }
-            // Reset property selection when switching tabs
-            document.querySelectorAll('.bulk-stripe-checkbox').forEach(function(cb) { cb.checked = false; });
+            // Re-render property list to show status for this tab
+            renderBulkPropertyList();
             updateBulkStripeCount();
         }
         
@@ -48587,7 +48587,14 @@ const promo = await fetch('/api/v1/offers/validate', {
                     } catch (e) { errorCount++; }
                 }
                 
-                closeModal('bulkStripeModal');
+                // Update local data so statuses refresh
+                var mode = document.querySelector('input[name="bulk-pay-mode"]:checked').value;
+                for (var s = 0; s < selectedIds.length; s++) {
+                    var p = bulkStripeProperties.find(function(bp) { return bp.id === selectedIds[s]; });
+                    if (p) p.direct_mode = mode;
+                }
+                renderBulkPropertyList();
+                
                 if (errorCount === 0) showNotification('✓ Direct payment applied to ' + successCount + ' properties', 'success');
                 else showNotification('Applied to ' + successCount + ', ' + errorCount + ' failed', 'warning');
                 return;
@@ -48635,7 +48642,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                     } catch (e) { errorCount++; }
                 }
                 
-                closeModal('bulkStripeModal');
+                // Update local data so statuses refresh
+                for (var s = 0; s < selectedIds.length; s++) {
+                    var p = bulkStripeProperties.find(function(bp) { return bp.id === selectedIds[s]; });
+                    if (p) p.guarantee_enabled = true;
+                }
+                renderBulkPropertyList();
+                
                 if (errorCount === 0) showNotification('✓ Card Guarantee applied to ' + successCount + ' properties', 'success');
                 else showNotification('Applied to ' + successCount + ', ' + errorCount + ' failed', 'warning');
                 return;
@@ -48643,7 +48656,7 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
         
         async function openBulkStripeModal() {
-            // Load properties
+            // Load properties with payment status
             try {
                 const queryParams = [];
                 if (selectedAccountId) {
@@ -48651,31 +48664,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                 }
                 const queryString = queryParams.length > 0 ? '?' + queryParams.join('&') : '';
                 
-                const response = await fetch(`/api/db/properties${queryString}`, { headers: authHeaders() });
+                const response = await fetch(`/api/db/properties-payment-status${queryString}`, { headers: authHeaders() });
                 const data = await response.json();
                 bulkStripeProperties = data.data || [];
                 
-                const container = document.getElementById('bulk-stripe-properties');
-                
-                if (bulkStripeProperties.length === 0) {
-                    container.innerHTML = '<p style="color: #64748b; padding: 1rem; text-align: center;">No properties found</p>';
-                } else {
-                    container.innerHTML = bulkStripeProperties.map(prop => `
-                        <label style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; border-bottom: 1px solid #f1f5f9; cursor: pointer; transition: background 0.2s;" 
-                               onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'">
-                            <input type="checkbox" class="bulk-stripe-checkbox" value="${prop.id}" style="width: 18px; height: 18px;" onchange="updateBulkStripeCount()">
-                            <div style="flex: 1;">
-                                <div style="font-weight: 500;">${prop.name || 'Unnamed Property'}</div>
-                                <div style="font-size: 0.8rem; color: #64748b;">${prop.city || ''}${prop.city && prop.country ? ', ' : ''}${prop.country || ''}</div>
-                            </div>
-                            <div style="text-align: right;">
-                                ${prop.stripe_secret_key 
-                                    ? '<span style="color: #10b981; font-size: 0.8rem;">✓ Connected</span>' 
-                                    : '<span style="color: #f59e0b; font-size: 0.8rem;">Not connected</span>'}
-                            </div>
-                        </label>
-                    `).join('');
-                }
+                renderBulkPropertyList();
                 
                 // Reset form
                 document.getElementById('bulk-stripe-name').value = '';
@@ -48685,9 +48678,48 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 openModal('bulkStripeModal');
             } catch (error) {
-                console.error('Error loading properties for bulk Stripe:', error);
+                console.error('Error loading properties for bulk payment:', error);
                 showNotification('Error loading properties', 'error');
             }
+        }
+        
+        function renderBulkPropertyList() {
+            const container = document.getElementById('bulk-stripe-properties');
+            if (bulkStripeProperties.length === 0) {
+                container.innerHTML = '<p style="color: #64748b; padding: 1rem; text-align: center;">No properties found</p>';
+                return;
+            }
+            container.innerHTML = bulkStripeProperties.map(function(prop) {
+                var statusHtml = getBulkPropertyStatus(prop, currentBulkPayTab);
+                return '<label style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; border-bottom: 1px solid #f1f5f9; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background=\'#f8fafc\'" onmouseout="this.style.background=\'transparent\'">' +
+                    '<input type="checkbox" class="bulk-stripe-checkbox" value="' + prop.id + '" style="width: 18px; height: 18px;" onchange="updateBulkStripeCount()">' +
+                    '<div style="flex: 1;">' +
+                        '<div style="font-weight: 500;">' + (prop.name || 'Unnamed Property') + '</div>' +
+                        '<div style="font-size: 0.8rem; color: #64748b;">' + (prop.city || '') + (prop.city && prop.country ? ', ' : '') + (prop.country || '') + '</div>' +
+                    '</div>' +
+                    '<div style="text-align: right;">' + statusHtml + '</div>' +
+                '</label>';
+            }).join('');
+        }
+        
+        function getBulkPropertyStatus(prop, tab) {
+            if (tab === 'stripe') {
+                return prop.stripe_secret_key
+                    ? '<span style="color: #10b981; font-size: 0.8rem;">✓ Connected</span>'
+                    : '<span style="color: #f59e0b; font-size: 0.8rem;">Not connected</span>';
+            }
+            if (tab === 'direct') {
+                if (prop.direct_mode === 'no_payment') return '<span style="color: #10b981; font-size: 0.8rem;">✓ Book Only</span>';
+                if (prop.direct_mode === 'bank_optional') return '<span style="color: #10b981; font-size: 0.8rem;">✓ Bank Optional</span>';
+                if (prop.direct_mode === 'bank_required') return '<span style="color: #10b981; font-size: 0.8rem;">✓ Bank Required</span>';
+                return '<span style="color: #f59e0b; font-size: 0.8rem;">Not connected</span>';
+            }
+            if (tab === 'guarantee') {
+                return prop.guarantee_enabled
+                    ? '<span style="color: #10b981; font-size: 0.8rem;">✓ Connected</span>'
+                    : '<span style="color: #f59e0b; font-size: 0.8rem;">Not connected</span>';
+            }
+            return '<span style="color: #f59e0b; font-size: 0.8rem;">Not connected</span>';
         }
         
         function selectAllBulkStripeProperties(select) {
@@ -48756,7 +48788,12 @@ const promo = await fetch('/api/v1/offers/validate', {
                     }
                 }
                 
-                closeModal('bulkStripeModal');
+                // Update local data so statuses refresh
+                for (var s = 0; s < selectedIds.length; s++) {
+                    var p = bulkStripeProperties.find(function(bp) { return bp.id === selectedIds[s]; });
+                    if (p) p.stripe_secret_key = secretKey;
+                }
+                renderBulkPropertyList();
                 
                 if (errorCount === 0) {
                     showNotification(`✓ Stripe keys applied to ${successCount} properties`, 'success');
