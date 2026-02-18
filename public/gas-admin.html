@@ -17127,6 +17127,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 </div>
                 
                 <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+                    <button type="button" class="btn" style="background: #dc2626; color: white;" onclick="disconnectBulkStripe()">🔌 Disconnect Selected</button>
                     <button type="button" class="btn btn-secondary" onclick="closeModal('bulkStripeModal')">Cancel</button>
                     <button type="button" class="btn" onclick="applyBulkPayment()">💳 Apply to Selected Properties</button>
                 </div>
@@ -48727,6 +48728,44 @@ const promo = await fetch('/api/v1/offers/validate', {
         function updateBulkStripeCount() {
             const selected = document.querySelectorAll('.bulk-stripe-checkbox:checked').length;
             document.getElementById('bulk-stripe-selected-count').textContent = `${selected} properties selected`;
+        }
+        
+        async function disconnectBulkStripe() {
+            const selectedIds = Array.from(document.querySelectorAll('.bulk-stripe-checkbox:checked')).map(cb => parseInt(cb.value));
+            if (selectedIds.length === 0) {
+                showNotification('Please select properties to disconnect', 'warning');
+                return;
+            }
+            if (!confirm(`Disconnect Stripe from ${selectedIds.length} selected properties?`)) return;
+            
+            let success = 0;
+            let failed = 0;
+            for (const propertyId of selectedIds) {
+                try {
+                    const response = await fetch(`/api/payment-configurations/by-property/${propertyId}`, {
+                        method: 'DELETE',
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() }
+                    });
+                    const data = await response.json();
+                    if (data.success) success++;
+                    else failed++;
+                } catch (e) {
+                    failed++;
+                }
+            }
+            
+            // Also try to delete account-level config if selected account
+            if (selectedAccountId) {
+                try {
+                    await fetch(`/api/payment-configurations/by-account/${selectedAccountId}`, {
+                        method: 'DELETE',
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() }
+                    });
+                } catch (e) {}
+            }
+            
+            showNotification(`Disconnected ${success} properties` + (failed > 0 ? `, ${failed} failed` : ''), success > 0 ? 'success' : 'error');
+            openBulkStripeModal(); // Refresh the list
         }
         
         async function applyBulkStripe() {
