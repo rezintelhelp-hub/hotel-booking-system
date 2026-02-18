@@ -25131,7 +25131,7 @@ app.get('/api/db/properties', async (req, res) => {
 app.get('/api/db/properties-payment-status', async (req, res) => {
   try {
     const accountId = req.query.account_id;
-    let query;
+    let whereClause = '';
     let params = [];
 
     if (accountId) {
@@ -25145,44 +25145,53 @@ app.get('/api/db/properties-payment-status', async (req, res) => {
       const hasSubAccounts = accountCheck.rows.length > 0 && parseInt(accountCheck.rows[0].sub_account_count) > 0;
       
       if (isAgency || hasSubAccounts) {
-        query = `
-          SELECT p.id, p.name, p.city, p.country, p.account_id, p.stripe_secret_key,
-                 a.settings as account_settings
-          FROM properties p
-          LEFT JOIN accounts a ON p.account_id = a.id
-          WHERE p.account_id = $1 OR a.managed_by_id = $1 OR a.parent_id = $1
-          ORDER BY p.name
-        `;
-        params = [accountId];
+        whereClause = 'WHERE p.account_id = $1 OR a.managed_by_id = $1 OR a.parent_id = $1';
       } else {
-        query = `
-          SELECT p.id, p.name, p.city, p.country, p.account_id, p.stripe_secret_key,
-                 a.settings as account_settings
-          FROM properties p
-          LEFT JOIN accounts a ON p.account_id = a.id
-          WHERE p.account_id = $1
-          ORDER BY p.name
-        `;
-        params = [accountId];
+        whereClause = 'WHERE p.account_id = $1';
       }
-    } else {
-      query = `
-        SELECT p.id, p.name, p.city, p.country, p.account_id, p.stripe_secret_key,
-               a.settings as account_settings
-        FROM properties p
-        LEFT JOIN accounts a ON p.account_id = a.id
-        ORDER BY p.name
-      `;
+      params = [accountId];
     }
+
+    const query = `
+      SELECT p.id, p.name, p.city, p.country, p.account_id, p.stripe_secret_key,
+             a.settings as account_settings,
+             a.stripe_secret_key as account_stripe_secret_key,
+             a.stripe_account_id as account_stripe_connect_id,
+             a.stripe_onboarding_complete as account_stripe_onboarding,
+             (SELECT COUNT(*) FROM payment_configurations pc 
+              WHERE (pc.property_id = p.id OR (pc.property_id IS NULL AND pc.account_id = p.account_id))
+              AND pc.provider = 'stripe' AND pc.is_enabled = true) > 0 as has_payment_config,
+             pps.accepted_methods
+      FROM properties p
+      LEFT JOIN accounts a ON p.account_id = a.id
+      LEFT JOIN property_payment_settings pps ON pps.property_id = p.id
+      ${whereClause}
+      ORDER BY p.name
+    `;
 
     const result = await pool.query(query, params);
 
-    // Parse account_settings for each property
+    // Parse and return
     const data = result.rows.map(row => {
       let settings = {};
       if (row.account_settings) {
         settings = typeof row.account_settings === 'string' ? JSON.parse(row.account_settings) : row.account_settings;
       }
+      
+      // Determine Stripe connection from any source
+      const hasStripe = !!(row.stripe_secret_key || row.account_stripe_secret_key || row.has_payment_config || (row.account_stripe_connect_id && row.account_stripe_onboarding));
+      
+      // Parse accepted_methods
+      let acceptedMethods = {};
+      if (row.accepted_methods) {
+        const methods = typeof row.accepted_methods === 'string' ? JSON.parse(row.accepted_methods) : row.accepted_methods;
+        if (Array.isArray(methods)) {
+          acceptedMethods = { card: methods.includes('card'), pay_at_property: methods.includes('pay_at_property'), card_guarantee: methods.includes('card_guarantee') };
+        } else {
+          acceptedMethods = methods;
+        }
+      }
+      
       return {
         id: row.id,
         name: row.name,
@@ -25190,10 +25199,14 @@ app.get('/api/db/properties-payment-status', async (req, res) => {
         country: row.country,
         account_id: row.account_id,
         stripe_secret_key: row.stripe_secret_key,
+        account_stripe_secret_key: row.account_stripe_secret_key,
+        has_payment_config: row.has_payment_config,
+        has_stripe: hasStripe,
         direct_mode: settings.pay_property_mode || null,
         direct_bank_details: settings.bank_details || null,
-        guarantee_enabled: !!(settings.card_guarantee && settings.card_guarantee.enabled),
-        payment_methods: settings.payment_methods || {}
+        guarantee_enabled: !!(settings.card_guarantee && settings.card_guarantee.enabled) || !!acceptedMethods.card_guarantee,
+        payment_methods: settings.payment_methods || {},
+        accepted_methods: acceptedMethods
       };
     });
 
