@@ -48559,45 +48559,18 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 for (var i = 0; i < selectedIds.length; i++) {
                     try {
-                        // Get current property settings to preserve them
-                        var propResult = await fetch('/api/property/' + selectedIds[i] + '/payment-settings');
-                        var propData = await propResult.json();
-                        var existing = propData.data || {};
-                        var existingMethods = existing.accepted_methods || [];
-                        if (typeof existingMethods === 'string') { try { existingMethods = JSON.parse(existingMethods); } catch(e) { existingMethods = []; } }
-                        
-                        // For Book Only, set ONLY pay_at_property
-                        // For bank modes, also set only pay_at_property (bank is a sub-mode of pay_at_property)
-                        var newMethods = ['pay_at_property'];
-                        
-                        // Merge bank details only if mode requires it, otherwise keep existing
-                        var mergedBankDetails = existing.bank_details || {};
-                        if (typeof mergedBankDetails === 'string') { try { mergedBankDetails = JSON.parse(mergedBankDetails); } catch(e) { mergedBankDetails = {}; } }
-                        if ((mode === 'bank_optional' || mode === 'bank_required') && bankDetails.accounts) {
-                            mergedBankDetails = bankDetails;
-                        }
-                        
-                        var response = await fetch('/api/property/' + selectedIds[i] + '/payment-settings', {
+                        var response = await fetch('/api/property/' + selectedIds[i] + '/set-direct-payment', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json', ...authHeaders() },
                             body: JSON.stringify({
-                                payment_enabled: existing.payment_enabled !== false,
-                                accepted_methods: newMethods,
                                 pay_property_mode: mode,
-                                bank_details: mergedBankDetails,
-                                card_guarantee: existing.card_guarantee || null,
-                                deposit_type: existing.deposit_type || 'percentage',
-                                deposit_amount: existing.deposit_amount || 25,
-                                balance_due_days: existing.balance_due_days || 14,
-                                currency: existing.currency || 'EUR',
-                                stripe_account_id: existing.stripe_account_id || null,
-                                cancellation_policy: existing.cancellation_policy || null,
-                                refund_policy: existing.refund_policy || null
+                                bank_details: bankDetails
                             })
                         });
                         var result = await response.json();
                         if (result.success) successCount++; else errorCount++;
                     } catch (e) { errorCount++; }
+                }
                 }
                 
                 closeModal('bulkStripeModal');
@@ -48624,38 +48597,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 for (var i = 0; i < selectedIds.length; i++) {
                     try {
-                        var propResult = await fetch('/api/property/' + selectedIds[i] + '/payment-settings');
-                        var propData = await propResult.json();
-                        var existing = propData.data || {};
-                        var existingMethods = existing.accepted_methods || [];
-                        if (typeof existingMethods === 'string') { try { existingMethods = JSON.parse(existingMethods); } catch(e) { existingMethods = []; } }
-                        if (!existingMethods.includes('card_guarantee')) existingMethods.push('card_guarantee');
-                        
-                        // Preserve existing bank_details
-                        var existingBankDetails = existing.bank_details || {};
-                        if (typeof existingBankDetails === 'string') { try { existingBankDetails = JSON.parse(existingBankDetails); } catch(e) { existingBankDetails = {}; } }
-                        
-                        var response = await fetch('/api/property/' + selectedIds[i] + '/payment-settings', {
+                        var response = await fetch('/api/property/' + selectedIds[i] + '/set-card-guarantee', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json', ...authHeaders() },
                             body: JSON.stringify({
-                                payment_enabled: existing.payment_enabled !== false,
-                                accepted_methods: existingMethods,
-                                pay_property_mode: existing.pay_property_mode || null,
-                                bank_details: existingBankDetails,
-                                card_guarantee: {
-                                    enabled: true,
-                                    api_key: apiKey,
-                                    checkout_id: checkoutId,
-                                    label: label
-                                },
-                                deposit_type: existing.deposit_type || 'percentage',
-                                deposit_amount: existing.deposit_amount || 25,
-                                balance_due_days: existing.balance_due_days || 14,
-                                currency: existing.currency || 'EUR',
-                                stripe_account_id: existing.stripe_account_id || null,
-                                cancellation_policy: existing.cancellation_policy || null,
-                                refund_policy: existing.refund_policy || null
+                                api_key: apiKey,
+                                checkout_id: checkoutId,
+                                label: label
                             })
                         });
                         var result = await response.json();
