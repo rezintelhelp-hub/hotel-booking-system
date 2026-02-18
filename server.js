@@ -15349,7 +15349,7 @@ app.post('/api/public/create-group-booking', async (req, res) => {
             
             // Get room and property info
             const roomInfo = await client.query(`
-                SELECT bu.id, bu.name, bu.property_id, p.id as prop_id
+                SELECT bu.id, bu.name, bu.property_id, p.id as prop_id, COALESCE(bu.currency, p.currency, 'EUR') as currency
                 FROM bookable_units bu
                 JOIN properties p ON bu.property_id = p.id
                 WHERE bu.id = $1
@@ -15371,7 +15371,7 @@ app.post('/api/public/create-group-booking', async (req, res) => {
                     accommodation_price, subtotal, grand_total,
                     status, booking_source, currency, group_booking_id
                 )
-                VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11, $11, 'confirmed', 'direct', 'USD', $12)
+                VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11, $11, 'confirmed', 'direct', $12, $13)
                 RETURNING *
             `, [
                 roomData.property_id,
@@ -15385,6 +15385,7 @@ app.post('/api/public/create-group-booking', async (req, res) => {
                 guest_email,
                 guest_phone || '',
                 roomPrice,
+                roomData.currency,
                 groupBookingId
             ]);
             
@@ -25688,6 +25689,10 @@ app.post('/api/db/book', async (req, res) => {
     // Property owner ID - hardcode to 1 for now (will need to be dynamic later)
     const propertyOwnerId = 1;
     
+    // Get property currency
+    const propCurrency = await client.query('SELECT COALESCE(p.currency, \'EUR\') as currency FROM properties p WHERE p.id = $1', [property_id]);
+    const bookingCurrency = propCurrency.rows[0]?.currency || 'EUR';
+    
     // 1. Create booking in our database (using correct column names)
     const result = await client.query(`
       INSERT INTO bookings (
@@ -25698,9 +25703,9 @@ app.post('/api/db/book', async (req, res) => {
         accommodation_price, subtotal, grand_total, 
         status, booking_source, currency
       ) 
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12, $12, 'confirmed', 'direct', 'USD') 
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12, $12, 'confirmed', 'direct', $13) 
       RETURNING *
-    `, [property_id, propertyOwnerId, room_id, check_in, check_out, num_adults, num_children || 0, guest_first_name, guest_last_name, guest_email, guest_phone, total_price]);
+    `, [property_id, propertyOwnerId, room_id, check_in, check_out, num_adults, num_children || 0, guest_first_name, guest_last_name, guest_email, guest_phone, total_price, bookingCurrency]);
     
     const booking = result.rows[0];
     
