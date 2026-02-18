@@ -48700,9 +48700,8 @@ const promo = await fetch('/api/v1/offers/validate', {
         
         function getBulkPropertyStatus(prop, tab) {
             if (tab === 'stripe') {
-                if (prop.has_stripe || prop.stripe_secret_key || prop.account_stripe_secret_key || prop.has_payment_config) {
-                    var source = prop.stripe_secret_key ? '' : ' (Account)';
-                    return '<span style="color: #10b981; font-size: 0.8rem;">✓ Connected' + source + '</span>';
+                if (prop.stripe_secret_key || prop.has_payment_config) {
+                    return '<span style="color: #10b981; font-size: 0.8rem;">✓ Connected</span>';
                 }
                 return '<span style="color: #f59e0b; font-size: 0.8rem;">Not connected</span>';
             }
@@ -48802,14 +48801,26 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 for (const propertyId of selectedIds) {
                     try {
-                        const response = await fetch(`/api/properties/${propertyId}/stripe`, {
-                            method: 'PUT',
+                        // Get the account_id for this property
+                        var prop = bulkStripeProperties.find(function(p) { return p.id === propertyId; });
+                        var accountId = prop ? prop.account_id : null;
+                        
+                        // Save to payment_configurations (same as individual modal)
+                        const response = await fetch('/api/payment-configurations', {
+                            method: 'POST',
                             headers: { 'Content-Type': 'application/json', ...authHeaders() },
                             body: JSON.stringify({
-                                stripe_publishable_key: publishableKey,
-                                stripe_secret_key: secretKey,
-                                stripe_enabled: true,
-                                stripe_name: stripeName || null
+                                account_id: accountId,
+                                property_id: propertyId,
+                                provider: 'stripe',
+                                name: stripeName || 'Stripe',
+                                credentials: {
+                                    publishable_key: publishableKey,
+                                    secret_key: secretKey
+                                },
+                                is_enabled: true,
+                                is_default: true,
+                                test_mode: false
                             })
                         });
                         
@@ -48824,12 +48835,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                     }
                 }
                 
-                // Update local data so statuses refresh
-                for (var s = 0; s < selectedIds.length; s++) {
-                    var p = bulkStripeProperties.find(function(bp) { return bp.id === selectedIds[s]; });
-                    if (p) p.stripe_secret_key = secretKey;
-                }
-                renderBulkPropertyList();
+                // Refresh the list
+                openBulkStripeModal();
                 
                 if (errorCount === 0) {
                     showNotification(`✓ Stripe keys applied to ${successCount} properties`, 'success');
@@ -48837,7 +48844,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     showNotification(`Applied to ${successCount} properties, ${errorCount} failed`, 'warning');
                 }
                 
-                loadProperties(); // Refresh the list
+                loadProperties();
             } catch (error) {
                 console.error('Error applying bulk Stripe:', error);
                 showNotification('Error applying Stripe keys', 'error');
