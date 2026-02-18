@@ -746,7 +746,7 @@ async function runMigrations() {
       await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS is_hidden BOOLEAN DEFAULT false`);
       await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS num_bedrooms INTEGER DEFAULT 1`);
       await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS num_bathrooms DECIMAL(3,1) DEFAULT 1`);
-      await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS currency VARCHAR(3) DEFAULT 'CHF'`);
+      await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS currency VARCHAR(3) DEFAULT NULL`);
       await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS cm_source VARCHAR(50)`);
       console.log('✅ Occupancy pricing columns ensured on bookable_units');
     } catch (occError) {
@@ -3574,7 +3574,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     
     // Add all necessary columns
     await pool.query('ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS gas_property_id INTEGER');
-    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS currency VARCHAR(3) DEFAULT \'GBP\'');
+    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS currency VARCHAR(3) DEFAULT NULL');
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS display_name VARCHAR(500)');
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS short_description TEXT');
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS full_description TEXT');
@@ -15327,7 +15327,7 @@ app.post('/api/public/payment-failed', async (req, res) => {
             SELECT bu.id, bu.name as room_name, bu.beds24_room_id, bu.hostaway_listing_id,
                    p.id as property_id, p.name as property_name, p.account_id,
                    a.email as owner_email, a.name as owner_name, a.contact_name,
-                   bu.currency
+                   COALESCE(bu.currency, p.currency, a.default_currency) as currency
             FROM bookable_units bu
             LEFT JOIN properties p ON bu.property_id = p.id
             LEFT JOIN accounts a ON p.account_id = a.id
@@ -15542,9 +15542,10 @@ app.post('/api/public/create-group-booking', async (req, res) => {
             
             // Get room and property info
             const roomInfo = await client.query(`
-                SELECT bu.id, bu.name, bu.property_id, p.id as prop_id, COALESCE(bu.currency, p.currency, 'EUR') as currency
+                SELECT bu.id, bu.name, bu.property_id, p.id as prop_id, COALESCE(bu.currency, p.currency, a.default_currency) as currency
                 FROM bookable_units bu
                 JOIN properties p ON bu.property_id = p.id
+                LEFT JOIN accounts a ON p.account_id = a.id
                 WHERE bu.id = $1
             `, [roomId]);
             
@@ -16038,7 +16039,18 @@ app.post('/api/public/create-group-booking', async (req, res) => {
 // Create payment intent for checkout (public endpoint)
 app.post('/api/public/create-payment-intent', async (req, res) => {
     try {
-        const { property_id, amount, currency, booking_data } = req.body;
+        const { property_id, amount, currency: reqCurrency, booking_data } = req.body;
+        
+        // Get property currency as fallback
+        let effectiveCurrency = reqCurrency;
+        if (!effectiveCurrency) {
+            const propCurr = await pool.query(`
+                SELECT COALESCE(p.currency, a.default_currency) as currency
+                FROM properties p LEFT JOIN accounts a ON p.account_id = a.id
+                WHERE p.id = $1
+            `, [property_id]);
+            effectiveCurrency = propCurr.rows[0]?.currency || 'eur';
+        }
         
         // First check payment_configurations table
         let paymentConfig = await pool.query(`
@@ -16068,7 +16080,7 @@ app.post('/api/public/create-payment-intent', async (req, res) => {
             
             paymentIntent = await configStripe.paymentIntents.create({
                 amount: Math.round(amount * 100),
-                currency: (currency || 'gbp').toLowerCase(),
+                currency: effectiveCurrency.toLowerCase(),
                 metadata: {
                     property_id: property_id,
                     guest_email: booking_data?.email || '',
@@ -16108,7 +16120,7 @@ app.post('/api/public/create-payment-intent', async (req, res) => {
             
             paymentIntent = await propertyStripe.paymentIntents.create({
                 amount: Math.round(amount * 100),
-                currency: (currency || 'gbp').toLowerCase(),
+                currency: effectiveCurrency.toLowerCase(),
                 metadata: {
                     property_id: property_id,
                     guest_email: booking_data?.email || '',
@@ -16128,7 +16140,7 @@ app.post('/api/public/create-payment-intent', async (req, res) => {
         else if (prop.stripe_account_id) {
             paymentIntent = await stripe.paymentIntents.create({
                 amount: Math.round(amount * 100),
-                currency: (currency || 'gbp').toLowerCase(),
+                currency: effectiveCurrency.toLowerCase(),
                 metadata: {
                     property_id: property_id,
                     guest_email: booking_data?.email || '',
@@ -16789,7 +16801,7 @@ app.get('/api/setup-database', async (req, res) => {
     `);
     
     await pool.query(`CREATE TABLE IF NOT EXISTS properties (id SERIAL PRIMARY KEY, name VARCHAR(255) NOT NULL, description TEXT, address TEXT, city VARCHAR(100), country VARCHAR(100), property_type VARCHAR(50), star_rating INTEGER, hero_image_url TEXT, active BOOLEAN DEFAULT true, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
-    await pool.query(`CREATE TABLE IF NOT EXISTS rooms (id SERIAL PRIMARY KEY, property_id INTEGER REFERENCES properties(id) ON DELETE CASCADE, name VARCHAR(255) NOT NULL, description TEXT, max_occupancy INTEGER, max_adults INTEGER, max_children INTEGER, base_price DECIMAL(10, 2), currency VARCHAR(3) DEFAULT 'USD', quantity INTEGER DEFAULT 1, active BOOLEAN DEFAULT true, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS rooms (id SERIAL PRIMARY KEY, property_id INTEGER REFERENCES properties(id) ON DELETE CASCADE, name VARCHAR(255) NOT NULL, description TEXT, max_occupancy INTEGER, max_adults INTEGER, max_children INTEGER, base_price DECIMAL(10, 2), currency VARCHAR(3) DEFAULT NULL, quantity INTEGER DEFAULT 1, active BOOLEAN DEFAULT true, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
     await pool.query(`CREATE TABLE IF NOT EXISTS bookings (id SERIAL PRIMARY KEY, property_id INTEGER REFERENCES properties(id), room_id INTEGER REFERENCES rooms(id), check_in DATE NOT NULL, check_out DATE NOT NULL, num_adults INTEGER NOT NULL, num_children INTEGER DEFAULT 0, guest_first_name VARCHAR(100) NOT NULL, guest_last_name VARCHAR(100) NOT NULL, guest_email VARCHAR(255) NOT NULL, guest_phone VARCHAR(50), total_price DECIMAL(10, 2) NOT NULL, status VARCHAR(50) DEFAULT 'confirmed', beds24_booking_id VARCHAR(50), created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
     await pool.query(`CREATE TABLE IF NOT EXISTS booking_cm_failures (
       id SERIAL PRIMARY KEY,
@@ -26236,8 +26248,8 @@ app.post('/api/db/book', async (req, res) => {
     const propertyOwnerId = 1;
     
     // Get property currency
-    const propCurrency = await client.query('SELECT COALESCE(p.currency, \'EUR\') as currency FROM properties p WHERE p.id = $1', [property_id]);
-    const bookingCurrency = propCurrency.rows[0]?.currency || 'EUR';
+    const propCurrency = await client.query('SELECT COALESCE(bu.currency, p.currency, a.default_currency) as currency FROM bookable_units bu JOIN properties p ON bu.property_id = p.id LEFT JOIN accounts a ON p.account_id = a.id WHERE bu.id = $1', [room_id]);
+    const bookingCurrency = propCurrency.rows[0]?.currency || null;
     
     // 1. Create booking in our database (using correct column names)
     const result = await client.query(`
@@ -37724,14 +37736,15 @@ app.get('/api/availability/:roomId', async (req, res) => {
     
     // Get room info including property currency
     const roomInfo = await pool.query(`
-      SELECT bu.id, bu.name, bu.property_id, p.currency, p.country
+      SELECT bu.id, bu.name, bu.property_id, COALESCE(bu.currency, p.currency, a.default_currency) as currency, p.country
       FROM bookable_units bu
       JOIN properties p ON bu.property_id = p.id
+      LEFT JOIN accounts a ON p.account_id = a.id
       WHERE bu.id = $1
     `, [roomId]);
     
-    const currency = roomInfo.rows[0]?.currency || 'GBP';
-    const currencySymbol = getCurrencySymbol(currency);
+    const currency = roomInfo.rows[0]?.currency || null;
+    const currencySymbol = currency ? getCurrencySymbol(currency) : '';
     
     // Get availability data - include standard_price and min_stay fields if they exist
     let availability;
@@ -46219,7 +46232,7 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
         client.contact_name || null,
         client.phone || null,
         client.business_name || client.name,
-        client.currency || 'CHF',
+        client.currency || 'EUR',
         client.timezone || 'Europe/Zurich',
         clientApiKey,
         JSON.stringify({
@@ -46515,7 +46528,7 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
         property.longitude || null,
         property.phone || null,
         property.email || null,
-        property.currency || 'CHF',
+        property.currency || 'EUR',
         property.property_type || 'vacation_rental',
         property.external_id || null
       ]);
@@ -46582,7 +46595,7 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
             room.base_rate || room.base_price || null,
             roomShortDesc,
             roomFullDesc,
-            room.currency || property.currency || 'CHF',
+            room.currency || property.currency || 'EUR',
             room.external_id || null
           ]);
         } catch (roomError) {
@@ -46848,7 +46861,7 @@ app.post('/api/elevate/:apiKey/property/:propertyId/room', async (req, res) => {
       room.max_children || 0,
       room.quantity || room.qty || 1,
       room.base_rate || room.base_price || null,
-      room.currency || propCheck.rows[0].currency || 'CHF',
+      room.currency || propCheck.rows[0].currency || 'EUR',
       room.external_id || null,
       room.status || 'active'
     ]);
