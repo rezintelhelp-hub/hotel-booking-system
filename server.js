@@ -15197,12 +15197,56 @@ app.get('/api/public/property/:propertyId/stripe-info', async (req, res) => {
                 depositRule = ruleResult.rows[0];
             }
             
+            // Get payment methods from property_payment_settings or account settings
+            let paymentMethods = { card: true, pay_at_property: false, paypal: false, card_guarantee: false };
+            let payPropertyMode = 'no_payment';
+            let bankDetails = null;
+            
+            const ppsResult = await pool.query(`
+                SELECT pps.accepted_methods, pps.pay_property_mode, pps.bank_details, pps.card_guarantee,
+                       a.settings as account_settings
+                FROM properties p
+                LEFT JOIN property_payment_settings pps ON pps.property_id = p.id
+                LEFT JOIN accounts a ON p.account_id = a.id
+                WHERE p.id = $1
+            `, [propertyId]);
+            
+            if (ppsResult.rows.length > 0) {
+                const ppsRow = ppsResult.rows[0];
+                const acctSettings = typeof ppsRow.account_settings === 'string' ? JSON.parse(ppsRow.account_settings) : (ppsRow.account_settings || {});
+                
+                if (ppsRow.accepted_methods) {
+                    const methods = typeof ppsRow.accepted_methods === 'string' ? JSON.parse(ppsRow.accepted_methods) : ppsRow.accepted_methods;
+                    paymentMethods = {
+                        card: Array.isArray(methods) ? methods.includes('card') : !!methods.card,
+                        pay_at_property: Array.isArray(methods) ? methods.includes('pay_at_property') : !!methods.pay_at_property,
+                        paypal: Array.isArray(methods) ? methods.includes('paypal') : !!methods.paypal,
+                        card_guarantee: Array.isArray(methods) ? methods.includes('card_guarantee') : !!methods.card_guarantee
+                    };
+                } else if (acctSettings.payment_methods) {
+                    paymentMethods = acctSettings.payment_methods;
+                }
+                
+                payPropertyMode = ppsRow.pay_property_mode || acctSettings.pay_property_mode || 'no_payment';
+                const bd = ppsRow.bank_details || acctSettings.bank_details || {};
+                if (payPropertyMode === 'bank_optional' || payPropertyMode === 'bank_required') {
+                    bankDetails = {
+                        accounts: bd.accounts || [],
+                        instructions: bd.instructions || '',
+                        deadline_hours: bd.deadline_hours || 48
+                    };
+                }
+            }
+            
             return res.json({
                 success: true,
                 stripe_enabled: true,
                 stripe_type: 'config',
                 stripe_publishable_key: config.credentials?.publishable_key,
-                deposit_rule: depositRule
+                deposit_rule: depositRule,
+                payment_methods: paymentMethods,
+                pay_property_mode: payPropertyMode,
+                bank_details: bankDetails
             });
         }
         
@@ -15259,10 +15303,10 @@ app.get('/api/public/property/:propertyId/stripe-info', async (req, res) => {
         
         // Get payment methods config from account settings
         const accountSettings = typeof data.account_settings === 'string' ? JSON.parse(data.account_settings) : (data.account_settings || {});
-        // Default: card enabled, pay_at_property enabled, paypal disabled
+        // Default: card enabled, pay_at_property disabled, paypal disabled
         const paymentMethods = accountSettings.payment_methods || { 
             card: stripeEnabled, 
-            pay_at_property: true, 
+            pay_at_property: false, 
             paypal: false 
         };
         
