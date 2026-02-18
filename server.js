@@ -25202,10 +25202,11 @@ app.get('/api/db/properties-payment-status', async (req, res) => {
         account_stripe_secret_key: row.account_stripe_secret_key,
         has_payment_config: row.has_payment_config,
         has_stripe: hasStripe,
-        direct_mode: settings.pay_property_mode || null,
+        has_pay_at_property: !!acceptedMethods.pay_at_property,
+        direct_mode: acceptedMethods.pay_at_property ? (settings.pay_property_mode || 'no_payment') : null,
         direct_bank_details: settings.bank_details || null,
-        guarantee_enabled: !!(settings.card_guarantee && settings.card_guarantee.enabled) || !!acceptedMethods.card_guarantee,
-        payment_methods: settings.payment_methods || {},
+        has_card_guarantee: !!acceptedMethods.card_guarantee,
+        guarantee_enabled: !!acceptedMethods.card_guarantee,
         accepted_methods: acceptedMethods
       };
     });
