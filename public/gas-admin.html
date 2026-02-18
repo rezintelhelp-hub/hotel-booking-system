@@ -1675,10 +1675,7 @@
                         <span class="nav-icon">👤</span>
                         <span>My Account</span>
                     </a>
-                    <a class="nav-item" data-view="account-settings" href="#" onclick="navClick(this, 'account-settings'); return false;">
-                        <span class="nav-icon">⚙️</span>
-                        <span>Settings</span>
-                    </a>
+                    <!-- Settings removed - language settings available in My Account -->
                     <a class="nav-item" data-view="accounts" href="#" onclick="navClick(this, 'accounts'); return false;">
                         <span class="nav-icon">📋</span>
                         <span>All Accounts</span>
@@ -1991,7 +1988,7 @@
                     </div>
                 </div>
 
-                <div class="nav-section collapsed">
+                <div class="nav-section collapsed master-only" style="display: none;">
                     <div class="nav-label" onclick="toggleNavSection(this)">Website</div>
                     <div class="nav-section-items">
                     <a class="nav-item" data-view="wordpress" data-requires-feature="has_subscription" href="#" onclick="return handleFeatureClick(this, 'wordpress', 'has_subscription');">
@@ -18917,10 +18914,12 @@ const promo = await fetch('/api/v1/offers/validate', {
                 }
             }
             
-            // Hide "All Accounts" nav item for non-master-admins (but keep section visible)
-            const accountsNavItem = document.querySelector('[data-view="accounts"]');
-            if (accountsNavItem) {
-                accountsNavItem.style.display = 'none';
+            // Hide "All Accounts" nav item for non-master/non-agency admins
+            if (currentAccount.role !== 'agency_admin') {
+                const accountsNavItem = document.querySelector('[data-view="accounts"]');
+                if (accountsNavItem) {
+                    accountsNavItem.style.display = 'none';
+                }
             }
             
             // Hide Agencies and Clients nav items
@@ -23443,7 +23442,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                         <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
                                             <button class="btn btn-secondary btn-small" onclick="viewAccount(${account.id})">View</button>
                                             ${currentAccount && currentAccount.role === 'master_admin' ? `
-                                                <button class="btn btn-secondary btn-small" onclick="connectStripeForAccount(${account.id})" title="Stripe Keys" style="${(!!account.stripe_account_id || !!account.stripe_secret_key || (parseInt(account.stripe_properties_count) || 0) > 0) ? 'color: #10b981;' : 'color: #f59e0b;'}">💳</button>
+                                                <button class="btn btn-secondary btn-small" onclick="navigateToView('properties'); setTimeout(function(){ document.querySelector('.bulk-stripe-btn')?.click(); }, 500);" title="Payment Setup" style="${(!!account.stripe_account_id || !!account.stripe_secret_key || (parseInt(account.stripe_properties_count) || 0) > 0) ? 'color: #10b981;' : 'color: #f59e0b;'}">💳</button>
                                                 <button class="btn btn-secondary btn-small" onclick="editAccount(${account.id})">Edit</button>
                                                 <button class="btn btn-secondary btn-small" onclick="deleteAccount(${account.id}, \`${account.name.replace(/`/g, "'")}\`)" style="color: #dc2626;">Delete</button>
                                             ` : ''}
