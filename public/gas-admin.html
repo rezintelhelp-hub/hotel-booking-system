@@ -26286,6 +26286,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                         <th>Currency</th>
                                         <th>Account</th>
                                         <th>Status</th>
+                                        <th>Payment</th>
                                         <th>Actions</th>
                                     </tr>
                                 </thead>
@@ -26328,10 +26329,12 @@ const promo = await fetch('/api/v1/offers/validate', {
                                             </td>
                                             <td><span class="badge ${prop.status === 'active' ? 'badge-success' : prop.status === 'draft' ? 'badge-warning' : 'badge-secondary'}">${prop.status || 'active'}</span></td>
                                             <td>
+                                                <button class="btn btn-secondary btn-small" onclick="openPaymentSettings(${prop.id}, '${(prop.name || '').replace(/'/g, "\\'")}')" title="Payment Settings" style="${prop.stripe_secret_key ? 'color: #10b981;' : 'color: #f59e0b;'}">⚙️</button>
+                                            </td>
+                                            <td>
                                                 <div style="display: flex; gap: 0.25rem;">
                                                     <button class="btn btn-secondary btn-small" onclick="editProperty(${prop.id})">✏️ Edit</button>
                                                     <button class="btn btn-secondary btn-small" onclick="openPropertyStripeSettings(${prop.id}, '${(prop.name || '').replace(/'/g, "\\'")}')" title="Stripe Payment Settings" style="${prop.stripe_secret_key ? 'color: #10b981;' : 'color: #f59e0b;'}">💳</button>
-                                                    <button class="btn btn-secondary btn-small" onclick="openPaymentSettings(${prop.id}, '${(prop.name || '').replace(/'/g, "\\'")}')" title="Payment Settings">⚙️</button>
                                                 </div>
                                             </td>
                                         </tr>
