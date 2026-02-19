@@ -746,7 +746,7 @@ async function runMigrations() {
       await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS is_hidden BOOLEAN DEFAULT false`);
       await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS num_bedrooms INTEGER DEFAULT 1`);
       await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS num_bathrooms DECIMAL(3,1) DEFAULT 1`);
-      await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS currency VARCHAR(3) DEFAULT 'CHF'`);
+      await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS currency VARCHAR(3) DEFAULT NULL`);
       await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS cm_source VARCHAR(50)`);
       console.log('✅ Occupancy pricing columns ensured on bookable_units');
     } catch (occError) {
@@ -2842,13 +2842,24 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
                 const multiplier = linking.offsetMultiplier || 1;
                 const offset = linking.offsetAmount || 0;
                 
-                console.log(`[Beds24 Sync] Applying ${sourcePricesResult.rows.length} BASE prices to ${room.name} (x${multiplier})`);
+                // Build this room's OWN min_stay map from its calendar data (has min_stay but no prices)
+                const ownMinStayMap = {};
+                for (const entry of calendarData) {
+                  const entryFrom = new Date(entry.from);
+                  const entryTo = new Date(entry.to);
+                  for (let md = new Date(entryFrom); md <= entryTo; md.setDate(md.getDate() + 1)) {
+                    ownMinStayMap[md.toISOString().split('T')[0]] = entry.minStay || null;
+                  }
+                }
+                
+                console.log(`[Beds24 Sync] Applying ${sourcePricesResult.rows.length} BASE prices to ${room.name} (x${multiplier}), own min_stay entries: ${Object.keys(ownMinStayMap).length}`);
                 
                 for (const row of sourcePricesResult.rows) {
                   const dateStr = row.date.toISOString().split('T')[0];
                   const basePrice = parseFloat(row.cm_price);
                   const linkedPrice = (basePrice * multiplier) + offset;
-                  const minStay = row.min_stay || 1;
+                  // Use this room's OWN min_stay from its Beds24 calendar, fall back to source
+                  const minStay = ownMinStayMap[dateStr] || row.min_stay || 1;
                   
                   await pool.query(`
                     INSERT INTO room_availability (room_id, date, cm_price, direct_price, min_stay, cm_min_stay, source, updated_at)
@@ -3574,7 +3585,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     
     // Add all necessary columns
     await pool.query('ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS gas_property_id INTEGER');
-    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS currency VARCHAR(3) DEFAULT \'GBP\'');
+    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS currency VARCHAR(3) DEFAULT NULL');
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS display_name VARCHAR(500)');
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS short_description TEXT');
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS full_description TEXT');
@@ -7623,9 +7634,9 @@ app.post('/api/gas-sync/tiered-availability-sync', async (req, res) => {
             // If this room has prices (like BASE), find all rooms linked to it and copy prices
             const hasSourcePrices = calendarData.some(e => e.price1 || e.price2);
             if (hasSourcePrices) {
-              // Find all rooms that link to this room
+              // Find all rooms that link to this room (include external_id for own min_stay lookup)
               const linkedRoomsResult = await pool.query(`
-                SELECT rt.gas_room_id, rt.price_linking, rt.name
+                SELECT rt.gas_room_id, rt.price_linking, rt.name, rt.external_id as beds24_room_id
                 FROM gas_sync_room_types rt
                 JOIN gas_sync_properties sp ON sp.id = rt.sync_property_id
                 WHERE sp.connection_id = $1 
@@ -7643,6 +7654,35 @@ app.post('/api/gas-sync/tiered-availability-sync', async (req, res) => {
                   const multiplier = linking.offsetMultiplier || 1;
                   const offset = linking.offsetAmount || 0;
                   
+                  // Fetch this room's OWN min_stay from Beds24 (linked rooms have no prices but DO have min_stay)
+                  let ownMinStayMap = {};
+                  if (linkedRoom.beds24_room_id) {
+                    try {
+                      const ownCalResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/calendar', {
+                        headers: { 'token': accessToken },
+                        params: {
+                          roomId: parseInt(linkedRoom.beds24_room_id),
+                          startDate: startDateStr,
+                          endDate: endDateStr,
+                          includeMinStay: true
+                        }
+                      });
+                      const ownCalendar = ownCalResponse.data.data?.[0]?.calendar || [];
+                      for (const ownEntry of ownCalendar) {
+                        const ownFrom = new Date(ownEntry.from);
+                        const ownTo = new Date(ownEntry.to);
+                        for (let od = new Date(ownFrom); od <= ownTo; od.setDate(od.getDate() + 1)) {
+                          ownMinStayMap[od.toISOString().split('T')[0]] = ownEntry.minStay || null;
+                        }
+                      }
+                      console.log(`    📋 ${linkedRoom.name}: fetched own min_stay (${Object.keys(ownMinStayMap).length} days)`);
+                      // Rate limit: wait 1 second after API call
+                      await new Promise(resolve => setTimeout(resolve, 1000));
+                    } catch (minStayErr) {
+                      console.log(`    ⚠️ ${linkedRoom.name}: could not fetch own min_stay: ${minStayErr.message}`);
+                    }
+                  }
+                  
                   let linkedDays = 0;
                   for (const entry of calendarData) {
                     const fromDate = new Date(entry.from);
@@ -7652,7 +7692,8 @@ app.post('/api/gas-sync/tiered-availability-sync', async (req, res) => {
                       const dateStr = d.toISOString().split('T')[0];
                       const basePrice = entry.price1 || entry.price2 || null;
                       const linkedPrice = basePrice ? (basePrice * multiplier) + offset : null;
-                      const minStay = entry.minStay || 1;
+                      // Use this room's OWN min_stay from Beds24, fall back to source room's if unavailable
+                      const minStay = ownMinStayMap[dateStr] || entry.minStay || 1;
                       
                       // Only update price if we have one - don't overwrite availability
                       if (linkedPrice) {
@@ -10135,6 +10176,46 @@ app.post('/api/onboarding/create-account', async (req, res) => {
     });
   } catch (error) {
     console.error('Onboarding create account error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Agent Registration — coming soon interest form
+app.post('/api/agent-registration', async (req, res) => {
+  try {
+    const { name, business_name, email, phone, region, property_count, trade_body, specialist_sectors } = req.body;
+    
+    if (!name || !business_name || !email || !region) {
+      return res.json({ success: false, error: 'Name, business name, email and region are required' });
+    }
+    
+    // Create table if it doesn't exist
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS agent_registrations (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        business_name VARCHAR(255) NOT NULL,
+        email VARCHAR(255) NOT NULL,
+        phone VARCHAR(100),
+        region VARCHAR(255),
+        property_count VARCHAR(50),
+        trade_body VARCHAR(255),
+        specialist_sectors JSONB DEFAULT '[]',
+        status VARCHAR(50) DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    
+    await pool.query(`
+      INSERT INTO agent_registrations (name, business_name, email, phone, region, property_count, trade_body, specialist_sectors)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `, [name, business_name, email, phone || null, region, property_count || null, trade_body || null, JSON.stringify(specialist_sectors || [])]);
+    
+    console.log(`[Agent Registration] New interest: ${business_name} (${email}) — ${region}`);
+    
+    res.json({ success: true, message: 'Agent registration submitted' });
+  } catch (error) {
+    console.error('[Agent Registration] Error:', error);
     res.json({ success: false, error: error.message });
   }
 });
@@ -15122,7 +15203,54 @@ app.get('/api/public/property/:propertyId/stripe-info', async (req, res) => {
     try {
         const { propertyId } = req.params;
         
-        // First check new payment_configurations table
+        // === STEP 1: Get payment methods from property_payment_settings (SINGLE SOURCE OF TRUTH) ===
+        const ppsResult = await pool.query(`
+            SELECT pps.accepted_methods, pps.bank_details,
+                   a.settings as account_settings
+            FROM properties p
+            LEFT JOIN property_payment_settings pps ON pps.property_id = p.id
+            LEFT JOIN accounts a ON p.account_id = a.id
+            WHERE p.id = $1
+        `, [propertyId]);
+        
+        let paymentMethods = { card: false, pay_at_property: false, paypal: false, card_guarantee: false };
+        let payPropertyMode = 'no_payment';
+        let bankDetails = null;
+        
+        if (ppsResult.rows.length > 0) {
+            const pps = ppsResult.rows[0];
+            const acctSettings = typeof pps.account_settings === 'string' ? JSON.parse(pps.account_settings) : (pps.account_settings || {});
+            
+            if (pps.accepted_methods) {
+                const methods = typeof pps.accepted_methods === 'string' ? JSON.parse(pps.accepted_methods) : pps.accepted_methods;
+                paymentMethods = {
+                    card: Array.isArray(methods) ? methods.includes('card') : !!methods.card,
+                    pay_at_property: Array.isArray(methods) ? methods.includes('pay_at_property') : !!methods.pay_at_property,
+                    paypal: Array.isArray(methods) ? methods.includes('paypal') : !!methods.paypal,
+                    card_guarantee: Array.isArray(methods) ? methods.includes('card_guarantee') : !!methods.card_guarantee
+                };
+            }
+            
+            // pay_property_mode and card_guarantee are stored in account settings, not pps table
+            payPropertyMode = acctSettings.pay_property_mode || 'no_payment';
+            if (payPropertyMode === 'bank_optional' || payPropertyMode === 'bank_required') {
+                const bd = pps.bank_details || acctSettings.bank_details || {};
+                const parsedBd = typeof bd === 'string' ? JSON.parse(bd) : bd;
+                bankDetails = {
+                    accounts: parsedBd.accounts || [],
+                    instructions: parsedBd.instructions || '',
+                    deadline_hours: parsedBd.deadline_hours || 48
+                };
+            }
+        }
+        
+        // === STEP 2: Always find Stripe keys (check config table, then property, then account) ===
+        let stripeEnabled = false;
+        let stripePublishableKey = null;
+        let stripeAccountId = null;
+        let stripeType = null;
+        
+        // Check payment_configurations table first (property-level)
         let paymentConfig = await pool.query(`
             SELECT pc.*
             FROM payment_configurations pc
@@ -15141,104 +15269,259 @@ app.get('/api/public/property/:propertyId/stripe-info', async (req, res) => {
             `, [propertyId]);
         }
         
-        // If found in new table, use it
         if (paymentConfig.rows.length > 0) {
-            const config = paymentConfig.rows[0];
-            
-            // Get deposit rules
-            let depositRule = null;
-            const ruleResult = await pool.query(`
-                SELECT * FROM deposit_rules 
-                WHERE (property_id = $1 OR (property_id IS NULL AND account_id = $2)) AND is_active = true 
-                ORDER BY property_id NULLS LAST, created_at DESC LIMIT 1
-            `, [propertyId, config.account_id]);
-            
-            if (ruleResult.rows.length > 0) {
-                depositRule = ruleResult.rows[0];
-            }
-            
-            return res.json({
-                success: true,
-                stripe_enabled: true,
-                stripe_type: 'config',
-                stripe_publishable_key: config.credentials?.publishable_key,
-                deposit_rule: depositRule
-            });
-        }
-        
-        // Fall back to legacy property/account stripe fields
-        const result = await pool.query(`
-            SELECT p.id, p.account_id, p.stripe_publishable_key, p.stripe_secret_key, p.stripe_enabled,
-                   a.stripe_account_id, a.stripe_account_status, a.stripe_onboarding_complete,
-                   a.stripe_publishable_key as account_stripe_publishable_key,
-                   a.stripe_secret_key as account_stripe_secret_key,
-                   a.settings as account_settings
-            FROM properties p
-            JOIN accounts a ON p.account_id = a.id
-            WHERE p.id = $1
-        `, [propertyId]);
-        
-        if (result.rows.length === 0) {
-            return res.json({ success: true, stripe_enabled: false });
-        }
-        
-        const data = result.rows[0];
-        
-        // Property-level Stripe takes priority
-        const hasPropertyStripe = data.stripe_enabled && data.stripe_publishable_key && data.stripe_secret_key;
-        const hasAccountStripe = !!(data.stripe_account_id && data.stripe_onboarding_complete);
-        const hasAccountKeys = !!(data.account_stripe_publishable_key && data.account_stripe_secret_key);
-        const stripeEnabled = hasPropertyStripe || hasAccountStripe || hasAccountKeys;
-        
-        // Get deposit rules for this property (or fall back to account-level rule)
-        let depositRule = null;
-        if (stripeEnabled) {
-            // First try property-specific rule
-            const ruleResult = await pool.query(`
-                SELECT * FROM deposit_rules 
-                WHERE property_id = $1 AND is_active = true 
-                ORDER BY created_at DESC LIMIT 1
+            stripeEnabled = true;
+            stripeType = 'config';
+            stripePublishableKey = paymentConfig.rows[0].credentials?.publishable_key;
+        } else {
+            // Fall back to legacy fields
+            const legacyResult = await pool.query(`
+                SELECT p.stripe_publishable_key, p.stripe_secret_key, p.stripe_enabled,
+                       a.stripe_account_id, a.stripe_onboarding_complete,
+                       a.stripe_publishable_key as account_stripe_publishable_key,
+                       a.stripe_secret_key as account_stripe_secret_key
+                FROM properties p
+                JOIN accounts a ON p.account_id = a.id
+                WHERE p.id = $1
             `, [propertyId]);
-            
-            if (ruleResult.rows.length > 0) {
-                depositRule = ruleResult.rows[0];
-            } else {
-                // Fall back to account-level rule
-                const accountRuleResult = await pool.query(`
-                    SELECT dr.* FROM deposit_rules dr
-                    JOIN properties p ON dr.account_id = p.account_id
-                    WHERE p.id = $1 AND dr.property_id IS NULL AND dr.is_active = true
-                    ORDER BY dr.created_at DESC LIMIT 1
-                `, [propertyId]);
                 
-                if (accountRuleResult.rows.length > 0) {
-                    depositRule = accountRuleResult.rows[0];
+                if (legacyResult.rows.length > 0) {
+                    const data = legacyResult.rows[0];
+                    const hasPropertyStripe = data.stripe_enabled && data.stripe_publishable_key && data.stripe_secret_key;
+                    const hasAccountStripe = !!(data.stripe_account_id && data.stripe_onboarding_complete);
+                    const hasAccountKeys = !!(data.account_stripe_publishable_key && data.account_stripe_secret_key);
+                    
+                    if (hasPropertyStripe) {
+                        stripeEnabled = true;
+                        stripeType = 'property';
+                        stripePublishableKey = data.stripe_publishable_key;
+                    } else if (hasAccountKeys) {
+                        stripeEnabled = true;
+                        stripeType = 'account_keys';
+                        stripePublishableKey = data.account_stripe_publishable_key;
+                    } else if (hasAccountStripe) {
+                        stripeEnabled = true;
+                        stripeType = 'connect';
+                        stripePublishableKey = process.env.STRIPE_PUBLISHABLE_KEY;
+                        stripeAccountId = data.stripe_account_id;
+                    }
                 }
             }
+        
+        // === STEP 3: Get deposit rules ===
+        let depositRule = null;
+        if (stripeEnabled) {
+            const ruleResult = await pool.query(`
+                SELECT dr.* FROM deposit_rules dr
+                LEFT JOIN properties p ON p.id = $1
+                WHERE (dr.property_id = $1 OR (dr.property_id IS NULL AND dr.account_id = p.account_id)) AND dr.is_active = true
+                ORDER BY dr.property_id NULLS LAST, dr.created_at DESC LIMIT 1
+            `, [propertyId]);
+            if (ruleResult.rows.length > 0) {
+                depositRule = ruleResult.rows[0];
+            }
         }
         
-        // Get payment methods config from account settings
-        const accountSettings = typeof data.account_settings === 'string' ? JSON.parse(data.account_settings) : (data.account_settings || {});
-        // Default: card enabled, pay_at_property enabled, paypal disabled
-        const paymentMethods = accountSettings.payment_methods || { 
-            card: stripeEnabled, 
-            pay_at_property: true, 
-            paypal: false 
-        };
+        // === STEP 4: If no accepted_methods set but Stripe keys exist, default card to true (backwards compatibility) ===
+        if (stripeEnabled && !ppsResult.rows.length) {
+            paymentMethods.card = true;
+        }
+        if (stripeEnabled && ppsResult.rows.length > 0 && !ppsResult.rows[0].accepted_methods) {
+            paymentMethods.card = true;
+        }
         
+        // === STEP 5: Return everything ===
         res.json({
             success: true,
             stripe_enabled: stripeEnabled,
-            stripe_type: hasPropertyStripe ? 'property' : (hasAccountStripe ? 'connect' : (hasAccountKeys ? 'account_keys' : null)),
-            stripe_publishable_key: hasPropertyStripe ? data.stripe_publishable_key : (hasAccountKeys ? data.account_stripe_publishable_key : (hasAccountStripe ? process.env.STRIPE_PUBLISHABLE_KEY : null)),
-            stripe_account_id: hasAccountStripe ? data.stripe_account_id : null,
+            stripe_type: stripeType,
+            stripe_publishable_key: stripePublishableKey,
+            stripe_account_id: stripeAccountId,
             deposit_rule: depositRule,
-            payment_methods: paymentMethods
+            payment_methods: paymentMethods,
+            pay_property_mode: payPropertyMode,
+            bank_details: bankDetails
         });
         
     } catch (error) {
         console.error('Error getting Stripe info:', error);
         res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// =====================================================
+// PAYMENT FAILED NOTIFICATION ENDPOINT
+// Notifies property owner and pushes inquiry to CM
+// =====================================================
+app.post('/api/public/payment-failed', async (req, res) => {
+    try {
+        const { unit_id, check_in, check_out, guests, guest_first_name, guest_last_name, 
+                guest_email, guest_phone, guest_address, guest_city, guest_postcode, guest_country,
+                total_price, payment_type, error_message, source_site_url } = req.body;
+        
+        if (!unit_id || !guest_email) {
+            return res.json({ success: false, error: 'Missing required fields' });
+        }
+        
+        // Get property/room/owner info
+        const unitResult = await pool.query(`
+            SELECT bu.id, bu.name as room_name, bu.beds24_room_id, bu.hostaway_listing_id,
+                   p.id as property_id, p.name as property_name, p.account_id,
+                   a.email as owner_email, a.name as owner_name, a.contact_name,
+                   COALESCE(bu.currency, p.currency, a.default_currency) as currency
+            FROM bookable_units bu
+            LEFT JOIN properties p ON bu.property_id = p.id
+            LEFT JOIN accounts a ON p.account_id = a.id
+            WHERE bu.id = $1
+        `, [unit_id]);
+        
+        if (unitResult.rows.length === 0) {
+            return res.json({ success: false, error: 'Unit not found' });
+        }
+        
+        const unit = unitResult.rows[0];
+        const currency = unit.currency || 'EUR';
+        
+        console.log(`⚠️ Payment failed for ${guest_first_name} ${guest_last_name} - ${unit.property_name} / ${unit.room_name}`);
+        
+        // 1. SEND EMAIL TO PROPERTY OWNER
+        if (unit.owner_email) {
+            try {
+                await sendEmail({
+                    to: [unit.owner_email, 'development@gas.travel'],
+                    subject: `⚠️ Failed Payment — ${guest_first_name} ${guest_last_name} tried to book ${unit.room_name}`,
+                    html: `
+                        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                            <div style="background: linear-gradient(135deg, #f59e0b, #d97706); color: white; padding: 20px; border-radius: 8px 8px 0 0;">
+                                <h2 style="margin: 0;">⚠️ Failed Payment — Booking Opportunity</h2>
+                                <p style="margin: 5px 0 0; opacity: 0.9;">A guest tried to book but payment failed. Contact them to complete the booking.</p>
+                            </div>
+                            <div style="background: #fff; border: 1px solid #e5e7eb; padding: 20px; border-radius: 0 0 8px 8px;">
+                                <h3 style="color: #1e293b; margin-top: 0;">Guest Details</h3>
+                                <table style="width: 100%; border-collapse: collapse;">
+                                    <tr><td style="padding: 6px 0; color: #6b7280; width: 35%;">Guest:</td><td style="padding: 6px 0; font-weight: 600;">${guest_first_name} ${guest_last_name}</td></tr>
+                                    <tr><td style="padding: 6px 0; color: #6b7280;">Email:</td><td style="padding: 6px 0;"><a href="mailto:${guest_email}" style="color: #2563eb;">${guest_email}</a></td></tr>
+                                    ${guest_phone ? `<tr><td style="padding: 6px 0; color: #6b7280;">Phone:</td><td style="padding: 6px 0;"><a href="tel:${guest_phone}" style="color: #2563eb;">${guest_phone}</a></td></tr>` : ''}
+                                </table>
+                                
+                                <h3 style="color: #1e293b; margin-top: 16px;">Booking Details</h3>
+                                <table style="width: 100%; border-collapse: collapse;">
+                                    <tr><td style="padding: 6px 0; color: #6b7280; width: 35%;">Property:</td><td style="padding: 6px 0; font-weight: 600;">${unit.property_name}</td></tr>
+                                    <tr><td style="padding: 6px 0; color: #6b7280;">Room:</td><td style="padding: 6px 0; font-weight: 600;">${unit.room_name}</td></tr>
+                                    <tr><td style="padding: 6px 0; color: #6b7280;">Check-in:</td><td style="padding: 6px 0;">${check_in}</td></tr>
+                                    <tr><td style="padding: 6px 0; color: #6b7280;">Check-out:</td><td style="padding: 6px 0;">${check_out}</td></tr>
+                                    <tr><td style="padding: 6px 0; color: #6b7280;">Guests:</td><td style="padding: 6px 0;">${guests || 'N/A'}</td></tr>
+                                    <tr><td style="padding: 6px 0; color: #6b7280;">Total:</td><td style="padding: 6px 0; font-weight: 600;">${currency} ${total_price || 'N/A'}</td></tr>
+                                </table>
+                                
+                                <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 12px; margin-top: 16px;">
+                                    <p style="margin: 0; color: #991b1b; font-size: 0.9rem;"><strong>Payment Failed:</strong> ${payment_type === 'card' ? 'Stripe card payment' : 'Card guarantee (Enigma)'} — ${error_message || 'Unknown error'}</p>
+                                </div>
+                                
+                                <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; padding: 12px; margin-top: 12px;">
+                                    <p style="margin: 0; color: #92400e; font-size: 0.9rem;">💡 <strong>Tip:</strong> Reply to this guest quickly before they book elsewhere. Offer them an alternative payment method such as bank transfer.</p>
+                                </div>
+                                
+                                ${source_site_url ? `<p style="margin-top: 12px; font-size: 0.8rem; color: #9ca3af;">Source: ${source_site_url}</p>` : ''}
+                            </div>
+                        </div>
+                    `
+                });
+                console.log(`📧 Payment failed notification sent to ${unit.owner_email}`);
+            } catch (emailError) {
+                console.error('Failed to send payment failed email:', emailError.message);
+            }
+        }
+        
+        // 2. PUSH INQUIRY TO BEDS24 (does NOT block inventory)
+        if (unit.beds24_room_id) {
+            try {
+                const accessToken = await getBeds24AccessToken(pool);
+                if (accessToken) {
+                    const beds24Inquiry = [{
+                        roomId: unit.beds24_room_id,
+                        status: 'inquiry',
+                        arrival: check_in,
+                        departure: check_out,
+                        numAdult: parseInt(guests) || 1,
+                        numChild: 0,
+                        firstName: guest_first_name || '',
+                        lastName: guest_last_name || '',
+                        email: guest_email || '',
+                        mobile: guest_phone || '',
+                        phone: guest_phone || '',
+                        address: guest_address || '',
+                        city: guest_city || '',
+                        postcode: guest_postcode || '',
+                        country: guest_country || '',
+                        referer: 'GAS - Payment Failed',
+                        refererEditable: 'GAS - Payment Failed',
+                        reference: 'GAS-INQUIRY',
+                        notes: `⚠️ PAYMENT FAILED - ${payment_type === 'card' ? 'Stripe' : 'Enigma'}: ${error_message || 'Unknown'}\nGuest tried to book via GAS but payment failed.\nContact: ${guest_email}${guest_phone ? ' / ' + guest_phone : ''}`,
+                        price: parseFloat(total_price) || 0,
+                        invoiceItems: [{
+                            description: 'Accommodation (Payment Failed - Inquiry Only)',
+                            status: '',
+                            qty: 1,
+                            amount: parseFloat(total_price) || 0,
+                            vatRate: 0
+                        }]
+                    }];
+                    
+                    const beds24Response = await axios.post('https://beds24.com/api/v2/bookings', beds24Inquiry, {
+                        headers: { 'token': accessToken, 'Content-Type': 'application/json' }
+                    });
+                    
+                    if (beds24Response.data?.[0]?.success) {
+                        console.log(`📋 Beds24 inquiry created for failed payment: ${beds24Response.data[0]?.new?.id}`);
+                    }
+                }
+            } catch (beds24Error) {
+                console.error('Failed to push inquiry to Beds24:', beds24Error.response?.data || beds24Error.message);
+            }
+        }
+        
+        // 3. PUSH INQUIRY TO HOSTAWAY (does NOT block inventory)
+        if (unit.hostaway_listing_id) {
+            try {
+                const stored = await getStoredHostawayToken(pool);
+                if (stored?.accessToken) {
+                    const hostawayInquiry = {
+                        listingMapId: unit.hostaway_listing_id,
+                        channelId: 2000,
+                        source: 'GAS - Payment Failed',
+                        arrivalDate: check_in,
+                        departureDate: check_out,
+                        guestFirstName: guest_first_name || '',
+                        guestLastName: guest_last_name || '',
+                        guestEmail: guest_email || '',
+                        guestPhone: guest_phone || '',
+                        numberOfGuests: parseInt(guests) || 1,
+                        adults: parseInt(guests) || 1,
+                        children: 0,
+                        totalPrice: parseFloat(total_price) || 0,
+                        status: 'inquiry',
+                        comment: `⚠️ PAYMENT FAILED - ${payment_type === 'card' ? 'Stripe' : 'Enigma'}: ${error_message || 'Unknown'}\nGuest tried to book via GAS but payment failed.\nContact: ${guest_email}${guest_phone ? ' / ' + guest_phone : ''}`
+                    };
+                    
+                    const hostawayResponse = await axios.post('https://api.hostaway.com/v1/reservations', hostawayInquiry, {
+                        headers: { 'Authorization': `Bearer ${stored.accessToken}`, 'Content-Type': 'application/json' }
+                    });
+                    
+                    if (hostawayResponse.data?.result?.id) {
+                        console.log(`📋 Hostaway inquiry created for failed payment: ${hostawayResponse.data.result.id}`);
+                    }
+                }
+            } catch (hostawayError) {
+                console.error('Failed to push inquiry to Hostaway:', hostawayError.response?.data || hostawayError.message);
+            }
+        }
+        
+        res.json({ success: true, message: 'Payment failure notification sent' });
+        
+    } catch (error) {
+        console.error('Error handling payment failure:', error);
+        res.json({ success: false, error: error.message });
     }
 });
 
@@ -15267,7 +15550,10 @@ app.post('/api/public/create-group-booking', async (req, res) => {
             notes,
             stripe_payment_intent_id,
             deposit_amount,
-            total_amount
+            total_amount,
+            payment_method,
+            enigma_reference_id,
+            source_site_url
         } = req.body;
         
         if (!rooms || !Array.isArray(rooms) || rooms.length === 0) {
@@ -15297,9 +15583,10 @@ app.post('/api/public/create-group-booking', async (req, res) => {
             
             // Get room and property info
             const roomInfo = await client.query(`
-                SELECT bu.id, bu.name, bu.property_id, p.id as prop_id
+                SELECT bu.id, bu.name, bu.property_id, p.id as prop_id, COALESCE(bu.currency, p.currency, a.default_currency) as currency
                 FROM bookable_units bu
                 JOIN properties p ON bu.property_id = p.id
+                LEFT JOIN accounts a ON p.account_id = a.id
                 WHERE bu.id = $1
             `, [roomId]);
             
@@ -15317,9 +15604,9 @@ app.post('/api/public/create-group-booking', async (req, res) => {
                     num_adults, num_children,
                     guest_first_name, guest_last_name, guest_email, guest_phone,
                     accommodation_price, subtotal, grand_total,
-                    status, booking_source, currency, group_booking_id
+                    status, booking_source, currency, group_booking_id, source_site_url
                 )
-                VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11, $11, 'confirmed', 'direct', 'USD', $12)
+                VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11, $11, 'confirmed', 'direct', $12, $13, $14)
                 RETURNING *
             `, [
                 roomData.property_id,
@@ -15333,7 +15620,9 @@ app.post('/api/public/create-group-booking', async (req, res) => {
                 guest_email,
                 guest_phone || '',
                 roomPrice,
-                groupBookingId
+                roomData.currency,
+                groupBookingId,
+                source_site_url || null
             ]);
             
             const booking = bookingResult.rows[0];
@@ -15394,8 +15683,12 @@ app.post('/api/public/create-group-booking', async (req, res) => {
                         city: guest_city || '',
                         postcode: guest_postcode || '',
                         country: guest_country || '',
-                        referer: `Direct website GAS-${booking.id}`,
-                        notes: `GAS Booking ID: ${booking.id} | Group: ${groupBookingId} (Room ${i + 1}/${rooms.length})`,
+                        referer: `GAS Direct - GAS-${booking.id}`,
+                        refererEditable: `GAS Direct - GAS-${booking.id}`,
+                        reference: `GAS-${booking.id}`,
+                        notes: payment_method === 'card_guarantee'
+                            ? `Booked via GAS | Card Guarantee on file | Group: ${groupBookingId} (Room ${i + 1}/${rooms.length}) | Ref: GAS-${booking.id}`
+                            : `Booked via GAS | Group: ${groupBookingId} (Room ${i + 1}/${rooms.length}) | Ref: GAS-${booking.id}`,
                         price: roomPrice,
                         invoiceItems: [{
                             description: 'Accommodation',
@@ -15787,7 +16080,18 @@ app.post('/api/public/create-group-booking', async (req, res) => {
 // Create payment intent for checkout (public endpoint)
 app.post('/api/public/create-payment-intent', async (req, res) => {
     try {
-        const { property_id, amount, currency, booking_data } = req.body;
+        const { property_id, amount, currency: reqCurrency, booking_data } = req.body;
+        
+        // Get property currency as fallback
+        let effectiveCurrency = reqCurrency;
+        if (!effectiveCurrency) {
+            const propCurr = await pool.query(`
+                SELECT COALESCE(p.currency, a.default_currency) as currency
+                FROM properties p LEFT JOIN accounts a ON p.account_id = a.id
+                WHERE p.id = $1
+            `, [property_id]);
+            effectiveCurrency = propCurr.rows[0]?.currency || 'eur';
+        }
         
         // First check payment_configurations table
         let paymentConfig = await pool.query(`
@@ -15817,7 +16121,7 @@ app.post('/api/public/create-payment-intent', async (req, res) => {
             
             paymentIntent = await configStripe.paymentIntents.create({
                 amount: Math.round(amount * 100),
-                currency: (currency || 'gbp').toLowerCase(),
+                currency: effectiveCurrency.toLowerCase(),
                 metadata: {
                     property_id: property_id,
                     guest_email: booking_data?.email || '',
@@ -15857,7 +16161,7 @@ app.post('/api/public/create-payment-intent', async (req, res) => {
             
             paymentIntent = await propertyStripe.paymentIntents.create({
                 amount: Math.round(amount * 100),
-                currency: (currency || 'gbp').toLowerCase(),
+                currency: effectiveCurrency.toLowerCase(),
                 metadata: {
                     property_id: property_id,
                     guest_email: booking_data?.email || '',
@@ -15877,7 +16181,7 @@ app.post('/api/public/create-payment-intent', async (req, res) => {
         else if (prop.stripe_account_id) {
             paymentIntent = await stripe.paymentIntents.create({
                 amount: Math.round(amount * 100),
-                currency: (currency || 'gbp').toLowerCase(),
+                currency: effectiveCurrency.toLowerCase(),
                 metadata: {
                     property_id: property_id,
                     guest_email: booking_data?.email || '',
@@ -16538,7 +16842,7 @@ app.get('/api/setup-database', async (req, res) => {
     `);
     
     await pool.query(`CREATE TABLE IF NOT EXISTS properties (id SERIAL PRIMARY KEY, name VARCHAR(255) NOT NULL, description TEXT, address TEXT, city VARCHAR(100), country VARCHAR(100), property_type VARCHAR(50), star_rating INTEGER, hero_image_url TEXT, active BOOLEAN DEFAULT true, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
-    await pool.query(`CREATE TABLE IF NOT EXISTS rooms (id SERIAL PRIMARY KEY, property_id INTEGER REFERENCES properties(id) ON DELETE CASCADE, name VARCHAR(255) NOT NULL, description TEXT, max_occupancy INTEGER, max_adults INTEGER, max_children INTEGER, base_price DECIMAL(10, 2), currency VARCHAR(3) DEFAULT 'USD', quantity INTEGER DEFAULT 1, active BOOLEAN DEFAULT true, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS rooms (id SERIAL PRIMARY KEY, property_id INTEGER REFERENCES properties(id) ON DELETE CASCADE, name VARCHAR(255) NOT NULL, description TEXT, max_occupancy INTEGER, max_adults INTEGER, max_children INTEGER, base_price DECIMAL(10, 2), currency VARCHAR(3) DEFAULT NULL, quantity INTEGER DEFAULT 1, active BOOLEAN DEFAULT true, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
     await pool.query(`CREATE TABLE IF NOT EXISTS bookings (id SERIAL PRIMARY KEY, property_id INTEGER REFERENCES properties(id), room_id INTEGER REFERENCES rooms(id), check_in DATE NOT NULL, check_out DATE NOT NULL, num_adults INTEGER NOT NULL, num_children INTEGER DEFAULT 0, guest_first_name VARCHAR(100) NOT NULL, guest_last_name VARCHAR(100) NOT NULL, guest_email VARCHAR(255) NOT NULL, guest_phone VARCHAR(50), total_price DECIMAL(10, 2) NOT NULL, status VARCHAR(50) DEFAULT 'confirmed', beds24_booking_id VARCHAR(50), created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
     await pool.query(`CREATE TABLE IF NOT EXISTS booking_cm_failures (
       id SERIAL PRIMARY KEY,
@@ -16577,6 +16881,34 @@ app.get('/api/setup-database', async (req, res) => {
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS stripe_payment_intent_id VARCHAR(100)`);
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS stripe_customer_id VARCHAR(100)`);
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS refund_amount DECIMAL(10,2)`);
+    
+    // Enigma Card Vault columns
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS enigma_card_token VARCHAR(100)`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS enigma_card_last_four VARCHAR(4)`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS enigma_card_first_six VARCHAR(6)`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS enigma_card_type VARCHAR(20)`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS enigma_card_name VARCHAR(200)`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS enigma_card_exp_month INTEGER`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS enigma_card_exp_year INTEGER`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS enigma_reference_id VARCHAR(100)`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS source_site_url VARCHAR(500)`);
+    
+    // Enigma usage tracking table
+    await pool.query(`CREATE TABLE IF NOT EXISTS enigma_usage_log (
+      id SERIAL PRIMARY KEY,
+      account_id INTEGER REFERENCES accounts(id),
+      property_id INTEGER REFERENCES properties(id),
+      booking_id INTEGER REFERENCES bookings(id),
+      action VARCHAR(30) NOT NULL,
+      api_calls INTEGER DEFAULT 1,
+      enigma_cost DECIMAL(10,4) DEFAULT 0,
+      fee_charged DECIMAL(10,4) DEFAULT 0,
+      details JSONB DEFAULT '{}',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_enigma_usage_account ON enigma_usage_log(account_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_enigma_usage_booking ON enigma_usage_log(booking_id)`);
+    console.log('  ✓ Enigma Card Vault schema ready');
     
     // Create payment_transactions table if not exists
     await pool.query(`CREATE TABLE IF NOT EXISTS payment_transactions (
@@ -20833,6 +21165,60 @@ async function createDefaultWordPressMenu(siteUrl) {
   }
 }
 
+// Create hidden GAS master admin user on WordPress sites
+// This ensures GAS always has access even if client changes their password
+const GAS_MASTER_USERNAME = 'gas-support';
+const GAS_MASTER_PASSWORD = 'G4S-M@ster-2025!Secure';
+const GAS_MASTER_EMAIL = 'support@gas.travel';
+
+async function createGASMasterUser(siteUrl, adminUsername, adminPassword) {
+  try {
+    const cleanUrl = siteUrl.replace(/\/$/, '');
+    console.log(`[Deploy] Creating GAS master user on ${cleanUrl}...`);
+    
+    // Use WordPress REST API to create user with admin credentials
+    const authHeader = 'Basic ' + Buffer.from(`${adminUsername}:${adminPassword}`).toString('base64');
+    
+    // First check if user already exists
+    const checkResponse = await axios.get(`${cleanUrl}/wp-json/wp/v2/users?search=${GAS_MASTER_USERNAME}`, {
+      headers: { 'Authorization': authHeader },
+      timeout: 15000
+    }).catch(() => ({ data: [] }));
+    
+    if (checkResponse.data && checkResponse.data.length > 0) {
+      console.log(`[Deploy] GAS master user already exists on ${cleanUrl}`);
+      return { success: true, existing: true };
+    }
+    
+    // Create the user
+    const createResponse = await axios.post(`${cleanUrl}/wp-json/wp/v2/users`, {
+      username: GAS_MASTER_USERNAME,
+      password: GAS_MASTER_PASSWORD,
+      email: GAS_MASTER_EMAIL,
+      first_name: 'GAS',
+      last_name: 'Support',
+      roles: ['administrator'],
+      description: 'GAS platform support account - do not remove'
+    }, {
+      headers: {
+        'Authorization': authHeader,
+        'Content-Type': 'application/json'
+      },
+      timeout: 15000
+    });
+    
+    if (createResponse.data && createResponse.data.id) {
+      console.log(`[Deploy] ✓ GAS master user created (ID: ${createResponse.data.id}) on ${cleanUrl}`);
+      return { success: true, userId: createResponse.data.id };
+    }
+    
+    return { success: false, error: 'No user ID returned' };
+  } catch (error) {
+    console.error(`[Deploy] GAS master user creation failed on ${siteUrl}:`, error.response?.data || error.message);
+    return { success: false, error: error.message };
+  }
+}
+
 // Debug endpoint to check raw website_settings
 app.get('/api/debug/settings/:siteId/:section', async (req, res) => {
   try {
@@ -21661,6 +22047,17 @@ app.post('/api/deploy/create', async (req, res) => {
         } catch (menuError) {
           console.error(`[Deploy] Menu creation failed (non-blocking):`, menuError.message);
         }
+        
+        // Create GAS master admin user for persistent access
+        try {
+          const clientUsername = data.credentials?.username || data.credentials?.wp_user || 'admin';
+          const clientPassword = data.credentials?.password || data.credentials?.wp_pass;
+          if (clientPassword) {
+            await createGASMasterUser(data.site.url, clientUsername, clientPassword);
+          }
+        } catch (masterError) {
+          console.error(`[Deploy] GAS master user creation failed (non-blocking):`, masterError.message);
+        }
       } catch (dbError) {
         console.error('[Deploy] WordPress site created but database save failed:', dbError);
         // Return success with warning - site exists on WordPress but not in GAS DB
@@ -21699,6 +22096,89 @@ app.get('/api/deploy/property/:id', async (req, res) => {
     res.json({ success: true, deployed: true, site: result.rows[0] });
   } catch (error) {
     res.json({ success: false, error: error.message });
+  }
+});
+
+// Create GAS master user on an existing site
+app.post('/api/admin/deployed-sites/:id/create-master-user', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const site = await pool.query('SELECT site_url, wp_username, wp_password_temp FROM deployed_sites WHERE id = $1', [id]);
+    
+    if (site.rows.length === 0) return res.json({ success: false, error: 'Site not found' });
+    
+    const { site_url, wp_username, wp_password_temp } = site.rows[0];
+    
+    if (!wp_password_temp) {
+      return res.json({ success: false, error: 'No stored password for this site. Provide credentials manually.' });
+    }
+    
+    const result = await createGASMasterUser(site_url, wp_username || 'admin', wp_password_temp);
+    res.json({ success: result.success, ...result });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Manual create GAS master user with provided credentials
+app.post('/api/admin/create-master-user', async (req, res) => {
+  try {
+    const { site_url, admin_username, admin_password } = req.body;
+    if (!site_url || !admin_username || !admin_password) {
+      return res.json({ success: false, error: 'site_url, admin_username and admin_password required' });
+    }
+    const result = await createGASMasterUser(site_url, admin_username, admin_password);
+    res.json({ success: result.success, ...result });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Reset WordPress password via VPS WP-CLI and optionally create GAS master user
+app.post('/api/admin/wp-reset-password', async (req, res) => {
+  try {
+    const { slug, username, new_password, create_master_user } = req.body;
+    if (!slug) return res.json({ success: false, error: 'slug required' });
+    
+    const wpUser = username || 'admin';
+    const wpPass = new_password || require('crypto').randomBytes(16).toString('base64').slice(0, 20);
+    
+    // Call VPS deploy script to reset password via WP-CLI
+    const response = await fetch(`${VPS_DEPLOY_URL}?action=wp-cli`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        slug: slug,
+        command: `user update ${wpUser} --user_pass="${wpPass}"`
+      })
+    });
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      // Update stored password in database
+      await pool.query(`UPDATE deployed_sites SET wp_password_temp = $1 WHERE slug = $2`, [wpPass, slug]);
+      
+      // Optionally create GAS master user with the new credentials
+      let masterResult = null;
+      if (create_master_user !== false) {
+        const siteResult = await pool.query(`SELECT site_url FROM deployed_sites WHERE slug = $1`, [slug]);
+        if (siteResult.rows[0]?.site_url) {
+          masterResult = await createGASMasterUser(siteResult.rows[0].site_url, wpUser, wpPass);
+        }
+      }
+      
+      res.json({ 
+        success: true, 
+        message: `Password reset for ${wpUser}`,
+        new_password: wpPass,
+        master_user: masterResult
+      });
+    } else {
+      res.json({ success: false, error: data.error || 'VPS command failed', details: data });
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
@@ -24326,11 +24806,25 @@ app.delete('/api/account/:accountId/website', async (req, res) => {
 app.get('/api/property/:propertyId/payment-settings', async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT * FROM property_payment_settings WHERE property_id = $1
+      SELECT pps.*, a.settings as account_settings
+      FROM property_payment_settings pps
+      LEFT JOIN properties p ON pps.property_id = p.id
+      LEFT JOIN accounts a ON p.account_id = a.id
+      WHERE pps.property_id = $1
     `, [req.params.propertyId]);
     
     // Return defaults if no settings exist
     if (result.rows.length === 0) {
+      // Still try to get account settings for pay_property_mode
+      const acctResult = await pool.query(`
+        SELECT a.settings as account_settings FROM properties p
+        LEFT JOIN accounts a ON p.account_id = a.id
+        WHERE p.id = $1
+      `, [req.params.propertyId]);
+      const acctSettings = typeof acctResult.rows[0]?.account_settings === 'string'
+        ? JSON.parse(acctResult.rows[0].account_settings)
+        : (acctResult.rows[0]?.account_settings || {});
+      
       res.json({ 
         success: true, 
         data: {
@@ -24340,12 +24834,29 @@ app.get('/api/property/:propertyId/payment-settings', async (req, res) => {
           deposit_amount: 25,
           balance_due_days: 14,
           stripe_connected: false,
-          accepted_methods: ['card'],
-          currency: 'GBP'
+          accepted_methods: acctSettings.payment_methods ? 
+            Object.entries(acctSettings.payment_methods).filter(([k,v]) => v).map(([k]) => k === 'pay_at_property' ? 'pay_at_property' : k) : ['card'],
+          currency: 'GBP',
+          pay_property_mode: acctSettings.pay_property_mode || 'no_payment',
+          bank_details: acctSettings.bank_details || {},
+          card_guarantee: acctSettings.card_guarantee || {}
         }
       });
     } else {
-      res.json({ success: true, data: result.rows[0] });
+      const row = result.rows[0];
+      const acctSettings = typeof row.account_settings === 'string'
+        ? JSON.parse(row.account_settings)
+        : (row.account_settings || {});
+      
+      // Merge pay_property_mode and card_guarantee from account settings
+      row.pay_property_mode = acctSettings.pay_property_mode || 'no_payment';
+      if (!row.card_guarantee) row.card_guarantee = acctSettings.card_guarantee || {};
+      if (acctSettings.bank_details && (!row.bank_details || row.bank_details === '{}')) {
+        row.bank_details = acctSettings.bank_details;
+      }
+      delete row.account_settings;
+      
+      res.json({ success: true, data: row });
     }
   } catch (error) {
     res.json({ success: false, error: error.message });
@@ -24359,7 +24870,7 @@ app.post('/api/property/:propertyId/payment-settings', async (req, res) => {
     const {
       payment_enabled, deposit_type, deposit_amount, balance_due_days,
       stripe_account_id, paypal_email, bank_details, accepted_methods,
-      currency, cancellation_policy, refund_policy
+      currency, cancellation_policy, refund_policy, card_guarantee, pay_property_mode
     } = req.body;
     
     const result = await pool.query(`
@@ -24380,7 +24891,112 @@ app.post('/api/property/:propertyId/payment-settings', async (req, res) => {
       cancellation_policy, JSON.stringify(refund_policy || {})
     ]);
     
+    // Store card guarantee settings if provided
+    if (card_guarantee) {
+      try {
+        await pool.query(`
+          UPDATE property_payment_settings 
+          SET bank_details = jsonb_set(
+            COALESCE(bank_details::jsonb, '{}'::jsonb),
+            '{card_guarantee}',
+            $2::jsonb
+          )
+          WHERE property_id = $1
+        `, [propertyId, JSON.stringify(card_guarantee)]);
+      } catch (cgErr) {
+        console.log('Could not store card_guarantee in bank_details, storing in accepted_methods context:', cgErr.message);
+      }
+    }
+    
+    // Also save payment methods, pay_property_mode and bank_details to account settings
+    // so the stripe-info public endpoint can access them
+    try {
+      const propResult = await pool.query('SELECT account_id FROM properties WHERE id = $1', [propertyId]);
+      if (propResult.rows[0]) {
+        const accountId = propResult.rows[0].account_id;
+        const existingSettings = await pool.query('SELECT settings FROM accounts WHERE id = $1', [accountId]);
+        const currentSettings = typeof existingSettings.rows[0]?.settings === 'string' 
+          ? JSON.parse(existingSettings.rows[0].settings) 
+          : (existingSettings.rows[0]?.settings || {});
+        
+        // Build payment_methods object
+        const methods = accepted_methods || ['card'];
+        currentSettings.payment_methods = {
+          card: methods.includes('card'),
+          pay_at_property: methods.includes('pay_at_property'),
+          card_guarantee: methods.includes('card_guarantee'),
+          paypal: methods.includes('paypal') || false
+        };
+        currentSettings.pay_property_mode = pay_property_mode || 'no_payment';
+        currentSettings.bank_details = bank_details || {};
+        if (card_guarantee) currentSettings.card_guarantee = card_guarantee;
+        
+        await pool.query('UPDATE accounts SET settings = $1 WHERE id = $2', [JSON.stringify(currentSettings), accountId]);
+      }
+    } catch (syncErr) {
+      console.log('Could not sync payment settings to account:', syncErr.message);
+    }
+    
     res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Bulk update: Direct/Pay at Property mode ONLY (safe - touches nothing else)
+// Set Direct payment mode on an account (safe - only touches account settings)
+app.post('/api/account/:accountId/set-direct-payment', async (req, res) => {
+  try {
+    const { accountId } = req.params;
+    const { pay_property_mode, bank_details } = req.body;
+    
+    const existingSettings = await pool.query('SELECT settings FROM accounts WHERE id = $1', [accountId]);
+    if (!existingSettings.rows[0]) return res.json({ success: false, error: 'Account not found' });
+    
+    const currentSettings = typeof existingSettings.rows[0].settings === 'string' 
+      ? JSON.parse(existingSettings.rows[0].settings) 
+      : (existingSettings.rows[0].settings || {});
+    
+    currentSettings.pay_property_mode = pay_property_mode || 'no_payment';
+    if (bank_details && Object.keys(bank_details).length > 0) {
+      currentSettings.bank_details = bank_details;
+    }
+    if (!currentSettings.payment_methods) currentSettings.payment_methods = {};
+    currentSettings.payment_methods.pay_at_property = true;
+    
+    await pool.query('UPDATE accounts SET settings = $1 WHERE id = $2', [JSON.stringify(currentSettings), accountId]);
+    
+    res.json({ success: true, message: 'Direct payment settings updated' });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Set Card Guarantee on an account (safe - only touches account settings)
+app.post('/api/account/:accountId/set-card-guarantee', async (req, res) => {
+  try {
+    const { accountId } = req.params;
+    const { api_key, checkout_id, label } = req.body;
+    
+    const existingSettings = await pool.query('SELECT settings FROM accounts WHERE id = $1', [accountId]);
+    if (!existingSettings.rows[0]) return res.json({ success: false, error: 'Account not found' });
+    
+    const currentSettings = typeof existingSettings.rows[0].settings === 'string' 
+      ? JSON.parse(existingSettings.rows[0].settings) 
+      : (existingSettings.rows[0].settings || {});
+    
+    currentSettings.card_guarantee = {
+      enabled: true,
+      api_key: api_key,
+      checkout_id: checkout_id,
+      label: label || 'Card Guarantee'
+    };
+    if (!currentSettings.payment_methods) currentSettings.payment_methods = {};
+    currentSettings.payment_methods.card_guarantee = true;
+    
+    await pool.query('UPDATE accounts SET settings = $1 WHERE id = $2', [JSON.stringify(currentSettings), accountId]);
+    
+    res.json({ success: true, message: 'Card guarantee settings updated' });
   } catch (error) {
     res.json({ success: false, error: error.message });
   }
@@ -24388,7 +25004,6 @@ app.post('/api/property/:propertyId/payment-settings', async (req, res) => {
 
 // =====================================================
 // GUEST PAYMENTS (for booking checkout)
-// =====================================================
 
 // Create payment intent for a booking
 app.post('/api/payments/create-intent', async (req, res) => {
@@ -24567,6 +25182,97 @@ app.get('/api/db/properties', async (req, res) => {
     
     res.json({ success: true, data: result.rows });
   } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// GET properties with account payment settings (for bulk payment modal)
+app.get('/api/db/properties-payment-status', async (req, res) => {
+  try {
+    const accountId = req.query.account_id;
+    let whereClause = '';
+    let params = [];
+
+    if (accountId) {
+      const accountCheck = await pool.query(`
+        SELECT a.role, 
+               (SELECT COUNT(*) FROM accounts WHERE parent_id = a.id) as sub_account_count
+        FROM accounts a WHERE a.id = $1
+      `, [accountId]);
+      
+      const isAgency = accountCheck.rows.length > 0 && accountCheck.rows[0].role === 'agency_admin';
+      const hasSubAccounts = accountCheck.rows.length > 0 && parseInt(accountCheck.rows[0].sub_account_count) > 0;
+      
+      if (isAgency || hasSubAccounts) {
+        whereClause = 'WHERE p.account_id = $1 OR a.managed_by_id = $1 OR a.parent_id = $1';
+      } else {
+        whereClause = 'WHERE p.account_id = $1';
+      }
+      params = [accountId];
+    }
+
+    const query = `
+      SELECT p.id, p.name, p.city, p.country, p.account_id, p.stripe_secret_key,
+             a.settings as account_settings,
+             a.stripe_secret_key as account_stripe_secret_key,
+             a.stripe_account_id as account_stripe_connect_id,
+             a.stripe_onboarding_complete as account_stripe_onboarding,
+             (SELECT COUNT(*) FROM payment_configurations pc 
+              WHERE (pc.property_id = p.id OR (pc.property_id IS NULL AND pc.account_id = p.account_id))
+              AND pc.provider = 'stripe' AND pc.is_enabled = true) > 0 as has_payment_config,
+             pps.accepted_methods
+      FROM properties p
+      LEFT JOIN accounts a ON p.account_id = a.id
+      LEFT JOIN property_payment_settings pps ON pps.property_id = p.id
+      ${whereClause}
+      ORDER BY p.name
+    `;
+
+    const result = await pool.query(query, params);
+
+    // Parse and return
+    const data = result.rows.map(row => {
+      let settings = {};
+      if (row.account_settings) {
+        settings = typeof row.account_settings === 'string' ? JSON.parse(row.account_settings) : row.account_settings;
+      }
+      
+      // Determine Stripe connection from any source
+      const hasStripe = !!(row.stripe_secret_key || row.account_stripe_secret_key || row.has_payment_config || (row.account_stripe_connect_id && row.account_stripe_onboarding));
+      
+      // Parse accepted_methods
+      let acceptedMethods = {};
+      if (row.accepted_methods) {
+        const methods = typeof row.accepted_methods === 'string' ? JSON.parse(row.accepted_methods) : row.accepted_methods;
+        if (Array.isArray(methods)) {
+          acceptedMethods = { card: methods.includes('card'), pay_at_property: methods.includes('pay_at_property'), card_guarantee: methods.includes('card_guarantee') };
+        } else {
+          acceptedMethods = methods;
+        }
+      }
+      
+      return {
+        id: row.id,
+        name: row.name,
+        city: row.city,
+        country: row.country,
+        account_id: row.account_id,
+        stripe_secret_key: row.stripe_secret_key,
+        account_stripe_secret_key: row.account_stripe_secret_key,
+        has_payment_config: row.has_payment_config,
+        has_stripe: hasStripe,
+        has_pay_at_property: !!acceptedMethods.pay_at_property,
+        direct_mode: acceptedMethods.pay_at_property ? (settings.pay_property_mode || 'no_payment') : null,
+        direct_bank_details: settings.bank_details || null,
+        has_card_guarantee: !!acceptedMethods.card_guarantee,
+        guarantee_enabled: !!acceptedMethods.card_guarantee,
+        accepted_methods: acceptedMethods
+      };
+    });
+
+    res.json({ success: true, data });
+  } catch (error) {
+    console.error('Properties payment status error:', error);
     res.json({ success: false, error: error.message });
   }
 });
@@ -24769,7 +25475,7 @@ app.put('/api/db/properties/:id', async (req, res) => {
 app.put('/api/properties/:id/stripe', async (req, res) => {
   try {
     const { id } = req.params;
-    const { stripe_publishable_key, stripe_secret_key, stripe_enabled } = req.body;
+    const { stripe_publishable_key, stripe_secret_key, stripe_enabled, stripe_name } = req.body;
     
     // Validate the keys if provided
     if (stripe_secret_key && stripe_publishable_key) {
@@ -24787,10 +25493,11 @@ app.put('/api/properties/:id/stripe', async (req, res) => {
       SET stripe_publishable_key = $1,
           stripe_secret_key = $2,
           stripe_enabled = $3,
+          stripe_name = $4,
           updated_at = NOW()
-      WHERE id = $4
-      RETURNING id, name, stripe_enabled
-    `, [stripe_publishable_key || null, stripe_secret_key || null, stripe_enabled || false, id]);
+      WHERE id = $5
+      RETURNING id, name, stripe_enabled, stripe_name
+    `, [stripe_publishable_key || null, stripe_secret_key || null, stripe_enabled || false, stripe_name || null, id]);
     
     if (result.rows.length === 0) {
       return res.json({ success: false, error: 'Property not found' });
@@ -25093,6 +25800,28 @@ app.put('/api/payment-configurations/:id', async (req, res) => {
 });
 
 // Delete payment configuration
+// Delete payment configuration by property ID (must be before :id route)
+app.delete('/api/payment-configurations/by-property/:propertyId', async (req, res) => {
+  try {
+    const { propertyId } = req.params;
+    await pool.query('DELETE FROM payment_configurations WHERE property_id = $1 AND provider = $2', [propertyId, 'stripe']);
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Delete account-level Stripe config (property_id IS NULL)
+app.delete('/api/payment-configurations/by-account/:accountId', async (req, res) => {
+  try {
+    const { accountId } = req.params;
+    await pool.query('DELETE FROM payment_configurations WHERE account_id = $1 AND property_id IS NULL AND provider = $2', [accountId, 'stripe']);
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 app.delete('/api/payment-configurations/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -25550,7 +26279,7 @@ app.post('/api/db/rooms', async (req, res) => {
 });
 
 app.post('/api/db/book', async (req, res) => {
-  const { property_id, room_id, check_in, check_out, num_adults, num_children, guest_first_name, guest_last_name, guest_email, guest_phone, total_price, guest_address, guest_city, guest_country, guest_postcode } = req.body;
+  const { property_id, room_id, check_in, check_out, num_adults, num_children, guest_first_name, guest_last_name, guest_email, guest_phone, total_price, guest_address, guest_city, guest_country, guest_postcode, payment_method, enigma_reference_id, source_site_url } = req.body;
   
   const client = await pool.connect();
   try {
@@ -25558,6 +26287,10 @@ app.post('/api/db/book', async (req, res) => {
     
     // Property owner ID - hardcode to 1 for now (will need to be dynamic later)
     const propertyOwnerId = 1;
+    
+    // Get property currency
+    const propCurrency = await client.query('SELECT COALESCE(bu.currency, p.currency, a.default_currency) as currency FROM bookable_units bu JOIN properties p ON bu.property_id = p.id LEFT JOIN accounts a ON p.account_id = a.id WHERE bu.id = $1', [room_id]);
+    const bookingCurrency = propCurrency.rows[0]?.currency || null;
     
     // 1. Create booking in our database (using correct column names)
     const result = await client.query(`
@@ -25567,11 +26300,11 @@ app.post('/api/db/book', async (req, res) => {
         num_adults, num_children, 
         guest_first_name, guest_last_name, guest_email, guest_phone,
         accommodation_price, subtotal, grand_total, 
-        status, booking_source, currency
+        status, booking_source, currency, source_site_url
       ) 
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12, $12, 'confirmed', 'direct', 'USD') 
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12, $12, 'confirmed', 'direct', $13, $14) 
       RETURNING *
-    `, [property_id, propertyOwnerId, room_id, check_in, check_out, num_adults, num_children || 0, guest_first_name, guest_last_name, guest_email, guest_phone, total_price]);
+    `, [property_id, propertyOwnerId, room_id, check_in, check_out, num_adults, num_children || 0, guest_first_name, guest_last_name, guest_email, guest_phone, total_price, bookingCurrency, source_site_url || null]);
     
     const booking = result.rows[0];
     
@@ -25618,8 +26351,12 @@ app.post('/api/db/book', async (req, res) => {
           city: guest_city || '',
           country: guest_country || '',
           postcode: guest_postcode || '',
-          referer: `Direct website GAS-${booking.id}`,
-          notes: `GAS Booking ID: ${booking.id}`,
+          referer: `GAS Direct - GAS-${booking.id}`,
+          refererEditable: `GAS Direct - GAS-${booking.id}`,
+          reference: `GAS-${booking.id}`,
+          notes: payment_method === 'card_guarantee' 
+            ? `Booked via GAS | Card Guarantee on file | Ref: GAS-${booking.id}` 
+            : `Booked via GAS | Ref: GAS-${booking.id}`,
           // Price and financial info
           price: parseFloat(total_price) || 0,
           deposit: parseFloat(deposit_amount) || 0,
@@ -37040,14 +37777,15 @@ app.get('/api/availability/:roomId', async (req, res) => {
     
     // Get room info including property currency
     const roomInfo = await pool.query(`
-      SELECT bu.id, bu.name, bu.property_id, p.currency, p.country
+      SELECT bu.id, bu.name, bu.property_id, COALESCE(bu.currency, p.currency, a.default_currency) as currency, p.country
       FROM bookable_units bu
       JOIN properties p ON bu.property_id = p.id
+      LEFT JOIN accounts a ON p.account_id = a.id
       WHERE bu.id = $1
     `, [roomId]);
     
-    const currency = roomInfo.rows[0]?.currency || 'GBP';
-    const currencySymbol = getCurrencySymbol(currency);
+    const currency = roomInfo.rows[0]?.currency || null;
+    const currencySymbol = currency ? getCurrencySymbol(currency) : '';
     
     // Get availability data - include standard_price and min_stay fields if they exist
     let availability;
@@ -40017,6 +40755,108 @@ async function updateBedroomCount(propertyId, roomId) {
   }
 }
 
+// Sync all bedroom counts from property_bedrooms to bookable_units
+app.post('/api/admin/fix-columns', async (req, res) => {
+  try {
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS source_site_url VARCHAR(500)`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payment_method VARCHAR(50)`);
+    res.json({ success: true, message: 'Columns ensured' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/admin/sync-bedroom-counts', async (req, res) => {
+  try {
+    // 1. Sync rooms that have bedrooms linked directly (room_id set)
+    const directResult = await pool.query(`
+      UPDATE bookable_units bu SET num_bedrooms = sub.count
+      FROM (
+        SELECT room_id, COUNT(*) as count 
+        FROM property_bedrooms 
+        WHERE room_id IS NOT NULL 
+        GROUP BY room_id
+      ) sub
+      WHERE bu.id = sub.room_id AND (bu.num_bedrooms IS NULL OR bu.num_bedrooms != sub.count)
+    `);
+    
+    // 2. For properties with only 1 active unit: count property-level bedrooms (room_id IS NULL)
+    const singleUnitResult = await pool.query(`
+      UPDATE bookable_units bu SET num_bedrooms = sub.count
+      FROM (
+        SELECT p.id as property_id, COUNT(pb.id) as count
+        FROM properties p
+        JOIN property_bedrooms pb ON pb.property_id = p.id AND pb.room_id IS NULL
+        WHERE (SELECT COUNT(*) FROM bookable_units bu2 WHERE bu2.property_id = p.id AND bu2.status IN ('active','available')) = 1
+        GROUP BY p.id
+      ) sub
+      WHERE bu.property_id = sub.property_id 
+        AND bu.status IN ('active','available')
+        AND (bu.num_bedrooms IS NULL OR bu.num_bedrooms != sub.count)
+    `);
+    
+    // 3. Sync max_guests from bed config
+    const bedrooms = await pool.query(`
+      SELECT pb.room_id, pb.property_id, pb.bed_config FROM property_bedrooms pb
+    `);
+    
+    // For room_id linked bedrooms, map directly
+    // For property-level bedrooms (room_id IS NULL), find the single unit for that property
+    const singleUnits = await pool.query(`
+      SELECT bu.id as unit_id, bu.property_id
+      FROM bookable_units bu
+      WHERE bu.status IN ('active','available')
+      AND (SELECT COUNT(*) FROM bookable_units bu2 WHERE bu2.property_id = bu.property_id AND bu2.status IN ('active','available')) = 1
+    `);
+    const propertyToUnit = {};
+    for (const su of singleUnits.rows) {
+      propertyToUnit[su.property_id] = su.unit_id;
+    }
+    
+    const roomGuests = {};
+    for (const br of bedrooms.rows) {
+      const config = typeof br.bed_config === 'string' ? JSON.parse(br.bed_config) : (br.bed_config || []);
+      let guests = 0;
+      const configArr = Array.isArray(config) ? config : (config && typeof config === 'object' ? [config] : []);
+      for (const bed of configArr) {
+        const qty = parseInt(bed.quantity || bed.count || 1);
+        const type = (bed.type || bed.bed_type || '').toLowerCase();
+        if (type === 'king' || type === 'queen' || type === 'double') guests += 2 * qty;
+        else if (type === 'single' || type === 'twin') guests += 1 * qty;
+        else if (type === 'bunk') guests += 2 * qty;
+        else if (type === 'sofa') guests += 2 * qty;
+        else if (type === 'cot' || type === 'crib') guests += 1 * qty;
+        else guests += 2 * qty;
+      }
+      // Map to room_id, or to single unit if property-level
+      const targetRoom = br.room_id || propertyToUnit[br.property_id];
+      if (targetRoom) {
+        roomGuests[targetRoom] = (roomGuests[targetRoom] || 0) + guests;
+      }
+    }
+    
+    let guestUpdates = 0;
+    for (const [roomId, maxGuests] of Object.entries(roomGuests)) {
+      if (maxGuests > 0) {
+        const updated = await pool.query(
+          'UPDATE bookable_units SET max_guests = $1 WHERE id = $2 AND (max_guests IS NULL OR max_guests < $1)',
+          [maxGuests, roomId]
+        );
+        guestUpdates += updated.rowCount;
+      }
+    }
+    
+    res.json({ 
+      success: true, 
+      bedrooms_direct_synced: directResult.rowCount,
+      bedrooms_single_unit_synced: singleUnitResult.rowCount,
+      guests_updated: guestUpdates
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // =========================================================
 // ENHANCED BATHROOM CONFIGURATION API
 // =========================================================
@@ -41206,7 +42046,11 @@ async function sendPartnerBookingWebhook(bookingId, eventType = 'booking.created
           first_name: booking.guest_first_name,
           last_name: booking.guest_last_name,
           email: booking.guest_email,
-          phone: booking.guest_phone || null
+          phone: booking.guest_phone || null,
+          address: booking.guest_address || null,
+          city: booking.guest_city || null,
+          postcode: booking.guest_postcode || null,
+          country: booking.guest_country || null
         },
         guests: {
           adults: booking.num_adults || 1,
@@ -41216,12 +42060,15 @@ async function sendPartnerBookingWebhook(bookingId, eventType = 'booking.created
         payment: {
           total: parseFloat(booking.grand_total) || 0,
           deposit: parseFloat(booking.deposit_amount) || null,
-          currency: booking.currency || 'USD',
+          currency: booking.currency || 'EUR',
           status: booking.payment_status || 'pending',
-          method: booking.stripe_payment_intent_id ? 'card' : 'property'
+          method: booking.payment_method || (booking.stripe_payment_intent_id ? 'card' : 'property')
         },
+        notes: booking.notes || null,
+        special_requests: booking.special_requests || booking.guest_comments || null,
         status: booking.status,
         source: booking.booking_source || 'direct',
+        source_site: booking.source_site_url || null,
         created_at: booking.created_at
       }
     };
@@ -42612,13 +43459,14 @@ app.post('/api/partner/tenants/:tenantId/websites', async (req, res) => {
         name: website.name,
         subdomain: website.subdomain,
         custom_domain: website.custom_domain,
-        url: website.subdomain ? `https://${website.subdomain}.gas.travel` : null,
+        site_url: website.site_url || (website.subdomain ? `https://${website.subdomain}.sites.gas.travel` : null),
         description: website.description,
         logo_url: website.logo_url,
         primary_color: website.primary_color,
         secondary_color: website.secondary_color,
         room_count: 0,
-        status: website.is_active ? 'active' : 'inactive',
+        status: website.status || (website.is_active ? 'active' : 'inactive'),
+        template: website.template_code,
         created_at: website.created_at
       }
     });
@@ -42742,13 +43590,15 @@ app.get('/api/partner/websites/:websiteId', async (req, res) => {
         name: w.name,
         subdomain: w.subdomain,
         custom_domain: w.custom_domain,
-        url: w.subdomain ? `https://${w.subdomain}.gas.travel` : (w.custom_domain || null),
+        site_url: w.site_url || (w.subdomain ? `https://${w.subdomain}.sites.gas.travel` : (w.custom_domain || null)),
+        admin_url: w.admin_url,
         description: w.description,
         logo_url: w.logo_url,
         primary_color: w.primary_color,
         secondary_color: w.secondary_color,
         settings: w.settings || {},
-        status: w.is_active ? 'active' : 'inactive',
+        status: w.status || (w.is_active ? 'active' : 'inactive'),
+        template: w.template_code,
         created_at: w.created_at,
         rooms: rooms.rows.map(r => ({
           assignment_id: r.assignment_id,
@@ -43664,6 +44514,17 @@ app.post('/api/partner/websites/:websiteId/deploy', async (req, res) => {
     }
     
     console.log(`[Partner Deploy] Site "${website.name}" deployed successfully: ${vpsData.site.url}`);
+    
+    // Create GAS master admin user for persistent access
+    try {
+      const clientUsername = vpsData.credentials?.username || vpsData.credentials?.wp_user || 'admin';
+      const clientPassword = vpsData.credentials?.password || vpsData.credentials?.wp_pass;
+      if (clientPassword && vpsData.site?.url) {
+        await createGASMasterUser(vpsData.site.url, clientUsername, clientPassword);
+      }
+    } catch (masterError) {
+      console.error(`[Partner Deploy] GAS master user creation failed (non-blocking):`, masterError.message);
+    }
     
     res.json({
       success: true,
@@ -45412,7 +46273,7 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
         client.contact_name || null,
         client.phone || null,
         client.business_name || client.name,
-        client.currency || 'CHF',
+        client.currency || 'EUR',
         client.timezone || 'Europe/Zurich',
         clientApiKey,
         JSON.stringify({
@@ -45708,7 +46569,7 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
         property.longitude || null,
         property.phone || null,
         property.email || null,
-        property.currency || 'CHF',
+        property.currency || 'EUR',
         property.property_type || 'vacation_rental',
         property.external_id || null
       ]);
@@ -45775,7 +46636,7 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
             room.base_rate || room.base_price || null,
             roomShortDesc,
             roomFullDesc,
-            room.currency || property.currency || 'CHF',
+            room.currency || property.currency || 'EUR',
             room.external_id || null
           ]);
         } catch (roomError) {
@@ -46041,7 +46902,7 @@ app.post('/api/elevate/:apiKey/property/:propertyId/room', async (req, res) => {
       room.max_children || 0,
       room.quantity || room.qty || 1,
       room.base_rate || room.base_price || null,
-      room.currency || propCheck.rows[0].currency || 'CHF',
+      room.currency || propCheck.rows[0].currency || 'EUR',
       room.external_id || null,
       room.status || 'active'
     ]);
@@ -49723,7 +50584,17 @@ app.get('/api/public/unit/:unitId', async (req, res) => {
       SELECT bu.*, 
              p.name as property_name, 
              p.currency, 
-             p.timezone
+             p.timezone,
+             COALESCE(
+               NULLIF((SELECT COUNT(*) FROM property_bedrooms pb WHERE pb.room_id = bu.id), 0),
+               (SELECT CASE 
+                 WHEN (SELECT COUNT(*) FROM bookable_units bu2 WHERE bu2.property_id = p.id AND bu2.status IN ('active','available')) = 1
+                 THEN NULLIF((SELECT COUNT(*) FROM property_bedrooms pb2 WHERE pb2.property_id = p.id AND pb2.room_id IS NULL), 0)
+                 ELSE NULL
+               END),
+               NULLIF(bu.num_bedrooms, 0),
+               1
+             ) as computed_num_bedrooms
       FROM bookable_units bu
       LEFT JOIN properties p ON bu.property_id = p.id
       WHERE bu.id = $1
@@ -49864,9 +50735,15 @@ app.get('/api/public/unit/:unitId', async (req, res) => {
     
     amenities = { rows: mergedAmenities };
     
+    // Override num_bedrooms with computed value from property_bedrooms
+    const unitData = unit.rows[0];
+    if (unitData.computed_num_bedrooms) {
+      unitData.num_bedrooms = parseInt(unitData.computed_num_bedrooms);
+    }
+    
     res.json({
       success: true,
-      unit: unit.rows[0],
+      unit: unitData,
       images: images.rows,
       amenities: amenities.rows
     });
@@ -50515,18 +51392,18 @@ app.post('/api/public/calculate-price', async (req, res) => {
       
       if (taxType === 'percentage') {
         taxAmount = subtotalAfterDiscounts * (taxRate / 100);
-      } else if (taxType === 'per_night') {
+      } else if (taxType === 'per_night' || taxType === 'per_room_per_night' || taxType === 'per_booking_per_night') {
         taxAmount = taxRate * nights;
       } else if (taxType === 'per_person_per_night') {
         taxAmount = taxRate * nights * (guests || 1);
       } else {
-        // Fixed amount
+        // Fixed amount (per_booking or default)
         taxAmount = taxRate;
       }
       
       // Apply max_nights limit if set
       if (tax.max_nights && nights > tax.max_nights) {
-        if (taxType === 'per_night') {
+        if (taxType === 'per_night' || taxType === 'per_room_per_night' || taxType === 'per_booking_per_night') {
           taxAmount = taxRate * tax.max_nights;
         } else if (taxType === 'per_person_per_night') {
           taxAmount = taxRate * tax.max_nights * (guests || 1);
@@ -50679,7 +51556,8 @@ app.post('/api/public/book', async (req, res) => {
       guest_first_name, guest_last_name, guest_email, guest_phone,
       guest_address, guest_city, guest_country, guest_postcode,
       voucher_code, notes, total_price,
-      stripe_payment_intent_id, deposit_amount, balance_amount, payment_method
+      stripe_payment_intent_id, deposit_amount, balance_amount, payment_method,
+      enigma_reference_id, source_site_url
     } = req.body;
     
     // Validate required fields
@@ -50689,9 +51567,10 @@ app.post('/api/public/book', async (req, res) => {
     
     // Get unit and property info
     const unit = await pool.query(`
-      SELECT bu.*, p.id as property_id, p.name as property_name
+      SELECT bu.*, p.id as property_id, p.name as property_name, p.currency, a.settings as account_settings
       FROM bookable_units bu
       LEFT JOIN properties p ON bu.property_id = p.id
+      LEFT JOIN accounts a ON p.account_id = a.id
       WHERE bu.id = $1
     `, [unit_id]);
     
@@ -50768,9 +51647,9 @@ app.post('/api/public/book', async (req, res) => {
         accommodation_price, subtotal, grand_total, 
         deposit_amount, balance_amount, balance_due_date,
         stripe_payment_intent_id, payment_status,
-        status, booking_source, currency, notes
+        status, booking_source, currency, notes, source_site_url
       ) 
-      VALUES ($1, 1, $2, $3, $4, $5, 0, $6, $7, $8, $9, $10, $10, $10, $11, $12, $13, $14, $15, $16, 'direct', 'USD', $17)
+      VALUES ($1, 1, $2, $3, $4, $5, 0, $6, $7, $8, $9, $10, $10, $10, $11, $12, $13, $14, $15, $16, 'direct', $17, $18, $19)
       RETURNING *
     `, [
       unit.rows[0].property_id,
@@ -50789,7 +51668,9 @@ app.post('/api/public/book', async (req, res) => {
       stripe_payment_intent_id || null,
       paymentStatus,
       bookingStatus,
-      notes || null
+      unit.rows[0].currency || 'EUR',
+      notes || null,
+      source_site_url || null
     ]);
     
     const newBooking = booking.rows[0];
@@ -50811,6 +51692,55 @@ app.post('/api/public/book', async (req, res) => {
       await pool.query(`
         UPDATE vouchers SET times_used = times_used + 1 WHERE code = $1
       `, [voucher_code.toUpperCase()]);
+    }
+    
+    // If card guarantee was used, store card token from Enigma
+    if (enigma_reference_id && payment_method === 'card_guarantee') {
+      try {
+        console.log(`[Enigma] Storing card for booking ${newBooking.id}, reference: ${enigma_reference_id}`);
+        const accessToken = await getEnigmaAccessToken();
+        
+        // Search for the card by reference ID
+        const searchResponse = await fetch(`${process.env.ENIGMA_API_URL || 'https://api.enigmavault.io'}/cardvault/cards?referenceId=${enigma_reference_id}`, {
+          headers: { 'Authorization': `Bearer ${accessToken}` }
+        });
+        const searchData = await searchResponse.json();
+        
+        if (searchData && searchData.length > 0) {
+          const card = searchData[0];
+          await pool.query(`
+            UPDATE bookings SET 
+              enigma_card_token = $1,
+              enigma_card_last_four = $2,
+              enigma_card_first_six = $3,
+              enigma_card_type = $4,
+              enigma_card_name = $5,
+              enigma_card_exp_month = $6,
+              enigma_card_exp_year = $7,
+              enigma_reference_id = $8
+            WHERE id = $9
+          `, [
+            card.token || card.cardToken,
+            card.lastFour || card.last4,
+            card.firstSix || card.first6,
+            card.cardType || card.brand,
+            card.cardholderName || card.name,
+            card.expiryMonth || card.expMonth,
+            card.expiryYear || card.expYear,
+            enigma_reference_id,
+            newBooking.id
+          ]);
+          console.log(`[Enigma] Card stored for booking ${newBooking.id}: **** ${card.lastFour || card.last4}`);
+          
+          // Log usage
+          await logEnigmaUsage(pool, unit.rows[0].property_id, newBooking.id, 'card_capture', 2, 0.16, 0.50);
+        } else {
+          console.log(`[Enigma] No card found for reference ${enigma_reference_id}`);
+        }
+      } catch (enigmaError) {
+        console.error('[Enigma] Error storing card:', enigmaError.message);
+        // Don't fail the booking - card storage is secondary
+      }
     }
     
     // Block availability for these dates
@@ -50876,7 +51806,17 @@ app.post('/api/public/book', async (req, res) => {
         
         const beds24Booking = [{
           roomId: cmData.beds24_room_id,
-          status: 'confirmed',
+          status: (function() {
+            // Check pay_property_mode - if bank_required, send as request
+            if (payment_method === 'pay_at_property' || payment_method === 'property') {
+              try {
+                const accSettings = unit.rows[0]?.account_settings || '{}';
+                const parsed = typeof accSettings === 'string' ? JSON.parse(accSettings) : accSettings;
+                if (parsed.pay_property_mode === 'bank_required') return 'request';
+              } catch(e) {}
+            }
+            return 'confirmed';
+          })(),
           arrival: check_in,
           departure: check_out,
           numAdult: guests || 1,
@@ -50890,8 +51830,12 @@ app.post('/api/public/book', async (req, res) => {
           city: guest_city || '',
           postcode: guest_postcode || '',
           country: guest_country || '',
-          referer: `Direct website GAS-${newBooking.id}`,
-          notes: `GAS Booking ID: ${newBooking.id}`,
+          referer: `GAS Direct - GAS-${newBooking.id}`,
+          refererEditable: `GAS Direct - GAS-${newBooking.id}`,
+          reference: `GAS-${newBooking.id}`,
+          notes: payment_method === 'card_guarantee'
+            ? `Booked via GAS | Card Guarantee on file | Ref: GAS-${newBooking.id}`
+            : `Booked via GAS | Ref: GAS-${newBooking.id}`,
           price: parseFloat(total_price) || 0,
           deposit: deposit_amount ? parseFloat(deposit_amount) : 0,
           invoiceItems: [{
@@ -51436,6 +52380,7 @@ async function calculateLocalQuote(pool, unit, checkin, checkout, guests, nights
       // Fixed amount
       switch (fee.apply_per) {
         case 'per_night': feeAmount = baseAmount * nights; break;
+        case 'per_booking_per_night': feeAmount = baseAmount * nights; break;
         case 'per_guest': feeAmount = baseAmount * guests; break;
         case 'per_guest_per_night': feeAmount = baseAmount * guests * nights; break;
         default: feeAmount = baseAmount; // per_booking
@@ -53149,7 +54094,20 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
         bu.base_price,
         bu.max_guests,
         bu.max_adults,
-        bu.num_bedrooms,
+        bu.num_bedrooms as raw_num_bedrooms,
+        COALESCE(
+          -- First: count bedrooms linked directly to this unit
+          NULLIF((SELECT COUNT(*) FROM property_bedrooms pb WHERE pb.room_id = bu.id), 0),
+          -- Second: if property has only 1 unit, count all property-level bedrooms
+          (SELECT CASE 
+            WHEN (SELECT COUNT(*) FROM bookable_units bu2 WHERE bu2.property_id = p.id AND bu2.status IN ('active','available')) = 1
+            THEN NULLIF((SELECT COUNT(*) FROM property_bedrooms pb2 WHERE pb2.property_id = p.id AND pb2.room_id IS NULL), 0)
+            ELSE NULL
+          END),
+          -- Third: fall back to stored num_bedrooms or default 1
+          NULLIF(bu.num_bedrooms, 0),
+          1
+        ) as num_bedrooms,
         bu.num_bathrooms,
         bu.beds24_room_id,
         p.latitude,
@@ -67921,14 +68879,25 @@ async function runTieredSync() {
                   const multiplier = linking.offsetMultiplier || 1;
                   const offset = linking.offsetAmount || 0;
                   
-                  console.log(`  📊 Applying ${sourcePricesResult.rows.length} BASE prices to ${room.name} (x${multiplier})`);
+                  // Build this room's OWN min_stay map from its calendar data (has min_stay but no prices)
+                  const ownMinStayMap = {};
+                  for (const calEntry of calendarData) {
+                    const calFrom = new Date(calEntry.from);
+                    const calTo = new Date(calEntry.to);
+                    for (let md = new Date(calFrom); md <= calTo; md.setDate(md.getDate() + 1)) {
+                      ownMinStayMap[md.toISOString().split('T')[0]] = calEntry.minStay || null;
+                    }
+                  }
+                  
+                  console.log(`  📊 Applying ${sourcePricesResult.rows.length} BASE prices to ${room.name} (x${multiplier}), own min_stay entries: ${Object.keys(ownMinStayMap).length}`);
                   
                   // Save prices to this linked room
                   for (const row of sourcePricesResult.rows) {
                     const dateStr = row.date.toISOString().split('T')[0];
                     const basePrice = parseFloat(row.cm_price);
                     const linkedPrice = (basePrice * multiplier) + offset;
-                    const minStay = row.min_stay || 1;
+                    // Use this room's OWN min_stay from Beds24, fall back to source
+                    const minStay = ownMinStayMap[dateStr] || row.min_stay || 1;
                     
                     await pool.query(`
                       INSERT INTO room_availability (room_id, date, cm_price, direct_price, min_stay, cm_min_stay, source, updated_at)
@@ -68066,7 +69035,7 @@ async function getLatestGitHubRelease() {
     console.error('[GitHub] Error fetching release:', error.message);
     // Return fallback if API fails
     return {
-      version: '2.9.14',
+      version: '3.1.18',
       download_url: 'https://github.com/rezintelhelp-hub/gas-booking-plugin/releases/latest',
       published_at: new Date().toISOString(),
       body: ''
@@ -69882,6 +70851,630 @@ app.post('/api/admin/translate-text', async (req, res) => {
 // END TRANSLATION WORKER
 // ============================================
 
+// GET /api/public/enigma/form-url - Generate hosted card capture form URL
+// Called by the booking plugin when guest reaches payment step
+app.get('/api/public/enigma/form-url', async (req, res) => {
+  try {
+    const { property_id, booking_ref, callback_url, parent_url, embed, language, css } = req.query;
+    
+    if (!property_id) {
+      return res.status(400).json({ success: false, error: 'property_id required' });
+    }
+    
+    // Check property exists
+    const propResult = await pool.query(
+      'SELECT p.id, p.account_id, p.name FROM properties p WHERE p.id = $1',
+      [property_id]
+    );
+    if (propResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Property not found' });
+    }
+    const property = propResult.rows[0];
+    
+    // Check Enigma credentials are configured
+    if (!process.env.ENIGMA_CLIENT_ID || !process.env.ENIGMA_CLIENT_SECRET) {
+      return res.json({ success: false, error: 'Card guarantee service not yet configured', setup_required: true });
+    }
+    
+    // Get Enigma access token
+    const accessToken = await getEnigmaAccessToken();
+    const enigmaApiUrl = process.env.ENIGMA_API_URL || 'https://api.enigmavault.io';
+    
+    // Build form URL request
+    const isEmbed = embed === 'true';
+    const referenceId = `gas-${property_id}-${Date.now()}`;
+    
+    const params = new URLSearchParams({
+      showTimer: 'false',
+      showCard: 'true',
+      walletSave: 'true',
+      embedFormForControl: 'false',
+      ttl: '900',
+      preserveFormat: 'true',
+      language: language || 'en',
+      submitButtonText: 'Secure Card'
+    });
+    
+    // Add card types
+    params.append('cardTypes', 'visa,mastercard,amex');
+    
+    // Use server callback - Enigma redirects iframe to this URL after card capture
+    // Our callback page returns HTML with postMessage to parent window
+    const serverCallbackUrl = `https://${req.get('host')}/api/public/enigma/card-captured-callback?ref=${referenceId}`;
+    params.append('callbackUrl', serverCallbackUrl);
+    
+    // Note: Enigma doesn't support external CSS param - styling handled by wrapper container
+    
+    const formResponse = await fetch(`${enigmaApiUrl}/cardvault/store/forms?${params.toString()}`, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+        'referenceId': referenceId,
+        'x-api-version': '1.12'
+      }
+    });
+    
+    if (!formResponse.ok) {
+      const err = await formResponse.text();
+      console.error('Enigma form request failed:', formResponse.status, err);
+      return res.status(500).json({ success: false, error: 'Failed to generate card form', enigma_status: formResponse.status, enigma_error: err });
+    }
+    
+    const formData = await formResponse.json();
+    
+    // Log usage
+    await logEnigmaUsage(property.account_id, property.id, null, 'form_request', 1, { referenceId });
+    
+    res.json({
+      success: true,
+      form_url: formData.url,
+      reference_id: referenceId,
+      expires_in: 900
+    });
+    
+  } catch (error) {
+    console.error('Enigma form-url error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/public/enigma/form-styles.css - Custom CSS for Enigma hosted form
+app.get('/api/public/enigma/form-styles.css', (req, res) => {
+  res.setHeader('Content-Type', 'text/css');
+  res.setHeader('Cache-Control', 'public, max-age=3600');
+  res.send(`
+    /* GAS Card Guarantee - Enigma Form Styling */
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+      background: transparent !important;
+      margin: 0 !important;
+      padding: 12px 4px 4px 4px !important;
+    }
+    
+    /* Hide the card visual preview */
+    .card-container, .credit-card, .card-preview, 
+    [class*="card-visual"], [class*="CardVisual"],
+    .credit-card-preview, #card-preview, .card-image,
+    canvas, .card-wrapper {
+      display: none !important;
+    }
+    
+    /* Form container */
+    form, .form-container, .store-form, [class*="Form"] {
+      max-width: 100% !important;
+      padding: 0 !important;
+      margin: 0 !important;
+    }
+    
+    /* Input fields */
+    input[type="text"], input[type="tel"], input[type="number"],
+    input, .form-control, [class*="input"], [class*="Input"] {
+      width: 100% !important;
+      padding: 12px 14px !important;
+      border: 2px solid #e2e8f0 !important;
+      border-radius: 10px !important;
+      font-size: 15px !important;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+      color: #1e293b !important;
+      background: #fff !important;
+      box-sizing: border-box !important;
+      transition: border-color 0.2s !important;
+      outline: none !important;
+      margin-bottom: 10px !important;
+    }
+    
+    input:focus, .form-control:focus, [class*="input"]:focus {
+      border-color: #6d28d9 !important;
+      box-shadow: 0 0 0 3px rgba(109, 40, 217, 0.1) !important;
+    }
+    
+    input::placeholder {
+      color: #94a3b8 !important;
+    }
+    
+    /* Labels */
+    label, .form-label, [class*="label"], [class*="Label"] {
+      font-size: 13px !important;
+      font-weight: 600 !important;
+      color: #475569 !important;
+      margin-bottom: 4px !important;
+      display: block !important;
+    }
+    
+    /* Submit button */
+    button[type="submit"], .submit-btn, .btn-primary,
+    [class*="submit"], [class*="Submit"], button.btn {
+      width: 100% !important;
+      padding: 14px 20px !important;
+      background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%) !important;
+      color: white !important;
+      border: none !important;
+      border-radius: 10px !important;
+      font-size: 15px !important;
+      font-weight: 600 !important;
+      cursor: pointer !important;
+      transition: all 0.2s !important;
+      margin-top: 6px !important;
+    }
+    
+    button[type="submit"]:hover, .submit-btn:hover, .btn-primary:hover,
+    [class*="submit"]:hover, [class*="Submit"]:hover {
+      background: linear-gradient(135deg, #6d28d9 0%, #5b21b6 100%) !important;
+      transform: translateY(-1px) !important;
+    }
+    
+    /* Cancel/secondary button */
+    button.btn-secondary, .cancel-btn, [class*="cancel"], [class*="Cancel"] {
+      width: 100% !important;
+      padding: 12px 20px !important;
+      background: #f1f5f9 !important;
+      color: #475569 !important;
+      border: 1px solid #e2e8f0 !important;
+      border-radius: 10px !important;
+      font-size: 14px !important;
+      font-weight: 500 !important;
+      cursor: pointer !important;
+      margin-top: 6px !important;
+    }
+    
+    /* Footer / branding text */
+    .footer, .branding, [class*="footer"], [class*="Footer"],
+    [class*="powered"], [class*="Powered"] {
+      font-size: 11px !important;
+      color: #94a3b8 !important;
+      text-align: center !important;
+      margin-top: 12px !important;
+    }
+    
+    a {
+      color: #6d28d9 !important;
+    }
+    
+    /* Error messages */
+    .error, .form-error, [class*="error"], [class*="Error"] {
+      color: #ef4444 !important;
+      font-size: 12px !important;
+      margin-top: 2px !important;
+    }
+  `);
+});
+
+// In-memory store for card capture status (TTL 30 mins)
+const enigmaCaptureStatus = {};
+setInterval(() => {
+  const now = Date.now();
+  Object.keys(enigmaCaptureStatus).forEach(key => {
+    if (now - enigmaCaptureStatus[key].timestamp > 30 * 60 * 1000) delete enigmaCaptureStatus[key];
+  });
+}, 60000);
+
+// GET /api/public/enigma/card-captured-callback - Enigma redirects here after card capture
+app.all('/api/public/enigma/card-captured-callback', (req, res) => {
+  const params = { ...req.query, ...req.body };
+  const referenceId = params.referenceId || params.ref || '';
+  const status = params.status || 'success';
+  console.log(`[Enigma Callback] referenceId=${referenceId}, status=${status}, all params:`, req.query);
+  
+  // Store capture status so plugin can poll for it
+  if (referenceId) {
+    enigmaCaptureStatus[referenceId] = { status: 'captured', timestamp: Date.now(), params: req.query };
+    console.log(`[Enigma] Stored capture status for ref: ${referenceId}`);
+  }
+  
+  res.send(`<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head>
+<body style="margin:0; display:flex; align-items:center; justify-content:center; min-height:200px; font-family:-apple-system,BlinkMacSystemFont,sans-serif; background:#f0fdf4;">
+<div style="text-align:center; padding:20px;">
+  <div style="font-size:2.5rem; margin-bottom:8px;">&#x2705;</div>
+  <strong style="color:#059669; font-size:1.1rem;">Card secured successfully</strong>
+  <p style="color:#64748b; font-size:0.85rem; margin:8px 0 0 0;">Your card details are encrypted and stored securely.<br>No payment will be taken now.</p>
+</div>
+<script>
+try {
+  var data = { source: 'enigma-vault', status: '${status}', referenceId: '${referenceId}' };
+  if (window.parent && window.parent !== window) window.parent.postMessage(data, '*');
+  if (window.opener) window.opener.postMessage(data, '*');
+} catch(e) {}
+</script>
+</body>
+</html>`);
+});
+
+// GET /api/public/enigma/capture-status/:ref - Plugin polls this to check if card was captured
+app.get('/api/public/enigma/capture-status/:ref', (req, res) => {
+  const ref = req.params.ref;
+  const status = enigmaCaptureStatus[ref];
+  res.json({ success: true, captured: !!status, referenceId: ref });
+});
+
+// POST /api/public/enigma/card-stored - Save card token to booking after capture
+// Called by the plugin after the guest's card is successfully stored
+app.post('/api/public/enigma/card-stored', async (req, res) => {
+  try {
+    const { booking_id, reference_id, property_id } = req.body;
+    
+    if (!reference_id || !property_id) {
+      return res.status(400).json({ success: false, error: 'reference_id and property_id required' });
+    }
+    
+    // Get property info
+    const propResult = await pool.query(
+      'SELECT id, account_id FROM properties WHERE id = $1',
+      [property_id]
+    );
+    if (propResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Property not found' });
+    }
+    const property = propResult.rows[0];
+    
+    // Get card details from Enigma using the reference ID
+    const accessToken = await getEnigmaAccessToken();
+    const enigmaApiUrl = process.env.ENIGMA_API_URL || 'https://api.enigmavault.io';
+    
+    const cardResponse = await fetch(`${enigmaApiUrl}/cardvault/cards?stealthRead=false`, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+        'referenceId': reference_id,
+        'x-api-version': '1.12'
+      }
+    });
+    
+    if (!cardResponse.ok) {
+      const err = await cardResponse.text();
+      console.error('Enigma card search failed:', err);
+      return res.status(500).json({ success: false, error: 'Failed to retrieve card from vault' });
+    }
+    
+    const cards = await cardResponse.json();
+    
+    if (!cards || cards.length === 0) {
+      return res.status(404).json({ success: false, error: 'No card found for this reference' });
+    }
+    
+    const card = cards[0];
+    
+    // Update booking with card info
+    if (booking_id) {
+      await pool.query(`
+        UPDATE bookings SET 
+          enigma_card_token = $1,
+          enigma_card_last_four = $2,
+          enigma_card_first_six = $3,
+          enigma_card_type = $4,
+          enigma_card_name = $5,
+          enigma_card_exp_month = $6,
+          enigma_card_exp_year = $7,
+          enigma_reference_id = $8,
+          payment_method = COALESCE(payment_method, 'card_guarantee')
+        WHERE id = $9
+      `, [
+        card.token,
+        card.lastFour,
+        card.firstSix,
+        card.cardType,
+        card.fullName,
+        card.expMonth,
+        card.expYear,
+        reference_id,
+        booking_id
+      ]);
+    }
+    
+    // Log usage
+    await logEnigmaUsage(property.account_id, property.id, booking_id, 'card_capture', 2, {
+      reference_id,
+      card_type: card.cardType,
+      last_four: card.lastFour
+    });
+    
+    console.log(`✅ [Enigma] Card stored for booking ${booking_id || 'pending'} - ${card.cardType} ****${card.lastFour}`);
+    
+    res.json({
+      success: true,
+      card: {
+        last_four: card.lastFour,
+        card_type: card.cardType,
+        cardholder: card.fullName,
+        exp_month: card.expMonth,
+        exp_year: card.expYear
+      },
+      reference_id
+    });
+    
+  } catch (error) {
+    console.error('Enigma card-stored error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/bookings/:id/card-info - Get card-on-file info for admin view
+app.get('/api/bookings/:id/card-info', async (req, res) => {
+  try {
+    const bookingId = req.params.id;
+    
+    const result = await pool.query(`
+      SELECT enigma_card_token, enigma_card_last_four, enigma_card_first_six,
+             enigma_card_type, enigma_card_name, enigma_card_exp_month, 
+             enigma_card_exp_year, enigma_reference_id
+      FROM bookings WHERE id = $1
+    `, [bookingId]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Booking not found' });
+    }
+    
+    const booking = result.rows[0];
+    
+    if (!booking.enigma_card_token) {
+      return res.json({ success: true, has_card: false });
+    }
+    
+    res.json({
+      success: true,
+      has_card: true,
+      card: {
+        last_four: booking.enigma_card_last_four,
+        first_six: booking.enigma_card_first_six,
+        card_type: booking.enigma_card_type,
+        cardholder: booking.enigma_card_name,
+        exp_month: booking.enigma_card_exp_month,
+        exp_year: booking.enigma_card_exp_year
+      }
+    });
+    
+  } catch (error) {
+    console.error('Card info error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/bookings/:id/charge-card - Charge stored card via Enigma proxy
+// Used by property owners for no-shows / cancellations
+app.post('/api/bookings/:id/charge-card', async (req, res) => {
+  try {
+    const bookingId = req.params.id;
+    const { amount, currency, description, gateway_config } = req.body;
+    
+    if (!amount || !currency) {
+      return res.status(400).json({ success: false, error: 'amount and currency required' });
+    }
+    
+    // Get booking with card token
+    const bookingResult = await pool.query(`
+      SELECT b.id, b.enigma_card_token, b.enigma_reference_id, b.enigma_card_last_four,
+             b.enigma_card_type, b.property_id, p.account_id, p.name as property_name
+      FROM bookings b
+      JOIN properties p ON b.property_id = p.id
+      WHERE b.id = $1
+    `, [bookingId]);
+    
+    if (bookingResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Booking not found' });
+    }
+    
+    const booking = bookingResult.rows[0];
+    
+    // Verify the user owns this property (account_id passed from admin UI)
+    const requestAccountId = parseInt(req.query.account_id || req.body.account_id);
+    if (!requestAccountId) {
+      return res.status(400).json({ success: false, error: 'account_id required' });
+    }
+    if (booking.account_id !== requestAccountId) {
+      return res.status(403).json({ success: false, error: 'Not authorized' });
+    }
+    
+    if (!booking.enigma_card_token) {
+      return res.status(400).json({ success: false, error: 'No card on file for this booking' });
+    }
+    
+    // If no gateway config provided, we can't charge yet
+    // The property owner needs to have a payment gateway configured
+    if (!gateway_config) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Payment gateway configuration required. Configure your gateway in property settings.' 
+      });
+    }
+    
+    // Get Enigma access token
+    const accessToken = await getEnigmaAccessToken();
+    const enigmaApiUrl = process.env.ENIGMA_API_URL || 'https://api.enigmavault.io';
+    
+    // Use Enigma Proxy to charge via the owner's gateway
+    // The proxy replaces ${ccn}, ${cvv}, ${fullName}, ${mm}, ${yyyy} with real card data
+    const proxyPayload = {
+      token: booking.enigma_card_token,
+      referenceId: booking.enigma_reference_id,
+      request: {
+        url: gateway_config.url,
+        method: gateway_config.method || 'POST',
+        headers: gateway_config.headers || { 'Content-Type': 'application/json' },
+        body: gateway_config.body
+      }
+    };
+    
+    const proxyResponse = await fetch(`${enigmaApiUrl}/cardvault/proxy`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+        'x-api-version': '1.12'
+      },
+      body: JSON.stringify(proxyPayload)
+    });
+    
+    const proxyResult = await proxyResponse.json();
+    
+    // Log usage
+    await logEnigmaUsage(booking.account_id, booking.property_id, bookingId, 'card_charge', 3, {
+      amount,
+      currency,
+      card_type: booking.enigma_card_type,
+      last_four: booking.enigma_card_last_four,
+      proxy_success: proxyResponse.ok
+    });
+    
+    // Log as payment transaction
+    try {
+      await pool.query(`
+        INSERT INTO payment_transactions (booking_id, type, amount, currency, status, provider, details, created_at)
+        VALUES ($1, 'charge', $2, $3, $4, 'enigma_proxy', $5, CURRENT_TIMESTAMP)
+      `, [
+        bookingId,
+        amount,
+        currency,
+        proxyResponse.ok ? 'completed' : 'failed',
+        JSON.stringify({ gateway_response: proxyResult, description })
+      ]);
+    } catch (txErr) {
+      console.error('Failed to log payment transaction:', txErr.message);
+    }
+    
+    if (!proxyResponse.ok) {
+      console.error(`❌ [Enigma] Charge failed for booking ${bookingId}:`, proxyResult);
+      return res.status(400).json({ success: false, error: 'Charge failed', details: proxyResult });
+    }
+    
+    // Update booking payment status
+    await pool.query(`
+      UPDATE bookings SET payment_status = 'charged', updated_at = CURRENT_TIMESTAMP WHERE id = $1
+    `, [bookingId]);
+    
+    console.log(`✅ [Enigma] Charged ${currency} ${amount} for booking ${bookingId} - ${booking.enigma_card_type} ****${booking.enigma_card_last_four}`);
+    
+    res.json({
+      success: true,
+      message: `Successfully charged ${currency} ${amount}`,
+      booking_id: bookingId,
+      gateway_response: proxyResult
+    });
+    
+  } catch (error) {
+    console.error('Enigma charge-card error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/enigma/usage - Get usage stats for billing (admin/master only)
+app.get('/api/enigma/usage', async (req, res) => {
+  try {
+    const { account_id, from_date, to_date } = req.query;
+    const targetAccountId = account_id || null;
+    
+    let query, params;
+    
+    if (targetAccountId) {
+      query = `
+        SELECT action, COUNT(*) as count, SUM(api_calls) as total_api_calls,
+               SUM(enigma_cost) as total_enigma_cost, SUM(fee_charged) as total_fee_charged
+        FROM enigma_usage_log 
+        WHERE account_id = $1
+        ${from_date ? 'AND created_at >= $2' : ''}
+        ${to_date ? `AND created_at <= $${from_date ? 3 : 2}` : ''}
+        GROUP BY action
+      `;
+      params = [targetAccountId];
+      if (from_date) params.push(from_date);
+      if (to_date) params.push(to_date);
+    } else {
+      // Master: get all accounts summary
+      query = `
+        SELECT e.account_id, a.business_name, a.email,
+               COUNT(*) as total_transactions, SUM(e.api_calls) as total_api_calls,
+               SUM(e.enigma_cost) as total_enigma_cost, SUM(e.fee_charged) as total_fees_charged
+        FROM enigma_usage_log e
+        JOIN accounts a ON e.account_id = a.id
+        ${from_date ? 'WHERE e.created_at >= $1' : ''}
+        ${to_date ? `${from_date ? 'AND' : 'WHERE'} e.created_at <= $${from_date ? 2 : 1}` : ''}
+        GROUP BY e.account_id, a.business_name, a.email
+        ORDER BY total_transactions DESC
+      `;
+      params = [];
+      if (from_date) params.push(from_date);
+      if (to_date) params.push(to_date);
+    }
+    
+    const result = await pool.query(query, params);
+    
+    res.json({
+      success: true,
+      usage: result.rows
+    });
+    
+  } catch (error) {
+    console.error('Enigma usage error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/public/property/:id/card-guarantee-info - Check if card guarantee is available
+// Called by the booking plugin to show/hide the card guarantee option
+app.get('/api/public/property/:id/card-guarantee-info', async (req, res) => {
+  try {
+    const propertyId = req.params.id;
+    
+    const result = await pool.query(`
+      SELECT accepted_methods, bank_details
+      FROM property_payment_settings 
+      WHERE property_id = $1
+    `, [propertyId]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: true, card_guarantee_enabled: false });
+    }
+    
+    const settings = result.rows[0];
+    const methods = typeof settings.accepted_methods === 'string' 
+      ? JSON.parse(settings.accepted_methods) 
+      : (settings.accepted_methods || []);
+    const bankDetails = typeof settings.bank_details === 'string'
+      ? JSON.parse(settings.bank_details)
+      : (settings.bank_details || {});
+    const cgSettings = bankDetails.card_guarantee || {};
+    
+    // Card guarantee is enabled if it's in accepted_methods
+    // Enigma credentials checked at charge time, not at display time
+    const cardGuaranteeInMethods = Array.isArray(methods) && methods.includes('card_guarantee');
+    
+    res.json({
+      success: true,
+      card_guarantee_enabled: !!cardGuaranteeInMethods,
+      label: cgSettings.label || 'Card Guarantee',
+      description: cgSettings.description || 'Your card is held securely as a booking guarantee. No charge unless you cancel or no-show.',
+      success_message: cgSettings.success_message || 'Thank you! Your card is secured. Please now confirm your booking below.'
+    });
+    
+  } catch (error) {
+    console.error('Card guarantee info error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+console.log('✅ Enigma Card Vault endpoints loaded');
 // ============================================
 // CATCH-ALL HANDLER (must be last route)
 // ============================================
@@ -69897,6 +71490,54 @@ app.get('*', (req, res) => {
 app.all('/api/*', (req, res) => {
   res.status(404).json({ error: 'API endpoint not found', method: req.method, path: req.path });
 });
+
+// ============================================
+// ENIGMA CARD VAULT INTEGRATION
+// ============================================
+
+// Helper: Get Enigma OAuth2 access token
+async function getEnigmaAccessToken() {
+  const clientId = process.env.ENIGMA_CLIENT_ID;
+  const clientSecret = process.env.ENIGMA_CLIENT_SECRET;
+  const authUrl = process.env.ENIGMA_AUTH_URL || 'https://api-auth.enigmavault.io';
+  
+  if (!clientId || !clientSecret) {
+    throw new Error('Enigma Vault credentials not configured');
+  }
+  
+  const response = await fetch(`${authUrl}/oauth2/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: `grant_type=client_credentials&client_id=${clientId}&client_secret=${clientSecret}&scope=io.enigmavault/cardvault`
+  });
+  
+  if (!response.ok) {
+    const err = await response.text();
+    throw new Error(`Enigma auth failed: ${response.status} - ${err}`);
+  }
+  
+  const data = await response.json();
+  return data.access_token;
+}
+
+// Helper: Log Enigma usage for billing
+async function logEnigmaUsage(accountId, propertyId, bookingId, action, apiCalls = 1, details = {}) {
+  try {
+    // Cost per API call based on Lite tier overage ($0.08/request)
+    const enigmaCost = apiCalls * 0.08;
+    // Fee charged to owner - configurable, default $0.50 per card capture, $1.00 per charge
+    const feeRates = { form_request: 0, card_capture: 0.50, card_search: 0, card_charge: 1.00, cvv_capture: 0.25 };
+    const feeCharged = feeRates[action] || 0;
+    
+    await pool.query(`
+      INSERT INTO enigma_usage_log (account_id, property_id, booking_id, action, api_calls, enigma_cost, fee_charged, details)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `, [accountId, propertyId, bookingId, action, apiCalls, enigmaCost, feeCharged, JSON.stringify(details)]);
+  } catch (err) {
+    console.error('Failed to log Enigma usage:', err.message);
+  }
+}
+
 
 // Global error handler - ALWAYS return JSON, never HTML
 app.use((err, req, res, next) => {
