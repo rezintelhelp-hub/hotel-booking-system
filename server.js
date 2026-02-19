@@ -2842,13 +2842,24 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
                 const multiplier = linking.offsetMultiplier || 1;
                 const offset = linking.offsetAmount || 0;
                 
-                console.log(`[Beds24 Sync] Applying ${sourcePricesResult.rows.length} BASE prices to ${room.name} (x${multiplier})`);
+                // Build this room's OWN min_stay map from its calendar data (has min_stay but no prices)
+                const ownMinStayMap = {};
+                for (const entry of calendarData) {
+                  const entryFrom = new Date(entry.from);
+                  const entryTo = new Date(entry.to);
+                  for (let md = new Date(entryFrom); md <= entryTo; md.setDate(md.getDate() + 1)) {
+                    ownMinStayMap[md.toISOString().split('T')[0]] = entry.minStay || null;
+                  }
+                }
+                
+                console.log(`[Beds24 Sync] Applying ${sourcePricesResult.rows.length} BASE prices to ${room.name} (x${multiplier}), own min_stay entries: ${Object.keys(ownMinStayMap).length}`);
                 
                 for (const row of sourcePricesResult.rows) {
                   const dateStr = row.date.toISOString().split('T')[0];
                   const basePrice = parseFloat(row.cm_price);
                   const linkedPrice = (basePrice * multiplier) + offset;
-                  const minStay = row.min_stay || 1;
+                  // Use this room's OWN min_stay from its Beds24 calendar, fall back to source
+                  const minStay = ownMinStayMap[dateStr] || row.min_stay || 1;
                   
                   await pool.query(`
                     INSERT INTO room_availability (room_id, date, cm_price, direct_price, min_stay, cm_min_stay, source, updated_at)
@@ -7623,9 +7634,9 @@ app.post('/api/gas-sync/tiered-availability-sync', async (req, res) => {
             // If this room has prices (like BASE), find all rooms linked to it and copy prices
             const hasSourcePrices = calendarData.some(e => e.price1 || e.price2);
             if (hasSourcePrices) {
-              // Find all rooms that link to this room
+              // Find all rooms that link to this room (include external_id for own min_stay lookup)
               const linkedRoomsResult = await pool.query(`
-                SELECT rt.gas_room_id, rt.price_linking, rt.name
+                SELECT rt.gas_room_id, rt.price_linking, rt.name, rt.external_id as beds24_room_id
                 FROM gas_sync_room_types rt
                 JOIN gas_sync_properties sp ON sp.id = rt.sync_property_id
                 WHERE sp.connection_id = $1 
@@ -7643,6 +7654,35 @@ app.post('/api/gas-sync/tiered-availability-sync', async (req, res) => {
                   const multiplier = linking.offsetMultiplier || 1;
                   const offset = linking.offsetAmount || 0;
                   
+                  // Fetch this room's OWN min_stay from Beds24 (linked rooms have no prices but DO have min_stay)
+                  let ownMinStayMap = {};
+                  if (linkedRoom.beds24_room_id) {
+                    try {
+                      const ownCalResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/calendar', {
+                        headers: { 'token': accessToken },
+                        params: {
+                          roomId: parseInt(linkedRoom.beds24_room_id),
+                          startDate: startDateStr,
+                          endDate: endDateStr,
+                          includeMinStay: true
+                        }
+                      });
+                      const ownCalendar = ownCalResponse.data.data?.[0]?.calendar || [];
+                      for (const ownEntry of ownCalendar) {
+                        const ownFrom = new Date(ownEntry.from);
+                        const ownTo = new Date(ownEntry.to);
+                        for (let od = new Date(ownFrom); od <= ownTo; od.setDate(od.getDate() + 1)) {
+                          ownMinStayMap[od.toISOString().split('T')[0]] = ownEntry.minStay || null;
+                        }
+                      }
+                      console.log(`    📋 ${linkedRoom.name}: fetched own min_stay (${Object.keys(ownMinStayMap).length} days)`);
+                      // Rate limit: wait 1 second after API call
+                      await new Promise(resolve => setTimeout(resolve, 1000));
+                    } catch (minStayErr) {
+                      console.log(`    ⚠️ ${linkedRoom.name}: could not fetch own min_stay: ${minStayErr.message}`);
+                    }
+                  }
+                  
                   let linkedDays = 0;
                   for (const entry of calendarData) {
                     const fromDate = new Date(entry.from);
@@ -7652,7 +7692,8 @@ app.post('/api/gas-sync/tiered-availability-sync', async (req, res) => {
                       const dateStr = d.toISOString().split('T')[0];
                       const basePrice = entry.price1 || entry.price2 || null;
                       const linkedPrice = basePrice ? (basePrice * multiplier) + offset : null;
-                      const minStay = entry.minStay || 1;
+                      // Use this room's OWN min_stay from Beds24, fall back to source room's if unavailable
+                      const minStay = ownMinStayMap[dateStr] || entry.minStay || 1;
                       
                       // Only update price if we have one - don't overwrite availability
                       if (linkedPrice) {
@@ -68838,14 +68879,25 @@ async function runTieredSync() {
                   const multiplier = linking.offsetMultiplier || 1;
                   const offset = linking.offsetAmount || 0;
                   
-                  console.log(`  📊 Applying ${sourcePricesResult.rows.length} BASE prices to ${room.name} (x${multiplier})`);
+                  // Build this room's OWN min_stay map from its calendar data (has min_stay but no prices)
+                  const ownMinStayMap = {};
+                  for (const calEntry of calendarData) {
+                    const calFrom = new Date(calEntry.from);
+                    const calTo = new Date(calEntry.to);
+                    for (let md = new Date(calFrom); md <= calTo; md.setDate(md.getDate() + 1)) {
+                      ownMinStayMap[md.toISOString().split('T')[0]] = calEntry.minStay || null;
+                    }
+                  }
+                  
+                  console.log(`  📊 Applying ${sourcePricesResult.rows.length} BASE prices to ${room.name} (x${multiplier}), own min_stay entries: ${Object.keys(ownMinStayMap).length}`);
                   
                   // Save prices to this linked room
                   for (const row of sourcePricesResult.rows) {
                     const dateStr = row.date.toISOString().split('T')[0];
                     const basePrice = parseFloat(row.cm_price);
                     const linkedPrice = (basePrice * multiplier) + offset;
-                    const minStay = row.min_stay || 1;
+                    // Use this room's OWN min_stay from Beds24, fall back to source
+                    const minStay = ownMinStayMap[dateStr] || row.min_stay || 1;
                     
                     await pool.query(`
                       INSERT INTO room_availability (room_id, date, cm_price, direct_price, min_stay, cm_min_stay, source, updated_at)
