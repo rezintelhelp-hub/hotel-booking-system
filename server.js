@@ -63666,8 +63666,8 @@ app.get('/api/admin/debug/beds24-calendar/:connectionId/:roomId', async (req, re
       return res.json({ success: false, error: 'No access token and refresh failed' });
     }
     
-    const startDate = new Date().toISOString().split('T')[0];
-    const endDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const startDate = req.query.startDate || new Date().toISOString().split('T')[0];
+    const endDate = req.query.endDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     
     // Use EXACT same params as the real sync
     const calResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/calendar', {
@@ -63714,6 +63714,133 @@ app.get('/api/admin/debug/beds24-calendar/:connectionId/:roomId', async (req, re
     });
   } catch (error) {
     res.json({ success: false, error: error.message, details: error.response?.data });
+  }
+});
+
+// Admin: Resync a single room from Beds24 (with linked room min_stay fix)
+app.post('/api/admin/debug/beds24-resync-room/:connectionId/:beds24RoomId', async (req, res) => {
+  try {
+    const { connectionId, beds24RoomId } = req.params;
+    const days = parseInt(req.query.days) || 365;
+    
+    const connResult = await pool.query('SELECT * FROM gas_sync_connections WHERE id = $1', [connectionId]);
+    if (connResult.rows.length === 0) return res.json({ success: false, error: 'Connection not found' });
+    const conn = connResult.rows[0];
+    
+    // Refresh token
+    let accessToken = conn.access_token;
+    if (conn.refresh_token) {
+      const tokenResponse = await axios.get('https://beds24.com/api/v2/authentication/token', {
+        headers: { 'refreshToken': conn.refresh_token }
+      });
+      accessToken = tokenResponse.data.token;
+      await pool.query('UPDATE gas_sync_connections SET access_token = $1 WHERE id = $2', [accessToken, connectionId]);
+    }
+    
+    // Find GAS room ID and price linking
+    const roomResult = await pool.query(`
+      SELECT rt.gas_room_id, rt.price_linking, rt.name, rt.external_id
+      FROM gas_sync_room_types rt
+      JOIN gas_sync_properties sp ON sp.id = rt.sync_property_id
+      WHERE sp.connection_id = $1 AND rt.external_id = $2
+    `, [connectionId, beds24RoomId]);
+    
+    if (roomResult.rows.length === 0) return res.json({ success: false, error: 'Room not found in sync mappings' });
+    const room = roomResult.rows[0];
+    
+    const startDate = new Date().toISOString().split('T')[0];
+    const endDate = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    
+    // Fetch this room's own calendar (will have min_stay but maybe no prices)
+    const calResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/calendar', {
+      headers: { 'token': accessToken },
+      params: { roomId: parseInt(beds24RoomId), startDate, endDate, includeNumAvail: true, includePrices: true, includeMinStay: true }
+    });
+    const calendarData = calResponse.data.data?.[0]?.calendar || [];
+    const hasAnyPrices = calendarData.some(e => e.price1 || e.price2);
+    
+    // Build own min_stay map
+    const ownMinStayMap = {};
+    for (const entry of calendarData) {
+      const from = new Date(entry.from);
+      const to = new Date(entry.to);
+      for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
+        ownMinStayMap[d.toISOString().split('T')[0]] = entry.minStay || null;
+      }
+    }
+    
+    let daysUpdated = 0;
+    const linking = room.price_linking ? (typeof room.price_linking === 'string' ? JSON.parse(room.price_linking) : room.price_linking) : null;
+    
+    if (!hasAnyPrices && linking) {
+      // Linked room: get prices from source, min_stay from own calendar
+      const sourceRoomResult = await pool.query(`
+        SELECT rt.gas_room_id FROM gas_sync_room_types rt
+        JOIN gas_sync_properties sp ON sp.id = rt.sync_property_id
+        WHERE sp.connection_id = $1 AND rt.external_id = $2
+      `, [connectionId, String(linking.sourceRoomId)]);
+      
+      const sourceGasRoomId = sourceRoomResult.rows[0]?.gas_room_id;
+      if (sourceGasRoomId) {
+        const sourcePrices = await pool.query(`
+          SELECT date, cm_price, min_stay FROM room_availability
+          WHERE room_id = $1 AND date >= $2 AND date <= $3 AND cm_price IS NOT NULL ORDER BY date
+        `, [sourceGasRoomId, startDate, endDate]);
+        
+        const multiplier = linking.offsetMultiplier || 1;
+        const offset = linking.offsetAmount || 0;
+        
+        for (const row of sourcePrices.rows) {
+          const dateStr = row.date.toISOString().split('T')[0];
+          const linkedPrice = (parseFloat(row.cm_price) * multiplier) + offset;
+          const minStay = ownMinStayMap[dateStr] || row.min_stay || 1;
+          
+          await pool.query(`
+            INSERT INTO room_availability (room_id, date, cm_price, direct_price, min_stay, cm_min_stay, source, updated_at)
+            VALUES ($1, $2, $3, $3, $4, $4, 'beds24-linked', NOW())
+            ON CONFLICT (room_id, date) DO UPDATE SET
+              cm_price = $3, direct_price = $3,
+              min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $4 END,
+              cm_min_stay = $4, source = 'beds24-linked', updated_at = NOW()
+          `, [room.gas_room_id, dateStr, linkedPrice, minStay]);
+          daysUpdated++;
+        }
+      }
+    } else {
+      // Direct room: use its own calendar data
+      for (const entry of calendarData) {
+        const from = new Date(entry.from);
+        const to = new Date(entry.to);
+        for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
+          const dateStr = d.toISOString().split('T')[0];
+          const price = entry.price1 || entry.price2 || null;
+          const minStay = entry.minStay || 1;
+          const numAvail = entry.numAvail || 0;
+          
+          await pool.query(`
+            INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
+            VALUES ($1, $2, $3, $3, $4, $5, $6, $6, 'beds24', NOW())
+            ON CONFLICT (room_id, date) DO UPDATE SET
+              cm_price = COALESCE($3, room_availability.cm_price), is_available = $4, is_blocked = $5,
+              min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $6 END,
+              cm_min_stay = $6, source = 'beds24', updated_at = NOW()
+          `, [room.gas_room_id, dateStr, price, numAvail > 0, numAvail === 0, minStay]);
+          daysUpdated++;
+        }
+      }
+    }
+    
+    res.json({
+      success: true,
+      room: { gas_id: room.gas_room_id, beds24_id: beds24RoomId, name: room.name },
+      linked: !!linking,
+      ownMinStayDays: Object.keys(ownMinStayMap).length,
+      sampleMinStay: Object.entries(ownMinStayMap).slice(0, 5),
+      daysUpdated,
+      dateRange: { startDate, endDate }
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
   }
 });
 
