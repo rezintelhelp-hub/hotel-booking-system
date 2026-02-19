@@ -11583,7 +11583,7 @@ app.put('/api/accounts/:id', async (req, res) => {
       contact_name, address_line1, address_line2, city, region, postcode, country, default_currency,
       payment_methods, beds24_discount_type, beds24_discount_value, gas_discount_type, gas_discount_value,
       vat_number, company_reg, vat_enabled, vat_rate, beds24_billing_enabled, website_billing_enabled,
-      billing_currency
+      billing_currency, managed_by_id
     } = req.body;
     
     // Ensure columns exist
@@ -11707,6 +11707,10 @@ app.put('/api/accounts/:id', async (req, res) => {
     if (billing_currency !== undefined) {
       updates.push(`billing_currency = $${paramIndex++}`);
       values.push(billing_currency || 'EUR');
+    }
+    if (managed_by_id !== undefined) {
+      updates.push(`managed_by_id = $${paramIndex++}`);
+      values.push(managed_by_id || null);
     }
     
     if (updates.length === 0) {
