@@ -8464,7 +8464,7 @@ app.post('/api/gas-sync/connections/:id/import-property', async (req, res) => {
           address.country || '',
           coords.latitude || coords.lat || null,
           coords.longitude || coords.lng || null,
-          prop.currency || 'EUR',
+          prop.currency || getCurrencyFromCountry(address.country) || 'EUR',
           prop.defaultCheckIn || prop.checkInTime || '15:00',
           prop.defaultCheckOut || prop.checkOutTime || '11:00',
           String(externalId)
@@ -8675,7 +8675,7 @@ app.post('/api/gas-sync/connections/:id/import-property', async (req, res) => {
         prop.checkInStart || prop.checkInFrom || '15:00',
         prop.checkInEnd || prop.checkInUntil || '22:00',
         prop.checkOutEnd || prop.checkOutBy || '11:00',
-        prop.currency || 'USD',
+        prop.currency || getCurrencyFromCountry(prop.country) || 'EUR',
         prop.phone || '', prop.email || '', prop.website || '',
         accountId, gasPropertyId
       ]);
@@ -8704,7 +8704,7 @@ app.post('/api/gas-sync/connections/:id/import-property', async (req, res) => {
         prop.checkInStart || prop.checkInFrom || '15:00',
         prop.checkInEnd || prop.checkInUntil || '22:00',
         prop.checkOutEnd || prop.checkOutBy || '11:00',
-        prop.currency || 'USD',
+        prop.currency || getCurrencyFromCountry(prop.country) || 'EUR',
         prop.phone || '', prop.email || '', prop.website || ''
       ]);
       gasPropertyId = propertyResult.rows[0].id;
@@ -25384,9 +25384,10 @@ app.get('/api/db/bookable-units', async (req, res) => {
 });
 
 app.post('/api/db/properties', async (req, res) => {
-  const { name, description, address, city, country, property_type, star_rating } = req.body;
+  const { name, description, address, city, country, property_type, star_rating, currency } = req.body;
   try {
-    const result = await pool.query(`INSERT INTO properties (name, description, address, city, country, property_type, star_rating) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`, [name, description, address, city, country, property_type, star_rating]);
+    const propCurrency = currency || getCurrencyFromCountry(country) || null;
+    const result = await pool.query(`INSERT INTO properties (name, description, address, city, country, property_type, star_rating, currency) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`, [name, description, address, city, country, property_type, star_rating, propCurrency]);
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
     res.json({ success: false, error: error.message });
@@ -27732,7 +27733,7 @@ app.post('/api/calry/import-property', async (req, res) => {
         parsedAddress.postal_code,
         parsedAddress.lat,
         parsedAddress.lng,
-        calryProperty.currency || 'USD',
+        calryProperty.currency || getCurrencyFromCountry(parsedAddress.country) || 'USD',
         String(propertyId)
       ]);
       
@@ -31178,7 +31179,7 @@ app.get('/api/calry/import-property/:integrationAccountId/:propertyId', async (r
           parsedAddress2.city, parsedAddress2.country,
           parsedAddress2.state, parsedAddress2.postal_code,
           parsedAddress2.lat, parsedAddress2.lng, 
-          calryProperty.currency || 'USD',
+          calryProperty.currency || getCurrencyFromCountry(parsedAddress2.country) || 'USD',
           String(propertyId)]);
       gasPropertyId = propResult.rows[0].id;
     }
@@ -32266,7 +32267,7 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
         prop.checkInStart || prop.checkInFrom || '15:00',
         prop.checkInEnd || prop.checkInUntil || '22:00',
         prop.checkOutEnd || prop.checkOutBy || '11:00',
-        prop.currency || 'USD',
+        prop.currency || getCurrencyFromCountry(prop.country) || 'EUR',
         prop.phone || prop.propPhone || '',
         prop.email || prop.propEmail || '',
         prop.fax || prop.propFax || '',
@@ -32329,7 +32330,7 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
         prop.checkInStart || prop.checkInFrom || '15:00',
         prop.checkInEnd || prop.checkInUntil || '22:00',
         prop.checkOutEnd || prop.checkOutBy || '11:00',
-        prop.currency || 'USD',
+        prop.currency || getCurrencyFromCountry(prop.country) || 'EUR',
         prop.phone || prop.propPhone || '',
         prop.email || prop.propEmail || '',
         prop.fax || prop.propFax || '',
