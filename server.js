@@ -117,6 +117,28 @@ const MAILGUN_API_KEY = process.env.MAILGUN_API_KEY;
 const MAILGUN_DOMAIN = process.env.MAILGUN_DOMAIN || 'mg.gas.travel';
 const EMAIL_FROM = process.env.EMAIL_FROM || 'bookings@mg.gas.travel';
 
+// Country code to currency mapping (ISO 3166-1 alpha-2 → ISO 4217)
+function getCurrencyFromCountry(countryCode) {
+  if (!countryCode) return null;
+  const map = {
+    // Europe - EUR
+    AT:'EUR',BE:'EUR',CY:'EUR',EE:'EUR',FI:'EUR',FR:'EUR',DE:'EUR',GR:'EUR',IE:'EUR',IT:'EUR',
+    LV:'EUR',LT:'EUR',LU:'EUR',MT:'EUR',NL:'EUR',PT:'EUR',SK:'EUR',SI:'EUR',ES:'EUR',
+    // Europe - Non-EUR
+    GB:'GBP',CH:'CHF',SE:'SEK',NO:'NOK',DK:'DKK',PL:'PLN',CZ:'CZK',HU:'HUF',RO:'RON',HR:'EUR',BG:'BGN',
+    // Americas
+    US:'USD',CA:'CAD',MX:'MXN',BR:'BRL',AR:'ARS',CL:'CLP',CO:'COP',PE:'PEN',
+    // Asia Pacific
+    JP:'JPY',CN:'CNY',KR:'KRW',IN:'INR',ID:'IDR',TH:'THB',VN:'VND',MY:'MYR',SG:'SGD',PH:'PHP',
+    AU:'AUD',NZ:'NZD',
+    // Middle East & Africa
+    AE:'AED',SA:'SAR',IL:'ILS',TR:'TRY',ZA:'ZAR',EG:'EGP',MA:'MAD',KE:'KES',NG:'NGN',
+    // Caribbean
+    JM:'JMD',TT:'TTD',BB:'BBD',DO:'DOP',PR:'USD',VI:'USD',
+  };
+  return map[countryCode.toUpperCase()] || null;
+}
+
 // Calry API configuration
 const CALRY_API_TOKEN = process.env.CALRY_API_TOKEN;
 const CALRY_WORKSPACE_ID = process.env.CALRY_WORKSPACE_ID;
@@ -28914,7 +28936,7 @@ async function linkSyncPropertyToGasInternal(syncPropertyId, accountId, calryPro
           max_adults: roomRawData.maxAdults || roomRawData.adultsMax || null,
           max_children: roomRawData.maxChildren || roomRawData.childrenMax || 0,
           base_price: room.base_price || roomRawData.startPrice || roomRawData.basePrice || roomRawData.price || 0,
-          currency: room.currency || propData.currency || 'EUR',
+          currency: room.currency || propData.currency || getCurrencyFromCountry(propData.country) || 'EUR',
           bedrooms: room.bedrooms || roomRawData.bedRoom?.count || roomRawData.bedrooms || roomRawData.bedroomCount || 1,
           bathrooms: room.bathrooms || roomRawData.bathRoom?.count || roomRawData.bathrooms || roomRawData.bathroomCount || 1,
           beds: roomRawData.beds || roomRawData.bedCount || null,
@@ -46260,10 +46282,10 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
       // Now create the account (store user_id in settings since column doesn't exist)
       const newAccount = await pool.query(`
         INSERT INTO accounts (
-          parent_id, name, email, contact_name, phone, business_name,
+          parent_id, managed_by_id, role, name, email, contact_name, phone, business_name,
           currency, timezone, api_key, api_key_created_at, status, settings, created_at
         ) VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), 'active', $10, NOW()
+          $1, $1, 'submaster_admin', $2, $3, $4, $5, $6, $7, $8, $9, NOW(), 'active', $10, NOW()
         )
         RETURNING id, public_id, api_key
       `, [
@@ -46273,7 +46295,7 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
         client.contact_name || null,
         client.phone || null,
         client.business_name || client.name,
-        client.currency || 'EUR',
+        client.currency || getCurrencyFromCountry(client.country) || 'EUR',
         client.timezone || 'Europe/Zurich',
         clientApiKey,
         JSON.stringify({
@@ -46569,7 +46591,7 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
         property.longitude || null,
         property.phone || null,
         property.email || null,
-        property.currency || 'EUR',
+        property.currency || getCurrencyFromCountry(property.country) || 'EUR',
         property.property_type || 'vacation_rental',
         property.external_id || null
       ]);
@@ -48769,7 +48791,7 @@ app.post('/webhooks/elevate/:accountId/:apiKey/property/create', async (req, res
       INSERT INTO properties (account_id, user_id, name, address, city, country, currency, cm_source, status, created_at)
       VALUES ($1, 1, $2, $3, $4, $5, $6, 'elevate', 'active', NOW())
       RETURNING id
-    `, [accountId, name, address || '', city || '', country || '', currency || 'CHF']);
+    `, [accountId, name, address || '', city || '', country || '', currency || getCurrencyFromCountry(country) || 'EUR']);
     
     console.log('Elevate: Created property', result.rows[0].id);
     res.json({ success: true, property_id: result.rows[0].id });
