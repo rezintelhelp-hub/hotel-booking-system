@@ -63718,7 +63718,7 @@ app.get('/api/admin/debug/beds24-calendar/:connectionId/:roomId', async (req, re
   }
 });
 
-// Admin: Resync a single room from Beds24 (with offers-based pricing and own min_stay)
+// Admin: Resync a single room from Beds24 (BASE price × room multiplier + own min_stay)
 app.post('/api/admin/debug/beds24-resync-room/:connectionId/:beds24RoomId', async (req, res) => {
   try {
     const { connectionId, beds24RoomId } = req.params;
@@ -63748,111 +63748,76 @@ app.post('/api/admin/debug/beds24-resync-room/:connectionId/:beds24RoomId', asyn
     
     if (roomResult.rows.length === 0) return res.json({ success: false, error: 'Room not found in sync mappings' });
     const room = roomResult.rows[0];
+    const linking = room.price_linking ? (typeof room.price_linking === 'string' ? JSON.parse(room.price_linking) : room.price_linking) : null;
     
     const startDate = new Date().toISOString().split('T')[0];
     const endDate = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     
-    // Step 1: Fetch calendar for availability, min_stay, and raw prices
+    // Step 1: Fetch this room's own calendar (multiplier, min_stay, availability)
     const calResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/calendar', {
       headers: { 'token': accessToken },
-      params: { roomId: parseInt(beds24RoomId), startDate, endDate, includeNumAvail: true, includePrices: true, includeMinStay: true }
+      params: { roomId: parseInt(beds24RoomId), startDate, endDate, includeNumAvail: true, includePrices: true, includeMinStay: true, includeMultiplier: true }
     });
     const calendarData = calResponse.data.data?.[0]?.calendar || [];
     
-    // Build per-day map from calendar
-    const dayMap = {}; // dateStr -> { price, minStay, numAvail }
+    // Build per-day map from room's own calendar
+    const roomDayMap = {};
     for (const entry of calendarData) {
       const from = new Date(entry.from);
       const to = new Date(entry.to);
       for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
         const dateStr = d.toISOString().split('T')[0];
-        dayMap[dateStr] = {
-          calPrice: entry.price1 || entry.price2 || null,
+        roomDayMap[dateStr] = {
+          multiplier: entry.multiplier || 1,
           minStay: entry.minStay || 1,
-          numAvail: entry.numAvail || 0
+          numAvail: entry.numAvail || 0,
+          ownPrice: entry.price1 || entry.price2 || null
         };
       }
     }
     
-    // Step 2: Find available dates to sample the offers API for price ratio
-    // Need a contiguous block of available dates matching min_stay
-    const allDates = Object.keys(dayMap).sort();
-    let sampleArrival = null;
-    let sampleDeparture = null;
-    let sampleCalTotal = 0;
-    let sampleNights = 0;
+    await new Promise(resolve => setTimeout(resolve, 2000)); // Rate limit between API calls
     
-    // Find first available block that meets min_stay
-    for (let i = 0; i < allDates.length - 3; i++) {
-      const date = allDates[i];
-      const day = dayMap[date];
-      if (day.numAvail <= 0 || !day.calPrice) continue;
+    // Step 2: Get BASE prices - either from source room API or this room's own prices
+    let baseDayMap = {};
+    let priceSource = 'direct';
+    
+    if (linking && linking.sourceRoomId) {
+      // Fetch BASE room calendar for prices
+      priceSource = 'base-x-multiplier';
+      const baseCalResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/calendar', {
+        headers: { 'token': accessToken },
+        params: { roomId: parseInt(linking.sourceRoomId), startDate, endDate, includePrices: true }
+      });
+      const baseCalendar = baseCalResponse.data.data?.[0]?.calendar || [];
       
-      const minStay = day.minStay || 4; // Use room's min_stay for the sample block
-      let validBlock = true;
-      let blockTotal = 0;
-      
-      for (let j = 0; j < minStay && (i + j) < allDates.length; j++) {
-        const blockDate = allDates[i + j];
-        const blockDay = dayMap[blockDate];
-        if (!blockDay || blockDay.numAvail <= 0 || !blockDay.calPrice) {
-          validBlock = false;
-          break;
+      for (const entry of baseCalendar) {
+        const from = new Date(entry.from);
+        const to = new Date(entry.to);
+        for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
+          baseDayMap[d.toISOString().split('T')[0]] = entry.price1 || entry.price2 || null;
         }
-        blockTotal += parseFloat(blockDay.calPrice);
-      }
-      
-      if (validBlock && blockTotal > 0) {
-        sampleArrival = date;
-        const depDate = new Date(date);
-        depDate.setDate(depDate.getDate() + minStay);
-        sampleDeparture = depDate.toISOString().split('T')[0];
-        sampleCalTotal = blockTotal;
-        sampleNights = minStay;
-        break;
       }
     }
     
-    // Step 3: Call offers API for the sample block to get the ratio
-    let priceRatio = 1;
-    let offersTotal = null;
-    
-    if (sampleArrival && sampleDeparture) {
-      try {
-        const offerResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/offers', {
-          headers: { 'token': accessToken },
-          params: { roomId: parseInt(beds24RoomId), arrival: sampleArrival, departure: sampleDeparture, numAdults: 2 }
-        });
-        
-        const offerData = offerResponse.data.data?.[0];
-        if (offerData?.offers?.length > 0) {
-          // Use offer 1 first, then offer 2, etc.
-          const offer = offerData.offers.find(o => o.offerId === 1) || offerData.offers[0];
-          offersTotal = offer.price;
-          
-          if (offersTotal && sampleCalTotal > 0) {
-            priceRatio = offersTotal / sampleCalTotal;
-          }
-        }
-        
-        console.log(`[Resync] ${room.name}: offers=${offersTotal}, calendar=${sampleCalTotal}, ratio=${priceRatio.toFixed(4)}, sample=${sampleArrival} to ${sampleDeparture}`);
-        await new Promise(resolve => setTimeout(resolve, 2000)); // Rate limit
-      } catch (offerErr) {
-        console.log(`[Resync] ${room.name}: offers API failed: ${offerErr.message}, using ratio 1`);
-      }
-    } else {
-      console.log(`[Resync] ${room.name}: no available dates found for offers sample, using ratio 1`);
-    }
-    
-    // Step 4: Write prices (calendar price × ratio), min_stay, and availability
+    // Step 3: Write prices to room_availability
     let daysUpdated = 0;
+    let samplePrices = [];
     
-    for (const [dateStr, day] of Object.entries(dayMap)) {
-      const calPrice = day.calPrice ? parseFloat(day.calPrice) : null;
-      const adjustedPrice = calPrice ? Math.round(calPrice * priceRatio * 100) / 100 : null;
-      const minStay = day.minStay || 1;
-      const isAvailable = day.numAvail > 0;
-      const isBlocked = day.numAvail === 0;
+    for (const [dateStr, day] of Object.entries(roomDayMap)) {
+      let finalPrice = null;
+      
+      if (linking && linking.sourceRoomId && baseDayMap[dateStr]) {
+        // Linked room: BASE price × this room's multiplier
+        finalPrice = Math.round(parseFloat(baseDayMap[dateStr]) * day.multiplier * 100) / 100;
+      } else if (day.ownPrice) {
+        // Direct room or no base price: use own price × multiplier
+        finalPrice = Math.round(parseFloat(day.ownPrice) * day.multiplier * 100) / 100;
+      }
+      
+      if (samplePrices.length < 5) {
+        samplePrices.push({ date: dateStr, basePrice: baseDayMap[dateStr] || null, multiplier: day.multiplier, finalPrice, minStay: day.minStay });
+      }
       
       await pool.query(`
         INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
@@ -63863,23 +63828,15 @@ app.post('/api/admin/debug/beds24-resync-room/:connectionId/:beds24RoomId', asyn
           is_available = $4, is_blocked = $5,
           min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $6 END,
           cm_min_stay = $6, source = 'beds24-offers', updated_at = NOW()
-      `, [room.gas_room_id, dateStr, adjustedPrice, isAvailable, isBlocked, minStay]);
+      `, [room.gas_room_id, dateStr, finalPrice, day.numAvail > 0, day.numAvail === 0, day.minStay]);
       daysUpdated++;
     }
     
     res.json({
       success: true,
       room: { gas_id: room.gas_room_id, beds24_id: beds24RoomId, name: room.name },
-      pricing: {
-        method: offersTotal ? 'offers-ratio' : 'calendar-only',
-        sampleDates: sampleArrival ? `${sampleArrival} to ${sampleDeparture}` : null,
-        calendarTotal: sampleCalTotal,
-        offersTotal,
-        ratio: priceRatio,
-        sampleNights
-      },
-      ownMinStayDays: Object.keys(dayMap).length,
-      sampleMinStay: Object.entries(dayMap).slice(0, 3).map(([d, v]) => ({ date: d, minStay: v.minStay, calPrice: v.calPrice, adjustedPrice: v.calPrice ? Math.round(parseFloat(v.calPrice) * priceRatio * 100) / 100 : null })),
+      pricing: { method: priceSource, sourceRoomId: linking?.sourceRoomId || null },
+      samplePrices,
       daysUpdated,
       dateRange: { startDate, endDate }
     });
