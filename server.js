@@ -63678,7 +63678,8 @@ app.get('/api/admin/debug/beds24-calendar/:connectionId/:roomId', async (req, re
         endDate,
         includeNumAvail: true,
         includePrices: true,
-        includeMinStay: true
+        includeMinStay: true,
+        includeMultiplier: true
       }
     });
     
