@@ -63717,7 +63717,7 @@ app.get('/api/admin/debug/beds24-calendar/:connectionId/:roomId', async (req, re
   }
 });
 
-// Admin: Resync a single room from Beds24 (with linked room min_stay fix)
+// Admin: Resync a single room from Beds24 (with offers-based pricing and own min_stay)
 app.post('/api/admin/debug/beds24-resync-room/:connectionId/:beds24RoomId', async (req, res) => {
   try {
     const { connectionId, beds24RoomId } = req.params;
@@ -63751,91 +63751,134 @@ app.post('/api/admin/debug/beds24-resync-room/:connectionId/:beds24RoomId', asyn
     const startDate = new Date().toISOString().split('T')[0];
     const endDate = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     
-    // Fetch this room's own calendar (will have min_stay but maybe no prices)
+    // Step 1: Fetch calendar for availability, min_stay, and raw prices
     const calResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/calendar', {
       headers: { 'token': accessToken },
       params: { roomId: parseInt(beds24RoomId), startDate, endDate, includeNumAvail: true, includePrices: true, includeMinStay: true }
     });
     const calendarData = calResponse.data.data?.[0]?.calendar || [];
-    const hasAnyPrices = calendarData.some(e => e.price1 || e.price2);
     
-    // Build own min_stay map
-    const ownMinStayMap = {};
+    // Build per-day map from calendar
+    const dayMap = {}; // dateStr -> { price, minStay, numAvail }
     for (const entry of calendarData) {
       const from = new Date(entry.from);
       const to = new Date(entry.to);
       for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
-        ownMinStayMap[d.toISOString().split('T')[0]] = entry.minStay || null;
+        const dateStr = d.toISOString().split('T')[0];
+        dayMap[dateStr] = {
+          calPrice: entry.price1 || entry.price2 || null,
+          minStay: entry.minStay || 1,
+          numAvail: entry.numAvail || 0
+        };
       }
     }
     
-    let daysUpdated = 0;
-    const linking = room.price_linking ? (typeof room.price_linking === 'string' ? JSON.parse(room.price_linking) : room.price_linking) : null;
+    // Step 2: Find available dates to sample the offers API for price ratio
+    // Need a contiguous block of available dates matching min_stay
+    const allDates = Object.keys(dayMap).sort();
+    let sampleArrival = null;
+    let sampleDeparture = null;
+    let sampleCalTotal = 0;
+    let sampleNights = 0;
     
-    if (!hasAnyPrices && linking) {
-      // Linked room: get prices from source, min_stay from own calendar
-      const sourceRoomResult = await pool.query(`
-        SELECT rt.gas_room_id FROM gas_sync_room_types rt
-        JOIN gas_sync_properties sp ON sp.id = rt.sync_property_id
-        WHERE sp.connection_id = $1 AND rt.external_id = $2
-      `, [connectionId, String(linking.sourceRoomId)]);
+    // Find first available block that meets min_stay
+    for (let i = 0; i < allDates.length - 3; i++) {
+      const date = allDates[i];
+      const day = dayMap[date];
+      if (day.numAvail <= 0 || !day.calPrice) continue;
       
-      const sourceGasRoomId = sourceRoomResult.rows[0]?.gas_room_id;
-      if (sourceGasRoomId) {
-        const sourcePrices = await pool.query(`
-          SELECT date, cm_price, min_stay FROM room_availability
-          WHERE room_id = $1 AND date >= $2 AND date <= $3 AND cm_price IS NOT NULL ORDER BY date
-        `, [sourceGasRoomId, startDate, endDate]);
-        
-        const multiplier = linking.offsetMultiplier || 1;
-        const offset = linking.offsetAmount || 0;
-        
-        for (const row of sourcePrices.rows) {
-          const dateStr = row.date.toISOString().split('T')[0];
-          const linkedPrice = (parseFloat(row.cm_price) * multiplier) + offset;
-          const minStay = ownMinStayMap[dateStr] || row.min_stay || 1;
-          
-          await pool.query(`
-            INSERT INTO room_availability (room_id, date, cm_price, direct_price, min_stay, cm_min_stay, source, updated_at)
-            VALUES ($1, $2, $3, $3, $4, $4, 'beds24-linked', NOW())
-            ON CONFLICT (room_id, date) DO UPDATE SET
-              cm_price = $3, direct_price = $3,
-              min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $4 END,
-              cm_min_stay = $4, source = 'beds24-linked', updated_at = NOW()
-          `, [room.gas_room_id, dateStr, linkedPrice, minStay]);
-          daysUpdated++;
+      const minStay = day.minStay || 4; // Use room's min_stay for the sample block
+      let validBlock = true;
+      let blockTotal = 0;
+      
+      for (let j = 0; j < minStay && (i + j) < allDates.length; j++) {
+        const blockDate = allDates[i + j];
+        const blockDay = dayMap[blockDate];
+        if (!blockDay || blockDay.numAvail <= 0 || !blockDay.calPrice) {
+          validBlock = false;
+          break;
         }
+        blockTotal += parseFloat(blockDay.calPrice);
+      }
+      
+      if (validBlock && blockTotal > 0) {
+        sampleArrival = date;
+        const depDate = new Date(date);
+        depDate.setDate(depDate.getDate() + minStay);
+        sampleDeparture = depDate.toISOString().split('T')[0];
+        sampleCalTotal = blockTotal;
+        sampleNights = minStay;
+        break;
+      }
+    }
+    
+    // Step 3: Call offers API for the sample block to get the ratio
+    let priceRatio = 1;
+    let offersTotal = null;
+    
+    if (sampleArrival && sampleDeparture) {
+      try {
+        const offerResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/offers', {
+          headers: { 'token': accessToken },
+          params: { roomId: parseInt(beds24RoomId), arrival: sampleArrival, departure: sampleDeparture, numAdults: 2 }
+        });
+        
+        const offerData = offerResponse.data.data?.[0];
+        if (offerData?.offers?.length > 0) {
+          // Use offer 1 first, then offer 2, etc.
+          const offer = offerData.offers.find(o => o.offerId === 1) || offerData.offers[0];
+          offersTotal = offer.price;
+          
+          if (offersTotal && sampleCalTotal > 0) {
+            priceRatio = offersTotal / sampleCalTotal;
+          }
+        }
+        
+        console.log(`[Resync] ${room.name}: offers=${offersTotal}, calendar=${sampleCalTotal}, ratio=${priceRatio.toFixed(4)}, sample=${sampleArrival} to ${sampleDeparture}`);
+        await new Promise(resolve => setTimeout(resolve, 2000)); // Rate limit
+      } catch (offerErr) {
+        console.log(`[Resync] ${room.name}: offers API failed: ${offerErr.message}, using ratio 1`);
       }
     } else {
-      // Direct room: use its own calendar data
-      for (const entry of calendarData) {
-        const from = new Date(entry.from);
-        const to = new Date(entry.to);
-        for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
-          const dateStr = d.toISOString().split('T')[0];
-          const price = entry.price1 || entry.price2 || null;
-          const minStay = entry.minStay || 1;
-          const numAvail = entry.numAvail || 0;
-          
-          await pool.query(`
-            INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
-            VALUES ($1, $2, $3, $3, $4, $5, $6, $6, 'beds24', NOW())
-            ON CONFLICT (room_id, date) DO UPDATE SET
-              cm_price = COALESCE($3, room_availability.cm_price), is_available = $4, is_blocked = $5,
-              min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $6 END,
-              cm_min_stay = $6, source = 'beds24', updated_at = NOW()
-          `, [room.gas_room_id, dateStr, price, numAvail > 0, numAvail === 0, minStay]);
-          daysUpdated++;
-        }
-      }
+      console.log(`[Resync] ${room.name}: no available dates found for offers sample, using ratio 1`);
+    }
+    
+    // Step 4: Write prices (calendar price × ratio), min_stay, and availability
+    let daysUpdated = 0;
+    
+    for (const [dateStr, day] of Object.entries(dayMap)) {
+      const calPrice = day.calPrice ? parseFloat(day.calPrice) : null;
+      const adjustedPrice = calPrice ? Math.round(calPrice * priceRatio * 100) / 100 : null;
+      const minStay = day.minStay || 1;
+      const isAvailable = day.numAvail > 0;
+      const isBlocked = day.numAvail === 0;
+      
+      await pool.query(`
+        INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
+        VALUES ($1, $2, $3, $3, $4, $5, $6, $6, 'beds24-offers', NOW())
+        ON CONFLICT (room_id, date) DO UPDATE SET
+          cm_price = COALESCE($3, room_availability.cm_price),
+          direct_price = COALESCE($3, room_availability.direct_price),
+          is_available = $4, is_blocked = $5,
+          min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $6 END,
+          cm_min_stay = $6, source = 'beds24-offers', updated_at = NOW()
+      `, [room.gas_room_id, dateStr, adjustedPrice, isAvailable, isBlocked, minStay]);
+      daysUpdated++;
     }
     
     res.json({
       success: true,
       room: { gas_id: room.gas_room_id, beds24_id: beds24RoomId, name: room.name },
-      linked: !!linking,
-      ownMinStayDays: Object.keys(ownMinStayMap).length,
-      sampleMinStay: Object.entries(ownMinStayMap).slice(0, 5),
+      pricing: {
+        method: offersTotal ? 'offers-ratio' : 'calendar-only',
+        sampleDates: sampleArrival ? `${sampleArrival} to ${sampleDeparture}` : null,
+        calendarTotal: sampleCalTotal,
+        offersTotal,
+        ratio: priceRatio,
+        sampleNights
+      },
+      ownMinStayDays: Object.keys(dayMap).length,
+      sampleMinStay: Object.entries(dayMap).slice(0, 3).map(([d, v]) => ({ date: d, minStay: v.minStay, calPrice: v.calPrice, adjustedPrice: v.calPrice ? Math.round(parseFloat(v.calPrice) * priceRatio * 100) / 100 : null })),
       daysUpdated,
       dateRange: { startDate, endDate }
     });
