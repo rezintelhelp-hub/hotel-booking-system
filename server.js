@@ -46301,63 +46301,75 @@ app.post('/api/partner/websites/:websiteId/upload', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Website not yet deployed' });
     }
     
-    // Upload to R2 (same as GAS Admin - consistent for both images and video)
-    const isVideo = detectedType.startsWith('video/');
-    const decoded = Buffer.from(cleanBase64, 'base64');
-    
-    if (isVideo) {
-      // Video files go to R2 directly (no processing needed)
-      const ext = file_name.split('.').pop().toLowerCase() || 'mp4';
-      const uniqueName = `video-${Date.now()}-${require('crypto').randomBytes(4).toString('hex')}.${ext}`;
-      const key = `website/${section || 'media'}/client-${website.account_id}/${uniqueName}`;
-      
-      try {
-        await r2Client.send(new PutObjectCommand({
-          Bucket: R2_BUCKET,
-          Key: key,
-          Body: decoded,
-          ContentType: detectedType
-        }));
-        
-        const publicUrl = `${process.env.R2_PUBLIC_URL || 'https://images.gas.travel'}/${key}`;
-        console.log(`[Upload] Video uploaded to R2: ${publicUrl}`);
-        
-        return res.json({
-          success: true,
-          message: 'Video uploaded',
-          url: publicUrl,
+    // Upload to WordPress media library
+    const wpApiKey = 'GAS_SECRET_KEY_2024!';
+    let uploadResponse;
+    try {
+      uploadResponse = await fetch(`${website.site_url}wp-json/developer-theme/v1/upload-media`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-GAS-API-Key': wpApiKey
+        },
+        body: JSON.stringify({
+          file_data: cleanBase64,  // Base64 encoded (no data URI prefix)
           file_name: file_name,
+          file_type: detectedType,
           section: section || null
-        });
-      } catch (r2Error) {
-        console.error('[Upload] R2 video upload failed:', r2Error.message);
-        return res.status(500).json({ success: false, error: 'Video upload failed', detail: r2Error.message });
-      }
-    } else {
-      // Image files go through processAndUploadImage (resizing + WebP conversion + R2)
-      try {
-        const results = await processAndUploadImage(
-          decoded,
-          `website/${section || 'general'}`,
-          website.account_id,
-          file_name
-        );
-        
-        console.log(`[Upload] Image uploaded to R2: ${results.large}`);
-        
-        return res.json({
-          success: true,
-          message: 'Image uploaded',
-          url: results.large,
-          urls: results,
-          file_name: file_name,
-          section: section || null
-        });
-      } catch (imgError) {
-        console.error('[Upload] R2 image upload failed:', imgError.message);
-        return res.status(500).json({ success: false, error: 'Image upload failed', detail: imgError.message });
-      }
+        })
+      });
+    } catch (fetchError) {
+      console.error('[Upload] WordPress fetch failed:', fetchError.message);
+      return res.status(502).json({ 
+        success: false, 
+        error: 'Could not connect to WordPress site',
+        detail: fetchError.message
+      });
     }
+    
+    // Handle non-JSON WordPress responses (e.g. 413 entity too large, nginx errors)
+    const contentType = uploadResponse.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      const rawText = await uploadResponse.text();
+      console.error(`[Upload] WordPress returned non-JSON (status ${uploadResponse.status}):`, rawText.substring(0, 500));
+      return res.status(502).json({ 
+        success: false, 
+        error: `WordPress returned HTTP ${uploadResponse.status}`,
+        detail: rawText.substring(0, 200)
+      });
+    }
+    
+    const uploadData = await uploadResponse.json();
+    
+    if (!uploadData.success) {
+      console.error('[Upload] WordPress upload failed:', JSON.stringify(uploadData));
+      
+      // Check for WordPress critical error (PHP memory/timeout)
+      const detail = uploadData.message || uploadData.data || null;
+      const detailStr = typeof detail === 'string' ? detail : JSON.stringify(detail);
+      const isMemoryError = detailStr && (detailStr.includes('critical error') || detailStr.includes('memory') || detailStr.includes('timeout'));
+      
+      return res.status(500).json({ 
+        success: false, 
+        error: isMemoryError 
+          ? `Upload failed: file too large for WordPress to process (${fileSizeMB}MB). Try a smaller file or compress before uploading.`
+          : (uploadData.error || 'Upload failed'),
+        wp_status: uploadResponse.status,
+        file_size_mb: parseFloat(fileSizeMB),
+        detail: detailStr
+      });
+    }
+    
+    console.log(`[Upload] Success: ${uploadData.url} (media_id: ${uploadData.media_id})`);
+    
+    res.json({
+      success: true,
+      message: 'Media uploaded',
+      url: uploadData.url,
+      media_id: uploadData.media_id,
+      file_name: file_name,
+      section: section || null
+    });
     
   } catch (error) {
     console.error('Partner API upload error:', error);
