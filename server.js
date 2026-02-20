@@ -46274,6 +46274,12 @@ app.post('/api/partner/websites/:websiteId/upload', async (req, res) => {
       return res.status(400).json({ success: false, error: 'file_data appears to be empty or truncated' });
     }
     
+    // Calculate actual file size from base64 (base64 is ~33% larger than original)
+    const fileSizeBytes = Math.ceil(cleanBase64.length * 3 / 4);
+    const fileSizeMB = (fileSizeBytes / (1024 * 1024)).toFixed(2);
+    const MAX_IMAGE_SIZE_MB = 10;
+    const MAX_VIDEO_SIZE_MB = 50;
+    
     // Detect file_type from data URI prefix or base64 header if not provided
     let detectedType = file_type || 'image/jpeg';
     if (!file_type && file_data.startsWith('data:')) {
@@ -46281,9 +46287,33 @@ app.post('/api/partner/websites/:websiteId/upload', async (req, res) => {
       if (match) detectedType = match[1];
     }
     
+    // Determine if video or image
+    const isVideo = detectedType.startsWith('video/');
+    const maxSizeMB = isVideo ? MAX_VIDEO_SIZE_MB : MAX_IMAGE_SIZE_MB;
+    
+    // File size check with clear feedback
+    if (parseFloat(fileSizeMB) > maxSizeMB) {
+      console.warn(`[Upload] File too large: ${fileSizeMB}MB (max ${maxSizeMB}MB for ${isVideo ? 'video' : 'image'})`);
+      return res.status(413).json({ 
+        success: false, 
+        error: `File too large: ${fileSizeMB}MB. Maximum allowed is ${maxSizeMB}MB for ${isVideo ? 'video' : 'image'} files.`,
+        file_size_mb: parseFloat(fileSizeMB),
+        max_size_mb: maxSizeMB,
+        file_type: detectedType,
+        suggestion: isVideo && parseFloat(fileSizeMB) > MAX_VIDEO_SIZE_MB 
+          ? 'For large videos, consider compressing before upload or using a lower resolution.' 
+          : 'Try compressing the image or reducing its dimensions.'
+      });
+    }
+    
+    // Warn if approaching limit
+    const warnThreshold = maxSizeMB * 0.8;
+    if (parseFloat(fileSizeMB) > warnThreshold) {
+      console.warn(`[Upload] Large file approaching limit: ${fileSizeMB}MB / ${maxSizeMB}MB`);
+    }
+    
     // Log upload attempt details
-    const base64SizeKB = Math.round(cleanBase64.length / 1024);
-    console.log(`[Upload] file_name=${file_name}, type=${detectedType}, section=${section || 'none'}, base64_size=${base64SizeKB}KB`);
+    console.log(`[Upload] file_name=${file_name}, type=${detectedType}, section=${section || 'none'}, size=${fileSizeMB}MB`);
     
     // Verify website belongs to partner
     const wResult = await pool.query(`
@@ -46345,11 +46375,20 @@ app.post('/api/partner/websites/:websiteId/upload', async (req, res) => {
     
     if (!uploadData.success) {
       console.error('[Upload] WordPress upload failed:', JSON.stringify(uploadData));
+      
+      // Check for WordPress critical error (PHP memory/timeout)
+      const detail = uploadData.message || uploadData.data || null;
+      const detailStr = typeof detail === 'string' ? detail : JSON.stringify(detail);
+      const isMemoryError = detailStr && (detailStr.includes('critical error') || detailStr.includes('memory') || detailStr.includes('timeout'));
+      
       return res.status(500).json({ 
         success: false, 
-        error: uploadData.error || 'Upload failed',
+        error: isMemoryError 
+          ? `Upload failed: file too large for WordPress to process (${fileSizeMB}MB). Try a smaller file or compress before uploading.`
+          : (uploadData.error || 'Upload failed'),
         wp_status: uploadResponse.status,
-        detail: uploadData.message || uploadData.data || null
+        file_size_mb: parseFloat(fileSizeMB),
+        detail: detailStr
       });
     }
     
