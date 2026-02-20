@@ -6895,6 +6895,13 @@
                             <small class="form-hint">Recommended: PNG with transparent background, max 400x150px</small>
                         </div>
                         <div class="form-group">
+                            <label class="form-label">Logo Size: <span id="wb-header-logo-size-value">40</span>px</label>
+                            <input type="range" id="wb-header-logo-size" min="20" max="120" value="40" step="2" style="width: 100%;" oninput="document.getElementById('wb-header-logo-size-value').textContent = this.value">
+                            <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: #94a3b8; margin-top: 2px;">
+                                <span>20px</span><span>Small</span><span>Medium</span><span>Large</span><span>120px</span>
+                            </div>
+                        </div>
+                        <div class="form-group">
                             <label class="form-label">Site Name (if no logo)</label>
                             <input type="text" class="form-input" id="wb-header-site-name" placeholder="e.g., The Grand Hotel">
                         </div>
@@ -20950,6 +20957,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                     // Handle reviews app toggle
                     if (section === 'reviews') {
                         toggleReviewsAppFields();
+                    }
+                    
+                    // Sync range slider labels after load
+                    if (section === 'header') {
+                        const logoSizeEl = document.getElementById('wb-header-logo-size');
+                        const logoSizeLabel = document.getElementById('wb-header-logo-size-value');
+                        if (logoSizeEl && logoSizeLabel) logoSizeLabel.textContent = logoSizeEl.value;
                     }
                     
                     // Load FAQs if present in settings
