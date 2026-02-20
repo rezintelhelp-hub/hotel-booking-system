@@ -5990,6 +5990,49 @@
                                             </div>
                                         </div>
                                     </div>
+                                    <h4 style="margin: 1.5rem 0 0.75rem; color: #334155; font-size: 0.95rem; border-top: 1px solid #e2e8f0; padding-top: 1rem;">🔍 Search / Filter Bar</h4>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                                        <div class="form-group">
+                                            <label class="form-label">Filter Bar Background</label>
+                                            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                                <input type="color" id="wb-page-rooms-filter-bg-color" value="#f8fafc" style="width: 50px; height: 36px; border: 1px solid #e2e8f0; border-radius: 6px; cursor: pointer;">
+                                                <input type="text" class="form-input" id="wb-page-rooms-filter-bg" value="#f8fafc" style="flex: 1;" oninput="document.getElementById('wb-page-rooms-filter-bg-color').value = this.value">
+                                            </div>
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label">Filter Bar Text Color</label>
+                                            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                                <input type="color" id="wb-page-rooms-filter-text-color" value="#333333" style="width: 50px; height: 36px; border: 1px solid #e2e8f0; border-radius: 6px; cursor: pointer;">
+                                                <input type="text" class="form-input" id="wb-page-rooms-filter-text" value="#333333" style="flex: 1;" oninput="document.getElementById('wb-page-rooms-filter-text-color').value = this.value">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 0.75rem;">
+                                        <div class="form-group">
+                                            <label class="toggle-switch" style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer;">
+                                                <input type="checkbox" id="wb-page-rooms-show-filters" checked style="width: 18px; height: 18px;">
+                                                <span>Show Filter Bar</span>
+                                            </label>
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="toggle-switch" style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer;">
+                                                <input type="checkbox" id="wb-page-rooms-show-property-filter" checked style="width: 18px; height: 18px;">
+                                                <span>Show Property Filter</span>
+                                            </label>
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="toggle-switch" style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer;">
+                                                <input type="checkbox" id="wb-page-rooms-show-date-filters" checked style="width: 18px; height: 18px;">
+                                                <span>Show Date Filters</span>
+                                            </label>
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="toggle-switch" style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer;">
+                                                <input type="checkbox" id="wb-page-rooms-show-guest-filter" checked style="width: 18px; height: 18px;">
+                                                <span>Show Guest Filter</span>
+                                            </label>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                             <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #10b981; border-radius: 12px; overflow: hidden;">
