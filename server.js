@@ -42159,6 +42159,160 @@ async function sendPartnerBookingWebhook(bookingId, eventType = 'booking.created
   }
 }
 
+// ========== WEBHOOK DIAGNOSTICS & TEST ==========
+// GET /api/admin/webhook-diagnostics - Check webhook configuration for all partners
+app.get('/api/admin/webhook-diagnostics', async (req, res) => {
+  try {
+    // 1. Check all partner accounts with webhook config
+    const partners = await pool.query(`
+      SELECT a.id, a.name, a.booking_webhook_url, a.webhook_secret,
+             (SELECT COUNT(*) FROM partner_tenant_mapping ptm WHERE ptm.partner_account_id = a.id) as tenant_count
+      FROM accounts a
+      WHERE a.booking_webhook_url IS NOT NULL AND a.booking_webhook_url != ''
+    `);
+
+    // 2. Check all tenant mappings
+    const mappings = await pool.query(`
+      SELECT ptm.*, 
+             pa.name as partner_name, pa.booking_webhook_url,
+             ga.name as tenant_name
+      FROM partner_tenant_mapping ptm
+      JOIN accounts pa ON ptm.partner_account_id = pa.id
+      JOIN accounts ga ON ptm.gas_account_id = ga.id
+    `);
+
+    // 3. Check accounts that HAVE mappings but NO webhook URL
+    const missingWebhooks = await pool.query(`
+      SELECT DISTINCT pa.id, pa.name, pa.booking_webhook_url, pa.webhook_secret
+      FROM partner_tenant_mapping ptm
+      JOIN accounts pa ON ptm.partner_account_id = pa.id
+      WHERE pa.booking_webhook_url IS NULL OR pa.booking_webhook_url = ''
+    `);
+
+    // 4. Recent webhook logs
+    const logs = await pool.query(`
+      SELECT * FROM webhook_logs ORDER BY created_at DESC LIMIT 20
+    `).catch(() => ({ rows: [] }));
+
+    // 5. Recent bookings and their webhook eligibility
+    const recentBookings = await pool.query(`
+      SELECT b.id, b.guest_first_name, b.guest_last_name, b.created_at, b.status,
+             p.name as property_name, p.account_id,
+             ptm.partner_account_id, ptm.external_tenant_id,
+             pa.name as partner_name, pa.booking_webhook_url
+      FROM bookings b
+      JOIN properties p ON b.property_id = p.id
+      LEFT JOIN partner_tenant_mapping ptm ON p.account_id = ptm.gas_account_id
+      LEFT JOIN accounts pa ON ptm.partner_account_id = pa.id
+      ORDER BY b.created_at DESC
+      LIMIT 10
+    `);
+
+    res.json({
+      success: true,
+      diagnostics: {
+        partners_with_webhooks: partners.rows,
+        tenant_mappings: mappings.rows,
+        partners_missing_webhook_url: missingWebhooks.rows,
+        recent_webhook_logs: logs.rows,
+        recent_bookings_webhook_status: recentBookings.rows.map(b => ({
+          booking_id: b.id,
+          guest: `${b.guest_first_name} ${b.guest_last_name}`,
+          property: b.property_name,
+          account_id: b.account_id,
+          partner: b.partner_name || 'NO PARTNER MAPPED',
+          webhook_url: b.booking_webhook_url || 'NOT SET',
+          would_fire: !!(b.partner_account_id && b.booking_webhook_url),
+          created: b.created_at
+        }))
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/admin/webhook-test/:bookingId - Fire a test webhook for an existing booking
+app.post('/api/admin/webhook-test/:bookingId', async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    console.log(`[Webhook Test] Manually firing webhook for booking ${bookingId}`);
+    const result = await sendPartnerBookingWebhook(parseInt(bookingId), 'booking.created');
+    res.json({ success: true, booking_id: bookingId, webhook_result: result });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/admin/webhook-test-ping/:accountId - Send a test ping to a partner's webhook URL
+app.post('/api/admin/webhook-test-ping/:accountId', async (req, res) => {
+  try {
+    const { accountId } = req.params;
+    const crypto = require('crypto');
+    const axios = require('axios');
+
+    const account = await pool.query(
+      'SELECT id, name, booking_webhook_url, webhook_secret FROM accounts WHERE id = $1',
+      [accountId]
+    );
+
+    if (account.rows.length === 0) {
+      return res.json({ success: false, error: 'Account not found' });
+    }
+
+    const a = account.rows[0];
+    if (!a.booking_webhook_url) {
+      return res.json({ success: false, error: 'No webhook URL configured', account: { id: a.id, name: a.name } });
+    }
+
+    const timestamp = new Date().toISOString();
+    const payload = {
+      event: 'webhook.test',
+      timestamp: timestamp,
+      data: {
+        message: 'This is a test ping from GAS webhook diagnostics',
+        partner_account_id: a.id,
+        partner_name: a.name
+      }
+    };
+
+    const signature = crypto
+      .createHmac('sha256', a.webhook_secret || 'no-secret')
+      .update(JSON.stringify(payload))
+      .digest('hex');
+
+    const response = await axios.post(a.booking_webhook_url, payload, {
+      headers: {
+        'Content-Type': 'application/json',
+        'X-GAS-Signature': 'sha256=' + signature,
+        'X-GAS-Timestamp': timestamp,
+        'X-GAS-Event': 'webhook.test',
+        'User-Agent': 'GAS-Webhook/1.0'
+      },
+      timeout: 10000
+    });
+
+    res.json({
+      success: true,
+      ping_result: {
+        url: a.booking_webhook_url,
+        status: response.status,
+        response_data: response.data
+      }
+    });
+
+  } catch (error) {
+    res.json({
+      success: false,
+      error: error.message,
+      response_status: error.response?.status,
+      response_data: error.response?.data
+    });
+  }
+});
+
+// ========== END WEBHOOK DIAGNOSTICS ==========
+
 // Migration: Create partner_tenant_mapping table and partner columns
 app.post('/api/admin/migrate-partner-tenant-mapping', async (req, res) => {
   try {
