@@ -6908,30 +6908,6 @@
                             <label class="form-label">Site Name (if no logo)</label>
                             <input type="text" class="form-input" id="wb-header-site-name" placeholder="e.g., The Grand Hotel">
                         </div>
-                        <div class="form-group">
-                            <label class="form-label">Tagline <span style="font-size: 0.75rem; color: #8b5cf6;">🌐 Multilingual</span></label>
-                            <div class="translation-field-wrapper" data-translation-group="wb-header-tagline">
-                                <div class="translation-tabs">
-                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-header-tagline', 'en')"><span class="flag">🇬🇧</span>EN</button>
-                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-header-tagline', 'fr')"><span class="flag">🇫🇷</span>FR</button>
-                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-header-tagline', 'es')"><span class="flag">🇪🇸</span>ES</button>
-                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-header-tagline', 'nl')"><span class="flag">🇳🇱</span>NL</button>
-                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-header-tagline')" title="Auto-translate from English">✨ Translate</button>
-                                </div>
-                                <div class="translation-input-group">
-                                    <input type="text" class="form-input translation-input active" id="wb-header-tagline-en" data-lang="en" placeholder="e.g., Luxury Accommodation Since 1985">
-                                    <input type="text" class="form-input translation-input" id="wb-header-tagline-fr" data-lang="fr" placeholder="e.g., Hébergement de Luxe Depuis 1985">
-                                    <input type="text" class="form-input translation-input" id="wb-header-tagline-es" data-lang="es" placeholder="e.g., Alojamiento de Lujo Desde 1985">
-                                    <input type="text" class="form-input translation-input" id="wb-header-tagline-nl" data-lang="nl" placeholder="e.g., Luxe Accommodatie Sinds 1985">
-                                </div>
-                                <div class="translation-status" title="Translation status">
-                                    <span class="translation-status-dot empty" title="English"></span>
-                                    <span class="translation-status-dot empty" title="French"></span>
-                                    <span class="translation-status-dot empty" title="Spanish"></span>
-                                    <span class="translation-status-dot empty" title="Dutch"></span>
-                                </div>
-                            </div>
-                        </div>
                     </div>
                 </div>
 
@@ -7070,14 +7046,48 @@
                         </div>
                         <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-top: 1rem;">
                             <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
-                                <input type="checkbox" id="wb-header-transparent" checked> Transparent over Hero
+                                <input type="checkbox" id="wb-header-transparent" checked onchange="document.getElementById('wb-header-transparent-options').style.display = this.checked ? 'block' : 'none'"> Transparent over Hero
                             </label>
                             <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
                                 <input type="checkbox" id="wb-header-sticky" checked> Sticky Header
                             </label>
                             <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
-                                <input type="checkbox" id="wb-header-border"> Show Bottom Border
+                                <input type="checkbox" id="wb-header-border" onchange="document.getElementById('wb-header-border-options').style.display = this.checked ? 'block' : 'none'"> Show Bottom Border
                             </label>
+                        </div>
+                        
+                        <!-- Transparent header options -->
+                        <div id="wb-header-transparent-options" style="margin-top: 1rem; padding: 1rem; background: #f8fafc; border-radius: 8px;">
+                            <label class="form-label">Header Overlay Opacity: <span id="wb-header-transparent-opacity-value">35</span>%</label>
+                            <input type="range" id="wb-header-transparent-opacity" min="0" max="80" value="35" step="5" style="width: 100%;" oninput="document.getElementById('wb-header-transparent-opacity-value').textContent = this.value">
+                            <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: #94a3b8; margin-top: 2px;">
+                                <span>Fully clear</span><span>Light tint</span><span>Dark overlay</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Border options -->
+                        <div id="wb-header-border-options" style="display: none; margin-top: 1rem; padding: 1rem; background: #f8fafc; border-radius: 8px;">
+                            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label class="form-label">Border Color</label>
+                                    <div style="display: flex; gap: 8px; align-items: center;">
+                                        <input type="color" id="wb-header-border-style-color-picker" value="#e2e8f0" style="width: 40px; height: 32px; border: none; cursor: pointer;" onchange="document.getElementById('wb-header-border-style-color').value = this.value">
+                                        <input type="text" class="form-input" id="wb-header-border-style-color" value="#e2e8f0" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-header-border-style-color-picker')">
+                                    </div>
+                                </div>
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label class="form-label">Border Width: <span id="wb-header-border-width-value">1</span>px</label>
+                                    <input type="range" id="wb-header-border-width" min="1" max="5" value="1" step="1" style="width: 100%;" oninput="document.getElementById('wb-header-border-width-value').textContent = this.value">
+                                </div>
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label class="form-label">Border Style</label>
+                                    <select class="form-select" id="wb-header-border-style-type" style="padding: 6px;">
+                                        <option value="solid">Solid</option>
+                                        <option value="dashed">Dashed</option>
+                                        <option value="dotted">Dotted</option>
+                                    </select>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -20967,6 +20977,30 @@ const promo = await fetch('/api/v1/offers/validate', {
                         const logoSizeEl = document.getElementById('wb-header-logo-size');
                         const logoSizeLabel = document.getElementById('wb-header-logo-size-value');
                         if (logoSizeEl && logoSizeLabel) logoSizeLabel.textContent = logoSizeEl.value;
+                        
+                        // Sync transparent opacity slider
+                        const opacityEl = document.getElementById('wb-header-transparent-opacity');
+                        const opacityLabel = document.getElementById('wb-header-transparent-opacity-value');
+                        if (opacityEl && opacityLabel) opacityLabel.textContent = opacityEl.value;
+                        
+                        // Sync border width slider
+                        const borderWidthEl = document.getElementById('wb-header-border-width');
+                        const borderWidthLabel = document.getElementById('wb-header-border-width-value');
+                        if (borderWidthEl && borderWidthLabel) borderWidthLabel.textContent = borderWidthEl.value;
+                        
+                        // Sync border color picker
+                        const borderColorEl = document.getElementById('wb-header-border-style-color');
+                        const borderColorPicker = document.getElementById('wb-header-border-style-color-picker');
+                        if (borderColorEl && borderColorPicker) borderColorPicker.value = borderColorEl.value || '#e2e8f0';
+                        
+                        // Show/hide option panels based on checkbox state
+                        const transparentEl = document.getElementById('wb-header-transparent');
+                        const transparentOpts = document.getElementById('wb-header-transparent-options');
+                        if (transparentEl && transparentOpts) transparentOpts.style.display = transparentEl.checked ? 'block' : 'none';
+                        
+                        const borderEl = document.getElementById('wb-header-border');
+                        const borderOpts = document.getElementById('wb-header-border-options');
+                        if (borderEl && borderOpts) borderOpts.style.display = borderEl.checked ? 'block' : 'none';
                         
                         // Update logo preview and remove button
                         const logoUrl = data.settings['logo-image-url'];
