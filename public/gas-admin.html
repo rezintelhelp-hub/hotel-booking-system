@@ -6904,6 +6904,18 @@
                                 <span>20px</span><span>Small</span><span>Medium</span><span>Large</span><span>120px</span>
                             </div>
                         </div>
+                        <div class="form-group" id="wb-header-logo-light-group" style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #e2e8f0;">
+                            <label class="form-label">Logo (Light Version) <small style="color: #64748b;">— for transparent header over hero</small></label>
+                            <div id="wb-header-logo-light-image-preview" style="width: 200px; height: 80px; background: #1e293b; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; border: 2px dashed #475569; background-size: contain; background-position: center; background-repeat: no-repeat;">
+                                <span style="color: #94a3b8;">No light logo</span>
+                            </div>
+                            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                <input type="file" id="wb-header-logo-light-image" accept="image/*" onchange="previewWebsiteImage('header-logo-light')">
+                                <button type="button" id="wb-header-logo-light-remove-btn" class="btn btn-small" style="font-size: 0.75rem; background: #ef4444; border-color: #ef4444; display: none; white-space: nowrap;" onclick="removeHeaderLogoLight()">🗑️ Remove</button>
+                            </div>
+                            <input type="hidden" id="wb-header-logo-light-image-url">
+                            <small class="form-hint">White or light-colored version of your logo for use over dark hero images</small>
+                        </div>
                         <div class="form-group">
                             <label class="form-label">Site Name (if no logo)</label>
                             <input type="text" class="form-input" id="wb-header-site-name" placeholder="e.g., The Grand Hotel">
@@ -7046,7 +7058,7 @@
                         </div>
                         <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-top: 1rem;">
                             <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
-                                <input type="checkbox" id="wb-header-transparent" checked onchange="document.getElementById('wb-header-transparent-options').style.display = this.checked ? 'block' : 'none'"> Transparent over Hero
+                                <input type="checkbox" id="wb-header-transparent" checked onchange="document.getElementById('wb-header-transparent-options').style.display = this.checked ? 'block' : 'none'; document.getElementById('wb-header-logo-light-group').style.display = this.checked ? 'block' : 'none'"> Transparent over Hero
                             </label>
                             <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
                                 <input type="checkbox" id="wb-header-sticky" checked> Sticky Header
@@ -21046,6 +21058,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                         const transparentEl = document.getElementById('wb-header-transparent');
                         const transparentOpts = document.getElementById('wb-header-transparent-options');
                         if (transparentEl && transparentOpts) transparentOpts.style.display = transparentEl.checked ? 'block' : 'none';
+                        const logoLightGroup = document.getElementById('wb-header-logo-light-group');
+                        if (transparentEl && logoLightGroup) logoLightGroup.style.display = transparentEl.checked ? 'block' : 'none';
                         
                         const borderEl = document.getElementById('wb-header-border');
                         const borderOpts = document.getElementById('wb-header-border-options');
@@ -21061,6 +21075,18 @@ const promo = await fetch('/api/v1/offers/validate', {
                             if (logoRemoveBtn) logoRemoveBtn.style.display = 'inline-flex';
                         } else {
                             if (logoRemoveBtn) logoRemoveBtn.style.display = 'none';
+                        }
+                        
+                        // Update light logo preview and remove button
+                        const logoLightUrl = data.settings['logo-light-image-url'];
+                        const logoLightPreview = document.getElementById('wb-header-logo-light-image-preview');
+                        const logoLightRemoveBtn = document.getElementById('wb-header-logo-light-remove-btn');
+                        if (logoLightUrl && logoLightPreview) {
+                            logoLightPreview.style.backgroundImage = `url(${logoLightUrl})`;
+                            logoLightPreview.innerHTML = '';
+                            if (logoLightRemoveBtn) logoLightRemoveBtn.style.display = 'inline-flex';
+                        } else {
+                            if (logoLightRemoveBtn) logoLightRemoveBtn.style.display = 'none';
                         }
                     }
                     
@@ -22117,6 +22143,21 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (removeBtn) removeBtn.style.display = 'none';
         }
         
+        function removeHeaderLogoLight() {
+            if (!confirm('Remove light logo?')) return;
+            const preview = document.getElementById('wb-header-logo-light-image-preview');
+            const urlField = document.getElementById('wb-header-logo-light-image-url');
+            const fileInput = document.getElementById('wb-header-logo-light-image');
+            const removeBtn = document.getElementById('wb-header-logo-light-remove-btn');
+            if (preview) {
+                preview.style.backgroundImage = '';
+                preview.innerHTML = '<span style="color: #94a3b8;">No light logo</span>';
+            }
+            if (urlField) urlField.value = '';
+            if (fileInput) fileInput.value = '';
+            if (removeBtn) removeBtn.style.display = 'none';
+        }
+        
         async function previewWebsiteImage(section) {
             const input = document.getElementById(`wb-${section}-image`);
             const preview = document.getElementById(`wb-${section}-image-preview`);
@@ -22167,6 +22208,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                         // Show remove button for logo uploads
                         if (section === 'header-logo') {
                             const removeBtn = document.getElementById('wb-header-logo-remove-btn');
+                            if (removeBtn) removeBtn.style.display = 'inline-flex';
+                        }
+                        if (section === 'header-logo-light') {
+                            const removeBtn = document.getElementById('wb-header-logo-light-remove-btn');
                             if (removeBtn) removeBtn.style.display = 'inline-flex';
                         }
                     } else {
