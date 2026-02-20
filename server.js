@@ -21099,11 +21099,52 @@ async function pushSettingsToWordPress(siteUrl, section, settings) {
       'btn-radius': 'btn_radius'
     };
     
+    // Translation-aware key mapping: keys like 'headline-en' should map using base key 'headline'
+    // and become 'title-en' (i.e. mapped base + language suffix preserved)
+    const langSuffixes = ['-en', '-fr', '-es', '-nl', '-de', '-it', '-pt'];
+    
+    // Critical fields that must have defaults if empty (per section)
+    const sectionDefaults = {
+      header: {
+        'cta_text': 'Book Now',
+        'cta_text-en': 'Book Now',
+        'cta_bg': '#2563eb',
+        'cta_text_color': '#ffffff'
+      }
+    };
+    const defaults = sectionDefaults[section] || {};
+    
     // Transform settings keys
     const transformedSettings = {};
     for (const [key, value] of Object.entries(settings)) {
-      const wpKey = keyMapping[key] || key;
+      // Check if key has a language suffix
+      let baseKey = key;
+      let langSuffix = '';
+      for (const suffix of langSuffixes) {
+        if (key.endsWith(suffix)) {
+          baseKey = key.slice(0, -suffix.length);
+          langSuffix = suffix;
+          break;
+        }
+      }
+      
+      // Map the base key, then re-append language suffix
+      const mappedBase = keyMapping[baseKey] || baseKey;
+      const wpKey = mappedBase + langSuffix;
+      
+      // Skip empty values - never overwrite WordPress with blanks
+      if (value === '' || value === null || value === undefined) {
+        continue;
+      }
+      
       transformedSettings[wpKey] = value;
+    }
+    
+    // Apply defaults for critical fields that are still missing
+    for (const [defKey, defValue] of Object.entries(defaults)) {
+      if (!transformedSettings[defKey] || transformedSettings[defKey] === '') {
+        transformedSettings[defKey] = defValue;
+      }
     }
     
     // Log slider-specific settings for debugging
@@ -21154,6 +21195,73 @@ async function pushSettingsToWordPress(siteUrl, section, settings) {
     return { success: false, error: error.message };
   }
 }
+
+// Bulk fix: re-push header CTA button to all deployed sites
+app.post('/api/admin/bulk-fix-header-cta', async (req, res) => {
+  try {
+    // Get all deployed sites with URLs
+    const sitesResult = await pool.query(`
+      SELECT ds.id, ds.site_url, ds.site_name, ds.template, ds.account_id
+      FROM deployed_sites ds
+      WHERE ds.status != 'deleted' AND ds.site_url IS NOT NULL AND ds.site_url != ''
+      ORDER BY ds.id
+    `);
+    
+    const results = [];
+    
+    for (const site of sitesResult.rows) {
+      try {
+        // Check if this site has saved header settings with CTA text
+        const settingsResult = await pool.query(
+          `SELECT settings FROM website_settings WHERE deployed_site_id = $1 AND section = 'header'`,
+          [site.id]
+        );
+        
+        const savedSettings = settingsResult.rows[0]?.settings || {};
+        const ctaText = savedSettings['cta-button-text-en'] || savedSettings['cta-button-text'] || 'Book Now';
+        const ctaBg = savedSettings['cta-bg'] || (site.template === 'developer-dark' ? '#6366f1' : '#2563eb');
+        const ctaTextColor = savedSettings['cta-text-color'] || '#ffffff';
+        
+        // Push just the CTA settings to WordPress
+        const pushResult = await pushSettingsToWordPress(site.site_url, 'header', {
+          'cta-button-text-en': ctaText,
+          'cta-bg': ctaBg,
+          'cta-text-color': ctaTextColor
+        });
+        
+        results.push({
+          id: site.id,
+          name: site.site_name,
+          url: site.site_url,
+          cta_text: ctaText,
+          success: pushResult?.success || false,
+          error: pushResult?.error || null
+        });
+        
+        console.log(`CTA fix for ${site.site_name}: ${pushResult?.success ? '✓' : '✗'} (text: "${ctaText}")`);
+      } catch (siteError) {
+        results.push({
+          id: site.id,
+          name: site.site_name,
+          url: site.site_url,
+          success: false,
+          error: siteError.message
+        });
+      }
+    }
+    
+    const successCount = results.filter(r => r.success).length;
+    res.json({
+      success: true,
+      message: `Fixed ${successCount}/${results.length} sites`,
+      results
+    });
+    
+  } catch (error) {
+    console.error('Bulk CTA fix error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
 
 // Helper function to create default WordPress menu after deployment
 async function createDefaultWordPressMenu(siteUrl) {
@@ -42006,7 +42114,20 @@ app.get('/api/admin/partner-check', async (req, res) => {
       SELECT id, name, code, api_key, is_active, permissions, created_at
       FROM partners ORDER BY id
     `);
-    res.json({ success: true, partners: partners.rows });
+    const elevateConns = await pool.query(`
+      SELECT id, account_id, adapter_code, credentials->>'apiKey' as api_key
+      FROM gas_sync_connections WHERE adapter_code = 'elevate'
+    `);
+    const propOwner = req.query.property_id ? await pool.query(
+      'SELECT p.id, p.name, p.account_id, a.name as account_name FROM properties p JOIN accounts a ON p.account_id = a.id WHERE p.id = $1',
+      [req.query.property_id]
+    ) : null;
+    res.json({ 
+      success: true, 
+      partners: partners.rows,
+      elevate_connections: elevateConns.rows,
+      property_owner: propOwner ? propOwner.rows[0] : null
+    });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -42207,17 +42328,20 @@ app.get('/api/partner/properties/:property_id/checkout', async (req, res) => {
 
       if (!authorized && accountId) {
         const isValid = await validateElevateApiKey(accountId, apiKey);
+        console.log(`[Checkout Auth] Elevate key check: accountId=${accountId}, valid=${isValid}`);
         if (isValid) {
           const propCheck = await pool.query(
             'SELECT id, account_id FROM properties WHERE id = $1 AND account_id = $2',
             [property_id, accountId]
           );
+          console.log(`[Checkout Auth] Property ${property_id} owner check: found=${propCheck.rows.length}, expected account=${accountId}, actual=${propCheck.rows[0]?.account_id}`);
           if (propCheck.rows.length > 0) { authorized = true; ownerAccountId = propCheck.rows[0].account_id; }
         }
       }
 
       if (!authorized) {
         const acctCheck = await pool.query('SELECT id FROM accounts WHERE api_key = $1', [apiKey]);
+        console.log(`[Checkout Auth] Account api_key check: found=${acctCheck.rows.length}`);
         if (acctCheck.rows.length > 0) {
           const propCheck = await pool.query(
             'SELECT id, account_id FROM properties WHERE id = $1 AND account_id = $2',
