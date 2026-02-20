@@ -42110,9 +42110,9 @@ async function sendPartnerBookingWebhook(bookingId, eventType = 'booking.created
     let lastError = null;
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
-        console.log(`[Webhook] Sending ${eventType} to ${booking.booking_webhook_url} (attempt ${attempt})`);
+        console.log(`[Webhook] Sending ${eventType} to ${booking.booking_webhook_url.trim()} (attempt ${attempt})`);
         
-        const response = await axios.post(booking.booking_webhook_url, payload, {
+        const response = await axios.post(booking.booking_webhook_url.trim(), payload, {
           headers: {
             'Content-Type': 'application/json',
             'X-GAS-Signature': 'sha256=' + signature,
