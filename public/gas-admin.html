@@ -6890,7 +6890,10 @@
                             <div id="wb-header-logo-image-preview" style="width: 200px; height: 80px; background: #f1f5f9; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; border: 2px dashed #e2e8f0; background-size: contain; background-position: center; background-repeat: no-repeat;">
                                 <span style="color: #94a3b8;">No logo uploaded</span>
                             </div>
-                            <input type="file" id="wb-header-logo-image" accept="image/*" onchange="previewWebsiteImage('header-logo')">
+                            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                <input type="file" id="wb-header-logo-image" accept="image/*" onchange="previewWebsiteImage('header-logo')">
+                                <button type="button" id="wb-header-logo-remove-btn" class="btn btn-small" style="font-size: 0.75rem; background: #ef4444; border-color: #ef4444; display: none; white-space: nowrap;" onclick="removeHeaderLogo()">🗑️ Remove</button>
+                            </div>
                             <input type="hidden" id="wb-header-logo-image-url">
                             <small class="form-hint">Recommended: PNG with transparent background, max 400x150px</small>
                         </div>
@@ -20964,6 +20967,18 @@ const promo = await fetch('/api/v1/offers/validate', {
                         const logoSizeEl = document.getElementById('wb-header-logo-size');
                         const logoSizeLabel = document.getElementById('wb-header-logo-size-value');
                         if (logoSizeEl && logoSizeLabel) logoSizeLabel.textContent = logoSizeEl.value;
+                        
+                        // Update logo preview and remove button
+                        const logoUrl = data.settings['logo-image-url'];
+                        const logoPreview = document.getElementById('wb-header-logo-image-preview');
+                        const logoRemoveBtn = document.getElementById('wb-header-logo-remove-btn');
+                        if (logoUrl && logoPreview) {
+                            logoPreview.style.backgroundImage = `url(${logoUrl})`;
+                            logoPreview.innerHTML = '';
+                            if (logoRemoveBtn) logoRemoveBtn.style.display = 'inline-flex';
+                        } else {
+                            if (logoRemoveBtn) logoRemoveBtn.style.display = 'none';
+                        }
                     }
                     
                     // Load FAQs if present in settings
@@ -21975,6 +21990,21 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
         
+        function removeHeaderLogo() {
+            if (!confirm('Remove logo image? The site will show the text site name instead.')) return;
+            const preview = document.getElementById('wb-header-logo-image-preview');
+            const urlField = document.getElementById('wb-header-logo-image-url');
+            const fileInput = document.getElementById('wb-header-logo-image');
+            const removeBtn = document.getElementById('wb-header-logo-remove-btn');
+            if (preview) {
+                preview.style.backgroundImage = '';
+                preview.innerHTML = '<span style="color: #94a3b8;">No logo uploaded</span>';
+            }
+            if (urlField) urlField.value = '';
+            if (fileInput) fileInput.value = '';
+            if (removeBtn) removeBtn.style.display = 'none';
+        }
+        
         async function previewWebsiteImage(section) {
             const input = document.getElementById(`wb-${section}-image`);
             const preview = document.getElementById(`wb-${section}-image-preview`);
@@ -22022,6 +22052,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                         setTimeout(() => {
                             preview.innerHTML = '';
                         }, 2000);
+                        // Show remove button for logo uploads
+                        if (section === 'header-logo') {
+                            const removeBtn = document.getElementById('wb-header-logo-remove-btn');
+                            if (removeBtn) removeBtn.style.display = 'inline-flex';
+                        }
                     } else {
                         preview.innerHTML = '<span style="background: rgba(239,68,68,0.9); color: white; padding: 8px 16px; border-radius: 4px;">Upload failed</span>';
                         alert('Upload failed: ' + (data.error || 'Unknown error'));
