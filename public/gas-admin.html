@@ -5101,6 +5101,7 @@
                             <button class="sub-tab" data-subtab="featured" onclick="switchHomeSubTab('featured')" style="padding: 0.5rem 1rem; border: 1px solid #e2e8f0; border-radius: 20px; background: white; color: #64748b; cursor: pointer; font-size: 0.875rem;"> Featured</button>
                             <button class="sub-tab" data-subtab="usp" onclick="switchHomeSubTab('usp')" style="padding: 0.5rem 1rem; border: 1px solid #e2e8f0; border-radius: 20px; background: white; color: #64748b; cursor: pointer; font-size: 0.875rem;"> USP</button>
                             <button class="sub-tab" data-subtab="about" onclick="switchHomeSubTab('about')" style="padding: 0.5rem 1rem; border: 1px solid #e2e8f0; border-radius: 20px; background: white; color: #64748b; cursor: pointer; font-size: 0.875rem;"> About</button>
+                            <button class="sub-tab" data-subtab="services" onclick="switchHomeSubTab('services')" style="padding: 0.5rem 1rem; border: 1px solid #e2e8f0; border-radius: 20px; background: white; color: #64748b; cursor: pointer; font-size: 0.875rem;"> Services</button>
                             <button class="sub-tab" data-subtab="reviews" onclick="switchHomeSubTab('reviews')" style="padding: 0.5rem 1rem; border: 1px solid #e2e8f0; border-radius: 20px; background: white; color: #64748b; cursor: pointer; font-size: 0.875rem;"> Reviews</button>
                             <button class="sub-tab" data-subtab="cta" onclick="switchHomeSubTab('cta')" style="padding: 0.5rem 1rem; border: 1px solid #e2e8f0; border-radius: 20px; background: white; color: #64748b; cursor: pointer; font-size: 0.875rem;"> CTA</button>
                         </div>
@@ -5393,6 +5394,141 @@
                             </div>
                             <div id="editor-about-content"></div>
                         </div>
+                        <div id="editor-homepage-services" class="home-subtab-panel" style="display: none;">
+                            <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
+                                <button class="btn" onclick="saveWebsiteSection('services', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Services</button>
+                            </div>
+                            <div class="card" style="margin-bottom: 1rem;">
+                                <div class="card-header"><h3>Services Section</h3></div>
+                                <div class="card-body">
+                                    <div class="form-group" style="margin-bottom: 1rem;">
+                                        <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                                            <input type="checkbox" id="wb-services-enabled"> Enable Section
+                                        </label>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Section Title <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                                        <div class="translation-field-wrapper" data-translation-group="wb-services-title">
+                                            <div class="translation-tabs">
+                                                <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-services-title', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                                <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-services-title', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                                <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-services-title', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                                <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-services-title', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                                <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-services-title')" title="Auto-translate">✨</button>
+                                            </div>
+                                            <div class="translation-input-group">
+                                                <input type="text" class="form-input translation-input active" id="wb-services-title-en" data-lang="en" placeholder="e.g., Activities & Services">
+                                                <input type="text" class="form-input translation-input" id="wb-services-title-fr" data-lang="fr" placeholder="">
+                                                <input type="text" class="form-input translation-input" id="wb-services-title-es" data-lang="es" placeholder="">
+                                                <input type="text" class="form-input translation-input" id="wb-services-title-nl" data-lang="nl" placeholder="">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Service Items -->
+                            <div class="card" style="margin-bottom: 1rem;">
+                                <div class="card-header"><h3>Service Items (up to 8)</h3></div>
+                                <div class="card-body">
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                                        <div class="card" style="padding: 1rem;">
+                                            <label class="form-label" style="font-weight: 600;">Item 1</label>
+                                            <div class="form-group"><label class="form-label">Icon (emoji)</label><input type="text" class="form-input" id="wb-services-item-1-icon" placeholder="👥"></div>
+                                            <div class="form-group"><label class="form-label">Title 🌐</label><input type="text" class="form-input" id="wb-services-item-1-title-en" placeholder="e.g., Welcome"></div>
+                                            <div class="form-group"><label class="form-label">Description 🌐</label><textarea class="form-textarea" id="wb-services-item-1-text-en" rows="2" placeholder="Description..."></textarea></div>
+                                        </div>
+                                        <div class="card" style="padding: 1rem;">
+                                            <label class="form-label" style="font-weight: 600;">Item 2</label>
+                                            <div class="form-group"><label class="form-label">Icon (emoji)</label><input type="text" class="form-input" id="wb-services-item-2-icon" placeholder="🧹"></div>
+                                            <div class="form-group"><label class="form-label">Title 🌐</label><input type="text" class="form-input" id="wb-services-item-2-title-en" placeholder=""></div>
+                                            <div class="form-group"><label class="form-label">Description 🌐</label><textarea class="form-textarea" id="wb-services-item-2-text-en" rows="2" placeholder=""></textarea></div>
+                                        </div>
+                                        <div class="card" style="padding: 1rem;">
+                                            <label class="form-label" style="font-weight: 600;">Item 3</label>
+                                            <div class="form-group"><label class="form-label">Icon (emoji)</label><input type="text" class="form-input" id="wb-services-item-3-icon" placeholder="🏢"></div>
+                                            <div class="form-group"><label class="form-label">Title 🌐</label><input type="text" class="form-input" id="wb-services-item-3-title-en" placeholder=""></div>
+                                            <div class="form-group"><label class="form-label">Description 🌐</label><textarea class="form-textarea" id="wb-services-item-3-text-en" rows="2" placeholder=""></textarea></div>
+                                        </div>
+                                        <div class="card" style="padding: 1rem;">
+                                            <label class="form-label" style="font-weight: 600;">Item 4</label>
+                                            <div class="form-group"><label class="form-label">Icon (emoji)</label><input type="text" class="form-input" id="wb-services-item-4-icon" placeholder="☕"></div>
+                                            <div class="form-group"><label class="form-label">Title 🌐</label><input type="text" class="form-input" id="wb-services-item-4-title-en" placeholder=""></div>
+                                            <div class="form-group"><label class="form-label">Description 🌐</label><textarea class="form-textarea" id="wb-services-item-4-text-en" rows="2" placeholder=""></textarea></div>
+                                        </div>
+                                        <div class="card" style="padding: 1rem;">
+                                            <label class="form-label" style="font-weight: 600;">Item 5</label>
+                                            <div class="form-group"><label class="form-label">Icon (emoji)</label><input type="text" class="form-input" id="wb-services-item-5-icon" placeholder="📅"></div>
+                                            <div class="form-group"><label class="form-label">Title 🌐</label><input type="text" class="form-input" id="wb-services-item-5-title-en" placeholder=""></div>
+                                            <div class="form-group"><label class="form-label">Description 🌐</label><textarea class="form-textarea" id="wb-services-item-5-text-en" rows="2" placeholder=""></textarea></div>
+                                        </div>
+                                        <div class="card" style="padding: 1rem;">
+                                            <label class="form-label" style="font-weight: 600;">Item 6</label>
+                                            <div class="form-group"><label class="form-label">Icon (emoji)</label><input type="text" class="form-input" id="wb-services-item-6-icon" placeholder="📍"></div>
+                                            <div class="form-group"><label class="form-label">Title 🌐</label><input type="text" class="form-input" id="wb-services-item-6-title-en" placeholder=""></div>
+                                            <div class="form-group"><label class="form-label">Description 🌐</label><textarea class="form-textarea" id="wb-services-item-6-text-en" rows="2" placeholder=""></textarea></div>
+                                        </div>
+                                        <div class="card" style="padding: 1rem;">
+                                            <label class="form-label" style="font-weight: 600;">Item 7 (optional)</label>
+                                            <div class="form-group"><label class="form-label">Icon</label><input type="text" class="form-input" id="wb-services-item-7-icon" placeholder="🛏️"></div>
+                                            <div class="form-group"><label class="form-label">Title 🌐</label><input type="text" class="form-input" id="wb-services-item-7-title-en" placeholder=""></div>
+                                            <div class="form-group"><label class="form-label">Description 🌐</label><textarea class="form-textarea" id="wb-services-item-7-text-en" rows="2" placeholder=""></textarea></div>
+                                        </div>
+                                        <div class="card" style="padding: 1rem;">
+                                            <label class="form-label" style="font-weight: 600;">Item 8 (optional)</label>
+                                            <div class="form-group"><label class="form-label">Icon</label><input type="text" class="form-input" id="wb-services-item-8-icon" placeholder="🎉"></div>
+                                            <div class="form-group"><label class="form-label">Title 🌐</label><input type="text" class="form-input" id="wb-services-item-8-title-en" placeholder=""></div>
+                                            <div class="form-group"><label class="form-label">Description 🌐</label><textarea class="form-textarea" id="wb-services-item-8-text-en" rows="2" placeholder=""></textarea></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Services Colors -->
+                            <div class="card" style="margin-bottom: 1rem;">
+                                <div class="card-header"><h3>Colors</h3></div>
+                                <div class="card-body">
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+                                        <div class="form-group">
+                                            <label class="form-label">Section Background</label>
+                                            <div style="display: flex; gap: 8px; align-items: center;">
+                                                <input type="color" id="wb-services-bg-color-picker" value="#ffffff" style="width: 40px; height: 32px; border: none; cursor: pointer;" onchange="document.getElementById('wb-services-bg-color').value = this.value">
+                                                <input type="text" class="form-input" id="wb-services-bg-color" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-services-bg-color-picker')">
+                                            </div>
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label">Title Color</label>
+                                            <div style="display: flex; gap: 8px; align-items: center;">
+                                                <input type="color" id="wb-services-title-color-picker" value="#1e293b" style="width: 40px; height: 32px; border: none; cursor: pointer;" onchange="document.getElementById('wb-services-title-color').value = this.value">
+                                                <input type="text" class="form-input" id="wb-services-title-color" value="#1e293b" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-services-title-color-picker')">
+                                            </div>
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label">Card Text Color</label>
+                                            <div style="display: flex; gap: 8px; align-items: center;">
+                                                <input type="color" id="wb-services-card-text-color-picker" value="#1e293b" style="width: 40px; height: 32px; border: none; cursor: pointer;" onchange="document.getElementById('wb-services-card-text-color').value = this.value">
+                                                <input type="text" class="form-input" id="wb-services-card-text-color" value="#1e293b" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-services-card-text-color-picker')">
+                                            </div>
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label">Card Background</label>
+                                            <div style="display: flex; gap: 8px; align-items: center;">
+                                                <input type="color" id="wb-services-card-bg-picker" value="#e8e4dd" style="width: 40px; height: 32px; border: none; cursor: pointer;" onchange="document.getElementById('wb-services-card-bg').value = this.value">
+                                                <input type="text" class="form-input" id="wb-services-card-bg" value="#e8e4dd" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-services-card-bg-picker')">
+                                            </div>
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label">Card Hover Background</label>
+                                            <div style="display: flex; gap: 8px; align-items: center;">
+                                                <input type="color" id="wb-services-card-hover-bg-picker" value="#d4cfc7" style="width: 40px; height: 32px; border: none; cursor: pointer;" onchange="document.getElementById('wb-services-card-hover-bg').value = this.value">
+                                                <input type="text" class="form-input" id="wb-services-card-hover-bg" value="#d4cfc7" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-services-card-hover-bg-picker')">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <div id="editor-homepage-reviews" class="home-subtab-panel" style="display: none;">
                             <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
                                 <button class="btn" onclick="saveWebsiteSection('reviews', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Reviews</button>
