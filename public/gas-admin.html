@@ -5847,10 +5847,14 @@
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; padding: 1rem; background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border-radius: 12px; border: 1px solid #bbf7d0;">
                                 <div style="display: flex; align-items: center; gap: 1rem;">
                                     <label class="toggle-switch" style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer;">
-                                        <input type="checkbox" id="wb-page-rooms-enabled" checked disabled style="width: 20px; height: 20px; accent-color: #10b981;">
-                                        <span style="font-weight: 600; color: #166534;">Rooms Page Enabled</span>
+                                        <input type="checkbox" id="wb-page-rooms-enabled" checked onchange="togglePageEnabled('rooms', this.checked)" style="width: 20px; height: 20px; accent-color: #10b981;">
+                                        <span style="font-weight: 600; color: #166534;">Enable Rooms Page</span>
                                     </label>
-                                    <span style="font-size: 0.8rem; color: #166534; background: #bbf7d0; padding: 2px 8px; border-radius: 4px;">Core Page - Always On</span>
+                                    <span style="font-size: 0.8rem; color: #166534; background: #bbf7d0; padding: 2px 8px; border-radius: 4px;">Core Page</span>
+                                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-left: 1rem;">
+                                        <label style="font-size: 0.85rem; color: #166534;">Menu Position:</label>
+                                        <input type="number" id="wb-page-rooms-menu-order" value="1" min="1" max="20" style="width: 60px; padding: 4px 8px; border: 1px solid #bbf7d0; border-radius: 6px; text-align: center;">
+                                    </div>
                                 </div>
                                 <button class="btn" onclick="saveWebsiteSection('page-rooms', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Rooms Page</button>
                             </div>
@@ -20397,7 +20401,7 @@ const promo = await fetch('/api/v1/offers/validate', {
         
         // Update page status dots based on saved settings
         function updatePageStatusDots(settings) {
-            const pages = ['about', 'gallery', 'offers', 'properties', 'dining', 'blog', 'attractions', 'reviews'];
+            const pages = ['rooms', 'about', 'gallery', 'offers', 'properties', 'dining', 'blog', 'attractions', 'reviews'];
             pages.forEach(page => {
                 const checkbox = document.getElementById(`wb-page-${page}-enabled`);
                 const statusDot = document.getElementById(`status-page-${page}`);
