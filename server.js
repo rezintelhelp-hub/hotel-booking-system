@@ -42013,29 +42013,75 @@ app.get('/api/admin/partner-check', async (req, res) => {
 });
 
 // PUT /api/partner/properties/:property_id/checkout - Configure checkout/payment options
-app.put('/api/partner/properties/:property_id/checkout', authenticatePartner, async (req, res) => {
-  if (!hasPartnerPermission(req, 'sync:write')) {
-    return res.status(403).json({ success: false, error: 'Permission denied' });
-  }
-
+// Auth: X-Partner-Key header OR query param api_key + account_id
+app.put('/api/partner/properties/:property_id/checkout', async (req, res) => {
   try {
     const { property_id } = req.params;
-    const { payment_options } = req.body;
+    const apiKey = req.headers['x-partner-key'] || req.query.api_key;
+    const accountId = req.query.account_id || req.body.account_id;
 
-    if (!payment_options) {
-      return res.status(400).json({ success: false, error: 'payment_options object required' });
+    // Try partners table first
+    let authorized = false;
+    let ownerAccountId = null;
+
+    if (apiKey) {
+      // Method 1: partners table
+      const partnerResult = await pool.query(
+        'SELECT * FROM partners WHERE api_key = $1 AND is_active = true', [apiKey]
+      );
+      if (partnerResult.rows.length > 0) {
+        const partner = partnerResult.rows[0];
+        const propCheck = await pool.query(`
+          SELECT p.id, p.account_id FROM properties p
+          JOIN accounts a ON p.account_id = a.id
+          WHERE p.id = $1 AND a.partner_id = $2
+        `, [property_id, partner.id]);
+        if (propCheck.rows.length > 0) {
+          authorized = true;
+          ownerAccountId = propCheck.rows[0].account_id;
+        }
+      }
+
+      // Method 2: Elevate-style key in gas_sync_connections
+      if (!authorized && accountId) {
+        const isValid = await validateElevateApiKey(accountId, apiKey);
+        if (isValid) {
+          const propCheck = await pool.query(
+            'SELECT id, account_id FROM properties WHERE id = $1 AND account_id = $2',
+            [property_id, accountId]
+          );
+          if (propCheck.rows.length > 0) {
+            authorized = true;
+            ownerAccountId = propCheck.rows[0].account_id;
+          }
+        }
+      }
+
+      // Method 3: account api_key column
+      if (!authorized) {
+        const acctCheck = await pool.query(
+          'SELECT id FROM accounts WHERE api_key = $1', [apiKey]
+        );
+        if (acctCheck.rows.length > 0) {
+          const propCheck = await pool.query(
+            'SELECT id, account_id FROM properties WHERE id = $1 AND account_id = $2',
+            [property_id, acctCheck.rows[0].id]
+          );
+          if (propCheck.rows.length > 0) {
+            authorized = true;
+            ownerAccountId = propCheck.rows[0].account_id;
+          }
+        }
+      }
     }
 
-    // Verify property belongs to this partner's tenant
-    const propResult = await pool.query(`
-      SELECT p.id, p.account_id
-      FROM properties p
-      JOIN accounts a ON p.account_id = a.id
-      WHERE p.id = $1 AND a.partner_id = $2
-    `, [property_id, req.partner.id]);
+    if (!authorized) {
+      return res.status(401).json({ success: false, error: 'Unauthorized. Provide valid X-Partner-Key header and account_id.' });
+    }
 
-    if (propResult.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Property not found or not owned by your tenant' });
+    const { payment_options } = req.body;
+    if (!payment_options) {
+      return res.status(400).json({ success: false, error: 'payment_options object required' });
     }
 
     const { stripe, card_guarantee, pay_at_property } = payment_options;
@@ -42085,9 +42131,8 @@ app.put('/api/partner/properties/:property_id/checkout', authenticatePartner, as
       `, [property_id, JSON.stringify(acceptedMethods), JSON.stringify(bankDetails)]);
     }
 
-    // Store pay_property_mode and card_guarantee settings in account settings
-    const accountId = propResult.rows[0].account_id;
-    const acctResult = await pool.query('SELECT settings FROM accounts WHERE id = $1', [accountId]);
+    // Store pay_property_mode and card_guarantee in account settings
+    const acctResult = await pool.query('SELECT settings FROM accounts WHERE id = $1', [ownerAccountId]);
     let acctSettings = {};
     if (acctResult.rows.length > 0 && acctResult.rows[0].settings) {
       acctSettings = typeof acctResult.rows[0].settings === 'string'
@@ -42103,7 +42148,6 @@ app.put('/api/partner/properties/:property_id/checkout', authenticatePartner, as
     };
     if (bankDetails.iban) acctSettings.bank_details = bankDetails;
 
-    // Store card_guarantee config if enabled
     if (card_guarantee) {
       acctSettings.card_guarantee = {
         enabled: true,
@@ -42113,7 +42157,7 @@ app.put('/api/partner/properties/:property_id/checkout', authenticatePartner, as
     }
 
     await pool.query('UPDATE accounts SET settings = $1 WHERE id = $2',
-      [JSON.stringify(acctSettings), accountId]);
+      [JSON.stringify(acctSettings), ownerAccountId]);
 
     console.log(`[Partner API] Checkout configured for property ${property_id}: methods=${acceptedMethods.join(',')}, mode=${payPropertyMode}`);
 
@@ -42138,24 +42182,54 @@ app.put('/api/partner/properties/:property_id/checkout', authenticatePartner, as
 });
 
 // GET /api/partner/properties/:property_id/checkout - Get current checkout configuration
-app.get('/api/partner/properties/:property_id/checkout', authenticatePartner, async (req, res) => {
-  if (!hasPartnerPermission(req, 'sync:read')) {
-    return res.status(403).json({ success: false, error: 'Permission denied' });
-  }
-
+app.get('/api/partner/properties/:property_id/checkout', async (req, res) => {
   try {
     const { property_id } = req.params;
+    const apiKey = req.headers['x-partner-key'] || req.query.api_key;
+    const accountId = req.query.account_id;
 
-    // Verify property belongs to this partner's tenant
-    const propResult = await pool.query(`
-      SELECT p.id, p.account_id
-      FROM properties p
-      JOIN accounts a ON p.account_id = a.id
-      WHERE p.id = $1 AND a.partner_id = $2
-    `, [property_id, req.partner.id]);
+    // Auth check (same pattern as PUT)
+    let authorized = false;
+    let ownerAccountId = null;
 
-    if (propResult.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Property not found or not owned by your tenant' });
+    if (apiKey) {
+      const partnerResult = await pool.query(
+        'SELECT * FROM partners WHERE api_key = $1 AND is_active = true', [apiKey]
+      );
+      if (partnerResult.rows.length > 0) {
+        const propCheck = await pool.query(`
+          SELECT p.id, p.account_id FROM properties p
+          JOIN accounts a ON p.account_id = a.id
+          WHERE p.id = $1 AND a.partner_id = $2
+        `, [property_id, partnerResult.rows[0].id]);
+        if (propCheck.rows.length > 0) { authorized = true; ownerAccountId = propCheck.rows[0].account_id; }
+      }
+
+      if (!authorized && accountId) {
+        const isValid = await validateElevateApiKey(accountId, apiKey);
+        if (isValid) {
+          const propCheck = await pool.query(
+            'SELECT id, account_id FROM properties WHERE id = $1 AND account_id = $2',
+            [property_id, accountId]
+          );
+          if (propCheck.rows.length > 0) { authorized = true; ownerAccountId = propCheck.rows[0].account_id; }
+        }
+      }
+
+      if (!authorized) {
+        const acctCheck = await pool.query('SELECT id FROM accounts WHERE api_key = $1', [apiKey]);
+        if (acctCheck.rows.length > 0) {
+          const propCheck = await pool.query(
+            'SELECT id, account_id FROM properties WHERE id = $1 AND account_id = $2',
+            [property_id, acctCheck.rows[0].id]
+          );
+          if (propCheck.rows.length > 0) { authorized = true; ownerAccountId = propCheck.rows[0].account_id; }
+        }
+      }
+    }
+
+    if (!authorized) {
+      return res.status(401).json({ success: false, error: 'Unauthorized. Provide valid X-Partner-Key header and account_id.' });
     }
 
     // Get payment settings
@@ -42164,9 +42238,7 @@ app.get('/api/partner/properties/:property_id/checkout', authenticatePartner, as
       [property_id]
     );
 
-    // Get account settings for pay_property_mode
-    const accountId = propResult.rows[0].account_id;
-    const acctResult = await pool.query('SELECT settings FROM accounts WHERE id = $1', [accountId]);
+    const acctResult = await pool.query('SELECT settings FROM accounts WHERE id = $1', [ownerAccountId]);
     let acctSettings = {};
     if (acctResult.rows.length > 0 && acctResult.rows[0].settings) {
       acctSettings = typeof acctResult.rows[0].settings === 'string'
@@ -42180,14 +42252,10 @@ app.get('/api/partner/properties/:property_id/checkout', authenticatePartner, as
     if (ppsResult.rows.length > 0) {
       const pps = ppsResult.rows[0];
       acceptedMethods = typeof pps.accepted_methods === 'string'
-        ? JSON.parse(pps.accepted_methods)
-        : (pps.accepted_methods || ['card']);
+        ? JSON.parse(pps.accepted_methods) : (pps.accepted_methods || ['card']);
       bankDetails = typeof pps.bank_details === 'string'
-        ? JSON.parse(pps.bank_details)
-        : (pps.bank_details || {});
+        ? JSON.parse(pps.bank_details) : (pps.bank_details || {});
     }
-
-    const payPropertyMode = acctSettings.pay_property_mode || 'no_payment';
 
     res.json({
       success: true,
@@ -42197,7 +42265,7 @@ app.get('/api/partner/properties/:property_id/checkout', authenticatePartner, as
         card_guarantee: acceptedMethods.includes('card_guarantee'),
         pay_at_property: {
           enabled: acceptedMethods.includes('pay_at_property'),
-          mode: payPropertyMode,
+          mode: acctSettings.pay_property_mode || 'no_payment',
           bank_details: bankDetails
         }
       }
