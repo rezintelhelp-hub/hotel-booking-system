@@ -41996,6 +41996,207 @@ app.delete('/api/partner/webhooks', async (req, res) => {
 });
 
 // =====================================================
+// SECTION 16: CHECKOUT CONFIGURATION
+// =====================================================
+
+// PUT /api/partner/properties/:property_id/checkout - Configure checkout/payment options
+app.put('/api/partner/properties/:property_id/checkout', authenticatePartner, async (req, res) => {
+  if (!hasPartnerPermission(req, 'sync:write')) {
+    return res.status(403).json({ success: false, error: 'Permission denied' });
+  }
+
+  try {
+    const { property_id } = req.params;
+    const { payment_options } = req.body;
+
+    if (!payment_options) {
+      return res.status(400).json({ success: false, error: 'payment_options object required' });
+    }
+
+    // Verify property belongs to this partner's tenant
+    const propResult = await pool.query(`
+      SELECT p.id, p.account_id
+      FROM properties p
+      JOIN accounts a ON p.account_id = a.id
+      WHERE p.id = $1 AND a.partner_id = $2
+    `, [property_id, req.partner.id]);
+
+    if (propResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Property not found or not owned by your tenant' });
+    }
+
+    const { stripe, card_guarantee, pay_at_property } = payment_options;
+
+    // Build accepted_methods array
+    const acceptedMethods = [];
+    if (stripe) acceptedMethods.push('card');
+    if (card_guarantee) acceptedMethods.push('card_guarantee');
+    if (pay_at_property && pay_at_property.enabled) acceptedMethods.push('pay_at_property');
+
+    // Build bank_details object
+    let bankDetails = {};
+    if (pay_at_property && pay_at_property.bank_details) {
+      const bd = pay_at_property.bank_details;
+      bankDetails = {
+        account_name: bd.account_name || '',
+        iban: bd.iban || '',
+        bank_name: bd.bank_name || '',
+        bic: bd.bic || ''
+      };
+    }
+
+    // Determine pay_property_mode
+    let payPropertyMode = 'no_payment';
+    if (pay_at_property && pay_at_property.enabled && pay_at_property.mode) {
+      const validModes = ['book_only', 'bank_required', 'pay_optional'];
+      payPropertyMode = validModes.includes(pay_at_property.mode) ? pay_at_property.mode : 'no_payment';
+    }
+
+    // Upsert property_payment_settings
+    const existing = await pool.query(
+      'SELECT id FROM property_payment_settings WHERE property_id = $1', [property_id]
+    );
+
+    if (existing.rows.length > 0) {
+      await pool.query(`
+        UPDATE property_payment_settings SET
+          accepted_methods = $1,
+          bank_details = $2,
+          updated_at = NOW()
+        WHERE property_id = $3
+      `, [JSON.stringify(acceptedMethods), JSON.stringify(bankDetails), property_id]);
+    } else {
+      await pool.query(`
+        INSERT INTO property_payment_settings (property_id, accepted_methods, bank_details, created_at, updated_at)
+        VALUES ($1, $2, $3, NOW(), NOW())
+      `, [property_id, JSON.stringify(acceptedMethods), JSON.stringify(bankDetails)]);
+    }
+
+    // Store pay_property_mode and card_guarantee settings in account settings
+    const accountId = propResult.rows[0].account_id;
+    const acctResult = await pool.query('SELECT settings FROM accounts WHERE id = $1', [accountId]);
+    let acctSettings = {};
+    if (acctResult.rows.length > 0 && acctResult.rows[0].settings) {
+      acctSettings = typeof acctResult.rows[0].settings === 'string'
+        ? JSON.parse(acctResult.rows[0].settings)
+        : acctResult.rows[0].settings;
+    }
+
+    acctSettings.pay_property_mode = payPropertyMode;
+    acctSettings.payment_methods = {
+      card: !!stripe,
+      pay_at_property: !!(pay_at_property && pay_at_property.enabled),
+      card_guarantee: !!card_guarantee
+    };
+    if (bankDetails.iban) acctSettings.bank_details = bankDetails;
+
+    // Store card_guarantee config if enabled
+    if (card_guarantee) {
+      acctSettings.card_guarantee = {
+        enabled: true,
+        no_show_policy: payment_options.card_guarantee_config?.no_show_policy || 'first_night',
+        label: payment_options.card_guarantee_config?.label || 'Card Guarantee'
+      };
+    }
+
+    await pool.query('UPDATE accounts SET settings = $1 WHERE id = $2',
+      [JSON.stringify(acctSettings), accountId]);
+
+    console.log(`[Partner API] Checkout configured for property ${property_id}: methods=${acceptedMethods.join(',')}, mode=${payPropertyMode}`);
+
+    res.json({
+      success: true,
+      property_id: parseInt(property_id),
+      payment_options: {
+        stripe: acceptedMethods.includes('card'),
+        card_guarantee: acceptedMethods.includes('card_guarantee'),
+        pay_at_property: {
+          enabled: acceptedMethods.includes('pay_at_property'),
+          mode: payPropertyMode,
+          bank_details: bankDetails
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Partner API checkout config error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/partner/properties/:property_id/checkout - Get current checkout configuration
+app.get('/api/partner/properties/:property_id/checkout', authenticatePartner, async (req, res) => {
+  if (!hasPartnerPermission(req, 'sync:read')) {
+    return res.status(403).json({ success: false, error: 'Permission denied' });
+  }
+
+  try {
+    const { property_id } = req.params;
+
+    // Verify property belongs to this partner's tenant
+    const propResult = await pool.query(`
+      SELECT p.id, p.account_id
+      FROM properties p
+      JOIN accounts a ON p.account_id = a.id
+      WHERE p.id = $1 AND a.partner_id = $2
+    `, [property_id, req.partner.id]);
+
+    if (propResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Property not found or not owned by your tenant' });
+    }
+
+    // Get payment settings
+    const ppsResult = await pool.query(
+      'SELECT accepted_methods, bank_details FROM property_payment_settings WHERE property_id = $1',
+      [property_id]
+    );
+
+    // Get account settings for pay_property_mode
+    const accountId = propResult.rows[0].account_id;
+    const acctResult = await pool.query('SELECT settings FROM accounts WHERE id = $1', [accountId]);
+    let acctSettings = {};
+    if (acctResult.rows.length > 0 && acctResult.rows[0].settings) {
+      acctSettings = typeof acctResult.rows[0].settings === 'string'
+        ? JSON.parse(acctResult.rows[0].settings)
+        : acctResult.rows[0].settings;
+    }
+
+    let acceptedMethods = ['card'];
+    let bankDetails = {};
+
+    if (ppsResult.rows.length > 0) {
+      const pps = ppsResult.rows[0];
+      acceptedMethods = typeof pps.accepted_methods === 'string'
+        ? JSON.parse(pps.accepted_methods)
+        : (pps.accepted_methods || ['card']);
+      bankDetails = typeof pps.bank_details === 'string'
+        ? JSON.parse(pps.bank_details)
+        : (pps.bank_details || {});
+    }
+
+    const payPropertyMode = acctSettings.pay_property_mode || 'no_payment';
+
+    res.json({
+      success: true,
+      property_id: parseInt(property_id),
+      payment_options: {
+        stripe: acceptedMethods.includes('card'),
+        card_guarantee: acceptedMethods.includes('card_guarantee'),
+        pay_at_property: {
+          enabled: acceptedMethods.includes('pay_at_property'),
+          mode: payPropertyMode,
+          bank_details: bankDetails
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Partner API get checkout config error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
 // PARTNER WEBHOOK SENDER FUNCTION
 // =====================================================
 
