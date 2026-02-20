@@ -59102,16 +59102,34 @@ app.post('/api/admin/attraction-categories', async (req, res) => {
 app.get('/api/public/client/:clientId/site-config', async (req, res) => {
     try {
         const { clientId } = req.params;
+        const siteUrlParam = req.query.site_url;
         
         // Get all data in parallel
-        // First get the deployed_site_id for this client (account_id = client_id in this context)
-        const deployedSiteIdResult = await pool.query(
-            `SELECT id, account_id FROM deployed_sites WHERE account_id = $1 LIMIT 1`,
-            [clientId]
-        );
+        // First get the deployed_site_id - prefer matching by site_url for multi-site accounts
+        let deployedSiteIdResult;
+        if (siteUrlParam) {
+            // Try exact match on site_url first (handles accounts with multiple sites)
+            const urlVariants = [siteUrlParam, siteUrlParam.replace(/\/$/, ''), siteUrlParam.replace(/\/$/, '') + '/'];
+            deployedSiteIdResult = await pool.query(
+                `SELECT id, account_id FROM deployed_sites WHERE account_id = $1 AND (site_url = ANY($2)) LIMIT 1`,
+                [clientId, urlVariants]
+            );
+            // Fall back to account_id only if no URL match
+            if (deployedSiteIdResult.rows.length === 0) {
+                deployedSiteIdResult = await pool.query(
+                    `SELECT id, account_id FROM deployed_sites WHERE account_id = $1 ORDER BY id LIMIT 1`,
+                    [clientId]
+                );
+            }
+        } else {
+            deployedSiteIdResult = await pool.query(
+                `SELECT id, account_id FROM deployed_sites WHERE account_id = $1 ORDER BY id LIMIT 1`,
+                [clientId]
+            );
+        }
         const deployedSiteId = deployedSiteIdResult.rows[0]?.id;
         
-        console.log(`site-config: clientId=${clientId}, found deployedSiteId=${deployedSiteId}, rows=${deployedSiteIdResult.rows.length}`);
+        console.log(`site-config: clientId=${clientId}, site_url=${siteUrlParam || 'none'}, found deployedSiteId=${deployedSiteId}, rows=${deployedSiteIdResult.rows.length}`);
         
         const [pagesResult, contactResult, brandingResult, navigationResult, propertiesResult, roomsResult, websiteSettingsResult, deployedSiteResult, langSettingsResult] = await Promise.all([
             pool.query(`SELECT * FROM client_pages WHERE client_id = $1`, [clientId]),
