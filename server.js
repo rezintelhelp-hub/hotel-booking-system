@@ -41999,6 +41999,19 @@ app.delete('/api/partner/webhooks', async (req, res) => {
 // SECTION 16: CHECKOUT CONFIGURATION
 // =====================================================
 
+// GET /api/admin/partner-check - Check what partner keys exist (diagnostics)
+app.get('/api/admin/partner-check', async (req, res) => {
+  try {
+    const partners = await pool.query(`
+      SELECT id, name, code, api_key, is_active, permissions, created_at
+      FROM partners ORDER BY id
+    `);
+    res.json({ success: true, partners: partners.rows });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // PUT /api/partner/properties/:property_id/checkout - Configure checkout/payment options
 app.put('/api/partner/properties/:property_id/checkout', authenticatePartner, async (req, res) => {
   if (!hasPartnerPermission(req, 'sync:write')) {
