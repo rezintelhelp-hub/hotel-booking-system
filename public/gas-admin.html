@@ -8638,7 +8638,12 @@
                 <div class="card" style="margin-top: 1rem;">
                     <div class="card-header"><h3>Button</h3></div>
                     <div class="card-body">
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="form-group" style="margin-bottom: 1rem;">
+                            <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                                <input type="checkbox" id="wb-about-show-btn" checked onchange="document.getElementById('wb-about-btn-options').style.display = this.checked ? 'grid' : 'none'"> Show Button
+                            </label>
+                        </div>
+                        <div id="wb-about-btn-options" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                             <div class="form-group">
                                 <label class="form-label">Button Text <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
                                 <div class="translation-field-wrapper" data-translation-group="wb-about-btn-text">
@@ -21308,6 +21313,17 @@ const promo = await fetch('/api/v1/offers/validate', {
                         if (showBtn) {
                             const val = data.settings['show-btn'];
                             showBtn.checked = val === true || val === 'true';
+                            if (btnOpts) btnOpts.style.display = showBtn.checked ? 'grid' : 'none';
+                        }
+                    }
+                    
+                    if (section === 'about') {
+                        const showBtn = document.getElementById('wb-about-show-btn');
+                        const btnOpts = document.getElementById('wb-about-btn-options');
+                        if (showBtn) {
+                            const val = data.settings['show-btn'];
+                            // Default to checked for existing sites
+                            showBtn.checked = val === true || val === 'true' || val === undefined || val === null;
                             if (btnOpts) btnOpts.style.display = showBtn.checked ? 'grid' : 'none';
                         }
                     }
