@@ -42138,11 +42138,11 @@ app.get('/api/admin/partner-check', async (req, res) => {
 });
 
 // PUT /api/partner/properties/:property_id/checkout - Configure checkout/payment options
-// Auth: X-Partner-Key header OR query param api_key + account_id
+// Auth: x-api-key header OR query param api_key + account_id
 app.put('/api/partner/properties/:property_id/checkout', async (req, res) => {
   try {
     const { property_id } = req.params;
-    const apiKey = req.headers['x-partner-key'] || req.query.api_key;
+    const apiKey = req.headers['x-api-key'] || req.headers['x-partner-key'] || req.query.api_key;
     const accountId = req.query.account_id || req.body.account_id;
 
     // Try partners table first
@@ -42201,7 +42201,7 @@ app.put('/api/partner/properties/:property_id/checkout', async (req, res) => {
     }
 
     if (!authorized) {
-      return res.status(401).json({ success: false, error: 'Unauthorized. Provide valid X-Partner-Key header and account_id.' });
+      return res.status(401).json({ success: false, error: 'Unauthorized. Provide valid x-api-key header and account_id.' });
     }
 
     const { payment_options } = req.body;
@@ -42310,7 +42310,7 @@ app.put('/api/partner/properties/:property_id/checkout', async (req, res) => {
 app.get('/api/partner/properties/:property_id/checkout', async (req, res) => {
   try {
     const { property_id } = req.params;
-    const apiKey = req.headers['x-partner-key'] || req.query.api_key;
+    const apiKey = req.headers['x-api-key'] || req.headers['x-partner-key'] || req.query.api_key;
     const accountId = req.query.account_id;
 
     // Auth check (same pattern as PUT)
@@ -42357,7 +42357,7 @@ app.get('/api/partner/properties/:property_id/checkout', async (req, res) => {
     }
 
     if (!authorized) {
-      return res.status(401).json({ success: false, error: 'Unauthorized. Provide valid X-Partner-Key header and account_id.' });
+      return res.status(401).json({ success: false, error: 'Unauthorized. Provide valid x-api-key header and account_id.' });
     }
 
     // Get payment settings
