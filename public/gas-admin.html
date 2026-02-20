@@ -21599,7 +21599,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                             // Skip file inputs
                         } else if (el.value !== undefined) {
                             // Only override if clone value is not empty, OR original was also empty
-                            if (el.value !== '' || !settings[key]) {
+                            // EXCEPTION: allow empty for -url fields (intentional image removal)
+                            if (el.value !== '' || !settings[key] || key.endsWith('-url')) {
                                 settings[key] = el.value;
                             }
                         }
