@@ -21132,8 +21132,12 @@ async function pushSettingsToWordPress(siteUrl, section, settings) {
       const mappedBase = keyMapping[baseKey] || baseKey;
       const wpKey = mappedBase + langSuffix;
       
-      // Skip empty values - never overwrite WordPress with blanks
-      if (value === '' || value === null || value === undefined) {
+      // Skip null/undefined values
+      if (value === null || value === undefined) {
+        continue;
+      }
+      // Skip empty strings UNLESS it's a URL/image field (intentional removal)
+      if (value === '' && !key.includes('url') && !key.includes('image') && !key.includes('logo')) {
         continue;
       }
       
