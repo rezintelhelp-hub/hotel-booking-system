@@ -42138,71 +42138,49 @@ app.get('/api/admin/partner-check', async (req, res) => {
 });
 
 // PUT /api/partner/properties/:property_id/checkout - Configure checkout/payment options
-// Auth: x-api-key header OR query param api_key + account_id
 app.put('/api/partner/properties/:property_id/checkout', async (req, res) => {
   try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+
     const { property_id } = req.params;
-    const apiKey = req.headers['x-api-key'] || req.headers['x-partner-key'] || req.query.api_key;
-    const accountId = req.query.account_id || req.body.account_id;
 
-    // Try partners table first
-    let authorized = false;
-    let ownerAccountId = null;
+    // Find property via partner_tenant_mapping (same pattern as stripe endpoint)
+    let property;
+    const numericId = parseInt(property_id);
 
-    if (apiKey) {
-      // Method 1: partners table
-      const partnerResult = await pool.query(
-        'SELECT * FROM partners WHERE api_key = $1 AND is_active = true', [apiKey]
+    if (!isNaN(numericId)) {
+      const result = await pool.query(
+        `SELECT p.id, p.account_id, p.name
+         FROM properties p
+         JOIN accounts a ON p.account_id = a.id
+         JOIN partner_tenant_mapping ptm ON a.id = ptm.gas_account_id
+         WHERE p.id = $1 AND ptm.partner_account_id = $2`,
+        [numericId, auth.partnerId]
       );
-      if (partnerResult.rows.length > 0) {
-        const partner = partnerResult.rows[0];
-        const propCheck = await pool.query(`
-          SELECT p.id, p.account_id FROM properties p
-          JOIN accounts a ON p.account_id = a.id
-          WHERE p.id = $1 AND a.partner_id = $2
-        `, [property_id, partner.id]);
-        if (propCheck.rows.length > 0) {
-          authorized = true;
-          ownerAccountId = propCheck.rows[0].account_id;
-        }
-      }
-
-      // Method 2: Elevate-style key in gas_sync_connections
-      if (!authorized && accountId) {
-        const isValid = await validateElevateApiKey(accountId, apiKey);
-        if (isValid) {
-          const propCheck = await pool.query(
-            'SELECT id, account_id FROM properties WHERE id = $1 AND account_id = $2',
-            [property_id, accountId]
-          );
-          if (propCheck.rows.length > 0) {
-            authorized = true;
-            ownerAccountId = propCheck.rows[0].account_id;
-          }
-        }
-      }
-
-      // Method 3: account api_key column
-      if (!authorized) {
-        const acctCheck = await pool.query(
-          'SELECT id FROM accounts WHERE api_key = $1', [apiKey]
-        );
-        if (acctCheck.rows.length > 0) {
-          const propCheck = await pool.query(
-            'SELECT id, account_id FROM properties WHERE id = $1 AND account_id = $2',
-            [property_id, acctCheck.rows[0].id]
-          );
-          if (propCheck.rows.length > 0) {
-            authorized = true;
-            ownerAccountId = propCheck.rows[0].account_id;
-          }
-        }
-      }
+      property = result.rows[0];
     }
 
-    if (!authorized) {
-      return res.status(401).json({ success: false, error: 'Unauthorized. Provide valid x-api-key header and account_id.' });
+    if (!property) {
+      // Try as external_id
+      const result = await pool.query(
+        `SELECT p.id, p.account_id, p.name
+         FROM properties p
+         JOIN accounts a ON p.account_id = a.id
+         JOIN partner_tenant_mapping ptm ON a.id = ptm.gas_account_id
+         WHERE p.external_id = $1 AND ptm.partner_account_id = $2`,
+        [property_id, auth.partnerId]
+      );
+      property = result.rows[0];
     }
+
+    if (!property) {
+      return res.status(404).json({ success: false, error: 'Property not found or not owned by your tenant' });
+    }
+
+    const ownerAccountId = property.account_id;
 
     const { payment_options } = req.body;
     if (!payment_options) {
@@ -42309,61 +42287,51 @@ app.put('/api/partner/properties/:property_id/checkout', async (req, res) => {
 // GET /api/partner/properties/:property_id/checkout - Get current checkout configuration
 app.get('/api/partner/properties/:property_id/checkout', async (req, res) => {
   try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+
     const { property_id } = req.params;
-    const apiKey = req.headers['x-api-key'] || req.headers['x-partner-key'] || req.query.api_key;
-    const accountId = req.query.account_id;
 
-    // Auth check (same pattern as PUT)
-    let authorized = false;
-    let ownerAccountId = null;
+    // Find property via partner_tenant_mapping (same pattern as stripe endpoint)
+    let property;
+    const numericId = parseInt(property_id);
 
-    if (apiKey) {
-      const partnerResult = await pool.query(
-        'SELECT * FROM partners WHERE api_key = $1 AND is_active = true', [apiKey]
+    if (!isNaN(numericId)) {
+      const result = await pool.query(
+        `SELECT p.id, p.account_id, p.name
+         FROM properties p
+         JOIN accounts a ON p.account_id = a.id
+         JOIN partner_tenant_mapping ptm ON a.id = ptm.gas_account_id
+         WHERE p.id = $1 AND ptm.partner_account_id = $2`,
+        [numericId, auth.partnerId]
       );
-      if (partnerResult.rows.length > 0) {
-        const propCheck = await pool.query(`
-          SELECT p.id, p.account_id FROM properties p
-          JOIN accounts a ON p.account_id = a.id
-          WHERE p.id = $1 AND a.partner_id = $2
-        `, [property_id, partnerResult.rows[0].id]);
-        if (propCheck.rows.length > 0) { authorized = true; ownerAccountId = propCheck.rows[0].account_id; }
-      }
-
-      if (!authorized && accountId) {
-        const isValid = await validateElevateApiKey(accountId, apiKey);
-        console.log(`[Checkout Auth] Elevate key check: accountId=${accountId}, valid=${isValid}`);
-        if (isValid) {
-          const propCheck = await pool.query(
-            'SELECT id, account_id FROM properties WHERE id = $1 AND account_id = $2',
-            [property_id, accountId]
-          );
-          console.log(`[Checkout Auth] Property ${property_id} owner check: found=${propCheck.rows.length}, expected account=${accountId}, actual=${propCheck.rows[0]?.account_id}`);
-          if (propCheck.rows.length > 0) { authorized = true; ownerAccountId = propCheck.rows[0].account_id; }
-        }
-      }
-
-      if (!authorized) {
-        const acctCheck = await pool.query('SELECT id FROM accounts WHERE api_key = $1', [apiKey]);
-        console.log(`[Checkout Auth] Account api_key check: found=${acctCheck.rows.length}`);
-        if (acctCheck.rows.length > 0) {
-          const propCheck = await pool.query(
-            'SELECT id, account_id FROM properties WHERE id = $1 AND account_id = $2',
-            [property_id, acctCheck.rows[0].id]
-          );
-          if (propCheck.rows.length > 0) { authorized = true; ownerAccountId = propCheck.rows[0].account_id; }
-        }
-      }
+      property = result.rows[0];
     }
 
-    if (!authorized) {
-      return res.status(401).json({ success: false, error: 'Unauthorized. Provide valid x-api-key header and account_id.' });
+    if (!property) {
+      const result = await pool.query(
+        `SELECT p.id, p.account_id, p.name
+         FROM properties p
+         JOIN accounts a ON p.account_id = a.id
+         JOIN partner_tenant_mapping ptm ON a.id = ptm.gas_account_id
+         WHERE p.external_id = $1 AND ptm.partner_account_id = $2`,
+        [property_id, auth.partnerId]
+      );
+      property = result.rows[0];
     }
+
+    if (!property) {
+      return res.status(404).json({ success: false, error: 'Property not found or not owned by your tenant' });
+    }
+
+    const ownerAccountId = property.account_id;
 
     // Get payment settings
     const ppsResult = await pool.query(
       'SELECT accepted_methods, bank_details FROM property_payment_settings WHERE property_id = $1',
-      [property_id]
+      [property.id]
     );
 
     const acctResult = await pool.query('SELECT settings FROM accounts WHERE id = $1', [ownerAccountId]);
