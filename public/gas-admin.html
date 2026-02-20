@@ -5099,6 +5099,7 @@
                             <button class="sub-tab active" data-subtab="hero" onclick="switchHomeSubTab('hero')" style="padding: 0.5rem 1rem; border: 1px solid #e2e8f0; border-radius: 20px; background: #7c3aed; color: white; cursor: pointer; font-size: 0.875rem;"> Hero</button>
                             <button class="sub-tab" data-subtab="intro" onclick="switchHomeSubTab('intro')" style="padding: 0.5rem 1rem; border: 1px solid #e2e8f0; border-radius: 20px; background: white; color: #64748b; cursor: pointer; font-size: 0.875rem;"> Intro</button>
                             <button class="sub-tab" data-subtab="featured" onclick="switchHomeSubTab('featured')" style="padding: 0.5rem 1rem; border: 1px solid #e2e8f0; border-radius: 20px; background: white; color: #64748b; cursor: pointer; font-size: 0.875rem;"> Featured</button>
+                            <button class="sub-tab" data-subtab="usp" onclick="switchHomeSubTab('usp')" style="padding: 0.5rem 1rem; border: 1px solid #e2e8f0; border-radius: 20px; background: white; color: #64748b; cursor: pointer; font-size: 0.875rem;"> USP</button>
                             <button class="sub-tab" data-subtab="about" onclick="switchHomeSubTab('about')" style="padding: 0.5rem 1rem; border: 1px solid #e2e8f0; border-radius: 20px; background: white; color: #64748b; cursor: pointer; font-size: 0.875rem;"> About</button>
                             <button class="sub-tab" data-subtab="reviews" onclick="switchHomeSubTab('reviews')" style="padding: 0.5rem 1rem; border: 1px solid #e2e8f0; border-radius: 20px; background: white; color: #64748b; cursor: pointer; font-size: 0.875rem;"> Reviews</button>
                             <button class="sub-tab" data-subtab="cta" onclick="switchHomeSubTab('cta')" style="padding: 0.5rem 1rem; border: 1px solid #e2e8f0; border-radius: 20px; background: white; color: #64748b; cursor: pointer; font-size: 0.875rem;"> CTA</button>
@@ -5181,6 +5182,211 @@
                             </div>
                             <div id="editor-featured-content"></div>
                         </div>
+                        <div id="editor-homepage-usp" class="home-subtab-panel" style="display: none;">
+                            <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
+                                <button class="btn" onclick="saveWebsiteSection('usp', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save USP</button>
+                            </div>
+                            <div class="card" style="margin-bottom: 1rem;">
+                                <div class="card-header"><h3>What We Offer / USP Section</h3></div>
+                                <div class="card-body">
+                                    <div class="form-group" style="margin-bottom: 1rem;">
+                                        <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                                            <input type="checkbox" id="wb-usp-enabled"> Enable Section
+                                        </label>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Section Title <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                                        <div class="translation-field-wrapper" data-translation-group="wb-usp-title">
+                                            <div class="translation-tabs">
+                                                <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-usp-title', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                                <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-usp-title', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                                <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-usp-title', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                                <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-usp-title', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                                <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-usp-title')" title="Auto-translate">✨</button>
+                                            </div>
+                                            <div class="translation-input-group">
+                                                <input type="text" class="form-input translation-input active" id="wb-usp-title-en" data-lang="en" placeholder="e.g., What We Offer">
+                                                <input type="text" class="form-input translation-input" id="wb-usp-title-fr" data-lang="fr" placeholder="">
+                                                <input type="text" class="form-input translation-input" id="wb-usp-title-es" data-lang="es" placeholder="">
+                                                <input type="text" class="form-input translation-input" id="wb-usp-title-nl" data-lang="nl" placeholder="">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Section Subtitle <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                                        <div class="translation-field-wrapper" data-translation-group="wb-usp-subtitle">
+                                            <div class="translation-tabs">
+                                                <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-usp-subtitle', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                                <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-usp-subtitle', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                                <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-usp-subtitle', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                                <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-usp-subtitle', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                                <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-usp-subtitle')" title="Auto-translate">✨</button>
+                                            </div>
+                                            <div class="translation-input-group">
+                                                <input type="text" class="form-input translation-input active" id="wb-usp-subtitle-en" data-lang="en" placeholder="e.g., The Perfect Place To Stay">
+                                                <input type="text" class="form-input translation-input" id="wb-usp-subtitle-fr" data-lang="fr" placeholder="">
+                                                <input type="text" class="form-input translation-input" id="wb-usp-subtitle-es" data-lang="es" placeholder="">
+                                                <input type="text" class="form-input translation-input" id="wb-usp-subtitle-nl" data-lang="nl" placeholder="">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- USP Items -->
+                            <div class="card" style="margin-bottom: 1rem;">
+                                <div class="card-header"><h3>USP Items (up to 6)</h3></div>
+                                <div class="card-body">
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+                                        <div class="card" style="padding: 1rem;">
+                                            <label class="form-label" style="font-weight: 600;">Item 1</label>
+                                            <div class="form-group">
+                                                <label class="form-label">Icon (emoji)</label>
+                                                <input type="text" class="form-input" id="wb-usp-item-1-icon" placeholder="📍">
+                                            </div>
+                                            <div class="form-group">
+                                                <label class="form-label">Or Image</label>
+                                                <div id="wb-usp-item-1-image-preview" style="width: 100%; height: 80px; background: #f1f5f9; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 6px; border: 2px dashed #e2e8f0; background-size: contain; background-position: center; background-repeat: no-repeat;">
+                                                    <span style="color: #94a3b8; font-size: 0.75rem;">No image</span>
+                                                </div>
+                                                <input type="file" id="wb-usp-item-1-image" accept="image/*" onchange="previewWebsiteImage('usp-item-1')" style="font-size: 0.75rem;">
+                                                <input type="hidden" id="wb-usp-item-1-image-url">
+                                            </div>
+                                            <div class="form-group">
+                                                <label class="form-label">Text <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                                                <div class="translation-field-wrapper" data-translation-group="wb-usp-item-1-text">
+                                                    <div class="translation-tabs">
+                                                        <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-usp-item-1-text', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                                        <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-usp-item-1-text', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                                        <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-usp-item-1-text')" title="Auto-translate">✨</button>
+                                                    </div>
+                                                    <div class="translation-input-group">
+                                                        <textarea class="form-textarea translation-input active" id="wb-usp-item-1-text-en" data-lang="en" rows="3" placeholder="Description..."></textarea>
+                                                        <textarea class="form-textarea translation-input" id="wb-usp-item-1-text-fr" data-lang="fr" rows="3" placeholder=""></textarea>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="card" style="padding: 1rem;">
+                                            <label class="form-label" style="font-weight: 600;">Item 2</label>
+                                            <div class="form-group">
+                                                <label class="form-label">Icon (emoji)</label>
+                                                <input type="text" class="form-input" id="wb-usp-item-2-icon" placeholder="🏠">
+                                            </div>
+                                            <div class="form-group">
+                                                <label class="form-label">Or Image</label>
+                                                <div id="wb-usp-item-2-image-preview" style="width: 100%; height: 80px; background: #f1f5f9; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 6px; border: 2px dashed #e2e8f0; background-size: contain; background-position: center; background-repeat: no-repeat;">
+                                                    <span style="color: #94a3b8; font-size: 0.75rem;">No image</span>
+                                                </div>
+                                                <input type="file" id="wb-usp-item-2-image" accept="image/*" onchange="previewWebsiteImage('usp-item-2')" style="font-size: 0.75rem;">
+                                                <input type="hidden" id="wb-usp-item-2-image-url">
+                                            </div>
+                                            <div class="form-group">
+                                                <label class="form-label">Text <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                                                <div class="translation-field-wrapper" data-translation-group="wb-usp-item-2-text">
+                                                    <div class="translation-tabs">
+                                                        <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-usp-item-2-text', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                                        <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-usp-item-2-text', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                                        <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-usp-item-2-text')" title="Auto-translate">✨</button>
+                                                    </div>
+                                                    <div class="translation-input-group">
+                                                        <textarea class="form-textarea translation-input active" id="wb-usp-item-2-text-en" data-lang="en" rows="3" placeholder="Description..."></textarea>
+                                                        <textarea class="form-textarea translation-input" id="wb-usp-item-2-text-fr" data-lang="fr" rows="3" placeholder=""></textarea>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="card" style="padding: 1rem;">
+                                            <label class="form-label" style="font-weight: 600;">Item 3</label>
+                                            <div class="form-group">
+                                                <label class="form-label">Icon (emoji)</label>
+                                                <input type="text" class="form-input" id="wb-usp-item-3-icon" placeholder="🏊">
+                                            </div>
+                                            <div class="form-group">
+                                                <label class="form-label">Or Image</label>
+                                                <div id="wb-usp-item-3-image-preview" style="width: 100%; height: 80px; background: #f1f5f9; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 6px; border: 2px dashed #e2e8f0; background-size: contain; background-position: center; background-repeat: no-repeat;">
+                                                    <span style="color: #94a3b8; font-size: 0.75rem;">No image</span>
+                                                </div>
+                                                <input type="file" id="wb-usp-item-3-image" accept="image/*" onchange="previewWebsiteImage('usp-item-3')" style="font-size: 0.75rem;">
+                                                <input type="hidden" id="wb-usp-item-3-image-url">
+                                            </div>
+                                            <div class="form-group">
+                                                <label class="form-label">Text <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                                                <div class="translation-field-wrapper" data-translation-group="wb-usp-item-3-text">
+                                                    <div class="translation-tabs">
+                                                        <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-usp-item-3-text', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                                        <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-usp-item-3-text', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                                        <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-usp-item-3-text')" title="Auto-translate">✨</button>
+                                                    </div>
+                                                    <div class="translation-input-group">
+                                                        <textarea class="form-textarea translation-input active" id="wb-usp-item-3-text-en" data-lang="en" rows="3" placeholder="Description..."></textarea>
+                                                        <textarea class="form-textarea translation-input" id="wb-usp-item-3-text-fr" data-lang="fr" rows="3" placeholder=""></textarea>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+                                        <div class="card" style="padding: 1rem;">
+                                            <label class="form-label" style="font-weight: 600;">Item 4 (optional)</label>
+                                            <div class="form-group"><label class="form-label">Icon</label><input type="text" class="form-input" id="wb-usp-item-4-icon" placeholder="🌴"></div>
+                                            <div class="form-group"><label class="form-label">Or Image</label><div id="wb-usp-item-4-image-preview" style="width:100%;height:60px;background:#f1f5f9;border-radius:8px;display:flex;align-items:center;justify-content:center;margin-bottom:6px;border:2px dashed #e2e8f0;background-size:contain;background-position:center;background-repeat:no-repeat;"><span style="color:#94a3b8;font-size:0.75rem;">No image</span></div><input type="file" id="wb-usp-item-4-image" accept="image/*" onchange="previewWebsiteImage('usp-item-4')" style="font-size:0.75rem;"><input type="hidden" id="wb-usp-item-4-image-url"></div>
+                                            <div class="form-group"><label class="form-label">Text 🌐</label><textarea class="form-textarea" id="wb-usp-item-4-text-en" rows="2" placeholder="Description..."></textarea></div>
+                                        </div>
+                                        <div class="card" style="padding: 1rem;">
+                                            <label class="form-label" style="font-weight: 600;">Item 5 (optional)</label>
+                                            <div class="form-group"><label class="form-label">Icon</label><input type="text" class="form-input" id="wb-usp-item-5-icon" placeholder="☀️"></div>
+                                            <div class="form-group"><label class="form-label">Or Image</label><div id="wb-usp-item-5-image-preview" style="width:100%;height:60px;background:#f1f5f9;border-radius:8px;display:flex;align-items:center;justify-content:center;margin-bottom:6px;border:2px dashed #e2e8f0;background-size:contain;background-position:center;background-repeat:no-repeat;"><span style="color:#94a3b8;font-size:0.75rem;">No image</span></div><input type="file" id="wb-usp-item-5-image" accept="image/*" onchange="previewWebsiteImage('usp-item-5')" style="font-size:0.75rem;"><input type="hidden" id="wb-usp-item-5-image-url"></div>
+                                            <div class="form-group"><label class="form-label">Text 🌐</label><textarea class="form-textarea" id="wb-usp-item-5-text-en" rows="2" placeholder="Description..."></textarea></div>
+                                        </div>
+                                        <div class="card" style="padding: 1rem;">
+                                            <label class="form-label" style="font-weight: 600;">Item 6 (optional)</label>
+                                            <div class="form-group"><label class="form-label">Icon</label><input type="text" class="form-input" id="wb-usp-item-6-icon" placeholder="🎉"></div>
+                                            <div class="form-group"><label class="form-label">Or Image</label><div id="wb-usp-item-6-image-preview" style="width:100%;height:60px;background:#f1f5f9;border-radius:8px;display:flex;align-items:center;justify-content:center;margin-bottom:6px;border:2px dashed #e2e8f0;background-size:contain;background-position:center;background-repeat:no-repeat;"><span style="color:#94a3b8;font-size:0.75rem;">No image</span></div><input type="file" id="wb-usp-item-6-image" accept="image/*" onchange="previewWebsiteImage('usp-item-6')" style="font-size:0.75rem;"><input type="hidden" id="wb-usp-item-6-image-url"></div>
+                                            <div class="form-group"><label class="form-label">Text 🌐</label><textarea class="form-textarea" id="wb-usp-item-6-text-en" rows="2" placeholder="Description..."></textarea></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- USP Colors -->
+                            <div class="card" style="margin-bottom: 1rem;">
+                                <div class="card-header"><h3>Colors</h3></div>
+                                <div class="card-body">
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 1rem;">
+                                        <div class="form-group">
+                                            <label class="form-label">Background</label>
+                                            <div style="display: flex; gap: 8px; align-items: center;">
+                                                <input type="color" id="wb-usp-bg-color-picker" value="#f1f0eb" style="width: 40px; height: 32px; border: none; cursor: pointer;" onchange="document.getElementById('wb-usp-bg-color').value = this.value">
+                                                <input type="text" class="form-input" id="wb-usp-bg-color" value="#f1f0eb" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-usp-bg-color-picker')">
+                                            </div>
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label">Title Color</label>
+                                            <div style="display: flex; gap: 8px; align-items: center;">
+                                                <input type="color" id="wb-usp-title-color-picker" value="#1e293b" style="width: 40px; height: 32px; border: none; cursor: pointer;" onchange="document.getElementById('wb-usp-title-color').value = this.value">
+                                                <input type="text" class="form-input" id="wb-usp-title-color" value="#1e293b" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-usp-title-color-picker')">
+                                            </div>
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label">Text Color</label>
+                                            <div style="display: flex; gap: 8px; align-items: center;">
+                                                <input type="color" id="wb-usp-text-color-picker" value="#64748b" style="width: 40px; height: 32px; border: none; cursor: pointer;" onchange="document.getElementById('wb-usp-text-color').value = this.value">
+                                                <input type="text" class="form-input" id="wb-usp-text-color" value="#64748b" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-usp-text-color-picker')">
+                                            </div>
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label">Card Background</label>
+                                            <div style="display: flex; gap: 8px; align-items: center;">
+                                                <input type="color" id="wb-usp-card-bg-picker" value="#ffffff" style="width: 40px; height: 32px; border: none; cursor: pointer;" onchange="document.getElementById('wb-usp-card-bg').value = this.value">
+                                                <input type="text" class="form-input" id="wb-usp-card-bg" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-usp-card-bg-picker')">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <div id="editor-homepage-about" class="home-subtab-panel" style="display: none;">
                             <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
                                 <button class="btn" onclick="saveWebsiteSection('about', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save About</button>
