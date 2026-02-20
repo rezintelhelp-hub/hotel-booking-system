@@ -7115,6 +7115,13 @@
                                         </div>
                                     </div>
                                     <p style="color: #64748b; font-size: 0.85rem; margin-top: 0.5rem;">Displays a contact form that sends messages to your GAS Admin inbox.</p>
+                                    <div class="form-group" style="margin-top: 1rem;">
+                                        <label class="form-label">Button Colour</label>
+                                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                            <input type="color" id="wb-page-contact-button-color-picker" value="#10b981" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-page-contact-button-color').value = this.value">
+                                            <input type="text" class="form-input" id="wb-page-contact-button-color" value="#10b981" style="width: 100px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-page-contact-button-color-picker')">
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
