@@ -17807,21 +17807,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                             </label>
                         </div>
                         
-                        <!-- Custom Checkout Text -->
-                        <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #e2e8f0;">
-                            <h4 style="margin: 0 0 0.75rem 0; font-size: 0.9rem; color: #1e293b;">✏️ Checkout Display Text</h4>
-                            <p style="font-size: 0.75rem; color: #64748b; margin: 0 0 0.75rem 0;">Customise what guests see on the checkout page</p>
-                            <div class="form-group" style="margin-bottom: 0.75rem;">
-                                <label class="form-label">Button Label</label>
-                                <input type="text" class="form-input" id="bulk-pay-property-label" placeholder="Pay at Property">
-                                <p style="font-size: 0.7rem; color: #64748b; margin-top: 0.25rem;">e.g. "Reserve Now & Pay Before Arrival"</p>
-                            </div>
-                            <div class="form-group" style="margin-bottom: 0;">
-                                <label class="form-label">Description</label>
-                                <input type="text" class="form-input" id="bulk-pay-property-description" placeholder="Pay when you arrive - no payment needed now">
-                            </div>
-                        </div>
-                        
                         <div id="bulk-bank-details" style="display:none; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #e2e8f0;">
                             <h4 style="margin: 0 0 1rem 0; font-size: 0.9rem; color: #1e293b;">🏦 Bank Details</h4>
                             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
@@ -17957,20 +17942,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                             <span style="font-size: 0.75rem; background: #f59e0b; color: white; padding: 0.15rem 0.5rem; border-radius: 10px;">Flexible</span>
                         </label>
                         
-                        <!-- Pay at Property Custom Text -->
-                        <div id="pay-property-text-section" style="background: #fffbeb; border-radius: 8px; padding: 1rem; margin-left: 2.5rem; border: 1px solid #fde68a;">
-                            <p style="font-size: 0.75rem; color: #92400e; margin: 0 0 0.75rem 0; font-weight: 600;">Customise checkout display text</p>
-                            <div class="form-group" style="margin-bottom: 0.75rem;">
-                                <label class="form-label" style="font-size: 0.8rem;">Button Label</label>
-                                <input type="text" class="form-input" id="pay-property-label" placeholder="Pay at Property">
-                                <p style="font-size: 0.7rem; color: #64748b; margin-top: 0.25rem;">e.g. "Reserve Now & Pay Before Arrival", "Pay on Arrival"</p>
-                            </div>
-                            <div class="form-group" style="margin-bottom: 0;">
-                                <label class="form-label" style="font-size: 0.8rem;">Description</label>
-                                <input type="text" class="form-input" id="pay-property-description" placeholder="Pay when you arrive - no payment needed now">
-                                <p style="font-size: 0.7rem; color: #64748b; margin-top: 0.25rem;">Shown below the label on the checkout page</p>
-                            </div>
-                        </div>
+                        <!-- PayPal -->
+                        <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer; padding: 0.75rem; background: white; border-radius: 8px; border: 2px solid transparent; opacity: 0.5;" id="provider-paypal-label">
+                            <input type="checkbox" name="payment-provider" value="paypal" id="payment-provider-paypal" style="width: 18px; height: 18px;" disabled>
+                            <img src="https://upload.wikimedia.org/wikipedia/commons/b/b5/PayPal.svg" alt="PayPal" style="height: 24px;">
+                            <span style="flex: 1; font-weight: 500;">PayPal</span>
+                            <span style="font-size: 0.75rem; background: #94a3b8; color: white; padding: 0.15rem 0.5rem; border-radius: 10px;">Coming Soon</span>
+                        </label>
                         
                         <!-- Card Guarantee (Enigma Vault) -->
                         <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer; padding: 0.75rem; background: white; border-radius: 8px; border: 2px solid transparent; transition: all 0.2s;" id="provider-card-guarantee-label">
@@ -49554,8 +49532,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                             headers: { 'Content-Type': 'application/json', ...authHeaders() },
                             body: JSON.stringify({
                                 pay_property_mode: mode,
-                                pay_property_label: document.getElementById('bulk-pay-property-label').value.trim(),
-                                pay_property_description: document.getElementById('bulk-pay-property-description').value.trim(),
                                 bank_details: bankDetails
                             })
                         });
@@ -49934,13 +49910,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                         var modeRadio = document.getElementById('pay-mode-' + settings.pay_property_mode.replace(/_/g, '-'));
                         if (modeRadio) modeRadio.checked = true;
                     }
-                    // Load pay at property custom text
-                    if (settings.pay_property_label && document.getElementById('pay-property-label')) {
-                        document.getElementById('pay-property-label').value = settings.pay_property_label;
-                    }
-                    if (settings.pay_property_description && document.getElementById('pay-property-description')) {
-                        document.getElementById('pay-property-description').value = settings.pay_property_description;
-                    }
                     if (methods.includes('card_guarantee')) {
                         const cgCb = document.getElementById('payment-provider-card-guarantee');
                         if (cgCb) cgCb.checked = true;
@@ -50215,8 +50184,6 @@ const promo = await fetch('/api/v1/offers/validate', {
             
             // Build pay at property settings
             const payPropertyMode = document.querySelector('input[name="pay-property-mode"]:checked')?.value || 'no_payment';
-            const payPropertyLabel = document.getElementById('pay-property-label')?.value?.trim() || '';
-            const payPropertyDescription = document.getElementById('pay-property-description')?.value?.trim() || '';
             
             // Build card guarantee settings
             const cardGuaranteeSettings = {};
@@ -50245,8 +50212,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                 accepted_methods: acceptedMethods.length > 0 ? acceptedMethods : ['card'],
                 bank_details: bankDetails,
                 pay_property_mode: payPropertyMode,
-                pay_property_label: payPropertyLabel,
-                pay_property_description: payPropertyDescription,
                 card_guarantee: cardGuaranteeSettings,
                 cancellation_policy: document.getElementById('payment-cancellation').value
             };
