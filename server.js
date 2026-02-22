@@ -26728,6 +26728,64 @@ app.get('/api/admin/debug/room-details/:roomId', async (req, res) => {
   }
 });
 
+// Diagnostic: Check sync data chain for a room
+app.get('/api/admin/debug/sync-chain/:roomId', async (req, res) => {
+  try {
+    const { roomId } = req.params;
+    
+    // 1. bookable_units
+    const bu = await pool.query('SELECT id, name, display_name, short_description, full_description, beds24_room_id, property_id, feature_codes FROM bookable_units WHERE id = $1', [roomId]);
+    if (!bu.rows[0]) return res.json({ success: false, error: 'Room not found' });
+    const room = bu.rows[0];
+    
+    // 2. gas_sync_room_types (the intermediate sync table)
+    let syncRoom = null;
+    if (room.beds24_room_id) {
+      const sr = await pool.query('SELECT id, external_id, name, short_description, full_description, feature_codes, gas_room_id FROM gas_sync_room_types WHERE external_id = $1', [String(room.beds24_room_id)]);
+      syncRoom = sr.rows[0] || null;
+    }
+    
+    // 3. amenities
+    const amenities = await pool.query('SELECT amenity_code, amenity_name, category FROM bookable_unit_amenities WHERE bookable_unit_id = $1 ORDER BY display_order', [roomId]);
+    
+    // 4. property-level descriptions
+    const prop = await pool.query('SELECT id, name, short_description, full_description FROM properties WHERE id = $1', [room.property_id]);
+    
+    res.json({
+      success: true,
+      bookable_unit: {
+        id: room.id,
+        name: room.name,
+        display_name: room.display_name,
+        short_description: room.short_description,
+        full_description: room.full_description,
+        feature_codes: room.feature_codes,
+        beds24_room_id: room.beds24_room_id
+      },
+      gas_sync_room_type: syncRoom ? {
+        id: syncRoom.id,
+        name: syncRoom.name,
+        short_description: syncRoom.short_description,
+        full_description: syncRoom.full_description,
+        feature_codes: syncRoom.feature_codes,
+        gas_room_id: syncRoom.gas_room_id
+      } : 'NOT FOUND - sync may not have run',
+      amenities: amenities.rows.length > 0 ? amenities.rows : 'NONE - no amenities linked',
+      property: prop.rows[0] || null,
+      diagnosis: {
+        has_sync_data: !!syncRoom,
+        has_short_desc: !!(room.short_description),
+        has_full_desc: !!(room.full_description),
+        has_amenities: amenities.rows.length > 0,
+        sync_desc_present: syncRoom ? !!(syncRoom.short_description || syncRoom.full_description) : false,
+        sync_features_present: syncRoom ? !!(syncRoom.feature_codes) : false
+      }
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Fix missing is_active on room_images
 app.post('/api/admin/fix-room-images', async (req, res) => {
   try {
