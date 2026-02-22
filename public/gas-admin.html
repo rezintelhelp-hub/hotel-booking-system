@@ -17807,6 +17807,21 @@ const promo = await fetch('/api/v1/offers/validate', {
                             </label>
                         </div>
                         
+                        <!-- Custom Checkout Text -->
+                        <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #e2e8f0;">
+                            <h4 style="margin: 0 0 0.75rem 0; font-size: 0.9rem; color: #1e293b;">✏️ Checkout Display Text</h4>
+                            <p style="font-size: 0.75rem; color: #64748b; margin: 0 0 0.75rem 0;">Customise what guests see on the checkout page</p>
+                            <div class="form-group" style="margin-bottom: 0.75rem;">
+                                <label class="form-label">Button Label</label>
+                                <input type="text" class="form-input" id="bulk-pay-property-label" placeholder="Pay at Property">
+                                <p style="font-size: 0.7rem; color: #64748b; margin-top: 0.25rem;">e.g. "Reserve Now & Pay Before Arrival"</p>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label">Description</label>
+                                <input type="text" class="form-input" id="bulk-pay-property-description" placeholder="Pay when you arrive - no payment needed now">
+                            </div>
+                        </div>
+                        
                         <div id="bulk-bank-details" style="display:none; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #e2e8f0;">
                             <h4 style="margin: 0 0 1rem 0; font-size: 0.9rem; color: #1e293b;">🏦 Bank Details</h4>
                             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
@@ -49539,6 +49554,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                             headers: { 'Content-Type': 'application/json', ...authHeaders() },
                             body: JSON.stringify({
                                 pay_property_mode: mode,
+                                pay_property_label: document.getElementById('bulk-pay-property-label').value.trim(),
+                                pay_property_description: document.getElementById('bulk-pay-property-description').value.trim(),
                                 bank_details: bankDetails
                             })
                         });
