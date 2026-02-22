@@ -4123,6 +4123,11 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
       let fullDescMultilang = roomRawData.full_description || null;
       let displayNameMultilang = roomRawData.displayName || null;
       
+      // Parse stringified JSON if needed (prevents double-encoding)
+      if (typeof shortDescMultilang === 'string') { try { shortDescMultilang = JSON.parse(shortDescMultilang); } catch(e) {} }
+      if (typeof fullDescMultilang === 'string') { try { fullDescMultilang = JSON.parse(fullDescMultilang); } catch(e) {} }
+      if (typeof displayNameMultilang === 'string') { try { displayNameMultilang = JSON.parse(displayNameMultilang); } catch(e) {} }
+      
       // Helper to safely strip HTML - handles strings and objects
       const safeStripHtml = (val) => {
         if (!val) return '';
