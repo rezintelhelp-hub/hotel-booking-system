@@ -26893,8 +26893,6 @@ app.get('/api/admin/fix-descriptions/:accountId', async (req, res) => {
     res.json({ success: false, error: error.message });
   }
 });
-  }
-});
 
 app.get('/api/properties', async (req, res) => {
   const result = await beds24Request('/properties');
