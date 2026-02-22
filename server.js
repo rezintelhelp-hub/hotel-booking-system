@@ -15241,8 +15241,6 @@ app.get('/api/public/property/:propertyId/stripe-info', async (req, res) => {
         
         let paymentMethods = { card: false, pay_at_property: false, paypal: false, card_guarantee: false };
         let payPropertyMode = 'no_payment';
-        let payPropertyLabel = '';
-        let payPropertyDescription = '';
         let bankDetails = null;
         
         if (ppsResult.rows.length > 0) {
@@ -15261,8 +15259,6 @@ app.get('/api/public/property/:propertyId/stripe-info', async (req, res) => {
             
             // pay_property_mode and card_guarantee are stored in account settings, not pps table
             payPropertyMode = acctSettings.pay_property_mode || 'no_payment';
-            payPropertyLabel = acctSettings.pay_property_label || '';
-            payPropertyDescription = acctSettings.pay_property_description || '';
             if (payPropertyMode === 'bank_optional' || payPropertyMode === 'bank_required') {
                 const bd = pps.bank_details || acctSettings.bank_details || {};
                 const parsedBd = typeof bd === 'string' ? JSON.parse(bd) : bd;
@@ -15370,8 +15366,6 @@ app.get('/api/public/property/:propertyId/stripe-info', async (req, res) => {
             deposit_rule: depositRule,
             payment_methods: paymentMethods,
             pay_property_mode: payPropertyMode,
-            pay_property_label: payPropertyLabel || '',
-            pay_property_description: payPropertyDescription || '',
             bank_details: bankDetails
         });
         
@@ -25092,7 +25086,7 @@ app.post('/api/property/:propertyId/payment-settings', async (req, res) => {
 app.post('/api/account/:accountId/set-direct-payment', async (req, res) => {
   try {
     const { accountId } = req.params;
-    const { pay_property_mode, pay_property_label, pay_property_description, bank_details } = req.body;
+    const { pay_property_mode, bank_details } = req.body;
     
     const existingSettings = await pool.query('SELECT settings FROM accounts WHERE id = $1', [accountId]);
     if (!existingSettings.rows[0]) return res.json({ success: false, error: 'Account not found' });
@@ -25102,8 +25096,6 @@ app.post('/api/account/:accountId/set-direct-payment', async (req, res) => {
       : (existingSettings.rows[0].settings || {});
     
     currentSettings.pay_property_mode = pay_property_mode || 'no_payment';
-    if (pay_property_label !== undefined) currentSettings.pay_property_label = pay_property_label;
-    if (pay_property_description !== undefined) currentSettings.pay_property_description = pay_property_description;
     if (bank_details && Object.keys(bank_details).length > 0) {
       currentSettings.bank_details = bank_details;
     }
@@ -26722,65 +26714,6 @@ app.get('/api/admin/debug/room-details/:roomId', async (req, res) => {
       syncImages: syncImages,
       availability: availability.rows,
       syncRoomType: syncRoomType
-    });
-  } catch (error) {
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// Diagnostic: Check sync data chain for a room
-app.get('/api/admin/debug/sync-chain/:roomId', async (req, res) => {
-  try {
-    const { roomId } = req.params;
-    
-    // 1. bookable_units
-    const bu = await pool.query('SELECT id, name, display_name, short_description, full_description, beds24_room_id, property_id, feature_codes FROM bookable_units WHERE id = $1', [roomId]);
-    if (!bu.rows[0]) return res.json({ success: false, error: 'Room not found' });
-    const room = bu.rows[0];
-    
-    // 2. gas_sync_room_types (the intermediate sync table)
-    let syncRoom = null;
-    if (room.beds24_room_id) {
-      const sr = await pool.query('SELECT id, external_id, name, gas_room_id, raw_data FROM gas_sync_room_types WHERE external_id = $1', [String(room.beds24_room_id)]);
-      syncRoom = sr.rows[0] || null;
-    }
-    
-    // 3. amenities
-    const amenities = await pool.query('SELECT amenity_code, amenity_name, category FROM bookable_unit_amenities WHERE bookable_unit_id = $1 ORDER BY display_order', [roomId]);
-    
-    // 4. property-level descriptions
-    const prop = await pool.query('SELECT id, name, short_description, full_description FROM properties WHERE id = $1', [room.property_id]);
-    
-    res.json({
-      success: true,
-      bookable_unit: {
-        id: room.id,
-        name: room.name,
-        display_name: room.display_name,
-        short_description: room.short_description,
-        full_description: room.full_description,
-        feature_codes: room.feature_codes,
-        beds24_room_id: room.beds24_room_id
-      },
-      gas_sync_room_type: syncRoom ? {
-        id: syncRoom.id,
-        name: syncRoom.name,
-        external_id: syncRoom.external_id,
-        gas_room_id: syncRoom.gas_room_id,
-        has_raw_data: !!(syncRoom.raw_data),
-        raw_data_keys: syncRoom.raw_data ? Object.keys(syncRoom.raw_data).slice(0, 20) : []
-      } : 'NOT FOUND - sync may not have run',
-      amenities: amenities.rows.length > 0 ? amenities.rows : 'NONE - no amenities linked',
-      property: prop.rows[0] || null,
-      diagnosis: {
-        has_sync_data: !!syncRoom,
-        has_short_desc: !!(room.short_description),
-        has_full_desc: !!(room.full_description),
-        has_feature_codes: !!(room.feature_codes),
-        has_amenities: amenities.rows.length > 0,
-        sync_has_raw_data: syncRoom ? !!(syncRoom.raw_data) : false,
-        sync_linked_to_gas: syncRoom ? syncRoom.gas_room_id === parseInt(roomId) : false
-      }
     });
   } catch (error) {
     res.json({ success: false, error: error.message });
@@ -54756,8 +54689,6 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
         bu.name,
         bu.display_name,
         bu.description,
-        bu.short_description,
-        bu.full_description,
         bu.base_price,
         bu.max_guests,
         bu.max_adults,
