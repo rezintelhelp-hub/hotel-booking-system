@@ -25092,7 +25092,7 @@ app.post('/api/property/:propertyId/payment-settings', async (req, res) => {
 app.post('/api/account/:accountId/set-direct-payment', async (req, res) => {
   try {
     const { accountId } = req.params;
-    const { pay_property_mode, bank_details } = req.body;
+    const { pay_property_mode, pay_property_label, pay_property_description, bank_details } = req.body;
     
     const existingSettings = await pool.query('SELECT settings FROM accounts WHERE id = $1', [accountId]);
     if (!existingSettings.rows[0]) return res.json({ success: false, error: 'Account not found' });
@@ -25102,6 +25102,8 @@ app.post('/api/account/:accountId/set-direct-payment', async (req, res) => {
       : (existingSettings.rows[0].settings || {});
     
     currentSettings.pay_property_mode = pay_property_mode || 'no_payment';
+    if (pay_property_label !== undefined) currentSettings.pay_property_label = pay_property_label;
+    if (pay_property_description !== undefined) currentSettings.pay_property_description = pay_property_description;
     if (bank_details && Object.keys(bank_details).length > 0) {
       currentSettings.bank_details = bank_details;
     }
