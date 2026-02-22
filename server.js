@@ -1,3 +1,7 @@
+// ============================================
+// GAS Server — v2.5.0
+// Last modified: 22 Feb 2026
+// ============================================
 // Force rebuild - Jan 14 2026
 // GAS - Guest Accommodation System Server
 // Multi-tenant SaaS for property management
@@ -15241,6 +15245,8 @@ app.get('/api/public/property/:propertyId/stripe-info', async (req, res) => {
         
         let paymentMethods = { card: false, pay_at_property: false, paypal: false, card_guarantee: false };
         let payPropertyMode = 'no_payment';
+        let payPropertyLabel = '';
+        let payPropertyDescription = '';
         let bankDetails = null;
         
         if (ppsResult.rows.length > 0) {
@@ -15259,6 +15265,8 @@ app.get('/api/public/property/:propertyId/stripe-info', async (req, res) => {
             
             // pay_property_mode and card_guarantee are stored in account settings, not pps table
             payPropertyMode = acctSettings.pay_property_mode || 'no_payment';
+            payPropertyLabel = acctSettings.pay_property_label || '';
+            payPropertyDescription = acctSettings.pay_property_description || '';
             if (payPropertyMode === 'bank_optional' || payPropertyMode === 'bank_required') {
                 const bd = pps.bank_details || acctSettings.bank_details || {};
                 const parsedBd = typeof bd === 'string' ? JSON.parse(bd) : bd;
@@ -15366,6 +15374,8 @@ app.get('/api/public/property/:propertyId/stripe-info', async (req, res) => {
             deposit_rule: depositRule,
             payment_methods: paymentMethods,
             pay_property_mode: payPropertyMode,
+            pay_property_label: payPropertyLabel || '',
+            pay_property_description: payPropertyDescription || '',
             bank_details: bankDetails
         });
         
@@ -25086,7 +25096,7 @@ app.post('/api/property/:propertyId/payment-settings', async (req, res) => {
 app.post('/api/account/:accountId/set-direct-payment', async (req, res) => {
   try {
     const { accountId } = req.params;
-    const { pay_property_mode, bank_details } = req.body;
+    const { pay_property_mode, pay_property_label, pay_property_description, bank_details } = req.body;
     
     const existingSettings = await pool.query('SELECT settings FROM accounts WHERE id = $1', [accountId]);
     if (!existingSettings.rows[0]) return res.json({ success: false, error: 'Account not found' });
@@ -25096,6 +25106,8 @@ app.post('/api/account/:accountId/set-direct-payment', async (req, res) => {
       : (existingSettings.rows[0].settings || {});
     
     currentSettings.pay_property_mode = pay_property_mode || 'no_payment';
+    if (pay_property_label !== undefined) currentSettings.pay_property_label = pay_property_label;
+    if (pay_property_description !== undefined) currentSettings.pay_property_description = pay_property_description;
     if (bank_details && Object.keys(bank_details).length > 0) {
       currentSettings.bank_details = bank_details;
     }
@@ -54689,6 +54701,8 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
         bu.name,
         bu.display_name,
         bu.description,
+        bu.short_description,
+        bu.full_description,
         bu.base_price,
         bu.max_guests,
         bu.max_adults,
