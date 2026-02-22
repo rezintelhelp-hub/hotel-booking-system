@@ -51350,6 +51350,10 @@ app.get('/api/public/unit/:unitId', async (req, res) => {
     if (unitData.computed_num_bedrooms) {
       unitData.num_bedrooms = parseInt(unitData.computed_num_bedrooms);
     }
+    // Strip prefix before hyphen from property name
+    if (unitData.property_name && unitData.property_name.includes(' - ')) {
+      unitData.property_name = unitData.property_name.split(' - ').slice(1).join(' - ').trim();
+    }
     
     res.json({
       success: true,
@@ -54814,6 +54818,7 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
     // Use today's rate if available, otherwise fall back to base_price
     const rooms = result.rows.map(room => ({
       ...room,
+      property_name: room.property_name && room.property_name.includes(' - ') ? room.property_name.split(' - ').slice(1).join(' - ').trim() : room.property_name,
       price: room.todays_rate || room.base_price || 0,
       amenities: amenitiesByRoom[room.id] || []
     }));
