@@ -26828,6 +26828,8 @@ app.get('/api/admin/debug/bookings-schema', async (req, res) => {
     res.json({ success: true, columns: result.rows });
   } catch (error) {
     res.json({ success: false, error: error.message });
+  }
+});
 
 // One-time cleanup: fix triple-encoded full_description values
 app.get('/api/admin/fix-descriptions/:accountId', async (req, res) => {
