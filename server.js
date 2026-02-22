@@ -54756,6 +54756,8 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
         bu.name,
         bu.display_name,
         bu.description,
+        bu.short_description,
+        bu.full_description,
         bu.base_price,
         bu.max_guests,
         bu.max_adults,
