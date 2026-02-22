@@ -15241,6 +15241,8 @@ app.get('/api/public/property/:propertyId/stripe-info', async (req, res) => {
         
         let paymentMethods = { card: false, pay_at_property: false, paypal: false, card_guarantee: false };
         let payPropertyMode = 'no_payment';
+        let payPropertyLabel = '';
+        let payPropertyDescription = '';
         let bankDetails = null;
         
         if (ppsResult.rows.length > 0) {
@@ -15259,6 +15261,8 @@ app.get('/api/public/property/:propertyId/stripe-info', async (req, res) => {
             
             // pay_property_mode and card_guarantee are stored in account settings, not pps table
             payPropertyMode = acctSettings.pay_property_mode || 'no_payment';
+            payPropertyLabel = acctSettings.pay_property_label || '';
+            payPropertyDescription = acctSettings.pay_property_description || '';
             if (payPropertyMode === 'bank_optional' || payPropertyMode === 'bank_required') {
                 const bd = pps.bank_details || acctSettings.bank_details || {};
                 const parsedBd = typeof bd === 'string' ? JSON.parse(bd) : bd;
@@ -15366,6 +15370,8 @@ app.get('/api/public/property/:propertyId/stripe-info', async (req, res) => {
             deposit_rule: depositRule,
             payment_methods: paymentMethods,
             pay_property_mode: payPropertyMode,
+            pay_property_label: payPropertyLabel || '',
+            pay_property_description: payPropertyDescription || '',
             bank_details: bankDetails
         });
         
