@@ -26828,6 +26828,69 @@ app.get('/api/admin/debug/bookings-schema', async (req, res) => {
     res.json({ success: true, columns: result.rows });
   } catch (error) {
     res.json({ success: false, error: error.message });
+
+// One-time cleanup: fix triple-encoded full_description values
+app.get('/api/admin/fix-descriptions/:accountId', async (req, res) => {
+  try {
+    const { accountId } = req.params;
+    
+    // Find rooms with triple-encoded full_description (starts with quote)
+    const badRows = await pool.query(`
+      SELECT bu.id, bu.full_description::text as fd_text
+      FROM bookable_units bu
+      JOIN properties p ON bu.property_id = p.id
+      WHERE p.account_id = $1
+      AND bu.full_description IS NOT NULL
+      AND bu.full_description::text LIKE '"%'
+    `, [accountId]);
+    
+    let fixed = 0;
+    for (const row of badRows.rows) {
+      try {
+        // Strip outer quotes and unescape
+        let cleaned = row.fd_text;
+        // Keep parsing until we get an object
+        while (typeof cleaned === 'string') {
+          try { cleaned = JSON.parse(cleaned); } catch(e) { break; }
+        }
+        if (typeof cleaned === 'object' && cleaned !== null) {
+          await pool.query('UPDATE bookable_units SET full_description = $1::jsonb WHERE id = $2', 
+            [JSON.stringify(cleaned), row.id]);
+          fixed++;
+        }
+      } catch(e) { console.log('fix-descriptions: skip room', row.id, e.message); }
+    }
+    
+    // Also fix short_description
+    const badShort = await pool.query(`
+      SELECT bu.id, bu.short_description::text as sd_text
+      FROM bookable_units bu
+      JOIN properties p ON bu.property_id = p.id
+      WHERE p.account_id = $1
+      AND bu.short_description IS NOT NULL
+      AND bu.short_description::text LIKE '"%'
+    `, [accountId]);
+    
+    let fixedShort = 0;
+    for (const row of badShort.rows) {
+      try {
+        let cleaned = row.sd_text;
+        while (typeof cleaned === 'string') {
+          try { cleaned = JSON.parse(cleaned); } catch(e) { break; }
+        }
+        if (typeof cleaned === 'object' && cleaned !== null) {
+          await pool.query('UPDATE bookable_units SET short_description = $1::jsonb WHERE id = $2', 
+            [JSON.stringify(cleaned), row.id]);
+          fixedShort++;
+        }
+      } catch(e) {}
+    }
+    
+    res.json({ success: true, full_description_fixed: fixed, short_description_fixed: fixedShort, total_checked: badRows.rows.length + badShort.rows.length });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
   }
 });
 
