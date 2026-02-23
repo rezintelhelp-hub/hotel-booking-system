@@ -26839,6 +26839,14 @@ app.post('/api/admin/properties/:propertyId/copy-sync-images', async (req, res) 
       return res.json({ success: false, error: 'No rooms found for this property' });
     }
     
+    // Optional: clear existing room_images first (for re-import through R2)
+    const { clearFirst } = req.body || {};
+    if (clearFirst) {
+      const roomIds = roomsResult.rows.map(r => r.id);
+      const delResult = await pool.query('DELETE FROM room_images WHERE room_id = ANY($1)', [roomIds]);
+      console.log(`[Copy Sync Images] Cleared ${delResult.rowCount} existing room_images for property ${propertyId}`);
+    }
+    
     let totalCopied = 0;
     let totalSkipped = 0;
     const roomResults = [];
