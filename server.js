@@ -3140,6 +3140,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/copy-images', async (req, res
     
     let copied = 0;
     let skipped = 0;
+    let compressed = 0;
     
     for (const img of syncImages.rows) {
       // Extract Beds24 room ID from external_id (format: "138605-img-25-309239")
@@ -3165,14 +3166,46 @@ app.post('/api/gas-sync/properties/:syncPropertyId/copy-images', async (req, res
         continue;
       }
       
-      // Check if image already exists
+      // Check if image already exists (check both original URL and any R2 URL for this external_id)
       const existing = await pool.query(`
-        SELECT id FROM room_images WHERE room_id = $1 AND image_url = $2
-      `, [gasRoomId, img.original_url]);
+        SELECT id FROM room_images WHERE room_id = $1 AND (image_url = $2 OR image_key = $3)
+      `, [gasRoomId, img.original_url, img.external_id]);
       
       if (existing.rows.length > 0) {
         skipped++;
         continue;
+      }
+      
+      // Try to download, compress via Sharp, and upload to R2
+      let imageUrl = img.original_url;
+      let thumbnailUrl = img.thumbnail_url || img.original_url;
+      let imageKey = img.external_id;
+      
+      try {
+        const imgResponse = await axios.get(img.original_url, { 
+          responseType: 'arraybuffer', 
+          timeout: 30000,
+          maxContentLength: 100 * 1024 * 1024 // 100MB max
+        });
+        const buffer = Buffer.from(imgResponse.data);
+        const originalSizeKB = (buffer.length / 1024).toFixed(0);
+        
+        // Extract filename from URL
+        const urlPath = new URL(img.original_url).pathname;
+        const filename = path.basename(urlPath) || `beds24-${img.external_id}.jpg`;
+        
+        // Process through Sharp and upload to R2 (creates large/medium/thumbnail WebP + JPG original)
+        const r2Result = await processAndUploadImage(buffer, 'room', gasRoomId, filename);
+        
+        imageUrl = r2Result.large || r2Result.original;
+        thumbnailUrl = r2Result.thumbnail || r2Result.medium || imageUrl;
+        imageKey = r2Result.imageKey || img.external_id;
+        compressed++;
+        
+        console.log(`[Copy Images] Compressed ${originalSizeKB}KB -> R2: ${imageUrl}`);
+      } catch (dlErr) {
+        // Fallback: store original external URL (still works, just not optimised)
+        console.warn(`[Copy Images] Could not compress image, using original URL: ${dlErr.message}`);
       }
       
       // Insert image
@@ -3181,9 +3214,9 @@ app.post('/api/gas-sync/properties/:syncPropertyId/copy-images', async (req, res
         VALUES ($1, $2, $3, $4, $5, $6, 'gas_sync', true, NOW())
       `, [
         gasRoomId,
-        img.external_id,
-        img.original_url,
-        img.thumbnail_url || img.original_url,
+        imageKey,
+        imageUrl,
+        thumbnailUrl,
         img.caption || '',
         img.sort_order || 0
       ]);
@@ -3192,8 +3225,9 @@ app.post('/api/gas-sync/properties/:syncPropertyId/copy-images', async (req, res
     
     res.json({
       success: true,
-      message: `Copied ${copied} images, skipped ${skipped}`,
+      message: `Copied ${copied} images (${compressed} compressed to R2), skipped ${skipped}`,
       copied,
+      compressed,
       skipped
     });
     
@@ -26823,12 +26857,40 @@ app.post('/api/admin/properties/:propertyId/copy-sync-images', async (req, res) 
       for (const img of syncImages.rows) {
         // Check if already exists
         const existing = await pool.query(`
-          SELECT id FROM room_images WHERE room_id = $1 AND image_url = $2
-        `, [room.id, img.original_url]);
+          SELECT id FROM room_images WHERE room_id = $1 AND (image_url = $2 OR image_key = $3)
+        `, [room.id, img.original_url, img.external_id || `beds24-${room.beds24_room_id}-${img.sort_order || 0}`]);
         
         if (existing.rows.length > 0) {
           skipped++;
           continue;
+        }
+        
+        // Try to download, compress via Sharp, and upload to R2
+        let imageUrl = img.original_url;
+        let thumbnailUrl = img.thumbnail_url || img.original_url;
+        let imageKey = img.external_id || `beds24-${room.beds24_room_id}-${img.sort_order || 0}`;
+        
+        try {
+          const imgResponse = await axios.get(img.original_url, { 
+            responseType: 'arraybuffer', 
+            timeout: 30000,
+            maxContentLength: 100 * 1024 * 1024
+          });
+          const buffer = Buffer.from(imgResponse.data);
+          const originalSizeKB = (buffer.length / 1024).toFixed(0);
+          
+          const urlPath = new URL(img.original_url).pathname;
+          const filename = path.basename(urlPath) || `beds24-${room.beds24_room_id}-${img.sort_order || 0}.jpg`;
+          
+          const r2Result = await processAndUploadImage(buffer, 'room', room.id, filename);
+          
+          imageUrl = r2Result.large || r2Result.original;
+          thumbnailUrl = r2Result.thumbnail || r2Result.medium || imageUrl;
+          imageKey = r2Result.imageKey || imageKey;
+          
+          console.log(`[Copy Sync Images] Room ${room.id}: compressed ${originalSizeKB}KB -> R2`);
+        } catch (dlErr) {
+          console.warn(`[Copy Sync Images] Room ${room.id}: using original URL: ${dlErr.message}`);
         }
         
         // Insert
@@ -26837,9 +26899,9 @@ app.post('/api/admin/properties/:propertyId/copy-sync-images', async (req, res) 
           VALUES ($1, $2, $3, $4, $5, $6, 'beds24_sync', true, $7, NOW())
         `, [
           room.id,
-          img.external_id || `beds24-${room.beds24_room_id}-${img.sort_order || 0}`,
-          img.original_url,
-          img.thumbnail_url || img.original_url,
+          imageKey,
+          imageUrl,
+          thumbnailUrl,
           img.caption || '',
           img.sort_order || 0,
           img.sort_order === 0
