@@ -890,7 +890,8 @@ class Beds24Adapter {
     }
     
     const response = await this.v1Request('/getPropertyContent', {
-      images: true
+      images: true,
+      roomIds: true
     });
     
     if (!response.success) {
@@ -990,9 +991,72 @@ class Beds24Adapter {
       }
     };
     
-    // Process both hosted and external images
+    // Process both hosted and external images (property level)
     processImages(content.images.hosted, 'hosted');
     processImages(content.images.external, 'external');
+    
+    // Process per-room images from roomIds section
+    // These are room-level external image assignments not included in the property-level images
+    let roomLevelCount = 0;
+    const roomIds = content.roomIds || {};
+    for (const [roomId, roomData] of Object.entries(roomIds)) {
+      if (!roomData?.images) continue;
+      
+      // Process hosted images at room level
+      if (roomData.images.hosted) {
+        for (const [key, img] of Object.entries(roomData.images.hosted)) {
+          if (!img.url) continue;
+          // Check if this URL already exists in our collected images (avoid duplicates with property-level)
+          const alreadyExists = roomImages.some(i => i.originalUrl === img.url && i.roomId === String(roomId)) ||
+                                offer1Images.some(i => i.originalUrl === img.url && i.roomId === String(roomId));
+          if (alreadyExists) continue;
+          
+          const position = img.map?.[0]?.position ? parseInt(img.map[0].position) : parseInt(key);
+          roomImages.push({
+            externalId: `${propertyExternalId}-room-hosted-${key}-${roomId}`,
+            originalUrl: img.url,
+            thumbnailUrl: img.url,
+            caption: img.caption?.EN || '',
+            sortOrder: position,
+            imageType: 'room',
+            roomId: String(roomId),
+            offerId: null,
+            width: null,
+            height: null,
+            metadata: img,
+            source: 'room-hosted'
+          });
+          roomLevelCount++;
+        }
+      }
+      
+      // Process external images at room level
+      if (roomData.images.external) {
+        for (const [key, img] of Object.entries(roomData.images.external)) {
+          if (!img.url) continue;
+          const alreadyExists = roomImages.some(i => i.originalUrl === img.url && i.roomId === String(roomId)) ||
+                                offer1Images.some(i => i.originalUrl === img.url && i.roomId === String(roomId));
+          if (alreadyExists) continue;
+          
+          const position = img.map?.[0]?.position ? parseInt(img.map[0].position) : parseInt(key);
+          roomImages.push({
+            externalId: `${propertyExternalId}-room-external-${key}-${roomId}`,
+            originalUrl: img.url,
+            thumbnailUrl: img.url,
+            caption: img.caption?.EN || '',
+            sortOrder: position,
+            imageType: 'room',
+            roomId: String(roomId),
+            offerId: null,
+            width: null,
+            height: null,
+            metadata: img,
+            source: 'room-external'
+          });
+          roomLevelCount++;
+        }
+      }
+    }
     
     // Combine all image sources - room pics first, then offer1 pics, then property-level
     let images = [...roomImages, ...offer1Images, ...propertyOffer1Images];
@@ -1001,7 +1065,7 @@ class Beds24Adapter {
     
     const hostedCount = content.images.hosted ? Object.keys(content.images.hosted).length : 0;
     const externalCount = content.images.external ? Object.keys(content.images.external).length : 0;
-    console.log(`Beds24 getImages for property ${propertyExternalId}: ${hostedCount} hosted, ${externalCount} external, ${roomImages.length} room pics, ${offer1Images.length} offer1 pics, ${propertyOffer1Images.length} prop offer1 pics, using ${images.length}`);
+    console.log(`Beds24 getImages for property ${propertyExternalId}: ${hostedCount} hosted, ${externalCount} external, ${roomLevelCount} room-level, ${roomImages.length} room pics, ${offer1Images.length} offer1 pics, ${propertyOffer1Images.length} prop offer1 pics, using ${images.length}`);
     
     return {
       success: true,
