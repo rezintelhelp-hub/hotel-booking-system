@@ -52383,7 +52383,7 @@ app.post('/api/public/book', async (req, res) => {
         stripe_payment_intent_id, payment_status,
         status, booking_source, currency, source_site_url
       ) 
-      VALUES ($1, 1, $2, $3, $4, $5, 0, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14, $15, $15, $15, $16, $17, $18, $19, $20, $21, 'direct', $22, $23, $24)
+      VALUES ($1, 1, $2, $3, $4, $5, 0, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14, $15, $15, $15, $16, $17, $18, $19, $20, $21, 'direct', $22, $23)
       RETURNING *
     `, [
       unit.rows[0].property_id,
@@ -52408,7 +52408,6 @@ app.post('/api/public/book', async (req, res) => {
       paymentStatus,
       bookingStatus,
       unit.rows[0].currency || 'EUR',
-      notes || null,
       source_site_url || null
     ]);
     
