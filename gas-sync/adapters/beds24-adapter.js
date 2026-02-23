@@ -927,6 +927,27 @@ class Beds24Adapter {
         
         // Check all mappings for this image
         const mappings = img.map || [];
+        
+        // If no mappings at all, treat as property-level room image (unmapped)
+        if (mappings.length === 0) {
+          const imageData = {
+            externalId: `${propertyExternalId}-${source}-${key}-unmapped`,
+            originalUrl: img.url,
+            thumbnailUrl: img.url,
+            caption: '',
+            sortOrder: parseInt(key),
+            imageType: 'property',
+            roomId: null,
+            offerId: null,
+            width: null,
+            height: null,
+            metadata: img,
+            source: source
+          };
+          propertyOffer1Images.push(imageData);
+          continue;
+        }
+        
         for (const mapping of mappings) {
           const roomId = mapping.roomId;
           const offerId = mapping.offerId;
@@ -954,12 +975,17 @@ class Beds24Adapter {
               roomImages.push(imageData);
             } else if (offerId === 1) {
               offer1Images.push(imageData);
+            } else {
+              // offerId >= 2: still capture as offer images rather than dropping
+              offer1Images.push(imageData);
             }
           } else if (offerId === 1) {
             // Property-level offer1 image (fallback)
             propertyOffer1Images.push(imageData);
+          } else {
+            // Property-level image with no offerId or offerId=0 — don't drop
+            propertyOffer1Images.push(imageData);
           }
-          // Skip offer 2+ images
         }
       }
     };
