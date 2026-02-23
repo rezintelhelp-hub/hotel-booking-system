@@ -63937,6 +63937,18 @@ app.get('/api/gas-sync/properties/:propertyId/debug-images', async (req, res) =>
     processCollection(hosted, 'hosted');
     processCollection(external, 'external');
     
+    // Show unmapped images detail
+    const unmappedImages = [];
+    const checkUnmapped = (collection, source) => {
+      for (const [key, img] of Object.entries(collection)) {
+        if (!img.map || img.map.length === 0) {
+          unmappedImages.push({ key, source, url: img.url?.substring(0, 80), fields: Object.keys(img) });
+        }
+      }
+    };
+    checkUnmapped(hosted, 'hosted');
+    checkUnmapped(external, 'external');
+    
     res.json({
       success: true,
       external_id,
@@ -63944,6 +63956,8 @@ app.get('/api/gas-sync/properties/:propertyId/debug-images', async (req, res) =>
       external_count: Object.keys(external).length,
       total_images: Object.keys(hosted).length + Object.keys(external).length,
       room_summary: roomSummary,
+      unmapped_count: unmappedImages.length,
+      unmapped_sample: unmappedImages.slice(0, 5),
       // Show first 3 images with their mappings for inspection
       sample_hosted: Object.entries(hosted).slice(0, 3).map(([k, v]) => ({ key: k, url: v.url?.substring(0, 80), map: v.map })),
       sample_external: Object.entries(external).slice(0, 3).map(([k, v]) => ({ key: k, url: v.url?.substring(0, 80), map: v.map }))
