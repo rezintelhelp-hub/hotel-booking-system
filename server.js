@@ -63892,6 +63892,67 @@ app.get('/api/gas-sync/properties/by-gas-property/:gasPropertyId', async (req, r
 });
 
 // Download images for a property (Beds24 V1)
+// Debug: show raw Beds24 image data for a sync property
+app.get('/api/gas-sync/properties/:propertyId/debug-images', async (req, res) => {
+  try {
+    const { propertyId } = req.params;
+    
+    const propResult = await pool.query(`
+      SELECT p.connection_id, p.external_id, p.prop_key, c.adapter_code
+      FROM gas_sync_properties p
+      JOIN gas_sync_connections c ON p.connection_id = c.id
+      WHERE p.id = $1
+    `, [propertyId]);
+    
+    if (propResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Property not found' });
+    }
+    
+    const { connection_id, external_id, prop_key, adapter_code } = propResult.rows[0];
+    
+    const adapter = await syncManager.getAdapterForConnection(connection_id);
+    adapter.propKey = prop_key;
+    
+    // Get raw V1 response
+    const rawResponse = await adapter.v1Request('/getPropertyContent', { images: true });
+    const content = rawResponse.data?.getPropertyContent?.[0];
+    
+    const hosted = content?.images?.hosted || {};
+    const external = content?.images?.external || {};
+    
+    // Summarise per room
+    const roomSummary = {};
+    const processCollection = (collection, source) => {
+      for (const [key, img] of Object.entries(collection)) {
+        const mappings = img.map || [];
+        if (mappings.length === 0) {
+          roomSummary['unmapped'] = (roomSummary['unmapped'] || 0) + 1;
+        }
+        for (const m of mappings) {
+          const label = `room_${m.roomId || 'none'}_offer_${m.offerId || 0}`;
+          roomSummary[label] = (roomSummary[label] || 0) + 1;
+        }
+      }
+    };
+    processCollection(hosted, 'hosted');
+    processCollection(external, 'external');
+    
+    res.json({
+      success: true,
+      external_id,
+      hosted_count: Object.keys(hosted).length,
+      external_count: Object.keys(external).length,
+      total_images: Object.keys(hosted).length + Object.keys(external).length,
+      room_summary: roomSummary,
+      // Show first 3 images with their mappings for inspection
+      sample_hosted: Object.entries(hosted).slice(0, 3).map(([k, v]) => ({ key: k, url: v.url?.substring(0, 80), map: v.map })),
+      sample_external: Object.entries(external).slice(0, 3).map(([k, v]) => ({ key: k, url: v.url?.substring(0, 80), map: v.map }))
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 app.post('/api/gas-sync/properties/:propertyId/download-images', async (req, res) => {
   try {
     const { propertyId } = req.params;
