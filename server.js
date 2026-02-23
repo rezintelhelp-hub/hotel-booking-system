@@ -21172,10 +21172,10 @@ async function pushSettingsToWordPress(siteUrl, section, settings) {
     // Section-specific key overrides (only applied when pushing that section)
     const sectionKeyOverrides = {
       about: {
-        'btn-text': 'button_text',
-        'btn-url': 'button_link',
-        'btn-bg': 'button_bg',
-        'btn-text-color': 'button_text_color',
+        'btn-text': 'btn_text',
+        'btn-url': 'btn_url',
+        'btn-bg': 'btn_bg',
+        'btn-text-color': 'btn_text_color',
         'show-btn': 'show_btn',
         'title-color': 'title_color',
         'text-color': 'text_color',
