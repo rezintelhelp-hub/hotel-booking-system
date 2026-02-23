@@ -41031,6 +41031,43 @@ app.post('/api/admin/rooms/:roomId/assign-images', async (req, res) => {
   }
 });
 
+// POST add an image to property images (for copy/move feature)
+app.post('/api/admin/properties/:propertyId/images', async (req, res) => {
+  try {
+    const propertyId = parseInt(req.params.propertyId);
+    const { image_url, thumbnail_url } = req.body;
+    
+    if (!image_url) {
+      return res.json({ success: false, error: 'image_url required' });
+    }
+    
+    // Check for duplicates
+    const existing = await pool.query(
+      'SELECT id FROM property_images WHERE property_id = $1 AND (image_url = $2 OR url = $2)',
+      [propertyId, image_url]
+    );
+    if (existing.rows.length > 0) {
+      return res.json({ success: true, message: 'Image already exists', skipped: true });
+    }
+    
+    // Get max display order
+    const maxOrder = await pool.query(
+      'SELECT COALESCE(MAX(display_order), -1) as max FROM property_images WHERE property_id = $1',
+      [propertyId]
+    );
+    const nextOrder = maxOrder.rows[0].max + 1;
+    
+    await pool.query(`
+      INSERT INTO property_images (property_id, image_key, image_url, url, thumbnail_url, display_order, is_active, created_at)
+      VALUES ($1, $2, $3, $3, $4, $5, true, NOW())
+    `, [propertyId, 'copy-' + Date.now(), image_url, thumbnail_url || image_url, nextOrder]);
+    
+    res.json({ success: true, added: 1 });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // DELETE clear all room images for a room
 app.delete('/api/admin/rooms/:roomId/clear-images', async (req, res) => {
   try {
