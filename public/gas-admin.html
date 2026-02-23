@@ -28990,11 +28990,14 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 html += `
                     <div class="room-image-section" style="margin-bottom: 2rem;">
-                        <h3 style="margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border);">
-                            ${icon} ${group.entityName}
-                            <span style="font-size: 0.85rem; color: #64748b; font-weight: normal; margin-left: 0.5rem;">
-                                (${group.images.length} image${group.images.length !== 1 ? 's' : ''})
+                        <h3 style="margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between;">
+                            <span>
+                                ${icon} ${group.entityName}
+                                <span style="font-size: 0.85rem; color: #64748b; font-weight: normal; margin-left: 0.5rem;">
+                                    (${group.images.length} image${group.images.length !== 1 ? 's' : ''})
+                                </span>
                             </span>
+                            ${group.type === 'room' ? `<button class="btn btn-small" onclick="openAssignFromProperty(${group.entityId}, '${group.entityName.replace(/'/g, "\\'")}')" style="font-weight: normal; font-size: 0.8rem;">📋 Add from Property</button>` : ''}
                         </h3>
                         <div class="image-gallery">
                             ${group.images.map((img, idx) => {
@@ -29393,6 +29396,100 @@ const promo = await fetch('/api/v1/offers/validate', {
                     imgCard.style.opacity = '1';
                     imgCard.style.pointerEvents = 'auto';
                 }
+            }
+        }
+
+        // =====================================================
+        // ASSIGN PROPERTY IMAGES TO ROOM
+        // =====================================================
+        async function openAssignFromProperty(roomId, roomName) {
+            // Get property images from allImages
+            const propertyImages = allImages.filter(img => img.type === 'property');
+            const roomImages = allImages.filter(img => img.type === 'room' && img.entityId === roomId);
+            const existingUrls = new Set(roomImages.map(img => img.image_url));
+            
+            if (propertyImages.length === 0) {
+                alert('No property images available to assign');
+                return;
+            }
+            
+            // Build modal
+            let modalHtml = `
+                <div id="assign-property-modal" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 10000; display: flex; align-items: center; justify-content: center;">
+                    <div style="background: white; border-radius: 12px; padding: 2rem; max-width: 800px; width: 90%; max-height: 80vh; overflow-y: auto;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                            <h3 style="margin: 0;">Add Property Images to ${roomName}</h3>
+                            <button onclick="document.getElementById('assign-property-modal').remove()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer;">✕</button>
+                        </div>
+                        <p style="color: #64748b; margin-bottom: 1rem;">Select images to copy to this room. Already assigned images are greyed out.</p>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem;">
+                            ${propertyImages.map(img => {
+                                const alreadyAssigned = existingUrls.has(img.image_url);
+                                return `
+                                    <div class="assign-img-card" data-url="${img.image_url}" data-thumb="${img.thumbnail_url || img.image_url}" 
+                                         style="border: 3px solid ${alreadyAssigned ? '#e2e8f0' : 'transparent'}; border-radius: 8px; overflow: hidden; cursor: ${alreadyAssigned ? 'not-allowed' : 'pointer'}; opacity: ${alreadyAssigned ? '0.4' : '1'}; position: relative;"
+                                         onclick="${alreadyAssigned ? '' : 'toggleAssignImage(this)'}">
+                                        <img src="${img.thumbnail_url || img.image_url}" style="width: 100%; height: 100px; object-fit: cover; display: block;">
+                                        ${alreadyAssigned ? '<div style="position: absolute; top: 4px; right: 4px; background: #94a3b8; color: white; border-radius: 50%; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; font-size: 12px;">✓</div>' : ''}
+                                    </div>`;
+                            }).join('')}
+                        </div>
+                        <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+                            <button class="btn btn-secondary" onclick="document.getElementById('assign-property-modal').remove()">Cancel</button>
+                            <button class="btn" id="assign-confirm-btn" onclick="confirmAssignToRoom(${roomId})" disabled style="opacity: 0.5;">Add Selected (0)</button>
+                        </div>
+                    </div>
+                </div>`;
+            
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+        }
+        
+        function toggleAssignImage(el) {
+            const isSelected = el.style.borderColor === 'rgb(37, 99, 235)';
+            el.style.borderColor = isSelected ? 'transparent' : '#2563eb';
+            
+            // Update count
+            const selected = document.querySelectorAll('#assign-property-modal .assign-img-card[style*="rgb(37, 99, 235)"]');
+            const btn = document.getElementById('assign-confirm-btn');
+            btn.textContent = `Add Selected (${selected.length})`;
+            btn.disabled = selected.length === 0;
+            btn.style.opacity = selected.length === 0 ? '0.5' : '1';
+        }
+        
+        async function confirmAssignToRoom(roomId) {
+            const selected = document.querySelectorAll('#assign-property-modal .assign-img-card[style*="rgb(37, 99, 235)"]');
+            if (selected.length === 0) return;
+            
+            const images = Array.from(selected).map(el => ({
+                url: el.dataset.url,
+                thumbnail_url: el.dataset.thumb
+            }));
+            
+            const btn = document.getElementById('assign-confirm-btn');
+            btn.disabled = true;
+            btn.textContent = 'Adding...';
+            
+            try {
+                const response = await fetch(`/api/admin/rooms/${roomId}/assign-images`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ images })
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    document.getElementById('assign-property-modal').remove();
+                    showNotification(`Added ${result.added} image${result.added !== 1 ? 's' : ''} to room`, 'success');
+                    await loadImagesForProperty();
+                } else {
+                    alert('Error: ' + result.error);
+                    btn.disabled = false;
+                    btn.textContent = `Add Selected (${images.length})`;
+                }
+            } catch (error) {
+                alert('Error assigning images');
+                btn.disabled = false;
+                btn.textContent = `Add Selected (${images.length})`;
             }
         }
 
