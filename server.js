@@ -15644,10 +15644,12 @@ app.post('/api/public/create-group-booking', async (req, res) => {
                     arrival_date, departure_date,
                     num_adults, num_children,
                     guest_first_name, guest_last_name, guest_email, guest_phone,
+                    guest_address, guest_city, guest_postcode, guest_country,
+                    special_requests,
                     accommodation_price, subtotal, grand_total,
                     status, booking_source, currency, group_booking_id, source_site_url
                 )
-                VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11, $11, 'confirmed', 'direct', $12, $13, $14)
+                VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $16, $16, 'confirmed', 'direct', $17, $18, $19)
                 RETURNING *
             `, [
                 roomData.property_id,
@@ -15660,6 +15662,11 @@ app.post('/api/public/create-group-booking', async (req, res) => {
                 guest_last_name,
                 guest_email,
                 guest_phone || '',
+                guest_address || null,
+                guest_city || null,
+                guest_postcode || null,
+                guest_country || null,
+                notes || null,
                 roomPrice,
                 roomData.currency,
                 groupBookingId,
@@ -16933,6 +16940,13 @@ app.get('/api/setup-database', async (req, res) => {
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS enigma_card_exp_year INTEGER`);
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS enigma_reference_id VARCHAR(100)`);
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS source_site_url VARCHAR(500)`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS guest_address VARCHAR(500)`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS guest_city VARCHAR(100)`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS guest_postcode VARCHAR(20)`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS guest_country VARCHAR(100)`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS special_requests TEXT`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS marketing_opt_in BOOLEAN DEFAULT false`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS notes TEXT`);
     
     // Enigma usage tracking table
     await pool.query(`CREATE TABLE IF NOT EXISTS enigma_usage_log (
@@ -26435,7 +26449,9 @@ app.post('/api/db/rooms', async (req, res) => {
 });
 
 app.post('/api/db/book', async (req, res) => {
-  const { property_id, room_id, check_in, check_out, num_adults, num_children, guest_first_name, guest_last_name, guest_email, guest_phone, total_price, guest_address, guest_city, guest_country, guest_postcode, payment_method, enigma_reference_id, source_site_url } = req.body;
+  const { property_id, room_id, check_in, check_out, num_adults, num_children, guest_first_name, guest_last_name, guest_email, guest_phone, total_price, guest_address, guest_city, guest_country, guest_postcode, notes, special_requests, marketing, marketing_opt_in, payment_method, enigma_reference_id, source_site_url } = req.body;
+  const guestSpecialRequests = special_requests || notes || null;
+  const guestMarketingOptIn = marketing_opt_in || marketing || false;
   
   const client = await pool.connect();
   try {
@@ -26455,12 +26471,14 @@ app.post('/api/db/book', async (req, res) => {
         arrival_date, departure_date, 
         num_adults, num_children, 
         guest_first_name, guest_last_name, guest_email, guest_phone,
+        guest_address, guest_city, guest_postcode, guest_country,
+        special_requests, marketing_opt_in,
         accommodation_price, subtotal, grand_total, 
         status, booking_source, currency, source_site_url
       ) 
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12, $12, 'confirmed', 'direct', $13, $14) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $18, $18, 'confirmed', 'direct', $19, $20) 
       RETURNING *
-    `, [property_id, propertyOwnerId, room_id, check_in, check_out, num_adults, num_children || 0, guest_first_name, guest_last_name, guest_email, guest_phone, total_price, bookingCurrency, source_site_url || null]);
+    `, [property_id, propertyOwnerId, room_id, check_in, check_out, num_adults, num_children || 0, guest_first_name, guest_last_name, guest_email, guest_phone, guest_address || null, guest_city || null, guest_postcode || null, guest_country || null, guestSpecialRequests, guestMarketingOptIn, total_price, bookingCurrency, source_site_url || null]);
     
     const booking = result.rows[0];
     
@@ -42551,6 +42569,7 @@ async function sendPartnerBookingWebhook(bookingId, eventType = 'booking.created
         },
         notes: booking.notes || null,
         special_requests: booking.special_requests || booking.guest_comments || null,
+        marketing_opt_in: booking.marketing_opt_in || false,
         status: booking.status,
         source: booking.booking_source || 'direct',
         source_site: booking.source_site_url || null,
