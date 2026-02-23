@@ -29467,9 +29467,10 @@ const promo = await fetch('/api/v1/offers/validate', {
             destSelect.innerHTML = '<option value="property">⏳ Loading...</option>';
             
             try {
-                const resp = await fetch(`/api/db/rooms?property_id=${propertyId}`, { headers: authHeaders() });
+                const resp = await fetch(`/api/db/bookable-units?property_id=${propertyId}`, { headers: authHeaders() });
                 const data = await resp.json();
-                const rooms = data.data || data.rooms || data || [];
+                let rooms = data.data || data.rooms || data || [];
+                if (!Array.isArray(rooms)) rooms = [];
                 
                 let options = '<option value="property">🏠 Property Images</option>';
                 rooms.forEach(r => {
