@@ -21159,8 +21159,32 @@ async function pushSettingsToWordPress(siteUrl, section, settings) {
       'btn-primary-text': 'btn_primary_text',
       'btn-secondary-bg': 'btn_secondary_bg',
       'btn-secondary-text': 'btn_secondary_text',
-      'btn-radius': 'btn_radius'
+      'btn-radius': 'btn_radius',
+      // About section features (unique to about, no collision with other sections)
+      'feature-1': 'feature_1',
+      'feature-2': 'feature_2',
+      'feature-3': 'feature_3',
+      'feature-4': 'feature_4',
+      'feature-5': 'feature_5',
+      'feature-6': 'feature_6'
     };
+    
+    // Section-specific key overrides (only applied when pushing that section)
+    const sectionKeyOverrides = {
+      about: {
+        'btn-text': 'button_text',
+        'btn-url': 'button_link',
+        'btn-bg': 'button_bg',
+        'btn-text-color': 'button_text_color',
+        'show-btn': 'show_btn',
+        'title-color': 'title_color',
+        'text-color': 'text_color',
+        'title-size': 'title_size',
+        'text-size': 'text_size'
+      }
+    };
+    
+    const sectionOverrides = sectionKeyOverrides[section] || {};
     
     // Translation-aware key mapping: keys like 'headline-en' should map using base key 'headline'
     // and become 'title-en' (i.e. mapped base + language suffix preserved)
@@ -21191,8 +21215,8 @@ async function pushSettingsToWordPress(siteUrl, section, settings) {
         }
       }
       
-      // Map the base key, then re-append language suffix
-      const mappedBase = keyMapping[baseKey] || baseKey;
+      // Map the base key: section-specific override first, then global mapping, then passthrough
+      const mappedBase = sectionOverrides[baseKey] || keyMapping[baseKey] || baseKey;
       const wpKey = mappedBase + langSuffix;
       
       // Skip null/undefined values
@@ -21205,6 +21229,13 @@ async function pushSettingsToWordPress(siteUrl, section, settings) {
       }
       
       transformedSettings[wpKey] = value;
+      
+      // For English (-en) values, also save the base key without suffix
+      // WP theme reads base keys (e.g. developer_about_feature_1) while
+      // lang-suffixed keys (developer_about_feature_1_en) are stored for multilingual support
+      if (langSuffix === '-en') {
+        transformedSettings[mappedBase] = value;
+      }
     }
     
     // Apply defaults for critical fields that are still missing
