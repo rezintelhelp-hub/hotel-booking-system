@@ -2542,7 +2542,7 @@ app.get('/api/gas-sync/property-by-gas-id/:gasPropertyId', async (req, res) => {
 app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res) => {
   try {
     const { syncPropertyId } = req.params;
-    const { days = 90, force = false } = req.body;
+    const { days = 365, force = false } = req.body;
     
     let propResult = { rows: [] };
     
@@ -63888,7 +63888,7 @@ app.post('/api/gas-sync/connections/:connectionId/refresh-price-linking', async 
 app.post('/api/gas-sync/connections/:id/apply-linked-pricing', async (req, res) => {
   try {
     const { id } = req.params;
-    const { days = 90 } = req.body;
+    const { days = 365 } = req.body;
     
     // Find all rooms with price_linking for this connection
     const roomsResult = await pool.query(`
@@ -63934,9 +63934,9 @@ app.post('/api/gas-sync/connections/:id/apply-linked-pricing', async (req, res) 
     const sourcePrices = {};
     for (const [beds24Id, gasRoomId] of Object.entries(sourceRoomMap)) {
       const pricesResult = await pool.query(`
-        SELECT date, price, available, min_stay
+        SELECT date, cm_price, is_available, min_stay
         FROM room_availability
-        WHERE room_id = $1 AND date >= $2 AND date <= $3
+        WHERE room_id = $1 AND date >= $2 AND date <= $3 AND cm_price IS NOT NULL
         ORDER BY date
       `, [gasRoomId, startDate, endDate]);
       
@@ -63963,17 +63963,24 @@ app.post('/api/gas-sync/connections/:id/apply-linked-pricing', async (req, res) 
       const offsetMultiplier = linking.offsetMultiplier || 1;
       
       for (const priceRecord of prices) {
-        const adjustedPrice = (priceRecord.price * offsetMultiplier) + offsetAmount;
+        const basePrice = parseFloat(priceRecord.cm_price);
+        const adjustedPrice = (basePrice * offsetMultiplier) + offsetAmount;
+        const minStay = priceRecord.min_stay || 1;
         
         await pool.query(`
-          INSERT INTO room_availability (room_id, date, price, available, min_stay, updated_at)
-          VALUES ($1, $2, $3, $4, $5, NOW())
+          INSERT INTO room_availability (room_id, date, cm_price, direct_price, standard_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
+          VALUES ($1, $2, $3, $3, $3, $4, $5, $6, $6, 'beds24-linked', NOW())
           ON CONFLICT (room_id, date) DO UPDATE SET
-            price = EXCLUDED.price,
-            available = EXCLUDED.available,
-            min_stay = EXCLUDED.min_stay,
+            cm_price = $3,
+            direct_price = $3,
+            standard_price = $3,
+            is_available = $4,
+            is_blocked = $5,
+            min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $6 END,
+            cm_min_stay = $6,
+            source = 'beds24-linked',
             updated_at = NOW()
-        `, [room.gas_room_id, priceRecord.date, adjustedPrice, priceRecord.available, priceRecord.min_stay]);
+        `, [room.gas_room_id, priceRecord.date, adjustedPrice, priceRecord.is_available !== false, priceRecord.is_available === false, minStay]);
       }
       
       updated++;
