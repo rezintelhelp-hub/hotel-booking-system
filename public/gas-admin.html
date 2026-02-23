@@ -29464,7 +29464,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             const propertyId = document.getElementById('cm-property-select').value;
             const destSelect = document.getElementById('cm-destination-select');
             
-            destSelect.innerHTML = '<option value="property">⏳ Loading...</option>';
+            destSelect.innerHTML = '<option value="">⏳ Loading...</option>';
             
             try {
                 const resp = await fetch(`/api/db/bookable-units?property_id=${propertyId}`, { headers: authHeaders() });
@@ -29472,13 +29472,18 @@ const promo = await fetch('/api/v1/offers/validate', {
                 let rooms = data.data || data.rooms || data || [];
                 if (!Array.isArray(rooms)) rooms = [];
                 
-                let options = '<option value="property">🏠 Property Images</option>';
-                rooms.forEach(r => {
-                    options += `<option value="room-${r.id}">🛏️ ${r.name || 'Room ' + r.id}</option>`;
-                });
+                let options = '<option value="">-- Select Destination --</option>';
+                options += '<option value="property">🏠 Property Images</option>';
+                if (rooms.length > 0) {
+                    options += '<optgroup label="Rooms">';
+                    rooms.forEach(r => {
+                        options += `<option value="room-${r.id}">🛏️ ${r.name || 'Room ' + r.id}</option>`;
+                    });
+                    options += '</optgroup>';
+                }
                 destSelect.innerHTML = options;
             } catch (e) {
-                destSelect.innerHTML = '<option value="property">🏠 Property Images</option>';
+                destSelect.innerHTML = '<option value="property">🏠 Property Images</option><option value="location">📍 Location Images</option>';
             }
         }
         
@@ -29500,6 +29505,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                 } else {
                     destType = 'room';
                     destId = dest.replace('room-', '');
+                }
+                
+                if (!dest) {
+                    alert('Please select a destination');
+                    btn.disabled = false;
+                    btn.textContent = action === 'copy' ? '📋 Copy' : '✂️ Move';
+                    return;
                 }
                 
                 // Copy/assign to destination
