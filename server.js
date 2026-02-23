@@ -52287,7 +52287,7 @@ app.post('/api/public/book', async (req, res) => {
       unit_id, check_in, check_out, guests,
       guest_first_name, guest_last_name, guest_email, guest_phone,
       guest_address, guest_city, guest_country, guest_postcode,
-      voucher_code, notes, total_price,
+      voucher_code, notes, marketing, total_price,
       stripe_payment_intent_id, deposit_amount, balance_amount, payment_method,
       enigma_reference_id, source_site_url
     } = req.body;
@@ -52376,12 +52376,14 @@ app.post('/api/public/book', async (req, res) => {
         arrival_date, departure_date, 
         num_adults, num_children, 
         guest_first_name, guest_last_name, guest_email, guest_phone,
+        guest_address, guest_city, guest_postcode, guest_country,
+        special_requests, notes,
         accommodation_price, subtotal, grand_total, 
         deposit_amount, balance_amount, balance_due_date,
         stripe_payment_intent_id, payment_status,
-        status, booking_source, currency, notes, source_site_url
+        status, booking_source, currency, source_site_url
       ) 
-      VALUES ($1, 1, $2, $3, $4, $5, 0, $6, $7, $8, $9, $10, $10, $10, $11, $12, $13, $14, $15, $16, 'direct', $17, $18, $19)
+      VALUES ($1, 1, $2, $3, $4, $5, 0, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14, $15, $15, $15, $16, $17, $18, $19, $20, $21, 'direct', $22, $23, $24)
       RETURNING *
     `, [
       unit.rows[0].property_id,
@@ -52393,6 +52395,11 @@ app.post('/api/public/book', async (req, res) => {
       guest_last_name,
       guest_email,
       guest_phone || null,
+      guest_address || null,
+      guest_city || null,
+      guest_postcode || null,
+      guest_country || null,
+      notes || null,
       total_price || 0,
       deposit_amount || null,
       balance_amount || null,
