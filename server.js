@@ -63994,7 +63994,27 @@ app.get('/api/gas-sync/properties/:propertyId/debug-images', async (req, res) =>
       unmapped_count: unmappedImages.length,
       unmapped_sample: unmappedImages.slice(0, 3),
       sample_hosted: Object.entries(hosted).slice(0, 2).map(([k, v]) => ({ key: k, url: v.url?.substring(0, 80), allFields: Object.keys(v), map: v.map })),
-      sample_external: Object.entries(external).slice(0, 2).map(([k, v]) => ({ key: k, url: v.url?.substring(0, 80), allFields: Object.keys(v), map: v.map }))
+      sample_external: Object.entries(external).slice(0, 2).map(([k, v]) => ({ key: k, url: v.url?.substring(0, 80), allFields: Object.keys(v), map: v.map })),
+      // Inspect roomIds structure - might contain per-room image assignments
+      roomIds_keys: Object.keys(content?.roomIds || {}),
+      roomIds_sample_fields: (() => {
+        const rid = content?.roomIds || {};
+        const firstKey = Object.keys(rid)[0];
+        return firstKey && typeof rid[firstKey] === 'object' ? Object.keys(rid[firstKey]) : 'not an object';
+      })(),
+      room_100952_data: (() => {
+        const r = (content?.roomIds || {})['100952'];
+        if (!r) return null;
+        // Show all keys and truncate values
+        const summary = {};
+        for (const [k, v] of Object.entries(r)) {
+          if (typeof v === 'string') summary[k] = v.substring(0, 100);
+          else if (Array.isArray(v)) summary[k] = `array[${v.length}]`;
+          else if (typeof v === 'object' && v !== null) summary[k] = `object{${Object.keys(v).slice(0,5).join(',')}}`;
+          else summary[k] = v;
+        }
+        return summary;
+      })()
     });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
