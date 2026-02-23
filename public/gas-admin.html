@@ -28990,14 +28990,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 html += `
                     <div class="room-image-section" style="margin-bottom: 2rem;">
-                        <h3 style="margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between;">
-                            <span>
-                                ${icon} ${group.entityName}
-                                <span style="font-size: 0.85rem; color: #64748b; font-weight: normal; margin-left: 0.5rem;">
-                                    (${group.images.length} image${group.images.length !== 1 ? 's' : ''})
-                                </span>
+                        <h3 style="margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border);">
+                            ${icon} ${group.entityName}
+                            <span style="font-size: 0.85rem; color: #64748b; font-weight: normal; margin-left: 0.5rem;">
+                                (${group.images.length} image${group.images.length !== 1 ? 's' : ''})
                             </span>
-                            ${group.type === 'room' ? `<button class="btn btn-small" onclick="openAssignFromProperty(${group.entityId}, '${group.entityName.replace(/'/g, "\\'")}')" style="font-weight: normal; font-size: 0.8rem;">📋 Add from Property</button>` : ''}
                         </h3>
                         <div class="image-gallery">
                             ${group.images.map((img, idx) => {
@@ -29020,6 +29017,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                                             <button class="btn btn-small" onclick="moveImage('${img.type}', ${img.entityId}, ${img.id}, -1)" ${isFirst ? 'disabled style="opacity:0.3"' : ''} title="Move Left">◀️</button>
                                             <button class="btn btn-small" onclick="moveImage('${img.type}', ${img.entityId}, ${img.id}, 1)" ${isLast ? 'disabled style="opacity:0.3"' : ''} title="Move Right">▶️</button>
                                             ${!img.is_primary ? `<button class="btn btn-small" onclick="setPrimaryImage('${img.type}', ${img.entityId}, ${img.id})" title="Set as Primary">⭐</button>` : ''}
+                                            <button class="btn btn-small" onclick="openCopyMoveModal('copy', '${img.type}', ${img.entityId}, ${img.id}, '${(img.image_url||'').replace(/'/g, "\\'")}', '${(img.thumbnail_url||'').replace(/'/g, "\\'")}')" title="Copy to...">📋</button>
+                                            <button class="btn btn-small" onclick="openCopyMoveModal('move', '${img.type}', ${img.entityId}, ${img.id}, '${(img.image_url||'').replace(/'/g, "\\'")}', '${(img.thumbnail_url||'').replace(/'/g, "\\'")}')" title="Move to...">✂️</button>
                                             <button class="btn btn-secondary btn-small" onclick="deleteImage('${img.type}', ${img.id})" style="color: #ef4444;" title="Delete">🗑️</button>
                                         </div>
                                     </div>
@@ -29296,8 +29295,8 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
 
-        async function deleteImage(type, imageId) {
-            if (!confirm('Delete this image? This cannot be undone.')) return;
+        async function deleteImage(type, imageId, silent) {
+            if (!silent && !confirm('Delete this image? This cannot be undone.')) return;
             
             // Show loading state
             const imgCard = document.querySelector(`[data-image-id="${imageId}"]`);
@@ -29400,96 +29399,141 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
 
         // =====================================================
-        // ASSIGN PROPERTY IMAGES TO ROOM
+        // COPY / MOVE IMAGE TO ANOTHER PROPERTY OR ROOM
         // =====================================================
-        async function openAssignFromProperty(roomId, roomName) {
-            // Get property images from allImages
-            const propertyImages = allImages.filter(img => img.type === 'property');
-            const roomImages = allImages.filter(img => img.type === 'room' && img.entityId === roomId);
-            const existingUrls = new Set(roomImages.map(img => img.image_url));
+        let copyMoveState = {};
+        
+        async function openCopyMoveModal(action, sourceType, sourceEntityId, imageId, imageUrl, thumbnailUrl) {
+            copyMoveState = { action, sourceType, sourceEntityId, imageId, imageUrl, thumbnailUrl };
             
-            if (propertyImages.length === 0) {
-                alert('No property images available to assign');
-                return;
+            // Get all properties for this account
+            const clientId = getClientId();
+            let properties = [];
+            try {
+                const resp = await fetch(`/api/db/properties?account_id=${clientId}`, { headers: authHeaders() });
+                const data = await resp.json();
+                properties = data.data || data.properties || data || [];
+            } catch (e) {
+                console.error('Failed to load properties:', e);
             }
             
-            // Build modal
-            let modalHtml = `
-                <div id="assign-property-modal" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 10000; display: flex; align-items: center; justify-content: center;">
-                    <div style="background: white; border-radius: 12px; padding: 2rem; max-width: 800px; width: 90%; max-height: 80vh; overflow-y: auto;">
+            const actionLabel = action === 'copy' ? 'Copy' : 'Move';
+            const actionIcon = action === 'copy' ? '📋' : '✂️';
+            
+            const modalHtml = `
+                <div id="copy-move-modal" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 10000; display: flex; align-items: center; justify-content: center;" onclick="if(event.target===this)this.remove()">
+                    <div style="background: white; border-radius: 12px; padding: 2rem; max-width: 450px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-                            <h3 style="margin: 0;">Add Property Images to ${roomName}</h3>
-                            <button onclick="document.getElementById('assign-property-modal').remove()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer;">✕</button>
+                            <h3 style="margin: 0;">${actionIcon} ${actionLabel} Image</h3>
+                            <button onclick="document.getElementById('copy-move-modal').remove()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #64748b;">✕</button>
                         </div>
-                        <p style="color: #64748b; margin-bottom: 1rem;">Select images to copy to this room. Already assigned images are greyed out.</p>
-                        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem;">
-                            ${propertyImages.map(img => {
-                                const alreadyAssigned = existingUrls.has(img.image_url);
-                                return `
-                                    <div class="assign-img-card" data-url="${img.image_url}" data-thumb="${img.thumbnail_url || img.image_url}" 
-                                         style="border: 3px solid ${alreadyAssigned ? '#e2e8f0' : 'transparent'}; border-radius: 8px; overflow: hidden; cursor: ${alreadyAssigned ? 'not-allowed' : 'pointer'}; opacity: ${alreadyAssigned ? '0.4' : '1'}; position: relative;"
-                                         onclick="${alreadyAssigned ? '' : 'toggleAssignImage(this)'}">
-                                        <img src="${img.thumbnail_url || img.image_url}" style="width: 100%; height: 100px; object-fit: cover; display: block;">
-                                        ${alreadyAssigned ? '<div style="position: absolute; top: 4px; right: 4px; background: #94a3b8; color: white; border-radius: 50%; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; font-size: 12px;">✓</div>' : ''}
-                                    </div>`;
-                            }).join('')}
+                        <div style="text-align: center; margin-bottom: 1.5rem;">
+                            <img src="${thumbnailUrl || imageUrl}" style="max-height: 120px; border-radius: 8px; border: 1px solid #e2e8f0;">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 1rem;">
+                            <label class="form-label" style="font-weight: 600;">Destination Property</label>
+                            <select id="cm-property-select" class="form-input" onchange="loadCopyMoveRooms()">
+                                ${properties.map(p => `<option value="${p.id}">${p.name}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 1.5rem;">
+                            <label class="form-label" style="font-weight: 600;">Destination</label>
+                            <select id="cm-destination-select" class="form-input">
+                                <option value="property">Loading rooms...</option>
+                            </select>
                         </div>
                         <div style="display: flex; gap: 1rem; justify-content: flex-end;">
-                            <button class="btn btn-secondary" onclick="document.getElementById('assign-property-modal').remove()">Cancel</button>
-                            <button class="btn" id="assign-confirm-btn" onclick="confirmAssignToRoom(${roomId})" disabled style="opacity: 0.5;">Add Selected (0)</button>
+                            <button class="btn btn-secondary" onclick="document.getElementById('copy-move-modal').remove()">Cancel</button>
+                            <button class="btn" id="cm-confirm-btn" onclick="confirmCopyMove()" style="background: ${action === 'move' ? '#f59e0b' : '#2563eb'};">${actionIcon} ${actionLabel}</button>
                         </div>
                     </div>
                 </div>`;
             
             document.body.insertAdjacentHTML('beforeend', modalHtml);
+            
+            // Pre-select current property
+            const currentPropertyId = document.getElementById('images-property-select')?.value;
+            if (currentPropertyId) {
+                document.getElementById('cm-property-select').value = currentPropertyId;
+            }
+            
+            await loadCopyMoveRooms();
         }
         
-        function toggleAssignImage(el) {
-            const isSelected = el.style.borderColor === 'rgb(37, 99, 235)';
-            el.style.borderColor = isSelected ? 'transparent' : '#2563eb';
+        async function loadCopyMoveRooms() {
+            const propertyId = document.getElementById('cm-property-select').value;
+            const destSelect = document.getElementById('cm-destination-select');
             
-            // Update count
-            const selected = document.querySelectorAll('#assign-property-modal .assign-img-card[style*="rgb(37, 99, 235)"]');
-            const btn = document.getElementById('assign-confirm-btn');
-            btn.textContent = `Add Selected (${selected.length})`;
-            btn.disabled = selected.length === 0;
-            btn.style.opacity = selected.length === 0 ? '0.5' : '1';
-        }
-        
-        async function confirmAssignToRoom(roomId) {
-            const selected = document.querySelectorAll('#assign-property-modal .assign-img-card[style*="rgb(37, 99, 235)"]');
-            if (selected.length === 0) return;
-            
-            const images = Array.from(selected).map(el => ({
-                url: el.dataset.url,
-                thumbnail_url: el.dataset.thumb
-            }));
-            
-            const btn = document.getElementById('assign-confirm-btn');
-            btn.disabled = true;
-            btn.textContent = 'Adding...';
+            destSelect.innerHTML = '<option value="property">⏳ Loading...</option>';
             
             try {
-                const response = await fetch(`/api/admin/rooms/${roomId}/assign-images`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                    body: JSON.stringify({ images })
-                });
-                const result = await response.json();
+                const resp = await fetch(`/api/db/rooms?property_id=${propertyId}`, { headers: authHeaders() });
+                const data = await resp.json();
+                const rooms = data.data || data.rooms || data || [];
                 
-                if (result.success) {
-                    document.getElementById('assign-property-modal').remove();
-                    showNotification(`Added ${result.added} image${result.added !== 1 ? 's' : ''} to room`, 'success');
-                    await loadImagesForProperty();
+                let options = '<option value="property">🏠 Property Images</option>';
+                rooms.forEach(r => {
+                    options += `<option value="room-${r.id}">🛏️ ${r.name || 'Room ' + r.id}</option>`;
+                });
+                destSelect.innerHTML = options;
+            } catch (e) {
+                destSelect.innerHTML = '<option value="property">🏠 Property Images</option>';
+            }
+        }
+        
+        async function confirmCopyMove() {
+            const btn = document.getElementById('cm-confirm-btn');
+            const dest = document.getElementById('cm-destination-select').value;
+            const destPropertyId = document.getElementById('cm-property-select').value;
+            const { action, sourceType, sourceEntityId, imageId, imageUrl, thumbnailUrl } = copyMoveState;
+            
+            btn.disabled = true;
+            btn.textContent = action === 'copy' ? '📋 Copying...' : '✂️ Moving...';
+            
+            try {
+                // Determine destination type and ID
+                let destType, destId;
+                if (dest === 'property') {
+                    destType = 'property';
+                    destId = destPropertyId;
                 } else {
-                    alert('Error: ' + result.error);
-                    btn.disabled = false;
-                    btn.textContent = `Add Selected (${images.length})`;
+                    destType = 'room';
+                    destId = dest.replace('room-', '');
                 }
+                
+                // Copy/assign to destination
+                if (destType === 'room') {
+                    const resp = await fetch(`/api/admin/rooms/${destId}/assign-images`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                        body: JSON.stringify({ images: [{ url: imageUrl, thumbnail_url: thumbnailUrl }] })
+                    });
+                    const result = await resp.json();
+                    if (!result.success) throw new Error(result.error);
+                } else {
+                    // Copy to property images
+                    const resp = await fetch(`/api/admin/properties/${destId}/images`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                        body: JSON.stringify({ image_url: imageUrl, thumbnail_url: thumbnailUrl })
+                    });
+                    const result = await resp.json();
+                    if (!result.success) throw new Error(result.error);
+                }
+                
+                // If move, delete from source
+                if (action === 'move') {
+                    await deleteImage(sourceType, imageId, true);
+                }
+                
+                document.getElementById('copy-move-modal').remove();
+                showNotification(`Image ${action === 'copy' ? 'copied' : 'moved'} successfully`, 'success');
+                await loadImagesForProperty();
+                
             } catch (error) {
-                alert('Error assigning images');
+                alert('Error: ' + error.message);
                 btn.disabled = false;
-                btn.textContent = `Add Selected (${images.length})`;
+                btn.textContent = action === 'copy' ? '📋 Copy' : '✂️ Move';
             }
         }
 
