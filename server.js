@@ -63913,8 +63913,15 @@ app.get('/api/gas-sync/properties/:propertyId/debug-images', async (req, res) =>
     const adapter = await syncManager.getAdapterForConnection(connection_id);
     adapter.propKey = prop_key;
     
-    // Get raw V1 response
-    const rawResponse = await adapter.v1Request('/getPropertyContent', { images: true });
+    // Get raw V1 response - request ALL available data
+    const rawResponse = await adapter.v1Request('/getPropertyContent', { 
+      images: true,
+      bookingData: true,
+      texts: true,
+      roomIds: true,
+      includeAirbnb: true,
+      includeVrbo: true
+    });
     const content = rawResponse.data?.getPropertyContent?.[0];
     
     const hosted = content?.images?.hosted || {};
