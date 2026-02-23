@@ -64015,7 +64015,10 @@ app.get('/api/gas-sync/properties/:propertyId/debug-images', async (req, res) =>
         // Show all keys and truncate values
         const summary = {};
         for (const [k, v] of Object.entries(r)) {
-          if (typeof v === 'string') summary[k] = v.substring(0, 100);
+          if (k === 'images') {
+            // Show full image data for this room
+            summary[k] = v;
+          } else if (typeof v === 'string') summary[k] = v.substring(0, 100);
           else if (Array.isArray(v)) summary[k] = `array[${v.length}]`;
           else if (typeof v === 'object' && v !== null) summary[k] = `object{${Object.keys(v).slice(0,5).join(',')}}`;
           else summary[k] = v;
