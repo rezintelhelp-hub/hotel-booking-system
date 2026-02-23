@@ -22670,6 +22670,30 @@ app.post('/api/admin/deployed-sites/:id/rename', async (req, res) => {
         UPDATE websites SET name = $1, updated_at = NOW() WHERE deployed_site_id = $2
       `, [cleanName, id]).catch(() => {});
       
+      // Sync site-name into website_settings header section so Basic tab shows it
+      try {
+        const existingHeader = await pool.query(
+          `SELECT settings FROM website_settings WHERE deployed_site_id = $1 AND section = 'header'`,
+          [id]
+        );
+        if (existingHeader.rows.length > 0) {
+          const headerSettings = existingHeader.rows[0].settings || {};
+          headerSettings['site-name'] = cleanName;
+          await pool.query(
+            `UPDATE website_settings SET settings = $1, updated_at = NOW() WHERE deployed_site_id = $2 AND section = 'header'`,
+            [JSON.stringify(headerSettings), id]
+          );
+        } else {
+          await pool.query(
+            `INSERT INTO website_settings (deployed_site_id, account_id, section, settings, sync_source, updated_at)
+             VALUES ($1, $2, 'header', $3, 'gas', NOW())`,
+            [id, site.account_id, JSON.stringify({ 'site-name': cleanName })]
+          );
+        }
+      } catch (settingsErr) {
+        console.log(`[Rename Site] Could not sync site-name to website_settings:`, settingsErr.message);
+      }
+      
       result.new_name = cleanName;
       if (!result.message) {
         result.message = `Blog name updated to "${cleanName}"`;
@@ -44994,6 +45018,30 @@ app.put('/api/partner/websites/:websiteId/name', async (req, res) => {
     // Update deployed_sites table if linked
     if (website.deployed_site_id) {
       await pool.query(`UPDATE deployed_sites SET site_name = $1, updated_at = NOW() WHERE id = $2`, [cleanName, website.deployed_site_id]);
+      
+      // Also sync site-name into website_settings header section so GAS Admin Basic tab shows it
+      try {
+        const existingHeader = await pool.query(
+          `SELECT settings FROM website_settings WHERE deployed_site_id = $1 AND section = 'header'`,
+          [website.deployed_site_id]
+        );
+        if (existingHeader.rows.length > 0) {
+          const headerSettings = existingHeader.rows[0].settings || {};
+          headerSettings['site-name'] = cleanName;
+          await pool.query(
+            `UPDATE website_settings SET settings = $1, updated_at = NOW() WHERE deployed_site_id = $2 AND section = 'header'`,
+            [JSON.stringify(headerSettings), website.deployed_site_id]
+          );
+        } else {
+          await pool.query(
+            `INSERT INTO website_settings (deployed_site_id, account_id, section, settings, sync_source, updated_at)
+             VALUES ($1, (SELECT account_id FROM deployed_sites WHERE id = $1), 'header', $2, 'partner', NOW())`,
+            [website.deployed_site_id, JSON.stringify({ 'site-name': cleanName })]
+          );
+        }
+      } catch (settingsErr) {
+        console.log(`[Partner API] Could not sync site-name to website_settings:`, settingsErr.message);
+      }
     }
     
     console.log(`[Partner API] Website ${websiteId} name updated: "${website.old_name}" -> "${cleanName}" (WP: ${wpUpdated})`);
