@@ -21159,18 +21159,7 @@ async function pushSettingsToWordPress(siteUrl, section, settings) {
       'btn-primary-text': 'btn_primary_text',
       'btn-secondary-bg': 'btn_secondary_bg',
       'btn-secondary-text': 'btn_secondary_text',
-      'btn-radius': 'btn_radius',
-      // About section - GAS Admin uses hyphens, WP theme uses underscores
-      'feature-1': 'feature_1',
-      'feature-2': 'feature_2',
-      'feature-3': 'feature_3',
-      'feature-4': 'feature_4',
-      'feature-5': 'feature_5',
-      'feature-6': 'feature_6',
-      'btn-text': 'button_text',
-      'btn-url': 'button_link',
-      'btn-bg': 'button_bg',
-      'btn-text-color': 'button_text_color'
+      'btn-radius': 'btn_radius'
     };
     
     // Translation-aware key mapping: keys like 'headline-en' should map using base key 'headline'
