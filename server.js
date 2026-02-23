@@ -63949,18 +63949,52 @@ app.get('/api/gas-sync/properties/:propertyId/debug-images', async (req, res) =>
     checkUnmapped(hosted, 'hosted');
     checkUnmapped(external, 'external');
     
+    // Show ALL top-level keys in the content response and image structure
+    const contentKeys = Object.keys(content || {});
+    const imageKeys = Object.keys(content?.images || {});
+    
+    // Check for room-level image data anywhere in the response
+    const roomLevelData = {};
+    for (const [topKey, topVal] of Object.entries(content || {})) {
+      if (topKey === 'images') continue;
+      if (typeof topVal === 'object' && topVal !== null) {
+        roomLevelData[topKey] = typeof topVal === 'object' ? 
+          (Array.isArray(topVal) ? `array[${topVal.length}]` : `object{${Object.keys(topVal).slice(0,5).join(',')}}`) : typeof topVal;
+      }
+    }
+    
+    // Check all sub-keys under images
+    const imageSubStructure = {};
+    for (const [imgKey, imgVal] of Object.entries(content?.images || {})) {
+      if (typeof imgVal === 'object' && imgVal !== null) {
+        const count = Object.keys(imgVal).length;
+        const sampleKey = Object.keys(imgVal)[0];
+        const sampleVal = imgVal[sampleKey];
+        imageSubStructure[imgKey] = {
+          count,
+          sampleFields: sampleVal ? Object.keys(sampleVal) : [],
+          sampleUrl: sampleVal?.url?.substring(0, 60) || null
+        };
+      } else {
+        imageSubStructure[imgKey] = imgVal;
+      }
+    }
+    
     res.json({
       success: true,
       external_id,
       hosted_count: Object.keys(hosted).length,
       external_count: Object.keys(external).length,
       total_images: Object.keys(hosted).length + Object.keys(external).length,
+      content_top_level_keys: contentKeys,
+      image_sub_keys: imageKeys,
+      image_sub_structure: imageSubStructure,
+      room_level_data: roomLevelData,
       room_summary: roomSummary,
       unmapped_count: unmappedImages.length,
-      unmapped_sample: unmappedImages.slice(0, 5),
-      // Show first 3 images with their mappings for inspection
-      sample_hosted: Object.entries(hosted).slice(0, 3).map(([k, v]) => ({ key: k, url: v.url?.substring(0, 80), map: v.map })),
-      sample_external: Object.entries(external).slice(0, 3).map(([k, v]) => ({ key: k, url: v.url?.substring(0, 80), map: v.map }))
+      unmapped_sample: unmappedImages.slice(0, 3),
+      sample_hosted: Object.entries(hosted).slice(0, 2).map(([k, v]) => ({ key: k, url: v.url?.substring(0, 80), allFields: Object.keys(v), map: v.map })),
+      sample_external: Object.entries(external).slice(0, 2).map(([k, v]) => ({ key: k, url: v.url?.substring(0, 80), allFields: Object.keys(v), map: v.map }))
     });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
