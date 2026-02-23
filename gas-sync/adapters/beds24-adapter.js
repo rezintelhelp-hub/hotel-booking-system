@@ -994,9 +994,8 @@ class Beds24Adapter {
     processImages(content.images.hosted, 'hosted');
     processImages(content.images.external, 'external');
     
-    // Fallback hierarchy: room pics > room offer1 pics > property offer1 pics
-    let images = roomImages.length > 0 ? roomImages : 
-                 (offer1Images.length > 0 ? offer1Images : propertyOffer1Images);
+    // Combine all image sources - room pics first, then offer1 pics, then property-level
+    let images = [...roomImages, ...offer1Images, ...propertyOffer1Images];
     
     images.sort((a, b) => a.sortOrder - b.sortOrder);
     
