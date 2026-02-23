@@ -40383,15 +40383,23 @@ app.post('/api/admin/rooms/:id/reimport-images', async (req, res) => {
       return res.json({ success: false, error: 'No sync images found for this room', beds24_room_id: room.beds24_room_id });
     }
     
+    // Deduplicate by original_url - same image can appear in both property-level and room-level
+    const seenUrls = new Set();
+    const uniqueImages = syncImages.rows.filter(img => {
+      if (!img.original_url || seenUrls.has(img.original_url)) return false;
+      seenUrls.add(img.original_url);
+      return true;
+    });
+    
     // Clear existing room_images for this room
     const delResult = await pool.query('DELETE FROM room_images WHERE room_id = $1', [roomId]);
-    console.log(`[Reimport] Cleared ${delResult.rowCount} existing images for room ${roomId}`);
+    console.log(`[Reimport] Cleared ${delResult.rowCount} existing images for room ${roomId} (${uniqueImages.length} unique of ${syncImages.rows.length} total)`);
     
     let imported = 0;
     let failed = 0;
     const results = [];
     
-    for (const img of syncImages.rows) {
+    for (const img of uniqueImages) {
       let imageUrl = img.original_url;
       let thumbnailUrl = img.thumbnail_url || img.original_url;
       let imageKey = img.external_id || `beds24-${room.beds24_room_id}-${img.sort_order || 0}`;
@@ -40443,6 +40451,117 @@ app.post('/api/admin/rooms/:id/reimport-images', async (req, res) => {
   } catch (error) {
     console.error('Reimport images error:', error);
     res.json({ success: false, error: error.message });
+  }
+});
+
+// Reimport ALL room images for a property via R2 compression - runs in background
+app.post('/api/admin/properties/:propertyId/reimport-all-images', async (req, res) => {
+  try {
+    const propertyId = parseInt(req.params.propertyId);
+    
+    // Get all rooms for this property
+    const roomsResult = await pool.query(
+      'SELECT id, name, beds24_room_id FROM bookable_units WHERE property_id = $1 ORDER BY id', [propertyId]
+    );
+    
+    if (roomsResult.rows.length === 0) {
+      return res.json({ success: false, error: 'No rooms found for this property' });
+    }
+    
+    const rooms = roomsResult.rows.filter(r => r.beds24_room_id);
+    
+    // Respond immediately
+    res.json({ 
+      success: true, 
+      message: `Processing ${rooms.length} rooms in background`,
+      rooms: rooms.map(r => ({ id: r.id, name: r.name, beds24_room_id: r.beds24_room_id }))
+    });
+    
+    // Process rooms sequentially in the background
+    const spResult = await pool.query(
+      'SELECT sp.id FROM gas_sync_properties sp WHERE sp.gas_property_id = $1 LIMIT 1', [propertyId]
+    );
+    const spId = spResult.rows[0]?.id;
+    
+    for (const room of rooms) {
+      try {
+        console.log(`[Batch Reimport] Starting room ${room.id} (${room.name})...`);
+        
+        // Get sync images for this room + property-level
+        const syncImages = await pool.query(`
+          SELECT * FROM gas_sync_images 
+          WHERE (room_type_external_id = $1 
+                 OR (room_type_external_id IS NULL AND sync_property_id = $2))
+          ORDER BY sort_order
+        `, [String(room.beds24_room_id), spId]);
+        
+        // Deduplicate by original_url
+        const seenUrls = new Set();
+        const uniqueImages = syncImages.rows.filter(img => {
+          if (!img.original_url || seenUrls.has(img.original_url)) return false;
+          seenUrls.add(img.original_url);
+          return true;
+        });
+        
+        if (uniqueImages.length === 0) {
+          console.log(`[Batch Reimport] Room ${room.id}: no sync images, skipping`);
+          continue;
+        }
+        
+        // Clear existing
+        const delResult = await pool.query('DELETE FROM room_images WHERE room_id = $1', [room.id]);
+        
+        let imported = 0;
+        let failed = 0;
+        
+        for (const img of uniqueImages) {
+          let imageUrl = img.original_url;
+          let thumbnailUrl = img.thumbnail_url || img.original_url;
+          let imageKey = img.external_id || `beds24-${room.beds24_room_id}-${img.sort_order || 0}`;
+          
+          try {
+            const imgResponse = await axios.get(img.original_url, { 
+              responseType: 'arraybuffer', 
+              timeout: 60000,
+              maxContentLength: 100 * 1024 * 1024
+            });
+            const buffer = Buffer.from(imgResponse.data);
+            
+            const urlPath = new URL(img.original_url).pathname;
+            const filename = path.basename(urlPath) || `beds24-${room.id}-${img.sort_order || 0}.jpg`;
+            
+            const r2Result = await processAndUploadImage(buffer, 'room', room.id, filename);
+            
+            imageUrl = r2Result.large || r2Result.original;
+            thumbnailUrl = r2Result.thumbnail || r2Result.medium || imageUrl;
+            imageKey = r2Result.imageKey || imageKey;
+          } catch (dlErr) {
+            console.warn(`[Batch Reimport] Room ${room.id}: download failed: ${dlErr.message}`);
+            failed++;
+          }
+          
+          await pool.query(`
+            INSERT INTO room_images (room_id, image_key, image_url, thumbnail_url, caption, display_order, upload_source, is_active, is_primary, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6, 'beds24_r2', true, $7, NOW())
+          `, [room.id, imageKey, imageUrl, thumbnailUrl, img.caption || '', img.sort_order || 0, img.sort_order === 0]);
+          
+          imported++;
+        }
+        
+        console.log(`[Batch Reimport] Room ${room.id} (${room.name}): cleared ${delResult.rowCount}, imported ${imported}, failed ${failed}`);
+        
+      } catch (roomErr) {
+        console.error(`[Batch Reimport] Room ${room.id} error:`, roomErr.message);
+      }
+    }
+    
+    console.log(`[Batch Reimport] Property ${propertyId}: ALL ROOMS COMPLETE`);
+    
+  } catch (error) {
+    console.error('Batch reimport error:', error);
+    if (!res.headersSent) {
+      res.json({ success: false, error: error.message });
+    }
   }
 });
 
