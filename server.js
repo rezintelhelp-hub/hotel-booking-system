@@ -2847,6 +2847,9 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
           
           // If no prices but has linking, get from BASE in database
           if (!hasAnyPrices && linking) {
+            let sourceGasRoomId;
+            
+            // Try gas_sync_room_types first
             const sourceRoomResult = await pool.query(`
               SELECT rt.gas_room_id 
               FROM gas_sync_room_types rt
@@ -2854,7 +2857,19 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
               WHERE sp.connection_id = $1 AND rt.external_id = $2
             `, [connectionId, String(linking.sourceRoomId)]);
             
-            const sourceGasRoomId = sourceRoomResult.rows[0]?.gas_room_id;
+            sourceGasRoomId = sourceRoomResult.rows[0]?.gas_room_id;
+            
+            // Fallback: check bookable_units directly
+            if (!sourceGasRoomId) {
+              const fallbackResult = await pool.query(
+                'SELECT id FROM bookable_units WHERE beds24_room_id = $1 LIMIT 1',
+                [String(linking.sourceRoomId)]
+              );
+              sourceGasRoomId = fallbackResult.rows[0]?.id;
+              if (sourceGasRoomId) {
+                console.log(`[Beds24 Sync] Found source room ${linking.sourceRoomId} via bookable_units fallback: GAS room ${sourceGasRoomId}`);
+              }
+            }
             
             if (sourceGasRoomId) {
               const sourcePricesResult = await pool.query(`
@@ -63923,6 +63938,20 @@ app.post('/api/gas-sync/connections/:id/apply-linked-pricing', async (req, res) 
     const sourceRoomMap = {};
     for (const row of sourceRoomsResult.rows) {
       sourceRoomMap[row.beds24_room_id] = row.gas_room_id;
+    }
+    
+    // Fallback: check bookable_units directly for any source rooms not found in gas_sync_room_types
+    const missingSourceIds = sourceRoomIds.filter(id => !sourceRoomMap[String(id)]);
+    if (missingSourceIds.length > 0) {
+      const fallbackResult = await pool.query(`
+        SELECT beds24_room_id, id as gas_room_id
+        FROM bookable_units
+        WHERE beds24_room_id = ANY($1)
+      `, [missingSourceIds.map(String)]);
+      for (const row of fallbackResult.rows) {
+        sourceRoomMap[row.beds24_room_id] = row.gas_room_id;
+      }
+      console.log(`apply-linked-pricing: Found ${fallbackResult.rows.length} source rooms via bookable_units fallback`);
     }
     
     console.log(`apply-linked-pricing: Source room map:`, sourceRoomMap);
