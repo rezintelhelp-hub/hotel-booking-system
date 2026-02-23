@@ -40342,6 +40342,110 @@ app.delete('/api/admin/rooms/images/:imageId', async (req, res) => {
   }
 });
 
+// Reimport room images via R2 compression - clears existing and re-copies from gas_sync_images
+app.post('/api/admin/rooms/:id/reimport-images', async (req, res) => {
+  try {
+    const roomId = parseInt(req.params.id);
+    
+    // Get room info
+    const roomResult = await pool.query(
+      'SELECT id, name, beds24_room_id, property_id FROM bookable_units WHERE id = $1', [roomId]
+    );
+    if (roomResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Room not found' });
+    }
+    const room = roomResult.rows[0];
+    
+    // Find sync property ID for property-level image fallback
+    const spResult = await pool.query(
+      'SELECT sp.id FROM gas_sync_properties sp WHERE sp.gas_property_id = $1 LIMIT 1', [room.property_id]
+    );
+    const spId = spResult.rows[0]?.id;
+    
+    // Get sync images for this room (by beds24_room_id) + property-level images
+    let syncImages;
+    if (room.beds24_room_id) {
+      syncImages = await pool.query(`
+        SELECT * FROM gas_sync_images 
+        WHERE (room_type_external_id = $1 
+               OR (room_type_external_id IS NULL AND sync_property_id = $2))
+        ORDER BY sort_order
+      `, [String(room.beds24_room_id), spId]);
+    } else {
+      syncImages = await pool.query(`
+        SELECT * FROM gas_sync_images 
+        WHERE room_type_external_id IS NULL AND sync_property_id = $1
+        ORDER BY sort_order
+      `, [spId]);
+    }
+    
+    if (syncImages.rows.length === 0) {
+      return res.json({ success: false, error: 'No sync images found for this room', beds24_room_id: room.beds24_room_id });
+    }
+    
+    // Clear existing room_images for this room
+    const delResult = await pool.query('DELETE FROM room_images WHERE room_id = $1', [roomId]);
+    console.log(`[Reimport] Cleared ${delResult.rowCount} existing images for room ${roomId}`);
+    
+    let imported = 0;
+    let failed = 0;
+    const results = [];
+    
+    for (const img of syncImages.rows) {
+      let imageUrl = img.original_url;
+      let thumbnailUrl = img.thumbnail_url || img.original_url;
+      let imageKey = img.external_id || `beds24-${room.beds24_room_id}-${img.sort_order || 0}`;
+      let compressed = false;
+      
+      try {
+        const imgResponse = await axios.get(img.original_url, { 
+          responseType: 'arraybuffer', 
+          timeout: 30000,
+          maxContentLength: 100 * 1024 * 1024
+        });
+        const buffer = Buffer.from(imgResponse.data);
+        const originalSizeKB = (buffer.length / 1024).toFixed(0);
+        
+        const urlPath = new URL(img.original_url).pathname;
+        const filename = path.basename(urlPath) || `beds24-${roomId}-${img.sort_order || 0}.jpg`;
+        
+        const r2Result = await processAndUploadImage(buffer, 'room', roomId, filename);
+        
+        imageUrl = r2Result.large || r2Result.original;
+        thumbnailUrl = r2Result.thumbnail || r2Result.medium || imageUrl;
+        imageKey = r2Result.imageKey || imageKey;
+        compressed = true;
+        
+        console.log(`[Reimport] Room ${roomId}: ${originalSizeKB}KB -> R2: ${imageUrl.substring(0, 80)}`);
+      } catch (dlErr) {
+        console.warn(`[Reimport] Room ${roomId}: failed to compress, using original: ${dlErr.message}`);
+        failed++;
+      }
+      
+      await pool.query(`
+        INSERT INTO room_images (room_id, image_key, image_url, thumbnail_url, caption, display_order, upload_source, is_active, is_primary, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, 'beds24_r2', true, $7, NOW())
+      `, [roomId, imageKey, imageUrl, thumbnailUrl, img.caption || '', img.sort_order || 0, img.sort_order === 0]);
+      
+      imported++;
+      results.push({ sort_order: img.sort_order, compressed, url: imageUrl.substring(0, 80) });
+    }
+    
+    res.json({ 
+      success: true, 
+      room_id: roomId,
+      room_name: room.name,
+      cleared: delResult.rowCount,
+      imported,
+      failed,
+      images: results
+    });
+  } catch (error) {
+    console.error('Reimport images error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Set primary property image
 app.put('/api/admin/properties/:propertyId/images/:imageId/primary', async (req, res) => {
   const client = await pool.connect();
