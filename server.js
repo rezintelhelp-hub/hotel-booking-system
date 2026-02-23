@@ -40596,6 +40596,142 @@ app.post('/api/admin/properties/:propertyId/reimport-all-images', async (req, re
   }
 });
 
+// Nuke and reimport ALL images for ALL properties in a deployed site
+app.post('/api/admin/sites/:deployedSiteId/reimport-all-images', async (req, res) => {
+  try {
+    const deployedSiteId = parseInt(req.params.deployedSiteId);
+    
+    // Get all properties for this site's account
+    const siteResult = await pool.query(
+      'SELECT account_id, site_name FROM deployed_sites WHERE id = $1', [deployedSiteId]
+    );
+    if (!siteResult.rows[0]) {
+      return res.json({ success: false, error: 'Site not found' });
+    }
+    const accountId = siteResult.rows[0].account_id;
+    const siteName = siteResult.rows[0].site_name;
+    
+    // Get all properties for this account
+    const propsResult = await pool.query(
+      'SELECT id, name FROM properties WHERE account_id = $1 OR client_id = $1 ORDER BY id', [accountId]
+    );
+    
+    if (propsResult.rows.length === 0) {
+      return res.json({ success: false, error: 'No properties found' });
+    }
+    
+    // Get all rooms across all properties
+    const propertyIds = propsResult.rows.map(p => p.id);
+    const roomsResult = await pool.query(
+      'SELECT id, name, property_id, beds24_room_id FROM bookable_units WHERE property_id = ANY($1) AND beds24_room_id IS NOT NULL ORDER BY property_id, id',
+      [propertyIds]
+    );
+    
+    // Respond immediately
+    res.json({
+      success: true,
+      message: `Processing ${propsResult.rows.length} properties, ${roomsResult.rows.length} rooms for site "${siteName}" in background`,
+      properties: propsResult.rows.map(p => ({ id: p.id, name: p.name })),
+      total_rooms: roomsResult.rows.length
+    });
+    
+    // Process each property's rooms in background
+    for (const prop of propsResult.rows) {
+      const propRooms = roomsResult.rows.filter(r => r.property_id === prop.id);
+      if (propRooms.length === 0) {
+        console.log(`[Site Reimport] Property ${prop.id} (${prop.name}): no rooms with beds24, skipping`);
+        continue;
+      }
+      
+      const spResult = await pool.query(
+        'SELECT id FROM gas_sync_properties WHERE gas_property_id = $1 LIMIT 1', [prop.id]
+      );
+      const spId = spResult.rows[0]?.id;
+      
+      console.log(`[Site Reimport] Property ${prop.id} (${prop.name}): ${propRooms.length} rooms`);
+      
+      for (const room of propRooms) {
+        try {
+          const syncImages = await pool.query(`
+            SELECT * FROM gas_sync_images 
+            WHERE (room_type_external_id = $1 
+                   OR (room_type_external_id IS NULL AND sync_property_id = $2))
+            ORDER BY sort_order
+          `, [String(room.beds24_room_id), spId]);
+          
+          // Deduplicate by original_url
+          const seenUrls = new Set();
+          const uniqueImages = syncImages.rows.filter(img => {
+            if (!img.original_url || seenUrls.has(img.original_url)) return false;
+            seenUrls.add(img.original_url);
+            return true;
+          });
+          
+          if (uniqueImages.length === 0) {
+            console.log(`[Site Reimport] Room ${room.id} (${room.name}): no sync images, skipping`);
+            continue;
+          }
+          
+          // Clear existing
+          const delResult = await pool.query('DELETE FROM room_images WHERE room_id = $1', [room.id]);
+          
+          let imported = 0;
+          let failed = 0;
+          
+          for (const img of uniqueImages) {
+            let imageUrl = img.original_url;
+            let thumbnailUrl = img.thumbnail_url || img.original_url;
+            let imageKey = img.external_id || `beds24-${room.beds24_room_id}-${img.sort_order || 0}`;
+            
+            try {
+              const imgResponse = await axios.get(img.original_url, { 
+                responseType: 'arraybuffer', 
+                timeout: 60000,
+                maxContentLength: 100 * 1024 * 1024
+              });
+              const buffer = Buffer.from(imgResponse.data);
+              
+              const urlPath = new URL(img.original_url).pathname;
+              const filename = path.basename(urlPath) || `beds24-${room.id}-${img.sort_order || 0}.jpg`;
+              
+              const r2Result = await processAndUploadImage(buffer, 'room', room.id, filename);
+              
+              imageUrl = r2Result.large || r2Result.original;
+              thumbnailUrl = r2Result.thumbnail || r2Result.medium || imageUrl;
+              imageKey = r2Result.imageKey || imageKey;
+            } catch (dlErr) {
+              console.warn(`[Site Reimport] Room ${room.id}: download failed for ${img.original_url}: ${dlErr.message}`);
+              failed++;
+            }
+            
+            await pool.query(`
+              INSERT INTO room_images (room_id, image_key, image_url, thumbnail_url, caption, display_order, upload_source, is_active, is_primary, created_at)
+              VALUES ($1, $2, $3, $4, $5, $6, 'beds24_r2', true, $7, NOW())
+            `, [room.id, imageKey, imageUrl, thumbnailUrl, img.caption || '', img.sort_order || 0, img.sort_order === 0]);
+            
+            imported++;
+          }
+          
+          console.log(`[Site Reimport] Room ${room.id} (${room.name}): cleared ${delResult.rowCount}, imported ${imported}, failed ${failed}`);
+          
+        } catch (roomErr) {
+          console.error(`[Site Reimport] Room ${room.id} error:`, roomErr.message);
+        }
+      }
+      
+      console.log(`[Site Reimport] Property ${prop.id} (${prop.name}): COMPLETE`);
+    }
+    
+    console.log(`[Site Reimport] Site ${deployedSiteId} (${siteName}): ALL PROPERTIES COMPLETE`);
+    
+  } catch (error) {
+    console.error('Site reimport error:', error);
+    if (!res.headersSent) {
+      res.json({ success: false, error: error.message });
+    }
+  }
+});
+
 // Set primary property image
 app.put('/api/admin/properties/:propertyId/images/:imageId/primary', async (req, res) => {
   const client = await pool.connect();
