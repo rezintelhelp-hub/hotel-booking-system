@@ -18254,9 +18254,7 @@ app.get('/api/setup-website-builder', async (req, res) => {
             developer_about_feature_3: { type: 'text', label: 'Feature 3', default: 'Prime Locations' },
             developer_about_feature_4: { type: 'text', label: 'Feature 4', default: 'Full Amenities' },
             developer_about_feature_5: { type: 'text', label: 'Feature 5', default: 'Entertainment Areas' },
-            developer_about_feature_6: { type: 'text', label: 'Feature 6', default: 'Private Parking' },
-            developer_about_button_text: { type: 'text', label: 'Button Text', default: 'Explore Our Rooms' },
-            developer_about_button_link: { type: 'text', label: 'Button Link', default: '/rooms/' }
+            developer_about_feature_6: { type: 'text', label: 'Feature 6', default: 'Private Parking' }
           }
         },
         reviews: {
@@ -21162,20 +21160,17 @@ async function pushSettingsToWordPress(siteUrl, section, settings) {
       'btn-secondary-bg': 'btn_secondary_bg',
       'btn-secondary-text': 'btn_secondary_text',
       'btn-radius': 'btn_radius',
-      // About section - GAS stores full WP keys, need to map to suffix only
-      'developer_about_enabled': 'enabled',
-      'developer_about_image': 'image',
-      'developer_about_title': 'title',
-      'developer_about_text': 'text',
-      'developer_about_layout': 'layout',
-      'developer_about_feature_1': 'feature_1',
-      'developer_about_feature_2': 'feature_2',
-      'developer_about_feature_3': 'feature_3',
-      'developer_about_feature_4': 'feature_4',
-      'developer_about_feature_5': 'feature_5',
-      'developer_about_feature_6': 'feature_6',
-      'developer_about_button_text': 'button_text',
-      'developer_about_button_link': 'button_link'
+      // About section - GAS Admin uses hyphens, WP theme uses underscores
+      'feature-1': 'feature_1',
+      'feature-2': 'feature_2',
+      'feature-3': 'feature_3',
+      'feature-4': 'feature_4',
+      'feature-5': 'feature_5',
+      'feature-6': 'feature_6',
+      'btn-text': 'button_text',
+      'btn-url': 'button_link',
+      'btn-bg': 'button_bg',
+      'btn-text-color': 'button_text_color'
     };
     
     // Translation-aware key mapping: keys like 'headline-en' should map using base key 'headline'
