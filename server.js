@@ -46400,6 +46400,37 @@ app.post('/api/partner/websites/:websiteId/upload', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Website not yet deployed' });
     }
     
+    // Compress images before uploading to WordPress (reduces memory + storage)
+    let uploadBase64 = cleanBase64;
+    if (!isVideo) {
+      try {
+        const sharp = require('sharp');
+        const inputBuffer = Buffer.from(cleanBase64, 'base64');
+        const originalSizeKB = (inputBuffer.length / 1024).toFixed(0);
+        
+        // Resize to max 2000px wide/tall, compress to quality 80
+        let compressed = sharp(inputBuffer)
+          .resize(2000, 2000, { fit: 'inside', withoutEnlargement: true });
+        
+        // Output as JPEG for photos, PNG for transparency
+        if (detectedType === 'image/png') {
+          compressed = compressed.png({ quality: 80, compressionLevel: 9 });
+        } else {
+          compressed = compressed.jpeg({ quality: 80, mozjpeg: true });
+          detectedType = 'image/jpeg';
+        }
+        
+        const compressedBuffer = await compressed.toBuffer();
+        const compressedSizeKB = (compressedBuffer.length / 1024).toFixed(0);
+        uploadBase64 = compressedBuffer.toString('base64');
+        
+        console.log(`[Upload] Image compressed: ${originalSizeKB}KB -> ${compressedSizeKB}KB (${Math.round((1 - compressedBuffer.length / inputBuffer.length) * 100)}% reduction)`);
+      } catch (compressErr) {
+        console.warn('[Upload] Image compression failed, uploading original:', compressErr.message);
+        // Fall through with original base64
+      }
+    }
+    
     // Upload to WordPress media library
     const wpApiKey = 'GAS_SECRET_KEY_2024!';
     let uploadResponse;
@@ -46411,7 +46442,7 @@ app.post('/api/partner/websites/:websiteId/upload', async (req, res) => {
           'X-GAS-API-Key': wpApiKey
         },
         body: JSON.stringify({
-          file_data: cleanBase64,  // Base64 encoded (no data URI prefix)
+          file_data: uploadBase64,  // Base64 encoded (compressed if image)
           file_name: file_name,
           file_type: detectedType,
           section: section || null
