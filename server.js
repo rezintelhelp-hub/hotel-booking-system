@@ -26845,11 +26845,18 @@ app.post('/api/admin/properties/:propertyId/copy-sync-images', async (req, res) 
     
     for (const room of roomsResult.rows) {
       // Find images in gas_sync_images matching this room's beds24_room_id
+      // Also include property-level images (room_type_external_id IS NULL) that haven't been assigned
+      const syncPropertyId = await pool.query(
+        `SELECT sp.id FROM gas_sync_properties sp WHERE sp.gas_property_id = $1 LIMIT 1`, [propertyId]
+      );
+      const spId = syncPropertyId.rows[0]?.id;
+      
       const syncImages = await pool.query(`
         SELECT * FROM gas_sync_images 
-        WHERE room_type_external_id = $1
+        WHERE (room_type_external_id = $1 
+               OR (room_type_external_id IS NULL AND sync_property_id = $2))
         ORDER BY sort_order
-      `, [String(room.beds24_room_id)]);
+      `, [String(room.beds24_room_id), spId]);
       
       let copied = 0;
       let skipped = 0;
