@@ -60373,6 +60373,24 @@ app.get('/api/public/client/:clientId/site-config', async (req, res) => {
         
         // Add/merge terms page from website_settings
         const termsSettings = websiteSettings['page-terms'] || {};
+        
+        // Fetch property-level terms as fallback (from API or channel manager sync)
+        let propertyTerms = {};
+        if (properties.length > 0) {
+            try {
+                const ptResult = await pool.query(
+                    'SELECT checkin_from, checkout_by, additional_rules, cancellation_policy FROM property_terms WHERE property_id = $1',
+                    [properties[0].id]
+                );
+                if (ptResult.rows.length > 0) propertyTerms = ptResult.rows[0];
+            } catch (e) { /* property_terms table may not exist */ }
+            // Also check properties table directly
+            if (!propertyTerms.checkin_from && properties[0].check_in_time) propertyTerms.checkin_from = properties[0].check_in_time;
+            if (!propertyTerms.checkout_by && properties[0].check_out_time) propertyTerms.checkout_by = properties[0].check_out_time;
+            if (!propertyTerms.additional_rules && properties[0].house_rules) propertyTerms.additional_rules = properties[0].house_rules;
+            if (!propertyTerms.cancellation_policy && properties[0].cancellation_policy) propertyTerms.cancellation_policy = properties[0].cancellation_policy;
+        }
+        
         if (Object.keys(termsSettings).length > 0 || !pagesObject['terms']) {
             // Parse FAQs if stored as JSON string
             let termsFaqs = [];
@@ -60401,21 +60419,21 @@ app.get('/api/public/client/:clientId/site-config', async (req, res) => {
                     cancellation: {
                         enabled: termsSettings['cancellation-enabled'] !== false,
                         title: termsSettings['cancellation-title'] || 'Cancellation Policy',
-                        content: termsSettings.cancellation || '',
+                        content: termsSettings.cancellation || propertyTerms.cancellation_policy || '',
                         cancel_period: termsSettings['cancel-period'] || '48',
                         cancel_fee: termsSettings['cancel-fee'] || 'first-night'
                     },
                     checkin: {
                         enabled: termsSettings['checkin-enabled'] !== false,
                         title: termsSettings['checkin-title'] || 'Check-in & Check-out',
-                        checkin_time: termsSettings['checkin-time'] || '',
-                        checkout_time: termsSettings['checkout-time'] || '',
+                        checkin_time: termsSettings['checkin-time'] || propertyTerms.checkin_from || '',
+                        checkout_time: termsSettings['checkout-time'] || propertyTerms.checkout_by || '',
                         details: termsSettings['checkin-details'] || ''
                     },
                     house_rules: {
                         enabled: termsSettings['house-rules-enabled'] !== false,
                         title: termsSettings['house-rules-title'] || 'House Rules',
-                        content: termsSettings['house-rules'] || ''
+                        content: termsSettings['house-rules'] || propertyTerms.additional_rules || ''
                     },
                     payment: {
                         enabled: termsSettings['payment-enabled'] !== false,
