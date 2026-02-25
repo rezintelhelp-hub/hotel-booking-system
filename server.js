@@ -43447,14 +43447,23 @@ app.post('/api/partner/tenants', async (req, res) => {
       return res.status(401).json({ success: false, error: auth.error });
     }
     
-    const { tenant_id, business_name, contact_email, contact_phone, country, timezone } = req.body;
+    const { tenant_id, business_name, contact_email, contact_phone, country, timezone, street, zip, city, currency, website_url,
+            // Elevate field name aliases
+            street_address, zipcode, website, company, brand } = req.body;
+    
+    // Resolve field aliases (Elevate names → GAS names, with fallback to existing)
+    const resolvedBusinessName = business_name || company || brand;
+    const resolvedStreet = street || street_address;
+    const resolvedZip = zip || zipcode;
+    const resolvedWebsite = website_url || website;
+    const resolvedCurrency = currency;
     
     // Validate required fields
     if (!tenant_id) {
       return res.status(400).json({ success: false, error: 'tenant_id is required' });
     }
-    if (!business_name) {
-      return res.status(400).json({ success: false, error: 'business_name is required' });
+    if (!resolvedBusinessName) {
+      return res.status(400).json({ success: false, error: 'business_name (or company) is required' });
     }
     
     // Check if tenant already exists
@@ -43487,13 +43496,20 @@ app.post('/api/partner/tenants', async (req, res) => {
     const accountEmail = contact_email || `${tenant_id}@partner.gas.travel`;
     
     const newAccount = await pool.query(
-      `INSERT INTO accounts (name, email, phone, country, timezone, parent_id, role, status, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, 'submaster_admin', 'active', NOW())
+      `INSERT INTO accounts (name, email, phone, country, timezone, address_line1, postcode, city, currency, parent_id, role, status, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'submaster_admin', 'active', NOW())
        RETURNING id, name, status, created_at`,
-      [business_name, accountEmail, contact_phone || null, country || null, timezone || null, auth.partnerId]
+      [resolvedBusinessName, accountEmail, contact_phone || null, country || null, timezone || null, resolvedStreet || null, resolvedZip || null, city || null, resolvedCurrency || null, auth.partnerId]
     );
     
+    // Store website in settings JSONB if provided
     const newAccountId = newAccount.rows[0].id;
+    if (resolvedWebsite) {
+      await pool.query(
+        `UPDATE accounts SET settings = COALESCE(settings, '{}')::jsonb || $1::jsonb WHERE id = $2`,
+        [JSON.stringify({ website_url: resolvedWebsite }), newAccountId]
+      );
+    }
     
     // Create mapping
     await pool.query(
@@ -43534,7 +43550,9 @@ app.get('/api/partner/tenants', async (req, res) => {
     
     const result = await pool.query(
       `SELECT ptm.external_tenant_id as tenant_id, a.id, a.name as business_name, 
-              a.email as contact_email, a.phone as contact_phone, a.status, a.created_at
+              a.email as contact_email, a.phone as contact_phone, a.country, a.timezone,
+              a.address_line1 as street_address, a.postcode as zipcode, a.city, a.currency,
+              a.settings, a.status, a.created_at
        FROM partner_tenant_mapping ptm
        JOIN accounts a ON a.id = ptm.gas_account_id
        WHERE ptm.partner_account_id = $1
@@ -43544,15 +43562,25 @@ app.get('/api/partner/tenants', async (req, res) => {
     
     res.json({
       success: true,
-      tenants: result.rows.map(row => ({
-        id: row.id,
-        tenant_id: row.tenant_id,
-        business_name: row.business_name,
-        contact_email: row.contact_email,
-        contact_phone: row.contact_phone,
-        status: row.status,
-        created_at: row.created_at
-      }))
+      tenants: result.rows.map(row => {
+        const settings = row.settings || {};
+        return {
+          id: row.id,
+          tenant_id: row.tenant_id,
+          business_name: row.business_name,
+          contact_email: row.contact_email,
+          contact_phone: row.contact_phone,
+          country: row.country,
+          timezone: row.timezone,
+          street_address: row.street_address,
+          zipcode: row.zipcode,
+          city: row.city,
+          currency: row.currency,
+          website: settings.website_url || null,
+          status: row.status,
+          created_at: row.created_at
+        };
+      })
     });
     
   } catch (error) {
@@ -43576,7 +43604,8 @@ app.get('/api/partner/tenants/:tenantId', async (req, res) => {
     const result = await pool.query(
       `SELECT ptm.external_tenant_id as tenant_id, a.id, a.name as business_name, 
               a.email as contact_email, a.phone as contact_phone, a.country, a.timezone,
-              a.status, a.created_at,
+              a.address_line1 as street_address, a.postcode as zipcode, a.city, a.currency,
+              a.settings, a.status, a.created_at,
               (SELECT COUNT(*) FROM properties WHERE account_id = a.id) as property_count
        FROM partner_tenant_mapping ptm
        JOIN accounts a ON a.id = ptm.gas_account_id
@@ -43589,6 +43618,7 @@ app.get('/api/partner/tenants/:tenantId', async (req, res) => {
     }
     
     const row = result.rows[0];
+    const settings = row.settings || {};
     res.json({
       success: true,
       tenant: {
@@ -43599,6 +43629,11 @@ app.get('/api/partner/tenants/:tenantId', async (req, res) => {
         contact_phone: row.contact_phone,
         country: row.country,
         timezone: row.timezone,
+        street_address: row.street_address,
+        zipcode: row.zipcode,
+        city: row.city,
+        currency: row.currency,
+        website: settings.website_url || null,
         status: row.status,
         created_at: row.created_at,
         property_count: parseInt(row.property_count)
@@ -43622,7 +43657,16 @@ app.put('/api/partner/tenants/:tenantId', async (req, res) => {
     }
     
     const { tenantId } = req.params;
-    const { business_name, contact_email, contact_phone, country, timezone } = req.body;
+    const { business_name, contact_email, contact_phone, country, timezone, street, zip, city, currency, website_url,
+            // Elevate field name aliases
+            street_address, zipcode, website, company, brand } = req.body;
+    
+    // Resolve field aliases (Elevate names → GAS names)
+    const resolvedBusinessName = business_name || company || brand;
+    const resolvedStreet = street || street_address;
+    const resolvedZip = zip || zipcode;
+    const resolvedWebsite = website_url || website;
+    const resolvedCurrency = currency;
     
     // Find the tenant
     const mapping = await pool.query(
@@ -43642,9 +43686,9 @@ app.put('/api/partner/tenants/:tenantId', async (req, res) => {
     const values = [];
     let paramIndex = 1;
     
-    if (business_name !== undefined) {
+    if (resolvedBusinessName !== undefined) {
       updates.push(`name = $${paramIndex++}`);
-      values.push(business_name);
+      values.push(resolvedBusinessName);
     }
     if (contact_email !== undefined) {
       updates.push(`email = $${paramIndex++}`);
@@ -43662,18 +43706,44 @@ app.put('/api/partner/tenants/:tenantId', async (req, res) => {
       updates.push(`timezone = $${paramIndex++}`);
       values.push(timezone);
     }
+    if (resolvedStreet !== undefined) {
+      updates.push(`address_line1 = $${paramIndex++}`);
+      values.push(resolvedStreet);
+    }
+    if (resolvedZip !== undefined) {
+      updates.push(`postcode = $${paramIndex++}`);
+      values.push(resolvedZip);
+    }
+    if (city !== undefined) {
+      updates.push(`city = $${paramIndex++}`);
+      values.push(city);
+    }
+    if (resolvedCurrency !== undefined) {
+      updates.push(`currency = $${paramIndex++}`);
+      values.push(resolvedCurrency);
+    }
     
-    if (updates.length === 0) {
+    if (updates.length === 0 && resolvedWebsite === undefined) {
       return res.status(400).json({ success: false, error: 'No fields to update' });
     }
     
     updates.push(`updated_at = NOW()`);
     values.push(accountId);
     
-    await pool.query(
-      `UPDATE accounts SET ${updates.join(', ')} WHERE id = $${paramIndex}`,
-      values
-    );
+    if (updates.length > 1) { // more than just updated_at
+      await pool.query(
+        `UPDATE accounts SET ${updates.join(', ')} WHERE id = $${paramIndex}`,
+        values
+      );
+    }
+    
+    // Store website in settings JSONB if provided
+    if (resolvedWebsite !== undefined) {
+      await pool.query(
+        `UPDATE accounts SET settings = COALESCE(settings, '{}')::jsonb || $1::jsonb, updated_at = NOW() WHERE id = $2`,
+        [JSON.stringify({ website_url: resolvedWebsite }), accountId]
+      );
+    }
     
     // Also update mapping timestamp
     await pool.query(
