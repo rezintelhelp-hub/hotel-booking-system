@@ -1442,10 +1442,10 @@
                 "put": {
                     "tags": ["Websites"],
                     "summary": "Update Header Behaviour",
-                    "description": "Control header display options. All fields optional.\n\n- `sticky` — Header sticks to top on scroll\n- `fixed_header` — Header always visible at top (only applies when sticky is true)\n- `transparent` — Header transparent over hero image",
+                    "description": "Control header display and styling. All fields optional.\n\n- `sticky` — Header sticks to top on scroll\n- `fixed_header` — Always visible at top (applies when sticky is true)\n- `transparent` — Transparent over hero image\n- `transparent_opacity` — Overlay opacity 0-80 (only when transparent)\n- `layout` — Logo position: logo-left, logo-center, logo-right\n- `border` — Show bottom border (true/false)\n- `border_color` — Border color (hex)\n- `border_width` — Border width 1-5 (px)",
                     "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
-                    "requestBody": { "content": { "application/json": { "example": { "sticky": true, "fixed_header": true, "transparent": true } } } },
-                    "responses": { "200": { "description": "Header settings updated and pushed to WordPress", "content": { "application/json": { "example": { "success": true, "header": { "sticky": true, "fixed_header": true, "transparent": true } } } } } }
+                    "requestBody": { "content": { "application/json": { "examples": { "sticky_fixed": { "summary": "Enable sticky + fixed", "value": { "sticky": true, "fixed_header": true } }, "layout_border": { "summary": "Layout and border", "value": { "layout": "logo-center", "transparent_opacity": 30, "border": true, "border_color": "#e5e7eb", "border_width": 2 } } } } } },
+                    "responses": { "200": { "description": "Header settings updated and pushed to WordPress" } }
                 }
             },
             
