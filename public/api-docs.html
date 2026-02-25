@@ -1547,6 +1547,23 @@
                     "responses": { "200": { "description": "Rooms page updated and pushed to WordPress" } }
                 }
             },
+            "/api/partner/websites/{websiteId}/contact-page": {
+                "get": {
+                    "tags": ["Websites"],
+                    "summary": "Get Contact Page Settings",
+                    "description": "Returns contact page settings including display options, contact details, opening hours, map, and form configuration.",
+                    "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "responses": { "200": { "description": "Contact page settings", "content": { "application/json": { "example": { "success": true, "contact_page": { "enabled": true, "menu_title": "Contact", "display_options": { "show_email": true, "show_phone": true, "show_address": true, "show_map": true, "show_directions": true, "show_contact_form": true, "show_opening_hours": false }, "opening_hours": { "monday": "09:00 AM - 05:00 PM", "saturday": "10:00 AM - 04:00 PM", "sunday": "Closed" } } } } } } }
+                },
+                "put": {
+                    "tags": ["Websites"],
+                    "summary": "Update Contact Page Settings",
+                    "description": "Control the contact page. All fields optional.\n\n**Page:** enabled, menu_title, menu_order, title, subtitle, transparent_header\n**Display Options:** show_details, show_email, show_phone, show_address, show_map, show_directions, show_contact_form, show_opening_hours\n**Contact Info:** business_name, email, phone, address, city, state, zip, country\n**Opening Hours:** opening_hours object with monday-sunday keys\n**Map:** latitude, longitude, map_zoom\n**Form:** button_color\n**SEO:** meta_title, meta_description",
+                    "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "requestBody": { "content": { "application/json": { "examples": { "enable_with_hours": { "summary": "Enable contact with opening hours", "value": { "enabled": true, "show_opening_hours": true, "opening_hours": { "monday": "09:00 - 17:00", "tuesday": "09:00 - 17:00", "wednesday": "09:00 - 17:00", "thursday": "09:00 - 17:00", "friday": "09:00 - 17:00", "saturday": "10:00 - 16:00", "sunday": "Closed" } } }, "display_toggles": { "summary": "Toggle display options", "value": { "show_email": true, "show_phone": true, "show_address": true, "show_map": false, "show_contact_form": true, "show_opening_hours": false } }, "contact_info": { "summary": "Set contact details", "value": { "business_name": "Alpine Lodge", "email": "info@alpine-lodge.ch", "phone": "+41 33 123 4567", "address": "Hauptstrasse 12", "city": "Interlaken", "zip": "3800", "country": "Switzerland" } } } } } },
+                    "responses": { "200": { "description": "Contact page updated and pushed to WordPress" } }
+                }
+            },
             
             // ===== WEBSITE CONTENT =====
             "/api/partner/websites/{websiteId}/content/{section}": {

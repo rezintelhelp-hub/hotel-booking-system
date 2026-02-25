@@ -6873,6 +6873,68 @@
                                 </div>
                                 <button class="btn" onclick="saveWebsiteSection('page-contact', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Contact Page</button>
                             </div>
+
+                            <div class="card" style="margin-bottom: 1.5rem;">
+                                <div class="card-header"><h3>👁️ Display Options</h3></div>
+                                <div class="card-body">
+                                    <p style="color: #64748b; font-size: 0.85rem; margin-bottom: 1rem;">Control which elements appear on the contact page.</p>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                                        <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer;">
+                                            <input type="checkbox" id="wb-page-contact-show-email" checked style="width: 18px; height: 18px; accent-color: #f59e0b;">
+                                            <span>Show Email</span>
+                                        </label>
+                                        <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer;">
+                                            <input type="checkbox" id="wb-page-contact-show-phone" checked style="width: 18px; height: 18px; accent-color: #f59e0b;">
+                                            <span>Show Phone</span>
+                                        </label>
+                                        <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer;">
+                                            <input type="checkbox" id="wb-page-contact-show-address" checked style="width: 18px; height: 18px; accent-color: #f59e0b;">
+                                            <span>Show Address</span>
+                                        </label>
+                                        <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer;">
+                                            <input type="checkbox" id="wb-page-contact-show-map" checked style="width: 18px; height: 18px; accent-color: #f59e0b;">
+                                            <span>Show Map</span>
+                                        </label>
+                                        <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer;">
+                                            <input type="checkbox" id="wb-page-contact-show-directions" checked style="width: 18px; height: 18px; accent-color: #f59e0b;">
+                                            <span>Show Direction Link</span>
+                                        </label>
+                                        <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer;">
+                                            <input type="checkbox" id="wb-page-contact-show-form" checked style="width: 18px; height: 18px; accent-color: #f59e0b;">
+                                            <span>Show Contact Form</span>
+                                        </label>
+                                        <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer;">
+                                            <input type="checkbox" id="wb-page-contact-show-opening-hours" style="width: 18px; height: 18px; accent-color: #f59e0b;">
+                                            <span>Show Opening Hours</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="card" style="margin-bottom: 1.5rem;">
+                                <div class="card-header"><h3>🕐 Opening Hours</h3>
+                                    <span style="font-size: 0.8rem; color: #64748b; font-weight: normal;">Only displayed if "Show Opening Hours" is checked above. Leave blank to hide individual days.</span>
+                                </div>
+                                <div class="card-body">
+                                    <div style="display: grid; grid-template-columns: 120px 1fr; gap: 0.75rem; align-items: center;">
+                                        <label style="font-weight: 500;">Monday</label>
+                                        <input type="text" class="form-input" id="wb-page-contact-hours-monday" placeholder="e.g., 09:00 AM - 05:00 PM">
+                                        <label style="font-weight: 500;">Tuesday</label>
+                                        <input type="text" class="form-input" id="wb-page-contact-hours-tuesday" placeholder="e.g., 09:00 AM - 05:00 PM">
+                                        <label style="font-weight: 500;">Wednesday</label>
+                                        <input type="text" class="form-input" id="wb-page-contact-hours-wednesday" placeholder="e.g., 09:00 AM - 05:00 PM">
+                                        <label style="font-weight: 500;">Thursday</label>
+                                        <input type="text" class="form-input" id="wb-page-contact-hours-thursday" placeholder="e.g., 09:00 AM - 05:00 PM">
+                                        <label style="font-weight: 500;">Friday</label>
+                                        <input type="text" class="form-input" id="wb-page-contact-hours-friday" placeholder="e.g., 09:00 AM - 05:00 PM">
+                                        <label style="font-weight: 500;">Saturday</label>
+                                        <input type="text" class="form-input" id="wb-page-contact-hours-saturday" placeholder="e.g., 10:00 AM - 04:00 PM">
+                                        <label style="font-weight: 500;">Sunday</label>
+                                        <input type="text" class="form-input" id="wb-page-contact-hours-sunday" placeholder="e.g., Closed">
+                                    </div>
+                                </div>
+                            </div>
+
                             <div class="card" style="margin-bottom: 1.5rem;">
                                 <div class="card-header"><h3>📄 Page Header <span style="font-size: 0.75rem; color: #8b5cf6; font-weight: normal;">🌐 Multilingual</span></h3></div>
                                 <div class="card-body">
