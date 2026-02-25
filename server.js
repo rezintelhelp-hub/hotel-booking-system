@@ -21204,6 +21204,12 @@ async function pushSettingsToWordPress(siteUrl, section, settings) {
       'search-btn-text': 'search_btn_text',
       'search-label-color': 'search_label_color',
       'search-max-guests': 'search_max_guests',
+      'search-bg': 'search_bg',
+      'search-opacity': 'search_opacity',
+      'search-radius': 'search_radius',
+      'search-padding': 'search_padding',
+      'search-scale': 'search_scale',
+      'search-max-width': 'search_max_width',
       // Favicon
       'favicon-image-url': 'site_icon',
       // Hero Slider Images - map to theme_mod names (without _url suffix)
@@ -46074,7 +46080,13 @@ app.get('/api/partner/websites/:websiteId/hero', async (req, res) => {
         btn_bg: s['search-btn-bg'] || null,
         btn_text: s['search-btn-text'] || null,
         label_color: s['search-label-color'] || null,
-        max_guests: s['search-max-guests'] || '4'
+        max_guests: s['search-max-guests'] || '4',
+        bg: s['search-bg'] || null,
+        opacity: s['search-opacity'] || '100',
+        radius: s['search-radius'] || '8',
+        padding: s['search-padding'] || '20',
+        scale: s['search-scale'] || '100',
+        max_width: s['search-max-width'] || '900'
       },
       meta: {
         title: s['meta-title'] || null,
@@ -46204,19 +46216,37 @@ app.put('/api/partner/websites/:websiteId/hero/search', async (req, res) => {
     if (siteResult.rows.length === 0) return res.status(404).json({ success: false, error: 'Site not found' });
     const site = siteResult.rows[0];
     
-    const { btn_bg, btn_text, label_color, max_guests } = req.body;
+    const { btn_bg, btn_text, label_color, max_guests,
+            bg, opacity, radius, padding, scale, max_width } = req.body;
     
     const heroResult = await pool.query(`SELECT settings FROM website_settings WHERE deployed_site_id = $1 AND section = 'hero'`, [deployedSiteId]);
     const settings = heroResult.rows.length > 0 ? (heroResult.rows[0].settings || {}) : {};
     const changes = {};
     
-    if (btn_bg !== undefined) { settings['search-btn-bg'] = btn_bg; changes['search-btn-bg'] = btn_bg; }
-    if (btn_text !== undefined) { settings['search-btn-text'] = btn_text; changes['search-btn-text'] = btn_text; }
-    if (label_color !== undefined) { settings['search-label-color'] = label_color; changes['search-label-color'] = label_color; }
-    if (max_guests !== undefined) { settings['search-max-guests'] = String(max_guests); changes['search-max-guests'] = String(max_guests); }
+    const fieldMap = {
+      btn_bg: 'search-btn-bg',
+      btn_text: 'search-btn-text',
+      label_color: 'search-label-color',
+      max_guests: 'search-max-guests',
+      bg: 'search-bg',
+      opacity: 'search-opacity',
+      radius: 'search-radius',
+      padding: 'search-padding',
+      scale: 'search-scale',
+      max_width: 'search-max-width'
+    };
+    
+    const incoming = { btn_bg, btn_text, label_color, max_guests, bg, opacity, radius, padding, scale, max_width };
+    
+    for (const [apiField, cssField] of Object.entries(fieldMap)) {
+      if (incoming[apiField] !== undefined) {
+        settings[cssField] = String(incoming[apiField]);
+        changes[cssField] = String(incoming[apiField]);
+      }
+    }
     
     if (Object.keys(changes).length === 0) {
-      return res.status(400).json({ success: false, error: 'No fields provided. Use: btn_bg, btn_text, label_color, max_guests' });
+      return res.status(400).json({ success: false, error: 'No fields provided. Use: btn_bg, btn_text, label_color, max_guests, bg, opacity, radius, padding, scale, max_width' });
     }
     
     if (heroResult.rows.length > 0) {
