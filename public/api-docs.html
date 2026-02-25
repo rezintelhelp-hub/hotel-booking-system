@@ -1449,6 +1449,71 @@
                 }
             },
             
+            // ===== HERO CONTROLS =====
+            "/api/partner/websites/{websiteId}/hero": {
+                "get": {
+                    "tags": ["Websites"],
+                    "summary": "Get Hero Settings",
+                    "description": "Returns badge, trust badges, search box styling, and meta data for the hero section.",
+                    "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "responses": { "200": { "description": "Hero settings", "content": { "application/json": { "example": { "success": true, "badge": { "text": "Welcome", "bg_color": "#2563eb", "text_color": "#fff", "border_color": "" }, "trust_badges": { "badge_1": "Instant Booking", "badge_2": "Best Price", "badge_3": "24/7 Support" }, "search": { "btn_bg": "#2563eb", "btn_text": "#fff" }, "meta": { "title": "Beach Villas", "description": "Luxury beachfront..." } } } } } }
+                }
+            },
+            "/api/partner/websites/{websiteId}/hero/badge": {
+                "put": {
+                    "tags": ["Websites"],
+                    "summary": "Update Hero Badge",
+                    "description": "Update badge text, link, and colours. All fields optional.\n\n- `text` — Badge text (e.g. 'Welcome to Paradise')\n- `link` — Badge click URL\n- `bg_color` — Background colour (hex)\n- `text_color` — Text colour (hex)\n- `border_color` — Border colour (hex)",
+                    "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "requestBody": { "content": { "application/json": { "example": { "text": "Welcome to Paradise", "bg_color": "#2563eb", "text_color": "#ffffff", "border_color": "#1d4ed8" } } } },
+                    "responses": { "200": { "description": "Badge updated" } }
+                },
+                "delete": {
+                    "tags": ["Websites"],
+                    "summary": "Delete Hero Badge",
+                    "description": "Remove the badge entirely — clears text and all colour fields.",
+                    "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "responses": { "200": { "description": "Badge removed" } }
+                }
+            },
+            "/api/partner/websites/{websiteId}/hero/search": {
+                "put": {
+                    "tags": ["Websites"],
+                    "summary": "Update Search Box Styling",
+                    "description": "Update search box button colour and styling.\n\n- `btn_bg` — Search button background (hex)\n- `btn_text` — Search button text colour (hex)\n- `label_color` — Field label colour (hex)\n- `max_guests` — Max guests in dropdown",
+                    "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "requestBody": { "content": { "application/json": { "example": { "btn_bg": "#10b981", "btn_text": "#ffffff" } } } },
+                    "responses": { "200": { "description": "Search styling updated" } }
+                }
+            },
+            "/api/partner/websites/{websiteId}/hero/meta": {
+                "put": {
+                    "tags": ["Websites"],
+                    "summary": "Update Homepage Meta",
+                    "description": "Update SEO meta title and description for the homepage.\n\n- `meta_title` — Page title for search engines\n- `meta_description` — Page description for search engines",
+                    "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "requestBody": { "content": { "application/json": { "example": { "meta_title": "Beach Villas - Luxury Beachfront", "meta_description": "Book your dream beachfront villa..." } } } },
+                    "responses": { "200": { "description": "Meta updated" } }
+                }
+            },
+            "/api/partner/websites/{websiteId}/styles": {
+                "get": {
+                    "tags": ["Websites"],
+                    "summary": "Get Global Styles",
+                    "description": "Returns global colour palette, fonts, button styling, and custom CSS.",
+                    "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "responses": { "200": { "description": "Styles settings", "content": { "application/json": { "example": { "success": true, "styles": { "primary_color": "#2563eb", "secondary_color": "#0f172a", "accent_color": "#f59e0b", "btn_primary_bg": "#2563eb", "btn_primary_text": "#ffffff", "heading_font": "Playfair Display", "body_font": "Inter" } } } } } }
+                },
+                "put": {
+                    "tags": ["Websites"],
+                    "summary": "Update Global Styles",
+                    "description": "Update site-wide colours, fonts, and button styling. All fields optional. This controls the search button colour via `btn_primary_bg`.\n\n**Colours:** primary_color, secondary_color, accent_color, link_color\n**Fonts:** heading_font, body_font\n**Buttons:** btn_primary_bg (background), btn_primary_text (text colour), btn_radius (px)\n**Advanced:** custom_css",
+                    "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "requestBody": { "content": { "application/json": { "examples": { "brand_colours": { "summary": "Set brand colours", "value": { "primary_color": "#10b981", "secondary_color": "#064e3b", "accent_color": "#fbbf24" } }, "fix_search_button": { "summary": "Fix search button colour", "value": { "btn_primary_bg": "#10b981", "btn_primary_text": "#ffffff" } } } } } },
+                    "responses": { "200": { "description": "Styles updated and pushed to WordPress" } }
+                }
+            },
+            
             // ===== WEBSITE CONTENT =====
             "/api/partner/websites/{websiteId}/content/{section}": {
                 "put": {
