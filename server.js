@@ -17170,6 +17170,9 @@ app.get('/api/setup-database', async (req, res) => {
     await pool.query(`ALTER TABLE offers ALTER COLUMN discount_value DROP NOT NULL`);
     // Add price_per_night for fixed-price corporate/agent offers
     await pool.query(`ALTER TABLE offers ADD COLUMN IF NOT EXISTS price_per_night DECIMAL(10,2)`);
+    // Add source tracking for partner-pushed offers
+    await pool.query(`ALTER TABLE offers ADD COLUMN IF NOT EXISTS source VARCHAR(50) DEFAULT 'manual'`);
+    await pool.query(`ALTER TABLE offers ADD COLUMN IF NOT EXISTS external_id VARCHAR(255)`);
     
     // Create vouchers table
     await pool.query(`
@@ -49601,6 +49604,238 @@ app.put('/api/elevate/:apiKey/property/:propertyId/terms', async (req, res) => {
     
   } catch (error) {
     console.error('Elevate set terms error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// =========================================================
+// ELEVATE: OFFERS
+// =========================================================
+
+// List offers for a property
+app.get('/api/elevate/:apiKey/property/:propertyId/offers', async (req, res) => {
+  console.log('=== ELEVATE: GET PROPERTY OFFERS ===');
+  
+  try {
+    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: 'Invalid API key' });
+    }
+    
+    const { propertyId } = req.params;
+    
+    const propCheck = await pool.query(`
+      SELECT p.id FROM properties p
+      JOIN accounts a ON a.id = p.account_id
+      WHERE (a.parent_id = $1 OR a.id = $1) 
+      AND (p.id::text = $2 OR p.cm_property_id = $2)
+    `, [ELEVATE_MASTER_ACCOUNT_ID, propertyId]);
+    
+    if (propCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Property not found' });
+    }
+    
+    const gasPropertyId = propCheck.rows[0].id;
+    
+    const result = await pool.query(`
+      SELECT id, external_id, name, description, discount_type, discount_value, price_per_night,
+             property_id, room_id, room_ids, valid_from, valid_until, min_nights, max_nights,
+             active, source, created_at, updated_at
+      FROM offers 
+      WHERE (property_id = $1 OR $1 = ANY(property_ids))
+      AND active = true
+      ORDER BY valid_from DESC NULLS LAST
+    `, [gasPropertyId]);
+    
+    res.json({
+      success: true,
+      property_id: gasPropertyId,
+      offers: result.rows
+    });
+    
+  } catch (error) {
+    console.error('Elevate get offers error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Create offer for a property
+app.post('/api/elevate/:apiKey/property/:propertyId/offers', async (req, res) => {
+  console.log('=== ELEVATE: CREATE OFFER ===');
+  
+  try {
+    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: 'Invalid API key' });
+    }
+    
+    const { propertyId } = req.params;
+    const { name, description, price_per_night, discount_type, discount_value, 
+            room_id, room_ids, valid_from, valid_until, min_nights, max_nights, external_id } = req.body;
+    
+    if (!name) {
+      return res.status(400).json({ success: false, error: 'name is required' });
+    }
+    
+    if (!price_per_night && !discount_value) {
+      return res.status(400).json({ success: false, error: 'Either price_per_night or discount_value is required' });
+    }
+    
+    // Find property and get account_id
+    const propCheck = await pool.query(`
+      SELECT p.id, p.account_id FROM properties p
+      JOIN accounts a ON a.id = p.account_id
+      WHERE (a.parent_id = $1 OR a.id = $1) 
+      AND (p.id::text = $2 OR p.cm_property_id = $2)
+    `, [ELEVATE_MASTER_ACCOUNT_ID, propertyId]);
+    
+    if (propCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Property not found' });
+    }
+    
+    const gasPropertyId = propCheck.rows[0].id;
+    const accountId = propCheck.rows[0].account_id;
+    
+    // Check for duplicate external_id
+    if (external_id) {
+      const existing = await pool.query(
+        'SELECT id FROM offers WHERE external_id = $1 AND source = $2',
+        [external_id, 'partner']
+      );
+      if (existing.rows.length > 0) {
+        return res.status(400).json({ 
+          success: false, 
+          error: `Offer with external_id "${external_id}" already exists`,
+          existing_offer_id: existing.rows[0].id
+        });
+      }
+    }
+    
+    // Resolve room_ids if specific rooms provided
+    let resolvedRoomIds = null;
+    if (room_ids && Array.isArray(room_ids) && room_ids.length > 0) {
+      resolvedRoomIds = room_ids;
+    } else if (room_id) {
+      resolvedRoomIds = [room_id];
+    }
+    
+    const result = await pool.query(`
+      INSERT INTO offers (
+        name, description, property_id, room_id, room_ids, account_id,
+        discount_type, discount_value, price_per_night,
+        valid_from, valid_until, min_nights, max_nights,
+        active, source, external_id, available_website
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, true, 'partner', $14, true)
+      RETURNING *
+    `, [
+      name, description || null, gasPropertyId, room_id || null, resolvedRoomIds,
+      accountId, discount_type || 'fixed', discount_value || 0, price_per_night || null,
+      valid_from || null, valid_until || null, min_nights || 1, max_nights || null,
+      external_id || null
+    ]);
+    
+    console.log(`[Elevate] Created offer "${name}" for property ${gasPropertyId}`);
+    res.json({ success: true, offer: result.rows[0] });
+    
+  } catch (error) {
+    console.error('Elevate create offer error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Update offer
+app.put('/api/elevate/:apiKey/offers/:offerId', async (req, res) => {
+  console.log('=== ELEVATE: UPDATE OFFER ===');
+  
+  try {
+    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: 'Invalid API key' });
+    }
+    
+    const { offerId } = req.params;
+    
+    // Find offer - by ID or external_id, must belong to Elevate property
+    const offerCheck = await pool.query(`
+      SELECT o.id, o.property_id FROM offers o
+      JOIN properties p ON p.id = o.property_id
+      JOIN accounts a ON a.id = p.account_id
+      WHERE (a.parent_id = $1 OR a.id = $1) 
+      AND (o.id::text = $2 OR o.external_id = $2)
+    `, [ELEVATE_MASTER_ACCOUNT_ID, offerId]);
+    
+    if (offerCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Offer not found' });
+    }
+    
+    const gasOfferId = offerCheck.rows[0].id;
+    const updates = req.body;
+    
+    const updateFields = [];
+    const values = [];
+    let pi = 1;
+    
+    const allowedFields = ['name', 'description', 'price_per_night', 'discount_type', 'discount_value',
+                           'room_id', 'room_ids', 'valid_from', 'valid_until', 'min_nights', 'max_nights', 'active'];
+    
+    for (const field of allowedFields) {
+      if (updates[field] !== undefined) {
+        updateFields.push(`${field} = $${pi++}`);
+        values.push(updates[field]);
+      }
+    }
+    
+    if (updateFields.length === 0) {
+      return res.status(400).json({ success: false, error: 'No valid fields to update' });
+    }
+    
+    updateFields.push(`updated_at = NOW()`);
+    values.push(gasOfferId);
+    
+    await pool.query(
+      `UPDATE offers SET ${updateFields.join(', ')} WHERE id = $${pi}`,
+      values
+    );
+    
+    res.json({ success: true, offer_id: gasOfferId });
+    
+  } catch (error) {
+    console.error('Elevate update offer error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Delete offer
+app.delete('/api/elevate/:apiKey/offers/:offerId', async (req, res) => {
+  console.log('=== ELEVATE: DELETE OFFER ===');
+  
+  try {
+    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: 'Invalid API key' });
+    }
+    
+    const { offerId } = req.params;
+    
+    // Find offer
+    const offerCheck = await pool.query(`
+      SELECT o.id FROM offers o
+      JOIN properties p ON p.id = o.property_id
+      JOIN accounts a ON a.id = p.account_id
+      WHERE (a.parent_id = $1 OR a.id = $1) 
+      AND (o.id::text = $2 OR o.external_id = $2)
+    `, [ELEVATE_MASTER_ACCOUNT_ID, offerId]);
+    
+    if (offerCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Offer not found' });
+    }
+    
+    await pool.query('DELETE FROM offers WHERE id = $1', [offerCheck.rows[0].id]);
+    
+    res.json({ success: true, deleted_offer_id: offerCheck.rows[0].id });
+    
+  } catch (error) {
+    console.error('Elevate delete offer error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
