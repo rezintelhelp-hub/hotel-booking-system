@@ -1411,6 +1411,33 @@
                     "responses": { "200": { "description": "Name updated" } }
                 }
             },
+            "/api/partner/websites/{websiteId}/logo": {
+                "get": {
+                    "tags": ["Websites"],
+                    "summary": "Get Logo Settings",
+                    "description": "Returns current logo configuration: main image URL, size (px), light/dark variant URL, and text color.",
+                    "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "responses": { "200": { "description": "Logo settings", "content": { "application/json": { "example": { "success": true, "logo": { "image_url": "https://example.com/logo.png", "size": "60", "light_image_url": "https://example.com/logo-white.png", "color": "#0f172a" } } } } } }
+                },
+                "put": {
+                    "tags": ["Websites"],
+                    "summary": "Update Logo",
+                    "description": "Update logo settings. All fields optional — only provided fields are changed.\n\n**Fields:**\n- `image_url` — Main logo URL (upload first via /upload endpoint)\n- `size` — Logo height in pixels (20-120)\n- `light_image_url` — Alternative logo for dark/transparent header backgrounds\n- `color` — Logo text fallback color (hex)\n\nChanges are pushed to WordPress automatically.",
+                    "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "requestBody": { "content": { "application/json": { "examples": { "set_logo": { "summary": "Set logo with sizing", "value": { "image_url": "https://example.com/logo.png", "size": 60 } }, "add_dark_variant": { "summary": "Add dark/transparent variant", "value": { "light_image_url": "https://example.com/logo-white.png" } } } } } },
+                    "responses": { "200": { "description": "Logo updated and pushed to WordPress" } }
+                },
+                "delete": {
+                    "tags": ["Websites"],
+                    "summary": "Remove Logo",
+                    "description": "Remove logo image(s). Use `?which=main` (default), `?which=light`, or `?which=both`.",
+                    "parameters": [
+                        { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } },
+                        { "name": "which", "in": "query", "schema": { "type": "string", "enum": ["main", "light", "both"], "default": "main" }, "description": "Which logo to remove" }
+                    ],
+                    "responses": { "200": { "description": "Logo removed" } }
+                }
+            },
             
             // ===== WEBSITE CONTENT =====
             "/api/partner/websites/{websiteId}/content/{section}": {
@@ -1425,7 +1452,16 @@
                     "requestBody": {
                         "content": {
                             "application/json": {
-                                "example": { "settings": { "title-en": "Welcome to Our Hotel", "text-en": "Experience luxury", "bg-color": "#ffffff" } }
+                                "examples": {
+                                    "header": {
+                                        "summary": "Header with logos",
+                                        "value": { "settings": { "site-name": "Mountain Lodge", "logo-image-url": "https://example.com/logo.png", "logo-size": "60", "logo-light-image-url": "https://example.com/logo-white.png", "cta-button-text-en": "Book Now", "cta-bg": "#2563eb", "bg-color": "#ffffff", "text-color": "#1e293b", "transparent": true, "sticky": true } }
+                                    },
+                                    "about": {
+                                        "summary": "About section",
+                                        "value": { "settings": { "title-en": "Welcome to Our Hotel", "text-en": "Experience luxury", "image-url": "https://example.com/about.jpg", "enabled": true } }
+                                    }
+                                }
                             }
                         }
                     },
