@@ -348,7 +348,7 @@
             });
             const result = await resp.json();
             if (result.success) {
-                alert('Request submitted successfully! We\\'ll review it shortly.');
+                alert('Request submitted successfully! We will review it shortly.');
                 document.getElementById('requestModal').classList.remove('active');
                 document.getElementById('requestForm').reset();
             } else {
@@ -358,7 +358,7 @@
             }
         } catch (err) {
             // Even if endpoint doesn't exist yet, acknowledge
-            alert('Request noted — thank you! We\\'ll review it shortly.');
+            alert('Request noted — thank you! We will review it shortly.');
             document.getElementById('requestModal').classList.remove('active');
             document.getElementById('requestForm').reset();
         }
