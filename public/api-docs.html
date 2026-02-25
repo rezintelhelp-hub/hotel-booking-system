@@ -387,21 +387,15 @@
             }
         ],
         "security": [
-            { "ApiKeyHeader": [] }
+            { "ApiKey": [] }
         ],
         "components": {
             "securitySchemes": {
-                "ApiKeyHeader": {
+                "ApiKey": {
                     "type": "apiKey",
                     "in": "header",
                     "name": "X-API-Key",
-                    "description": "Partner API key provided during onboarding"
-                },
-                "ApiKeyPath": {
-                    "type": "apiKey",
-                    "in": "path",
-                    "name": "apiKey",
-                    "description": "API key embedded in the URL path for /api/elevate/ endpoints"
+                    "description": "Your partner API key. For /api/partner/* endpoints this is sent as a header. For /api/elevate/* endpoints the same key goes in the URL path."
                 }
             },
             "schemas": {
@@ -625,7 +619,7 @@
                     "tags": ["Properties & Rooms"],
                     "summary": "Push Property with Rooms",
                     "description": "Create a property with one or more rooms. Returns property_id and unit_id for each room. **Save the unit_id values** — you need them for room types, availability, images, and website assignments.",
-                    "security": [{ "ApiKeyPath": [] }],
+                    
                     "parameters": [
                         { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" }, "description": "Your API key" }
                     ],
@@ -685,7 +679,7 @@
                     "tags": ["Properties & Rooms"],
                     "summary": "Update Property",
                     "description": "Send only the fields you want to update inside a property object.",
-                    "security": [{ "ApiKeyPath": [] }],
+                    
                     "parameters": [
                         { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
                         { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "integer" } }
@@ -703,7 +697,7 @@
                     "tags": ["Lifecycle"],
                     "summary": "Delete Property",
                     "description": "Permanently deletes property and all rooms. Blocked if active bookings exist.",
-                    "security": [{ "ApiKeyPath": [] }],
+                    
                     "parameters": [
                         { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
                         { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "integer" } }
@@ -716,7 +710,7 @@
                     "tags": ["Properties & Rooms"],
                     "summary": "Add Room to Property",
                     "description": "Add a new room to an existing property.",
-                    "security": [{ "ApiKeyPath": [] }],
+                    
                     "parameters": [
                         { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
                         { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "integer" } }
@@ -743,7 +737,7 @@
                     "tags": ["Properties & Rooms"],
                     "summary": "Get Rooms for Property",
                     "description": "Get all rooms belonging to a property.",
-                    "security": [{ "ApiKeyPath": [] }],
+                    
                     "parameters": [
                         { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
                         { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "integer" } }
@@ -756,7 +750,7 @@
                     "tags": ["Properties & Rooms"],
                     "summary": "Update Room",
                     "description": "Update room details. roomId can be GAS unit_id (numeric) or your external_id.",
-                    "security": [{ "ApiKeyPath": [] }],
+                    
                     "parameters": [
                         { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
                         { "name": "roomId", "in": "path", "required": true, "schema": { "type": "string" }, "description": "GAS unit_id or your external_id" }
@@ -774,7 +768,7 @@
                     "tags": ["Lifecycle"],
                     "summary": "Delete Room",
                     "description": "Permanently deletes a room. Blocked if active bookings exist.",
-                    "security": [{ "ApiKeyPath": [] }],
+                    
                     "parameters": [
                         { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
                         { "name": "roomId", "in": "path", "required": true, "schema": { "type": "string" } }
@@ -789,7 +783,7 @@
                     "tags": ["Images"],
                     "summary": "Add Room Images",
                     "description": "Upload images to a room. roomId can be GAS unit_id or your external_id.",
-                    "security": [{ "ApiKeyPath": [] }],
+                    
                     "parameters": [
                         { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
                         { "name": "roomId", "in": "path", "required": true, "schema": { "type": "string" } }
@@ -810,7 +804,7 @@
                 "get": {
                     "tags": ["Images"],
                     "summary": "Get Room Images",
-                    "security": [{ "ApiKeyPath": [] }],
+                    
                     "parameters": [
                         { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
                         { "name": "roomId", "in": "path", "required": true, "schema": { "type": "string" } }
@@ -822,7 +816,7 @@
                 "delete": {
                     "tags": ["Images"],
                     "summary": "Delete Room Image",
-                    "security": [{ "ApiKeyPath": [] }],
+                    
                     "parameters": [
                         { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
                         { "name": "roomId", "in": "path", "required": true, "schema": { "type": "string" } },
@@ -835,7 +829,7 @@
                 "post": {
                     "tags": ["Images"],
                     "summary": "Add Property Images",
-                    "security": [{ "ApiKeyPath": [] }],
+                    
                     "parameters": [
                         { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
                         { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "integer" } }
@@ -856,7 +850,7 @@
                 "get": {
                     "tags": ["Images"],
                     "summary": "Get Property Images",
-                    "security": [{ "ApiKeyPath": [] }],
+                    
                     "parameters": [
                         { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
                         { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "integer" } }
@@ -868,7 +862,7 @@
                 "delete": {
                     "tags": ["Images"],
                     "summary": "Delete Property Image",
-                    "security": [{ "ApiKeyPath": [] }],
+                    
                     "parameters": [
                         { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
                         { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "integer" } },
@@ -883,7 +877,7 @@
                 "put": {
                     "tags": ["Room Details"],
                     "summary": "Set Room Amenities",
-                    "security": [{ "ApiKeyPath": [] }],
+                    
                     "parameters": [
                         { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
                         { "name": "roomId", "in": "path", "required": true, "schema": { "type": "string" } }
@@ -902,7 +896,7 @@
                 "get": {
                     "tags": ["Room Details"],
                     "summary": "Get Room Amenities",
-                    "security": [{ "ApiKeyPath": [] }],
+                    
                     "parameters": [
                         { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
                         { "name": "roomId", "in": "path", "required": true, "schema": { "type": "string" } }
@@ -914,7 +908,7 @@
                 "put": {
                     "tags": ["Room Details"],
                     "summary": "Set Room Bedrooms",
-                    "security": [{ "ApiKeyPath": [] }],
+                    
                     "parameters": [
                         { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
                         { "name": "roomId", "in": "path", "required": true, "schema": { "type": "string" } }
@@ -936,7 +930,7 @@
                 "get": {
                     "tags": ["Room Details"],
                     "summary": "Get Room Bedrooms",
-                    "security": [{ "ApiKeyPath": [] }],
+                    
                     "parameters": [
                         { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
                         { "name": "roomId", "in": "path", "required": true, "schema": { "type": "string" } }
@@ -948,7 +942,7 @@
                 "put": {
                     "tags": ["Room Details"],
                     "summary": "Set Room Bathrooms",
-                    "security": [{ "ApiKeyPath": [] }],
+                    
                     "parameters": [
                         { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
                         { "name": "roomId", "in": "path", "required": true, "schema": { "type": "string" } }
@@ -970,7 +964,7 @@
                 "get": {
                     "tags": ["Room Details"],
                     "summary": "Get Room Bathrooms",
-                    "security": [{ "ApiKeyPath": [] }],
+                    
                     "parameters": [
                         { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
                         { "name": "roomId", "in": "path", "required": true, "schema": { "type": "string" } }
@@ -985,7 +979,7 @@
                     "tags": ["Pricing & Availability"],
                     "summary": "Update Calendar (Recommended)",
                     "description": "Combined pricing and availability update. **Always use the dates array format.** This is the recommended endpoint for updating pricing and availability.",
-                    "security": [{ "ApiKeyPath": [] }],
+                    
                     "parameters": [
                         { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
                         { "name": "roomId", "in": "path", "required": true, "schema": { "type": "string" } }
@@ -1009,7 +1003,7 @@
                     "tags": ["Pricing & Availability"],
                     "summary": "Get Calendar",
                     "description": "Get room calendar for a date range.",
-                    "security": [{ "ApiKeyPath": [] }],
+                    
                     "parameters": [
                         { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
                         { "name": "roomId", "in": "path", "required": true, "schema": { "type": "string" } },
@@ -1023,7 +1017,7 @@
                 "put": {
                     "tags": ["Pricing & Availability"],
                     "summary": "Update Pricing Only",
-                    "security": [{ "ApiKeyPath": [] }],
+                    
                     "parameters": [
                         { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
                         { "name": "roomId", "in": "path", "required": true, "schema": { "type": "string" } }
@@ -1046,7 +1040,7 @@
                 "put": {
                     "tags": ["Pricing & Availability"],
                     "summary": "Update Availability Only",
-                    "security": [{ "ApiKeyPath": [] }],
+                    
                     "parameters": [
                         { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
                         { "name": "roomId", "in": "path", "required": true, "schema": { "type": "string" } }
