@@ -46028,6 +46028,392 @@ app.put('/api/partner/websites/:websiteId/header', async (req, res) => {
   }
 });
 
+// =========================================================
+// PARTNER: HERO SECTION CONTROLS (Badge, Search, Meta)
+// =========================================================
+
+// GET /api/partner/websites/:websiteId/hero - Get hero section settings
+app.get('/api/partner/websites/:websiteId/hero', async (req, res) => {
+  console.log('=== PARTNER API: GET HERO ===');
+  
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    
+    const deployedSiteId = await getPartnerDeployedSiteId(auth.partnerId, req.params.websiteId);
+    if (!deployedSiteId) {
+      return res.status(404).json({ success: false, error: 'Website not deployed or not found' });
+    }
+    
+    const heroResult = await pool.query(
+      `SELECT settings FROM website_settings WHERE deployed_site_id = $1 AND section = 'hero'`,
+      [deployedSiteId]
+    );
+    
+    const s = heroResult.rows.length > 0 ? heroResult.rows[0].settings : {};
+    
+    res.json({
+      success: true,
+      website_id: parseInt(req.params.websiteId),
+      badge: {
+        text: s['button-text-en'] || s['button-text'] || null,
+        link: s['button-link'] || null,
+        bg_color: s['badge-bg'] || null,
+        text_color: s['badge-text'] || null,
+        border_color: s['badge-border'] || null
+      },
+      trust_badges: {
+        badge_1: s['trust-1-en'] || s['trust-1'] || null,
+        badge_2: s['trust-2-en'] || s['trust-2'] || null,
+        badge_3: s['trust-3-en'] || s['trust-3'] || null,
+        text_color: s['trust-text-color'] || '#ffffff'
+      },
+      search: {
+        btn_bg: s['search-btn-bg'] || null,
+        btn_text: s['search-btn-text'] || null,
+        label_color: s['search-label-color'] || null,
+        max_guests: s['search-max-guests'] || '4'
+      },
+      meta: {
+        title: s['meta-title'] || null,
+        description: s['meta-description'] || null
+      }
+    });
+    
+  } catch (error) {
+    console.error('Partner API get hero error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/partner/websites/:websiteId/hero/badge - Update or delete hero badge
+app.put('/api/partner/websites/:websiteId/hero/badge', async (req, res) => {
+  console.log('=== PARTNER API: UPDATE BADGE ===');
+  
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    
+    const deployedSiteId = await getPartnerDeployedSiteId(auth.partnerId, req.params.websiteId);
+    if (!deployedSiteId) {
+      return res.status(404).json({ success: false, error: 'Website not deployed or not found' });
+    }
+    
+    const siteResult = await pool.query('SELECT id, account_id, site_url FROM deployed_sites WHERE id = $1', [deployedSiteId]);
+    if (siteResult.rows.length === 0) return res.status(404).json({ success: false, error: 'Site not found' });
+    const site = siteResult.rows[0];
+    
+    const { text, link, bg_color, text_color, border_color } = req.body;
+    
+    const heroResult = await pool.query(
+      `SELECT settings FROM website_settings WHERE deployed_site_id = $1 AND section = 'hero'`,
+      [deployedSiteId]
+    );
+    const settings = heroResult.rows.length > 0 ? (heroResult.rows[0].settings || {}) : {};
+    const changes = {};
+    
+    if (text !== undefined) { settings['button-text-en'] = text; settings['button-text'] = text; changes['button-text-en'] = text; changes['button-text'] = text; }
+    if (link !== undefined) { settings['button-link'] = link; changes['button-link'] = link; }
+    if (bg_color !== undefined) { settings['badge-bg'] = bg_color; changes['badge-bg'] = bg_color; }
+    if (text_color !== undefined) { settings['badge-text'] = text_color; changes['badge-text'] = text_color; }
+    if (border_color !== undefined) { settings['badge-border'] = border_color; changes['badge-border'] = border_color; }
+    
+    if (Object.keys(changes).length === 0) {
+      return res.status(400).json({ success: false, error: 'No fields provided. Use: text, link, bg_color, text_color, border_color' });
+    }
+    
+    if (heroResult.rows.length > 0) {
+      await pool.query(`UPDATE website_settings SET settings = $1, updated_at = NOW(), sync_source = 'partner' WHERE deployed_site_id = $2 AND section = 'hero'`, [JSON.stringify(settings), deployedSiteId]);
+    } else {
+      await pool.query(`INSERT INTO website_settings (deployed_site_id, account_id, section, settings, sync_source, updated_at) VALUES ($1, $2, 'hero', $3, 'partner', NOW())`, [deployedSiteId, site.account_id, JSON.stringify(settings)]);
+    }
+    
+    let wpPushResult = null;
+    if (site.site_url) { wpPushResult = await pushSettingsToWordPress(site.site_url, 'hero', changes); }
+    
+    res.json({ success: true, updated_fields: Object.keys(changes), wordpress_push: wpPushResult });
+    
+  } catch (error) {
+    console.error('Partner API update badge error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// DELETE /api/partner/websites/:websiteId/hero/badge - Remove badge entirely
+app.delete('/api/partner/websites/:websiteId/hero/badge', async (req, res) => {
+  console.log('=== PARTNER API: DELETE BADGE ===');
+  
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    
+    const deployedSiteId = await getPartnerDeployedSiteId(auth.partnerId, req.params.websiteId);
+    if (!deployedSiteId) {
+      return res.status(404).json({ success: false, error: 'Website not deployed or not found' });
+    }
+    
+    const siteResult = await pool.query('SELECT id, account_id, site_url FROM deployed_sites WHERE id = $1', [deployedSiteId]);
+    if (siteResult.rows.length === 0) return res.status(404).json({ success: false, error: 'Site not found' });
+    const site = siteResult.rows[0];
+    
+    const heroResult = await pool.query(`SELECT settings FROM website_settings WHERE deployed_site_id = $1 AND section = 'hero'`, [deployedSiteId]);
+    const settings = heroResult.rows.length > 0 ? (heroResult.rows[0].settings || {}) : {};
+    
+    // Clear all badge fields
+    const changes = {};
+    ['button-text-en', 'button-text', 'button-link', 'badge-bg', 'badge-text', 'badge-border'].forEach(key => {
+      settings[key] = '';
+      changes[key] = '';
+    });
+    
+    await pool.query(`UPDATE website_settings SET settings = $1, updated_at = NOW(), sync_source = 'partner' WHERE deployed_site_id = $2 AND section = 'hero'`, [JSON.stringify(settings), deployedSiteId]);
+    
+    let wpPushResult = null;
+    if (site.site_url) { wpPushResult = await pushSettingsToWordPress(site.site_url, 'hero', changes); }
+    
+    res.json({ success: true, message: 'Badge removed', wordpress_push: wpPushResult });
+    
+  } catch (error) {
+    console.error('Partner API delete badge error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/partner/websites/:websiteId/hero/search - Update search box styling
+app.put('/api/partner/websites/:websiteId/hero/search', async (req, res) => {
+  console.log('=== PARTNER API: UPDATE SEARCH ===');
+  
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    
+    const deployedSiteId = await getPartnerDeployedSiteId(auth.partnerId, req.params.websiteId);
+    if (!deployedSiteId) {
+      return res.status(404).json({ success: false, error: 'Website not deployed or not found' });
+    }
+    
+    const siteResult = await pool.query('SELECT id, account_id, site_url FROM deployed_sites WHERE id = $1', [deployedSiteId]);
+    if (siteResult.rows.length === 0) return res.status(404).json({ success: false, error: 'Site not found' });
+    const site = siteResult.rows[0];
+    
+    const { btn_bg, btn_text, label_color, max_guests } = req.body;
+    
+    const heroResult = await pool.query(`SELECT settings FROM website_settings WHERE deployed_site_id = $1 AND section = 'hero'`, [deployedSiteId]);
+    const settings = heroResult.rows.length > 0 ? (heroResult.rows[0].settings || {}) : {};
+    const changes = {};
+    
+    if (btn_bg !== undefined) { settings['search-btn-bg'] = btn_bg; changes['search-btn-bg'] = btn_bg; }
+    if (btn_text !== undefined) { settings['search-btn-text'] = btn_text; changes['search-btn-text'] = btn_text; }
+    if (label_color !== undefined) { settings['search-label-color'] = label_color; changes['search-label-color'] = label_color; }
+    if (max_guests !== undefined) { settings['search-max-guests'] = String(max_guests); changes['search-max-guests'] = String(max_guests); }
+    
+    if (Object.keys(changes).length === 0) {
+      return res.status(400).json({ success: false, error: 'No fields provided. Use: btn_bg, btn_text, label_color, max_guests' });
+    }
+    
+    if (heroResult.rows.length > 0) {
+      await pool.query(`UPDATE website_settings SET settings = $1, updated_at = NOW(), sync_source = 'partner' WHERE deployed_site_id = $2 AND section = 'hero'`, [JSON.stringify(settings), deployedSiteId]);
+    } else {
+      await pool.query(`INSERT INTO website_settings (deployed_site_id, account_id, section, settings, sync_source, updated_at) VALUES ($1, $2, 'hero', $3, 'partner', NOW())`, [deployedSiteId, site.account_id, JSON.stringify(settings)]);
+    }
+    
+    let wpPushResult = null;
+    if (site.site_url) { wpPushResult = await pushSettingsToWordPress(site.site_url, 'hero', changes); }
+    
+    res.json({ success: true, updated_fields: Object.keys(changes), wordpress_push: wpPushResult });
+    
+  } catch (error) {
+    console.error('Partner API update search error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/partner/websites/:websiteId/hero/meta - Update SEO meta for homepage
+app.put('/api/partner/websites/:websiteId/hero/meta', async (req, res) => {
+  console.log('=== PARTNER API: UPDATE HERO META ===');
+  
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    
+    const deployedSiteId = await getPartnerDeployedSiteId(auth.partnerId, req.params.websiteId);
+    if (!deployedSiteId) {
+      return res.status(404).json({ success: false, error: 'Website not deployed or not found' });
+    }
+    
+    const siteResult = await pool.query('SELECT id, account_id, site_url FROM deployed_sites WHERE id = $1', [deployedSiteId]);
+    if (siteResult.rows.length === 0) return res.status(404).json({ success: false, error: 'Site not found' });
+    const site = siteResult.rows[0];
+    
+    const { meta_title, meta_description } = req.body;
+    
+    const heroResult = await pool.query(`SELECT settings FROM website_settings WHERE deployed_site_id = $1 AND section = 'hero'`, [deployedSiteId]);
+    const settings = heroResult.rows.length > 0 ? (heroResult.rows[0].settings || {}) : {};
+    const changes = {};
+    
+    if (meta_title !== undefined) { settings['meta-title'] = meta_title; changes['meta-title'] = meta_title; }
+    if (meta_description !== undefined) { settings['meta-description'] = meta_description; changes['meta-description'] = meta_description; }
+    
+    if (Object.keys(changes).length === 0) {
+      return res.status(400).json({ success: false, error: 'No fields provided. Use: meta_title, meta_description' });
+    }
+    
+    if (heroResult.rows.length > 0) {
+      await pool.query(`UPDATE website_settings SET settings = $1, updated_at = NOW(), sync_source = 'partner' WHERE deployed_site_id = $2 AND section = 'hero'`, [JSON.stringify(settings), deployedSiteId]);
+    } else {
+      await pool.query(`INSERT INTO website_settings (deployed_site_id, account_id, section, settings, sync_source, updated_at) VALUES ($1, $2, 'hero', $3, 'partner', NOW())`, [deployedSiteId, site.account_id, JSON.stringify(settings)]);
+    }
+    
+    let wpPushResult = null;
+    if (site.site_url) { wpPushResult = await pushSettingsToWordPress(site.site_url, 'hero', changes); }
+    
+    res.json({ success: true, updated_fields: Object.keys(changes), wordpress_push: wpPushResult });
+    
+  } catch (error) {
+    console.error('Partner API update hero meta error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// =========================================================
+// PARTNER: GLOBAL STYLES
+// =========================================================
+
+// GET /api/partner/websites/:websiteId/styles - Get global styles
+app.get('/api/partner/websites/:websiteId/styles', async (req, res) => {
+  console.log('=== PARTNER API: GET STYLES ===');
+  
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    
+    const deployedSiteId = await getPartnerDeployedSiteId(auth.partnerId, req.params.websiteId);
+    if (!deployedSiteId) {
+      return res.status(404).json({ success: false, error: 'Website not deployed or not found' });
+    }
+    
+    const stylesResult = await pool.query(
+      `SELECT settings FROM website_settings WHERE deployed_site_id = $1 AND section = 'styles'`,
+      [deployedSiteId]
+    );
+    
+    const s = stylesResult.rows.length > 0 ? stylesResult.rows[0].settings : {};
+    
+    res.json({
+      success: true,
+      website_id: parseInt(req.params.websiteId),
+      styles: {
+        primary_color: s['primary-color'] || '#2563eb',
+        secondary_color: s['secondary-color'] || '#0f172a',
+        accent_color: s['accent-color'] || '#f59e0b',
+        link_color: s['link-color'] || '#2563eb',
+        heading_font: s['heading-font'] || 'Inter',
+        body_font: s['body-font'] || 'Inter',
+        btn_primary_bg: s['btn-primary-bg'] || '#2563eb',
+        btn_primary_text: s['btn-primary-text'] || '#ffffff',
+        btn_radius: s['btn-radius'] || '8',
+        custom_css: s['custom-css'] || ''
+      }
+    });
+    
+  } catch (error) {
+    console.error('Partner API get styles error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/partner/websites/:websiteId/styles - Update global styles
+app.put('/api/partner/websites/:websiteId/styles', async (req, res) => {
+  console.log('=== PARTNER API: UPDATE STYLES ===');
+  
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    
+    const deployedSiteId = await getPartnerDeployedSiteId(auth.partnerId, req.params.websiteId);
+    if (!deployedSiteId) {
+      return res.status(404).json({ success: false, error: 'Website not deployed or not found' });
+    }
+    
+    const siteResult = await pool.query('SELECT id, account_id, site_url FROM deployed_sites WHERE id = $1', [deployedSiteId]);
+    if (siteResult.rows.length === 0) return res.status(404).json({ success: false, error: 'Site not found' });
+    const site = siteResult.rows[0];
+    
+    const { primary_color, secondary_color, accent_color, link_color,
+            heading_font, body_font, btn_primary_bg, btn_primary_text,
+            btn_radius, custom_css } = req.body;
+    
+    const stylesResult = await pool.query(
+      `SELECT settings FROM website_settings WHERE deployed_site_id = $1 AND section = 'styles'`,
+      [deployedSiteId]
+    );
+    const settings = stylesResult.rows.length > 0 ? (stylesResult.rows[0].settings || {}) : {};
+    const changes = {};
+    
+    const fieldMap = {
+      primary_color: 'primary-color',
+      secondary_color: 'secondary-color',
+      accent_color: 'accent-color',
+      link_color: 'link-color',
+      heading_font: 'heading-font',
+      body_font: 'body-font',
+      btn_primary_bg: 'btn-primary-bg',
+      btn_primary_text: 'btn-primary-text',
+      btn_radius: 'btn-radius',
+      custom_css: 'custom-css'
+    };
+    
+    const incoming = { primary_color, secondary_color, accent_color, link_color, heading_font, body_font, btn_primary_bg, btn_primary_text, btn_radius, custom_css };
+    
+    for (const [apiField, cssField] of Object.entries(fieldMap)) {
+      if (incoming[apiField] !== undefined) {
+        settings[cssField] = String(incoming[apiField]);
+        changes[cssField] = String(incoming[apiField]);
+      }
+    }
+    
+    if (Object.keys(changes).length === 0) {
+      return res.status(400).json({ success: false, error: 'No fields provided. Use: primary_color, secondary_color, accent_color, link_color, heading_font, body_font, btn_primary_bg, btn_primary_text, btn_radius, custom_css' });
+    }
+    
+    if (stylesResult.rows.length > 0) {
+      await pool.query(`UPDATE website_settings SET settings = $1, updated_at = NOW(), sync_source = 'partner' WHERE deployed_site_id = $2 AND section = 'styles'`, [JSON.stringify(settings), deployedSiteId]);
+    } else {
+      await pool.query(`INSERT INTO website_settings (deployed_site_id, account_id, section, settings, sync_source, updated_at) VALUES ($1, $2, 'styles', $3, 'partner', NOW())`, [deployedSiteId, site.account_id, JSON.stringify(settings)]);
+    }
+    
+    let wpPushResult = null;
+    if (site.site_url) { wpPushResult = await pushSettingsToWordPress(site.site_url, 'styles', changes); }
+    
+    console.log(`[Partner API] Styles updated for website ${req.params.websiteId}:`, Object.keys(changes));
+    
+    res.json({
+      success: true,
+      website_id: parseInt(req.params.websiteId),
+      updated_fields: Object.keys(changes),
+      wordpress_push: wpPushResult
+    });
+    
+  } catch (error) {
+    console.error('Partner API update styles error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // POST /api/partner/websites/:websiteId/deploy - Deploy website to VPS
 app.post('/api/partner/websites/:websiteId/deploy', async (req, res) => {
   console.log('=== PARTNER API: DEPLOY WEBSITE ===');
