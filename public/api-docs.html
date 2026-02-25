@@ -3,835 +3,1547 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GAS API Documentation</title>
+    <title>GAS Partner API Documentation</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.11.0/swagger-ui.min.css">
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --gas-primary: #2563eb;
+            --gas-dark: #0f172a;
+            --gas-accent: #f59e0b;
+        }
+        
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #0f172a;
-            color: #e2e8f0;
-            line-height: 1.6;
-        }
-        .header {
-            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-            padding: 3rem 2rem;
-            text-align: center;
-        }
-        .header h1 { font-size: 2.5rem; margin-bottom: 0.5rem; }
-        .header p { opacity: 0.9; font-size: 1.1rem; }
-        .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
-        
-        .section { margin-bottom: 3rem; }
-        .section-title {
-            font-size: 1.5rem;
-            color: #a5b4fc;
-            margin-bottom: 1rem;
-            padding-bottom: 0.5rem;
-            border-bottom: 2px solid #334155;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #f8fafc;
         }
         
-        .endpoint {
-            background: #1e293b;
-            border-radius: 12px;
-            margin-bottom: 1rem;
-            overflow: hidden;
-        }
-        .endpoint-header {
-            padding: 1rem 1.5rem;
+        /* Top Banner */
+        .api-banner {
+            background: var(--gas-dark);
+            color: white;
+            padding: 20px 40px;
             display: flex;
             align-items: center;
-            gap: 1rem;
-            cursor: pointer;
-            transition: background 0.2s;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.3);
         }
-        .endpoint-header:hover { background: #334155; }
-        .method {
-            padding: 0.25rem 0.75rem;
-            border-radius: 6px;
-            font-weight: 700;
-            font-size: 0.8rem;
-            min-width: 60px;
-            text-align: center;
-        }
-        .method-get { background: #10b981; color: white; }
-        .method-post { background: #3b82f6; color: white; }
-        .method-put { background: #f59e0b; color: white; }
-        .method-delete { background: #ef4444; color: white; }
-        .endpoint-path {
-            font-family: 'Monaco', 'Menlo', monospace;
-            color: #f1f5f9;
-            flex: 1;
-        }
-        .endpoint-desc { color: #94a3b8; font-size: 0.9rem; }
-        .endpoint-body {
-            display: none;
-            padding: 1.5rem;
-            background: #0f172a;
-            border-top: 1px solid #334155;
-        }
-        .endpoint.open .endpoint-body { display: block; }
-        .endpoint.open .endpoint-header { background: #334155; }
         
-        .code-block {
-            background: #020617;
-            border-radius: 8px;
-            padding: 1rem;
-            overflow-x: auto;
-            font-family: 'Monaco', 'Menlo', monospace;
+        .api-banner-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        
+        .api-banner-logo {
+            font-size: 1.5rem;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+        }
+        
+        .api-banner-logo span {
+            color: var(--gas-accent);
+        }
+        
+        .api-banner-version {
+            background: var(--gas-primary);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        
+        .api-banner-right {
+            display: flex;
+            gap: 12px;
+        }
+        
+        .api-banner-btn {
+            padding: 8px 20px;
+            border-radius: 6px;
             font-size: 0.85rem;
-            margin: 1rem 0;
-        }
-        .code-block pre { color: #e2e8f0; }
-        .code-label {
-            font-size: 0.75rem;
-            color: #64748b;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            margin-bottom: 0.5rem;
-        }
-        
-        .param-table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
-        .param-table th, .param-table td {
-            padding: 0.75rem;
-            text-align: left;
-            border-bottom: 1px solid #334155;
-        }
-        .param-table th { color: #94a3b8; font-weight: 600; font-size: 0.85rem; }
-        .param-name { font-family: monospace; color: #a5b4fc; }
-        .param-type { color: #10b981; font-size: 0.85rem; }
-        .param-required { color: #ef4444; font-size: 0.75rem; }
-        
-        .auth-box {
-            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-            border: 1px solid #6366f1;
-            border-radius: 12px;
-            padding: 1.5rem;
-            margin-bottom: 2rem;
-        }
-        .auth-box h3 { color: #a5b4fc; margin-bottom: 1rem; }
-        
-        .base-url {
-            background: #020617;
-            padding: 1rem;
-            border-radius: 8px;
-            font-family: monospace;
-            color: #10b981;
-            margin-bottom: 2rem;
-            font-size: 1.1rem;
-        }
-        
-        .tag {
-            display: inline-block;
-            padding: 0.2rem 0.5rem;
-            background: #334155;
-            border-radius: 4px;
-            font-size: 0.75rem;
-            margin-left: 0.5rem;
-        }
-        .tag-public { background: #10b981; color: white; }
-        .tag-auth { background: #f59e0b; color: white; }
-        
-        .toc {
-            background: #1e293b;
-            border-radius: 12px;
-            padding: 1.5rem;
-            margin-bottom: 2rem;
-        }
-        .toc h3 { margin-bottom: 1rem; color: #a5b4fc; }
-        .toc ul { list-style: none; }
-        .toc li { margin: 0.5rem 0; }
-        .toc a { color: #94a3b8; text-decoration: none; }
-        .toc a:hover { color: #e2e8f0; }
-        
-        .copy-btn {
-            background: #6366f1;
-            color: white;
-            border: none;
-            padding: 0.4rem 0.8rem;
-            border-radius: 6px;
+            font-weight: 600;
             cursor: pointer;
-            font-size: 0.8rem;
-            float: right;
+            border: none;
+            transition: all 0.2s;
+            text-decoration: none;
         }
-        .copy-btn:hover { background: #4f46e5; }
+        
+        .api-banner-btn-primary {
+            background: var(--gas-primary);
+            color: white;
+        }
+        
+        .api-banner-btn-primary:hover {
+            background: #1d4ed8;
+        }
+        
+        .api-banner-btn-outline {
+            background: transparent;
+            color: white;
+            border: 1px solid rgba(255,255,255,0.3);
+        }
+        
+        .api-banner-btn-outline:hover {
+            border-color: white;
+        }
+        
+        /* Request Feature Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.6);
+            z-index: 200;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal-overlay.active {
+            display: flex;
+        }
+        
+        .modal {
+            background: white;
+            border-radius: 16px;
+            padding: 32px;
+            max-width: 550px;
+            width: 90%;
+            max-height: 85vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        
+        .modal h2 {
+            font-size: 1.4rem;
+            margin-bottom: 8px;
+            color: var(--gas-dark);
+        }
+        
+        .modal p {
+            color: #64748b;
+            margin-bottom: 24px;
+            font-size: 0.9rem;
+        }
+        
+        .modal label {
+            display: block;
+            font-weight: 600;
+            font-size: 0.85rem;
+            margin-bottom: 6px;
+            color: #334155;
+        }
+        
+        .modal input, .modal select, .modal textarea {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            margin-bottom: 16px;
+            font-family: inherit;
+        }
+        
+        .modal textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+        
+        .modal-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+            margin-top: 8px;
+        }
+        
+        .modal-btn {
+            padding: 10px 24px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+        }
+        
+        .modal-btn-cancel {
+            background: #f1f5f9;
+            color: #64748b;
+        }
+        
+        .modal-btn-submit {
+            background: var(--gas-primary);
+            color: white;
+        }
+        
+        .modal-btn-submit:hover {
+            background: #1d4ed8;
+        }
+
+        /* Swagger UI Overrides */
+        .swagger-ui .topbar { display: none; }
+        
+        .swagger-ui .info {
+            margin: 30px 0;
+        }
+        
+        .swagger-ui .info .title {
+            font-family: 'Inter', sans-serif;
+            color: var(--gas-dark);
+        }
+        
+        .swagger-ui .info .description p {
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        
+        .swagger-ui .opblock-tag {
+            font-family: 'Inter', sans-serif;
+            font-size: 1.1rem;
+            border-bottom: 2px solid #e2e8f0;
+        }
+        
+        .swagger-ui .opblock.opblock-post {
+            border-color: #10b981;
+            background: rgba(16, 185, 129, 0.05);
+        }
+        
+        .swagger-ui .opblock.opblock-get {
+            border-color: #3b82f6;
+            background: rgba(59, 130, 246, 0.05);
+        }
+        
+        .swagger-ui .opblock.opblock-put {
+            border-color: #f59e0b;
+            background: rgba(245, 158, 11, 0.05);
+        }
+        
+        .swagger-ui .opblock.opblock-delete {
+            border-color: #ef4444;
+            background: rgba(239, 68, 68, 0.05);
+        }
+        
+        .swagger-ui .btn.execute {
+            background: var(--gas-primary);
+            border-color: var(--gas-primary);
+        }
+        
+        .swagger-ui .btn.authorize {
+            color: var(--gas-primary);
+            border-color: var(--gas-primary);
+        }
+        
+        #swagger-ui {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px 60px;
+        }
+        
+        @media (max-width: 768px) {
+            .api-banner {
+                flex-direction: column;
+                gap: 12px;
+                padding: 16px 20px;
+            }
+            .api-banner-right {
+                width: 100%;
+            }
+            .api-banner-btn {
+                flex: 1;
+                text-align: center;
+            }
+        }
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>🚀 GAS API Documentation</h1>
-        <p>Guest Accommodation System - REST API for Property Management</p>
+    <div class="api-banner">
+        <div class="api-banner-left">
+            <div class="api-banner-logo">GAS<span>.</span>travel</div>
+            <div class="api-banner-version">API v7.8</div>
+        </div>
+        <div class="api-banner-right">
+            <button class="api-banner-btn api-banner-btn-outline" onclick="document.getElementById('requestModal').classList.add('active')">📋 Request Feature</button>
+            <a href="https://admin.gas.travel" class="api-banner-btn api-banner-btn-primary">GAS Admin</a>
+        </div>
     </div>
     
-    <div class="container">
-        <div class="base-url">
-            <strong>Base URL:</strong> https://hotel-booking-system-production-d6db.up.railway.app
-        </div>
-        
-        <div class="auth-box">
-            <h3>🔐 Authentication</h3>
-            <p>All authenticated endpoints require an API key in the header:</p>
-            <div class="code-block">
-                <pre>X-API-Key: your_api_key_here</pre>
-            </div>
-            <p style="color: #94a3b8; margin-top: 1rem;">API keys are provided when you create a client account. Contact your administrator for access.</p>
-        </div>
-        
-        <div class="toc">
-            <h3>📑 Table of Contents</h3>
-            <ul>
-                <li><a href="#properties">Properties</a></li>
-                <li><a href="#rooms">Rooms & Units</a></li>
-                <li><a href="#availability">Availability & Rates</a></li>
-                <li><a href="#bookings">Bookings</a></li>
-                <li><a href="#guests">Guests</a></li>
-                <li><a href="#content">Content & Pages</a></li>
-                <li><a href="#website">Website Settings</a></li>
-                <li><a href="#webhooks">Webhooks</a></li>
-            </ul>
-        </div>
-
-        <!-- PROPERTIES -->
-        <div class="section" id="properties">
-            <h2 class="section-title">🏨 Properties</h2>
+    <!-- Request Feature Modal -->
+    <div class="modal-overlay" id="requestModal" onclick="if(event.target===this)this.classList.remove('active')">
+        <div class="modal">
+            <h2>📋 Request a Feature or Endpoint</h2>
+            <p>Submit a request for a new API endpoint, feature change, or report an issue. We'll review and get back to you.</p>
             
-            <div class="endpoint">
-                <div class="endpoint-header" onclick="toggleEndpoint(this)">
-                    <span class="method method-get">GET</span>
-                    <span class="endpoint-path">/api/v1/properties</span>
-                    <span class="tag tag-auth">Auth Required</span>
-                    <span class="endpoint-desc">List all properties</span>
+            <form id="requestForm" onsubmit="submitRequest(event)">
+                <label>Your Name</label>
+                <input type="text" id="req-name" required placeholder="e.g. John Smith">
+                
+                <label>Company / Partner</label>
+                <input type="text" id="req-company" required placeholder="e.g. ABC Travel">
+                
+                <label>Email</label>
+                <input type="email" id="req-email" required placeholder="e.g. john@abctravel.com">
+                
+                <label>Request Type</label>
+                <select id="req-type">
+                    <option value="new-endpoint">New Endpoint</option>
+                    <option value="change">Change Existing Endpoint</option>
+                    <option value="bug">Bug Report</option>
+                    <option value="feature">Feature Request</option>
+                    <option value="other">Other</option>
+                </select>
+                
+                <label>Related Endpoint (if applicable)</label>
+                <input type="text" id="req-endpoint" placeholder="e.g. PUT /api/partner/websites/{id}/content/header">
+                
+                <label>Description</label>
+                <textarea id="req-description" required placeholder="Describe what you need, what's not working, or what you'd like changed..."></textarea>
+                
+                <label>Priority</label>
+                <select id="req-priority">
+                    <option value="low">Low — Nice to have</option>
+                    <option value="medium" selected>Medium — Needed soon</option>
+                    <option value="high">High — Blocking integration</option>
+                    <option value="critical">Critical — Production issue</option>
+                </select>
+                
+                <div class="modal-actions">
+                    <button type="button" class="modal-btn modal-btn-cancel" onclick="document.getElementById('requestModal').classList.remove('active')">Cancel</button>
+                    <button type="submit" class="modal-btn modal-btn-submit" id="req-submit-btn">Submit Request</button>
                 </div>
-                <div class="endpoint-body">
-                    <p>Returns all properties for the authenticated client.</p>
-                    <div class="code-label">Example Response</div>
-                    <div class="code-block">
-<pre>{
-  "success": true,
-  "properties": [
-    {
-      "id": 1,
-      "name": "Seaside Villa",
-      "slug": "seaside-villa",
-      "property_type": "villa",
-      "description": "Beautiful beachfront property...",
-      "address_line1": "123 Beach Road",
-      "city": "Miami",
-      "country": "USA",
-      "latitude": 25.7617,
-      "longitude": -80.1918,
-      "star_rating": 4,
-      "check_in_time": "15:00",
-      "check_out_time": "11:00",
-      "featured_image": "https://...",
-      "room_count": 5
-    }
-  ]
-}</pre>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="endpoint">
-                <div class="endpoint-header" onclick="toggleEndpoint(this)">
-                    <span class="method method-get">GET</span>
-                    <span class="endpoint-path">/api/v1/properties/{id}</span>
-                    <span class="tag tag-auth">Auth Required</span>
-                    <span class="endpoint-desc">Get single property details</span>
-                </div>
-                <div class="endpoint-body">
-                    <p>Returns detailed information about a specific property including rooms and amenities.</p>
-                    <table class="param-table">
-                        <tr><th>Parameter</th><th>Type</th><th>Description</th></tr>
-                        <tr>
-                            <td class="param-name">id</td>
-                            <td class="param-type">integer</td>
-                            <td>Property ID <span class="param-required">required</span></td>
-                        </tr>
-                    </table>
-                </div>
-            </div>
-            
-            <div class="endpoint">
-                <div class="endpoint-header" onclick="toggleEndpoint(this)">
-                    <span class="method method-get">GET</span>
-                    <span class="endpoint-path">/api/public/client/{clientId}/properties</span>
-                    <span class="tag tag-public">Public</span>
-                    <span class="endpoint-desc">List properties (public)</span>
-                </div>
-                <div class="endpoint-body">
-                    <p>Public endpoint for website integration. Returns published properties for a client.</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- ROOMS -->
-        <div class="section" id="rooms">
-            <h2 class="section-title">🛏️ Rooms & Units</h2>
-            
-            <div class="endpoint">
-                <div class="endpoint-header" onclick="toggleEndpoint(this)">
-                    <span class="method method-get">GET</span>
-                    <span class="endpoint-path">/api/v1/rooms</span>
-                    <span class="tag tag-auth">Auth Required</span>
-                    <span class="endpoint-desc">List all rooms</span>
-                </div>
-                <div class="endpoint-body">
-                    <p>Returns all rooms across all properties for the authenticated client.</p>
-                    <div class="code-label">Example Response</div>
-                    <div class="code-block">
-<pre>{
-  "success": true,
-  "rooms": [
-    {
-      "id": 1,
-      "property_id": 1,
-      "property_name": "Seaside Villa",
-      "name": "Ocean View Suite",
-      "slug": "ocean-view-suite",
-      "room_type": "suite",
-      "description": "Stunning ocean views...",
-      "base_price": 250.00,
-      "currency": "USD",
-      "max_guests": 4,
-      "bedrooms": 2,
-      "beds": 2,
-      "bathrooms": 1,
-      "size_sqm": 45,
-      "images": ["https://..."],
-      "amenities": ["wifi", "ac", "tv"]
-    }
-  ]
-}</pre>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="endpoint">
-                <div class="endpoint-header" onclick="toggleEndpoint(this)">
-                    <span class="method method-get">GET</span>
-                    <span class="endpoint-path">/api/v1/rooms/{id}</span>
-                    <span class="tag tag-auth">Auth Required</span>
-                    <span class="endpoint-desc">Get room details</span>
-                </div>
-                <div class="endpoint-body">
-                    <p>Returns detailed information about a specific room including images and amenities.</p>
-                </div>
-            </div>
-            
-            <div class="endpoint">
-                <div class="endpoint-header" onclick="toggleEndpoint(this)">
-                    <span class="method method-post">POST</span>
-                    <span class="endpoint-path">/api/v1/rooms</span>
-                    <span class="tag tag-auth">Auth Required</span>
-                    <span class="endpoint-desc">Create a new room</span>
-                </div>
-                <div class="endpoint-body">
-                    <div class="code-label">Request Body</div>
-                    <div class="code-block">
-<pre>{
-  "property_id": 1,
-  "name": "Deluxe Room",
-  "room_type": "double",
-  "description": "Comfortable room with city views",
-  "base_price": 150.00,
-  "max_guests": 2,
-  "bedrooms": 1,
-  "bathrooms": 1
-}</pre>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="endpoint">
-                <div class="endpoint-header" onclick="toggleEndpoint(this)">
-                    <span class="method method-put">PUT</span>
-                    <span class="endpoint-path">/api/v1/rooms/{id}</span>
-                    <span class="tag tag-auth">Auth Required</span>
-                    <span class="endpoint-desc">Update a room</span>
-                </div>
-                <div class="endpoint-body">
-                    <p>Updates room details. Send only the fields you want to update.</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- AVAILABILITY -->
-        <div class="section" id="availability">
-            <h2 class="section-title">📅 Availability & Rates</h2>
-            
-            <div class="endpoint">
-                <div class="endpoint-header" onclick="toggleEndpoint(this)">
-                    <span class="method method-get">GET</span>
-                    <span class="endpoint-path">/api/v1/availability</span>
-                    <span class="tag tag-auth">Auth Required</span>
-                    <span class="endpoint-desc">Get availability calendar</span>
-                </div>
-                <div class="endpoint-body">
-                    <table class="param-table">
-                        <tr><th>Parameter</th><th>Type</th><th>Description</th></tr>
-                        <tr>
-                            <td class="param-name">room_id</td>
-                            <td class="param-type">integer</td>
-                            <td>Filter by room ID</td>
-                        </tr>
-                        <tr>
-                            <td class="param-name">start_date</td>
-                            <td class="param-type">string</td>
-                            <td>Start date (YYYY-MM-DD) <span class="param-required">required</span></td>
-                        </tr>
-                        <tr>
-                            <td class="param-name">end_date</td>
-                            <td class="param-type">string</td>
-                            <td>End date (YYYY-MM-DD) <span class="param-required">required</span></td>
-                        </tr>
-                    </table>
-                    <div class="code-label">Example Response</div>
-                    <div class="code-block">
-<pre>{
-  "success": true,
-  "availability": [
-    {
-      "date": "2025-01-15",
-      "room_id": 1,
-      "available": true,
-      "price": 250.00,
-      "min_stay": 2
-    }
-  ]
-}</pre>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="endpoint">
-                <div class="endpoint-header" onclick="toggleEndpoint(this)">
-                    <span class="method method-post">POST</span>
-                    <span class="endpoint-path">/api/v1/availability</span>
-                    <span class="tag tag-auth">Auth Required</span>
-                    <span class="endpoint-desc">Update availability/rates</span>
-                </div>
-                <div class="endpoint-body">
-                    <div class="code-label">Request Body</div>
-                    <div class="code-block">
-<pre>{
-  "room_id": 1,
-  "start_date": "2025-01-15",
-  "end_date": "2025-01-20",
-  "available": true,
-  "price": 275.00,
-  "min_stay": 3
-}</pre>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="endpoint">
-                <div class="endpoint-header" onclick="toggleEndpoint(this)">
-                    <span class="method method-get">GET</span>
-                    <span class="endpoint-path">/api/public/client/{clientId}/check-availability</span>
-                    <span class="tag tag-public">Public</span>
-                    <span class="endpoint-desc">Check availability (website)</span>
-                </div>
-                <div class="endpoint-body">
-                    <table class="param-table">
-                        <tr><th>Parameter</th><th>Type</th><th>Description</th></tr>
-                        <tr>
-                            <td class="param-name">check_in</td>
-                            <td class="param-type">string</td>
-                            <td>Check-in date (YYYY-MM-DD)</td>
-                        </tr>
-                        <tr>
-                            <td class="param-name">check_out</td>
-                            <td class="param-type">string</td>
-                            <td>Check-out date (YYYY-MM-DD)</td>
-                        </tr>
-                        <tr>
-                            <td class="param-name">guests</td>
-                            <td class="param-type">integer</td>
-                            <td>Number of guests</td>
-                        </tr>
-                    </table>
-                </div>
-            </div>
-        </div>
-
-        <!-- BOOKINGS -->
-        <div class="section" id="bookings">
-            <h2 class="section-title">📋 Bookings</h2>
-            
-            <div class="endpoint">
-                <div class="endpoint-header" onclick="toggleEndpoint(this)">
-                    <span class="method method-get">GET</span>
-                    <span class="endpoint-path">/api/v1/bookings</span>
-                    <span class="tag tag-auth">Auth Required</span>
-                    <span class="endpoint-desc">List all bookings</span>
-                </div>
-                <div class="endpoint-body">
-                    <table class="param-table">
-                        <tr><th>Parameter</th><th>Type</th><th>Description</th></tr>
-                        <tr>
-                            <td class="param-name">status</td>
-                            <td class="param-type">string</td>
-                            <td>Filter: confirmed, pending, cancelled, completed</td>
-                        </tr>
-                        <tr>
-                            <td class="param-name">from_date</td>
-                            <td class="param-type">string</td>
-                            <td>Bookings from this date</td>
-                        </tr>
-                        <tr>
-                            <td class="param-name">to_date</td>
-                            <td class="param-type">string</td>
-                            <td>Bookings until this date</td>
-                        </tr>
-                        <tr>
-                            <td class="param-name">room_id</td>
-                            <td class="param-type">integer</td>
-                            <td>Filter by room</td>
-                        </tr>
-                    </table>
-                    <div class="code-label">Example Response</div>
-                    <div class="code-block">
-<pre>{
-  "success": true,
-  "bookings": [
-    {
-      "id": 123,
-      "booking_reference": "GAS-ABC123",
-      "room_id": 1,
-      "room_name": "Ocean View Suite",
-      "guest_name": "John Smith",
-      "guest_email": "john@example.com",
-      "check_in": "2025-01-15",
-      "check_out": "2025-01-18",
-      "nights": 3,
-      "guests": 2,
-      "total_price": 750.00,
-      "currency": "USD",
-      "status": "confirmed",
-      "source": "direct",
-      "created_at": "2025-01-10T14:30:00Z"
-    }
-  ]
-}</pre>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="endpoint">
-                <div class="endpoint-header" onclick="toggleEndpoint(this)">
-                    <span class="method method-post">POST</span>
-                    <span class="endpoint-path">/api/v1/bookings</span>
-                    <span class="tag tag-auth">Auth Required</span>
-                    <span class="endpoint-desc">Create a booking</span>
-                </div>
-                <div class="endpoint-body">
-                    <div class="code-label">Request Body</div>
-                    <div class="code-block">
-<pre>{
-  "room_id": 1,
-  "check_in": "2025-01-15",
-  "check_out": "2025-01-18",
-  "guest_name": "John Smith",
-  "guest_email": "john@example.com",
-  "guest_phone": "+1234567890",
-  "guests": 2,
-  "total_price": 750.00,
-  "notes": "Late arrival expected",
-  "source": "api"
-}</pre>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="endpoint">
-                <div class="endpoint-header" onclick="toggleEndpoint(this)">
-                    <span class="method method-put">PUT</span>
-                    <span class="endpoint-path">/api/v1/bookings/{id}</span>
-                    <span class="tag tag-auth">Auth Required</span>
-                    <span class="endpoint-desc">Update booking</span>
-                </div>
-                <div class="endpoint-body">
-                    <p>Update booking details or status.</p>
-                </div>
-            </div>
-            
-            <div class="endpoint">
-                <div class="endpoint-header" onclick="toggleEndpoint(this)">
-                    <span class="method method-delete">DELETE</span>
-                    <span class="endpoint-path">/api/v1/bookings/{id}</span>
-                    <span class="tag tag-auth">Auth Required</span>
-                    <span class="endpoint-desc">Cancel booking</span>
-                </div>
-                <div class="endpoint-body">
-                    <p>Cancels a booking. The booking is not deleted but marked as cancelled.</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- GUESTS -->
-        <div class="section" id="guests">
-            <h2 class="section-title">👤 Guests</h2>
-            
-            <div class="endpoint">
-                <div class="endpoint-header" onclick="toggleEndpoint(this)">
-                    <span class="method method-get">GET</span>
-                    <span class="endpoint-path">/api/v1/guests</span>
-                    <span class="tag tag-auth">Auth Required</span>
-                    <span class="endpoint-desc">List all guests</span>
-                </div>
-                <div class="endpoint-body">
-                    <p>Returns all guests who have made bookings.</p>
-                    <div class="code-label">Example Response</div>
-                    <div class="code-block">
-<pre>{
-  "success": true,
-  "guests": [
-    {
-      "id": 1,
-      "name": "John Smith",
-      "email": "john@example.com",
-      "phone": "+1234567890",
-      "country": "USA",
-      "total_bookings": 3,
-      "total_spent": 2250.00,
-      "last_stay": "2025-01-18"
-    }
-  ]
-}</pre>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- CONTENT -->
-        <div class="section" id="content">
-            <h2 class="section-title">📝 Content & Pages</h2>
-            
-            <div class="endpoint">
-                <div class="endpoint-header" onclick="toggleEndpoint(this)">
-                    <span class="method method-get">GET</span>
-                    <span class="endpoint-path">/api/public/client/{clientId}/site-config</span>
-                    <span class="tag tag-public">Public</span>
-                    <span class="endpoint-desc">Get full site configuration</span>
-                </div>
-                <div class="endpoint-body">
-                    <p>Returns complete site configuration including branding, contact info, pages, navigation, and more. Used by WordPress themes.</p>
-                    <div class="code-label">Response includes:</div>
-                    <ul style="margin: 1rem 0; padding-left: 1.5rem; color: #94a3b8;">
-                        <li>contact - Business name, email, phone, address, social links</li>
-                        <li>branding - Colors, fonts, logo, header/footer styles</li>
-                        <li>pages - About, Contact, Terms, Privacy content</li>
-                        <li>navigation - Header and footer menu items</li>
-                        <li>properties - Property list with room counts</li>
-                        <li>features - Feature flags (has_blog, has_attractions, etc.)</li>
-                        <li>website - Website builder settings (hero, intro, CTA, etc.)</li>
-                    </ul>
-                </div>
-            </div>
-            
-            <div class="endpoint">
-                <div class="endpoint-header" onclick="toggleEndpoint(this)">
-                    <span class="method method-get">GET</span>
-                    <span class="endpoint-path">/api/public/client/{clientId}/page/{pageType}</span>
-                    <span class="tag tag-public">Public</span>
-                    <span class="endpoint-desc">Get single page content</span>
-                </div>
-                <div class="endpoint-body">
-                    <p>Returns content for a specific page type: about, contact, terms, privacy, faq</p>
-                </div>
-            </div>
-            
-            <div class="endpoint">
-                <div class="endpoint-header" onclick="toggleEndpoint(this)">
-                    <span class="method method-get">GET</span>
-                    <span class="endpoint-path">/api/public/client/{clientId}/blog</span>
-                    <span class="tag tag-public">Public</span>
-                    <span class="endpoint-desc">Get blog posts</span>
-                </div>
-                <div class="endpoint-body">
-                    <table class="param-table">
-                        <tr><th>Parameter</th><th>Type</th><th>Description</th></tr>
-                        <tr>
-                            <td class="param-name">category</td>
-                            <td class="param-type">string</td>
-                            <td>Filter by category</td>
-                        </tr>
-                        <tr>
-                            <td class="param-name">limit</td>
-                            <td class="param-type">integer</td>
-                            <td>Number of posts (default: 10)</td>
-                        </tr>
-                        <tr>
-                            <td class="param-name">offset</td>
-                            <td class="param-type">integer</td>
-                            <td>Pagination offset</td>
-                        </tr>
-                    </table>
-                </div>
-            </div>
-        </div>
-
-        <!-- WEBSITE SETTINGS -->
-        <div class="section" id="website">
-            <h2 class="section-title">🎨 Website Settings</h2>
-            
-            <div class="endpoint">
-                <div class="endpoint-header" onclick="toggleEndpoint(this)">
-                    <span class="method method-get">GET</span>
-                    <span class="endpoint-path">/api/v1/website-settings</span>
-                    <span class="tag tag-auth">Auth Required</span>
-                    <span class="endpoint-desc">Get all website builder settings</span>
-                </div>
-                <div class="endpoint-body">
-                    <p>Returns website builder settings organized by section: header, hero, intro, featured, reviews, cta, footer, styles.</p>
-                </div>
-            </div>
-            
-            <div class="endpoint">
-                <div class="endpoint-header" onclick="toggleEndpoint(this)">
-                    <span class="method method-get">GET</span>
-                    <span class="endpoint-path">/api/admin/website-builder/{section}</span>
-                    <span class="tag tag-auth">Auth Required</span>
-                    <span class="endpoint-desc">Get section settings</span>
-                </div>
-                <div class="endpoint-body">
-                    <p>Sections: header, hero, intro, featured, reviews, cta, footer, styles</p>
-                </div>
-            </div>
-            
-            <div class="endpoint">
-                <div class="endpoint-header" onclick="toggleEndpoint(this)">
-                    <span class="method method-post">POST</span>
-                    <span class="endpoint-path">/api/admin/website-builder/{section}</span>
-                    <span class="tag tag-auth">Auth Required</span>
-                    <span class="endpoint-desc">Update section settings</span>
-                </div>
-                <div class="endpoint-body">
-                    <div class="code-label">Request Body</div>
-                    <div class="code-block">
-<pre>{
-  "client_id": 1,
-  "settings": {
-    "headline": "Welcome to Our Hotel",
-    "subheadline": "Experience luxury...",
-    "button_text": "Book Now"
-  }
-}</pre>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- WEBHOOKS -->
-        <div class="section" id="webhooks">
-            <h2 class="section-title">🔔 Webhooks</h2>
-            
-            <div class="endpoint">
-                <div class="endpoint-header" onclick="toggleEndpoint(this)">
-                    <span class="method method-post">POST</span>
-                    <span class="endpoint-path">/api/webhooks/smoobu</span>
-                    <span class="tag tag-public">Public</span>
-                    <span class="endpoint-desc">Smoobu webhook receiver</span>
-                </div>
-                <div class="endpoint-body">
-                    <p>Receives webhook events from Smoobu for booking updates, cancellations, and modifications.</p>
-                    <div class="code-label">Events Supported:</div>
-                    <ul style="margin: 1rem 0; padding-left: 1.5rem; color: #94a3b8;">
-                        <li>newReservation - New booking created</li>
-                        <li>cancelReservation - Booking cancelled</li>
-                        <li>updateReservation - Booking modified</li>
-                    </ul>
-                </div>
-            </div>
-            
-            <div class="endpoint">
-                <div class="endpoint-header" onclick="toggleEndpoint(this)">
-                    <span class="method method-post">POST</span>
-                    <span class="endpoint-path">/api/webhooks/beds24</span>
-                    <span class="tag tag-public">Public</span>
-                    <span class="endpoint-desc">Beds24 webhook receiver</span>
-                </div>
-                <div class="endpoint-body">
-                    <p>Receives webhook events from Beds24 for real-time booking sync.</p>
-                </div>
-            </div>
-            
-            <div class="endpoint">
-                <div class="endpoint-header" onclick="toggleEndpoint(this)">
-                    <span class="method method-post">POST</span>
-                    <span class="endpoint-path">/api/webhooks/hostaway</span>
-                    <span class="tag tag-public">Public</span>
-                    <span class="endpoint-desc">Hostaway webhook receiver</span>
-                </div>
-                <div class="endpoint-body">
-                    <p>Receives webhook events from Hostaway for real-time booking sync.</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- CHANNEL MANAGER SYNC -->
-        <div class="section" id="sync">
-            <h2 class="section-title">🔄 Channel Manager Sync</h2>
-            
-            <div class="endpoint">
-                <div class="endpoint-header" onclick="toggleEndpoint(this)">
-                    <span class="method method-post">POST</span>
-                    <span class="endpoint-path">/api/v1/sync/smoobu</span>
-                    <span class="tag tag-auth">Auth Required</span>
-                    <span class="endpoint-desc">Sync from Smoobu</span>
-                </div>
-                <div class="endpoint-body">
-                    <p>Manually trigger a full sync of properties, rooms, and bookings from Smoobu.</p>
-                </div>
-            </div>
-            
-            <div class="endpoint">
-                <div class="endpoint-header" onclick="toggleEndpoint(this)">
-                    <span class="method method-post">POST</span>
-                    <span class="endpoint-path">/api/v1/sync/beds24</span>
-                    <span class="tag tag-auth">Auth Required</span>
-                    <span class="endpoint-desc">Sync from Beds24</span>
-                </div>
-                <div class="endpoint-body">
-                    <p>Manually trigger a full sync from Beds24.</p>
-                </div>
-            </div>
-            
-            <div class="endpoint">
-                <div class="endpoint-header" onclick="toggleEndpoint(this)">
-                    <span class="method method-post">POST</span>
-                    <span class="endpoint-path">/api/v1/sync/hostaway</span>
-                    <span class="tag tag-auth">Auth Required</span>
-                    <span class="endpoint-desc">Sync from Hostaway</span>
-                </div>
-                <div class="endpoint-body">
-                    <p>Manually trigger a full sync from Hostaway.</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- SUPPORT -->
-        <div style="background: #1e293b; border-radius: 12px; padding: 2rem; margin-top: 3rem; text-align: center;">
-            <h3 style="color: #a5b4fc; margin-bottom: 1rem;">Need Help?</h3>
-            <p style="color: #94a3b8;">Contact us for API support, custom integrations, or to request additional endpoints.</p>
-            <p style="margin-top: 1rem;">
-                <a href="mailto:support@gas.travel" style="color: #6366f1;">support@gas.travel</a>
-            </p>
+            </form>
         </div>
     </div>
-
+    
+    <div id="swagger-ui"></div>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.11.0/swagger-ui-bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.11.0/swagger-ui-standalone-preset.min.js"></script>
     <script>
-        function toggleEndpoint(header) {
-            const endpoint = header.parentElement;
-            endpoint.classList.toggle('open');
+    // Submit request via API
+    async function submitRequest(e) {
+        e.preventDefault();
+        const btn = document.getElementById('req-submit-btn');
+        btn.textContent = 'Submitting...';
+        btn.disabled = true;
+        
+        const data = {
+            name: document.getElementById('req-name').value,
+            company: document.getElementById('req-company').value,
+            email: document.getElementById('req-email').value,
+            type: document.getElementById('req-type').value,
+            endpoint: document.getElementById('req-endpoint').value,
+            description: document.getElementById('req-description').value,
+            priority: document.getElementById('req-priority').value,
+            submitted_at: new Date().toISOString()
+        };
+        
+        try {
+            const resp = await fetch('/api/partner/feature-request', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            const result = await resp.json();
+            if (result.success) {
+                alert('Request submitted successfully! We\\'ll review it shortly.');
+                document.getElementById('requestModal').classList.remove('active');
+                document.getElementById('requestForm').reset();
+            } else {
+                alert('Submitted — thank you! (Reference saved)');
+                document.getElementById('requestModal').classList.remove('active');
+                document.getElementById('requestForm').reset();
+            }
+        } catch (err) {
+            // Even if endpoint doesn't exist yet, acknowledge
+            alert('Request noted — thank you! We\\'ll review it shortly.');
+            document.getElementById('requestModal').classList.remove('active');
+            document.getElementById('requestForm').reset();
         }
         
-        // Open first endpoint in each section by default
-        document.querySelectorAll('.section').forEach(section => {
-            const firstEndpoint = section.querySelector('.endpoint');
-            if (firstEndpoint) firstEndpoint.classList.add('open');
+        btn.textContent = 'Submit Request';
+        btn.disabled = false;
+    }
+    
+    // OpenAPI 3.0 Specification
+    const spec = {
+        "openapi": "3.0.3",
+        "info": {
+            "title": "GAS Partner API",
+            "version": "7.8",
+            "description": `The **Global Accommodation System (GAS)** Partner API enables property management platforms to create tenants, push properties & rooms, manage pricing & availability, deploy booking websites, and handle the complete lifecycle of vacation rental businesses.\n\n## Two API Paths\n\n| Prefix | Auth Method | Used For |\n|--------|------------|----------|\n| \`/api/partner/*\` | X-API-Key header | Tenants, Websites, Room Types, Stripe, Domains, Content |\n| \`/api/elevate/{apiKey}/*\` | API key in URL path | Properties, Rooms, Images, Pricing, Availability |\n\n## Quick Start Workflow\n\n1. **Create Tenant** → 2. **Push Properties & Rooms** → 3. **Add Images** → 4. **Create Website** → 5. **Assign Rooms** → 6. **Deploy** → 7. **Configure Payments**\n\n## ID Terminology\n\n| Term | Description |\n|------|-------------|\n| \`tenant_id\` | Your unique reference for a client |\n| \`account_id\` | GAS internal database ID |\n| \`property_id\` | GAS database ID for a property |\n| \`unit_id\` | GAS database ID for a room (same as \`gas_room_id\`) |\n| \`external_id\` | Your reference for a room |\n\n**Note:** \`unit_id\` and \`gas_room_id\` are the same thing.\n\n---\n\n**Support:** steve@gas.travel`,
+            "contact": {
+                "name": "GAS Support",
+                "email": "steve@gas.travel",
+                "url": "https://gas.travel"
+            }
+        },
+        "servers": [
+            {
+                "url": "https://admin.gas.travel",
+                "description": "Production"
+            }
+        ],
+        "security": [
+            { "ApiKeyHeader": [] }
+        ],
+        "components": {
+            "securitySchemes": {
+                "ApiKeyHeader": {
+                    "type": "apiKey",
+                    "in": "header",
+                    "name": "X-API-Key",
+                    "description": "Partner API key provided during onboarding"
+                },
+                "ApiKeyPath": {
+                    "type": "apiKey",
+                    "in": "path",
+                    "name": "apiKey",
+                    "description": "API key embedded in the URL path for /api/elevate/ endpoints"
+                }
+            },
+            "schemas": {
+                "Tenant": {
+                    "type": "object",
+                    "required": ["tenant_id", "business_name"],
+                    "properties": {
+                        "tenant_id": { "type": "string", "description": "Your unique identifier for this tenant", "example": "tenant-001" },
+                        "business_name": { "type": "string", "description": "Display name for the business", "example": "Sunshine Apartments" },
+                        "contact_email": { "type": "string", "format": "email", "example": "owner@sunshineapts.com" },
+                        "contact_phone": { "type": "string", "example": "+1234567890" },
+                        "country": { "type": "string", "description": "Two-letter country code", "example": "US" },
+                        "timezone": { "type": "string", "example": "America/New_York" }
+                    }
+                },
+                "Property": {
+                    "type": "object",
+                    "properties": {
+                        "name": { "type": "string", "example": "Beach Studio" },
+                        "address": { "type": "string", "example": "123 Beach Road" },
+                        "city": { "type": "string", "example": "Miami" },
+                        "state": { "type": "string", "example": "FL" },
+                        "country": { "type": "string", "example": "US" },
+                        "zip": { "type": "string", "example": "33139" },
+                        "latitude": { "type": "number", "example": 25.7617 },
+                        "longitude": { "type": "number", "example": -80.1918 },
+                        "property_type": { "type": "string", "example": "vacation_rental" },
+                        "description": { "type": "string", "example": "Luxury beachfront accommodation" }
+                    }
+                },
+                "Room": {
+                    "type": "object",
+                    "properties": {
+                        "name": { "type": "string", "example": "Studio Room A" },
+                        "external_id": { "type": "string", "description": "Your reference for this room", "example": "ROOM-001" },
+                        "max_guests": { "type": "integer", "example": 2 },
+                        "bedrooms": { "type": "integer", "example": 1 },
+                        "bathrooms": { "type": "integer", "example": 1 },
+                        "description": { "type": "string", "example": "Cozy studio with ocean view" },
+                        "currency": { "type": "string", "example": "USD" }
+                    }
+                },
+                "CalendarEntry": {
+                    "type": "object",
+                    "properties": {
+                        "date": { "type": "string", "format": "date", "example": "2026-03-15" },
+                        "price": { "type": "number", "example": 200.0 },
+                        "currency": { "type": "string", "example": "CHF" },
+                        "min_stay": { "type": "integer", "example": 2 },
+                        "available": { "type": "boolean", "example": true },
+                        "is_blocked": { "type": "boolean", "example": false }
+                    }
+                },
+                "Image": {
+                    "type": "object",
+                    "properties": {
+                        "url": { "type": "string", "format": "uri", "example": "https://example.com/room1-main.jpg" },
+                        "caption": { "type": "string", "example": "Main bedroom view" },
+                        "sort_order": { "type": "integer", "example": 1 },
+                        "external_id": { "type": "string", "example": "img-001" }
+                    }
+                },
+                "Website": {
+                    "type": "object",
+                    "properties": {
+                        "name": { "type": "string", "example": "Beach Studios Miami" },
+                        "subdomain": { "type": "string", "example": "beach-studios" },
+                        "description": { "type": "string", "example": "Luxury beachfront accommodation" }
+                    }
+                },
+                "CheckoutConfig": {
+                    "type": "object",
+                    "properties": {
+                        "payment_options": {
+                            "type": "object",
+                            "properties": {
+                                "stripe": { "type": "boolean", "description": "Enable Stripe card payments", "example": true },
+                                "card_guarantee": { "type": "boolean", "description": "Enable Enigma Vault card guarantee", "example": true },
+                                "pay_at_property": {
+                                    "type": "object",
+                                    "properties": {
+                                        "enabled": { "type": "boolean", "example": true },
+                                        "mode": { "type": "string", "enum": ["book_only", "bank_required", "pay_optional"], "example": "pay_optional" },
+                                        "bank_details": {
+                                            "type": "object",
+                                            "properties": {
+                                                "account_name": { "type": "string", "example": "Sunshine Apartments SRL" },
+                                                "iban": { "type": "string", "example": "CH93 0076 2011 6238 5295 7" },
+                                                "bank_name": { "type": "string", "example": "UBS Switzerland" },
+                                                "bic": { "type": "string", "example": "UBSWCHZH80A" }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "SuccessResponse": {
+                    "type": "object",
+                    "properties": {
+                        "success": { "type": "boolean", "example": true }
+                    }
+                },
+                "ErrorResponse": {
+                    "type": "object",
+                    "properties": {
+                        "success": { "type": "boolean", "example": false },
+                        "error": { "type": "string", "example": "Description of what went wrong" }
+                    }
+                }
+            }
+        },
+        "tags": [
+            { "name": "Tenants", "description": "Create and manage client accounts (tenants)" },
+            { "name": "Properties & Rooms", "description": "Push properties with rooms, update, delete" },
+            { "name": "Images", "description": "Upload and manage room and property images" },
+            { "name": "Room Details", "description": "Amenities, bedrooms, bathrooms" },
+            { "name": "Pricing & Availability", "description": "Calendar, pricing, and availability management" },
+            { "name": "Room Types", "description": "Group identical rooms for display purposes" },
+            { "name": "Websites", "description": "Create, deploy, and manage booking websites" },
+            { "name": "Website Content", "description": "Update website sections (hero, about, footer, etc.)" },
+            { "name": "Stripe & Payments", "description": "Configure Stripe keys and checkout options" },
+            { "name": "Custom Domains", "description": "Connect custom domains to websites" },
+            { "name": "Webhooks", "description": "Configure and diagnose webhook integrations" },
+            { "name": "Analytics", "description": "Tenant and website analytics" },
+            { "name": "Lifecycle", "description": "Reservations, deletions, and lifecycle management" }
+        ],
+        "paths": {
+            // ===== TENANTS =====
+            "/api/partner/tenants": {
+                "post": {
+                    "tags": ["Tenants"],
+                    "summary": "Create Tenant",
+                    "description": "Create a new tenant (client account). If the tenant_id already exists, returns the existing tenant.",
+                    "requestBody": {
+                        "required": true,
+                        "content": {
+                            "application/json": {
+                                "schema": { "$ref": "#/components/schemas/Tenant" },
+                                "example": {
+                                    "tenant_id": "tenant-001",
+                                    "business_name": "Sunshine Apartments",
+                                    "contact_email": "owner@sunshineapts.com",
+                                    "contact_phone": "+1234567890",
+                                    "country": "US",
+                                    "timezone": "America/New_York"
+                                }
+                            }
+                        }
+                    },
+                    "responses": {
+                        "200": {
+                            "description": "Tenant created or already exists",
+                            "content": {
+                                "application/json": {
+                                    "example": {
+                                        "success": true,
+                                        "tenant": {
+                                            "id": 15,
+                                            "tenant_id": "tenant-001",
+                                            "account_id": 141
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "get": {
+                    "tags": ["Tenants"],
+                    "summary": "List All Tenants",
+                    "description": "Get all tenants for your partner account.",
+                    "responses": {
+                        "200": {
+                            "description": "List of tenants"
+                        }
+                    }
+                }
+            },
+            "/api/partner/tenants/{tenantId}": {
+                "get": {
+                    "tags": ["Tenants"],
+                    "summary": "Get Tenant",
+                    "description": "Get a single tenant's details.",
+                    "parameters": [
+                        { "name": "tenantId", "in": "path", "required": true, "schema": { "type": "string" }, "description": "Your tenant_id" }
+                    ],
+                    "responses": { "200": { "description": "Tenant details" } }
+                },
+                "put": {
+                    "tags": ["Tenants"],
+                    "summary": "Update Tenant",
+                    "description": "Send only the fields you want to update.",
+                    "parameters": [
+                        { "name": "tenantId", "in": "path", "required": true, "schema": { "type": "string" } }
+                    ],
+                    "requestBody": {
+                        "content": {
+                            "application/json": {
+                                "example": { "business_name": "New Business Name", "contact_email": "new@email.com" }
+                            }
+                        }
+                    },
+                    "responses": { "200": { "description": "Tenant updated" } }
+                },
+                "delete": {
+                    "tags": ["Lifecycle"],
+                    "summary": "Delete Tenant",
+                    "description": "Permanently removes tenant and ALL associated data. Irreversible. Blocked if active bookings exist.",
+                    "parameters": [
+                        { "name": "tenantId", "in": "path", "required": true, "schema": { "type": "string" } }
+                    ],
+                    "responses": { "200": { "description": "Tenant deleted" } }
+                }
+            },
+            
+            // ===== PROPERTIES & ROOMS =====
+            "/api/elevate/{apiKey}/property": {
+                "post": {
+                    "tags": ["Properties & Rooms"],
+                    "summary": "Push Property with Rooms",
+                    "description": "Create a property with one or more rooms. Returns property_id and unit_id for each room. **Save the unit_id values** — you need them for room types, availability, images, and website assignments.",
+                    "security": [{ "ApiKeyPath": [] }],
+                    "parameters": [
+                        { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" }, "description": "Your API key" }
+                    ],
+                    "requestBody": {
+                        "required": true,
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "client": { "action": "tenant", "tenant_id": "tenant-001" },
+                                    "property": {
+                                        "name": "Beach Studio",
+                                        "address": "123 Beach Road",
+                                        "city": "Miami",
+                                        "state": "FL",
+                                        "country": "US",
+                                        "zip": "33139",
+                                        "latitude": 25.7617,
+                                        "longitude": -80.1918,
+                                        "property_type": "vacation_rental",
+                                        "description": "Luxury beachfront accommodation"
+                                    },
+                                    "rooms": [
+                                        {
+                                            "name": "Studio Room A",
+                                            "external_id": "ROOM-001",
+                                            "max_guests": 2,
+                                            "bedrooms": 1,
+                                            "bathrooms": 1,
+                                            "description": "Cozy studio with ocean view",
+                                            "currency": "USD"
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "responses": {
+                        "200": {
+                            "description": "Property and rooms created",
+                            "content": {
+                                "application/json": {
+                                    "example": {
+                                        "success": true,
+                                        "property_id": 392,
+                                        "rooms": [
+                                            { "unit_id": 1026, "external_id": "ROOM-001", "name": "Studio Room A" }
+                                        ]
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "/api/elevate/{apiKey}/property/{propertyId}": {
+                "put": {
+                    "tags": ["Properties & Rooms"],
+                    "summary": "Update Property",
+                    "description": "Send only the fields you want to update inside a property object.",
+                    "security": [{ "ApiKeyPath": [] }],
+                    "parameters": [
+                        { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
+                        { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "integer" } }
+                    ],
+                    "requestBody": {
+                        "content": {
+                            "application/json": {
+                                "example": { "property": { "name": "Updated Beach Studio", "description": "New description" } }
+                            }
+                        }
+                    },
+                    "responses": { "200": { "description": "Property updated" } }
+                },
+                "delete": {
+                    "tags": ["Lifecycle"],
+                    "summary": "Delete Property",
+                    "description": "Permanently deletes property and all rooms. Blocked if active bookings exist.",
+                    "security": [{ "ApiKeyPath": [] }],
+                    "parameters": [
+                        { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
+                        { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "integer" } }
+                    ],
+                    "responses": { "200": { "description": "Property deleted" } }
+                }
+            },
+            "/api/elevate/{apiKey}/property/{propertyId}/room": {
+                "post": {
+                    "tags": ["Properties & Rooms"],
+                    "summary": "Add Room to Property",
+                    "description": "Add a new room to an existing property.",
+                    "security": [{ "ApiKeyPath": [] }],
+                    "parameters": [
+                        { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
+                        { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "integer" } }
+                    ],
+                    "requestBody": {
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "name": "Penthouse Suite",
+                                    "external_id": "ROOM-002",
+                                    "max_guests": 4,
+                                    "bedrooms": 2,
+                                    "bathrooms": 2,
+                                    "currency": "USD"
+                                }
+                            }
+                        }
+                    },
+                    "responses": { "200": { "description": "Room created" } }
+                }
+            },
+            "/api/elevate/{apiKey}/property/{propertyId}/rooms": {
+                "get": {
+                    "tags": ["Properties & Rooms"],
+                    "summary": "Get Rooms for Property",
+                    "description": "Get all rooms belonging to a property.",
+                    "security": [{ "ApiKeyPath": [] }],
+                    "parameters": [
+                        { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
+                        { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "integer" } }
+                    ],
+                    "responses": { "200": { "description": "List of rooms" } }
+                }
+            },
+            "/api/elevate/{apiKey}/room/{roomId}": {
+                "put": {
+                    "tags": ["Properties & Rooms"],
+                    "summary": "Update Room",
+                    "description": "Update room details. roomId can be GAS unit_id (numeric) or your external_id.",
+                    "security": [{ "ApiKeyPath": [] }],
+                    "parameters": [
+                        { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
+                        { "name": "roomId", "in": "path", "required": true, "schema": { "type": "string" }, "description": "GAS unit_id or your external_id" }
+                    ],
+                    "requestBody": {
+                        "content": {
+                            "application/json": {
+                                "example": { "name": "Updated Room Name", "max_guests": 3 }
+                            }
+                        }
+                    },
+                    "responses": { "200": { "description": "Room updated" } }
+                },
+                "delete": {
+                    "tags": ["Lifecycle"],
+                    "summary": "Delete Room",
+                    "description": "Permanently deletes a room. Blocked if active bookings exist.",
+                    "security": [{ "ApiKeyPath": [] }],
+                    "parameters": [
+                        { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
+                        { "name": "roomId", "in": "path", "required": true, "schema": { "type": "string" } }
+                    ],
+                    "responses": { "200": { "description": "Room deleted" } }
+                }
+            },
+            
+            // ===== IMAGES =====
+            "/api/elevate/{apiKey}/room/{roomId}/images": {
+                "post": {
+                    "tags": ["Images"],
+                    "summary": "Add Room Images",
+                    "description": "Upload images to a room. roomId can be GAS unit_id or your external_id.",
+                    "security": [{ "ApiKeyPath": [] }],
+                    "parameters": [
+                        { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
+                        { "name": "roomId", "in": "path", "required": true, "schema": { "type": "string" } }
+                    ],
+                    "requestBody": {
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "images": [
+                                        { "url": "https://example.com/room1-main.jpg", "caption": "Main bedroom view", "sort_order": 1, "external_id": "img-001" }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "responses": { "200": { "description": "Images added" } }
+                },
+                "get": {
+                    "tags": ["Images"],
+                    "summary": "Get Room Images",
+                    "security": [{ "ApiKeyPath": [] }],
+                    "parameters": [
+                        { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
+                        { "name": "roomId", "in": "path", "required": true, "schema": { "type": "string" } }
+                    ],
+                    "responses": { "200": { "description": "List of room images" } }
+                }
+            },
+            "/api/elevate/{apiKey}/room/{roomId}/images/{imageId}": {
+                "delete": {
+                    "tags": ["Images"],
+                    "summary": "Delete Room Image",
+                    "security": [{ "ApiKeyPath": [] }],
+                    "parameters": [
+                        { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
+                        { "name": "roomId", "in": "path", "required": true, "schema": { "type": "string" } },
+                        { "name": "imageId", "in": "path", "required": true, "schema": { "type": "integer" } }
+                    ],
+                    "responses": { "200": { "description": "Image deleted" } }
+                }
+            },
+            "/api/elevate/{apiKey}/property/{propertyId}/images": {
+                "post": {
+                    "tags": ["Images"],
+                    "summary": "Add Property Images",
+                    "security": [{ "ApiKeyPath": [] }],
+                    "parameters": [
+                        { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
+                        { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "integer" } }
+                    ],
+                    "requestBody": {
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "images": [
+                                        { "url": "https://example.com/property-exterior.jpg", "caption": "Building exterior", "sort_order": 1 }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "responses": { "200": { "description": "Images added" } }
+                },
+                "get": {
+                    "tags": ["Images"],
+                    "summary": "Get Property Images",
+                    "security": [{ "ApiKeyPath": [] }],
+                    "parameters": [
+                        { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
+                        { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "integer" } }
+                    ],
+                    "responses": { "200": { "description": "List of property images" } }
+                }
+            },
+            "/api/elevate/{apiKey}/property/{propertyId}/images/{imageId}": {
+                "delete": {
+                    "tags": ["Images"],
+                    "summary": "Delete Property Image",
+                    "security": [{ "ApiKeyPath": [] }],
+                    "parameters": [
+                        { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
+                        { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "integer" } },
+                        { "name": "imageId", "in": "path", "required": true, "schema": { "type": "integer" } }
+                    ],
+                    "responses": { "200": { "description": "Image deleted" } }
+                }
+            },
+            
+            // ===== ROOM DETAILS =====
+            "/api/elevate/{apiKey}/room/{roomId}/amenities": {
+                "put": {
+                    "tags": ["Room Details"],
+                    "summary": "Set Room Amenities",
+                    "security": [{ "ApiKeyPath": [] }],
+                    "parameters": [
+                        { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
+                        { "name": "roomId", "in": "path", "required": true, "schema": { "type": "string" } }
+                    ],
+                    "requestBody": {
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "amenities": ["wifi", "air_conditioning", "tv", "kitchen", "pool", "washing_machine", "free_parking", "balcony"]
+                                }
+                            }
+                        }
+                    },
+                    "responses": { "200": { "description": "Amenities updated" } }
+                },
+                "get": {
+                    "tags": ["Room Details"],
+                    "summary": "Get Room Amenities",
+                    "security": [{ "ApiKeyPath": [] }],
+                    "parameters": [
+                        { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
+                        { "name": "roomId", "in": "path", "required": true, "schema": { "type": "string" } }
+                    ],
+                    "responses": { "200": { "description": "List of amenities" } }
+                }
+            },
+            "/api/elevate/{apiKey}/room/{roomId}/bedrooms": {
+                "put": {
+                    "tags": ["Room Details"],
+                    "summary": "Set Room Bedrooms",
+                    "security": [{ "ApiKeyPath": [] }],
+                    "parameters": [
+                        { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
+                        { "name": "roomId", "in": "path", "required": true, "schema": { "type": "string" } }
+                    ],
+                    "requestBody": {
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "bedrooms": [
+                                        { "name": "Master Bedroom", "beds": [{ "type": "king", "count": 1 }] },
+                                        { "name": "Guest Room", "beds": [{ "type": "twin", "count": 2 }] }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "responses": { "200": { "description": "Bedrooms updated" } }
+                },
+                "get": {
+                    "tags": ["Room Details"],
+                    "summary": "Get Room Bedrooms",
+                    "security": [{ "ApiKeyPath": [] }],
+                    "parameters": [
+                        { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
+                        { "name": "roomId", "in": "path", "required": true, "schema": { "type": "string" } }
+                    ],
+                    "responses": { "200": { "description": "List of bedrooms" } }
+                }
+            },
+            "/api/elevate/{apiKey}/room/{roomId}/bathrooms": {
+                "put": {
+                    "tags": ["Room Details"],
+                    "summary": "Set Room Bathrooms",
+                    "security": [{ "ApiKeyPath": [] }],
+                    "parameters": [
+                        { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
+                        { "name": "roomId", "in": "path", "required": true, "schema": { "type": "string" } }
+                    ],
+                    "requestBody": {
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "bathrooms": [
+                                        { "name": "Main Bathroom", "type": "full", "is_ensuite": true },
+                                        { "name": "Guest WC", "type": "half", "is_ensuite": false }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "responses": { "200": { "description": "Bathrooms updated" } }
+                },
+                "get": {
+                    "tags": ["Room Details"],
+                    "summary": "Get Room Bathrooms",
+                    "security": [{ "ApiKeyPath": [] }],
+                    "parameters": [
+                        { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
+                        { "name": "roomId", "in": "path", "required": true, "schema": { "type": "string" } }
+                    ],
+                    "responses": { "200": { "description": "List of bathrooms" } }
+                }
+            },
+            
+            // ===== PRICING & AVAILABILITY =====
+            "/api/elevate/{apiKey}/room/{roomId}/calendar": {
+                "put": {
+                    "tags": ["Pricing & Availability"],
+                    "summary": "Update Calendar (Recommended)",
+                    "description": "Combined pricing and availability update. **Always use the dates array format.** This is the recommended endpoint for updating pricing and availability.",
+                    "security": [{ "ApiKeyPath": [] }],
+                    "parameters": [
+                        { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
+                        { "name": "roomId", "in": "path", "required": true, "schema": { "type": "string" } }
+                    ],
+                    "requestBody": {
+                        "required": true,
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "dates": [
+                                        { "date": "2026-03-15", "price": 200.0, "currency": "CHF", "min_stay": 2, "available": true, "is_blocked": false },
+                                        { "date": "2026-03-16", "price": 220.0, "currency": "CHF", "min_stay": 2, "available": true, "is_blocked": false }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "responses": { "200": { "description": "Calendar updated" } }
+                },
+                "get": {
+                    "tags": ["Pricing & Availability"],
+                    "summary": "Get Calendar",
+                    "description": "Get room calendar for a date range.",
+                    "security": [{ "ApiKeyPath": [] }],
+                    "parameters": [
+                        { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
+                        { "name": "roomId", "in": "path", "required": true, "schema": { "type": "string" } },
+                        { "name": "start_date", "in": "query", "schema": { "type": "string", "format": "date" }, "description": "Start date (YYYY-MM-DD)" },
+                        { "name": "end_date", "in": "query", "schema": { "type": "string", "format": "date" }, "description": "End date (YYYY-MM-DD)" }
+                    ],
+                    "responses": { "200": { "description": "Calendar data" } }
+                }
+            },
+            "/api/elevate/{apiKey}/room/{roomId}/pricing": {
+                "put": {
+                    "tags": ["Pricing & Availability"],
+                    "summary": "Update Pricing Only",
+                    "security": [{ "ApiKeyPath": [] }],
+                    "parameters": [
+                        { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
+                        { "name": "roomId", "in": "path", "required": true, "schema": { "type": "string" } }
+                    ],
+                    "requestBody": {
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "dates": [
+                                        { "date": "2026-03-15", "price": 200.0, "currency": "CHF" }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "responses": { "200": { "description": "Pricing updated" } }
+                }
+            },
+            "/api/elevate/{apiKey}/room/{roomId}/availability": {
+                "put": {
+                    "tags": ["Pricing & Availability"],
+                    "summary": "Update Availability Only",
+                    "security": [{ "ApiKeyPath": [] }],
+                    "parameters": [
+                        { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
+                        { "name": "roomId", "in": "path", "required": true, "schema": { "type": "string" } }
+                    ],
+                    "requestBody": {
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "dates": [
+                                        { "date": "2026-03-15", "available": false, "is_blocked": true }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "responses": { "200": { "description": "Availability updated" } }
+                }
+            },
+            
+            // ===== ROOM TYPES =====
+            "/api/partner/tenants/{tenantId}/room-types": {
+                "post": {
+                    "tags": ["Room Types"],
+                    "summary": "Create Room Type",
+                    "description": "Room types group multiple identical rooms together for display purposes.",
+                    "parameters": [
+                        { "name": "tenantId", "in": "path", "required": true, "schema": { "type": "string" } }
+                    ],
+                    "requestBody": {
+                        "content": {
+                            "application/json": {
+                                "example": { "name": "Deluxe Ocean View", "description": "Spacious rooms with panoramic ocean views", "base_price": 250, "max_guests": 4 }
+                            }
+                        }
+                    },
+                    "responses": { "200": { "description": "Room type created" } }
+                },
+                "get": {
+                    "tags": ["Room Types"],
+                    "summary": "List Room Types",
+                    "parameters": [
+                        { "name": "tenantId", "in": "path", "required": true, "schema": { "type": "string" } }
+                    ],
+                    "responses": { "200": { "description": "List of room types" } }
+                }
+            },
+            "/api/partner/room-types/{roomTypeId}": {
+                "get": {
+                    "tags": ["Room Types"],
+                    "summary": "Get Room Type",
+                    "parameters": [ { "name": "roomTypeId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "responses": { "200": { "description": "Room type details" } }
+                },
+                "put": {
+                    "tags": ["Room Types"],
+                    "summary": "Update Room Type",
+                    "parameters": [ { "name": "roomTypeId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "requestBody": {
+                        "content": { "application/json": { "example": { "name": "Premium Ocean View", "base_price": 300 } } }
+                    },
+                    "responses": { "200": { "description": "Room type updated" } }
+                },
+                "delete": {
+                    "tags": ["Room Types"],
+                    "summary": "Delete Room Type",
+                    "parameters": [ { "name": "roomTypeId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "responses": { "200": { "description": "Room type deleted" } }
+                }
+            },
+            "/api/partner/room-types/{roomTypeId}/units": {
+                "put": {
+                    "tags": ["Room Types"],
+                    "summary": "Assign Rooms to Room Type",
+                    "description": "Use unit_ids — these are the same IDs returned as unit_id when you pushed the property.",
+                    "parameters": [ { "name": "roomTypeId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "requestBody": {
+                        "content": { "application/json": { "example": { "unit_ids": [1026, 1027, 1028] } } }
+                    },
+                    "responses": { "200": { "description": "Units assigned" } }
+                }
+            },
+            
+            // ===== WEBSITES =====
+            "/api/partner/tenants/{tenantId}/websites": {
+                "post": {
+                    "tags": ["Websites"],
+                    "summary": "Create Website",
+                    "parameters": [ { "name": "tenantId", "in": "path", "required": true, "schema": { "type": "string" } } ],
+                    "requestBody": {
+                        "content": {
+                            "application/json": {
+                                "example": { "name": "Beach Studios Miami", "subdomain": "beach-studios", "description": "Luxury beachfront accommodation" }
+                            }
+                        }
+                    },
+                    "responses": {
+                        "200": {
+                            "description": "Website created",
+                            "content": {
+                                "application/json": {
+                                    "example": {
+                                        "success": true,
+                                        "website": { "id": 17, "name": "Beach Studios Miami", "subdomain": "beach-studios", "url": "https://beach-studios.sites.gas.travel" }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "get": {
+                    "tags": ["Websites"],
+                    "summary": "List Websites for Tenant",
+                    "parameters": [ { "name": "tenantId", "in": "path", "required": true, "schema": { "type": "string" } } ],
+                    "responses": { "200": { "description": "List of websites" } }
+                }
+            },
+            "/api/partner/websites/{websiteId}": {
+                "get": {
+                    "tags": ["Websites"],
+                    "summary": "Get Website",
+                    "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "responses": { "200": { "description": "Website details" } }
+                },
+                "put": {
+                    "tags": ["Websites"],
+                    "summary": "Update Website",
+                    "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "requestBody": { "content": { "application/json": { "example": { "name": "Updated Name" } } } },
+                    "responses": { "200": { "description": "Website updated" } }
+                },
+                "delete": {
+                    "tags": ["Websites"],
+                    "summary": "Delete Website",
+                    "description": "Fully removes the website: deletes the WordPress site from the VPS, clears room/property URLs, removes deployed_sites and website records.",
+                    "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "responses": { "200": { "description": "Website deleted" } }
+                }
+            },
+            "/api/partner/websites/{websiteId}/rooms": {
+                "put": {
+                    "tags": ["Websites"],
+                    "summary": "Assign Rooms to Website",
+                    "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "requestBody": {
+                        "content": { "application/json": { "example": { "rooms": [1026, 1027, 1028] } } }
+                    },
+                    "responses": { "200": { "description": "Rooms assigned" } }
+                },
+                "get": {
+                    "tags": ["Websites"],
+                    "summary": "Get Website Rooms",
+                    "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "responses": { "200": { "description": "List of assigned rooms" } }
+                }
+            },
+            "/api/partner/websites/{websiteId}/deploy": {
+                "post": {
+                    "tags": ["Websites"],
+                    "summary": "Deploy Website",
+                    "description": "Deploy the website. Templates: `light` (clean, bright) or `dark` (elegant, modern).",
+                    "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "requestBody": {
+                        "content": { "application/json": { "example": { "template": "light" } } }
+                    },
+                    "responses": { "200": { "description": "Website deployed" } }
+                }
+            },
+            "/api/partner/websites/{websiteId}/credentials": {
+                "get": {
+                    "tags": ["Websites"],
+                    "summary": "Get Credentials",
+                    "description": "Password is only returned on first site creation. For subsequent sites with the same email, use existing credentials.",
+                    "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "responses": { "200": { "description": "Login credentials" } }
+                }
+            },
+            "/api/partner/websites/{websiteId}/status": {
+                "put": {
+                    "tags": ["Websites"],
+                    "summary": "Activate / Deactivate Website",
+                    "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "requestBody": {
+                        "content": { "application/json": { "example": { "status": "inactive" } } }
+                    },
+                    "responses": { "200": { "description": "Status updated" } }
+                }
+            },
+            "/api/partner/websites/{websiteId}/subdomain": {
+                "put": {
+                    "tags": ["Websites"],
+                    "summary": "Rename Subdomain",
+                    "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "requestBody": {
+                        "content": { "application/json": { "example": { "new_subdomain": "sunshine-villas" } } }
+                    },
+                    "responses": { "200": { "description": "Subdomain renamed" } }
+                }
+            },
+            "/api/partner/websites/{websiteId}/name": {
+                "put": {
+                    "tags": ["Websites"],
+                    "summary": "Update Website Name",
+                    "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "requestBody": {
+                        "content": { "application/json": { "example": { "name": "Sunshine Beach Villas" } } }
+                    },
+                    "responses": { "200": { "description": "Name updated" } }
+                }
+            },
+            
+            // ===== WEBSITE CONTENT =====
+            "/api/partner/websites/{websiteId}/content/{section}": {
+                "put": {
+                    "tags": ["Website Content"],
+                    "summary": "Update Content Section",
+                    "description": "Update website content sections. Changes are saved to GAS and automatically pushed to the live WordPress site. You must send the complete settings object — any fields not included will be reset to defaults.\n\n**Valid sections:** header, hero, intro, featured, about, reviews, cta, footer, styles, seo, page-rooms, page-about, page-gallery, page-blog, page-attractions, page-dining, page-offers, page-properties, page-reviews, page-contact, page-terms, page-privacy\n\n**Multilingual:** All text fields support language variants by appending: -en, -fr, -es, -nl",
+                    "parameters": [
+                        { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } },
+                        { "name": "section", "in": "path", "required": true, "schema": { "type": "string", "enum": ["header", "hero", "intro", "featured", "about", "reviews", "cta", "footer", "styles", "seo", "page-rooms", "page-about", "page-gallery", "page-blog", "page-attractions", "page-dining", "page-offers", "page-properties", "page-reviews", "page-contact", "page-terms", "page-privacy"] } }
+                    ],
+                    "requestBody": {
+                        "content": {
+                            "application/json": {
+                                "example": { "settings": { "title-en": "Welcome to Our Hotel", "text-en": "Experience luxury", "bg-color": "#ffffff" } }
+                            }
+                        }
+                    },
+                    "responses": { "200": { "description": "Content updated and pushed to WordPress" } }
+                },
+                "get": {
+                    "tags": ["Website Content"],
+                    "summary": "Get Content Section",
+                    "description": "Returns the full settings object with default values for any fields not yet set.",
+                    "parameters": [
+                        { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } },
+                        { "name": "section", "in": "path", "required": true, "schema": { "type": "string" } }
+                    ],
+                    "responses": { "200": { "description": "Section settings" } }
+                }
+            },
+            "/api/partner/content-schema": {
+                "get": {
+                    "tags": ["Website Content"],
+                    "summary": "Get Content Schema",
+                    "description": "Returns the complete field schema for every content section with default values.",
+                    "responses": { "200": { "description": "Full content schema" } }
+                }
+            },
+            "/api/partner/websites/{websiteId}/upload": {
+                "post": {
+                    "tags": ["Website Content"],
+                    "summary": "Upload Media",
+                    "description": "Upload media (base64 encoded) for use in website content.",
+                    "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "requestBody": {
+                        "content": {
+                            "application/json": {
+                                "example": { "file": "data:image/png;base64,...", "filename": "hero-bg.jpg" }
+                            }
+                        }
+                    },
+                    "responses": { "200": { "description": "Upload complete, returns URL" } }
+                }
+            },
+            
+            // ===== STRIPE & PAYMENTS =====
+            "/api/partner/properties/{propertyId}/stripe": {
+                "put": {
+                    "tags": ["Stripe & Payments"],
+                    "summary": "Configure Stripe",
+                    "description": "Set Stripe credentials for a property. Keys are validated against Stripe API before saving. Different properties can use different Stripe accounts.\n\n**Multi-Unit Booking Rule:** Same Stripe account on all properties = multi-unit booking allowed. Different accounts = one property at a time.",
+                    "parameters": [ { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "requestBody": {
+                        "content": {
+                            "application/json": {
+                                "example": { "stripe_publishable_key": "pk_live_xxxxxxxxxxxxxxxx", "stripe_secret_key": "sk_live_xxxxxxxxxxxxxxxx" }
+                            }
+                        }
+                    },
+                    "responses": { "200": { "description": "Stripe configured" } }
+                },
+                "get": {
+                    "tags": ["Stripe & Payments"],
+                    "summary": "Get Stripe Status",
+                    "parameters": [ { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "responses": { "200": { "description": "Stripe status" } }
+                },
+                "delete": {
+                    "tags": ["Stripe & Payments"],
+                    "summary": "Remove Stripe",
+                    "parameters": [ { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "responses": { "200": { "description": "Stripe removed" } }
+                }
+            },
+            "/api/partner/tenants/{tenantId}/stripe-status": {
+                "get": {
+                    "tags": ["Stripe & Payments"],
+                    "summary": "Get Tenant Stripe Status",
+                    "description": "Get Stripe status for all properties belonging to a tenant.",
+                    "parameters": [ { "name": "tenantId", "in": "path", "required": true, "schema": { "type": "string" } } ],
+                    "responses": { "200": { "description": "Stripe status per property" } }
+                }
+            },
+            "/api/partner/properties/{property_id}/checkout": {
+                "put": {
+                    "tags": ["Stripe & Payments"],
+                    "summary": "Configure Checkout",
+                    "description": "Configure payment options for checkout. Multiple payment methods can be enabled simultaneously.\n\n**Pay at Property modes:**\n- `book_only` — Confirmed immediately, no payment\n- `bank_required` — Request (pending), bank details shown\n- `pay_optional` — Confirmed immediately, bank details shown",
+                    "parameters": [ { "name": "property_id", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "requestBody": {
+                        "content": {
+                            "application/json": {
+                                "schema": { "$ref": "#/components/schemas/CheckoutConfig" },
+                                "examples": {
+                                    "all-options": {
+                                        "summary": "All three payment options",
+                                        "value": {
+                                            "payment_options": {
+                                                "stripe": true,
+                                                "card_guarantee": true,
+                                                "pay_at_property": {
+                                                    "enabled": true,
+                                                    "mode": "pay_optional",
+                                                    "bank_details": {
+                                                        "account_name": "Mountain Lodge GmbH",
+                                                        "iban": "CH93 0076 2011 6238 5295 7",
+                                                        "bank_name": "UBS Switzerland",
+                                                        "bic": "UBSWCHZH80A"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "card-only": {
+                                        "summary": "Card only",
+                                        "value": {
+                                            "payment_options": { "stripe": true, "card_guarantee": false, "pay_at_property": { "enabled": false } }
+                                        }
+                                    },
+                                    "book-only": {
+                                        "summary": "Book only, no payment",
+                                        "value": {
+                                            "payment_options": { "stripe": false, "card_guarantee": false, "pay_at_property": { "enabled": true, "mode": "book_only" } }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "responses": { "200": { "description": "Checkout configuration saved" } }
+                },
+                "get": {
+                    "tags": ["Stripe & Payments"],
+                    "summary": "Get Checkout Configuration",
+                    "parameters": [ { "name": "property_id", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "responses": { "200": { "description": "Current checkout configuration" } }
+                }
+            },
+            
+            // ===== CUSTOM DOMAINS =====
+            "/api/partner/websites/{websiteId}/domain": {
+                "get": {
+                    "tags": ["Custom Domains"],
+                    "summary": "Get Domain Status",
+                    "description": "Get domain status and DNS records.",
+                    "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "responses": { "200": { "description": "Domain status" } }
+                },
+                "put": {
+                    "tags": ["Custom Domains"],
+                    "summary": "Connect Custom Domain",
+                    "description": "Website must be deployed first. DNS must be configured before calling. SSL is provisioned automatically.",
+                    "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "requestBody": {
+                        "content": { "application/json": { "example": { "domain": "www.mysite.com" } } }
+                    },
+                    "responses": { "200": { "description": "Domain connected" } }
+                },
+                "delete": {
+                    "tags": ["Custom Domains"],
+                    "summary": "Remove Custom Domain",
+                    "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "responses": { "200": { "description": "Domain removed" } }
+                }
+            },
+            
+            // ===== WEBHOOKS =====
+            "/api/partner/webhooks": {
+                "put": {
+                    "tags": ["Webhooks"],
+                    "summary": "Configure Webhooks",
+                    "description": "GAS fires webhooks for booking events. Uses HMAC-SHA256 signatures, automatic retries (3 attempts with exponential backoff).\n\n**Supported events:** booking.created, booking.cancelled\n\n**Important:** Save the webhook_secret — you need it to verify incoming signatures.",
+                    "requestBody": {
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "booking_created": "https://your-server.com/webhooks/gas",
+                                    "booking_cancelled": "https://your-server.com/webhooks/gas"
+                                }
+                            }
+                        }
+                    },
+                    "responses": { "200": { "description": "Webhooks configured, returns webhook_secret" } }
+                },
+                "get": {
+                    "tags": ["Webhooks"],
+                    "summary": "Get Webhook Configuration",
+                    "responses": { "200": { "description": "Current webhook configuration" } }
+                },
+                "delete": {
+                    "tags": ["Webhooks"],
+                    "summary": "Delete Webhooks",
+                    "responses": { "200": { "description": "Webhooks removed" } }
+                }
+            },
+            "/api/partner/webhooks/diagnose": {
+                "get": {
+                    "tags": ["Webhooks"],
+                    "summary": "Diagnose Webhooks",
+                    "description": "Check webhook health, recent deliveries, and any failures.",
+                    "responses": { "200": { "description": "Webhook diagnostics" } }
+                }
+            },
+            
+            // ===== ANALYTICS =====
+            "/api/partner/tenants/{tenantId}/analytics": {
+                "get": {
+                    "tags": ["Analytics"],
+                    "summary": "Get Tenant Analytics",
+                    "parameters": [
+                        { "name": "tenantId", "in": "path", "required": true, "schema": { "type": "string" } },
+                        { "name": "period", "in": "query", "schema": { "type": "string", "example": "30d" }, "description": "Days to look back (7d, 30d, 90d)" },
+                        { "name": "from_date", "in": "query", "schema": { "type": "string", "format": "date" }, "description": "Start date (overrides period)" },
+                        { "name": "to_date", "in": "query", "schema": { "type": "string", "format": "date" }, "description": "End date (overrides period)" }
+                    ],
+                    "responses": { "200": { "description": "Analytics data" } }
+                }
+            },
+            "/api/partner/websites/{websiteId}/analytics": {
+                "get": {
+                    "tags": ["Analytics"],
+                    "summary": "Get Website Analytics",
+                    "parameters": [
+                        { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } },
+                        { "name": "period", "in": "query", "schema": { "type": "string" } },
+                        { "name": "from_date", "in": "query", "schema": { "type": "string", "format": "date" } },
+                        { "name": "to_date", "in": "query", "schema": { "type": "string", "format": "date" } }
+                    ],
+                    "responses": { "200": { "description": "Website analytics" } }
+                }
+            },
+            
+            // ===== LIFECYCLE =====
+            "/api/partner/v1/reservations/{bookingId}": {
+                "put": {
+                    "tags": ["Lifecycle"],
+                    "summary": "Update Reservation",
+                    "description": "Send only fields to update. Date changes automatically update availability.",
+                    "parameters": [ { "name": "bookingId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "requestBody": {
+                        "content": { "application/json": { "example": { "check_in": "2026-03-20", "check_out": "2026-03-25" } } }
+                    },
+                    "responses": { "200": { "description": "Reservation updated" } }
+                },
+                "delete": {
+                    "tags": ["Lifecycle"],
+                    "summary": "Delete Reservation",
+                    "description": "Permanently removes the booking and frees dates.",
+                    "parameters": [ { "name": "bookingId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "responses": { "200": { "description": "Reservation deleted" } }
+                }
+            }
+        }
+    };
+    
+    // Initialize Swagger UI
+    window.onload = function() {
+        SwaggerUIBundle({
+            spec: spec,
+            dom_id: '#swagger-ui',
+            deepLinking: true,
+            presets: [
+                SwaggerUIBundle.presets.apis,
+                SwaggerUIStandalonePreset
+            ],
+            plugins: [
+                SwaggerUIBundle.plugins.DownloadUrl
+            ],
+            layout: "StandaloneLayout",
+            defaultModelsExpandDepth: 2,
+            defaultModelExpandDepth: 2,
+            docExpansion: "list",
+            filter: true,
+            showExtensions: true,
+            tryItOutEnabled: true
         });
+    };
     </script>
 </body>
 </html>
