@@ -47805,7 +47805,42 @@ app.post('/api/partner/websites/:websiteId/upload', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Website not yet deployed' });
     }
     
-    // Compress images before uploading to WordPress (reduces memory + storage)
+    // VIDEO: Upload directly to R2 (not WordPress - too large for WP media library)
+    if (isVideo) {
+      try {
+        const { PutObjectCommand } = require('@aws-sdk/client-s3');
+        const ext = file_name.split('.').pop().toLowerCase() || 'mp4';
+        const filename = `video-${Date.now()}-${require('crypto').randomUUID().slice(0, 8)}.${ext}`;
+        const key = `website/hero/client-${website.account_id}/${filename}`;
+        
+        const videoBuffer = Buffer.from(cleanBase64, 'base64');
+        
+        await r2Client.send(new PutObjectCommand({
+          Bucket: R2_BUCKET,
+          Key: key,
+          Body: videoBuffer,
+          ContentType: detectedType
+        }));
+        
+        const publicUrl = `${process.env.R2_PUBLIC_URL || 'https://images.gas.travel'}/${key}`;
+        
+        console.log(`[Upload] Video uploaded to R2: ${publicUrl} (${fileSizeMB}MB)`);
+        
+        return res.json({
+          success: true,
+          message: 'Video uploaded to R2',
+          url: publicUrl,
+          file_name: file_name,
+          file_size_mb: parseFloat(fileSizeMB),
+          section: section || 'hero'
+        });
+      } catch (videoErr) {
+        console.error('[Upload] R2 video upload failed:', videoErr.message);
+        return res.status(500).json({ success: false, error: 'Video upload failed: ' + videoErr.message });
+      }
+    }
+    
+    // IMAGE: Compress and upload to WordPress media library
     let uploadBase64 = cleanBase64;
     if (!isVideo) {
       try {
