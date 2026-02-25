@@ -427,7 +427,7 @@
                         "zip": { "type": "string", "example": "33139" },
                         "latitude": { "type": "number", "example": 25.7617 },
                         "longitude": { "type": "number", "example": -80.1918 },
-                        "property_type": { "type": "string", "example": "vacation_rental" },
+                        "property_type": { "type": "string", "enum": ["vacation_rental", "hotel", "apartment", "villa", "house", "cottage", "cabin", "chalet", "hostel", "guesthouse", "bed_and_breakfast", "resort", "motel", "studio", "townhouse", "bungalow", "farmhouse", "boat", "campsite"], "example": "vacation_rental" },
                         "description": { "type": "string", "example": "Luxury beachfront accommodation" }
                     }
                 },
@@ -687,15 +687,15 @@
                 "put": {
                     "tags": ["Properties & Rooms"],
                     "summary": "Update Property",
-                    "description": "Send only the fields you want to update inside a property object.",
+                    "description": "Send only the fields you want to update. Supports flat format or nested { property: {...} } format. Allowed fields: name, display_name, property_type, short_description, full_description (or long_description), address, address_line2, city, region, postcode, country, latitude, longitude, phone, email, currency, timezone. Valid property_type values: vacation_rental, hotel, apartment, villa, house, cottage, cabin, chalet, hostel, guesthouse, bed_and_breakfast, resort, motel, studio, townhouse, bungalow, farmhouse, boat, campsite.",
                     
                     "parameters": [
-                        { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "integer" } }
+                        { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "string" }, "description": "GAS property ID or your external_id" }
                     ],
                     "requestBody": {
                         "content": {
                             "application/json": {
-                                "example": { "property": { "name": "Updated Beach Studio", "description": "New description" } }
+                                "example": { "property": { "name": "Updated Beach Studio", "display_name": "Beach Studio Deluxe", "property_type": "vacation_rental", "short_description": "A lovely beachfront studio", "city": "Miami" } }
                             }
                         }
                     },
