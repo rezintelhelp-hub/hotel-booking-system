@@ -47857,6 +47857,12 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
       return res.status(400).json({ success: false, error: 'property.name is required' });
     }
     
+    // Validate property_type if provided
+    const VALID_PROPERTY_TYPES = ['vacation_rental', 'hotel', 'apartment', 'villa', 'house', 'cottage', 'cabin', 'chalet', 'hostel', 'guesthouse', 'bed_and_breakfast', 'resort', 'motel', 'studio', 'townhouse', 'bungalow', 'farmhouse', 'boat', 'campsite'];
+    if (property.property_type && !VALID_PROPERTY_TYPES.includes(property.property_type)) {
+      return res.status(400).json({ success: false, error: `Invalid property_type. Must be one of: ${VALID_PROPERTY_TYPES.join(', ')}` });
+    }
+    
     // Check if property with this external_id already exists for this client
     if (property.external_id) {
       const existingProp = await pool.query(
@@ -48118,6 +48124,12 @@ app.put('/api/elevate/:apiKey/property/:propertyId', async (req, res) => {
                           'address', 'address_line2', 'city', 'region', 
                           'postcode', 'country', 'latitude', 'longitude', 
                           'phone', 'email', 'currency', 'timezone', 'property_type'];
+    
+    // Validate property_type if provided
+    const VALID_PROPERTY_TYPES = ['vacation_rental', 'hotel', 'apartment', 'villa', 'house', 'cottage', 'cabin', 'chalet', 'hostel', 'guesthouse', 'bed_and_breakfast', 'resort', 'motel', 'studio', 'townhouse', 'bungalow', 'farmhouse', 'boat', 'campsite'];
+    if (updates.property_type !== undefined && !VALID_PROPERTY_TYPES.includes(updates.property_type)) {
+      return res.status(400).json({ success: false, error: `Invalid property_type. Must be one of: ${VALID_PROPERTY_TYPES.join(', ')}` });
+    }
     
     // Handle long_description as alias for full_description
     if (updates.long_description !== undefined && updates.full_description === undefined) {
