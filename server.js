@@ -16991,6 +16991,12 @@ app.get('/api/setup-database', async (req, res) => {
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS enigma_reference_id VARCHAR(100)`);
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS source_site_url VARCHAR(500)`);
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS guest_address VARCHAR(500)`);
+    // Discount tracking for partner-applied discounts
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS discount_type VARCHAR(20)`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS discount_value DECIMAL(10,2)`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS discount_amount DECIMAL(10,2)`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS discount_reason VARCHAR(255)`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS discount_source VARCHAR(50)`);
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS guest_city VARCHAR(100)`);
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS guest_postcode VARCHAR(20)`);
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS guest_country VARCHAR(100)`);
@@ -49841,6 +49847,160 @@ app.delete('/api/elevate/:apiKey/offers/:offerId', async (req, res) => {
 });
 
 // ELEVATE: PROPERTY/ROOM IMAGES
+// =========================================================
+
+// =========================================================
+// ELEVATE: BOOKING DISCOUNTS
+// =========================================================
+
+// Apply discount to a booking
+app.put('/api/elevate/:apiKey/booking/:bookingId/discount', async (req, res) => {
+  console.log('=== ELEVATE: APPLY BOOKING DISCOUNT ===');
+  
+  try {
+    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: 'Invalid API key' });
+    }
+    
+    const { bookingId } = req.params;
+    const { type, value, reason } = req.body;
+    
+    if (!type || !['fixed', 'first_night', 'percentage'].includes(type)) {
+      return res.status(400).json({ success: false, error: 'type is required. Must be: fixed, first_night, or percentage' });
+    }
+    
+    if (type !== 'first_night' && (!value || value <= 0)) {
+      return res.status(400).json({ success: false, error: 'value is required and must be greater than 0' });
+    }
+    
+    if (type === 'percentage' && value > 100) {
+      return res.status(400).json({ success: false, error: 'Percentage discount cannot exceed 100' });
+    }
+    
+    // Find booking - must belong to an Elevate property
+    const bookingCheck = await pool.query(`
+      SELECT b.id, b.grand_total, b.accommodation_price, b.arrival_date, b.departure_date,
+             b.bookable_unit_id, b.currency
+      FROM bookings b
+      JOIN properties p ON p.id = b.property_id
+      JOIN accounts a ON a.id = p.account_id
+      WHERE (a.parent_id = $1 OR a.id = $1) 
+      AND (b.id::text = $2 OR b.beds24_booking_id = $2 OR b.group_booking_id = $2)
+    `, [ELEVATE_MASTER_ACCOUNT_ID, bookingId]);
+    
+    if (bookingCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Booking not found' });
+    }
+    
+    const booking = bookingCheck.rows[0];
+    const total = parseFloat(booking.grand_total || booking.accommodation_price || 0);
+    
+    // Calculate discount amount
+    let discountAmount = 0;
+    
+    if (type === 'fixed') {
+      discountAmount = parseFloat(value);
+    } else if (type === 'percentage') {
+      discountAmount = Math.round(total * (parseFloat(value) / 100) * 100) / 100;
+    } else if (type === 'first_night') {
+      // Calculate first night rate from total / number of nights
+      const checkin = new Date(booking.arrival_date);
+      const checkout = new Date(booking.departure_date);
+      const nights = Math.max(1, Math.round((checkout - checkin) / (1000 * 60 * 60 * 24)));
+      discountAmount = Math.round((total / nights) * 100) / 100;
+    }
+    
+    // Don't allow discount to exceed total
+    if (discountAmount > total) {
+      discountAmount = total;
+    }
+    
+    // Calculate new total
+    const newTotal = Math.round((total - discountAmount) * 100) / 100;
+    
+    // Update booking
+    await pool.query(`
+      UPDATE bookings SET 
+        discount_type = $1,
+        discount_value = $2,
+        discount_amount = $3,
+        discount_reason = $4,
+        discount_source = 'partner',
+        grand_total = $5,
+        updated_at = NOW()
+      WHERE id = $6
+    `, [type, value || 0, discountAmount, reason || null, newTotal, booking.id]);
+    
+    console.log(`[Elevate] Applied ${type} discount of ${discountAmount} to booking ${booking.id}`);
+    
+    res.json({
+      success: true,
+      booking_id: booking.id,
+      discount_type: type,
+      discount_value: value || null,
+      discount_amount: discountAmount,
+      original_total: total,
+      new_total: newTotal,
+      currency: booking.currency
+    });
+    
+  } catch (error) {
+    console.error('Elevate apply discount error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Remove discount from a booking
+app.delete('/api/elevate/:apiKey/booking/:bookingId/discount', async (req, res) => {
+  console.log('=== ELEVATE: REMOVE BOOKING DISCOUNT ===');
+  
+  try {
+    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: 'Invalid API key' });
+    }
+    
+    const { bookingId } = req.params;
+    
+    // Find booking
+    const bookingCheck = await pool.query(`
+      SELECT b.id, b.grand_total, b.discount_amount
+      FROM bookings b
+      JOIN properties p ON p.id = b.property_id
+      JOIN accounts a ON a.id = p.account_id
+      WHERE (a.parent_id = $1 OR a.id = $1) 
+      AND (b.id::text = $2 OR b.beds24_booking_id = $2 OR b.group_booking_id = $2)
+    `, [ELEVATE_MASTER_ACCOUNT_ID, bookingId]);
+    
+    if (bookingCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Booking not found' });
+    }
+    
+    const booking = bookingCheck.rows[0];
+    const restoredTotal = parseFloat(booking.grand_total || 0) + parseFloat(booking.discount_amount || 0);
+    
+    await pool.query(`
+      UPDATE bookings SET 
+        discount_type = NULL,
+        discount_value = NULL,
+        discount_amount = NULL,
+        discount_reason = NULL,
+        discount_source = NULL,
+        grand_total = $1,
+        updated_at = NOW()
+      WHERE id = $2
+    `, [restoredTotal, booking.id]);
+    
+    res.json({ success: true, booking_id: booking.id, restored_total: restoredTotal });
+    
+  } catch (error) {
+    console.error('Elevate remove discount error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET PROPERTY IMAGES
 // =========================================================
 
 // Get images for a property
