@@ -1438,6 +1438,16 @@
                     "responses": { "200": { "description": "Logo removed" } }
                 }
             },
+            "/api/partner/websites/{websiteId}/header": {
+                "put": {
+                    "tags": ["Websites"],
+                    "summary": "Update Header Behaviour",
+                    "description": "Control header display options. All fields optional.\n\n- `sticky` — Header sticks to top on scroll\n- `fixed_header` — Header always visible at top (only applies when sticky is true)\n- `transparent` — Header transparent over hero image",
+                    "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "requestBody": { "content": { "application/json": { "example": { "sticky": true, "fixed_header": true, "transparent": true } } } },
+                    "responses": { "200": { "description": "Header settings updated and pushed to WordPress", "content": { "application/json": { "example": { "success": true, "header": { "sticky": true, "fixed_header": true, "transparent": true } } } } } }
+                }
+            },
             
             // ===== WEBSITE CONTENT =====
             "/api/partner/websites/{websiteId}/content/{section}": {
