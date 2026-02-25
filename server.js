@@ -20757,7 +20757,7 @@ app.put('/api/partner/v1/websites/:websiteId/:section', authenticatePartner, asy
     
     // Valid sections
     const validSections = [
-      'header', 'hero', 'intro', 'featured', 'about', 
+      'header', 'hero', 'intro', 'featured', 'about', 'services',
       'reviews', 'contact', 'footer', 'colors', 'seo'
     ];
     
@@ -46414,6 +46414,133 @@ app.put('/api/partner/websites/:websiteId/styles', async (req, res) => {
   }
 });
 
+// =========================================================
+// PARTNER: SERVICES / WHAT WE OFFER SECTION
+// =========================================================
+
+// GET /api/partner/websites/:websiteId/services - Get services section
+app.get('/api/partner/websites/:websiteId/services', async (req, res) => {
+  console.log('=== PARTNER API: GET SERVICES ===');
+  
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    
+    const deployedSiteId = await getPartnerDeployedSiteId(auth.partnerId, req.params.websiteId);
+    if (!deployedSiteId) {
+      return res.status(404).json({ success: false, error: 'Website not deployed or not found' });
+    }
+    
+    const result = await pool.query(
+      `SELECT settings FROM website_settings WHERE deployed_site_id = $1 AND section = 'services'`,
+      [deployedSiteId]
+    );
+    
+    const s = result.rows.length > 0 ? result.rows[0].settings : {};
+    
+    // Build items array
+    const items = [];
+    for (let i = 1; i <= 8; i++) {
+      const title = s[`item-${i}-title-en`] || s[`item-${i}-title`] || '';
+      const text = s[`item-${i}-text-en`] || s[`item-${i}-text`] || '';
+      const icon = s[`item-${i}-icon`] || '';
+      const image = s[`item-${i}-image-url`] || '';
+      if (title || text || icon || image) {
+        items.push({ slot: i, icon, image_url: image, title, text });
+      }
+    }
+    
+    res.json({
+      success: true,
+      website_id: parseInt(req.params.websiteId),
+      services: {
+        enabled: s['enabled'] === true || s['enabled'] === 'true',
+        title: s['title-en'] || s['title'] || '',
+        bg_image_url: s['bg-image-url'] || '',
+        items
+      }
+    });
+    
+  } catch (error) {
+    console.error('Partner API get services error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/partner/websites/:websiteId/services - Update services section
+app.put('/api/partner/websites/:websiteId/services', async (req, res) => {
+  console.log('=== PARTNER API: UPDATE SERVICES ===');
+  
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    
+    const deployedSiteId = await getPartnerDeployedSiteId(auth.partnerId, req.params.websiteId);
+    if (!deployedSiteId) {
+      return res.status(404).json({ success: false, error: 'Website not deployed or not found' });
+    }
+    
+    const siteResult = await pool.query('SELECT id, account_id, site_url FROM deployed_sites WHERE id = $1', [deployedSiteId]);
+    if (siteResult.rows.length === 0) return res.status(404).json({ success: false, error: 'Site not found' });
+    const site = siteResult.rows[0];
+    
+    const { enabled, title, bg_image_url, items } = req.body;
+    
+    const servicesResult = await pool.query(
+      `SELECT settings FROM website_settings WHERE deployed_site_id = $1 AND section = 'services'`,
+      [deployedSiteId]
+    );
+    const settings = servicesResult.rows.length > 0 ? (servicesResult.rows[0].settings || {}) : {};
+    const changes = {};
+    
+    if (enabled !== undefined) { settings['enabled'] = enabled; changes['enabled'] = enabled; }
+    if (title !== undefined) { settings['title-en'] = title; settings['title'] = title; changes['title-en'] = title; }
+    if (bg_image_url !== undefined) { settings['bg-image-url'] = bg_image_url; changes['bg-image-url'] = bg_image_url; }
+    
+    // Handle items array
+    if (items && Array.isArray(items)) {
+      for (const item of items) {
+        const i = item.slot;
+        if (!i || i < 1 || i > 8) continue;
+        if (item.icon !== undefined) { settings[`item-${i}-icon`] = item.icon; changes[`item-${i}-icon`] = item.icon; }
+        if (item.image_url !== undefined) { settings[`item-${i}-image-url`] = item.image_url; changes[`item-${i}-image-url`] = item.image_url; }
+        if (item.title !== undefined) { settings[`item-${i}-title-en`] = item.title; settings[`item-${i}-title`] = item.title; changes[`item-${i}-title-en`] = item.title; }
+        if (item.text !== undefined) { settings[`item-${i}-text-en`] = item.text; settings[`item-${i}-text`] = item.text; changes[`item-${i}-text-en`] = item.text; }
+      }
+    }
+    
+    if (Object.keys(changes).length === 0) {
+      return res.status(400).json({ success: false, error: 'No fields provided. Use: enabled, title, bg_image_url, items[]' });
+    }
+    
+    if (servicesResult.rows.length > 0) {
+      await pool.query(`UPDATE website_settings SET settings = $1, updated_at = NOW(), sync_source = 'partner' WHERE deployed_site_id = $2 AND section = 'services'`, [JSON.stringify(settings), deployedSiteId]);
+    } else {
+      await pool.query(`INSERT INTO website_settings (deployed_site_id, account_id, section, settings, sync_source, updated_at) VALUES ($1, $2, 'services', $3, 'partner', NOW())`, [deployedSiteId, site.account_id, JSON.stringify(settings)]);
+    }
+    
+    let wpPushResult = null;
+    if (site.site_url) { wpPushResult = await pushSettingsToWordPress(site.site_url, 'services', changes); }
+    
+    console.log(`[Partner API] Services updated for website ${req.params.websiteId}:`, Object.keys(changes));
+    
+    res.json({
+      success: true,
+      website_id: parseInt(req.params.websiteId),
+      updated_fields: Object.keys(changes),
+      wordpress_push: wpPushResult
+    });
+    
+  } catch (error) {
+    console.error('Partner API update services error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // POST /api/partner/websites/:websiteId/deploy - Deploy website to VPS
 app.post('/api/partner/websites/:websiteId/deploy', async (req, res) => {
   console.log('=== PARTNER API: DEPLOY WEBSITE ===');
@@ -47189,7 +47316,7 @@ app.put('/api/partner/websites/:websiteId/content/:section', async (req, res) =>
     
     // Validate section
     const validSections = [
-      'header', 'hero', 'intro', 'featured', 'about', 'reviews', 'cta', 'footer', 'styles', 'seo',
+      'header', 'hero', 'intro', 'featured', 'about', 'services', 'reviews', 'cta', 'footer', 'styles', 'seo',
       'page-rooms', 'page-about', 'page-gallery', 'page-contact', 'page-blog', 'page-attractions',
       'page-dining', 'page-offers', 'page-properties', 'page-reviews', 'page-terms', 'page-privacy'
     ];
@@ -47384,6 +47511,43 @@ const SECTION_DEFAULTS = {
     'btn-url': '',
     'btn-bg': '',
     'btn-text-color': ''
+  },
+  services: {
+    'enabled': false,
+    'title-en': '',
+    'bg-image-url': '',
+    'item-1-icon': '',
+    'item-1-image-url': '',
+    'item-1-title-en': '',
+    'item-1-text-en': '',
+    'item-2-icon': '',
+    'item-2-image-url': '',
+    'item-2-title-en': '',
+    'item-2-text-en': '',
+    'item-3-icon': '',
+    'item-3-image-url': '',
+    'item-3-title-en': '',
+    'item-3-text-en': '',
+    'item-4-icon': '',
+    'item-4-image-url': '',
+    'item-4-title-en': '',
+    'item-4-text-en': '',
+    'item-5-icon': '',
+    'item-5-image-url': '',
+    'item-5-title-en': '',
+    'item-5-text-en': '',
+    'item-6-icon': '',
+    'item-6-image-url': '',
+    'item-6-title-en': '',
+    'item-6-text-en': '',
+    'item-7-icon': '',
+    'item-7-image-url': '',
+    'item-7-title-en': '',
+    'item-7-text-en': '',
+    'item-8-icon': '',
+    'item-8-image-url': '',
+    'item-8-title-en': '',
+    'item-8-text-en': ''
   },
   reviews: {
     'enabled': true,
