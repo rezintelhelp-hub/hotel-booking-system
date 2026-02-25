@@ -913,10 +913,22 @@
             },
             
             // ===== ROOM DETAILS =====
+            "/api/elevate/_KEY_/amenities": {
+                "get": {
+                    "tags": ["Room Details"],
+                    "summary": "List All Available Amenities",
+                    "description": "Returns all available amenity codes grouped by category. Use these codes when setting room amenities, or send free-text names — fuzzy matching is supported.",
+                    "parameters": [
+                        { "name": "category", "in": "query", "required": false, "schema": { "type": "string" }, "description": "Filter by category (e.g. Kitchen, Bathroom, Entertainment)" }
+                    ],
+                    "responses": { "200": { "description": "List of available amenities grouped by category" } }
+                }
+            },
             "/api/elevate/_KEY_/room/{roomId}/amenities": {
                 "put": {
                     "tags": ["Room Details"],
                     "summary": "Set Room Amenities",
+                    "description": "Set amenities for a room. Send an array of amenity codes, names, or free-text descriptions. Fuzzy matching will map them to standard amenities. Use GET /api/elevate/_KEY_/amenities to see all available options. Unmatched amenities are still stored.",
                     
                     "parameters": [
                         { "name": "roomId", "in": "path", "required": true, "schema": { "type": "string" } }
@@ -925,12 +937,12 @@
                         "content": {
                             "application/json": {
                                 "example": {
-                                    "amenities": ["wifi", "air_conditioning", "tv", "kitchen", "pool", "washing_machine", "free_parking", "balcony"]
+                                    "amenities": ["wifi", "air_conditioning", "tv", "kitchen", "pool", "washing_machine", "free_parking", "balcony", "hot_tub", "bbq", "pet friendly"]
                                 }
                             }
                         }
                     },
-                    "responses": { "200": { "description": "Amenities updated" } }
+                    "responses": { "200": { "description": "Amenities updated with match results", "content": { "application/json": { "example": { "success": true, "total_count": 11, "matched_count": 10, "unmatched_count": 1, "matched": [], "unmatched": [] } } } } }
                 },
                 "get": {
                     "tags": ["Room Details"],
@@ -939,7 +951,7 @@
                     "parameters": [
                         { "name": "roomId", "in": "path", "required": true, "schema": { "type": "string" } }
                     ],
-                    "responses": { "200": { "description": "List of amenities" } }
+                    "responses": { "200": { "description": "List of amenities for this room" } }
                 }
             },
             "/api/elevate/_KEY_/room/{roomId}/bedrooms": {
