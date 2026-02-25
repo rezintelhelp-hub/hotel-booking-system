@@ -716,7 +716,7 @@
                 "post": {
                     "tags": ["Properties & Rooms"],
                     "summary": "Add Room to Property",
-                    "description": "Add a new room to an existing property.",
+                    "description": "Add a new room to an existing property. Valid room_type values: entire_place, private_room, shared_room, studio, suite, room, apartment, villa, cabin, tent, dorm.",
                     
                     "parameters": [
                         { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "integer" } }
@@ -727,6 +727,7 @@
                                 "example": {
                                     "name": "Penthouse Suite",
                                     "external_id": "ROOM-002",
+                                    "room_type": "entire_place",
                                     "max_guests": 4,
                                     "bedrooms": 2,
                                     "bathrooms": 2,
@@ -754,7 +755,7 @@
                 "put": {
                     "tags": ["Properties & Rooms"],
                     "summary": "Update Room",
-                    "description": "Update room details. roomId can be GAS unit_id (numeric) or your external_id.",
+                    "description": "Update room details. roomId can be GAS unit_id or your external_id. Accepted fields: name, display_name, room_type, short_description, full_description (or long_description), max_guests, max_adults, max_children, quantity, num_bedrooms, num_bathrooms, base_price (or base_rate), currency, status. Valid room_type values: entire_place, private_room, shared_room, studio, suite, room, apartment, villa, cabin, tent, dorm.",
                     
                     "parameters": [
                         { "name": "roomId", "in": "path", "required": true, "schema": { "type": "string" }, "description": "GAS unit_id or your external_id" }
@@ -762,7 +763,7 @@
                     "requestBody": {
                         "content": {
                             "application/json": {
-                                "example": { "name": "Updated Room Name", "max_guests": 3 }
+                                "example": { "name": "Updated Room Name", "room_type": "entire_place", "max_guests": 3, "display_name": "Luxury Suite" }
                             }
                         }
                     },
