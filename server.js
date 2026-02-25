@@ -46541,6 +46541,161 @@ app.put('/api/partner/websites/:websiteId/services', async (req, res) => {
   }
 });
 
+// =========================================================
+// PARTNER: ROOMS PAGE (Book Now)
+// =========================================================
+
+// GET /api/partner/websites/:websiteId/rooms-page - Get rooms page settings
+app.get('/api/partner/websites/:websiteId/rooms-page', async (req, res) => {
+  console.log('=== PARTNER API: GET ROOMS PAGE ===');
+  
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    
+    const deployedSiteId = await getPartnerDeployedSiteId(auth.partnerId, req.params.websiteId);
+    if (!deployedSiteId) {
+      return res.status(404).json({ success: false, error: 'Website not deployed or not found' });
+    }
+    
+    const result = await pool.query(
+      `SELECT settings FROM website_settings WHERE deployed_site_id = $1 AND section = 'page-rooms'`,
+      [deployedSiteId]
+    );
+    
+    const s = result.rows.length > 0 ? result.rows[0].settings : {};
+    
+    res.json({
+      success: true,
+      website_id: parseInt(req.params.websiteId),
+      rooms_page: {
+        enabled: s['enabled'] !== false && s['enabled'] !== 'false',
+        title: s['title-en'] || s['title'] || 'Our Rooms',
+        subtitle: s['subtitle-en'] || s['subtitle'] || '',
+        menu_title: s['menu-title-en'] || 'Book Now',
+        layout: {
+          columns: s['columns'] || '3',
+          style: s['layout-style'] || 'cards'
+        },
+        search: {
+          show: s['show-search'] !== false && s['show-search'] !== 'false'
+        },
+        filters: {
+          show_amenity: s['show-amenity-filter'] === true || s['show-amenity-filter'] === 'true',
+          show_location: s['show-location-filter'] === true || s['show-location-filter'] === 'true',
+          show_map: s['show-map'] === true || s['show-map'] === 'true',
+          bg_color: s['filter-bg'] || '#f8fafc'
+        },
+        colors: {
+          bg: s['bg'] || s['bg-color'] || '',
+          text: s['text-color'] || ''
+        },
+        transparent_header: s['transparent-header'] === true || s['transparent-header'] === 'true',
+        meta: {
+          title: s['meta-title'] || '',
+          description: s['meta-description'] || ''
+        }
+      }
+    });
+    
+  } catch (error) {
+    console.error('Partner API get rooms page error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/partner/websites/:websiteId/rooms-page - Update rooms page settings
+app.put('/api/partner/websites/:websiteId/rooms-page', async (req, res) => {
+  console.log('=== PARTNER API: UPDATE ROOMS PAGE ===');
+  
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    
+    const deployedSiteId = await getPartnerDeployedSiteId(auth.partnerId, req.params.websiteId);
+    if (!deployedSiteId) {
+      return res.status(404).json({ success: false, error: 'Website not deployed or not found' });
+    }
+    
+    const siteResult = await pool.query('SELECT id, account_id, site_url FROM deployed_sites WHERE id = $1', [deployedSiteId]);
+    if (siteResult.rows.length === 0) return res.status(404).json({ success: false, error: 'Site not found' });
+    const site = siteResult.rows[0];
+    
+    const { enabled, title, subtitle, menu_title, columns, layout_style,
+            show_search, show_amenity_filter, show_location_filter, show_map,
+            filter_bg, bg_color, text_color, transparent_header,
+            meta_title, meta_description } = req.body;
+    
+    const pageResult = await pool.query(
+      `SELECT settings FROM website_settings WHERE deployed_site_id = $1 AND section = 'page-rooms'`,
+      [deployedSiteId]
+    );
+    const settings = pageResult.rows.length > 0 ? (pageResult.rows[0].settings || {}) : {};
+    const changes = {};
+    
+    const fieldMap = {
+      enabled: 'enabled',
+      title: 'title-en',
+      subtitle: 'subtitle-en',
+      menu_title: 'menu-title-en',
+      columns: 'columns',
+      layout_style: 'layout-style',
+      show_search: 'show-search',
+      show_amenity_filter: 'show-amenity-filter',
+      show_location_filter: 'show-location-filter',
+      show_map: 'show-map',
+      filter_bg: 'filter-bg',
+      bg_color: 'bg-color',
+      text_color: 'text-color',
+      transparent_header: 'transparent-header',
+      meta_title: 'meta-title',
+      meta_description: 'meta-description'
+    };
+    
+    const incoming = { enabled, title, subtitle, menu_title, columns, layout_style,
+                       show_search, show_amenity_filter, show_location_filter, show_map,
+                       filter_bg, bg_color, text_color, transparent_header,
+                       meta_title, meta_description };
+    
+    for (const [apiField, cssField] of Object.entries(fieldMap)) {
+      if (incoming[apiField] !== undefined) {
+        settings[cssField] = incoming[apiField];
+        changes[cssField] = incoming[apiField];
+      }
+    }
+    
+    if (Object.keys(changes).length === 0) {
+      return res.status(400).json({ success: false, error: 'No fields provided' });
+    }
+    
+    if (pageResult.rows.length > 0) {
+      await pool.query(`UPDATE website_settings SET settings = $1, updated_at = NOW(), sync_source = 'partner' WHERE deployed_site_id = $2 AND section = 'page-rooms'`, [JSON.stringify(settings), deployedSiteId]);
+    } else {
+      await pool.query(`INSERT INTO website_settings (deployed_site_id, account_id, section, settings, sync_source, updated_at) VALUES ($1, $2, 'page-rooms', $3, 'partner', NOW())`, [deployedSiteId, site.account_id, JSON.stringify(settings)]);
+    }
+    
+    let wpPushResult = null;
+    if (site.site_url) { wpPushResult = await pushSettingsToWordPress(site.site_url, 'page-rooms', changes); }
+    
+    console.log(`[Partner API] Rooms page updated for website ${req.params.websiteId}:`, Object.keys(changes));
+    
+    res.json({
+      success: true,
+      website_id: parseInt(req.params.websiteId),
+      updated_fields: Object.keys(changes),
+      wordpress_push: wpPushResult
+    });
+    
+  } catch (error) {
+    console.error('Partner API update rooms page error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // POST /api/partner/websites/:websiteId/deploy - Deploy website to VPS
 app.post('/api/partner/websites/:websiteId/deploy', async (req, res) => {
   console.log('=== PARTNER API: DEPLOY WEBSITE ===');
@@ -47637,12 +47792,15 @@ const SECTION_DEFAULTS = {
     'bg': '',
     'bg-color': '',
     'text-color': '',
+    'filter-bg': '#f8fafc',
     'columns': '3',
     'layout-style': 'cards',
     'show-search': true,
     'show-amenity-filter': true,
     'show-location-filter': false,
     'show-map': false,
+    'transparent-header': false,
+    'menu-order': '',
     'meta-title': '',
     'meta-description': '',
     'faq-enabled': false
