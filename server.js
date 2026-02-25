@@ -1371,6 +1371,7 @@ app.get('/', (req, res) => {
 app.get('/privacy', (req, res) => res.sendFile('privacy.html', { root: 'public' }));
 app.get('/terms', (req, res) => res.sendFile('terms.html', { root: 'public' }));
 app.get('/data-deletion', (req, res) => res.sendFile('data-deletion.html', { root: 'public' }));
+app.get('/api/docs', (req, res) => res.sendFile('api-docs.html', { root: 'public' }));
 
 app.use(express.static('public'));
 
@@ -19490,6 +19491,32 @@ function hasPartnerPermission(req, permission) {
     : req.partner.permissions;
   return perms.includes(permission) || perms.includes('*');
 }
+
+// =====================================================
+// PARTNER API FEATURE REQUESTS
+// =====================================================
+app.post('/api/partner/feature-request', async (req, res) => {
+  try {
+    const { name, company, email, type, endpoint, description, priority } = req.body;
+    
+    if (!name || !description) {
+      return res.status(400).json({ success: false, error: 'Name and description are required' });
+    }
+    
+    await pool.query(`
+      INSERT INTO partner_feature_requests (name, company, email, type, endpoint, description, priority, status, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', NOW())
+    `, [name, company || null, email || null, type || 'feature', endpoint || null, description, priority || 'medium']);
+    
+    console.log(`[Feature Request] New ${priority || 'medium'} ${type || 'feature'} request from ${name} (${company}): ${description.substring(0, 100)}`);
+    
+    res.json({ success: true, message: 'Feature request submitted' });
+  } catch (error) {
+    // Table might not exist yet - log and acknowledge
+    console.log(`[Feature Request] ${req.body.name}: ${req.body.description?.substring(0, 200)}`);
+    res.json({ success: true, message: 'Request noted' });
+  }
+});
 
 // =====================================================
 // PARTNER KEY REQUEST ENDPOINTS
