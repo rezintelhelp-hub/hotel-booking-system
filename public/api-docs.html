@@ -1479,10 +1479,10 @@
             "/api/partner/websites/{websiteId}/hero/search": {
                 "put": {
                     "tags": ["Websites"],
-                    "summary": "Update Search Box Styling",
-                    "description": "Update search box button colour and styling.\n\n- `btn_bg` — Search button background (hex)\n- `btn_text` — Search button text colour (hex)\n- `label_color` — Field label colour (hex)\n- `max_guests` — Max guests in dropdown",
+                    "summary": "Update Search Widget Styling",
+                    "description": "Update hero search widget appearance. All fields optional.\n\n**Button:** btn_bg (hex), btn_text (hex)\n**Labels:** label_color (hex), max_guests\n**Widget:** bg (background hex), opacity (0-100), radius (border-radius px), padding (px), scale (50-150%), max_width (px)",
                     "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
-                    "requestBody": { "content": { "application/json": { "example": { "btn_bg": "#10b981", "btn_text": "#ffffff" } } } },
+                    "requestBody": { "content": { "application/json": { "examples": { "button_colour": { "summary": "Fix search button colour", "value": { "btn_bg": "#10b981", "btn_text": "#ffffff" } }, "full_styling": { "summary": "Full widget styling", "value": { "btn_bg": "#2563eb", "btn_text": "#ffffff", "bg": "rgba(0,0,0,0.3)", "opacity": "80", "radius": "12", "max_width": "800", "max_guests": "6" } } } } } },
                     "responses": { "200": { "description": "Search styling updated" } }
                 }
             },
@@ -1528,6 +1528,23 @@
                     "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
                     "requestBody": { "content": { "application/json": { "examples": { "enable_with_items": { "summary": "Enable with items", "value": { "enabled": true, "title": "What We Offer", "items": [{ "slot": 1, "icon": "👥", "title": "Concierge", "text": "24/7 guest support" }, { "slot": 2, "icon": "🧹", "title": "Cleaning", "text": "Daily housekeeping" }, { "slot": 3, "icon": "🏢", "title": "Office", "text": "Co-working space" }] } }, "disable": { "summary": "Disable section", "value": { "enabled": false } } } } } },
                     "responses": { "200": { "description": "Services updated and pushed to WordPress" } }
+                }
+            },
+            "/api/partner/websites/{websiteId}/rooms-page": {
+                "get": {
+                    "tags": ["Websites"],
+                    "summary": "Get Rooms Page Settings",
+                    "description": "Returns the Book Now / rooms listing page settings including search widget, filters, layout, and colours.",
+                    "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "responses": { "200": { "description": "Rooms page settings", "content": { "application/json": { "example": { "success": true, "rooms_page": { "enabled": true, "title": "Our Rooms", "layout": { "columns": "3", "style": "cards" }, "search": { "show": true }, "filters": { "show_amenity": true, "show_location": true, "show_map": false, "bg_color": "#f8fafc" }, "colors": { "bg": "#ffffff", "text": "#1e293b" } } } } } } }
+                },
+                "put": {
+                    "tags": ["Websites"],
+                    "summary": "Update Rooms Page Settings",
+                    "description": "Control the rooms/booking page. All fields optional.\n\n**Display:** enabled, title, subtitle, menu_title, columns (1-4), layout_style (cards|list)\n**Search Widget:** show_search (true/false)\n**Filters:** show_amenity_filter, show_location_filter, show_map, filter_bg (background colour for filter bar)\n**Colours:** bg_color (page background), text_color\n**Header:** transparent_header\n**SEO:** meta_title, meta_description",
+                    "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "requestBody": { "content": { "application/json": { "examples": { "search_and_filters": { "summary": "Configure search and filters", "value": { "show_search": true, "show_amenity_filter": true, "show_location_filter": true, "filter_bg": "#f0f9ff" } }, "layout": { "summary": "Change layout", "value": { "columns": "2", "layout_style": "cards", "bg_color": "#ffffff" } } } } } },
+                    "responses": { "200": { "description": "Rooms page updated and pushed to WordPress" } }
                 }
             },
             
