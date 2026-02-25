@@ -18222,6 +18222,7 @@ app.get('/api/setup-website-builder', async (req, res) => {
             developer_header_text: { type: 'color', label: 'Text Color', default: '#1e293b' },
             developer_header_transparent: { type: 'toggle', label: 'Transparent on Homepage', default: true },
             developer_header_sticky: { type: 'toggle', label: 'Sticky Header', default: true },
+            developer_header_fixed_header: { type: 'toggle', label: 'Fixed Header (always visible)', default: false },
             developer_header_cta_text: { type: 'text', label: 'CTA Button Text', default: 'Book Now' },
             developer_header_cta_url: { type: 'text', label: 'CTA Button URL', default: '/book-now/' },
             developer_header_cta_bg: { type: 'color', label: 'CTA Button Color', default: '#2563eb' }
@@ -21183,6 +21184,7 @@ async function pushSettingsToWordPress(siteUrl, section, settings) {
       'underline-color': 'underline_color',
       'transparent': 'transparent',
       'sticky': 'sticky',
+      'fixed-header': 'fixed_header',
       'cta-button-text': 'cta_text',
       'cta-text': 'cta_text',
       'cta-bg': 'cta_bg',
@@ -45920,6 +45922,91 @@ app.delete('/api/partner/websites/:websiteId/logo', async (req, res) => {
   }
 });
 
+// PUT /api/partner/websites/:websiteId/header - Update header behaviour (sticky, fixed, transparent)
+app.put('/api/partner/websites/:websiteId/header', async (req, res) => {
+  console.log('=== PARTNER API: UPDATE HEADER ===');
+  
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    
+    const { websiteId } = req.params;
+    const { sticky, fixed_header, transparent } = req.body;
+    
+    const deployedSiteId = await getPartnerDeployedSiteId(auth.partnerId, websiteId);
+    if (!deployedSiteId) {
+      return res.status(404).json({ success: false, error: 'Website not deployed or not found' });
+    }
+    
+    const siteResult = await pool.query(
+      'SELECT id, account_id, site_url FROM deployed_sites WHERE id = $1',
+      [deployedSiteId]
+    );
+    
+    if (siteResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Deployed site not found' });
+    }
+    
+    const site = siteResult.rows[0];
+    
+    // Get existing header settings
+    const headerResult = await pool.query(
+      `SELECT settings FROM website_settings WHERE deployed_site_id = $1 AND section = 'header'`,
+      [deployedSiteId]
+    );
+    
+    const settings = headerResult.rows.length > 0 ? (headerResult.rows[0].settings || {}) : {};
+    const changes = {};
+    
+    if (sticky !== undefined) { settings['sticky'] = sticky; changes['sticky'] = sticky; }
+    if (fixed_header !== undefined) { settings['fixed-header'] = fixed_header; changes['fixed-header'] = fixed_header; }
+    if (transparent !== undefined) { settings['transparent'] = transparent; changes['transparent'] = transparent; }
+    
+    if (Object.keys(changes).length === 0) {
+      return res.status(400).json({ success: false, error: 'No fields provided. Use: sticky, fixed_header, transparent' });
+    }
+    
+    // UPSERT header settings
+    if (headerResult.rows.length > 0) {
+      await pool.query(
+        `UPDATE website_settings SET settings = $1, updated_at = NOW(), sync_source = 'partner' WHERE deployed_site_id = $2 AND section = 'header'`,
+        [JSON.stringify(settings), deployedSiteId]
+      );
+    } else {
+      await pool.query(
+        `INSERT INTO website_settings (deployed_site_id, account_id, section, settings, sync_source, updated_at) VALUES ($1, $2, 'header', $3, 'partner', NOW())`,
+        [deployedSiteId, site.account_id, JSON.stringify(settings)]
+      );
+    }
+    
+    // Push to WordPress
+    let wpPushResult = null;
+    if (site.site_url) {
+      wpPushResult = await pushSettingsToWordPress(site.site_url, 'header', changes);
+    }
+    
+    console.log(`[Partner API] Header updated for website ${websiteId}:`, Object.keys(changes));
+    
+    res.json({
+      success: true,
+      website_id: parseInt(websiteId),
+      updated_fields: Object.keys(changes),
+      header: {
+        sticky: settings['sticky'],
+        fixed_header: settings['fixed-header'],
+        transparent: settings['transparent']
+      },
+      wordpress_push: wpPushResult
+    });
+    
+  } catch (error) {
+    console.error('Partner API update header error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // POST /api/partner/websites/:websiteId/deploy - Deploy website to VPS
 app.post('/api/partner/websites/:websiteId/deploy', async (req, res) => {
   console.log('=== PARTNER API: DEPLOY WEBSITE ===');
@@ -46784,6 +46871,7 @@ const SECTION_DEFAULTS = {
     'text-transform': '',
     'layout': 'logo-left',
     'sticky': true,
+    'fixed-header': false,
     'transparent': true,
     'border': false
   },
