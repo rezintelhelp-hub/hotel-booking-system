@@ -21240,7 +21240,30 @@ async function pushSettingsToWordPress(siteUrl, section, settings) {
       'feature-3': 'feature_3',
       'feature-4': 'feature_4',
       'feature-5': 'feature_5',
-      'feature-6': 'feature_6'
+      'feature-6': 'feature_6',
+      // Contact page display options
+      'show-details': 'show_details',
+      'show-email': 'show_email',
+      'show-phone': 'show_phone',
+      'show-address': 'show_address',
+      'show-map': 'show_map',
+      'show-directions': 'show_directions',
+      'show-form': 'show_form',
+      'show-opening-hours': 'show_opening_hours',
+      // Opening hours
+      'hours-monday': 'hours_monday',
+      'hours-tuesday': 'hours_tuesday',
+      'hours-wednesday': 'hours_wednesday',
+      'hours-thursday': 'hours_thursday',
+      'hours-friday': 'hours_friday',
+      'hours-saturday': 'hours_saturday',
+      'hours-sunday': 'hours_sunday',
+      // Contact map
+      'latitude': 'latitude',
+      'longitude': 'longitude',
+      'map-zoom': 'map_zoom',
+      // Contact form
+      'button-color': 'button_color'
     };
     
     // Section-specific key overrides (only applied when pushing that section)
@@ -46726,6 +46749,192 @@ app.put('/api/partner/websites/:websiteId/rooms-page', async (req, res) => {
   }
 });
 
+// GET /api/partner/websites/:websiteId/contact-page - Get contact page settings
+app.get('/api/partner/websites/:websiteId/contact-page', async (req, res) => {
+  console.log('=== PARTNER API: GET CONTACT PAGE ===');
+  
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) return res.status(401).json({ success: false, error: auth.error });
+    
+    const deployedSiteId = await getPartnerDeployedSiteId(auth.partnerId, req.params.websiteId);
+    if (!deployedSiteId) return res.status(404).json({ success: false, error: 'Website not deployed or not found' });
+    
+    const result = await pool.query(`SELECT settings FROM website_settings WHERE deployed_site_id = $1 AND section = 'page-contact'`, [deployedSiteId]);
+    const s = result.rows.length > 0 ? (result.rows[0].settings || {}) : {};
+    const d = sectionDefaults['page-contact'] || {};
+    const v = (key) => s[key] !== undefined ? s[key] : d[key];
+    
+    res.json({
+      success: true,
+      contact_page: {
+        enabled: v('enabled') === true || v('enabled') === 'true',
+        menu_title: v('menu-title-en') || 'Contact',
+        menu_order: v('menu-order') || '8',
+        transparent_header: v('transparent-header') === true || v('transparent-header') === 'true',
+        title: v('title-en') || '',
+        subtitle: v('subtitle-en') || '',
+        display_options: {
+          show_details: v('show-details') !== false && v('show-details') !== 'false',
+          show_email: v('show-email') !== false && v('show-email') !== 'false',
+          show_phone: v('show-phone') !== false && v('show-phone') !== 'false',
+          show_address: v('show-address') !== false && v('show-address') !== 'false',
+          show_map: v('show-map') !== false && v('show-map') !== 'false',
+          show_directions: v('show-directions') !== false && v('show-directions') !== 'false',
+          show_contact_form: v('show-form') !== false && v('show-form') !== 'false',
+          show_opening_hours: v('show-opening-hours') === true || v('show-opening-hours') === 'true'
+        },
+        contact_details: {
+          business_name: v('business-name') || '',
+          email: v('email') || '',
+          phone: v('phone') || '',
+          address: v('address') || '',
+          city: v('city') || '',
+          state: v('state') || '',
+          zip: v('zip') || '',
+          country: v('country') || ''
+        },
+        opening_hours: {
+          monday: v('hours-monday') || '',
+          tuesday: v('hours-tuesday') || '',
+          wednesday: v('hours-wednesday') || '',
+          thursday: v('hours-thursday') || '',
+          friday: v('hours-friday') || '',
+          saturday: v('hours-saturday') || '',
+          sunday: v('hours-sunday') || ''
+        },
+        map: {
+          latitude: v('latitude') || '',
+          longitude: v('longitude') || '',
+          zoom: v('map-zoom') || '14'
+        },
+        form: {
+          button_color: v('button-color') || '#10b981'
+        },
+        meta: {
+          meta_title: v('meta-title') || '',
+          meta_description: v('meta-description') || ''
+        }
+      }
+    });
+    
+  } catch (error) {
+    console.error('Partner API get contact page error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/partner/websites/:websiteId/contact-page - Update contact page settings
+app.put('/api/partner/websites/:websiteId/contact-page', async (req, res) => {
+  console.log('=== PARTNER API: UPDATE CONTACT PAGE ===');
+  
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) return res.status(401).json({ success: false, error: auth.error });
+    
+    const deployedSiteId = await getPartnerDeployedSiteId(auth.partnerId, req.params.websiteId);
+    if (!deployedSiteId) return res.status(404).json({ success: false, error: 'Website not deployed or not found' });
+    
+    const siteResult = await pool.query('SELECT id, account_id, site_url FROM deployed_sites WHERE id = $1', [deployedSiteId]);
+    if (siteResult.rows.length === 0) return res.status(404).json({ success: false, error: 'Site not found' });
+    const site = siteResult.rows[0];
+    
+    const contactResult = await pool.query(`SELECT settings FROM website_settings WHERE deployed_site_id = $1 AND section = 'page-contact'`, [deployedSiteId]);
+    const settings = contactResult.rows.length > 0 ? (contactResult.rows[0].settings || {}) : {};
+    const changes = {};
+    
+    const {
+      enabled, menu_title, menu_order, transparent_header,
+      title, subtitle,
+      show_details, show_email, show_phone, show_address, show_map, show_directions, show_contact_form, show_opening_hours,
+      business_name, email, phone, address, city, state, zip, country,
+      opening_hours,
+      latitude, longitude, map_zoom,
+      button_color,
+      meta_title, meta_description
+    } = req.body;
+    
+    const fieldMap = {
+      enabled: 'enabled',
+      menu_order: 'menu-order',
+      transparent_header: 'transparent-header',
+      show_details: 'show-details',
+      show_email: 'show-email',
+      show_phone: 'show-phone',
+      show_address: 'show-address',
+      show_map: 'show-map',
+      show_directions: 'show-directions',
+      show_contact_form: 'show-form',
+      show_opening_hours: 'show-opening-hours',
+      business_name: 'business-name',
+      email: 'email',
+      phone: 'phone',
+      address: 'address',
+      city: 'city',
+      state: 'state',
+      zip: 'zip',
+      country: 'country',
+      latitude: 'latitude',
+      longitude: 'longitude',
+      map_zoom: 'map-zoom',
+      button_color: 'button-color',
+      meta_title: 'meta-title',
+      meta_description: 'meta-description'
+    };
+    
+    const incoming = {
+      enabled, menu_order, transparent_header,
+      show_details, show_email, show_phone, show_address, show_map, show_directions, show_contact_form, show_opening_hours,
+      business_name, email, phone, address, city, state, zip, country,
+      latitude, longitude, map_zoom, button_color,
+      meta_title, meta_description
+    };
+    
+    for (const [apiField, cssField] of Object.entries(fieldMap)) {
+      if (incoming[apiField] !== undefined) {
+        const val = typeof incoming[apiField] === 'boolean' ? incoming[apiField] : String(incoming[apiField]);
+        settings[cssField] = val;
+        changes[cssField] = val;
+      }
+    }
+    
+    // Translatable fields
+    if (menu_title !== undefined) { settings['menu-title-en'] = menu_title; changes['menu-title-en'] = menu_title; }
+    if (title !== undefined) { settings['title-en'] = title; changes['title-en'] = title; }
+    if (subtitle !== undefined) { settings['subtitle-en'] = subtitle; changes['subtitle-en'] = subtitle; }
+    
+    // Opening hours object
+    if (opening_hours && typeof opening_hours === 'object') {
+      const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+      for (const day of days) {
+        if (opening_hours[day] !== undefined) {
+          settings['hours-' + day] = opening_hours[day];
+          changes['hours-' + day] = opening_hours[day];
+        }
+      }
+    }
+    
+    if (Object.keys(changes).length === 0) {
+      return res.status(400).json({ success: false, error: 'No fields provided' });
+    }
+    
+    if (contactResult.rows.length > 0) {
+      await pool.query(`UPDATE website_settings SET settings = $1, updated_at = NOW(), sync_source = 'partner' WHERE deployed_site_id = $2 AND section = 'page-contact'`, [JSON.stringify(settings), deployedSiteId]);
+    } else {
+      await pool.query(`INSERT INTO website_settings (deployed_site_id, account_id, section, settings, sync_source, updated_at) VALUES ($1, $2, 'page-contact', $3, 'partner', NOW())`, [deployedSiteId, site.account_id, JSON.stringify(settings)]);
+    }
+    
+    let wpPushResult = null;
+    if (site.site_url) { wpPushResult = await pushSettingsToWordPress(site.site_url, 'page-contact', changes); }
+    
+    res.json({ success: true, updated_fields: Object.keys(changes), wordpress_push: wpPushResult });
+    
+  } catch (error) {
+    console.error('Partner API update contact page error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // POST /api/partner/websites/:websiteId/deploy - Deploy website to VPS
 app.post('/api/partner/websites/:websiteId/deploy', async (req, res) => {
   console.log('=== PARTNER API: DEPLOY WEBSITE ===');
@@ -47917,10 +48126,34 @@ const SECTION_DEFAULTS = {
   'page-contact': {
     'enabled': false,
     'menu-title-en': 'Contact',
-    'menu-order': '',
+    'menu-order': '8',
+    'transparent-header': false,
     'meta-title': '',
     'meta-description': '',
-    'faq-enabled': false
+    'faq-enabled': false,
+    // Display Options
+    'show-details': true,
+    'show-email': true,
+    'show-phone': true,
+    'show-address': true,
+    'show-map': true,
+    'show-directions': true,
+    'show-form': true,
+    'show-opening-hours': false,
+    // Opening Hours (free text per day)
+    'hours-monday': '',
+    'hours-tuesday': '',
+    'hours-wednesday': '',
+    'hours-thursday': '',
+    'hours-friday': '',
+    'hours-saturday': '',
+    'hours-sunday': '',
+    // Map settings
+    'latitude': '',
+    'longitude': '',
+    'map-zoom': '14',
+    // Contact form
+    'button-color': '#10b981'
   },
   'page-terms': {
     'title': 'Terms & Conditions',
