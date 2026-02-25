@@ -17260,6 +17260,8 @@ app.get('/api/setup-database', async (req, res) => {
     await pool.query(`ALTER TABLE upsells ADD COLUMN IF NOT EXISTS room_ids TEXT`);
     await pool.query(`ALTER TABLE upsells ADD COLUMN IF NOT EXISTS image_url TEXT`);
     await pool.query(`ALTER TABLE upsells ADD COLUMN IF NOT EXISTS category VARCHAR(50)`);
+    await pool.query(`ALTER TABLE upsells ADD COLUMN IF NOT EXISTS source VARCHAR(50) DEFAULT 'manual'`);
+    await pool.query(`ALTER TABLE upsells ADD COLUMN IF NOT EXISTS external_id VARCHAR(255)`);
     
     // Multilingual support for upsells
     await pool.query(`ALTER TABLE upsells ADD COLUMN IF NOT EXISTS name_ml JSONB`);
@@ -35939,7 +35941,7 @@ app.post('/api/admin/upsells', async (req, res) => {
     await pool.query('ALTER TABLE upsells ADD COLUMN IF NOT EXISTS name_ml JSONB').catch(() => {});
     await pool.query('ALTER TABLE upsells ADD COLUMN IF NOT EXISTS description_ml JSONB').catch(() => {});
     
-    const { name: rawName, description: rawDesc, name_ml, description_ml, price, charge_type, max_quantity, property_id, room_id, room_ids, active, is_external, vendor_id } = req.body;
+    const { name: rawName, description: rawDesc, name_ml, description_ml, price, charge_type, max_quantity, property_id, room_id, room_ids, active, is_external, vendor_id, category } = req.body;
     
     // Handle name/description being sent as objects from frontend
     const nameObj = (typeof rawName === 'object' && rawName !== null) ? rawName : (name_ml || (rawName ? { en: rawName } : null));
@@ -35950,10 +35952,10 @@ app.post('/api/admin/upsells', async (req, res) => {
     const englishDesc = mlStr(rawDesc) || '';
     
     const result = await pool.query(`
-      INSERT INTO upsells (name, description, name_ml, description_ml, price, charge_type, max_quantity, property_id, room_id, room_ids, active, is_external, vendor_id)
-      VALUES ($1, $2, $3::jsonb, $4::jsonb, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      INSERT INTO upsells (name, description, name_ml, description_ml, price, charge_type, max_quantity, property_id, room_id, room_ids, active, is_external, vendor_id, category)
+      VALUES ($1, $2, $3::jsonb, $4::jsonb, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
       RETURNING *
-    `, [englishName, englishDesc, nameJson, descJson, price, charge_type || 'per_booking', max_quantity, property_id, room_id, room_ids, active !== false, is_external || false, vendor_id || null]);
+    `, [englishName, englishDesc, nameJson, descJson, price, charge_type || 'per_booking', max_quantity, property_id, room_id, room_ids, active !== false, is_external || false, vendor_id || null, category || null]);
     
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
@@ -35967,7 +35969,7 @@ app.put('/api/admin/upsells/:id', async (req, res) => {
     await pool.query('ALTER TABLE upsells ADD COLUMN IF NOT EXISTS name_ml JSONB').catch(() => {});
     await pool.query('ALTER TABLE upsells ADD COLUMN IF NOT EXISTS description_ml JSONB').catch(() => {});
     
-    const { name: rawName, description: rawDesc, name_ml, description_ml, price, charge_type, max_quantity, property_id, room_id, room_ids, active, is_external, vendor_id } = req.body;
+    const { name: rawName, description: rawDesc, name_ml, description_ml, price, charge_type, max_quantity, property_id, room_id, room_ids, active, is_external, vendor_id, category } = req.body;
     
     // Handle name/description being sent as objects from frontend
     const nameObj = (typeof rawName === 'object' && rawName !== null) ? rawName : (name_ml || (rawName ? { en: rawName } : null));
@@ -35992,10 +35994,11 @@ app.put('/api/admin/upsells/:id', async (req, res) => {
         active = COALESCE($11, active),
         is_external = COALESCE($12, is_external),
         vendor_id = $13,
+        category = $14,
         updated_at = NOW()
-      WHERE id = $14
+      WHERE id = $15
       RETURNING *
-    `, [englishName, englishDesc, nameJson, descJson, price, charge_type, max_quantity, property_id, room_id, room_ids, active, is_external, vendor_id, req.params.id]);
+    `, [englishName, englishDesc, nameJson, descJson, price, charge_type, max_quantity, property_id, room_id, room_ids, active, is_external, vendor_id, category || null, req.params.id]);
     
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
@@ -49996,6 +49999,231 @@ app.delete('/api/elevate/:apiKey/booking/:bookingId/discount', async (req, res) 
     
   } catch (error) {
     console.error('Elevate remove discount error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// =========================================================
+// ELEVATE: UPSELLS
+// =========================================================
+
+const VALID_UPSELL_CATEGORIES = ['airport_transport', 'private_chef', 'spa', 'activity', 'late_checkout', 'early_checkin', 'mid_stay_cleaning', 'office_equipment', 'baby', 'protection_program', 'motorcycle', 'car_rental', 'food_and_drink', 'experience', 'miscellaneous'];
+
+// List upsells for a property
+app.get('/api/elevate/:apiKey/property/:propertyId/upsells', async (req, res) => {
+  console.log('=== ELEVATE: GET PROPERTY UPSELLS ===');
+  
+  try {
+    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: 'Invalid API key' });
+    }
+    
+    const { propertyId } = req.params;
+    
+    const propCheck = await pool.query(`
+      SELECT p.id FROM properties p
+      JOIN accounts a ON a.id = p.account_id
+      WHERE (a.parent_id = $1 OR a.id = $1) 
+      AND (p.id::text = $2 OR p.cm_property_id = $2)
+    `, [ELEVATE_MASTER_ACCOUNT_ID, propertyId]);
+    
+    if (propCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Property not found' });
+    }
+    
+    const gasPropertyId = propCheck.rows[0].id;
+    
+    const result = await pool.query(`
+      SELECT id, external_id, name, description, price, charge_type, max_quantity,
+             category, room_id, room_ids, image_url, active, source, created_at
+      FROM upsells 
+      WHERE property_id = $1
+      ORDER BY category, name
+    `, [gasPropertyId]);
+    
+    res.json({ success: true, property_id: gasPropertyId, upsells: result.rows });
+    
+  } catch (error) {
+    console.error('Elevate get upsells error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// List available upsell categories
+app.get('/api/elevate/:apiKey/upsell-categories', async (req, res) => {
+  console.log('=== ELEVATE: LIST UPSELL CATEGORIES ===');
+  
+  try {
+    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: 'Invalid API key' });
+    }
+    
+    res.json({
+      success: true,
+      categories: VALID_UPSELL_CATEGORIES,
+      charge_types: ['per_booking', 'per_night', 'per_day', 'per_guest', 'per_guest_per_night', 'per_hour']
+    });
+    
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Create upsell
+app.post('/api/elevate/:apiKey/property/:propertyId/upsells', async (req, res) => {
+  console.log('=== ELEVATE: CREATE UPSELL ===');
+  
+  try {
+    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: 'Invalid API key' });
+    }
+    
+    const { propertyId } = req.params;
+    const { name, description, price, charge_type, max_quantity, category,
+            room_id, room_ids, image_url, external_id } = req.body;
+    
+    if (!name || price === undefined) {
+      return res.status(400).json({ success: false, error: 'name and price are required' });
+    }
+    
+    if (category && !VALID_UPSELL_CATEGORIES.includes(category)) {
+      return res.status(400).json({ success: false, error: `Invalid category. Must be one of: ${VALID_UPSELL_CATEGORIES.join(', ')}` });
+    }
+    
+    const propCheck = await pool.query(`
+      SELECT p.id FROM properties p
+      JOIN accounts a ON a.id = p.account_id
+      WHERE (a.parent_id = $1 OR a.id = $1) 
+      AND (p.id::text = $2 OR p.cm_property_id = $2)
+    `, [ELEVATE_MASTER_ACCOUNT_ID, propertyId]);
+    
+    if (propCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Property not found' });
+    }
+    
+    const gasPropertyId = propCheck.rows[0].id;
+    
+    // Check duplicate external_id
+    if (external_id) {
+      const existing = await pool.query(
+        "SELECT id FROM upsells WHERE external_id = $1 AND property_id = $2",
+        [external_id, gasPropertyId]
+      );
+      if (existing.rows.length > 0) {
+        return res.status(400).json({ success: false, error: `Upsell with external_id "${external_id}" already exists`, existing_upsell_id: existing.rows[0].id });
+      }
+    }
+    
+    const result = await pool.query(`
+      INSERT INTO upsells (name, description, price, charge_type, max_quantity, category, property_id, room_id, room_ids, image_url, external_id, source, active)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'partner', true)
+      RETURNING *
+    `, [name, description || null, price, charge_type || 'per_booking', max_quantity || null, category || null, gasPropertyId, room_id || null, room_ids ? room_ids.join(',') : null, image_url || null, external_id || null]);
+    
+    res.json({ success: true, upsell: result.rows[0] });
+    
+  } catch (error) {
+    console.error('Elevate create upsell error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Update upsell
+app.put('/api/elevate/:apiKey/upsells/:upsellId', async (req, res) => {
+  console.log('=== ELEVATE: UPDATE UPSELL ===');
+  
+  try {
+    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: 'Invalid API key' });
+    }
+    
+    const { upsellId } = req.params;
+    const updates = req.body;
+    
+    const upsellCheck = await pool.query(`
+      SELECT u.id FROM upsells u
+      JOIN properties p ON p.id = u.property_id
+      JOIN accounts a ON a.id = p.account_id
+      WHERE (a.parent_id = $1 OR a.id = $1) 
+      AND (u.id::text = $2 OR u.external_id = $2)
+    `, [ELEVATE_MASTER_ACCOUNT_ID, upsellId]);
+    
+    if (upsellCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Upsell not found' });
+    }
+    
+    const gasUpsellId = upsellCheck.rows[0].id;
+    
+    if (updates.category && !VALID_UPSELL_CATEGORIES.includes(updates.category)) {
+      return res.status(400).json({ success: false, error: `Invalid category. Must be one of: ${VALID_UPSELL_CATEGORIES.join(', ')}` });
+    }
+    
+    const updateFields = [];
+    const values = [];
+    let pi = 1;
+    
+    const allowedFields = ['name', 'description', 'price', 'charge_type', 'max_quantity', 'category', 'room_id', 'room_ids', 'image_url', 'active'];
+    
+    for (const field of allowedFields) {
+      if (updates[field] !== undefined) {
+        let val = updates[field];
+        if (field === 'room_ids' && Array.isArray(val)) val = val.join(',');
+        updateFields.push(`${field} = $${pi++}`);
+        values.push(val);
+      }
+    }
+    
+    if (updateFields.length === 0) {
+      return res.status(400).json({ success: false, error: 'No valid fields to update' });
+    }
+    
+    updateFields.push(`updated_at = NOW()`);
+    values.push(gasUpsellId);
+    
+    await pool.query(`UPDATE upsells SET ${updateFields.join(', ')} WHERE id = $${pi}`, values);
+    
+    res.json({ success: true, upsell_id: gasUpsellId });
+    
+  } catch (error) {
+    console.error('Elevate update upsell error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Delete upsell
+app.delete('/api/elevate/:apiKey/upsells/:upsellId', async (req, res) => {
+  console.log('=== ELEVATE: DELETE UPSELL ===');
+  
+  try {
+    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: 'Invalid API key' });
+    }
+    
+    const { upsellId } = req.params;
+    
+    const upsellCheck = await pool.query(`
+      SELECT u.id FROM upsells u
+      JOIN properties p ON p.id = u.property_id
+      JOIN accounts a ON a.id = p.account_id
+      WHERE (a.parent_id = $1 OR a.id = $1) 
+      AND (u.id::text = $2 OR u.external_id = $2)
+    `, [ELEVATE_MASTER_ACCOUNT_ID, upsellId]);
+    
+    if (upsellCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Upsell not found' });
+    }
+    
+    await pool.query('DELETE FROM upsells WHERE id = $1', [upsellCheck.rows[0].id]);
+    
+    res.json({ success: true, deleted_upsell_id: upsellCheck.rows[0].id });
+    
+  } catch (error) {
+    console.error('Elevate delete upsell error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
