@@ -16193,6 +16193,30 @@ const promo = await fetch('/api/v1/offers/validate', {
                     
                     <div class="form-group" style="margin-bottom: 1.25rem;">
                         <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">
+                            Category <span style="color: #9ca3af; font-weight: normal;">(optional)</span>
+                        </label>
+                        <select id="upsell-category" class="form-input" style="padding: 0.75rem; border-radius: 8px;">
+                            <option value="">Select category...</option>
+                            <option value="airport_transport">Airport Transport</option>
+                            <option value="private_chef">Private Chef</option>
+                            <option value="spa">Spa</option>
+                            <option value="activity">Activity</option>
+                            <option value="late_checkout">Late Check-Out</option>
+                            <option value="early_checkin">Early Check-In</option>
+                            <option value="mid_stay_cleaning">Mid-Stay Cleaning</option>
+                            <option value="office_equipment">Office Equipment</option>
+                            <option value="baby">Baby</option>
+                            <option value="protection_program">Protection Program</option>
+                            <option value="motorcycle">Motorcycle</option>
+                            <option value="car_rental">Car Rental</option>
+                            <option value="food_and_drink">Food & Drink</option>
+                            <option value="experience">Experience</option>
+                            <option value="miscellaneous">Miscellaneous</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 1.25rem;">
+                        <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">
                             Max Quantity <span style="color: #9ca3af; font-weight: normal;">(optional)</span>
                         </label>
                         <input type="number" id="upsell-max-qty" class="form-input" placeholder="Unlimited" min="1"
@@ -39762,10 +39786,27 @@ const promo = await fetch('/api/v1/offers/validate', {
             };
             
             for (const upsell of upsells) {
+                const isPartner = upsell.source === 'partner';
+                const partnerBadge = isPartner ? '<span style="background: #dbeafe; color: #1d4ed8; padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; font-weight: 600; margin-left: 0.5rem;">Partner</span>' : '';
+                const categoryLabel = upsell.category ? `<span style="background: #f3f4f6; color: #6b7280; padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; margin-left: 0.5rem;">${(upsell.category || '').replace(/_/g, ' ')}</span>` : '';
+                
+                let actionsHtml;
+                if (isPartner) {
+                    actionsHtml = `
+                        <span style="color: #6b7280; font-size: 0.8rem; margin-right: 0.5rem;">Managed by partner</span>
+                        <button class="btn btn-small" onclick="toggleUpsellActive(${upsell.id}, ${!upsell.active})" style="font-size: 0.8rem; background: ${upsell.active ? '#f59e0b' : '#10b981'}; color: white;">${upsell.active ? '⏸ Disable' : '▶ Enable'}</button>
+                    `;
+                } else {
+                    actionsHtml = `
+                        <button class="btn btn-small" onclick="editUpsell(${upsell.id})" style="font-size: 0.8rem; margin-right: 0.25rem;">✏️ Edit</button>
+                        <button class="btn btn-small btn-danger" onclick="deleteUpsell(${upsell.id})" style="font-size: 0.8rem; background: #ef4444; color: white;">🗑️ Delete</button>
+                    `;
+                }
+                
                 html += `
                     <tr style="border-bottom: 1px solid var(--border);">
                         <td style="padding: 0.75rem;">
-                            <strong>${mlDisplay(upsell.name)}</strong>
+                            <strong>${mlDisplay(upsell.name)}</strong>${partnerBadge}${categoryLabel}
                             ${upsell.description ? `<br><small style="color: #64748b;">${mlDisplay(upsell.description)}</small>` : ''}
                         </td>
                         <td style="padding: 0.75rem; font-weight: 600; color: #059669;">$${parseFloat(upsell.price).toFixed(2)}</td>
@@ -39774,8 +39815,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                             <span class="badge ${upsell.active ? 'badge-success' : 'badge-secondary'}">${upsell.active ? 'Active' : 'Inactive'}</span>
                         </td>
                         <td style="padding: 0.75rem; text-align: right; white-space: nowrap;">
-                            <button class="btn btn-small" onclick="editUpsell(${upsell.id})" style="font-size: 0.8rem; margin-right: 0.25rem;">✏️ Edit</button>
-                            <button class="btn btn-small btn-danger" onclick="deleteUpsell(${upsell.id})" style="font-size: 0.8rem; background: #ef4444; color: white;">🗑️ Delete</button>
+                            ${actionsHtml}
                         </td>
                     </tr>
                 `;
@@ -39985,6 +40025,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             document.getElementById('upsell-price').value = upsell.price || '';
             document.getElementById('upsell-charge-type').value = upsell.charge_type || 'per_booking';
             document.getElementById('upsell-max-qty').value = upsell.max_quantity || '';
+            document.getElementById('upsell-category').value = upsell.category || '';
             document.getElementById('upsell-active').checked = upsell.active;
             document.getElementById('upsell-multi-room').checked = false;
             document.getElementById('upsell-rooms-checkboxes').style.display = 'none';
@@ -40066,6 +40107,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 price: parseFloat(document.getElementById('upsell-price').value),
                 charge_type: document.getElementById('upsell-charge-type').value,
                 max_quantity: parseInt(document.getElementById('upsell-max-qty').value) || null,
+                category: document.getElementById('upsell-category').value || null,
                 property_id: document.getElementById('upsell-property').value || null,
                 room_id: roomId,
                 room_ids: roomIds,
@@ -40111,6 +40153,24 @@ const promo = await fetch('/api/v1/offers/validate', {
                 }
             } catch (error) {
                 alert('Error deleting upsell: ' + error.message);
+            }
+        }
+        
+        async function toggleUpsellActive(id, newActive) {
+            try {
+                const response = await fetch(`/api/admin/upsells/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ active: newActive })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    loadUpsellsForProperty();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                alert('Error toggling upsell: ' + error.message);
             }
         }
 

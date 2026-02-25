@@ -527,7 +527,8 @@
             { "name": "Custom Domains", "description": "Connect custom domains to websites" },
             { "name": "Webhooks", "description": "Configure and diagnose webhook integrations" },
             { "name": "Analytics", "description": "Tenant and website analytics" },
-            { "name": "Lifecycle", "description": "Reservations, deletions, and lifecycle management" }
+            { "name": "Lifecycle", "description": "Reservations, deletions, and lifecycle management" },
+            { "name": "Upsells", "description": "Create and manage upsells (add-on services) for properties" }
         ],
         "paths": {
             // ===== TENANTS =====
@@ -1670,6 +1671,97 @@
                     "description": "Permanently removes the booking and frees dates.",
                     "parameters": [ { "name": "bookingId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
                     "responses": { "200": { "description": "Reservation deleted" } }
+                }
+            },
+            "/api/elevate/_KEY_/booking/{bookingId}/discount": {
+                "put": {
+                    "tags": ["Lifecycle"],
+                    "summary": "Apply Booking Discount",
+                    "description": "Apply a one-off discount to a specific booking. Three types: fixed (flat amount off), first_night (first night free), percentage (% off total). The booking's grand_total is recalculated automatically.",
+                    "parameters": [
+                        { "name": "bookingId", "in": "path", "required": true, "schema": { "type": "string" }, "description": "GAS booking ID, Beds24 booking ID, or group_booking_id" }
+                    ],
+                    "requestBody": {
+                        "required": true,
+                        "content": {
+                            "application/json": {
+                                "examples": {
+                                    "fixed": {
+                                        "summary": "Fixed amount discount",
+                                        "value": { "type": "fixed", "value": 50, "reason": "Loyalty discount" }
+                                    },
+                                    "first_night": {
+                                        "summary": "First night free",
+                                        "value": { "type": "first_night", "reason": "Welcome offer" }
+                                    },
+                                    "percentage": {
+                                        "summary": "Percentage discount",
+                                        "value": { "type": "percentage", "value": 15, "reason": "Early bird 15% off" }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "responses": { "200": { "description": "Discount applied", "content": { "application/json": { "example": { "success": true, "booking_id": 123, "discount_type": "fixed", "discount_amount": 50, "original_total": 500, "new_total": 450, "currency": "CHF" } } } } }
+                },
+                "delete": {
+                    "tags": ["Lifecycle"],
+                    "summary": "Remove Booking Discount",
+                    "description": "Remove a previously applied discount and restore the original total.",
+                    "parameters": [
+                        { "name": "bookingId", "in": "path", "required": true, "schema": { "type": "string" } }
+                    ],
+                    "responses": { "200": { "description": "Discount removed and total restored" } }
+                }
+            },
+            "/api/elevate/_KEY_/upsell-categories": {
+                "get": {
+                    "tags": ["Upsells"],
+                    "summary": "List Upsell Categories",
+                    "description": "Returns all available upsell categories and charge types.",
+                    "responses": { "200": { "description": "Categories list", "content": { "application/json": { "example": { "success": true, "categories": ["airport_transport", "private_chef", "spa", "activity", "late_checkout", "early_checkin", "mid_stay_cleaning", "office_equipment", "baby", "protection_program", "motorcycle", "car_rental", "food_and_drink", "experience", "miscellaneous"], "charge_types": ["per_booking", "per_night", "per_day", "per_guest", "per_guest_per_night", "per_hour"] } } } } }
+                }
+            },
+            "/api/elevate/_KEY_/property/{propertyId}/upsells": {
+                "get": {
+                    "tags": ["Upsells"],
+                    "summary": "List Property Upsells",
+                    "description": "Get all upsells for a property.",
+                    "parameters": [
+                        { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "string" } }
+                    ],
+                    "responses": { "200": { "description": "Upsells list", "content": { "application/json": { "example": { "success": true, "property_id": 5, "upsells": [{ "id": 1, "name": "Airport Transfer", "price": "75.00", "charge_type": "per_booking", "category": "airport_transport", "active": true, "source": "partner" }] } } } } }
+                },
+                "post": {
+                    "tags": ["Upsells"],
+                    "summary": "Create Upsell",
+                    "description": "Create an upsell for a property. Optionally target specific rooms with room_id or room_ids array. Set external_id for lookup by your system's ID.",
+                    "parameters": [
+                        { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "string" } }
+                    ],
+                    "requestBody": { "required": true, "content": { "application/json": { "example": { "name": "Airport Transfer", "description": "Private transfer from Zurich Airport", "price": 75.00, "charge_type": "per_booking", "category": "airport_transport", "external_id": "elv-upsell-42" } } } },
+                    "responses": { "200": { "description": "Upsell created", "content": { "application/json": { "example": { "success": true, "upsell": { "id": 1, "name": "Airport Transfer", "price": "75.00", "category": "airport_transport", "source": "partner" } } } } } }
+                }
+            },
+            "/api/elevate/_KEY_/upsells/{upsellId}": {
+                "put": {
+                    "tags": ["Upsells"],
+                    "summary": "Update Upsell",
+                    "description": "Update an upsell by GAS ID or external_id. Fields: name, description, price, charge_type, max_quantity, category, room_id, room_ids, image_url, active.",
+                    "parameters": [
+                        { "name": "upsellId", "in": "path", "required": true, "schema": { "type": "string" }, "description": "GAS upsell ID or external_id" }
+                    ],
+                    "requestBody": { "required": true, "content": { "application/json": { "example": { "price": 85.00, "active": true } } } },
+                    "responses": { "200": { "description": "Upsell updated" } }
+                },
+                "delete": {
+                    "tags": ["Upsells"],
+                    "summary": "Delete Upsell",
+                    "description": "Delete an upsell by GAS ID or external_id.",
+                    "parameters": [
+                        { "name": "upsellId", "in": "path", "required": true, "schema": { "type": "string" }, "description": "GAS upsell ID or external_id" }
+                    ],
+                    "responses": { "200": { "description": "Upsell deleted" } }
                 }
             }
         }
