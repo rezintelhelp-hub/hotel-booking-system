@@ -48811,7 +48811,18 @@ app.put('/api/elevate/:apiKey/room/:roomId/bedrooms', async (req, res) => {
       const bedroomName = bedroom.name || `Bedroom ${displayOrder}`;
       
       // Build bed_config JSONB from beds array
-      const beds = bedroom.beds || [{ type: bedroom.bed_type || 'bed_double', count: bedroom.bed_count || 1 }];
+      const beds = bedroom.beds || [];
+      
+      // If no beds provided and no bed_type shorthand, skip this room (it's not a sleeping space)
+      if (beds.length === 0 && !bedroom.bed_type) {
+        console.log(`[Elevate] Skipping room "${bedroomName}" - no beds configured`);
+        continue;
+      }
+      
+      // Handle shorthand: { bed_type: "king", bed_count: 1 } instead of beds array
+      if (beds.length === 0 && bedroom.bed_type) {
+        beds.push({ type: bedroom.bed_type, count: bedroom.bed_count || 1 });
+      }
       
       // Normalize bed types to match UI expectations (no 'bed_' prefix, 'qty' instead of 'count')
       const normalizedBeds = beds.map(bed => {
@@ -48864,10 +48875,10 @@ app.put('/api/elevate/:apiKey/room/:roomId/bedrooms', async (req, res) => {
       displayOrder++;
     }
     
-    // Also update num_bedrooms on the room
+    // Also update num_bedrooms on the room (only count rooms with beds)
     await pool.query(
       'UPDATE bookable_units SET num_bedrooms = $1, updated_at = NOW() WHERE id = $2',
-      [bedrooms.length, gasRoomId]
+      [addedBedrooms.length, gasRoomId]
     );
     
     res.json({ 
