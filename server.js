@@ -49773,6 +49773,109 @@ app.delete('/api/elevate/:apiKey/property/:propertyId/images/:imageId', async (r
   }
 });
 
+// Reorder property images
+app.put('/api/elevate/:apiKey/property/:propertyId/images/reorder', async (req, res) => {
+  console.log('=== ELEVATE: REORDER PROPERTY IMAGES ===');
+  
+  try {
+    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: 'Invalid API key' });
+    }
+    
+    const { propertyId } = req.params;
+    const { image_ids } = req.body;
+    
+    if (!image_ids || !Array.isArray(image_ids) || image_ids.length === 0) {
+      return res.status(400).json({ success: false, error: 'image_ids array is required' });
+    }
+    
+    // Find property
+    const propCheck = await pool.query(`
+      SELECT p.id FROM properties p
+      JOIN accounts a ON a.id = p.account_id
+      WHERE (a.parent_id = $1 OR a.id = $1) 
+      AND (p.id::text = $2 OR p.cm_property_id = $2)
+    `, [ELEVATE_MASTER_ACCOUNT_ID, propertyId]);
+    
+    if (propCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Property not found' });
+    }
+    
+    const gasPropertyId = propCheck.rows[0].id;
+    
+    // Update display_order for each image
+    let updated = 0;
+    for (let i = 0; i < image_ids.length; i++) {
+      const result = await pool.query(
+        `UPDATE property_images SET display_order = $1, is_primary = $2, updated_at = NOW() 
+         WHERE property_id = $3 AND (id::text = $4 OR external_id = $4)`,
+        [i, i === 0, gasPropertyId, String(image_ids[i])]
+      );
+      if (result.rowCount > 0) updated++;
+    }
+    
+    console.log(`[Elevate] Reordered ${updated}/${image_ids.length} property images for property ${gasPropertyId}`);
+    res.json({ success: true, updated, total: image_ids.length });
+    
+  } catch (error) {
+    console.error('Elevate reorder property images error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Reorder room images
+app.put('/api/elevate/:apiKey/room/:roomId/images/reorder', async (req, res) => {
+  console.log('=== ELEVATE: REORDER ROOM IMAGES ===');
+  
+  try {
+    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: 'Invalid API key' });
+    }
+    
+    const { roomId } = req.params;
+    const { image_ids } = req.body;
+    
+    if (!image_ids || !Array.isArray(image_ids) || image_ids.length === 0) {
+      return res.status(400).json({ success: false, error: 'image_ids array is required' });
+    }
+    
+    // Find room
+    const roomCheck = await pool.query(`
+      SELECT bu.id, bu.property_id FROM bookable_units bu
+      JOIN properties p ON p.id = bu.property_id
+      JOIN accounts a ON a.id = p.account_id
+      WHERE (a.parent_id = $1 OR a.id = $1)
+      AND (bu.id::text = $2 OR bu.cm_room_id = $2)
+    `, [ELEVATE_MASTER_ACCOUNT_ID, roomId]);
+    
+    if (roomCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Room not found' });
+    }
+    
+    const gasRoomId = roomCheck.rows[0].id;
+    
+    // Update display_order for each image
+    let updated = 0;
+    for (let i = 0; i < image_ids.length; i++) {
+      const result = await pool.query(
+        `UPDATE room_images SET display_order = $1, updated_at = NOW() 
+         WHERE room_id = $2 AND (id::text = $3 OR external_id = $3)`,
+        [i, gasRoomId, String(image_ids[i])]
+      );
+      if (result.rowCount > 0) updated++;
+    }
+    
+    console.log(`[Elevate] Reordered ${updated}/${image_ids.length} room images for room ${gasRoomId}`);
+    res.json({ success: true, updated, total: image_ids.length });
+    
+  } catch (error) {
+    console.error('Elevate reorder room images error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Get images for a room
 app.get('/api/elevate/:apiKey/room/:roomId/images', async (req, res) => {
   console.log('=== ELEVATE: GET ROOM IMAGES ===');
