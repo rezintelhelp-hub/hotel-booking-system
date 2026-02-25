@@ -1513,16 +1513,33 @@
                     "responses": { "200": { "description": "Styles updated and pushed to WordPress" } }
                 }
             },
+            "/api/partner/websites/{websiteId}/services": {
+                "get": {
+                    "tags": ["Websites"],
+                    "summary": "Get Services / What We Offer",
+                    "description": "Returns the 'What We Offer' homepage section — enabled state, title, background image, and up to 8 service items.",
+                    "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "responses": { "200": { "description": "Services settings", "content": { "application/json": { "example": { "success": true, "services": { "enabled": true, "title": "What We Offer", "bg_image_url": "", "items": [{ "slot": 1, "icon": "👥", "image_url": "", "title": "Concierge Service", "text": "24/7 guest support" }] } } } } } }
+                },
+                "put": {
+                    "tags": ["Websites"],
+                    "summary": "Update Services / What We Offer",
+                    "description": "Enable/disable section, set title, background image, and up to 8 items. Each item has a slot (1-8), icon (emoji), image_url, title, and text.\n\nTo turn off: `{ \"enabled\": false }`\nTo update items: send items array with slot numbers.",
+                    "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "requestBody": { "content": { "application/json": { "examples": { "enable_with_items": { "summary": "Enable with items", "value": { "enabled": true, "title": "What We Offer", "items": [{ "slot": 1, "icon": "👥", "title": "Concierge", "text": "24/7 guest support" }, { "slot": 2, "icon": "🧹", "title": "Cleaning", "text": "Daily housekeeping" }, { "slot": 3, "icon": "🏢", "title": "Office", "text": "Co-working space" }] } }, "disable": { "summary": "Disable section", "value": { "enabled": false } } } } } },
+                    "responses": { "200": { "description": "Services updated and pushed to WordPress" } }
+                }
+            },
             
             // ===== WEBSITE CONTENT =====
             "/api/partner/websites/{websiteId}/content/{section}": {
                 "put": {
                     "tags": ["Website Content"],
                     "summary": "Update Content Section",
-                    "description": "Update website content sections. Changes are saved to GAS and automatically pushed to the live WordPress site. You must send the complete settings object — any fields not included will be reset to defaults.\n\n**Valid sections:** header, hero, intro, featured, about, reviews, cta, footer, styles, seo, page-rooms, page-about, page-gallery, page-blog, page-attractions, page-dining, page-offers, page-properties, page-reviews, page-contact, page-terms, page-privacy\n\n**Multilingual:** All text fields support language variants by appending: -en, -fr, -es, -nl",
+                    "description": "Update website content sections. Changes are saved to GAS and automatically pushed to the live WordPress site. You must send the complete settings object — any fields not included will be reset to defaults.\n\n**Valid sections:** header, hero, intro, featured, about, services, reviews, cta, footer, styles, seo, page-rooms, page-about, page-gallery, page-blog, page-attractions, page-dining, page-offers, page-properties, page-reviews, page-contact, page-terms, page-privacy\n\n**Multilingual:** All text fields support language variants by appending: -en, -fr, -es, -nl",
                     "parameters": [
                         { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } },
-                        { "name": "section", "in": "path", "required": true, "schema": { "type": "string", "enum": ["header", "hero", "intro", "featured", "about", "reviews", "cta", "footer", "styles", "seo", "page-rooms", "page-about", "page-gallery", "page-blog", "page-attractions", "page-dining", "page-offers", "page-properties", "page-reviews", "page-contact", "page-terms", "page-privacy"] } }
+                        { "name": "section", "in": "path", "required": true, "schema": { "type": "string", "enum": ["header", "hero", "intro", "featured", "about", "services", "reviews", "cta", "footer", "styles", "seo", "page-rooms", "page-about", "page-gallery", "page-blog", "page-attractions", "page-dining", "page-offers", "page-properties", "page-reviews", "page-contact", "page-terms", "page-privacy"] } }
                     ],
                     "requestBody": {
                         "content": {
