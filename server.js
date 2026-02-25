@@ -18216,6 +18216,8 @@ app.get('/api/setup-website-builder', async (req, res) => {
           fields: {
             developer_logo_text: { type: 'text', label: 'Logo Text', default: 'Your Property' },
             developer_logo_image: { type: 'image', label: 'Logo Image' },
+            developer_logo_size: { type: 'range', label: 'Logo Size (px)', min: 20, max: 120, default: 40 },
+            developer_logo_light_image: { type: 'image', label: 'Logo for Dark/Transparent Header' },
             developer_header_bg: { type: 'color', label: 'Background Color', default: '#ffffff' },
             developer_header_text: { type: 'color', label: 'Text Color', default: '#1e293b' },
             developer_header_transparent: { type: 'toggle', label: 'Transparent on Homepage', default: true },
@@ -21173,6 +21175,8 @@ async function pushSettingsToWordPress(siteUrl, section, settings) {
       // Header section - these get developer_header_ prefix from WP
       'logo-image-url': 'logo_image',
       'logo-text': 'logo_text',
+      'logo-size': 'logo_size',
+      'logo-light-image-url': 'logo_light_image',
       'site-name': 'logo_text',
       'bg-color': 'bg_color',
       'text-color': 'text_color',
@@ -45695,6 +45699,228 @@ app.put('/api/partner/websites/:websiteId/name', async (req, res) => {
 });
 
 // POST /api/partner/websites/:websiteId/deploy - Deploy website to VPS
+
+// =========================================================
+// PARTNER: LOGO MANAGEMENT
+// =========================================================
+
+// GET /api/partner/websites/:websiteId/logo - Get current logo settings
+app.get('/api/partner/websites/:websiteId/logo', async (req, res) => {
+  console.log('=== PARTNER API: GET LOGO ===');
+  
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    
+    const { websiteId } = req.params;
+    
+    const deployedSiteId = await getPartnerDeployedSiteId(auth.partnerId, websiteId);
+    if (!deployedSiteId) {
+      return res.status(404).json({ success: false, error: 'Website not deployed or not found' });
+    }
+    
+    const headerResult = await pool.query(
+      `SELECT settings FROM website_settings WHERE deployed_site_id = $1 AND section = 'header'`,
+      [deployedSiteId]
+    );
+    
+    const settings = headerResult.rows.length > 0 ? headerResult.rows[0].settings : {};
+    
+    res.json({
+      success: true,
+      website_id: parseInt(websiteId),
+      logo: {
+        image_url: settings['logo-image-url'] || null,
+        size: settings['logo-size'] || '40',
+        light_image_url: settings['logo-light-image-url'] || null,
+        color: settings['logo-color'] || '#0f172a'
+      }
+    });
+    
+  } catch (error) {
+    console.error('Partner API get logo error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/partner/websites/:websiteId/logo - Update logo (image_url, size, light_image_url, color)
+app.put('/api/partner/websites/:websiteId/logo', async (req, res) => {
+  console.log('=== PARTNER API: UPDATE LOGO ===');
+  
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    
+    const { websiteId } = req.params;
+    const { image_url, size, light_image_url, color } = req.body;
+    
+    const deployedSiteId = await getPartnerDeployedSiteId(auth.partnerId, websiteId);
+    if (!deployedSiteId) {
+      return res.status(404).json({ success: false, error: 'Website not deployed or not found' });
+    }
+    
+    const siteResult = await pool.query(
+      'SELECT id, account_id, site_url FROM deployed_sites WHERE id = $1',
+      [deployedSiteId]
+    );
+    
+    if (siteResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Deployed site not found' });
+    }
+    
+    const site = siteResult.rows[0];
+    
+    // Get existing header settings
+    const headerResult = await pool.query(
+      `SELECT settings FROM website_settings WHERE deployed_site_id = $1 AND section = 'header'`,
+      [deployedSiteId]
+    );
+    
+    const settings = headerResult.rows.length > 0 ? (headerResult.rows[0].settings || {}) : {};
+    
+    // Only update fields that were provided
+    const changes = {};
+    if (image_url !== undefined) { settings['logo-image-url'] = image_url; changes['logo-image-url'] = image_url; }
+    if (size !== undefined) { settings['logo-size'] = String(size); changes['logo-size'] = String(size); }
+    if (light_image_url !== undefined) { settings['logo-light-image-url'] = light_image_url; changes['logo-light-image-url'] = light_image_url; }
+    if (color !== undefined) { settings['logo-color'] = color; changes['logo-color'] = color; }
+    
+    if (Object.keys(changes).length === 0) {
+      return res.status(400).json({ success: false, error: 'No logo fields provided. Use: image_url, size, light_image_url, color' });
+    }
+    
+    // UPSERT header settings
+    if (headerResult.rows.length > 0) {
+      await pool.query(
+        `UPDATE website_settings SET settings = $1, updated_at = NOW(), sync_source = 'partner' WHERE deployed_site_id = $2 AND section = 'header'`,
+        [JSON.stringify(settings), deployedSiteId]
+      );
+    } else {
+      await pool.query(
+        `INSERT INTO website_settings (deployed_site_id, account_id, section, settings, sync_source, updated_at) VALUES ($1, $2, 'header', $3, 'partner', NOW())`,
+        [deployedSiteId, site.account_id, JSON.stringify(settings)]
+      );
+    }
+    
+    // Push to WordPress
+    let wpPushResult = null;
+    if (site.site_url) {
+      wpPushResult = await pushSettingsToWordPress(site.site_url, 'header', changes);
+    }
+    
+    // Also update websites table logo_url if main logo changed
+    if (image_url !== undefined) {
+      await pool.query('UPDATE websites SET logo_url = $1, updated_at = NOW() WHERE deployed_site_id = $2', [image_url || null, deployedSiteId]);
+    }
+    
+    console.log(`[Partner API] Logo updated for website ${websiteId}:`, Object.keys(changes));
+    
+    res.json({
+      success: true,
+      website_id: parseInt(websiteId),
+      updated_fields: Object.keys(changes),
+      logo: {
+        image_url: settings['logo-image-url'] || null,
+        size: settings['logo-size'] || '40',
+        light_image_url: settings['logo-light-image-url'] || null,
+        color: settings['logo-color'] || '#0f172a'
+      },
+      wordpress_push: wpPushResult
+    });
+    
+  } catch (error) {
+    console.error('Partner API update logo error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// DELETE /api/partner/websites/:websiteId/logo - Remove logo(s)
+app.delete('/api/partner/websites/:websiteId/logo', async (req, res) => {
+  console.log('=== PARTNER API: REMOVE LOGO ===');
+  
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+    
+    const { websiteId } = req.params;
+    const { which } = req.query; // 'main', 'light', 'both' (default: 'main')
+    const target = which || 'main';
+    
+    const deployedSiteId = await getPartnerDeployedSiteId(auth.partnerId, websiteId);
+    if (!deployedSiteId) {
+      return res.status(404).json({ success: false, error: 'Website not deployed or not found' });
+    }
+    
+    const siteResult = await pool.query(
+      'SELECT id, account_id, site_url FROM deployed_sites WHERE id = $1',
+      [deployedSiteId]
+    );
+    
+    if (siteResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Deployed site not found' });
+    }
+    
+    const site = siteResult.rows[0];
+    
+    // Get existing header settings
+    const headerResult = await pool.query(
+      `SELECT settings FROM website_settings WHERE deployed_site_id = $1 AND section = 'header'`,
+      [deployedSiteId]
+    );
+    
+    const settings = headerResult.rows.length > 0 ? (headerResult.rows[0].settings || {}) : {};
+    const changes = {};
+    
+    if (target === 'main' || target === 'both') {
+      settings['logo-image-url'] = '';
+      changes['logo-image-url'] = '';
+    }
+    if (target === 'light' || target === 'both') {
+      settings['logo-light-image-url'] = '';
+      changes['logo-light-image-url'] = '';
+    }
+    
+    // Update settings
+    if (headerResult.rows.length > 0) {
+      await pool.query(
+        `UPDATE website_settings SET settings = $1, updated_at = NOW(), sync_source = 'partner' WHERE deployed_site_id = $2 AND section = 'header'`,
+        [JSON.stringify(settings), deployedSiteId]
+      );
+    }
+    
+    // Push to WordPress
+    let wpPushResult = null;
+    if (site.site_url) {
+      wpPushResult = await pushSettingsToWordPress(site.site_url, 'header', changes);
+    }
+    
+    // Clear websites table logo_url if main removed
+    if (target === 'main' || target === 'both') {
+      await pool.query('UPDATE websites SET logo_url = NULL, updated_at = NOW() WHERE deployed_site_id = $1', [deployedSiteId]);
+    }
+    
+    console.log(`[Partner API] Logo removed for website ${websiteId}: ${target}`);
+    
+    res.json({
+      success: true,
+      website_id: parseInt(websiteId),
+      removed: target,
+      wordpress_push: wpPushResult
+    });
+    
+  } catch (error) {
+    console.error('Partner API remove logo error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/partner/websites/:websiteId/deploy - Deploy website to VPS
 app.post('/api/partner/websites/:websiteId/deploy', async (req, res) => {
   console.log('=== PARTNER API: DEPLOY WEBSITE ===');
   
@@ -46542,6 +46768,8 @@ const SECTION_DEFAULTS = {
     'site-name': '',
     'tagline-en': '',
     'logo-image-url': '',
+    'logo-size': '40',
+    'logo-light-image-url': '',
     'bg-color': '#ffffff',
     'text-color': '#1e293b',
     'logo-color': '#0f172a',
@@ -62629,6 +62857,8 @@ app.post('/api/websites/:websiteId/sync-to-wordpress', async (req, res) => {
       // Header section
       'logo-image-url': 'developer_logo_image',
       'logo-text': 'developer_logo_text',
+      'logo-size': 'developer_logo_size',
+      'logo-light-image-url': 'developer_logo_light_image',
       // Trust badges
       'trust-1': 'developer_hero_trust_1',
       'trust-2': 'developer_hero_trust_2',
