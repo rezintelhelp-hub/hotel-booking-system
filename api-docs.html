@@ -527,7 +527,9 @@
             { "name": "Custom Domains", "description": "Connect custom domains to websites" },
             { "name": "Webhooks", "description": "Configure and diagnose webhook integrations" },
             { "name": "Analytics", "description": "Tenant and website analytics" },
-            { "name": "Lifecycle", "description": "Reservations, deletions, and lifecycle management" }
+            { "name": "Lifecycle", "description": "Reservations, deletions, and lifecycle management" },
+            { "name": "Upsells", "description": "Create and manage upsells (add-on services) for properties" },
+            { "name": "Taxes", "description": "Create and manage tourist/city taxes for properties" }
         ],
         "paths": {
             // ===== TENANTS =====
@@ -1409,21 +1411,166 @@
                     "responses": { "200": { "description": "Name updated" } }
                 }
             },
+            "/api/partner/websites/{websiteId}/logo": {
+                "get": {
+                    "tags": ["Websites"],
+                    "summary": "Get Logo Settings",
+                    "description": "Returns current logo configuration: main image URL, size (px), light/dark variant URL, and text color.",
+                    "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "responses": { "200": { "description": "Logo settings", "content": { "application/json": { "example": { "success": true, "logo": { "image_url": "https://example.com/logo.png", "size": "60", "light_image_url": "https://example.com/logo-white.png", "color": "#0f172a" } } } } } }
+                },
+                "put": {
+                    "tags": ["Websites"],
+                    "summary": "Update Logo",
+                    "description": "Update logo settings. All fields optional — only provided fields are changed.\n\n**Fields:**\n- `image_url` — Main logo URL (upload first via /upload endpoint)\n- `size` — Logo height in pixels (20-120)\n- `light_image_url` — Alternative logo for dark/transparent header backgrounds\n- `color` — Logo text fallback color (hex)\n\nChanges are pushed to WordPress automatically.",
+                    "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "requestBody": { "content": { "application/json": { "examples": { "set_logo": { "summary": "Set logo with sizing", "value": { "image_url": "https://example.com/logo.png", "size": 60 } }, "add_dark_variant": { "summary": "Add dark/transparent variant", "value": { "light_image_url": "https://example.com/logo-white.png" } } } } } },
+                    "responses": { "200": { "description": "Logo updated and pushed to WordPress" } }
+                },
+                "delete": {
+                    "tags": ["Websites"],
+                    "summary": "Remove Logo",
+                    "description": "Remove logo image(s). Use `?which=main` (default), `?which=light`, or `?which=both`.",
+                    "parameters": [
+                        { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } },
+                        { "name": "which", "in": "query", "schema": { "type": "string", "enum": ["main", "light", "both"], "default": "main" }, "description": "Which logo to remove" }
+                    ],
+                    "responses": { "200": { "description": "Logo removed" } }
+                }
+            },
+            "/api/partner/websites/{websiteId}/header": {
+                "put": {
+                    "tags": ["Websites"],
+                    "summary": "Update Header Behaviour",
+                    "description": "Control header display and styling. All fields optional.\n\n- `sticky` — Header sticks to top on scroll\n- `fixed_header` — Always visible at top (applies when sticky is true)\n- `transparent` — Transparent over hero image\n- `transparent_opacity` — Overlay opacity 0-80 (only when transparent)\n- `layout` — Logo position: logo-left, logo-center, logo-right\n- `border` — Show bottom border (true/false)\n- `border_color` — Border color (hex)\n- `border_width` — Border width 1-5 (px)",
+                    "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "requestBody": { "content": { "application/json": { "examples": { "sticky_fixed": { "summary": "Enable sticky + fixed", "value": { "sticky": true, "fixed_header": true } }, "layout_border": { "summary": "Layout and border", "value": { "layout": "logo-center", "transparent_opacity": 30, "border": true, "border_color": "#e5e7eb", "border_width": 2 } } } } } },
+                    "responses": { "200": { "description": "Header settings updated and pushed to WordPress" } }
+                }
+            },
+            
+            // ===== HERO CONTROLS =====
+            "/api/partner/websites/{websiteId}/hero": {
+                "get": {
+                    "tags": ["Websites"],
+                    "summary": "Get Hero Settings",
+                    "description": "Returns badge, trust badges, search box styling, and meta data for the hero section.",
+                    "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "responses": { "200": { "description": "Hero settings", "content": { "application/json": { "example": { "success": true, "badge": { "text": "Welcome", "bg_color": "#2563eb", "text_color": "#fff", "border_color": "" }, "trust_badges": { "badge_1": "Instant Booking", "badge_2": "Best Price", "badge_3": "24/7 Support" }, "search": { "btn_bg": "#2563eb", "btn_text": "#fff" }, "meta": { "title": "Beach Villas", "description": "Luxury beachfront..." } } } } } }
+                }
+            },
+            "/api/partner/websites/{websiteId}/hero/badge": {
+                "put": {
+                    "tags": ["Websites"],
+                    "summary": "Update Hero Badge",
+                    "description": "Update badge text, link, and colours. All fields optional.\n\n- `text` — Badge text (e.g. 'Welcome to Paradise')\n- `link` — Badge click URL\n- `bg_color` — Background colour (hex)\n- `text_color` — Text colour (hex)\n- `border_color` — Border colour (hex)",
+                    "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "requestBody": { "content": { "application/json": { "example": { "text": "Welcome to Paradise", "bg_color": "#2563eb", "text_color": "#ffffff", "border_color": "#1d4ed8" } } } },
+                    "responses": { "200": { "description": "Badge updated" } }
+                },
+                "delete": {
+                    "tags": ["Websites"],
+                    "summary": "Delete Hero Badge",
+                    "description": "Remove the badge entirely — clears text and all colour fields.",
+                    "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "responses": { "200": { "description": "Badge removed" } }
+                }
+            },
+            "/api/partner/websites/{websiteId}/hero/search": {
+                "put": {
+                    "tags": ["Websites"],
+                    "summary": "Update Search Box Styling",
+                    "description": "Update search box button colour and styling.\n\n- `btn_bg` — Search button background (hex)\n- `btn_text` — Search button text colour (hex)\n- `label_color` — Field label colour (hex)\n- `max_guests` — Max guests in dropdown",
+                    "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "requestBody": { "content": { "application/json": { "example": { "btn_bg": "#10b981", "btn_text": "#ffffff" } } } },
+                    "responses": { "200": { "description": "Search styling updated" } }
+                }
+            },
+            "/api/partner/websites/{websiteId}/hero/meta": {
+                "put": {
+                    "tags": ["Websites"],
+                    "summary": "Update Homepage Meta",
+                    "description": "Update SEO meta title and description for the homepage.\n\n- `meta_title` — Page title for search engines\n- `meta_description` — Page description for search engines",
+                    "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "requestBody": { "content": { "application/json": { "example": { "meta_title": "Beach Villas - Luxury Beachfront", "meta_description": "Book your dream beachfront villa..." } } } },
+                    "responses": { "200": { "description": "Meta updated" } }
+                }
+            },
+            "/api/partner/websites/{websiteId}/styles": {
+                "get": {
+                    "tags": ["Websites"],
+                    "summary": "Get Global Styles",
+                    "description": "Returns global colour palette, fonts, button styling, and custom CSS.",
+                    "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "responses": { "200": { "description": "Styles settings", "content": { "application/json": { "example": { "success": true, "styles": { "primary_color": "#2563eb", "secondary_color": "#0f172a", "accent_color": "#f59e0b", "btn_primary_bg": "#2563eb", "btn_primary_text": "#ffffff", "heading_font": "Playfair Display", "body_font": "Inter" } } } } } }
+                },
+                "put": {
+                    "tags": ["Websites"],
+                    "summary": "Update Global Styles",
+                    "description": "Update site-wide colours, fonts, and button styling. All fields optional. This controls the search button colour via `btn_primary_bg`.\n\n**Colours:** primary_color, secondary_color, accent_color, link_color\n**Fonts:** heading_font, body_font\n**Buttons:** btn_primary_bg (background), btn_primary_text (text colour), btn_radius (px)\n**Advanced:** custom_css",
+                    "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "requestBody": { "content": { "application/json": { "examples": { "brand_colours": { "summary": "Set brand colours", "value": { "primary_color": "#10b981", "secondary_color": "#064e3b", "accent_color": "#fbbf24" } }, "fix_search_button": { "summary": "Fix search button colour", "value": { "btn_primary_bg": "#10b981", "btn_primary_text": "#ffffff" } } } } } },
+                    "responses": { "200": { "description": "Styles updated and pushed to WordPress" } }
+                }
+            },
+            "/api/partner/websites/{websiteId}/services": {
+                "get": {
+                    "tags": ["Websites"],
+                    "summary": "Get Services / What We Offer",
+                    "description": "Returns the 'What We Offer' homepage section — enabled state, title, background image, and up to 8 service items.",
+                    "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "responses": { "200": { "description": "Services settings", "content": { "application/json": { "example": { "success": true, "services": { "enabled": true, "title": "What We Offer", "bg_image_url": "", "items": [{ "slot": 1, "icon": "👥", "image_url": "", "title": "Concierge Service", "text": "24/7 guest support" }] } } } } } }
+                },
+                "put": {
+                    "tags": ["Websites"],
+                    "summary": "Update Services / What We Offer",
+                    "description": "Enable/disable section, set title, background image, and up to 8 items. Each item has a slot (1-8), icon (emoji), image_url, title, and text.\n\nTo turn off: `{ \"enabled\": false }`\nTo update items: send items array with slot numbers.",
+                    "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "requestBody": { "content": { "application/json": { "examples": { "enable_with_items": { "summary": "Enable with items", "value": { "enabled": true, "title": "What We Offer", "items": [{ "slot": 1, "icon": "👥", "title": "Concierge", "text": "24/7 guest support" }, { "slot": 2, "icon": "🧹", "title": "Cleaning", "text": "Daily housekeeping" }, { "slot": 3, "icon": "🏢", "title": "Office", "text": "Co-working space" }] } }, "disable": { "summary": "Disable section", "value": { "enabled": false } } } } } },
+                    "responses": { "200": { "description": "Services updated and pushed to WordPress" } }
+                }
+            },
+            "/api/partner/websites/{websiteId}/rooms-page": {
+                "get": {
+                    "tags": ["Websites"],
+                    "summary": "Get Rooms Page Settings",
+                    "description": "Returns the Book Now / rooms listing page settings including search widget, filters, layout, and colours.",
+                    "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "responses": { "200": { "description": "Rooms page settings", "content": { "application/json": { "example": { "success": true, "rooms_page": { "enabled": true, "title": "Our Rooms", "layout": { "columns": "3", "style": "cards" }, "search": { "show": true }, "filters": { "show_amenity": true, "show_location": true, "show_map": false, "bg_color": "#f8fafc" }, "colors": { "bg": "#ffffff", "text": "#1e293b" } } } } } } }
+                },
+                "put": {
+                    "tags": ["Websites"],
+                    "summary": "Update Rooms Page Settings",
+                    "description": "Control the rooms/booking page. All fields optional.\n\n**Display:** enabled, title, subtitle, menu_title, columns (1-4), layout_style (cards|list)\n**Search Widget:** show_search (true/false)\n**Filters:** show_amenity_filter, show_location_filter, show_map, filter_bg (background colour for filter bar)\n**Colours:** bg_color (page background), text_color\n**Header:** transparent_header\n**SEO:** meta_title, meta_description",
+                    "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "requestBody": { "content": { "application/json": { "examples": { "search_and_filters": { "summary": "Configure search and filters", "value": { "show_search": true, "show_amenity_filter": true, "show_location_filter": true, "filter_bg": "#f0f9ff" } }, "layout": { "summary": "Change layout", "value": { "columns": "2", "layout_style": "cards", "bg_color": "#ffffff" } } } } } },
+                    "responses": { "200": { "description": "Rooms page updated and pushed to WordPress" } }
+                }
+            },
             
             // ===== WEBSITE CONTENT =====
             "/api/partner/websites/{websiteId}/content/{section}": {
                 "put": {
                     "tags": ["Website Content"],
                     "summary": "Update Content Section",
-                    "description": "Update website content sections. Changes are saved to GAS and automatically pushed to the live WordPress site. You must send the complete settings object — any fields not included will be reset to defaults.\n\n**Valid sections:** header, hero, intro, featured, about, reviews, cta, footer, styles, seo, page-rooms, page-about, page-gallery, page-blog, page-attractions, page-dining, page-offers, page-properties, page-reviews, page-contact, page-terms, page-privacy\n\n**Multilingual:** All text fields support language variants by appending: -en, -fr, -es, -nl",
+                    "description": "Update website content sections. Changes are saved to GAS and automatically pushed to the live WordPress site. You must send the complete settings object — any fields not included will be reset to defaults.\n\n**Valid sections:** header, hero, intro, featured, about, services, reviews, cta, footer, styles, seo, page-rooms, page-about, page-gallery, page-blog, page-attractions, page-dining, page-offers, page-properties, page-reviews, page-contact, page-terms, page-privacy\n\n**Multilingual:** All text fields support language variants by appending: -en, -fr, -es, -nl",
                     "parameters": [
                         { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } },
-                        { "name": "section", "in": "path", "required": true, "schema": { "type": "string", "enum": ["header", "hero", "intro", "featured", "about", "reviews", "cta", "footer", "styles", "seo", "page-rooms", "page-about", "page-gallery", "page-blog", "page-attractions", "page-dining", "page-offers", "page-properties", "page-reviews", "page-contact", "page-terms", "page-privacy"] } }
+                        { "name": "section", "in": "path", "required": true, "schema": { "type": "string", "enum": ["header", "hero", "intro", "featured", "about", "services", "reviews", "cta", "footer", "styles", "seo", "page-rooms", "page-about", "page-gallery", "page-blog", "page-attractions", "page-dining", "page-offers", "page-properties", "page-reviews", "page-contact", "page-terms", "page-privacy"] } }
                     ],
                     "requestBody": {
                         "content": {
                             "application/json": {
-                                "example": { "settings": { "title-en": "Welcome to Our Hotel", "text-en": "Experience luxury", "bg-color": "#ffffff" } }
+                                "examples": {
+                                    "header": {
+                                        "summary": "Header with logos",
+                                        "value": { "settings": { "site-name": "Mountain Lodge", "logo-image-url": "https://example.com/logo.png", "logo-size": "60", "logo-light-image-url": "https://example.com/logo-white.png", "cta-button-text-en": "Book Now", "cta-bg": "#2563eb", "bg-color": "#ffffff", "text-color": "#1e293b", "transparent": true, "sticky": true } }
+                                    },
+                                    "about": {
+                                        "summary": "About section",
+                                        "value": { "settings": { "title-en": "Welcome to Our Hotel", "text-en": "Experience luxury", "image-url": "https://example.com/about.jpg", "enabled": true } }
+                                    }
+                                }
                             }
                         }
                     },
@@ -1711,6 +1858,98 @@
                         { "name": "bookingId", "in": "path", "required": true, "schema": { "type": "string" } }
                     ],
                     "responses": { "200": { "description": "Discount removed and total restored" } }
+                }
+            },
+            "/api/elevate/_KEY_/upsell-categories": {
+                "get": {
+                    "tags": ["Upsells"],
+                    "summary": "List Upsell Categories",
+                    "description": "Returns all available upsell categories and charge types.",
+                    "responses": { "200": { "description": "Categories list", "content": { "application/json": { "example": { "success": true, "categories": ["airport_transport", "private_chef", "spa", "activity", "late_checkout", "early_checkin", "mid_stay_cleaning", "office_equipment", "baby", "protection_program", "motorcycle", "car_rental", "food_and_drink", "experience", "miscellaneous"], "charge_types": ["per_booking", "per_night", "per_day", "per_guest", "per_guest_per_night", "per_hour"] } } } } }
+                }
+            },
+            "/api/elevate/_KEY_/property/{propertyId}/upsells": {
+                "get": {
+                    "tags": ["Upsells"],
+                    "summary": "List Property Upsells",
+                    "description": "Get all upsells for a property.",
+                    "parameters": [
+                        { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "string" } }
+                    ],
+                    "responses": { "200": { "description": "Upsells list", "content": { "application/json": { "example": { "success": true, "property_id": 5, "upsells": [{ "id": 1, "name": "Airport Transfer", "price": "75.00", "charge_type": "per_booking", "category": "airport_transport", "active": true, "source": "partner" }] } } } } }
+                },
+                "post": {
+                    "tags": ["Upsells"],
+                    "summary": "Create Upsell",
+                    "description": "Create an upsell for a property. Optionally target specific rooms with room_id or room_ids array. Set external_id for lookup by your system's ID.",
+                    "parameters": [
+                        { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "string" } }
+                    ],
+                    "requestBody": { "required": true, "content": { "application/json": { "example": { "name": "Airport Transfer", "description": "Private transfer from Zurich Airport", "price": 75.00, "charge_type": "per_booking", "category": "airport_transport", "external_id": "elv-upsell-42" } } } },
+                    "responses": { "200": { "description": "Upsell created", "content": { "application/json": { "example": { "success": true, "upsell": { "id": 1, "name": "Airport Transfer", "price": "75.00", "category": "airport_transport", "source": "partner" } } } } } }
+                }
+            },
+            "/api/elevate/_KEY_/upsells/{upsellId}": {
+                "put": {
+                    "tags": ["Upsells"],
+                    "summary": "Update Upsell",
+                    "description": "Update an upsell by GAS ID or external_id. Fields: name, description, price, charge_type, max_quantity, category, room_id, room_ids, image_url, active.",
+                    "parameters": [
+                        { "name": "upsellId", "in": "path", "required": true, "schema": { "type": "string" }, "description": "GAS upsell ID or external_id" }
+                    ],
+                    "requestBody": { "required": true, "content": { "application/json": { "example": { "price": 85.00, "active": true } } } },
+                    "responses": { "200": { "description": "Upsell updated" } }
+                },
+                "delete": {
+                    "tags": ["Upsells"],
+                    "summary": "Delete Upsell",
+                    "description": "Delete an upsell by GAS ID or external_id.",
+                    "parameters": [
+                        { "name": "upsellId", "in": "path", "required": true, "schema": { "type": "string" }, "description": "GAS upsell ID or external_id" }
+                    ],
+                    "responses": { "200": { "description": "Upsell deleted" } }
+                }
+            },
+            "/api/elevate/_KEY_/property/{propertyId}/taxes": {
+                "get": {
+                    "tags": ["Taxes"],
+                    "summary": "List Property Taxes",
+                    "description": "Get all taxes configured for a property.",
+                    "parameters": [
+                        { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "string" } }
+                    ],
+                    "responses": { "200": { "description": "Taxes list", "content": { "application/json": { "example": { "success": true, "property_id": 5, "taxes": [{ "id": 1, "name": "Tourist Tax", "amount": "2.50", "amount_type": "fixed", "currency": "CHF", "charge_per": "per_person_per_night", "max_nights": 7, "active": true, "source": "partner" }] } } } } }
+                },
+                "post": {
+                    "tags": ["Taxes"],
+                    "summary": "Create Tax",
+                    "description": "Create a tourist/city tax for a property. Fields: name (required), amount (required), amount_type (fixed|percentage), currency, charge_per (per_person_per_night|per_night|per_booking|per_person), max_nights, min_age, star_tier, season_start, season_end, external_id.",
+                    "parameters": [
+                        { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "string" } }
+                    ],
+                    "requestBody": { "required": true, "content": { "application/json": { "example": { "name": "Kurtaxe", "amount": 3.50, "amount_type": "fixed", "currency": "CHF", "charge_per": "per_person_per_night", "max_nights": 21, "min_age": 16, "external_id": "elv-tax-1" } } } },
+                    "responses": { "200": { "description": "Tax created", "content": { "application/json": { "example": { "success": true, "tax": { "id": 1, "name": "Kurtaxe", "amount": "3.50", "charge_per": "per_person_per_night", "source": "partner" } } } } } }
+                }
+            },
+            "/api/elevate/_KEY_/taxes/{taxId}": {
+                "put": {
+                    "tags": ["Taxes"],
+                    "summary": "Update Tax",
+                    "description": "Update a tax by GAS ID or external_id.",
+                    "parameters": [
+                        { "name": "taxId", "in": "path", "required": true, "schema": { "type": "string" }, "description": "GAS tax ID or external_id" }
+                    ],
+                    "requestBody": { "required": true, "content": { "application/json": { "example": { "amount": 4.00, "season_start": "2026-06-01", "season_end": "2026-09-30" } } } },
+                    "responses": { "200": { "description": "Tax updated" } }
+                },
+                "delete": {
+                    "tags": ["Taxes"],
+                    "summary": "Delete Tax",
+                    "description": "Delete a tax by GAS ID or external_id.",
+                    "parameters": [
+                        { "name": "taxId", "in": "path", "required": true, "schema": { "type": "string" }, "description": "GAS tax ID or external_id" }
+                    ],
+                    "responses": { "200": { "description": "Tax deleted" } }
                 }
             }
         }
