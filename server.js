@@ -49475,6 +49475,136 @@ app.put('/api/elevate/:apiKey/room/:roomId/availability', async (req, res) => {
 });
 
 // =========================================================
+// =========================================================
+// ELEVATE: PROPERTY TERMS & POLICIES
+// =========================================================
+
+// Get property terms
+app.get('/api/elevate/:apiKey/property/:propertyId/terms', async (req, res) => {
+  console.log('=== ELEVATE: GET PROPERTY TERMS ===');
+  
+  try {
+    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: 'Invalid API key' });
+    }
+    
+    const { propertyId } = req.params;
+    
+    const propCheck = await pool.query(`
+      SELECT p.id, p.check_in_time, p.check_out_time, p.house_rules, p.cancellation_policy, p.terms_conditions
+      FROM properties p
+      JOIN accounts a ON a.id = p.account_id
+      WHERE (a.parent_id = $1 OR a.id = $1) 
+      AND (p.id::text = $2 OR p.cm_property_id = $2)
+    `, [ELEVATE_MASTER_ACCOUNT_ID, propertyId]);
+    
+    if (propCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Property not found' });
+    }
+    
+    const prop = propCheck.rows[0];
+    
+    // Also get property_terms if they exist
+    const termsResult = await pool.query(
+      'SELECT * FROM property_terms WHERE property_id = $1',
+      [prop.id]
+    ).catch(() => ({ rows: [] }));
+    
+    const terms = termsResult.rows[0] || {};
+    
+    res.json({
+      success: true,
+      property_id: prop.id,
+      terms: {
+        check_in_time: terms.checkin_from || prop.check_in_time || '15:00',
+        check_out_time: terms.checkout_by || prop.check_out_time || '11:00',
+        house_rules: terms.additional_rules || prop.house_rules || null,
+        cancellation_policy: terms.cancellation_policy || prop.cancellation_policy || null,
+        terms_conditions: prop.terms_conditions || null,
+        min_stay: terms.min_stay || null,
+        max_stay: terms.max_stay || null,
+        damage_deposit: terms.damage_deposit || null,
+        cleaning_fee: terms.cleaning_fee || null
+      }
+    });
+    
+  } catch (error) {
+    console.error('Elevate get terms error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Set property terms
+app.put('/api/elevate/:apiKey/property/:propertyId/terms', async (req, res) => {
+  console.log('=== ELEVATE: SET PROPERTY TERMS ===');
+  
+  try {
+    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: 'Invalid API key' });
+    }
+    
+    const { propertyId } = req.params;
+    const { check_in_time, check_out_time, house_rules, cancellation_policy, terms_conditions, min_stay, max_stay, damage_deposit, cleaning_fee } = req.body;
+    
+    // Find property
+    const propCheck = await pool.query(`
+      SELECT p.id FROM properties p
+      JOIN accounts a ON a.id = p.account_id
+      WHERE (a.parent_id = $1 OR a.id = $1) 
+      AND (p.id::text = $2 OR p.cm_property_id = $2)
+    `, [ELEVATE_MASTER_ACCOUNT_ID, propertyId]);
+    
+    if (propCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Property not found' });
+    }
+    
+    const gasPropertyId = propCheck.rows[0].id;
+    
+    // Update properties table
+    const propUpdates = [];
+    const propValues = [];
+    let pi = 1;
+    
+    if (check_in_time !== undefined) { propUpdates.push(`check_in_time = $${pi++}`); propValues.push(check_in_time); }
+    if (check_out_time !== undefined) { propUpdates.push(`check_out_time = $${pi++}`); propValues.push(check_out_time); }
+    if (house_rules !== undefined) { propUpdates.push(`house_rules = $${pi++}`); propValues.push(house_rules); }
+    if (cancellation_policy !== undefined) { propUpdates.push(`cancellation_policy = $${pi++}`); propValues.push(cancellation_policy); }
+    if (terms_conditions !== undefined) { propUpdates.push(`terms_conditions = $${pi++}`); propValues.push(terms_conditions); }
+    
+    if (propUpdates.length > 0) {
+      propUpdates.push(`updated_at = NOW()`);
+      propValues.push(gasPropertyId);
+      await pool.query(`UPDATE properties SET ${propUpdates.join(', ')} WHERE id = $${pi}`, propValues);
+    }
+    
+    // Upsert property_terms table
+    await pool.query(`
+      INSERT INTO property_terms (property_id, checkin_from, checkout_by, additional_rules, cancellation_policy)
+      VALUES ($1, $2, $3, $4, $5)
+      ON CONFLICT (property_id) DO UPDATE SET
+        checkin_from = COALESCE(NULLIF($2, ''), property_terms.checkin_from),
+        checkout_by = COALESCE(NULLIF($3, ''), property_terms.checkout_by),
+        additional_rules = COALESCE(NULLIF($4, ''), property_terms.additional_rules),
+        cancellation_policy = COALESCE(NULLIF($5, ''), property_terms.cancellation_policy),
+        updated_at = NOW()
+    `, [
+      gasPropertyId,
+      check_in_time || '',
+      check_out_time || '',
+      house_rules || '',
+      cancellation_policy || ''
+    ]).catch(e => console.log('Elevate terms upsert:', e.message));
+    
+    res.json({ success: true, property_id: gasPropertyId, message: 'Terms updated' });
+    
+  } catch (error) {
+    console.error('Elevate set terms error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // ELEVATE: PROPERTY/ROOM IMAGES
 // =========================================================
 
