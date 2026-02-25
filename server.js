@@ -17263,6 +17263,10 @@ app.get('/api/setup-database', async (req, res) => {
     await pool.query(`ALTER TABLE upsells ADD COLUMN IF NOT EXISTS source VARCHAR(50) DEFAULT 'manual'`);
     await pool.query(`ALTER TABLE upsells ADD COLUMN IF NOT EXISTS external_id VARCHAR(255)`);
     
+    // Partner tracking for taxes
+    await pool.query(`ALTER TABLE taxes ADD COLUMN IF NOT EXISTS source VARCHAR(50) DEFAULT 'manual'`);
+    await pool.query(`ALTER TABLE taxes ADD COLUMN IF NOT EXISTS external_id VARCHAR(255)`);
+    
     // Multilingual support for upsells
     await pool.query(`ALTER TABLE upsells ADD COLUMN IF NOT EXISTS name_ml JSONB`);
     await pool.query(`ALTER TABLE upsells ADD COLUMN IF NOT EXISTS description_ml JSONB`);
@@ -50224,6 +50228,211 @@ app.delete('/api/elevate/:apiKey/upsells/:upsellId', async (req, res) => {
     
   } catch (error) {
     console.error('Elevate delete upsell error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// =========================================================
+// ELEVATE: TAXES
+// =========================================================
+
+// List taxes for a property
+app.get('/api/elevate/:apiKey/property/:propertyId/taxes', async (req, res) => {
+  console.log('=== ELEVATE: GET PROPERTY TAXES ===');
+  
+  try {
+    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: 'Invalid API key' });
+    }
+    
+    const { propertyId } = req.params;
+    
+    const propCheck = await pool.query(`
+      SELECT p.id FROM properties p
+      JOIN accounts a ON a.id = p.account_id
+      WHERE (a.parent_id = $1 OR a.id = $1) 
+      AND (p.id::text = $2 OR p.cm_property_id = $2)
+    `, [ELEVATE_MASTER_ACCOUNT_ID, propertyId]);
+    
+    if (propCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Property not found' });
+    }
+    
+    const gasPropertyId = propCheck.rows[0].id;
+    
+    const result = await pool.query(`
+      SELECT id, external_id, name, country, amount_type, currency, amount,
+             charge_per, max_nights, min_age, star_tier, season_start, season_end,
+             active, source, created_at
+      FROM taxes 
+      WHERE property_id = $1
+      ORDER BY name
+    `, [gasPropertyId]);
+    
+    res.json({ success: true, property_id: gasPropertyId, taxes: result.rows });
+    
+  } catch (error) {
+    console.error('Elevate get taxes error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Create tax
+app.post('/api/elevate/:apiKey/property/:propertyId/taxes', async (req, res) => {
+  console.log('=== ELEVATE: CREATE TAX ===');
+  
+  try {
+    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: 'Invalid API key' });
+    }
+    
+    const { propertyId } = req.params;
+    const { name, country, amount_type, currency, amount, charge_per,
+            max_nights, min_age, star_tier, season_start, season_end,
+            external_id } = req.body;
+    
+    if (!name || amount === undefined) {
+      return res.status(400).json({ success: false, error: 'name and amount are required' });
+    }
+    
+    const validAmountTypes = ['fixed', 'percentage'];
+    if (amount_type && !validAmountTypes.includes(amount_type)) {
+      return res.status(400).json({ success: false, error: `Invalid amount_type. Must be: ${validAmountTypes.join(', ')}` });
+    }
+    
+    const validChargePer = ['per_person_per_night', 'per_night', 'per_booking', 'per_person'];
+    if (charge_per && !validChargePer.includes(charge_per)) {
+      return res.status(400).json({ success: false, error: `Invalid charge_per. Must be: ${validChargePer.join(', ')}` });
+    }
+    
+    const propCheck = await pool.query(`
+      SELECT p.id, a.id as account_id FROM properties p
+      JOIN accounts a ON a.id = p.account_id
+      WHERE (a.parent_id = $1 OR a.id = $1) 
+      AND (p.id::text = $2 OR p.cm_property_id = $2)
+    `, [ELEVATE_MASTER_ACCOUNT_ID, propertyId]);
+    
+    if (propCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Property not found' });
+    }
+    
+    const gasPropertyId = propCheck.rows[0].id;
+    const accountId = propCheck.rows[0].account_id;
+    
+    // Check duplicate external_id
+    if (external_id) {
+      const existing = await pool.query(
+        "SELECT id FROM taxes WHERE external_id = $1 AND property_id = $2",
+        [external_id, gasPropertyId]
+      );
+      if (existing.rows.length > 0) {
+        return res.status(400).json({ success: false, error: `Tax with external_id "${external_id}" already exists`, existing_tax_id: existing.rows[0].id });
+      }
+    }
+    
+    const result = await pool.query(`
+      INSERT INTO taxes (name, country, amount_type, currency, amount, charge_per, max_nights, min_age, star_tier, season_start, season_end, property_id, user_id, external_id, source, active)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 'partner', true)
+      RETURNING *
+    `, [name, country || null, amount_type || 'fixed', currency || 'EUR', amount, charge_per || 'per_person_per_night', max_nights || null, min_age || null, star_tier || null, season_start || null, season_end || null, gasPropertyId, accountId, external_id || null]);
+    
+    res.json({ success: true, tax: result.rows[0] });
+    
+  } catch (error) {
+    console.error('Elevate create tax error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Update tax
+app.put('/api/elevate/:apiKey/taxes/:taxId', async (req, res) => {
+  console.log('=== ELEVATE: UPDATE TAX ===');
+  
+  try {
+    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: 'Invalid API key' });
+    }
+    
+    const { taxId } = req.params;
+    const updates = req.body;
+    
+    const taxCheck = await pool.query(`
+      SELECT t.id FROM taxes t
+      JOIN properties p ON p.id = t.property_id
+      JOIN accounts a ON a.id = p.account_id
+      WHERE (a.parent_id = $1 OR a.id = $1) 
+      AND (t.id::text = $2 OR t.external_id = $2)
+    `, [ELEVATE_MASTER_ACCOUNT_ID, taxId]);
+    
+    if (taxCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Tax not found' });
+    }
+    
+    const gasTaxId = taxCheck.rows[0].id;
+    
+    const updateFields = [];
+    const values = [];
+    let pi = 1;
+    
+    const allowedFields = ['name', 'country', 'amount_type', 'currency', 'amount', 'charge_per', 'max_nights', 'min_age', 'star_tier', 'season_start', 'season_end', 'active'];
+    
+    for (const field of allowedFields) {
+      if (updates[field] !== undefined) {
+        updateFields.push(`${field} = $${pi++}`);
+        values.push(updates[field]);
+      }
+    }
+    
+    if (updateFields.length === 0) {
+      return res.status(400).json({ success: false, error: 'No valid fields to update' });
+    }
+    
+    updateFields.push(`updated_at = NOW()`);
+    values.push(gasTaxId);
+    
+    await pool.query(`UPDATE taxes SET ${updateFields.join(', ')} WHERE id = $${pi}`, values);
+    
+    res.json({ success: true, tax_id: gasTaxId });
+    
+  } catch (error) {
+    console.error('Elevate update tax error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Delete tax
+app.delete('/api/elevate/:apiKey/taxes/:taxId', async (req, res) => {
+  console.log('=== ELEVATE: DELETE TAX ===');
+  
+  try {
+    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: 'Invalid API key' });
+    }
+    
+    const { taxId } = req.params;
+    
+    const taxCheck = await pool.query(`
+      SELECT t.id FROM taxes t
+      JOIN properties p ON p.id = t.property_id
+      JOIN accounts a ON a.id = p.account_id
+      WHERE (a.parent_id = $1 OR a.id = $1) 
+      AND (t.id::text = $2 OR t.external_id = $2)
+    `, [ELEVATE_MASTER_ACCOUNT_ID, taxId]);
+    
+    if (taxCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Tax not found' });
+    }
+    
+    await pool.query('DELETE FROM taxes WHERE id = $1', [taxCheck.rows[0].id]);
+    
+    res.json({ success: true, deleted_tax_id: taxCheck.rows[0].id });
+    
+  } catch (error) {
+    console.error('Elevate delete tax error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
