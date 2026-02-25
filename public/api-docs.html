@@ -373,7 +373,7 @@
         "info": {
             "title": "GAS Partner API",
             "version": "7.8",
-            "description": `The **Global Accommodation System (GAS)** Partner API enables property management platforms to create tenants, push properties & rooms, manage pricing & availability, deploy booking websites, and handle the complete lifecycle of vacation rental businesses.\n\n## Two API Paths\n\n| Prefix | Auth Method | Used For |\n|--------|------------|----------|\n| \`/api/partner/*\` | X-API-Key header | Tenants, Websites, Room Types, Stripe, Domains, Content |\n| \`/api/elevate/{apiKey}/*\` | API key in URL path | Properties, Rooms, Images, Pricing, Availability |\n\n## Quick Start Workflow\n\n1. **Create Tenant** → 2. **Push Properties & Rooms** → 3. **Add Images** → 4. **Create Website** → 5. **Assign Rooms** → 6. **Deploy** → 7. **Configure Payments**\n\n## ID Terminology\n\n| Term | Description |\n|------|-------------|\n| \`tenant_id\` | Your unique reference for a client |\n| \`account_id\` | GAS internal database ID |\n| \`property_id\` | GAS database ID for a property |\n| \`unit_id\` | GAS database ID for a room (same as \`gas_room_id\`) |\n| \`external_id\` | Your reference for a room |\n\n**Note:** \`unit_id\` and \`gas_room_id\` are the same thing.\n\n---\n\n**Support:** steve@gas.travel`,
+            "description": `The **Global Accommodation System (GAS)** Partner API enables property management platforms to create tenants, push properties & rooms, manage pricing & availability, deploy booking websites, and handle the complete lifecycle of vacation rental businesses.\n\n## Two API Paths\n\n| Prefix | Auth Method | Used For |\n|--------|------------|----------|\n| \`/api/partner/*\` | X-API-Key header | Tenants, Websites, Room Types, Stripe, Domains, Content |\n| \`/api/elevate/_KEY_/*\` | API key in URL path | Properties, Rooms, Images, Pricing, Availability |\n\n## Quick Start Workflow\n\n1. **Create Tenant** → 2. **Push Properties & Rooms** → 3. **Add Images** → 4. **Create Website** → 5. **Assign Rooms** → 6. **Deploy** → 7. **Configure Payments**\n\n## ID Terminology\n\n| Term | Description |\n|------|-------------|\n| \`tenant_id\` | Your unique reference for a client |\n| \`account_id\` | GAS internal database ID |\n| \`property_id\` | GAS database ID for a property |\n| \`unit_id\` | GAS database ID for a room (same as \`gas_room_id\`) |\n| \`external_id\` | Your reference for a room |\n\n**Note:** \`unit_id\` and \`gas_room_id\` are the same thing.\n\n---\n\n**Support:** steve@gas.travel`,
             "contact": {
                 "name": "GAS Support",
                 "email": "steve@gas.travel",
@@ -614,14 +614,13 @@
             },
             
             // ===== PROPERTIES & ROOMS =====
-            "/api/elevate/{apiKey}/property": {
+            "/api/elevate/_KEY_/property": {
                 "post": {
                     "tags": ["Properties & Rooms"],
                     "summary": "Push Property with Rooms",
                     "description": "Create a property with one or more rooms. Returns property_id and unit_id for each room. **Save the unit_id values** — you need them for room types, availability, images, and website assignments.",
                     
                     "parameters": [
-                        { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" }, "description": "Your API key" }
                     ],
                     "requestBody": {
                         "required": true,
@@ -674,14 +673,13 @@
                     }
                 }
             },
-            "/api/elevate/{apiKey}/property/{propertyId}": {
+            "/api/elevate/_KEY_/property/{propertyId}": {
                 "put": {
                     "tags": ["Properties & Rooms"],
                     "summary": "Update Property",
                     "description": "Send only the fields you want to update inside a property object.",
                     
                     "parameters": [
-                        { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
                         { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "integer" } }
                     ],
                     "requestBody": {
@@ -699,20 +697,18 @@
                     "description": "Permanently deletes property and all rooms. Blocked if active bookings exist.",
                     
                     "parameters": [
-                        { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
                         { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "integer" } }
                     ],
                     "responses": { "200": { "description": "Property deleted" } }
                 }
             },
-            "/api/elevate/{apiKey}/property/{propertyId}/room": {
+            "/api/elevate/_KEY_/property/{propertyId}/room": {
                 "post": {
                     "tags": ["Properties & Rooms"],
                     "summary": "Add Room to Property",
                     "description": "Add a new room to an existing property.",
                     
                     "parameters": [
-                        { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
                         { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "integer" } }
                     ],
                     "requestBody": {
@@ -732,27 +728,25 @@
                     "responses": { "200": { "description": "Room created" } }
                 }
             },
-            "/api/elevate/{apiKey}/property/{propertyId}/rooms": {
+            "/api/elevate/_KEY_/property/{propertyId}/rooms": {
                 "get": {
                     "tags": ["Properties & Rooms"],
                     "summary": "Get Rooms for Property",
                     "description": "Get all rooms belonging to a property.",
                     
                     "parameters": [
-                        { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
                         { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "integer" } }
                     ],
                     "responses": { "200": { "description": "List of rooms" } }
                 }
             },
-            "/api/elevate/{apiKey}/room/{roomId}": {
+            "/api/elevate/_KEY_/room/{roomId}": {
                 "put": {
                     "tags": ["Properties & Rooms"],
                     "summary": "Update Room",
                     "description": "Update room details. roomId can be GAS unit_id (numeric) or your external_id.",
                     
                     "parameters": [
-                        { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
                         { "name": "roomId", "in": "path", "required": true, "schema": { "type": "string" }, "description": "GAS unit_id or your external_id" }
                     ],
                     "requestBody": {
@@ -770,7 +764,6 @@
                     "description": "Permanently deletes a room. Blocked if active bookings exist.",
                     
                     "parameters": [
-                        { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
                         { "name": "roomId", "in": "path", "required": true, "schema": { "type": "string" } }
                     ],
                     "responses": { "200": { "description": "Room deleted" } }
@@ -778,14 +771,13 @@
             },
             
             // ===== IMAGES =====
-            "/api/elevate/{apiKey}/room/{roomId}/images": {
+            "/api/elevate/_KEY_/room/{roomId}/images": {
                 "post": {
                     "tags": ["Images"],
                     "summary": "Add Room Images",
                     "description": "Upload images to a room. roomId can be GAS unit_id or your external_id.",
                     
                     "parameters": [
-                        { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
                         { "name": "roomId", "in": "path", "required": true, "schema": { "type": "string" } }
                     ],
                     "requestBody": {
@@ -806,32 +798,29 @@
                     "summary": "Get Room Images",
                     
                     "parameters": [
-                        { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
                         { "name": "roomId", "in": "path", "required": true, "schema": { "type": "string" } }
                     ],
                     "responses": { "200": { "description": "List of room images" } }
                 }
             },
-            "/api/elevate/{apiKey}/room/{roomId}/images/{imageId}": {
+            "/api/elevate/_KEY_/room/{roomId}/images/{imageId}": {
                 "delete": {
                     "tags": ["Images"],
                     "summary": "Delete Room Image",
                     
                     "parameters": [
-                        { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
                         { "name": "roomId", "in": "path", "required": true, "schema": { "type": "string" } },
                         { "name": "imageId", "in": "path", "required": true, "schema": { "type": "integer" } }
                     ],
                     "responses": { "200": { "description": "Image deleted" } }
                 }
             },
-            "/api/elevate/{apiKey}/property/{propertyId}/images": {
+            "/api/elevate/_KEY_/property/{propertyId}/images": {
                 "post": {
                     "tags": ["Images"],
                     "summary": "Add Property Images",
                     
                     "parameters": [
-                        { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
                         { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "integer" } }
                     ],
                     "requestBody": {
@@ -852,19 +841,17 @@
                     "summary": "Get Property Images",
                     
                     "parameters": [
-                        { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
                         { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "integer" } }
                     ],
                     "responses": { "200": { "description": "List of property images" } }
                 }
             },
-            "/api/elevate/{apiKey}/property/{propertyId}/images/{imageId}": {
+            "/api/elevate/_KEY_/property/{propertyId}/images/{imageId}": {
                 "delete": {
                     "tags": ["Images"],
                     "summary": "Delete Property Image",
                     
                     "parameters": [
-                        { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
                         { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "integer" } },
                         { "name": "imageId", "in": "path", "required": true, "schema": { "type": "integer" } }
                     ],
@@ -873,13 +860,12 @@
             },
             
             // ===== ROOM DETAILS =====
-            "/api/elevate/{apiKey}/room/{roomId}/amenities": {
+            "/api/elevate/_KEY_/room/{roomId}/amenities": {
                 "put": {
                     "tags": ["Room Details"],
                     "summary": "Set Room Amenities",
                     
                     "parameters": [
-                        { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
                         { "name": "roomId", "in": "path", "required": true, "schema": { "type": "string" } }
                     ],
                     "requestBody": {
@@ -898,19 +884,17 @@
                     "summary": "Get Room Amenities",
                     
                     "parameters": [
-                        { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
                         { "name": "roomId", "in": "path", "required": true, "schema": { "type": "string" } }
                     ],
                     "responses": { "200": { "description": "List of amenities" } }
                 }
             },
-            "/api/elevate/{apiKey}/room/{roomId}/bedrooms": {
+            "/api/elevate/_KEY_/room/{roomId}/bedrooms": {
                 "put": {
                     "tags": ["Room Details"],
                     "summary": "Set Room Bedrooms",
                     
                     "parameters": [
-                        { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
                         { "name": "roomId", "in": "path", "required": true, "schema": { "type": "string" } }
                     ],
                     "requestBody": {
@@ -932,19 +916,17 @@
                     "summary": "Get Room Bedrooms",
                     
                     "parameters": [
-                        { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
                         { "name": "roomId", "in": "path", "required": true, "schema": { "type": "string" } }
                     ],
                     "responses": { "200": { "description": "List of bedrooms" } }
                 }
             },
-            "/api/elevate/{apiKey}/room/{roomId}/bathrooms": {
+            "/api/elevate/_KEY_/room/{roomId}/bathrooms": {
                 "put": {
                     "tags": ["Room Details"],
                     "summary": "Set Room Bathrooms",
                     
                     "parameters": [
-                        { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
                         { "name": "roomId", "in": "path", "required": true, "schema": { "type": "string" } }
                     ],
                     "requestBody": {
@@ -966,7 +948,6 @@
                     "summary": "Get Room Bathrooms",
                     
                     "parameters": [
-                        { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
                         { "name": "roomId", "in": "path", "required": true, "schema": { "type": "string" } }
                     ],
                     "responses": { "200": { "description": "List of bathrooms" } }
@@ -974,14 +955,13 @@
             },
             
             // ===== PRICING & AVAILABILITY =====
-            "/api/elevate/{apiKey}/room/{roomId}/calendar": {
+            "/api/elevate/_KEY_/room/{roomId}/calendar": {
                 "put": {
                     "tags": ["Pricing & Availability"],
                     "summary": "Update Calendar (Recommended)",
                     "description": "Combined pricing and availability update. **Always use the dates array format.** This is the recommended endpoint for updating pricing and availability.",
                     
                     "parameters": [
-                        { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
                         { "name": "roomId", "in": "path", "required": true, "schema": { "type": "string" } }
                     ],
                     "requestBody": {
@@ -1005,7 +985,6 @@
                     "description": "Get room calendar for a date range.",
                     
                     "parameters": [
-                        { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
                         { "name": "roomId", "in": "path", "required": true, "schema": { "type": "string" } },
                         { "name": "start_date", "in": "query", "schema": { "type": "string", "format": "date" }, "description": "Start date (YYYY-MM-DD)" },
                         { "name": "end_date", "in": "query", "schema": { "type": "string", "format": "date" }, "description": "End date (YYYY-MM-DD)" }
@@ -1013,13 +992,12 @@
                     "responses": { "200": { "description": "Calendar data" } }
                 }
             },
-            "/api/elevate/{apiKey}/room/{roomId}/pricing": {
+            "/api/elevate/_KEY_/room/{roomId}/pricing": {
                 "put": {
                     "tags": ["Pricing & Availability"],
                     "summary": "Update Pricing Only",
                     
                     "parameters": [
-                        { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
                         { "name": "roomId", "in": "path", "required": true, "schema": { "type": "string" } }
                     ],
                     "requestBody": {
@@ -1036,13 +1014,12 @@
                     "responses": { "200": { "description": "Pricing updated" } }
                 }
             },
-            "/api/elevate/{apiKey}/room/{roomId}/availability": {
+            "/api/elevate/_KEY_/room/{roomId}/availability": {
                 "put": {
                     "tags": ["Pricing & Availability"],
                     "summary": "Update Availability Only",
                     
                     "parameters": [
-                        { "name": "apiKey", "in": "path", "required": true, "schema": { "type": "string" } },
                         { "name": "roomId", "in": "path", "required": true, "schema": { "type": "string" } }
                     ],
                     "requestBody": {
@@ -1535,7 +1512,15 @@
             docExpansion: "list",
             filter: true,
             showExtensions: true,
-            tryItOutEnabled: true
+            tryItOutEnabled: true,
+            requestInterceptor: function(req) {
+                // Auto-inject API key into /api/elevate/_KEY_/ URLs
+                const apiKey = req.headers['X-API-Key'];
+                if (apiKey && req.url.includes('/api/elevate/')) {
+                    req.url = req.url.replace(/\/api\/elevate\/[^/]*\//, '/api/elevate/' + apiKey + '/');
+                }
+                return req;
+            }
         });
     };
     </script>
