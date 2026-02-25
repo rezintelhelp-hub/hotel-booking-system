@@ -48518,6 +48518,64 @@ app.put('/api/elevate/:apiKey/room/:roomId', async (req, res) => {
 // ELEVATE: ROOM AMENITIES
 // =========================================================
 
+// List all available amenities (for partner reference)
+app.get('/api/elevate/:apiKey/amenities', async (req, res) => {
+  console.log('=== ELEVATE: LIST AVAILABLE AMENITIES ===');
+  
+  try {
+    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: 'Invalid API key' });
+    }
+    
+    const { category } = req.query;
+    
+    let query = `
+      SELECT amenity_code, amenity_name, category, icon, aliases
+      FROM master_amenities
+      WHERE is_active = true OR is_active IS NULL
+    `;
+    const params = [];
+    
+    if (category) {
+      query += ` AND category = $1`;
+      params.push(category);
+    }
+    
+    query += ` ORDER BY category, amenity_code`;
+    
+    const result = await pool.query(query, params);
+    
+    // Group by category for easier reading
+    const grouped = {};
+    for (const row of result.rows) {
+      const cat = row.category || 'Other';
+      if (!grouped[cat]) grouped[cat] = [];
+      
+      let name = row.amenity_name;
+      if (typeof name === 'object') name = name.en || Object.values(name)[0];
+      
+      grouped[cat].push({
+        code: row.amenity_code,
+        name: name,
+        icon: row.icon,
+        aliases: row.aliases || []
+      });
+    }
+    
+    res.json({
+      success: true,
+      total: result.rows.length,
+      note: 'You can send any of these codes, names, or aliases. Fuzzy matching is also supported.',
+      categories: grouped
+    });
+    
+  } catch (error) {
+    console.error('Elevate list amenities error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Get amenities for a room
 app.get('/api/elevate/:apiKey/room/:roomId/amenities', async (req, res) => {
   console.log('=== ELEVATE: GET ROOM AMENITIES ===');
