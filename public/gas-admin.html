@@ -41663,11 +41663,27 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const amountDisplay = tax.amount_type === 'percentage' 
                     ? `${tax.amount}%` 
                     : `${symbol}${parseFloat(tax.amount).toFixed(2)}`;
+                
+                const isPartner = tax.source === 'partner';
+                const partnerBadge = isPartner ? '<span style="background: #dbeafe; color: #1d4ed8; padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; font-weight: 600; margin-left: 0.5rem;">Partner</span>' : '';
+                
+                let actionsHtml;
+                if (isPartner) {
+                    actionsHtml = `
+                        <span style="color: #6b7280; font-size: 0.8rem; margin-right: 0.5rem;">Managed by partner</span>
+                        <button class="btn btn-small" onclick="toggleTaxActive(${tax.id}, ${!tax.active})" style="font-size: 0.8rem; background: ${tax.active ? '#f59e0b' : '#10b981'}; color: white;">${tax.active ? '⏸ Disable' : '▶ Enable'}</button>
+                    `;
+                } else {
+                    actionsHtml = `
+                        <button class="btn btn-small" onclick="editTax(${tax.id})" style="font-size: 0.8rem; margin-right: 0.25rem;">✏️ Edit</button>
+                        <button class="btn btn-small btn-danger" onclick="deleteTax(${tax.id})" style="font-size: 0.8rem; background: #ef4444; color: white;">🗑️ Delete</button>
+                    `;
+                }
                     
                 html += `
                     <tr style="border-bottom: 1px solid var(--border);">
                         <td style="padding: 0.75rem;">
-                            <strong>${mlDisplay(tax.name)}</strong>
+                            <strong>${mlDisplay(tax.name)}</strong>${partnerBadge}
                             ${tax.max_nights ? `<br><small style="color: #64748b;">Max ${tax.max_nights} nights</small>` : ''}
                         </td>
                         <td style="padding: 0.75rem;">${tax.country || '-'}</td>
@@ -41677,8 +41693,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                             <span class="badge ${tax.active ? 'badge-success' : 'badge-secondary'}">${tax.active ? 'Active' : 'Inactive'}</span>
                         </td>
                         <td style="padding: 0.75rem; text-align: right; white-space: nowrap;">
-                            <button class="btn btn-small" onclick="editTax(${tax.id})" style="font-size: 0.8rem; margin-right: 0.25rem;">✏️ Edit</button>
-                            <button class="btn btn-small btn-danger" onclick="deleteTax(${tax.id})" style="font-size: 0.8rem; background: #ef4444; color: white;">🗑️ Delete</button>
+                            ${actionsHtml}
                         </td>
                     </tr>
                 `;
@@ -41945,6 +41960,24 @@ const promo = await fetch('/api/v1/offers/validate', {
                 }
             } catch (error) {
                 alert('Error deleting tax: ' + error.message);
+            }
+        }
+        
+        async function toggleTaxActive(id, newActive) {
+            try {
+                const response = await fetch(`/api/admin/taxes/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ active: newActive })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    loadTaxesForProperty();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                alert('Error toggling tax: ' + error.message);
             }
         }
 

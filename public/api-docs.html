@@ -528,7 +528,8 @@
             { "name": "Webhooks", "description": "Configure and diagnose webhook integrations" },
             { "name": "Analytics", "description": "Tenant and website analytics" },
             { "name": "Lifecycle", "description": "Reservations, deletions, and lifecycle management" },
-            { "name": "Upsells", "description": "Create and manage upsells (add-on services) for properties" }
+            { "name": "Upsells", "description": "Create and manage upsells (add-on services) for properties" },
+            { "name": "Taxes", "description": "Create and manage tourist/city taxes for properties" }
         ],
         "paths": {
             // ===== TENANTS =====
@@ -1762,6 +1763,48 @@
                         { "name": "upsellId", "in": "path", "required": true, "schema": { "type": "string" }, "description": "GAS upsell ID or external_id" }
                     ],
                     "responses": { "200": { "description": "Upsell deleted" } }
+                }
+            },
+            "/api/elevate/_KEY_/property/{propertyId}/taxes": {
+                "get": {
+                    "tags": ["Taxes"],
+                    "summary": "List Property Taxes",
+                    "description": "Get all taxes configured for a property.",
+                    "parameters": [
+                        { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "string" } }
+                    ],
+                    "responses": { "200": { "description": "Taxes list", "content": { "application/json": { "example": { "success": true, "property_id": 5, "taxes": [{ "id": 1, "name": "Tourist Tax", "amount": "2.50", "amount_type": "fixed", "currency": "CHF", "charge_per": "per_person_per_night", "max_nights": 7, "active": true, "source": "partner" }] } } } } }
+                },
+                "post": {
+                    "tags": ["Taxes"],
+                    "summary": "Create Tax",
+                    "description": "Create a tourist/city tax for a property. Fields: name (required), amount (required), amount_type (fixed|percentage), currency, charge_per (per_person_per_night|per_night|per_booking|per_person), max_nights, min_age, star_tier, season_start, season_end, external_id.",
+                    "parameters": [
+                        { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "string" } }
+                    ],
+                    "requestBody": { "required": true, "content": { "application/json": { "example": { "name": "Kurtaxe", "amount": 3.50, "amount_type": "fixed", "currency": "CHF", "charge_per": "per_person_per_night", "max_nights": 21, "min_age": 16, "external_id": "elv-tax-1" } } } },
+                    "responses": { "200": { "description": "Tax created", "content": { "application/json": { "example": { "success": true, "tax": { "id": 1, "name": "Kurtaxe", "amount": "3.50", "charge_per": "per_person_per_night", "source": "partner" } } } } } }
+                }
+            },
+            "/api/elevate/_KEY_/taxes/{taxId}": {
+                "put": {
+                    "tags": ["Taxes"],
+                    "summary": "Update Tax",
+                    "description": "Update a tax by GAS ID or external_id.",
+                    "parameters": [
+                        { "name": "taxId", "in": "path", "required": true, "schema": { "type": "string" }, "description": "GAS tax ID or external_id" }
+                    ],
+                    "requestBody": { "required": true, "content": { "application/json": { "example": { "amount": 4.00, "season_start": "2026-06-01", "season_end": "2026-09-30" } } } },
+                    "responses": { "200": { "description": "Tax updated" } }
+                },
+                "delete": {
+                    "tags": ["Taxes"],
+                    "summary": "Delete Tax",
+                    "description": "Delete a tax by GAS ID or external_id.",
+                    "parameters": [
+                        { "name": "taxId", "in": "path", "required": true, "schema": { "type": "string" }, "description": "GAS tax ID or external_id" }
+                    ],
+                    "responses": { "200": { "description": "Tax deleted" } }
                 }
             }
         }
