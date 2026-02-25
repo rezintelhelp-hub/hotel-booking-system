@@ -816,6 +816,88 @@
                 }
             },
 
+            // ===== OFFERS =====
+            "/api/elevate/_KEY_/property/{propertyId}/offers": {
+                "get": {
+                    "tags": ["Pricing & Availability"],
+                    "summary": "List Property Offers",
+                    "description": "Get all active offers for a property.",
+                    "parameters": [
+                        { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "string" } }
+                    ],
+                    "responses": { "200": { "description": "List of offers" } }
+                },
+                "post": {
+                    "tags": ["Pricing & Availability"],
+                    "summary": "Create Offer",
+                    "description": "Create a special offer for a property. Use price_per_night for a fixed price, or discount_type + discount_value for percentage/fixed discounts. Set room_id or room_ids to target specific rooms, or omit for all rooms.",
+                    "parameters": [
+                        { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "string" } }
+                    ],
+                    "requestBody": {
+                        "required": true,
+                        "content": {
+                            "application/json": {
+                                "examples": {
+                                    "fixed_price": {
+                                        "summary": "Fixed price offer",
+                                        "value": {
+                                            "name": "Summer Special",
+                                            "description": "Reduced rate for summer season",
+                                            "price_per_night": 89.00,
+                                            "valid_from": "2026-06-01",
+                                            "valid_until": "2026-08-31",
+                                            "min_nights": 3,
+                                            "external_id": "summer-2026"
+                                        }
+                                    },
+                                    "percentage_discount": {
+                                        "summary": "Percentage discount",
+                                        "value": {
+                                            "name": "Early Bird 15% Off",
+                                            "discount_type": "percentage",
+                                            "discount_value": 15,
+                                            "valid_from": "2026-03-01",
+                                            "valid_until": "2026-05-31",
+                                            "min_nights": 7,
+                                            "room_ids": [1234, 1235]
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "responses": { "200": { "description": "Offer created" } }
+                }
+            },
+            "/api/elevate/_KEY_/offers/{offerId}": {
+                "put": {
+                    "tags": ["Pricing & Availability"],
+                    "summary": "Update Offer",
+                    "description": "Update an existing offer. offerId can be GAS offer ID or your external_id. Send only the fields you want to update.",
+                    "parameters": [
+                        { "name": "offerId", "in": "path", "required": true, "schema": { "type": "string" }, "description": "GAS offer ID or your external_id" }
+                    ],
+                    "requestBody": {
+                        "content": {
+                            "application/json": {
+                                "example": { "price_per_night": 79.00, "valid_until": "2026-09-30" }
+                            }
+                        }
+                    },
+                    "responses": { "200": { "description": "Offer updated" } }
+                },
+                "delete": {
+                    "tags": ["Pricing & Availability"],
+                    "summary": "Delete Offer",
+                    "description": "Delete an offer. offerId can be GAS offer ID or your external_id.",
+                    "parameters": [
+                        { "name": "offerId", "in": "path", "required": true, "schema": { "type": "string" } }
+                    ],
+                    "responses": { "200": { "description": "Offer deleted" } }
+                }
+            },
+
             // ===== IMAGES =====
             "/api/elevate/_KEY_/room/{roomId}/images": {
                 "post": {

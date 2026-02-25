@@ -33832,13 +33832,18 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const selectedOption = roomSelect.options[roomSelect.selectedIndex];
                 const roomPropertyId = selectedOption ? selectedOption.dataset.propertyId : null;
                 
-                // Filter offers by property_id AND room_id
+                // Filter offers by property_id AND room_id (with account safety check)
                 const roomOffers = (offersData.data || []).filter(o => {
+                    // Account safety check - if we have a selected account, only show offers for that account
+                    if (selectedAccountId && o.account_id && o.account_id != selectedAccountId) return false;
                     // Check property match - offer applies if no property_id OR matches this room's property
                     const propertyMatch = !o.property_id || o.property_id == roomPropertyId;
                     // Check room match - offer applies if no room_id OR matches this room
                     const roomMatch = !o.room_id || o.room_id == roomId;
-                    return propertyMatch && roomMatch;
+                    // Check array-based targeting
+                    const propertyArrayMatch = o.property_ids ? o.property_ids.includes(parseInt(roomPropertyId)) : true;
+                    const roomArrayMatch = o.room_ids ? o.room_ids.includes(parseInt(roomId)) : true;
+                    return propertyMatch && roomMatch && propertyArrayMatch && roomArrayMatch;
                 });
                 
                 // Ensure "Standard Price" offer exists (create virtually if not in DB)
@@ -37659,6 +37664,7 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
         
         function renderOfferDistribution(offers) {
+            window._currentOffers = offers;
             const container = document.getElementById('offer-distribution-list');
             
             let html = `
@@ -37678,6 +37684,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             
             for (const offer of offers) {
                 const isStandard = offer.id === 'standard' || mlDisplay(offer.name) === 'Standard Price';
+                const isPartner = offer.source === 'partner';
                 
                 // Build "Applies To" text - handle arrays
                 let appliesTo = 'All Properties';
@@ -37699,6 +37706,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <tr style="border-bottom: 1px solid var(--border);">
                         <td style="padding: 0.75rem;">
                             <strong>${isStandard ? ' ' : ' '}${mlDisplay(offer.name)}</strong>
+                            ${isPartner ? '<span style="display: inline-block; margin-left: 0.5rem; padding: 0.15rem 0.5rem; font-size: 0.7rem; background: #dbeafe; color: #1d4ed8; border-radius: 4px; font-weight: 500;">Partner</span>' : ''}
                         </td>
                         <td style="padding: 0.75rem; font-size: 0.85rem; color: #6b7280;">
                             ${appliesTo}
@@ -37719,7 +37727,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                             </span>
                         </td>
                         <td style="text-align: right; padding: 0.75rem; white-space: nowrap;">
-                            ${!isStandard ? `
+                            ${isPartner ? `
+                                <span style="color: #6b7280; font-size: 0.8rem;">Managed by partner</span>
+                                <button class="btn btn-small ${offer.active !== false ? 'btn-danger' : ''}" onclick="toggleOfferActive(${offer.id}, ${offer.active === false})" style="font-size: 0.8rem; margin-left: 0.25rem;">${offer.active !== false ? '⏸ Disable' : '▶ Enable'}</button>
+                            ` : !isStandard ? `
                                 <button class="btn btn-small" onclick="editOffer(${offer.id})" style="font-size: 0.8rem; margin-right: 0.25rem;">✏️ Edit</button>
                                 <button class="btn btn-small btn-danger" onclick="deleteOffer(${offer.id})" style="font-size: 0.8rem; background: #ef4444; color: white;">🗑️ Delete</button>
                             ` : '<span style="color: #9ca3af; font-size: 0.8rem;">Default</span>'}
@@ -38022,6 +38033,25 @@ const promo = await fetch('/api/v1/offers/validate', {
                 if (cb.value !== '') selected.push(parseInt(cb.value));
             });
             return selected.length > 0 ? selected : null;
+        }
+        
+        async function toggleOfferActive(id, enable) {
+            try {
+                await fetch(`/api/admin/offers/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ active: enable })
+                });
+                // Update local data
+                if (window._currentOffers) {
+                    const offer = window._currentOffers.find(o => o.id === id);
+                    if (offer) offer.active = enable;
+                    renderOfferDistribution(window._currentOffers);
+                }
+                showNotification(enable ? 'Offer enabled' : 'Offer disabled', 'success');
+            } catch (error) {
+                showNotification('Error toggling offer: ' + error.message, 'error');
+            }
         }
         
         async function editOffer(id) {
