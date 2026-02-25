@@ -21183,8 +21183,13 @@ async function pushSettingsToWordPress(siteUrl, section, settings) {
       'text-color': 'text_color',
       'underline-color': 'underline_color',
       'transparent': 'transparent',
+      'transparent-opacity': 'transparent_opacity',
       'sticky': 'sticky',
       'fixed-header': 'fixed_header',
+      'layout': 'layout',
+      'border': 'border',
+      'border-color': 'border_color',
+      'border-width': 'border_width',
       'cta-button-text': 'cta_text',
       'cta-text': 'cta_text',
       'cta-bg': 'cta_bg',
@@ -45933,7 +45938,7 @@ app.put('/api/partner/websites/:websiteId/header', async (req, res) => {
     }
     
     const { websiteId } = req.params;
-    const { sticky, fixed_header, transparent } = req.body;
+    const { sticky, fixed_header, transparent, transparent_opacity, layout, border, border_color, border_width } = req.body;
     
     const deployedSiteId = await getPartnerDeployedSiteId(auth.partnerId, websiteId);
     if (!deployedSiteId) {
@@ -45963,9 +45968,20 @@ app.put('/api/partner/websites/:websiteId/header', async (req, res) => {
     if (sticky !== undefined) { settings['sticky'] = sticky; changes['sticky'] = sticky; }
     if (fixed_header !== undefined) { settings['fixed-header'] = fixed_header; changes['fixed-header'] = fixed_header; }
     if (transparent !== undefined) { settings['transparent'] = transparent; changes['transparent'] = transparent; }
+    if (transparent_opacity !== undefined) { settings['transparent-opacity'] = String(transparent_opacity); changes['transparent-opacity'] = String(transparent_opacity); }
+    if (layout !== undefined) {
+      const validLayouts = ['logo-left', 'logo-center', 'logo-right'];
+      if (!validLayouts.includes(layout)) {
+        return res.status(400).json({ success: false, error: `Invalid layout. Must be: ${validLayouts.join(', ')}` });
+      }
+      settings['layout'] = layout; changes['layout'] = layout;
+    }
+    if (border !== undefined) { settings['border'] = border; changes['border'] = border; }
+    if (border_color !== undefined) { settings['border-color'] = border_color; changes['border-color'] = border_color; }
+    if (border_width !== undefined) { settings['border-width'] = String(border_width); changes['border-width'] = String(border_width); }
     
     if (Object.keys(changes).length === 0) {
-      return res.status(400).json({ success: false, error: 'No fields provided. Use: sticky, fixed_header, transparent' });
+      return res.status(400).json({ success: false, error: 'No fields provided. Use: sticky, fixed_header, transparent, transparent_opacity, layout, border, border_color, border_width' });
     }
     
     // UPSERT header settings
@@ -45996,7 +46012,12 @@ app.put('/api/partner/websites/:websiteId/header', async (req, res) => {
       header: {
         sticky: settings['sticky'],
         fixed_header: settings['fixed-header'],
-        transparent: settings['transparent']
+        transparent: settings['transparent'],
+        transparent_opacity: settings['transparent-opacity'],
+        layout: settings['layout'],
+        border: settings['border'],
+        border_color: settings['border-color'],
+        border_width: settings['border-width']
       },
       wordpress_push: wpPushResult
     });
@@ -46865,6 +46886,7 @@ const SECTION_DEFAULTS = {
     'cta-bg': '#2563eb',
     'cta-text-color': '#ffffff',
     'border-color': '#e5e7eb',
+    'border-width': '1',
     'font': '',
     'font-size': '',
     'font-weight': '',
@@ -46873,6 +46895,7 @@ const SECTION_DEFAULTS = {
     'sticky': true,
     'fixed-header': false,
     'transparent': true,
+    'transparent-opacity': '35',
     'border': false
   },
   hero: {
