@@ -48006,6 +48006,12 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
       for (const room of rooms) {
         if (!room.name) continue;
         
+        // Validate room_type if provided
+        const VALID_ROOM_TYPES = ['entire_place', 'private_room', 'shared_room', 'studio', 'suite', 'room', 'apartment', 'villa', 'cabin', 'tent', 'dorm'];
+        if (room.room_type && !VALID_ROOM_TYPES.includes(room.room_type)) {
+          return res.status(400).json({ success: false, error: `Invalid room_type "${room.room_type}" for room "${room.name}". Must be one of: ${VALID_ROOM_TYPES.join(', ')}` });
+        }
+        
         // bookable_units has JSONB columns for display_name, short_description, full_description
         // Wrap plain strings as {"en": "..."} for JSONB compatibility
         const roomDisplayName = toJsonbSafe(room.display_name || room.name);
@@ -48449,6 +48455,14 @@ app.put('/api/elevate/:apiKey/room/:roomId', async (req, res) => {
     for (const [apiField, dbField] of Object.entries(fieldMap)) {
       if (updates[apiField] !== undefined && updates[apiField] !== null) {
         let value = updates[apiField];
+        
+        // Validate room_type if provided
+        if (dbField === 'room_type') {
+          const VALID_ROOM_TYPES = ['entire_place', 'private_room', 'shared_room', 'studio', 'suite', 'room', 'apartment', 'villa', 'cabin', 'tent', 'dorm'];
+          if (!VALID_ROOM_TYPES.includes(value)) {
+            return res.status(400).json({ success: false, error: `Invalid room_type. Must be one of: ${VALID_ROOM_TYPES.join(', ')}` });
+          }
+        }
         
         // Handle JSONB columns - convert string to JSON object with 'en' key
         if (jsonbColumns.includes(dbField)) {
