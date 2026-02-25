@@ -404,11 +404,16 @@
                     "required": ["tenant_id", "business_name"],
                     "properties": {
                         "tenant_id": { "type": "string", "description": "Your unique identifier for this tenant", "example": "tenant-001" },
-                        "business_name": { "type": "string", "description": "Display name for the business", "example": "Sunshine Apartments" },
+                        "business_name": { "type": "string", "description": "Display name for the business. Also accepts: company, brand", "example": "Sunshine Apartments" },
                         "contact_email": { "type": "string", "format": "email", "example": "owner@sunshineapts.com" },
                         "contact_phone": { "type": "string", "example": "+1234567890" },
-                        "country": { "type": "string", "description": "Two-letter country code", "example": "US" },
-                        "timezone": { "type": "string", "example": "America/New_York" }
+                        "country": { "type": "string", "description": "Country name or code", "example": "Switzerland" },
+                        "timezone": { "type": "string", "example": "Europe/Zurich" },
+                        "street_address": { "type": "string", "description": "Street address. Also accepts: street", "example": "Hauptgasse 33" },
+                        "zipcode": { "type": "string", "description": "Postal/zip code. Also accepts: zip", "example": "4600" },
+                        "city": { "type": "string", "example": "Olten" },
+                        "currency": { "type": "string", "description": "Three-letter currency code", "example": "CHF" },
+                        "website": { "type": "string", "description": "Business website URL. Also accepts: website_url", "example": "www.example.com" }
                     }
                 },
                 "Property": {
@@ -541,8 +546,13 @@
                                     "business_name": "Sunshine Apartments",
                                     "contact_email": "owner@sunshineapts.com",
                                     "contact_phone": "+1234567890",
-                                    "country": "US",
-                                    "timezone": "America/New_York"
+                                    "country": "Switzerland",
+                                    "timezone": "Europe/Zurich",
+                                    "street_address": "Hauptgasse 33",
+                                    "zipcode": "4600",
+                                    "city": "Olten",
+                                    "currency": "CHF",
+                                    "website": "www.example.com"
                                 }
                             }
                         }
@@ -596,7 +606,7 @@
                     "requestBody": {
                         "content": {
                             "application/json": {
-                                "example": { "business_name": "New Business Name", "contact_email": "new@email.com" }
+                                "example": { "business_name": "New Business Name", "contact_email": "new@email.com", "street_address": "Hauptgasse 33", "zipcode": "4600", "city": "Olten", "currency": "CHF", "website": "www.example.com" }
                             }
                         }
                     },
