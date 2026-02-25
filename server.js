@@ -43464,7 +43464,7 @@ app.post('/api/partner/tenants', async (req, res) => {
             street_address, zipcode, website, company, brand } = req.body;
     
     // Resolve field aliases (Elevate names → GAS names, with fallback to existing)
-    const resolvedBusinessName = business_name || company || brand;
+    const resolvedBusinessName = business_name || brand || company;
     const resolvedStreet = street || street_address;
     const resolvedZip = zip || zipcode;
     const resolvedWebsite = website_url || website;
@@ -43674,7 +43674,7 @@ app.put('/api/partner/tenants/:tenantId', async (req, res) => {
             street_address, zipcode, website, company, brand } = req.body;
     
     // Resolve field aliases (Elevate names → GAS names)
-    const resolvedBusinessName = business_name || company || brand;
+    const resolvedBusinessName = business_name || brand || company;
     const resolvedStreet = street || street_address;
     const resolvedZip = zip || zipcode;
     const resolvedWebsite = website_url || website;
