@@ -781,6 +781,41 @@
                 }
             },
             
+            // ===== TERMS & POLICIES =====
+            "/api/elevate/_KEY_/property/{propertyId}/terms": {
+                "get": {
+                    "tags": ["Properties & Rooms"],
+                    "summary": "Get Property Terms",
+                    "description": "Get check-in/out times, house rules, cancellation policy and other terms.",
+                    "parameters": [
+                        { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "string" } }
+                    ],
+                    "responses": { "200": { "description": "Property terms", "content": { "application/json": { "example": { "success": true, "property_id": 532, "terms": { "check_in_time": "15:00", "check_out_time": "11:00", "house_rules": "No smoking. No parties.", "cancellation_policy": "Free cancellation up to 48 hours before check-in.", "terms_conditions": null, "min_stay": null, "max_stay": null, "damage_deposit": null, "cleaning_fee": null } } } } } }
+                },
+                "put": {
+                    "tags": ["Properties & Rooms"],
+                    "summary": "Set Property Terms",
+                    "description": "Update check-in/out times, house rules, cancellation policy and other terms. Send only the fields you want to update.",
+                    "parameters": [
+                        { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "string" } }
+                    ],
+                    "requestBody": {
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "check_in_time": "15:00",
+                                    "check_out_time": "11:00",
+                                    "house_rules": "No smoking. No parties. Quiet hours 22:00-08:00.",
+                                    "cancellation_policy": "Free cancellation up to 48 hours before check-in. 50% refund for cancellations within 48 hours.",
+                                    "terms_conditions": "By booking you agree to the house rules."
+                                }
+                            }
+                        }
+                    },
+                    "responses": { "200": { "description": "Terms updated" } }
+                }
+            },
+
             // ===== IMAGES =====
             "/api/elevate/_KEY_/room/{roomId}/images": {
                 "post": {
