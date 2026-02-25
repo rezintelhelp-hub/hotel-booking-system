@@ -868,6 +868,48 @@
                     "responses": { "200": { "description": "Image deleted" } }
                 }
             },
+            "/api/elevate/_KEY_/property/{propertyId}/images/reorder": {
+                "put": {
+                    "tags": ["Images"],
+                    "summary": "Reorder Property Images",
+                    "description": "Set the display order of property images. The first image becomes the primary/hero image.",
+                    "parameters": [
+                        { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "string" } }
+                    ],
+                    "requestBody": {
+                        "required": true,
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "image_ids": [45, 42, 43, 44, 46]
+                                }
+                            }
+                        }
+                    },
+                    "responses": { "200": { "description": "Images reordered", "content": { "application/json": { "example": { "success": true, "updated": 5, "total": 5 } } } } }
+                }
+            },
+            "/api/elevate/_KEY_/room/{roomId}/images/reorder": {
+                "put": {
+                    "tags": ["Images"],
+                    "summary": "Reorder Room Images",
+                    "description": "Set the display order of room images.",
+                    "parameters": [
+                        { "name": "roomId", "in": "path", "required": true, "schema": { "type": "string" } }
+                    ],
+                    "requestBody": {
+                        "required": true,
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "image_ids": [12, 10, 11, 13]
+                                }
+                            }
+                        }
+                    },
+                    "responses": { "200": { "description": "Images reordered", "content": { "application/json": { "example": { "success": true, "updated": 4, "total": 4 } } } } }
+                }
+            },
             
             // ===== ROOM DETAILS =====
             "/api/elevate/_KEY_/room/{roomId}/amenities": {
