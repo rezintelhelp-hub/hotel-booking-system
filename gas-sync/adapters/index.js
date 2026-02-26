@@ -40,6 +40,16 @@ try {
   console.log('Calry adapter not available:', e.message);
 }
 
+// Try to load Hostfully adapter (direct - bypasses Calry)
+let HostfullyAdapter = null;
+try {
+  const hostfullyModule = require('./hostfully-adapter');
+  HostfullyAdapter = hostfullyModule.HostfullyAdapter;
+  console.log('✅ Hostfully adapter loaded successfully');
+} catch (e) {
+  console.log('Hostfully adapter not available:', e.message);
+}
+
 // =====================================================
 // ADAPTER REGISTRY
 // =====================================================
@@ -65,6 +75,12 @@ if (SmoobuAdapter) {
 // Add Calry if available
 if (CalryAdapter) {
   adapters.calry = CalryAdapter;
+}
+
+// Add Hostfully if available (direct adapter, takes priority over Calry routing)
+if (HostfullyAdapter) {
+  adapters.hostfully = HostfullyAdapter;
+  console.log('✅ Hostfully adapter registered (direct)');
 }
 
 // PMS types that should route through Calry (excluding those with direct adapters)
@@ -214,6 +230,8 @@ class SyncManager {
       integrationAccountId: credentials.integrationAccountId,
       // Hostaway specific
       accountId: credentials.accountId || credentials.clientId,
+      // Hostfully specific
+      agencyUid: credentials.agencyUid,
       pool: this.pool,
       connectionId: connectionId
     });
@@ -364,5 +382,6 @@ module.exports = {
   Beds24Adapter,
   ...(HostawayAdapter ? { HostawayAdapter } : {}),
   ...(SmoobuAdapter ? { SmoobuAdapter } : {}),
-  ...(CalryAdapter ? { CalryAdapter, CALRY_SUPPORTED_PMS } : {})
+  ...(CalryAdapter ? { CalryAdapter, CALRY_SUPPORTED_PMS } : {}),
+  ...(HostfullyAdapter ? { HostfullyAdapter } : {})
 };
