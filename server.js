@@ -28015,7 +28015,7 @@ app.get('/api/hostfully/test-properties', async (req, res) => {
     let page = 0;
     
     do {
-      const params = { limit: 50, agencyUid: req.query.agencyUid || '3d65c428-57a3-4056-97a1-2bcd9240b8e3' };
+      const params = { limit: 50, agencyUid: req.query.agencyUid || 'aa631fe9-4f0d-4629-ad0d-f6c766e0b013' };
       if (cursor) params.cursor = cursor;
       
       const response = await axios.get(`${HOSTFULLY_API_BASE}/properties`, {
