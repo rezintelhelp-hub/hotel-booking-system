@@ -27793,6 +27793,7 @@ app.get('/api/calry/test-properties/:integrationAccountId', async (req, res) => 
   
   try {
     const { integrationAccountId } = req.params;
+    const { page, limit, status } = req.query;
     
     if (!CALRY_API_TOKEN || !CALRY_WORKSPACE_ID) {
       return res.json({ 
@@ -27803,26 +27804,48 @@ app.get('/api/calry/test-properties/:integrationAccountId', async (req, res) => 
     
     console.log('Fetching properties for integration account:', integrationAccountId);
     
+    // Build params - try pagination if Calry supports it
+    const params = {};
+    if (page) params.page = page;
+    if (limit) params.limit = limit;
+    if (status) params.status = status;
+    
     const response = await axios.get(`${CALRY_API_BASE}/properties`, {
       headers: {
         'Authorization': `Bearer ${CALRY_API_TOKEN}`,
         'workspaceId': CALRY_WORKSPACE_ID,
         'integrationAccountId': integrationAccountId,
         'Content-Type': 'application/json'
-      }
+      },
+      params: Object.keys(params).length > 0 ? params : undefined
     });
     
     const properties = response.data?.data || [];
     
-    console.log(`Found ${properties.length} properties`);
+    // Log full response structure for debugging
+    const responseKeys = Object.keys(response.data || {});
+    console.log(`Found ${properties.length} properties. Response keys: ${responseKeys.join(', ')}`);
+    
+    // Check for pagination metadata
+    const pagination = response.data?.pagination || response.data?.meta || response.data?.paging || null;
+    const total = response.data?.total || response.data?.totalCount || response.data?.count || properties.length;
+    
+    if (pagination) {
+      console.log('Pagination data:', JSON.stringify(pagination));
+    }
     
     res.json({ 
       success: true,
       integrationAccountId,
       count: properties.length,
+      total: total,
+      response_keys: responseKeys,
+      pagination: pagination,
       properties: properties.map(p => ({
         id: p.id,
+        externalId: p.externalId,
         name: p.name,
+        internalName: p.internalName,
         type: p.type,
         status: p.status,
         city: p.address?.city,
@@ -27830,7 +27853,7 @@ app.get('/api/calry/test-properties/:integrationAccountId', async (req, res) => 
         currency: p.currency,
         roomTypes: p.roomTypes?.length || 0
       })),
-      raw: properties // Include raw data for debugging
+      raw: properties
     });
     
   } catch (error) {
@@ -28983,15 +29006,20 @@ async function importCalryPropertiesViaAdapter(integrationAccountId, pmsName, ex
       useDev: false
     });
     
-    console.log('Fetching properties via adapter...');
+    console.log('Fetching properties via adapter (with auto-pagination)...');
     const propertiesResult = await adapter.getProperties();
     
     if (!propertiesResult.success) {
       throw new Error(`Failed to fetch properties: ${propertiesResult.error}`);
     }
     
-    const properties = propertiesResult.data || [];
-    console.log(`Found ${properties.length} properties from ${pmsName}`);
+    let properties = propertiesResult.data || [];
+    console.log(`Found ${properties.length} properties from ${pmsName} (pagination: ${JSON.stringify(propertiesResult.pagination || {})})`);
+    
+    // Log property names and statuses for debugging
+    if (properties.length > 0 && properties.length <= 20) {
+      properties.forEach(p => console.log(`  - ${p.name} (${p.externalId}) status=${p.status} type=${p.propertyType}`));
+    }
     
     if (properties.length === 0) {
       results.errors.push('No properties found');
