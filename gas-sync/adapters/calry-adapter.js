@@ -214,26 +214,70 @@ class CalryAdapter {
   // =====================================================
   
   async getProperties(options = {}) {
-    const params = {};
-    if (options.page) params.page = options.page;
-    if (options.limit) params.limit = options.limit;
+    // Auto-paginate to get ALL properties
+    const allProperties = [];
+    let page = options.page || 1;
+    const limit = options.limit || 100;
+    let hasMore = true;
+    let totalFromApi = null;
+    const singlePage = !!options.page; // If specific page requested, don't auto-paginate
     
-    const response = await this.request('/vrs/properties', 'GET', null, { params });
-    
-    if (!response.success) {
-      return response;
+    while (hasMore) {
+      const response = await this.request('/vrs/properties', 'GET', null, { 
+        params: { page, limit } 
+      });
+      
+      if (!response.success) {
+        // If first page fails, return error. If later page, return what we have.
+        if (page === 1 || (options.page && page === options.page)) return response;
+        console.log(`Calry pagination stopped at page ${page}: ${response.error}`);
+        break;
+      }
+      
+      const rawData = response.data?.data || response.data || [];
+      const pageData = Array.isArray(rawData) ? rawData : [];
+      const mapped = pageData.map(prop => this.mapProperty(prop));
+      allProperties.push(...mapped);
+      
+      // Log first page response structure for debugging
+      if (page === 1 || (options.page && page === options.page)) {
+        totalFromApi = response.data?.total || response.data?.totalCount || response.data?.pagination?.total || null;
+        const responseKeys = Object.keys(response.data || {});
+        console.log(`Calry getProperties page ${page}: ${mapped.length} properties. Keys: [${responseKeys.join(', ')}]${totalFromApi ? `, total: ${totalFromApi}` : ''}${response.data?.hasMore !== undefined ? `, hasMore: ${response.data.hasMore}` : ''}`);
+      }
+      
+      // If single page requested, stop
+      if (singlePage) break;
+      
+      // Determine if there are more pages
+      const apiHasMore = response.data?.hasMore === true;
+      const gotFullPage = mapped.length >= limit;
+      const belowTotal = totalFromApi ? allProperties.length < totalFromApi : false;
+      
+      if (apiHasMore || (gotFullPage && belowTotal)) {
+        page++;
+        if (page > 20) {
+          console.log('Calry pagination safety limit reached (20 pages)');
+          break;
+        }
+      } else {
+        hasMore = false;
+      }
     }
     
-    const properties = (response.data?.data || response.data || []).map(prop => this.mapProperty(prop));
+    if (!singlePage && page > 1) {
+      console.log(`Calry getProperties total: ${allProperties.length} properties across ${page} page(s)`);
+    }
     
     return {
       success: true,
-      data: properties,
+      data: allProperties,
       pagination: {
-        page: options.page || 1,
-        limit: options.limit || 100,
-        total: response.data?.total || properties.length,
-        hasMore: response.data?.hasMore || false
+        page: singlePage ? page : 1,
+        pages_fetched: singlePage ? 1 : page,
+        limit: limit,
+        total: totalFromApi || allProperties.length,
+        hasMore: false
       }
     };
   }
