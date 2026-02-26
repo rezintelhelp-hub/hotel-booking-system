@@ -27962,6 +27962,114 @@ app.get('/api/calry/test-integration-accounts', async (req, res) => {
 });
 
 // =========================================================
+// =========================================================
+// HOSTFULLY DIRECT API - Test endpoints bypassing Calry
+// =========================================================
+
+const HOSTFULLY_API_KEY = 'tBLCKrpvZ8mIiNzH';
+const HOSTFULLY_API_BASE = 'https://platform.hostfully.com/api/v3';
+
+// GET /api/hostfully/test-properties - Fetch all properties directly from Hostfully
+app.get('/api/hostfully/test-properties', async (req, res) => {
+  console.log('=== HOSTFULLY DIRECT: GET PROPERTIES ===');
+  
+  try {
+    const allProperties = [];
+    let cursor = null;
+    let page = 0;
+    
+    do {
+      const params = { limit: 50 };
+      if (cursor) params.cursor = cursor;
+      
+      const response = await axios.get(`${HOSTFULLY_API_BASE}/properties`, {
+        headers: {
+          'X-HOSTFULLY-APIKEY': HOSTFULLY_API_KEY,
+          'Content-Type': 'application/json'
+        },
+        params,
+        timeout: 30000
+      });
+      
+      const data = response.data;
+      const properties = Array.isArray(data) ? data : (data.properties || data.data || data.content || []);
+      
+      if (page === 0) {
+        console.log(`Hostfully response type: ${typeof data}, isArray: ${Array.isArray(data)}, keys: ${typeof data === 'object' && !Array.isArray(data) ? Object.keys(data).join(', ') : 'N/A'}`);
+        console.log(`Rate limit remaining: ${response.headers['x-ratelimit-remaining'] || 'unknown'}`);
+      }
+      
+      allProperties.push(...properties);
+      
+      // Handle cursor-based pagination (V3)
+      cursor = data.nextCursor || data.cursor || null;
+      // Also handle if no pagination at all
+      if (!cursor && properties.length < 50) cursor = null;
+      
+      page++;
+      console.log(`  Page ${page}: ${properties.length} properties${cursor ? ', has next cursor' : ''}`);
+      
+    } while (cursor && page < 10);
+    
+    console.log(`Total: ${allProperties.length} properties from Hostfully`);
+    
+    res.json({
+      success: true,
+      count: allProperties.length,
+      properties: allProperties.map(p => ({
+        uid: p.uid || p.UID || p.id,
+        name: p.name,
+        type: p.propertyType,
+        listingType: p.listingType,
+        isActive: p.isActive,
+        isLive: p.isLive,
+        parentUid: p.parentUid || p.parentUID || null,
+        city: p.address?.city,
+        country: p.address?.countryCode,
+        bedrooms: p.bedrooms,
+        bathrooms: p.bathrooms,
+        maxGuests: p.availability?.maxGuests || p.maxGuests,
+        currency: p.currency
+      })),
+      raw: allProperties
+    });
+    
+  } catch (error) {
+    console.error('Hostfully direct API error:', error.response?.data || error.message);
+    res.json({
+      success: false,
+      error: error.response?.data?.message || error.message,
+      status: error.response?.status,
+      details: error.response?.data
+    });
+  }
+});
+
+// GET /api/hostfully/test-property/:uid - Get single property detail
+app.get('/api/hostfully/test-property/:uid', async (req, res) => {
+  console.log('=== HOSTFULLY DIRECT: GET PROPERTY DETAIL ===');
+  
+  try {
+    const response = await axios.get(`${HOSTFULLY_API_BASE}/properties/${req.params.uid}`, {
+      headers: {
+        'X-HOSTFULLY-APIKEY': HOSTFULLY_API_KEY,
+        'Content-Type': 'application/json'
+      },
+      timeout: 30000
+    });
+    
+    res.json({ success: true, property: response.data });
+    
+  } catch (error) {
+    console.error('Hostfully property detail error:', error.response?.data || error.message);
+    res.json({
+      success: false,
+      error: error.response?.data?.message || error.message,
+      status: error.response?.status
+    });
+  }
+});
+
 // CALRY IMPORT - Import properties from Calry into GAS
 // =========================================================
 
