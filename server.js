@@ -82,7 +82,7 @@ function initGoogleAuth() {
 initGoogleAuth();
 
 // GasSync - Channel Manager Integration Layer
-let getAdapter, getAvailableAdapters, getAdapterInfo, getAdapterGroups, SyncManager;
+let getAdapter, getAvailableAdapters, getAdapterInfo, getAdapterGroups, SyncManager, HostfullyAdapter;
 try {
   const gasSyncModule = require('./gas-sync/adapters');
   getAdapter = gasSyncModule.getAdapter;
@@ -90,6 +90,7 @@ try {
   getAdapterInfo = gasSyncModule.getAdapterInfo;
   getAdapterGroups = gasSyncModule.getAdapterGroups;
   SyncManager = gasSyncModule.SyncManager;
+  HostfullyAdapter = gasSyncModule.HostfullyAdapter || null;
   console.log('✅ GasSync adapters loaded successfully');
 } catch (gasSyncError) {
   console.error('❌ Failed to load GasSync adapters:', gasSyncError.message);
@@ -28103,6 +28104,274 @@ app.get('/api/hostfully/test-property/:uid', async (req, res) => {
       error: error.response?.data?.message || error.message,
       status: error.response?.status
     });
+  }
+});
+
+// =====================================================
+// HOSTFULLY ADAPTER - Import & Sync Endpoints
+// =====================================================
+
+// POST /api/hostfully/import - Import all properties using the Hostfully adapter
+app.post('/api/hostfully/import', async (req, res) => {
+  console.log('=== HOSTFULLY ADAPTER: IMPORT PROPERTIES ===');
+  
+  if (!HostfullyAdapter) {
+    return res.json({ success: false, error: 'Hostfully adapter not loaded' });
+  }
+  
+  try {
+    const { 
+      accountId,     // Existing GAS account ID (optional)
+      accountName,   // Name for new account (optional)
+      bookableOnly   // Only import SUB_UNIT properties (default true)
+    } = req.body;
+    
+    const adapter = new HostfullyAdapter({
+      apiKey: HOSTFULLY_API_KEY,
+      agencyUid: 'aa631fe9-4f0d-4629-ad0d-f6c766e0b013',
+      pool: pool,
+      connectionId: null // Will be set after connection created
+    });
+    
+    // 1. Fetch all properties
+    console.log('Fetching properties from Hostfully...');
+    const allResult = await adapter.getProperties();
+    if (!allResult.success) {
+      return res.json({ success: false, error: allResult.error });
+    }
+    
+    const allProperties = allResult.data;
+    console.log(`Found ${allProperties.length} total properties`);
+    
+    // Separate parents and bookable sub-units
+    const parents = allProperties.filter(p => p.businessType === 'STANDALONE_PROPERTY' || p.businessType === 'MULTI_UNIT');
+    const subUnits = allProperties.filter(p => p.businessType === 'SUB_UNIT');
+    const importList = (bookableOnly !== false) ? subUnits : allProperties;
+    
+    console.log(`Parents: ${parents.length}, Sub-units: ${subUnits.length}, Importing: ${importList.length}`);
+    
+    // 2. Get or create GAS account
+    let gasAccountId = accountId;
+    
+    if (gasAccountId) {
+      const check = await pool.query('SELECT id, name FROM accounts WHERE id = $1', [gasAccountId]);
+      if (check.rows.length === 0) {
+        return res.json({ success: false, error: `Account ${gasAccountId} not found` });
+      }
+      console.log(`Using existing account: ${gasAccountId} (${check.rows[0].name})`);
+    } else {
+      // Check for existing Hostfully account
+      const existing = await pool.query(
+        "SELECT id, name FROM accounts WHERE settings->>'cm_source' = 'hostfully'"
+      );
+      if (existing.rows.length > 0) {
+        gasAccountId = existing.rows[0].id;
+        console.log(`Found existing Hostfully account: ${gasAccountId}`);
+      } else {
+        const name = accountName || 'Mountain Holidays (Hostfully)';
+        const result = await pool.query(`
+          INSERT INTO accounts (name, email, role, status, settings, created_at)
+          VALUES ($1, $2, 'admin', 'active', $3, NOW()) RETURNING id
+        `, [name, 'hostfully-import@gas.travel', JSON.stringify({ cm_source: 'hostfully' })]);
+        gasAccountId = result.rows[0].id;
+        console.log(`Created account: ${gasAccountId}`);
+      }
+    }
+    
+    // 3. Get or create gas_sync_connection
+    const existingConn = await pool.query(
+      "SELECT id FROM gas_sync_connections WHERE account_id = $1 AND adapter_code = 'hostfully'",
+      [gasAccountId]
+    );
+    
+    let connectionId;
+    if (existingConn.rows.length > 0) {
+      connectionId = existingConn.rows[0].id;
+      console.log(`Using existing connection: ${connectionId}`);
+    } else {
+      const connResult = await pool.query(`
+        INSERT INTO gas_sync_connections (
+          account_id, adapter_code, external_account_id, external_account_name,
+          credentials, status, sync_enabled, created_at
+        ) VALUES ($1, 'hostfully', $2, $3, $4, 'connected', true, NOW()) RETURNING id
+      `, [
+        gasAccountId,
+        'aa631fe9-4f0d-4629-ad0d-f6c766e0b013',
+        'Mountain Holidays (Hostfully Direct)',
+        JSON.stringify({ apiKey: '***', agencyUid: 'aa631fe9-4f0d-4629-ad0d-f6c766e0b013' })
+      ]);
+      connectionId = connResult.rows[0].id;
+      console.log(`Created connection: ${connectionId}`);
+    }
+    
+    adapter.connectionId = connectionId;
+    
+    // 4. Import each property
+    const results = {
+      gas_account_id: gasAccountId,
+      gas_connection_id: connectionId,
+      properties_imported: 0,
+      rooms_imported: 0,
+      parents_found: parents.length,
+      sub_units_found: subUnits.length,
+      properties: [],
+      errors: []
+    };
+    
+    for (const property of importList) {
+      try {
+        console.log(`\nImporting: ${property.name} (${property.externalId}) [${property.businessType}]`);
+        
+        // Fetch photos
+        let images = [];
+        try {
+          const photosResult = await adapter.getPhotos(property.externalId);
+          if (photosResult.success) {
+            images = photosResult.data;
+            console.log(`  Photos: ${images.length}`);
+          }
+        } catch (photoErr) {
+          console.log(`  Photos error: ${photoErr.message}`);
+        }
+        
+        // Fetch amenities
+        let amenities = [];
+        try {
+          const amenResult = await adapter.getAmenities(property.externalId);
+          if (amenResult.success) {
+            amenities = amenResult.data;
+            console.log(`  Amenities: ${amenities.length}`);
+          }
+        } catch (amenErr) {
+          console.log(`  Amenities error: ${amenErr.message}`);
+        }
+        
+        // Sync property to staging
+        const syncPropId = await adapter.syncPropertyToDatabase(property);
+        console.log(`  Synced to staging: ${syncPropId}`);
+        
+        // Sync as room type (in Hostfully each property = 1 room type)
+        const syncRoomId = await adapter.syncRoomTypeToDatabase(syncPropId, property);
+        console.log(`  Room type synced: ${syncRoomId}`);
+        
+        results.properties_imported++;
+        results.rooms_imported++;
+        results.properties.push({
+          name: property.name,
+          uid: property.externalId,
+          businessType: property.businessType,
+          syncPropId,
+          syncRoomId,
+          photos: images.length,
+          amenities: amenities.length
+        });
+        
+      } catch (propErr) {
+        console.error(`  Error importing ${property.name}:`, propErr.message);
+        results.errors.push({ name: property.name, uid: property.externalId, error: propErr.message });
+      }
+    }
+    
+    // 5. Store parent/child hierarchy metadata on the connection
+    const hierarchyMeta = {};
+    for (const parent of parents) {
+      const children = subUnits.filter(s => {
+        // Match children to parents by address
+        return s.address?.street === parent.address?.street && 
+               s.address?.city === parent.address?.city;
+      });
+      hierarchyMeta[parent.externalId] = {
+        name: parent.name,
+        children: children.map(c => ({ uid: c.externalId, name: c.name }))
+      };
+    }
+    
+    await pool.query(
+      "UPDATE gas_sync_connections SET settings = COALESCE(settings, '{}')::jsonb || $1::jsonb WHERE id = $2",
+      [JSON.stringify({ property_hierarchy: hierarchyMeta }), connectionId]
+    );
+    
+    results.hierarchy = hierarchyMeta;
+    
+    console.log(`\n=== IMPORT COMPLETE: ${results.properties_imported} properties, ${results.rooms_imported} rooms ===`);
+    res.json({ success: true, ...results });
+    
+  } catch (error) {
+    console.error('Hostfully import error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/hostfully/hierarchy - View property parent/child structure
+app.get('/api/hostfully/hierarchy', async (req, res) => {
+  console.log('=== HOSTFULLY: PROPERTY HIERARCHY ===');
+  
+  if (!HostfullyAdapter) {
+    return res.json({ success: false, error: 'Hostfully adapter not loaded' });
+  }
+  
+  try {
+    const adapter = new HostfullyAdapter({
+      apiKey: HOSTFULLY_API_KEY,
+      agencyUid: 'aa631fe9-4f0d-4629-ad0d-f6c766e0b013'
+    });
+    
+    const result = await adapter.getPropertyHierarchy();
+    res.json(result);
+    
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/hostfully/calendar/:uid - Get property calendar (availability + pricing)
+app.get('/api/hostfully/calendar/:uid', async (req, res) => {
+  console.log('=== HOSTFULLY: PROPERTY CALENDAR ===');
+  
+  if (!HostfullyAdapter) {
+    return res.json({ success: false, error: 'Hostfully adapter not loaded' });
+  }
+  
+  try {
+    const adapter = new HostfullyAdapter({
+      apiKey: HOSTFULLY_API_KEY,
+      agencyUid: 'aa631fe9-4f0d-4629-ad0d-f6c766e0b013'
+    });
+    
+    const { startDate, endDate } = req.query;
+    const result = await adapter.getPropertyCalendar(req.params.uid, startDate, endDate);
+    res.json(result);
+    
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/hostfully/leads - Get bookings/reservations
+app.get('/api/hostfully/leads', async (req, res) => {
+  console.log('=== HOSTFULLY: GET LEADS ===');
+  
+  if (!HostfullyAdapter) {
+    return res.json({ success: false, error: 'Hostfully adapter not loaded' });
+  }
+  
+  try {
+    const adapter = new HostfullyAdapter({
+      apiKey: HOSTFULLY_API_KEY,
+      agencyUid: 'aa631fe9-4f0d-4629-ad0d-f6c766e0b013'
+    });
+    
+    const result = await adapter.getLeads({
+      propertyUid: req.query.propertyUid,
+      status: req.query.status,
+      checkInFrom: req.query.checkInFrom,
+      checkInTo: req.query.checkInTo,
+      limit: req.query.limit || 50
+    });
+    res.json(result);
+    
+  } catch (error) {
+    res.json({ success: false, error: error.message });
   }
 });
 
