@@ -27969,6 +27969,42 @@ app.get('/api/calry/test-integration-accounts', async (req, res) => {
 const HOSTFULLY_API_KEY = 'tBLCKrpvZ8mIiNzH';
 const HOSTFULLY_API_BASE = 'https://platform.hostfully.com/api/v3';
 
+// GET /api/hostfully/test-agencies - Find the agencyUid for this API key
+app.get('/api/hostfully/test-agencies', async (req, res) => {
+  console.log('=== HOSTFULLY DIRECT: GET AGENCIES ===');
+  
+  try {
+    const response = await axios.get(`${HOSTFULLY_API_BASE}/agencies`, {
+      headers: {
+        'X-HOSTFULLY-APIKEY': HOSTFULLY_API_KEY,
+        'Content-Type': 'application/json'
+      },
+      timeout: 30000
+    });
+    
+    res.json({ success: true, data: response.data });
+    
+  } catch (error) {
+    // Try v2 as fallback
+    try {
+      const v2Response = await axios.get('https://platform.hostfully.com/api/v2/agencies', {
+        headers: {
+          'X-HOSTFULLY-APIKEY': HOSTFULLY_API_KEY,
+          'Content-Type': 'application/json'
+        },
+        timeout: 30000
+      });
+      res.json({ success: true, source: 'v2', data: v2Response.data });
+    } catch (v2Error) {
+      res.json({
+        success: false,
+        v3_error: { message: error.response?.data?.message || error.message, status: error.response?.status, details: error.response?.data },
+        v2_error: { message: v2Error.response?.data?.message || v2Error.message, status: v2Error.response?.status, details: v2Error.response?.data }
+      });
+    }
+  }
+});
+
 // GET /api/hostfully/test-properties - Fetch all properties directly from Hostfully
 app.get('/api/hostfully/test-properties', async (req, res) => {
   console.log('=== HOSTFULLY DIRECT: GET PROPERTIES ===');
