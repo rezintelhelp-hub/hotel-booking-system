@@ -6892,6 +6892,16 @@ app.post('/api/gas-sync/properties/:propertyId/sync-images', async (req, res) =>
     
     const prop = propResult.rows[0];
     
+    // Hostfully: photos API currently returns 0 — images need manual upload
+    if (prop.adapter_code === 'hostfully') {
+      return res.json({
+        success: true,
+        message: 'Hostfully photos sync not yet available. Please upload images manually.',
+        adapter: 'hostfully',
+        imagesSynced: 0
+      });
+    }
+    
     // Check rate limit
     if (!force && prop.last_image_sync) {
       const minutesSinceLastSync = (Date.now() - new Date(prop.last_image_sync).getTime()) / 60000;
@@ -7012,6 +7022,68 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
         success: true, 
         message: 'Calry properties sync content during import. Use resync to refresh.',
         adapter: 'calry'
+      });
+    }
+    
+    // Hostfully content sync - fetch descriptions + amenities from V3 API
+    if (prop.adapter_code === 'hostfully') {
+      const credentials = typeof prop.credentials === 'string' ? JSON.parse(prop.credentials || '{}') : (prop.credentials || {});
+      const { HostfullyAdapter } = require('./gas-sync/adapters/hostfully-adapter');
+      const adapter = new HostfullyAdapter({ apiKey: credentials.apiKey, agencyUid: credentials.agencyUid });
+      
+      // Get room types for this property
+      const roomTypes = await pool.query(
+        'SELECT rt.id, rt.external_id, rt.gas_room_id, rt.name FROM gas_sync_room_types rt WHERE rt.sync_property_id = $1 AND rt.gas_room_id IS NOT NULL',
+        [prop.id]
+      );
+      
+      let descCount = 0, amenCount = 0;
+      
+      for (const room of roomTypes.rows) {
+        // Descriptions
+        try {
+          const descResult = await adapter.getDescriptions(room.external_id);
+          if (descResult.success && descResult.data) {
+            const fullDescObj = {}, shortDescObj = {};
+            for (const [locale, desc] of Object.entries(descResult.data)) {
+              const lang = locale === 'en_US' ? 'EN' : locale === 'ja_JP' ? 'JA' : locale.split('_')[0].toUpperCase();
+              fullDescObj[lang] = desc.text || desc.summary || '';
+              shortDescObj[lang] = desc.shortSummary || desc.summary?.substring(0, 200) || '';
+            }
+            if (Object.keys(fullDescObj).length > 0) {
+              await pool.query('UPDATE bookable_units SET full_description = $1::jsonb WHERE id = $2', [JSON.stringify(fullDescObj), room.gas_room_id]);
+            }
+            if (Object.keys(shortDescObj).length > 0) {
+              await pool.query('UPDATE bookable_units SET short_description = $1::jsonb WHERE id = $2', [JSON.stringify(shortDescObj), room.gas_room_id]);
+            }
+            descCount += Object.keys(descResult.data).length;
+          }
+        } catch (e) { console.log(`[Content Sync HF] Desc error ${room.name}: ${e.message}`); }
+        
+        // Amenities
+        try {
+          const amenResult = await adapter.getAmenities(room.external_id);
+          if (amenResult.success && Array.isArray(amenResult.data) && amenResult.data.length > 0) {
+            const amenitiesJson = amenResult.data.map(a => ({
+              code: a.code,
+              name: a.code.replace(/^HAS_/, '').replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase()),
+              category: a.category
+            }));
+            await pool.query('UPDATE bookable_units SET amenities = $1::jsonb WHERE id = $2', [JSON.stringify(amenitiesJson), room.gas_room_id]);
+            amenCount += amenResult.data.length;
+          }
+        } catch (e) { console.log(`[Content Sync HF] Amenity error ${room.name}: ${e.message}`); }
+      }
+      
+      // Update sync timestamp
+      await pool.query('UPDATE gas_sync_properties SET last_content_sync = NOW() WHERE id = $1', [prop.id]);
+      
+      return res.json({
+        success: true,
+        adapter: 'hostfully',
+        descriptions: descCount,
+        amenities: amenCount,
+        rooms: roomTypes.rows.length
       });
     }
     
