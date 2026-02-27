@@ -32738,6 +32738,35 @@ app.post('/api/hostfully/import-to-gas/:connectionId', async (req, res) => {
                 stats.dailyPrices = (stats.dailyPrices || 0) + priceCount;
                 console.log(`[Hostfully import-to-gas]   Saved ${priceCount} daily prices to room_availability for ${room.name}`);
               }
+              
+              // Now overlay actual availability from calendar endpoint
+              try {
+                const today = new Date().toISOString().split('T')[0];
+                const oneYearOut = new Date(Date.now() + 365 * 86400000).toISOString().split('T')[0];
+                const calResult = await adapter.getPropertyCalendar(room.external_id, today, oneYearOut);
+                if (calResult.success && Array.isArray(calResult.data)) {
+                  let blockedCount = 0;
+                  for (const day of calResult.data) {
+                    if (day.date && !day.isAvailable) {
+                      await pool.query(`
+                        UPDATE room_availability SET is_available = false, is_blocked = true, updated_at = NOW()
+                        WHERE room_id = $1 AND date = $2
+                      `, [gasRoomId, day.date]);
+                      // Also insert if no pricing row exists for this blocked date
+                      await pool.query(`
+                        INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, source, updated_at)
+                        VALUES ($1, $2, 0, 0, false, true, 'hostfully', NOW())
+                        ON CONFLICT (room_id, date) DO UPDATE SET 
+                          is_available = false, is_blocked = true, source = 'hostfully', updated_at = NOW()
+                      `, [gasRoomId, day.date]);
+                      blockedCount++;
+                    }
+                  }
+                  console.log(`[Hostfully import-to-gas]   Calendar overlay for ${room.name}: ${blockedCount} blocked days out of ${calResult.data.length} total`);
+                }
+              } catch (calErr) {
+                console.log(`[Hostfully import-to-gas]   Calendar fetch for ${room.name}: ${calErr.message}`);
+              }
             } catch (pricingErr) {
               console.log(`[Hostfully import-to-gas] Pricing error for ${room.name}: ${pricingErr.message}`);
               stats.errors.push(`Pricing ${room.name}: ${pricingErr.message}`);
