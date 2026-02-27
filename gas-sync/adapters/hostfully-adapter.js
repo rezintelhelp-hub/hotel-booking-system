@@ -954,11 +954,13 @@ class HostfullyAdapter {
     const bookable = allProperties.filter(p => 
       p.businessType === BUSINESS_TYPES.SUB_UNIT
     );
-    // Treat any property without a parent as both property and room
+    // Treat any property without a known type as both property and room
     const standalone = allProperties.filter(p => 
-      !p.businessType || (!parents.some(par => par.externalId === p.raw?.parentUid) && 
-       p.businessType !== BUSINESS_TYPES.STANDALONE && 
-       p.businessType !== BUSINESS_TYPES.MULTI_UNIT)
+      !p.businessType || (
+        p.businessType !== BUSINESS_TYPES.STANDALONE && 
+        p.businessType !== BUSINESS_TYPES.MULTI_UNIT &&
+        p.businessType !== BUSINESS_TYPES.SUB_UNIT
+      )
     );
     
     console.log(`[Hostfully fullSync] Parents: ${parents.length}, Bookable: ${bookable.length}, Standalone: ${standalone.length}`);
