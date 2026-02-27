@@ -32193,6 +32193,255 @@ app.post('/api/hostfully/register-webhooks/:connectionId', async (req, res) => {
   }
 });
 
+// Hostfully: Import synced properties into GAS (creates properties + bookable_units)
+app.post('/api/hostfully/import-to-gas/:connectionId', async (req, res) => {
+  try {
+    const { connectionId } = req.params;
+    const { deleteExisting } = req.body;
+    
+    // Get connection
+    const connResult = await pool.query(
+      'SELECT * FROM gas_sync_connections WHERE id = $1',
+      [connectionId]
+    );
+    if (connResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Connection not found' });
+    }
+    const conn = connResult.rows[0];
+    const accountId = conn.account_id;
+    const creds = typeof conn.credentials === 'string' ? JSON.parse(conn.credentials) : conn.credentials;
+    
+    // Optionally delete existing GAS properties for this connection
+    if (deleteExisting) {
+      console.log(`[Hostfully import-to-gas] Deleting existing GAS properties for connection ${connectionId}`);
+      const existingProps = await pool.query(
+        'SELECT gas_property_id FROM gas_sync_properties WHERE connection_id = $1 AND gas_property_id IS NOT NULL',
+        [connectionId]
+      );
+      for (const ep of existingProps.rows) {
+        await pool.query('DELETE FROM room_images WHERE room_id IN (SELECT id FROM bookable_units WHERE property_id = $1)', [ep.gas_property_id]);
+        await pool.query('DELETE FROM property_images WHERE property_id = $1', [ep.gas_property_id]);
+        await pool.query('DELETE FROM bookable_units WHERE property_id = $1', [ep.gas_property_id]);
+        await pool.query('DELETE FROM properties WHERE id = $1', [ep.gas_property_id]);
+      }
+      await pool.query('UPDATE gas_sync_properties SET gas_property_id = NULL WHERE connection_id = $1', [connectionId]);
+      await pool.query('UPDATE gas_sync_room_types SET gas_room_id = NULL WHERE connection_id = $1', [connectionId]);
+      console.log(`[Hostfully import-to-gas] Deleted ${existingProps.rows.length} existing properties`);
+    }
+    
+    // Ensure columns exist
+    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS cm_property_id VARCHAR(100)');
+    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS cm_source VARCHAR(50)');
+    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS currency VARCHAR(3)');
+    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS display_name VARCHAR(500)');
+    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS full_description TEXT');
+    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS cancellation_policy TEXT');
+    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS check_in_time VARCHAR(10)');
+    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS check_out_time VARCHAR(10)');
+    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS latitude DECIMAL(10,7)');
+    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS longitude DECIMAL(10,7)');
+    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS postal_code VARCHAR(20)');
+    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS state VARCHAR(100)');
+    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS wifi_network VARCHAR(100)');
+    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS wifi_password VARCHAR(100)');
+    await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS max_adults INTEGER');
+    await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS display_name VARCHAR(500)');
+    await pool.query('ALTER TABLE gas_sync_room_types ADD COLUMN IF NOT EXISTS gas_room_id INTEGER');
+    
+    // Get parent properties (STANDALONE_PROPERTY)
+    const syncParents = await pool.query(`
+      SELECT sp.*, 
+        (SELECT COUNT(*) FROM gas_sync_room_types WHERE sync_property_id = sp.id) as room_count
+      FROM gas_sync_properties sp
+      WHERE sp.connection_id = $1
+    `, [connectionId]);
+    
+    // Separate parents (have room types) from sub-units (are room types)
+    const parents = syncParents.rows.filter(p => p.room_count > 0);
+    
+    console.log(`[Hostfully import-to-gas] Found ${parents.length} parent properties to import`);
+    
+    const stats = { properties: 0, rooms: 0, images: 0, errors: [] };
+    
+    // Init adapter for photo fetching
+    const { HostfullyAdapter } = require('./gas-sync/adapters/hostfully-adapter');
+    const adapter = new HostfullyAdapter({ apiKey: creds.apiKey, agencyUid: creds.agencyUid });
+    
+    for (const parent of parents) {
+      try {
+        const rawData = typeof parent.raw_data === 'string' ? JSON.parse(parent.raw_data) : (parent.raw_data || {});
+        
+        // Extract address
+        const addr = rawData.address || {};
+        const street = addr.address || addr.street || '';
+        const city = addr.city || '';
+        const state = addr.state || '';
+        const country = addr.countryCode || addr.country || '';
+        const postalCode = addr.zipCode || addr.postalCode || '';
+        const lat = addr.latitude || rawData.latitude || null;
+        const lng = addr.longitude || rawData.longitude || null;
+        
+        // Create/update GAS property
+        let gasPropertyId = parent.gas_property_id;
+        
+        if (!gasPropertyId) {
+          const propResult = await pool.query(`
+            INSERT INTO properties (
+              account_id, name, display_name, address, city, state, country, postal_code,
+              latitude, longitude, cm_property_id, cm_source, currency,
+              full_description, cancellation_policy,
+              check_in_time, check_out_time, wifi_network, wifi_password,
+              created_at, updated_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'hostfully', $12, $13, $14, $15, $16, $17, $18, NOW(), NOW())
+            RETURNING id
+          `, [
+            accountId,
+            parent.name,
+            parent.name,
+            street,
+            city,
+            state,
+            country,
+            postalCode,
+            lat, lng,
+            parent.external_id,
+            rawData.pricing?.currency || 'JPY',
+            rawData.cancellationPolicy || '',
+            rawData.cancellationPolicy || '',
+            rawData.availability?.checkInTimeStart ? `${rawData.availability.checkInTimeStart}:00` : '',
+            rawData.availability?.checkOutTime ? `${rawData.availability.checkOutTime}:00` : '',
+            rawData.wifiNetwork || '',
+            rawData.wifiPassword || ''
+          ]);
+          gasPropertyId = propResult.rows[0].id;
+          
+          // Link back
+          await pool.query('UPDATE gas_sync_properties SET gas_property_id = $1 WHERE id = $2', [gasPropertyId, parent.id]);
+        }
+        
+        stats.properties++;
+        console.log(`[Hostfully import-to-gas] Created property: ${parent.name} → GAS #${gasPropertyId}`);
+        
+        // Fetch and save property images
+        try {
+          const photos = await adapter.getPhotos(parent.external_id);
+          if (photos.success && photos.data?.length > 0) {
+            for (let i = 0; i < photos.data.length; i++) {
+              const photo = photos.data[i];
+              const imageUrl = photo.url || photo.originalUrl || photo.thumbnailUrl;
+              if (imageUrl) {
+                await pool.query(`
+                  INSERT INTO property_images (property_id, image_url, sort_order, image_key, created_at)
+                  VALUES ($1, $2, $3, $4, NOW())
+                  ON CONFLICT (property_id, image_key) WHERE image_key IS NOT NULL DO UPDATE SET image_url = EXCLUDED.image_url
+                `, [gasPropertyId, imageUrl, i, `hf-${parent.external_id}-${i}`]);
+                stats.images++;
+              }
+            }
+            console.log(`[Hostfully import-to-gas] Saved ${photos.data.length} images for ${parent.name}`);
+          }
+        } catch (imgErr) {
+          console.log(`[Hostfully import-to-gas] Image fetch error for ${parent.name}: ${imgErr.message}`);
+        }
+        
+        // Get room types for this parent
+        const roomTypes = await pool.query(
+          'SELECT * FROM gas_sync_room_types WHERE sync_property_id = $1 AND connection_id = $2',
+          [parent.id, parseInt(connectionId)]
+        );
+        
+        for (const room of roomTypes.rows) {
+          try {
+            const roomRaw = typeof room.raw_data === 'string' ? JSON.parse(room.raw_data) : (room.raw_data || {});
+            
+            const roomRate = roomRaw.pricing?.dailyRate || roomRaw.dailyRate || 0;
+            const roomCurrency = roomRaw.pricing?.currency || rawData.pricing?.currency || 'JPY';
+            const maxGuests = roomRaw.availability?.maxGuests || roomRaw.maxGuests || room.max_guests || 0;
+            const baseGuests = roomRaw.availability?.baseGuests || roomRaw.baseGuests || 0;
+            const bedrooms = roomRaw.bedrooms || 0;
+            const bathrooms = parseFloat(roomRaw.bathrooms) || 0;
+            const beds = roomRaw.beds || 0;
+            const checkIn = roomRaw.availability?.checkInTimeStart ? `${roomRaw.availability.checkInTimeStart}:00` : '';
+            const checkOut = roomRaw.availability?.checkOutTime ? `${roomRaw.availability.checkOutTime}:00` : '';
+            const minStay = roomRaw.availability?.minimumStay || 1;
+            
+            // Create bookable unit
+            let gasRoomId = room.gas_room_id;
+            
+            if (!gasRoomId) {
+              const roomResult = await pool.query(`
+                INSERT INTO bookable_units (
+                  property_id, name, display_name, base_rate, currency,
+                  max_guests, max_adults, bedrooms, bathrooms, beds,
+                  check_in_time, check_out_time, min_stay,
+                  created_at, updated_at
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW(), NOW())
+                RETURNING id
+              `, [
+                gasPropertyId,
+                room.name,
+                room.name,
+                roomRate,
+                roomCurrency,
+                maxGuests,
+                maxGuests,
+                bedrooms,
+                bathrooms,
+                beds,
+                checkIn,
+                checkOut,
+                minStay
+              ]);
+              gasRoomId = roomResult.rows[0].id;
+              
+              await pool.query('UPDATE gas_sync_room_types SET gas_room_id = $1 WHERE id = $2', [gasRoomId, room.id]);
+            }
+            
+            stats.rooms++;
+            console.log(`[Hostfully import-to-gas]   Room: ${room.name} → GAS room #${gasRoomId} (¥${roomRate}/night, ${maxGuests} guests)`);
+            
+            // Fetch and save room images
+            try {
+              const roomPhotos = await adapter.getPhotos(room.external_id);
+              if (roomPhotos.success && roomPhotos.data?.length > 0) {
+                for (let i = 0; i < roomPhotos.data.length; i++) {
+                  const photo = roomPhotos.data[i];
+                  const imageUrl = photo.url || photo.originalUrl || photo.thumbnailUrl;
+                  if (imageUrl) {
+                    await pool.query(`
+                      INSERT INTO room_images (room_id, image_url, sort_order, image_key, created_at)
+                      VALUES ($1, $2, $3, $4, NOW())
+                      ON CONFLICT (room_id, image_key) WHERE image_key IS NOT NULL DO UPDATE SET image_url = EXCLUDED.image_url
+                    `, [gasRoomId, imageUrl, i, `hf-${room.external_id}-${i}`]);
+                    stats.images++;
+                  }
+                }
+              }
+            } catch (roomImgErr) {
+              console.log(`[Hostfully import-to-gas] Room image error for ${room.name}: ${roomImgErr.message}`);
+            }
+            
+          } catch (roomErr) {
+            console.error(`[Hostfully import-to-gas] Room error: ${room.name}:`, roomErr.message);
+            stats.errors.push(`Room ${room.name}: ${roomErr.message}`);
+          }
+        }
+        
+      } catch (propErr) {
+        console.error(`[Hostfully import-to-gas] Property error: ${parent.name}:`, propErr.message);
+        stats.errors.push(`Property ${parent.name}: ${propErr.message}`);
+      }
+    }
+    
+    console.log(`[Hostfully import-to-gas] Complete:`, stats);
+    res.json({ success: true, stats });
+    
+  } catch (error) {
+    console.error('Hostfully import-to-gas error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Alias endpoints used by register.html wizard flow
 app.get('/api/hostfully/test-agencies', async (req, res) => {
   try {
