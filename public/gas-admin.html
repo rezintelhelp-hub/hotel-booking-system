@@ -53688,9 +53688,31 @@ const promo = await fetch('/api/v1/offers/validate', {
                     return;
                 }
                 
+                // For Hostfully: fetch descriptions + amenities from Hostfully V3 API
+                if (adapterCode === 'hostfully') {
+                    showNotification('Fetching content from Hostfully...', 'info');
+                    try {
+                        const contentResponse = await fetch(`/api/gas-sync/properties/${syncPropertyId}/sync-content`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                            body: JSON.stringify({ force: true })
+                        });
+                        const contentData = await contentResponse.json();
+                        if (contentData.success) {
+                            showNotification(`✅ Synced ${contentData.descriptions || 0} descriptions, ${contentData.amenities || 0} amenities for ${contentData.rooms || 0} rooms`, 'success');
+                        } else {
+                            showNotification(contentData.error || 'Content sync failed', 'error');
+                        }
+                    } catch (contentError) {
+                        showNotification('Content sync error: ' + contentError.message, 'error');
+                    }
+                    loadConnectionPropertiesTab();
+                    return;
+                }
+                
                 // For Beds24 and other adapters:
                 // Step 1: Fetch fresh content from Beds24 V1 API (descriptions, amenities)
-                showNotification('Step 1/2: Fetching content from Beds24...', 'info');
+                showNotification('Step 1/2: Fetching content from channel manager...', 'info');
                 try {
                     const contentResponse = await fetch(`/api/gas-sync/properties/${syncPropertyId}/sync-content`, {
                         method: 'POST',
