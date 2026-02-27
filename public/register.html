@@ -1301,13 +1301,14 @@ Upsells (mention only if asked): GAS Turbines (social media management), custom 
                     <p style="font-size: 0.75rem; color: var(--ink-muted); margin-top: 0.3rem;">Found in Hostfully → Agency Settings → API Key</p>
                 </div>
                 <div class="field">
-                    <label>Agency UID <span style="font-size: 0.75rem; color: var(--ink-muted); font-weight: 400;">(auto-detected)</span></label>
-                    <input type="text" id="cm-hf-agency-uid" placeholder="Will be detected automatically">
+                    <label>Agency UID</label>
+                    <input type="text" id="cm-hf-agency-uid" placeholder="Your Hostfully Agency UID">
+                    <p style="font-size: 0.75rem; color: var(--ink-muted); margin-top: 0.3rem;">Found on the same page as your API Key in Agency Settings</p>
                 </div>
                 <button class="btn-primary" onclick="connectHostfully()">Connect & Import</button>
                 <div id="cm-status" style="margin-top: 1rem;"></div>
             `;
-            addAiMessage("To connect <strong>Hostfully</strong>:<br><br>1. Log into Hostfully<br>2. Go to <strong>Agency Settings</strong><br>3. Scroll to the bottom to find your <strong>API Key</strong><br>4. Copy and paste it below<br><br>We'll auto-detect your Agency UID and import all your properties.");
+            addAiMessage("To connect <strong>Hostfully</strong>:<br><br>1. Log into Hostfully<br>2. Go to <strong>Agency Settings</strong><br>3. Copy your <strong>API Key</strong> and <strong>Agency UID</strong> — they're both on the same page<br>4. Paste them below and click Connect");
 
         // Other / Not Listed
         } else if (cm === 'other') {
@@ -1721,11 +1722,11 @@ Upsells (mention only if asked): GAS Turbines (social media management), custom 
     // =============================================
     async function connectHostfully() {
         const apiKey = document.getElementById('cm-hf-api-key')?.value?.trim();
-        const agencyUidInput = document.getElementById('cm-hf-agency-uid');
+        const agencyUid = document.getElementById('cm-hf-agency-uid')?.value?.trim();
         const statusDiv = document.getElementById('cm-status');
 
-        if (!apiKey) {
-            addAiMessage("Please enter your <strong>API Key</strong> from Hostfully → Agency Settings.");
+        if (!apiKey || !agencyUid) {
+            addAiMessage("Please enter both your <strong>API Key</strong> and <strong>Agency UID</strong> from Hostfully → Agency Settings.");
             return;
         }
 
@@ -1735,27 +1736,26 @@ Upsells (mention only if asked): GAS Turbines (social media management), custom 
         statusDiv.innerHTML = '<p style="color: var(--ink-muted); font-size: 0.85rem;">Testing connection...</p>';
 
         try {
-            // 1. Test connection and discover agency UID
-            const testResp = await fetch(`/api/hostfully/test-agencies?apiKey=${encodeURIComponent(apiKey)}`);
+            // 1. Test connection with API key
+            statusDiv.innerHTML = '<p style="color: var(--ink-muted); font-size: 0.85rem;">Testing connection...</p>';
+            const testResp = await fetch('/api/hostfully/test-connection', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ apiKey, agencyUid })
+            });
             const testResult = await testResp.json();
 
             if (!testResult.success) {
                 btn.disabled = false;
                 btn.textContent = 'Connect & Import';
-                statusDiv.innerHTML = `<p style="color: #ef4444; font-size: 0.85rem;">${testResult.error || testResult.v3_error?.message || 'Connection failed'}</p>`;
-                addAiMessage("Connection failed. Double-check your <strong>API Key</strong> from Hostfully → Agency Settings.");
+                statusDiv.innerHTML = `<p style="color: #ef4444; font-size: 0.85rem;">${testResult.error || 'Connection failed'}</p>`;
+                addAiMessage("Connection failed. Double-check your <strong>API Key</strong> and <strong>Agency UID</strong> from Hostfully → Agency Settings.");
                 return;
             }
 
-            // Auto-fill agency UID
-            const agencies = Array.isArray(testResult.data) ? testResult.data : [testResult.data];
-            const agencyUid = agencies[0]?.uid || '';
-            const agencyName = agencies[0]?.name || 'Hostfully Agency';
-            if (agencyUid) agencyUidInput.value = agencyUid;
+            statusDiv.innerHTML = `<p style="color: var(--success); font-size: 0.85rem;">✓ Connected to Hostfully</p>`;
 
-            statusDiv.innerHTML = `<p style="color: var(--success); font-size: 0.85rem;">✓ Connected to ${agencyName}</p>`;
-
-            // 2. Save credentials
+            // 2. Save credentials and create connection
             await fetch('/api/admin/hostfully/credentials', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
