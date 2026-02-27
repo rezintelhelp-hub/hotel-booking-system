@@ -536,14 +536,16 @@ class HostfullyAdapter {
     
     if (!response.success) return response;
     
-    const amenities = Array.isArray(response.data) ? response.data : [];
+    // V3 wraps in {amenities: [...], _metadata: {}}
+    const raw = response.data;
+    const amenities = Array.isArray(raw) ? raw : (raw?.amenities || []);
     
     return {
       success: true,
       data: amenities.map(a => ({
-        externalId: a.uid || a.amenityCode,
-        name: a.amenityName || a.name || a.description || '',
-        code: a.amenityCode || '',
+        externalId: a.uid,
+        name: a.amenity || a.amenityName || a.name || '',
+        code: a.amenity || a.amenityCode || '',
         category: a.category || '',
         description: a.description || '',
         raw: a
@@ -556,8 +558,7 @@ class HostfullyAdapter {
   // =====================================================
   
   async getDescriptions(propertyUid) {
-    // V3.2 endpoint: GET /property-descriptions?propertyUid=
-    // Try query param style first (V3 compatible)
+    // V3 endpoint: GET /property-descriptions?propertyUid=
     let response = await this.request('/property-descriptions', 'GET', null, {
       params: { propertyUid }
     });
@@ -565,24 +566,44 @@ class HostfullyAdapter {
     if (!response.success) {
       // Fall back: description may be embedded in the property data itself
       response = await this.request(`/properties/${propertyUid}`, 'GET');
-      if (response.success && response.data?.description) {
-        return {
-          success: true,
-          data: { 
-            en: { text: response.data.description, locale: 'en' }
-          }
-        };
+      if (response.success) {
+        const prop = response.data?.property || response.data;
+        if (prop?.description) {
+          return {
+            success: true,
+            data: { 
+              en_US: { text: prop.description, locale: 'en_US', name: prop.name || '' }
+            }
+          };
+        }
       }
       return response;
     }
     
-    const descriptions = Array.isArray(response.data) ? response.data : [response.data].filter(Boolean);
+    // V3 wraps in {propertyDescriptions: [...], _metadata: {}}
+    const raw = response.data;
+    const descriptions = Array.isArray(raw) ? raw : (raw?.propertyDescriptions || [raw]).filter(Boolean);
     
     const result = {};
     for (const desc of descriptions) {
-      result[desc.locale || 'default'] = {
-        text: desc.description || '',
-        locale: desc.locale || 'default',
+      const locale = desc.locale || 'en_US';
+      // Build comprehensive description from all available fields
+      const parts = [desc.summary, desc.space, desc.neighbourhood, desc.transit, desc.access, desc.notes, desc.interaction].filter(Boolean);
+      const fullText = parts.join('\n\n');
+      
+      result[locale] = {
+        text: fullText || desc.summary || '',
+        name: desc.name || '',
+        shortSummary: desc.shortSummary || '',
+        summary: desc.summary || '',
+        space: desc.space || '',
+        neighbourhood: desc.neighbourhood || '',
+        transit: desc.transit || '',
+        access: desc.access || '',
+        notes: desc.notes || '',
+        interaction: desc.interaction || '',
+        houseManual: desc.houseManual || '',
+        locale: locale,
         raw: desc
       };
     }
@@ -623,7 +644,9 @@ class HostfullyAdapter {
     
     if (!response.success) return response;
     
-    const fees = Array.isArray(response.data) ? response.data : [];
+    // V3 wraps in {fees: [...], _metadata: {}}
+    const raw = response.data;
+    const fees = Array.isArray(raw) ? raw : (raw?.fees || []);
     
     return {
       success: true,
@@ -631,10 +654,10 @@ class HostfullyAdapter {
         externalId: f.uid,
         name: f.name || f.feeName || '',
         amount: f.amount || 0,
-        type: f.feeType || f.type || 'FLAT',
-        taxable: f.taxable || false,
-        perGuest: f.perGuest || false,
-        perNight: f.perNight || false,
+        amountType: f.amountType || 'FLAT',
+        type: f.type || f.feeType || 'FEE',
+        scope: f.scope || 'PER_STAY',
+        optional: f.optional || false,
         raw: f
       }))
     };
@@ -745,19 +768,20 @@ class HostfullyAdapter {
     
     if (!response.success) return response;
     
-    const periods = Array.isArray(response.data) ? response.data : [];
+    // V3 wraps in {pricingPeriods: [...], _metadata: {}}
+    // Each entry is a daily price: {propertyUid, date, price, minimumStay, availableForCheckIn, availableForCheckOut}
+    const raw = response.data;
+    const periods = Array.isArray(raw) ? raw : (raw?.pricingPeriods || []);
     
     return {
       success: true,
       data: periods.map(p => ({
-        startDate: p.startDate,
-        endDate: p.endDate,
-        dailyRate: p.dailyRate || p.nightlyRate || 0,
-        weekendRate: p.weekendRate || null,
-        weeklyRate: p.weeklyRate || null,
-        monthlyRate: p.monthlyRate || null,
+        date: p.date,
+        price: p.price || 0,
         minimumStay: p.minimumStay || 1,
-        currency: p.currency || null,
+        availableForCheckIn: p.availableForCheckIn !== false,
+        availableForCheckOut: p.availableForCheckOut !== false,
+        name: p.name || null,
         raw: p
       }))
     };
