@@ -32659,15 +32659,15 @@ app.post('/api/hostfully/import-to-gas/:connectionId', async (req, res) => {
                 }
                 
                 if (Object.keys(displayNameObj).length > 0) {
-                  await pool.query('UPDATE bookable_units SET display_name = $1 WHERE id = $2', [JSON.stringify(displayNameObj), gasRoomId]);
+                  await pool.query('UPDATE bookable_units SET display_name = $1::jsonb WHERE id = $2', [JSON.stringify(displayNameObj), gasRoomId]);
                 }
                 
                 if (Object.keys(fullDescObj).length > 0) {
-                  await pool.query('UPDATE bookable_units SET full_description = $1 WHERE id = $2', 
+                  await pool.query('UPDATE bookable_units SET full_description = $1::jsonb WHERE id = $2', 
                     [JSON.stringify(fullDescObj), gasRoomId]);
                 }
                 if (Object.keys(shortDescObj).length > 0) {
-                  await pool.query('UPDATE bookable_units SET short_description = $1 WHERE id = $2', 
+                  await pool.query('UPDATE bookable_units SET short_description = $1::jsonb WHERE id = $2', 
                     [JSON.stringify(shortDescObj), gasRoomId]);
                 }
                 
