@@ -1986,6 +1986,10 @@
                         <span class="nav-icon">🔗</span>
                         <span>Calry Admin</span>
                     </a>
+                    <a class="nav-item" data-view="hostfully-admin" href="#" onclick="navClick(this, 'hostfully-admin'); return false;">
+                        <span class="nav-icon">🏠</span>
+                        <span>Hostfully</span>
+                    </a>
                     </div>
                 </div>
 
@@ -12277,6 +12281,116 @@ const promo = await fetch('/api/v1/offers/validate', {
                 </div>
             </div>
 
+            <!-- Hostfully Admin View -->
+            <div id="hostfully-admin" class="view">
+                <div class="header">
+                    <h2>🏠 Hostfully Direct</h2>
+                    <p>Direct Hostfully V3 API integration — bypasses Calry for full property hierarchy support</p>
+                </div>
+
+                <!-- Connection Status Card -->
+                <div class="card" style="margin-bottom: 1.5rem; background: linear-gradient(135deg, #0ea5e9 0%, #0369a1 100%); color: white;">
+                    <div class="card-header" style="border-bottom-color: rgba(255,255,255,0.1);">
+                        <h3 style="color: white;">🔑 Hostfully API Connection</h3>
+                    </div>
+                    <div class="card-body">
+                        <div style="display: grid; gap: 1rem;">
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="color: rgba(255,255,255,0.9); font-size: 0.85rem;">API Key</label>
+                                <div style="display: flex; gap: 0.5rem;">
+                                    <input type="password" id="hf-api-key" class="form-input" style="background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.2); color: white;" placeholder="Your Hostfully API key">
+                                    <button class="btn btn-secondary" onclick="document.getElementById('hf-api-key').type = document.getElementById('hf-api-key').type === 'password' ? 'text' : 'password'" style="background: rgba(255,255,255,0.2); border: none; color: white;">👁️</button>
+                                </div>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="color: rgba(255,255,255,0.9); font-size: 0.85rem;">Agency UID</label>
+                                <input type="text" id="hf-agency-uid" class="form-input" style="background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.2); color: white;" placeholder="aa631fe9-4f0d-...">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="color: rgba(255,255,255,0.9); font-size: 0.85rem;">Link to GAS Account</label>
+                                <select id="hf-gas-account" class="form-input" style="background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.2); color: white;">
+                                    <option value="">Select account or create new...</option>
+                                    <option value="new">➕ Create New Account</option>
+                                </select>
+                            </div>
+                            <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+                                <button class="btn" onclick="testHostfullyConnection()" style="background: rgba(255,255,255,0.2); border: none;">🔍 Test Connection</button>
+                                <button class="btn" onclick="saveHostfullyCredentials()" style="background: rgba(255,255,255,0.3); border: none;">💾 Save</button>
+                            </div>
+                            <div id="hf-connection-status" style="display: none; padding: 0.75rem; border-radius: 8px; font-size: 0.85rem; margin-top: 0.25rem;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Property Hierarchy Card -->
+                <div class="card" style="margin-bottom: 1.5rem;">
+                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                        <h3>🏗️ Property Hierarchy</h3>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button class="btn btn-small btn-secondary" onclick="loadHostfullyHierarchy()">🔄 Refresh</button>
+                            <button class="btn btn-small" onclick="importHostfullyProperties()" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">📥 Import All</button>
+                        </div>
+                    </div>
+                    <div class="card-body" id="hf-hierarchy-container">
+                        <div style="text-align: center; padding: 2rem; color: #64748b;">
+                            Click "Refresh" to load properties from Hostfully
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Synced Properties Card -->
+                <div class="card" style="margin-bottom: 1.5rem;">
+                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                        <h3>✅ Synced Properties in GAS</h3>
+                        <button class="btn btn-small btn-secondary" onclick="loadHostfullySyncedProperties()">🔄 Refresh</button>
+                    </div>
+                    <div class="card-body" style="padding: 0;">
+                        <table class="table" style="margin: 0;">
+                            <thead>
+                                <tr>
+                                    <th>Property</th>
+                                    <th>Type</th>
+                                    <th>Hostfully UID</th>
+                                    <th>GAS Property</th>
+                                    <th>Last Sync</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="hf-synced-list">
+                                <tr><td colspan="6" style="text-align: center; padding: 2rem; color: #64748b;">No properties synced yet. Import from Hostfully above.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Calendar / Availability Test Card -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3>📅 Calendar Test</h3>
+                    </div>
+                    <div class="card-body">
+                        <div style="display: flex; gap: 0.75rem; align-items: end; flex-wrap: wrap;">
+                            <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 200px;">
+                                <label class="form-label" style="font-size: 0.8rem;">Property UID</label>
+                                <select id="hf-calendar-property" class="form-input">
+                                    <option value="">Load hierarchy first...</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" style="font-size: 0.8rem;">Start Date</label>
+                                <input type="date" id="hf-calendar-start" class="form-input" style="width: 160px;">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" style="font-size: 0.8rem;">End Date</label>
+                                <input type="date" id="hf-calendar-end" class="form-input" style="width: 160px;">
+                            </div>
+                            <button class="btn btn-primary" onclick="testHostfullyCalendar()">📅 Fetch Calendar</button>
+                        </div>
+                        <div id="hf-calendar-result" style="display: none; margin-top: 1rem; max-height: 400px; overflow-y: auto;"></div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Add Calry PMS Modal -->
             <div id="calry-pms-modal" class="modal" style="display: none;">
                 <div class="modal-content" style="max-width: 500px; border-radius: 12px; overflow: hidden;">
@@ -15657,6 +15771,12 @@ const promo = await fetch('/api/v1/offers/validate', {
                 <!-- Stay Details -->
                 <div style="background: #f8fafc; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem;">
                     <h4 style="margin: 0 0 1rem 0; font-size: 0.9rem; color: #64748b;">Stay Details</h4>
+                    <div style="margin-bottom: 1rem;">
+                        <div class="form-group" style="margin: 0;">
+                            <label class="form-label">Room / Unit</label>
+                            <select class="form-input" id="edit-booking-room"></select>
+                        </div>
+                    </div>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                         <div class="form-group" style="margin: 0;">
                             <label class="form-label">Check-in *</label>
@@ -39062,6 +39182,25 @@ const promo = await fetch('/api/v1/offers/validate', {
                 document.getElementById('edit-booking-adults').value = booking.num_adults || 1;
                 document.getElementById('edit-booking-children').value = booking.num_children || 0;
                 
+                // Room dropdown - load rooms for this property
+                const roomSelect = document.getElementById('edit-booking-room');
+                roomSelect.innerHTML = '<option value="">Loading rooms...</option>';
+                try {
+                    const roomsResp = await fetch(`/api/properties/${booking.property_id}/rooms`, { headers: authHeaders() });
+                    const roomsData = await roomsResp.json();
+                    const rooms = roomsData.rooms || roomsData.data || roomsData || [];
+                    roomSelect.innerHTML = '';
+                    rooms.forEach(r => {
+                        const opt = document.createElement('option');
+                        opt.value = r.id;
+                        opt.textContent = r.name;
+                        if (r.id == booking.bookable_unit_id) opt.selected = true;
+                        roomSelect.appendChild(opt);
+                    });
+                } catch(e) {
+                    roomSelect.innerHTML = `<option value="${booking.bookable_unit_id}">${booking.room_name || 'Current room'}</option>`;
+                }
+                
                 // Pricing
                 document.getElementById('edit-booking-total').value = booking.grand_total || booking.accommodation_price || 0;
                 document.getElementById('edit-booking-deposit').value = booking.deposit_amount || 0;
@@ -39116,6 +39255,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     guest_last_name: document.getElementById('edit-booking-last-name').value,
                     guest_email: document.getElementById('edit-booking-email').value,
                     guest_phone: document.getElementById('edit-booking-phone').value,
+                    bookable_unit_id: parseInt(document.getElementById('edit-booking-room').value) || undefined,
                     arrival_date: document.getElementById('edit-booking-checkin').value,
                     departure_date: document.getElementById('edit-booking-checkout').value,
                     num_adults: parseInt(document.getElementById('edit-booking-adults').value) || 1,
@@ -52185,7 +52325,388 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (viewId === 'calry-admin') {
                 loadCalryAdmin();
             }
+            if (viewId === 'hostfully-admin') {
+                loadHostfullyAdmin();
+            }
         };
+
+        // =====================================================
+        // HOSTFULLY ADMIN FUNCTIONS
+        // =====================================================
+
+        async function loadHostfullyAdmin() {
+            await loadHostfullyCredentials();
+            await loadGASAccountsForHostfully();
+            await loadHostfullySyncedProperties();
+            // Set default calendar dates
+            const today = new Date();
+            const future = new Date(today);
+            future.setDate(future.getDate() + 90);
+            document.getElementById('hf-calendar-start').value = today.toISOString().split('T')[0];
+            document.getElementById('hf-calendar-end').value = future.toISOString().split('T')[0];
+        }
+
+        async function loadHostfullyCredentials() {
+            try {
+                const response = await fetch('/api/admin/hostfully/credentials', { headers: authHeaders() });
+                const result = await response.json();
+                if (result.success && result.credentials) {
+                    document.getElementById('hf-api-key').value = result.credentials.api_key || '';
+                    document.getElementById('hf-agency-uid').value = result.credentials.agency_uid || '';
+                    if (result.credentials.gas_account_id) {
+                        document.getElementById('hf-gas-account').value = result.credentials.gas_account_id;
+                    }
+                }
+            } catch (error) {
+                console.log('No Hostfully credentials found yet');
+            }
+        }
+
+        async function saveHostfullyCredentials() {
+            const apiKey = document.getElementById('hf-api-key').value.trim();
+            const agencyUid = document.getElementById('hf-agency-uid').value.trim();
+            const gasAccountId = document.getElementById('hf-gas-account').value;
+
+            if (!apiKey || !agencyUid) {
+                showNotification('Please enter API Key and Agency UID', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/admin/hostfully/credentials', {
+                    method: 'POST',
+                    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ api_key: apiKey, agency_uid: agencyUid, gas_account_id: gasAccountId })
+                });
+                const result = await response.json();
+                if (result.success) {
+                    showNotification('Hostfully credentials saved!', 'success');
+                } else {
+                    showNotification(result.error || 'Failed to save', 'error');
+                }
+            } catch (error) {
+                showNotification('Error saving credentials', 'error');
+            }
+        }
+
+        async function testHostfullyConnection() {
+            const statusEl = document.getElementById('hf-connection-status');
+            statusEl.style.display = 'block';
+            statusEl.style.background = 'rgba(255,255,255,0.1)';
+            statusEl.innerHTML = '⏳ Testing connection...';
+
+            try {
+                const response = await fetch('/api/hostfully/test-agencies', { headers: authHeaders() });
+                const result = await response.json();
+
+                if (result.success) {
+                    const agencies = Array.isArray(result.data) ? result.data : [result.data];
+                    statusEl.style.background = 'rgba(16,185,129,0.3)';
+                    statusEl.innerHTML = `✅ Connected! Agency: ${agencies[0]?.name || agencies[0]?.uid || 'Found'}`;
+                    // Auto-fill agency UID if empty
+                    const uidInput = document.getElementById('hf-agency-uid');
+                    if (!uidInput.value && agencies[0]?.uid) {
+                        uidInput.value = agencies[0].uid;
+                    }
+                } else {
+                    statusEl.style.background = 'rgba(239,68,68,0.3)';
+                    statusEl.innerHTML = `❌ ${result.error || result.v3_error?.message || 'Connection failed'}`;
+                }
+            } catch (error) {
+                statusEl.style.background = 'rgba(239,68,68,0.3)';
+                statusEl.innerHTML = `❌ Error: ${error.message}`;
+            }
+        }
+
+        async function loadGASAccountsForHostfully() {
+            try {
+                const response = await fetch('/api/admin/accounts', { headers: authHeaders() });
+                const result = await response.json();
+                const select = document.getElementById('hf-gas-account');
+                const currentVal = select.value;
+
+                select.innerHTML = '<option value="">Select account or create new...</option><option value="new">➕ Create New Account</option>';
+                if (result.success && result.accounts) {
+                    result.accounts.forEach(acc => {
+                        const opt = document.createElement('option');
+                        opt.value = acc.id;
+                        opt.textContent = `${acc.name} (ID: ${acc.id})`;
+                        select.appendChild(opt);
+                    });
+                }
+                if (currentVal) select.value = currentVal;
+            } catch (error) {
+                console.log('Error loading accounts:', error);
+            }
+        }
+
+        async function loadHostfullyHierarchy() {
+            const container = document.getElementById('hf-hierarchy-container');
+            container.innerHTML = '<div style="text-align: center; padding: 2rem; color: #64748b;">⏳ Loading properties from Hostfully API...</div>';
+
+            try {
+                const response = await fetch('/api/hostfully/hierarchy', { headers: authHeaders() });
+                const result = await response.json();
+
+                if (!result.success) {
+                    container.innerHTML = `<div style="text-align: center; padding: 2rem; color: #ef4444;">❌ ${result.error}</div>`;
+                    return;
+                }
+
+                const { hierarchy, orphans, total, parents, subUnits } = result.data;
+
+                // Stats bar
+                let html = `
+                    <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap;">
+                        <div style="background: #f0f9ff; padding: 0.75rem 1rem; border-radius: 8px; flex: 1; min-width: 120px; text-align: center;">
+                            <div style="font-size: 1.5rem; font-weight: 700; color: #0369a1;">${total}</div>
+                            <div style="font-size: 0.75rem; color: #64748b;">Total</div>
+                        </div>
+                        <div style="background: #fef3c7; padding: 0.75rem 1rem; border-radius: 8px; flex: 1; min-width: 120px; text-align: center;">
+                            <div style="font-size: 1.5rem; font-weight: 700; color: #92400e;">${parents}</div>
+                            <div style="font-size: 0.75rem; color: #64748b;">Parents</div>
+                        </div>
+                        <div style="background: #d1fae5; padding: 0.75rem 1rem; border-radius: 8px; flex: 1; min-width: 120px; text-align: center;">
+                            <div style="font-size: 1.5rem; font-weight: 700; color: #065f46;">${subUnits}</div>
+                            <div style="font-size: 0.75rem; color: #64748b;">Bookable</div>
+                        </div>
+                    </div>
+                `;
+
+                // Populate calendar property dropdown
+                const calSelect = document.getElementById('hf-calendar-property');
+                calSelect.innerHTML = '<option value="">Select property...</option>';
+
+                // Property hierarchy tree
+                hierarchy.forEach(parent => {
+                    html += `
+                        <div style="border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 1rem; overflow: hidden;">
+                            <div style="background: #fef3c7; padding: 0.75rem 1rem; display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <span style="font-weight: 600; font-size: 0.95rem;">📁 ${parent.name}</span>
+                                    <span style="background: #92400e; color: white; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.7rem; margin-left: 0.5rem;">PARENT</span>
+                                </div>
+                                <span style="color: #64748b; font-size: 0.8rem;">${parent.children.length} listings</span>
+                            </div>
+                    `;
+
+                    if (parent.children.length > 0) {
+                        parent.children.forEach(child => {
+                            const isSummer = !child.name.includes('Winter');
+                            const seasonBadge = child.name.includes('Winter')
+                                ? '<span style="background: #bfdbfe; color: #1e40af; padding: 0.1rem 0.4rem; border-radius: 3px; font-size: 0.65rem;">❄️ WINTER</span>'
+                                : '<span style="background: #fef3c7; color: #92400e; padding: 0.1rem 0.4rem; border-radius: 3px; font-size: 0.65rem;">☀️ SUMMER</span>';
+
+                            html += `
+                                <div style="padding: 0.6rem 1rem; border-top: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center;">
+                                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                        <span style="color: #94a3b8;">↳</span>
+                                        <span style="font-size: 0.85rem;">${child.name}</span>
+                                        ${seasonBadge}
+                                    </div>
+                                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                        <span style="font-size: 0.75rem; color: #64748b;">${child.maxGuests} guests · ${child.bedrooms} bed · ¥${(child.dailyRate || 0).toLocaleString()}/night</span>
+                                        <code style="font-size: 0.65rem; color: #94a3b8; background: #f8fafc; padding: 0.1rem 0.3rem; border-radius: 3px;">${child.externalId.substring(0, 8)}...</code>
+                                    </div>
+                                </div>
+                            `;
+
+                            // Add to calendar dropdown
+                            const opt = document.createElement('option');
+                            opt.value = child.externalId;
+                            opt.textContent = child.name;
+                            calSelect.appendChild(opt);
+                        });
+                    } else {
+                        html += '<div style="padding: 0.75rem 1rem; color: #94a3b8; font-size: 0.85rem; border-top: 1px solid #f1f5f9;">No child listings found</div>';
+                    }
+
+                    html += '</div>';
+                });
+
+                // Orphans (sub-units without a matching parent)
+                if (orphans && orphans.length > 0) {
+                    html += `
+                        <div style="border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 1rem; overflow: hidden;">
+                            <div style="background: #f1f5f9; padding: 0.75rem 1rem;">
+                                <span style="font-weight: 600; font-size: 0.95rem;">📋 Unmatched Listings</span>
+                            </div>
+                    `;
+                    orphans.forEach(o => {
+                        html += `
+                            <div style="padding: 0.6rem 1rem; border-top: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center;">
+                                <span style="font-size: 0.85rem;">${o.name}</span>
+                                <code style="font-size: 0.65rem; color: #94a3b8;">${o.externalId.substring(0, 8)}...</code>
+                            </div>
+                        `;
+                        const opt = document.createElement('option');
+                        opt.value = o.externalId;
+                        opt.textContent = o.name;
+                        calSelect.appendChild(opt);
+                    });
+                    html += '</div>';
+                }
+
+                container.innerHTML = html;
+
+            } catch (error) {
+                container.innerHTML = `<div style="text-align: center; padding: 2rem; color: #ef4444;">❌ Error: ${error.message}</div>`;
+            }
+        }
+
+        async function importHostfullyProperties() {
+            const accountId = document.getElementById('hf-gas-account').value;
+
+            if (!accountId) {
+                showNotification('Please select a GAS account first', 'error');
+                return;
+            }
+
+            if (!confirm('This will import all bookable properties (SUB_UNIT) from Hostfully into GAS. Continue?')) return;
+
+            showNotification('⏳ Importing properties from Hostfully...', 'info');
+
+            try {
+                const response = await fetch('/api/hostfully/import', {
+                    method: 'POST',
+                    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        accountId: accountId === 'new' ? null : accountId,
+                        bookableOnly: true
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    showNotification(`✅ Imported ${result.properties_imported} properties, ${result.rooms_imported} rooms!`, 'success');
+                    loadHostfullySyncedProperties();
+                } else {
+                    showNotification(result.error || 'Import failed', 'error');
+                }
+            } catch (error) {
+                showNotification(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function loadHostfullySyncedProperties() {
+            try {
+                const response = await fetch("/api/admin/gas-sync/properties?adapter=hostfully", { headers: authHeaders() });
+                const result = await response.json();
+                const tbody = document.getElementById('hf-synced-list');
+
+                if (!result.success || !result.properties || result.properties.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: #64748b;">No properties synced yet. Import from Hostfully above.</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = result.properties.map(p => `
+                    <tr>
+                        <td style="font-weight: 500;">${p.name || 'Unnamed'}</td>
+                        <td><span style="background: #dbeafe; color: #1e40af; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.75rem;">${p.property_type || 'N/A'}</span></td>
+                        <td><code style="font-size: 0.75rem; color: #64748b;">${(p.external_id || '').substring(0, 12)}...</code></td>
+                        <td>${p.gas_property_id ? '<span style="color: #10b981;">✅ ID: ' + p.gas_property_id + '</span>' : '<span style="color: #f59e0b;">⏳ Pending</span>'}</td>
+                        <td style="font-size: 0.8rem; color: #64748b;">${p.updated_at ? new Date(p.updated_at).toLocaleDateString() : 'Never'}</td>
+                        <td>
+                            <button class="btn btn-small btn-secondary" onclick="syncHostfullyCalendar('${p.external_id}')" title="Sync calendar">📅</button>
+                        </td>
+                    </tr>
+                `).join('');
+            } catch (error) {
+                console.log('Error loading synced properties:', error);
+            }
+        }
+
+        async function testHostfullyCalendar() {
+            const uid = document.getElementById('hf-calendar-property').value;
+            const startDate = document.getElementById('hf-calendar-start').value;
+            const endDate = document.getElementById('hf-calendar-end').value;
+            const resultEl = document.getElementById('hf-calendar-result');
+
+            if (!uid) {
+                showNotification('Select a property first', 'error');
+                return;
+            }
+
+            resultEl.style.display = 'block';
+            resultEl.innerHTML = '<div style="text-align: center; padding: 1rem; color: #64748b;">⏳ Fetching calendar...</div>';
+
+            try {
+                let url = `/api/hostfully/calendar/${uid}`;
+                const params = [];
+                if (startDate) params.push(`startDate=${startDate}`);
+                if (endDate) params.push(`endDate=${endDate}`);
+                if (params.length) url += '?' + params.join('&');
+
+                const response = await fetch(url, { headers: authHeaders() });
+                const result = await response.json();
+
+                if (!result.success) {
+                    resultEl.innerHTML = `<div style="color: #ef4444;">❌ ${result.error}</div>`;
+                    return;
+                }
+
+                const days = result.data || [];
+                if (days.length === 0) {
+                    resultEl.innerHTML = '<div style="color: #64748b;">No calendar data returned</div>';
+                    return;
+                }
+
+                // Calendar grid
+                const available = days.filter(d => d.isAvailable).length;
+                const blocked = days.filter(d => !d.isAvailable).length;
+                const avgPrice = days.filter(d => d.price).reduce((s, d) => s + d.price, 0) / (days.filter(d => d.price).length || 1);
+
+                let html = `
+                    <div style="display: flex; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap;">
+                        <div style="background: #d1fae5; padding: 0.5rem 0.75rem; border-radius: 6px; font-size: 0.8rem;">
+                            <strong>${available}</strong> available
+                        </div>
+                        <div style="background: #fee2e2; padding: 0.5rem 0.75rem; border-radius: 6px; font-size: 0.8rem;">
+                            <strong>${blocked}</strong> blocked
+                        </div>
+                        <div style="background: #f0f9ff; padding: 0.5rem 0.75rem; border-radius: 6px; font-size: 0.8rem;">
+                            Avg: <strong>¥${Math.round(avgPrice).toLocaleString()}</strong>/night
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 3px;">
+                `;
+
+                days.slice(0, 120).forEach(day => {
+                    const bg = day.isAvailable ? '#d1fae5' : '#fee2e2';
+                    const dateStr = new Date(day.date).toLocaleDateString('en', { month: 'short', day: 'numeric' });
+                    html += `
+                        <div style="background: ${bg}; padding: 0.3rem 0.4rem; border-radius: 4px; font-size: 0.7rem; text-align: center;" title="${day.date} - ${day.status}">
+                            <div style="font-weight: 600;">${dateStr}</div>
+                            ${day.price ? '<div>¥' + day.price.toLocaleString() + '</div>' : ''}
+                        </div>
+                    `;
+                });
+
+                html += '</div>';
+                if (days.length > 120) html += `<div style="color: #64748b; font-size: 0.8rem; margin-top: 0.5rem;">Showing 120 of ${days.length} days</div>`;
+
+                resultEl.innerHTML = html;
+
+            } catch (error) {
+                resultEl.innerHTML = `<div style="color: #ef4444;">❌ Error: ${error.message}</div>`;
+            }
+        }
+
+        async function syncHostfullyCalendar(propertyUid) {
+            showNotification('⏳ Syncing calendar...', 'info');
+            try {
+                const response = await fetch(`/api/hostfully/calendar/${propertyUid}`, { headers: authHeaders() });
+                const result = await response.json();
+                if (result.success) {
+                    showNotification(`✅ Calendar fetched: ${(result.data || []).length} days`, 'success');
+                } else {
+                    showNotification(result.error || 'Failed', 'error');
+                }
+            } catch (error) {
+                showNotification(`Error: ${error.message}`, 'error');
+            }
+        }
         
         function showModal(title, content) {
             // Create modal if it doesn't exist
