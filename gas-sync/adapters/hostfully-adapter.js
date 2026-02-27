@@ -338,6 +338,17 @@ class HostfullyAdapter {
     const allResult = await this.getProperties();
     if (!allResult.success) return allResult;
     
+    // Log businessType distribution
+    const typeCounts = {};
+    for (const prop of allResult.data) {
+      const bt = prop.businessType || 'NONE';
+      typeCounts[bt] = (typeCounts[bt] || 0) + 1;
+    }
+    console.log('[Hostfully hierarchy] businessType distribution:', typeCounts);
+    console.log('[Hostfully hierarchy] Sample properties:', allResult.data.slice(0, 3).map(p => ({
+      name: p.name, businessType: p.businessType, rawBusinessType: p.raw?.businessType, parentUid: p.raw?.parentUid
+    })));
+    
     const parents = {};
     const orphans = [];
     
