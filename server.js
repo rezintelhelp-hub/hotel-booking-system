@@ -32310,10 +32310,11 @@ app.get('/api/hostfully/hierarchy', async (req, res) => {
     }
     
     const adapter = new HostfullyAdapter({ apiKey, agencyUid });
-    // Always auto-discover to be safe
-    await adapter.getAgency();
+    if (!agencyUid) {
+      await adapter.getAgency();
+    }
     
-    console.log('[Hostfully hierarchy] agencyUid:', adapter.agencyUid, '| apiKey length:', apiKey?.length);
+    console.log('[Hostfully hierarchy] agencyUid:', adapter.agencyUid, '| from query:', agencyUid);
     
     const hierarchy = await adapter.getPropertyHierarchy();
     res.json(hierarchy);
@@ -32346,7 +32347,7 @@ app.post('/api/hostfully/import', async (req, res) => {
       pool,
       connectionId: conn.id
     });
-    await adapter.getAgency();
+    if (!creds.agencyUid) await adapter.getAgency();
     
     // Run full sync
     const result = await adapter.fullSync();
