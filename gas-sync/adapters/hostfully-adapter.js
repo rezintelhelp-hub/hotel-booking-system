@@ -503,7 +503,7 @@ class HostfullyAdapter {
   
   async getPhotos(propertyUid) {
     const response = await this.request('/photos', 'GET', null, {
-      params: { propertyUid }
+      params: { propertyUid, agencyUid: this.agencyUid }
     });
     
     if (!response.success) return response;
@@ -556,14 +556,28 @@ class HostfullyAdapter {
   // =====================================================
   
   async getDescriptions(propertyUid) {
-    // V3 endpoint: GET /property-descriptions/{propertyUid}
-    const response = await this.request(`/property-descriptions/${propertyUid}`, 'GET');
+    // V3.2 endpoint: GET /property-descriptions?propertyUid=
+    // Try query param style first (V3 compatible)
+    let response = await this.request('/property-descriptions', 'GET', null, {
+      params: { propertyUid }
+    });
     
-    if (!response.success) return response;
+    if (!response.success) {
+      // Fall back: description may be embedded in the property data itself
+      response = await this.request(`/properties/${propertyUid}`, 'GET');
+      if (response.success && response.data?.description) {
+        return {
+          success: true,
+          data: { 
+            en: { text: response.data.description, locale: 'en' }
+          }
+        };
+      }
+      return response;
+    }
     
     const descriptions = Array.isArray(response.data) ? response.data : [response.data].filter(Boolean);
     
-    // Return organized by locale
     const result = {};
     for (const desc of descriptions) {
       result[desc.locale || 'default'] = {
@@ -574,37 +588,6 @@ class HostfullyAdapter {
     }
     
     return { success: true, data: result };
-  }
-  
-  // =====================================================
-  // PRICING PERIODS
-  // =====================================================
-  
-  async getPricingPeriods(propertyUid) {
-    // V3 endpoint: GET /pricing-periods?propertyUid=
-    const response = await this.request('/pricing-periods', 'GET', null, {
-      params: { propertyUid }
-    });
-    
-    if (!response.success) return response;
-    
-    const periods = Array.isArray(response.data) ? response.data : [];
-    
-    return {
-      success: true,
-      data: periods.map(p => ({
-        uid: p.uid,
-        startDate: p.startDate,
-        endDate: p.endDate,
-        nightlyRate: p.nightlyRate,
-        weeklyRate: p.weeklyRate,
-        monthlyRate: p.monthlyRate,
-        weekendNightlyRate: p.weekendNightlyRate,
-        minimumStay: p.minimumStay,
-        currency: p.currency,
-        raw: p
-      }))
-    };
   }
   
   // =====================================================
@@ -753,7 +736,7 @@ class HostfullyAdapter {
   // =====================================================
   
   async getPricingPeriods(propertyUid) {
-    const response = await this.request('/pricingperiods', 'GET', null, {
+    const response = await this.request('/pricing-periods', 'GET', null, {
       params: { propertyUid }
     });
     
