@@ -32315,9 +32315,12 @@ app.get('/api/hostfully/hierarchy', async (req, res) => {
     const adapter = new HostfullyAdapter({ apiKey, agencyUid });
     if (!agencyUid) await adapter.getAgency();
     
+    console.log('[Hostfully hierarchy] agencyUid:', adapter.agencyUid, 'apiKey length:', apiKey?.length);
+    
     const hierarchy = await adapter.getPropertyHierarchy();
     res.json(hierarchy);
   } catch (error) {
+    console.error('[Hostfully hierarchy] Error:', error.message, error.response?.data || '');
     res.json({ success: false, error: error.message });
   }
 });
