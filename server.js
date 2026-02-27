@@ -16198,121 +16198,9 @@ app.post('/api/public/create-group-booking', async (req, res) => {
 
 // Create payment intent for checkout (public endpoint)
 app.post('/api/public/create-payment-intent', async (req, res) => {
-
-// =====================================================
-// MANUAL RE-PUSH BOOKING TO BEDS24
-// =====================================================
-app.post('/api/admin/bookings/:id/push-to-beds24', async (req, res) => {
-    try {
-        const bookingId = parseInt(req.params.id);
-        
-        // Get full booking details
-        const bookingResult = await pool.query(`
-            SELECT b.*, bu.beds24_room_id, bu.id as unit_id, bu.name as room_name,
-                   p.id as prop_id, p.name as property_name, p.account_id
-            FROM bookings b
-            JOIN bookable_units bu ON b.bookable_unit_id = bu.id
-            JOIN properties p ON b.property_id = p.id
-            WHERE b.id = $1
-        `, [bookingId]);
-        
-        if (bookingResult.rows.length === 0) {
-            return res.json({ success: false, error: `Booking ${bookingId} not found` });
-        }
-        
-        const booking = bookingResult.rows[0];
-        
-        // Already pushed?
-        if (booking.beds24_booking_id) {
-            return res.json({ success: false, error: `Booking already in Beds24 as ${booking.beds24_booking_id}` });
-        }
-        
-        // Find beds24_room_id — legacy column first, then GasSync
-        let beds24RoomId = booking.beds24_room_id;
-        if (!beds24RoomId) {
-            const gsResult = await pool.query(`
-                SELECT gsrt.external_id FROM gas_sync_room_types gsrt
-                JOIN gas_sync_properties gsp ON gsrt.sync_property_id = gsp.id
-                JOIN gas_sync_connections gsc ON gsp.connection_id = gsc.id
-                WHERE gsrt.gas_room_id = $1 AND gsc.adapter_code = 'beds24'
-                LIMIT 1
-            `, [booking.unit_id]);
-            beds24RoomId = gsResult.rows[0]?.external_id;
-        }
-        
-        if (!beds24RoomId) {
-            return res.json({ success: false, error: `No Beds24 room ID found for room ${booking.unit_id} (${booking.room_name}). Check gas_sync_room_types mapping.` });
-        }
-        
-        // Get the correct token for this property
-        const accessToken = await getBeds24AccessTokenForProperty(pool, booking.prop_id, booking.unit_id);
-        
-        const beds24Booking = [{
-            roomId: beds24RoomId,
-            status: 'confirmed',
-            arrival: booking.arrival_date?.toISOString?.()?.split('T')[0] || booking.arrival_date,
-            departure: booking.departure_date?.toISOString?.()?.split('T')[0] || booking.departure_date,
-            numAdult: booking.num_adults || 1,
-            numChild: booking.num_children || 0,
-            firstName: booking.guest_first_name || '',
-            lastName: booking.guest_last_name || '',
-            email: booking.guest_email || '',
-            mobile: booking.guest_phone || '',
-            phone: booking.guest_phone || '',
-            address: booking.guest_address || '',
-            city: booking.guest_city || '',
-            postcode: booking.guest_postcode || '',
-            country: booking.guest_country || '',
-            referer: `GAS Direct - GAS-${booking.id}`,
-            refererEditable: `GAS Direct - GAS-${booking.id}`,
-            reference: `GAS-${booking.id}`,
-            notes: `Booked via GAS | Manual re-push | Ref: GAS-${booking.id}`,
-            price: parseFloat(booking.grand_total || booking.accommodation_price || 0),
-            invoiceItems: [{
-                description: 'Accommodation',
-                status: '',
-                qty: 1,
-                amount: parseFloat(booking.grand_total || booking.accommodation_price || 0),
-                vatRate: 0
-            }]
-        }];
-        
-        console.log(`[Manual Push] Pushing booking ${bookingId} to Beds24 room ${beds24RoomId}:`, JSON.stringify(beds24Booking));
-        
-        const beds24Response = await axios.post('https://beds24.com/api/v2/bookings', beds24Booking, {
-            headers: { 'token': accessToken, 'Content-Type': 'application/json' }
-        });
-        
-        console.log(`[Manual Push] Beds24 response:`, JSON.stringify(beds24Response.data));
-        
-        if (beds24Response.data?.[0]?.success) {
-            const beds24Id = beds24Response.data[0]?.new?.id;
-            if (beds24Id) {
-                await pool.query(`UPDATE bookings SET beds24_booking_id = $1 WHERE id = $2`, [beds24Id, bookingId]);
-            }
-            res.json({
-                success: true,
-                beds24_booking_id: beds24Id,
-                beds24_room_id: beds24RoomId,
-                message: `Booking ${bookingId} pushed to Beds24 as ${beds24Id}`
-            });
-        } else {
-            res.json({
-                success: false,
-                error: 'Beds24 API returned failure',
-                beds24_response: beds24Response.data
-            });
-        }
-    } catch (error) {
-        console.error('[Manual Push] Error:', error.response?.data || error.message);
-        res.json({ success: false, error: error.message, details: error.response?.data });
-    }
-});
-
     try {
         const { property_id, amount, currency: reqCurrency, booking_data } = req.body;
         
-        // Get property currency as fallback
         let effectiveCurrency = reqCurrency;
         if (!effectiveCurrency) {
             const propCurr = await pool.query(`
@@ -16457,6 +16345,105 @@ app.post('/api/admin/bookings/:id/push-to-beds24', async (req, res) => {
     } catch (error) {
         console.error('Error creating payment intent:', error);
         res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// =====================================================
+// MANUAL RE-PUSH BOOKING TO BEDS24
+// =====================================================
+app.post('/api/admin/bookings/:id/push-to-beds24', async (req, res) => {
+    try {
+        const bookingId = parseInt(req.params.id);
+        
+        // Get full booking details
+        const bookingResult = await pool.query(`
+            SELECT b.*, bu.beds24_room_id, bu.id as unit_id, bu.name as room_name,
+                   p.id as prop_id, p.name as property_name, p.account_id
+            FROM bookings b
+            JOIN bookable_units bu ON b.bookable_unit_id = bu.id
+            JOIN properties p ON b.property_id = p.id
+            WHERE b.id = $1
+        `, [bookingId]);
+        
+        if (bookingResult.rows.length === 0) {
+            return res.json({ success: false, error: `Booking ${bookingId} not found` });
+        }
+        
+        const booking = bookingResult.rows[0];
+        
+        // Already pushed?
+        if (booking.beds24_booking_id) {
+            return res.json({ success: false, error: `Booking already in Beds24 as ${booking.beds24_booking_id}` });
+        }
+        
+        // Find beds24_room_id — legacy column first, then GasSync
+        let beds24RoomId = booking.beds24_room_id;
+        if (!beds24RoomId) {
+            const gsResult = await pool.query(`
+                SELECT gsrt.external_id FROM gas_sync_room_types gsrt
+                JOIN gas_sync_properties gsp ON gsrt.sync_property_id = gsp.id
+                JOIN gas_sync_connections gsc ON gsp.connection_id = gsc.id
+                WHERE gsrt.gas_room_id = $1 AND gsc.adapter_code = 'beds24'
+                LIMIT 1
+            `, [booking.unit_id]);
+            beds24RoomId = gsResult.rows[0]?.external_id;
+        }
+        
+        if (!beds24RoomId) {
+            return res.json({ success: false, error: 'No beds24_room_id found for this room' });
+        }
+        
+        console.log(`[Beds24 Push] Booking ${bookingId}: room ${beds24RoomId}, ${booking.arrival_date} to ${booking.departure_date}`);
+        
+        // Get correct token for this property
+        const accessToken = await getBeds24AccessTokenForProperty(pool, booking.prop_id, booking.unit_id);
+        if (!accessToken) {
+            return res.json({ success: false, error: 'Could not get Beds24 access token for this property' });
+        }
+        
+        // Build Beds24 booking payload
+        const beds24Payload = {
+            roomId: parseInt(beds24RoomId),
+            arrival: booking.arrival_date?.toISOString?.()?.split('T')[0] || booking.arrival_date,
+            departure: booking.departure_date?.toISOString?.()?.split('T')[0] || booking.departure_date,
+            numAdult: booking.num_adults || 2,
+            numChild: booking.num_children || 0,
+            firstName: booking.guest_first_name || '',
+            lastName: booking.guest_last_name || '',
+            email: booking.guest_email || '',
+            phone: booking.guest_phone || '',
+            status: 'confirmed',
+            referer: 'GAS Direct',
+            price: parseFloat(booking.grand_total) || 0
+        };
+        
+        console.log('[Beds24 Push] Payload:', JSON.stringify(beds24Payload));
+        
+        const beds24Response = await axios.post('https://beds24.com/api/v2/bookings', beds24Payload, {
+            headers: { 'token': accessToken, 'Content-Type': 'application/json' }
+        });
+        
+        console.log('[Beds24 Push] Response:', JSON.stringify(beds24Response.data));
+        
+        if (beds24Response.data?.id || beds24Response.data?.bookingId) {
+            const newBeds24Id = beds24Response.data.id || beds24Response.data.bookingId;
+            await pool.query('UPDATE bookings SET beds24_booking_id = $1 WHERE id = $2', [newBeds24Id.toString(), bookingId]);
+            
+            res.json({
+                success: true,
+                beds24_booking_id: newBeds24Id,
+                message: `Booking ${bookingId} pushed to Beds24 as ${newBeds24Id}`
+            });
+        } else {
+            res.json({
+                success: false,
+                error: 'Beds24 API returned failure',
+                beds24_response: beds24Response.data
+            });
+        }
+    } catch (error) {
+        console.error('[Manual Push] Error:', error.response?.data || error.message);
+        res.json({ success: false, error: error.message, details: error.response?.data });
     }
 });
 
