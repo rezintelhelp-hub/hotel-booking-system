@@ -31914,24 +31914,21 @@ app.get('/api/calry/import-property/:integrationAccountId/:propertyId', async (r
 // Test Hostfully connection with API key
 app.post('/api/hostfully/test-connection', async (req, res) => {
   try {
-    const { apiKey } = req.body;
+    const { apiKey, agencyUid } = req.body;
     if (!apiKey) {
       return res.status(400).json({ success: false, error: 'API key is required' });
     }
     
     const { HostfullyAdapter } = require('./gas-sync/adapters/hostfully-adapter');
-    const adapter = new HostfullyAdapter({ apiKey });
+    const adapter = new HostfullyAdapter({ apiKey, agencyUid });
     const result = await adapter.testConnection();
     
     if (result.success) {
-      // Also get agency info for agencyUid
-      const agencyResult = await adapter.getAgency();
       res.json({ 
         success: true, 
         message: result.message,
         agencies: result.agencies,
-        agencyUid: adapter.agencyUid,
-        agencyName: agencyResult.success ? agencyResult.data?.name : null
+        agencyUid: agencyUid || adapter.agencyUid
       });
     } else {
       res.json({ success: false, error: result.error });
