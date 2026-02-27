@@ -3607,6 +3607,16 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     let propTimezone = '';
     
     // Handle different adapters
+    if (prop.adapter_code === 'hostfully') {
+      // Hostfully: data already written directly to bookable_units and room_availability during import
+      // No need for link-to-gas processing
+      return res.json({
+        success: true,
+        message: 'Hostfully properties are synced directly during import.',
+        stats: { roomsUpdated: 0, note: 'Use import-to-gas or sync-content for Hostfully' }
+      });
+    }
+    
     if (prop.adapter_code === 'calry') {
       // CALRY: Fetch fresh data from Calry API
       console.log('link-to-gas: Processing Calry data - fetching fresh from API');
