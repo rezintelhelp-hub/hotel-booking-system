@@ -32630,9 +32630,9 @@ app.post('/api/hostfully/import-to-gas/:connectionId', async (req, res) => {
               }
               if (pictureLink) {
                 await pool.query(`
-                  INSERT INTO room_images (room_id, image_url, display_order, image_key, created_at)
-                  VALUES ($1, $2, 0, $3, NOW())
-                  ON CONFLICT (room_id, image_key) WHERE image_key IS NOT NULL DO UPDATE SET image_url = EXCLUDED.image_url
+                  INSERT INTO room_images (room_id, image_url, display_order, image_key, is_active, is_primary, upload_source, created_at)
+                  VALUES ($1, $2, 0, $3, true, true, 'hostfully', NOW())
+                  ON CONFLICT (room_id, image_key) WHERE image_key IS NOT NULL DO UPDATE SET image_url = EXCLUDED.image_url, is_active = true
                 `, [gasRoomId, pictureLink, `hf-${room.external_id}-thumb`]);
                 stats.images++;
               }
@@ -32650,23 +32650,24 @@ app.post('/api/hostfully/import-to-gas/:connectionId', async (req, res) => {
                 // Build JSONB description objects keyed by language
                 const fullDescObj = {};
                 const shortDescObj = {};
+                const displayNameObj = {};
                 for (const [locale, desc] of Object.entries(roomDescResult.data)) {
                   const lang = locale === 'en_US' ? 'EN' : locale === 'ja_JP' ? 'JA' : locale.split('_')[0].toUpperCase();
                   fullDescObj[lang] = desc.text || desc.summary || '';
                   shortDescObj[lang] = desc.shortSummary || desc.summary?.substring(0, 200) || '';
-                  
-                  // Update display_name from the English description name if richer
-                  if (locale === 'en_US' && desc.name && desc.name.length > room.name.length) {
-                    await pool.query('UPDATE bookable_units SET display_name = $1::jsonb WHERE id = $2', [JSON.stringify({EN: desc.name}), gasRoomId]);
-                  }
+                  if (desc.name) displayNameObj[lang] = desc.name;
+                }
+                
+                if (Object.keys(displayNameObj).length > 0) {
+                  await pool.query('UPDATE bookable_units SET display_name = $1 WHERE id = $2', [JSON.stringify(displayNameObj), gasRoomId]);
                 }
                 
                 if (Object.keys(fullDescObj).length > 0) {
-                  await pool.query('UPDATE bookable_units SET full_description = $1::jsonb WHERE id = $2', 
+                  await pool.query('UPDATE bookable_units SET full_description = $1 WHERE id = $2', 
                     [JSON.stringify(fullDescObj), gasRoomId]);
                 }
                 if (Object.keys(shortDescObj).length > 0) {
-                  await pool.query('UPDATE bookable_units SET short_description = $1::jsonb WHERE id = $2', 
+                  await pool.query('UPDATE bookable_units SET short_description = $1 WHERE id = $2', 
                     [JSON.stringify(shortDescObj), gasRoomId]);
                 }
                 
