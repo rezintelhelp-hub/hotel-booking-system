@@ -39186,7 +39186,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const roomSelect = document.getElementById('edit-booking-room');
                 roomSelect.innerHTML = '<option value="">Loading rooms...</option>';
                 try {
-                    const roomsResp = await fetch(`/api/properties/${booking.property_id}/rooms`, { headers: authHeaders() });
+                    const roomsResp = await fetch(`/api/admin/properties/${booking.property_id}/rooms`, { headers: authHeaders() });
                     const roomsData = await roomsResp.json();
                     const rooms = roomsData.rooms || roomsData.data || roomsData || [];
                     roomSelect.innerHTML = '';
