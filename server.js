@@ -32600,80 +32600,50 @@ app.get('/api/hostfully/probe/:propertyUid', async (req, res) => {
     }
     
     // V3.1 Multi-Unit endpoints
-    const v31Base = adapter.baseUrl.replace('/v3', '/v3.1');
-    
-    // Multi-unit properties (hotels)
-    try {
-      const hotelsResp = await adapter.request('/multi-units/multi-unit-properties', 'GET', null, { 
-        params: { agencyUid: creds.agencyUid },
-        baseUrlOverride: v31Base
-      });
-      // If baseUrlOverride doesn't work, try manually
-      if (!hotelsResp.success) {
-        const axios = require('axios');
-        const hResp = await axios.get(`${v31Base}/multi-units/multi-unit-properties?agencyUid=${creds.agencyUid}`, {
-          headers: { 'X-HOSTFULLY-APIKEY': creds.apiKey }
-        });
-        results.v31_hotels = { count: Array.isArray(hResp.data) ? hResp.data.length : 'object', data: Array.isArray(hResp.data) ? hResp.data.map(h => ({ uid: h.uid, name: h.name, keys: Object.keys(h) })) : Object.keys(hResp.data) };
-      } else {
-        results.v31_hotels = hotelsResp.data;
-      }
-    } catch (e) {
-      // Try direct axios call with v3.1 base
-      try {
-        const axios = require('axios');
-        const hResp = await axios.get(`https://platform.hostfully.com/api/v3.1/multi-units/multi-unit-properties?agencyUid=${creds.agencyUid}`, {
-          headers: { 'X-HOSTFULLY-APIKEY': creds.apiKey }
-        });
-        results.v31_hotels = { count: Array.isArray(hResp.data) ? hResp.data.length : 'object', data: Array.isArray(hResp.data) ? hResp.data.map(h => ({ uid: h.uid, name: h.name, keys: Object.keys(h) })) : Object.keys(hResp.data) };
-      } catch (e2) {
-        results.v31_hotels = { error: e2.response?.data || e2.message };
-      }
-    }
-    
-    // Unit types for first hotel found
     try {
       const axios = require('axios');
-      // Get unit types for this propertyUid (treating it as a hotel uid)
-      const utResp = await axios.get(`https://platform.hostfully.com/api/v3.1/multi-units/unit-types?hotelUid=${propertyUid}`, {
-        headers: { 'X-HOSTFULLY-APIKEY': creds.apiKey }
-      });
-      results.v31_unitTypes = { 
-        count: Array.isArray(utResp.data) ? utResp.data.length : 'object', 
-        data: Array.isArray(utResp.data) ? utResp.data.map(ut => ({ uid: ut.uid, name: ut.name, keys: Object.keys(ut) })) : utResp.data 
-      };
+      const hdrs = { 'X-HOSTFULLY-APIKEY': creds.apiKey };
       
-      // If we got unit types, probe photos/pricing for the first one using its uid as propertyUid
-      if (Array.isArray(utResp.data) && utResp.data.length > 0) {
-        const firstUT = utResp.data[0];
-        results.v31_firstUnitType = firstUT;
+      // Get all hotels (multi-unit properties) for this agency
+      const hResp = await axios.get(`https://platform.hostfully.com/api/v3.1/multi-units/multi-unit-properties?agencyUid=${creds.agencyUid}`, { headers: hdrs });
+      const hotels = hResp.data?.hotels || hResp.data || [];
+      results.v31_hotels = Array.isArray(hotels) ? hotels.map(h => ({ uid: h.uid, name: h.name, keys: Object.keys(h) })) : hResp.data;
+      
+      // Find hotel that matches this propertyUid, or use first hotel
+      const matchedHotel = Array.isArray(hotels) ? hotels.find(h => h.uid === propertyUid) : null;
+      const hotelUid = matchedHotel?.uid || (Array.isArray(hotels) && hotels.length > 0 ? hotels[0].uid : null);
+      results.v31_matchedHotelUid = hotelUid;
+      
+      if (hotelUid) {
+        // V3.1 photos with hotelUid
+        try {
+          const phResp = await axios.get(`https://platform.hostfully.com/api/v3.1/photos?hotelUid=${hotelUid}`, { headers: hdrs });
+          const photoData = phResp.data?.photos || phResp.data;
+          results.v31_photos_byHotel = { count: Array.isArray(photoData) ? photoData.length : 'object', sample: Array.isArray(photoData) ? photoData.slice(0, 2) : Object.keys(phResp.data) };
+        } catch (pe) {
+          results.v31_photos_byHotel = { error: pe.response?.data || pe.message };
+        }
         
-        // Photos using unitType.uid as propertyUid
-        const phResp = await axios.get(`https://platform.hostfully.com/api/v3/photos?propertyUid=${firstUT.uid}`, {
-          headers: { 'X-HOSTFULLY-APIKEY': creds.apiKey }
-        });
-        results.v31_unitType_photos = { count: Array.isArray(phResp.data) ? phResp.data.length : 0, sample: (Array.isArray(phResp.data) ? phResp.data : [])[0] };
+        // V3.1 photos with propertyUid
+        try {
+          const phResp2 = await axios.get(`https://platform.hostfully.com/api/v3.1/photos?propertyUid=${propertyUid}`, { headers: hdrs });
+          const photoData2 = phResp2.data?.photos || phResp2.data;
+          results.v31_photos_byProperty = { count: Array.isArray(photoData2) ? photoData2.length : 'object', sample: Array.isArray(photoData2) ? photoData2.slice(0, 2) : Object.keys(phResp2.data) };
+        } catch (pe2) {
+          results.v31_photos_byProperty = { error: pe2.response?.data || pe2.message };
+        }
         
-        // Pricing periods using unitType.uid as propertyUid
-        const prResp = await axios.get(`https://platform.hostfully.com/api/v3/pricing-periods?propertyUid=${firstUT.uid}&from=${today}&to=${futureDate}`, {
-          headers: { 'X-HOSTFULLY-APIKEY': creds.apiKey }
-        });
-        results.v31_unitType_pricing = { count: Array.isArray(prResp.data) ? prResp.data.length : 0, sample: (Array.isArray(prResp.data) ? prResp.data : []).slice(0, 3) };
-        
-        // Amenities using unitType.uid
-        const amResp = await axios.get(`https://platform.hostfully.com/api/v3/amenities?propertyUid=${firstUT.uid}`, {
-          headers: { 'X-HOSTFULLY-APIKEY': creds.apiKey }
-        });
-        results.v31_unitType_amenities = { count: Array.isArray(amResp.data) ? amResp.data.length : (typeof amResp.data === 'object' ? Object.keys(amResp.data).length : 0), data: amResp.data };
-        
-        // Descriptions using unitType.uid
-        const descResp = await axios.get(`https://platform.hostfully.com/api/v3/property-descriptions?propertyUid=${firstUT.uid}`, {
-          headers: { 'X-HOSTFULLY-APIKEY': creds.apiKey }
-        });
-        results.v31_unitType_descriptions = descResp.data;
+        // Unit types for this hotel
+        try {
+          const utResp = await axios.get(`https://platform.hostfully.com/api/v3.1/multi-units/unit-types?hotelUid=${hotelUid}`, { headers: hdrs });
+          const unitTypes = utResp.data?.unitTypes || utResp.data || [];
+          results.v31_unitTypes = Array.isArray(unitTypes) ? unitTypes.map(ut => ({ uid: ut.uid, name: ut.name, keys: Object.keys(ut) })) : utResp.data;
+        } catch (ue) {
+          results.v31_unitTypes = { error: ue.response?.data || ue.message };
+        }
       }
     } catch (e) {
-      results.v31_unitTypes = { error: e.response?.data || e.message };
+      results.v31_error = e.response?.data || e.message;
     }
     
     res.json({ success: true, propertyUid, results });
