@@ -31907,6 +31907,294 @@ app.get('/api/calry/import-property/:integrationAccountId/:propertyId', async (r
   }
 });
 
+// =====================================================
+// HOSTFULLY DIRECT API ENDPOINTS
+// =====================================================
+
+// Test Hostfully connection with API key
+app.post('/api/hostfully/test-connection', async (req, res) => {
+  try {
+    const { apiKey } = req.body;
+    if (!apiKey) {
+      return res.status(400).json({ success: false, error: 'API key is required' });
+    }
+    
+    const { HostfullyAdapter } = require('./gas-sync/hostfully-adapter');
+    const adapter = new HostfullyAdapter({ apiKey });
+    const result = await adapter.testConnection();
+    
+    if (result.success) {
+      // Also get agency info for agencyUid
+      const agencyResult = await adapter.getAgency();
+      res.json({ 
+        success: true, 
+        message: result.message,
+        agencies: result.agencies,
+        agencyUid: adapter.agencyUid,
+        agencyName: agencyResult.success ? agencyResult.data?.name : null
+      });
+    } else {
+      res.json({ success: false, error: result.error });
+    }
+  } catch (error) {
+    console.error('Hostfully test-connection error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get Hostfully properties for preview (before import)
+app.post('/api/hostfully/preview-properties', async (req, res) => {
+  try {
+    const { apiKey, agencyUid } = req.body;
+    if (!apiKey) {
+      return res.status(400).json({ success: false, error: 'API key is required' });
+    }
+    
+    const { HostfullyAdapter } = require('./gas-sync/hostfully-adapter');
+    const adapter = new HostfullyAdapter({ apiKey, agencyUid });
+    
+    // Auto-discover agency if not provided
+    if (!agencyUid) {
+      await adapter.getAgency();
+    }
+    
+    const hierarchy = await adapter.getPropertyHierarchy();
+    
+    if (!hierarchy.success) {
+      return res.json({ success: false, error: hierarchy.error });
+    }
+    
+    res.json({
+      success: true,
+      agencyUid: adapter.agencyUid,
+      total: hierarchy.data.total,
+      parents: hierarchy.data.parents,
+      subUnits: hierarchy.data.subUnits,
+      orphans: hierarchy.data.orphans.length,
+      properties: hierarchy.data.hierarchy.map(p => ({
+        uid: p.externalId,
+        name: p.name,
+        type: p.propertyType,
+        businessType: p.businessType,
+        city: p.address?.city,
+        country: p.address?.countryCode,
+        children: p.children?.map(c => ({
+          uid: c.externalId,
+          name: c.name,
+          maxGuests: c.maxGuests,
+          bedrooms: c.bedrooms,
+          bathrooms: c.bathrooms,
+          dailyRate: c.dailyRate,
+          currency: c.currency
+        })) || []
+      })),
+      standaloneProperties: hierarchy.data.orphans.map(p => ({
+        uid: p.externalId,
+        name: p.name,
+        type: p.propertyType,
+        maxGuests: p.maxGuests,
+        bedrooms: p.bedrooms,
+        dailyRate: p.dailyRate,
+        currency: p.currency
+      }))
+    });
+  } catch (error) {
+    console.error('Hostfully preview-properties error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Connect Hostfully and create gas_sync_connection
+app.post('/api/hostfully/connect', async (req, res) => {
+  try {
+    const { apiKey, agencyUid, account_id } = req.body;
+    
+    if (!apiKey || !account_id) {
+      return res.status(400).json({ success: false, error: 'API key and account_id required' });
+    }
+    
+    const { HostfullyAdapter } = require('./gas-sync/hostfully-adapter');
+    const adapter = new HostfullyAdapter({ apiKey, agencyUid, pool });
+    
+    // Test connection first
+    const testResult = await adapter.testConnection();
+    if (!testResult.success) {
+      return res.json({ success: false, error: `Connection failed: ${testResult.error}` });
+    }
+    
+    // Auto-discover agency
+    if (!agencyUid) {
+      await adapter.getAgency();
+    }
+    
+    // Ensure adapter exists in gas_sync_adapters table
+    await pool.query(`
+      INSERT INTO gas_sync_adapters (code, name, description, auth_type, is_active)
+      VALUES ('hostfully', 'Hostfully', 'Property Management Platform', 'api_key', true)
+      ON CONFLICT (code) DO UPDATE SET is_active = true
+    `);
+    
+    // Check for existing connection
+    const existing = await pool.query(
+      'SELECT id FROM gas_sync_connections WHERE account_id = $1 AND adapter_code = $2',
+      [account_id, 'hostfully']
+    );
+    
+    let connectionId;
+    
+    if (existing.rows.length > 0) {
+      // Update existing connection
+      connectionId = existing.rows[0].id;
+      await pool.query(`
+        UPDATE gas_sync_connections SET
+          credentials = $1,
+          access_token = $2,
+          external_account_id = $3,
+          external_account_name = $4,
+          status = 'connected',
+          last_error = NULL,
+          updated_at = NOW()
+        WHERE id = $5
+      `, [
+        JSON.stringify({ apiKey, agencyUid: adapter.agencyUid }),
+        apiKey,
+        adapter.agencyUid,
+        testResult.agencies?.[0]?.name || 'Hostfully',
+        connectionId
+      ]);
+    } else {
+      // Create new connection
+      const result = await pool.query(`
+        INSERT INTO gas_sync_connections (
+          account_id, adapter_code, credentials,
+          access_token, external_account_id, external_account_name,
+          status, sync_enabled, sync_interval_minutes, next_sync_at
+        ) VALUES ($1, 'hostfully', $2, $3, $4, $5, 'connected', true, 60, NOW())
+        RETURNING id
+      `, [
+        account_id,
+        JSON.stringify({ apiKey, agencyUid: adapter.agencyUid }),
+        apiKey,
+        adapter.agencyUid,
+        testResult.agencies?.[0]?.name || 'Hostfully'
+      ]);
+      connectionId = result.rows[0].id;
+    }
+    
+    // Trigger initial sync in background
+    console.log(`[Hostfully] Connection ${connectionId} created, starting initial sync...`);
+    syncManager.syncConnection(connectionId, 'full').catch(err => {
+      console.error(`[Hostfully] Initial sync failed for connection ${connectionId}:`, err.message);
+    });
+    
+    res.json({
+      success: true,
+      connection_id: connectionId,
+      agencyUid: adapter.agencyUid,
+      agencyName: testResult.agencies?.[0]?.name,
+      message: 'Hostfully connected. Initial sync started in background.'
+    });
+  } catch (error) {
+    console.error('Hostfully connect error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Hostfully webhook receiver
+app.post('/api/hostfully/webhook/:eventType', async (req, res) => {
+  try {
+    const { eventType } = req.params;
+    const payload = req.body;
+    
+    console.log(`[Hostfully Webhook] ${eventType}:`, JSON.stringify(payload).substring(0, 500));
+    
+    // Log the webhook
+    await pool.query(`
+      INSERT INTO gas_sync_webhook_events (connection_id, event_type, event_id, payload, headers, received_at)
+      VALUES (
+        (SELECT id FROM gas_sync_connections WHERE adapter_code = 'hostfully' LIMIT 1),
+        $1, $2, $3, $4, NOW()
+      )
+      ON CONFLICT DO NOTHING
+    `, [
+      eventType,
+      payload.uid || payload.leadUid || payload.propertyUid || `hf-${Date.now()}`,
+      JSON.stringify(payload),
+      JSON.stringify(req.headers)
+    ]);
+    
+    // Find the relevant connection
+    const connResult = await pool.query(`
+      SELECT id FROM gas_sync_connections 
+      WHERE adapter_code = 'hostfully' AND status = 'connected'
+      LIMIT 1
+    `);
+    
+    if (connResult.rows.length > 0) {
+      const connectionId = connResult.rows[0].id;
+      
+      // Process based on event type
+      if (eventType === 'new_lead' || eventType === 'updated_lead' || eventType === 'cancelled_lead') {
+        // Sync the reservation
+        try {
+          const adapter = await syncManager.getAdapterForConnection(connectionId);
+          if (payload.uid || payload.leadUid) {
+            const leadUid = payload.uid || payload.leadUid;
+            const lead = await adapter.getLead(leadUid);
+            if (lead.success) {
+              await adapter.syncReservationToDatabase(lead.data);
+              console.log(`[Hostfully Webhook] Synced lead ${leadUid}`);
+            }
+          }
+        } catch (syncErr) {
+          console.error(`[Hostfully Webhook] Lead sync error:`, syncErr.message);
+        }
+      }
+      
+      if (eventType === 'updated_property' || eventType === 'updated_pricing') {
+        // Re-sync calendar for this property
+        try {
+          const adapter = await syncManager.getAdapterForConnection(connectionId);
+          const propertyUid = payload.uid || payload.propertyUid;
+          if (propertyUid) {
+            const today = new Date().toISOString().split('T')[0];
+            const future = new Date(Date.now() + 365 * 86400000).toISOString().split('T')[0];
+            const calendar = await adapter.getPropertyCalendar(propertyUid, today, future);
+            if (calendar.success) {
+              await adapter.syncCalendarToDatabase(propertyUid, calendar.data);
+              console.log(`[Hostfully Webhook] Calendar synced for ${propertyUid}`);
+            }
+          }
+        } catch (syncErr) {
+          console.error(`[Hostfully Webhook] Calendar sync error:`, syncErr.message);
+        }
+      }
+    }
+    
+    // Always acknowledge
+    res.json({ success: true, received: eventType });
+  } catch (error) {
+    console.error('Hostfully webhook error:', error);
+    res.json({ success: true, received: true }); // Always ACK webhooks
+  }
+});
+
+// Register Hostfully webhooks for a connection
+app.post('/api/hostfully/register-webhooks/:connectionId', async (req, res) => {
+  try {
+    const { connectionId } = req.params;
+    const adapter = await syncManager.getAdapterForConnection(parseInt(connectionId));
+    
+    const baseUrl = 'https://admin.gas.travel';
+    const result = await adapter.registerGasWebhooks(baseUrl);
+    
+    res.json(result);
+  } catch (error) {
+    console.error('Hostfully register-webhooks error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Save Beds24 tokens
 app.post('/api/beds24/save-token', async (req, res) => {
   const { refreshToken, token } = req.body;
@@ -65831,7 +66119,7 @@ app.get('/api/gas-sync/adapters', async (req, res) => {
         { id: 4, code: 'smoobu', name: 'Smoobu', description: 'Channel Manager', auth_type: 'api_key', capabilities: ['properties', 'reservations', 'availability'], is_active: true },
         { id: 10, code: 'calry_hostify', name: 'Hostify', description: 'Property Management Platform', auth_type: 'wizard', wizard_url: '/hostify-wizard', capabilities: ['properties', 'room_types', 'availability', 'rates', 'reservations'], is_active: true },
         { id: 11, code: 'calry_lodgify', name: 'Lodgify', description: 'Vacation Rental Software', auth_type: 'wizard', wizard_url: '/lodgify-wizard', capabilities: ['properties', 'room_types', 'availability', 'rates', 'reservations'], is_active: true },
-        { id: 12, code: 'calry_hostfully', name: 'Hostfully', description: 'Property Management Platform', auth_type: 'wizard', wizard_url: '/hostfully-wizard', capabilities: ['properties', 'room_types', 'availability', 'rates', 'reservations'], is_active: true },
+        { id: 12, code: 'hostfully', name: 'Hostfully', description: 'Property Management Platform', auth_type: 'api_key', auth_label: 'API Key', capabilities: ['properties', 'room_types', 'availability', 'rates', 'reservations'], is_active: true },
         { id: 13, code: 'calry_guesty', name: 'Guesty', description: 'Property Management Platform', auth_type: 'wizard', wizard_url: '/guesty-wizard', capabilities: ['properties', 'room_types', 'availability', 'rates', 'reservations'], is_active: true },
         { id: 14, code: 'calry_cloudbeds', name: 'Cloudbeds', description: 'Hospitality Management Suite', auth_type: 'wizard', wizard_url: '/cloudbeds-wizard', capabilities: ['properties', 'room_types', 'availability', 'rates', 'reservations'], is_active: true },
         { id: 15, code: 'calry_ownerrez', name: 'OwnerRez', description: 'Vacation Rental Software', auth_type: 'wizard', wizard_url: '/ownerrez-wizard', capabilities: ['properties', 'room_types', 'availability', 'rates', 'reservations'], is_active: true },
@@ -65854,7 +66142,7 @@ app.get('/api/gas-sync/adapters', async (req, res) => {
       { id: 4, code: 'smoobu', name: 'Smoobu', description: 'Channel Manager', auth_type: 'api_key', capabilities: ['properties', 'reservations', 'availability'], is_active: true },
       { id: 10, code: 'calry_hostify', name: 'Hostify', description: 'Property Management Platform', auth_type: 'wizard', wizard_url: '/hostify-wizard', capabilities: ['properties', 'room_types', 'availability', 'rates', 'reservations'], is_active: true },
       { id: 11, code: 'calry_lodgify', name: 'Lodgify', description: 'Vacation Rental Software', auth_type: 'wizard', wizard_url: '/lodgify-wizard', capabilities: ['properties', 'room_types', 'availability', 'rates', 'reservations'], is_active: true },
-      { id: 12, code: 'calry_hostfully', name: 'Hostfully', description: 'Property Management Platform', auth_type: 'wizard', wizard_url: '/hostfully-wizard', capabilities: ['properties', 'room_types', 'availability', 'rates', 'reservations'], is_active: true },
+      { id: 12, code: 'hostfully', name: 'Hostfully', description: 'Property Management Platform', auth_type: 'api_key', auth_label: 'API Key', capabilities: ['properties', 'room_types', 'availability', 'rates', 'reservations'], is_active: true },
       { id: 13, code: 'calry_guesty', name: 'Guesty', description: 'Property Management Platform', auth_type: 'wizard', wizard_url: '/guesty-wizard', capabilities: ['properties', 'room_types', 'availability', 'rates', 'reservations'], is_active: true },
       { id: 14, code: 'calry_cloudbeds', name: 'Cloudbeds', description: 'Hospitality Management Suite', auth_type: 'wizard', wizard_url: '/cloudbeds-wizard', capabilities: ['properties', 'room_types', 'availability', 'rates', 'reservations'], is_active: true },
       { id: 15, code: 'calry_ownerrez', name: 'OwnerRez', description: 'Vacation Rental Software', auth_type: 'wizard', wizard_url: '/ownerrez-wizard', capabilities: ['properties', 'room_types', 'availability', 'rates', 'reservations'], is_active: true },
