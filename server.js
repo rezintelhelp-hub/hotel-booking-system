@@ -16474,9 +16474,24 @@ app.post('/api/admin/bookings/:id/push-to-beds24', async (req, res) => {
             lastName: booking.guest_last_name || '',
             email: booking.guest_email || '',
             phone: booking.guest_phone || '',
+            mobile: booking.guest_phone || '',
+            address: booking.guest_address || '',
+            city: booking.guest_city || '',
+            postcode: booking.guest_postcode || '',
+            country: booking.guest_country || '',
             status: 'confirmed',
-            referer: 'GAS Direct',
-            price: parseFloat(booking.grand_total) || 0
+            referer: `GAS Direct - GAS-${bookingId}`,
+            refererEditable: `GAS Direct - GAS-${bookingId}`,
+            reference: `GAS-${bookingId}`,
+            notes: `Booked via GAS | Manual push | Ref: GAS-${bookingId}`,
+            price: parseFloat(booking.grand_total) || 0,
+            invoiceItems: [{
+                description: 'Accommodation',
+                status: '',
+                qty: 1,
+                amount: parseFloat(booking.grand_total) || 0,
+                vatRate: 0
+            }]
         };
         
         console.log('[Beds24 Push] Payload:', JSON.stringify(beds24Payload));
