@@ -32287,12 +32287,12 @@ app.post('/api/hostfully/import-to-gas/:connectionId', async (req, res) => {
         if (!gasPropertyId) {
           const propResult = await pool.query(`
             INSERT INTO properties (
-              account_id, name, display_name, address, city, state, country, postal_code,
+              account_id, user_id, name, display_name, address, city, state, country, postal_code,
               latitude, longitude, cm_property_id, cm_source, currency,
               full_description, cancellation_policy,
               check_in_time, check_out_time, wifi_network, wifi_password,
               created_at, updated_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'hostfully', $12, $13, $14, $15, $16, $17, $18, NOW(), NOW())
+            ) VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'hostfully', $12, $13, $14, $15, $16, $17, $18, NOW(), NOW())
             RETURNING id
           `, [
             accountId,
