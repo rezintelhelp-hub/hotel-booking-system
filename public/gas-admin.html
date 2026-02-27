@@ -21682,7 +21682,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 if (data.success && data.translations) {
                     // Fill in the translated values
                     Object.entries(data.translations).forEach(([lang, text]) => {
-                        const input = wrapper.querySelector(`[data-lang="${lang}"]`);
+                        const input = wrapper.querySelector(`.translation-input[data-lang="${lang}"]`);
                         if (input) input.value = text;
                     });
                     
@@ -21708,10 +21708,12 @@ const promo = await fetch('/api/v1/offers/validate', {
             
             const dots = wrapper.querySelectorAll('.translation-status-dot');
             SUPPORTED_LANGUAGES.forEach((lang, idx) => {
-                const input = wrapper.querySelector(`[data-lang="${lang.code}"]`);
+                const input = wrapper.querySelector(`.translation-input[data-lang="${lang.code}"]`);
                 const hasValue = input && input.value.trim() !== '';
-                dots[idx].classList.toggle('filled', hasValue);
-                dots[idx].classList.toggle('empty', !hasValue);
+                if (dots[idx]) {
+                    dots[idx].classList.toggle('filled', hasValue);
+                    dots[idx].classList.toggle('empty', !hasValue);
+                }
             });
         }
         
@@ -21722,7 +21724,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             
             const values = {};
             SUPPORTED_LANGUAGES.forEach(lang => {
-                const input = wrapper.querySelector(`[data-lang="${lang.code}"]`);
+                const input = wrapper.querySelector(`.translation-input[data-lang="${lang.code}"]`);
                 if (input && input.value.trim()) {
                     values[lang.code] = input.value.trim();
                 }
@@ -21738,11 +21740,11 @@ const promo = await fetch('/api/v1/offers/validate', {
             // Handle both object format {en: "...", fr: "..."} and legacy string format
             if (typeof values === 'string') {
                 // Legacy: single value goes to English
-                const enInput = wrapper.querySelector(`[data-lang="en"]`);
+                const enInput = wrapper.querySelector(`.translation-input[data-lang="en"]`);
                 if (enInput) enInput.value = values;
             } else if (typeof values === 'object') {
                 SUPPORTED_LANGUAGES.forEach(lang => {
-                    const input = wrapper.querySelector(`[data-lang="${lang.code}"]`);
+                    const input = wrapper.querySelector(`.translation-input[data-lang="${lang.code}"]`);
                     if (input && values[lang.code]) {
                         input.value = values[lang.code];
                     }
