@@ -207,20 +207,19 @@ class HostfullyAdapter {
   // =====================================================
   
   async getAgency() {
-    if (!this.agencyUid) {
-      // Auto-discover agency
-      const response = await this.request('/agencies');
-      if (response.success) {
-        const agencies = Array.isArray(response.data) ? response.data : [response.data];
-        if (agencies.length > 0) {
-          this.agencyUid = agencies[0].uid;
-          return { success: true, data: agencies[0] };
-        }
+    // Always discover agency from API key
+    const response = await this.request('/agencies');
+    if (response.success) {
+      const agencies = Array.isArray(response.data) ? response.data : [response.data];
+      console.log('[Hostfully getAgency] Raw response:', JSON.stringify(agencies).substring(0, 500));
+      if (agencies.length > 0) {
+        this.agencyUid = agencies[0].uid;
+        console.log('[Hostfully getAgency] Set agencyUid:', this.agencyUid);
+        return { success: true, data: agencies[0] };
       }
-      return { success: false, error: 'No agency found for this API key' };
     }
-    
-    return await this.request(`/agencies/${this.agencyUid}`);
+    console.log('[Hostfully getAgency] Failed:', response.error);
+    return { success: false, error: 'No agency found for this API key' };
   }
   
   // =====================================================
@@ -244,6 +243,8 @@ class HostfullyAdapter {
         limit 
       };
       if (cursor) params.cursor = cursor;
+      
+      console.log('[Hostfully getProperties] Requesting with params:', JSON.stringify(params));
       
       const response = await this.request('/properties', 'GET', null, { params });
       
