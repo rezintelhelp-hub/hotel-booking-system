@@ -32325,6 +32325,8 @@ app.post('/api/hostfully/import-to-gas/:connectionId', async (req, res) => {
         // Fetch and save property images
         try {
           const photos = await adapter.getPhotos(parent.external_id);
+          console.log(`[Hostfully import-to-gas] Photos response for ${parent.name}: success=${photos.success}, count=${photos.data?.length || 0}`);
+          if (!photos.success) console.log(`[Hostfully import-to-gas] Photos error:`, photos.error);
           if (photos.success && photos.data?.length > 0) {
             for (let i = 0; i < photos.data.length; i++) {
               const photo = photos.data[i];
@@ -32342,6 +32344,24 @@ app.post('/api/hostfully/import-to-gas/:connectionId', async (req, res) => {
           }
         } catch (imgErr) {
           console.log(`[Hostfully import-to-gas] Image fetch error for ${parent.name}: ${imgErr.message}`);
+        }
+        
+        // Fetch and save property descriptions
+        try {
+          const descResult = await adapter.request('/property-descriptions', 'GET', null, {
+            params: { propertyUid: parent.external_id }
+          });
+          console.log(`[Hostfully import-to-gas] Descriptions for ${parent.name}: success=${descResult.success}, count=${Array.isArray(descResult.data) ? descResult.data.length : 'n/a'}`);
+          if (descResult.success && descResult.data) {
+            const descs = Array.isArray(descResult.data) ? descResult.data : [descResult.data];
+            const mainDesc = descs.find(d => d.locale === 'en' || d.locale === 'default') || descs[0];
+            if (mainDesc?.description) {
+              await pool.query('UPDATE properties SET full_description = $1 WHERE id = $2', [mainDesc.description, gasPropertyId]);
+              console.log(`[Hostfully import-to-gas] Saved description for ${parent.name} (${mainDesc.description.length} chars)`);
+            }
+          }
+        } catch (descErr) {
+          console.log(`[Hostfully import-to-gas] Description fetch note for ${parent.name}: ${descErr.message}`);
         }
         
         // Get room types for this parent
@@ -32400,6 +32420,8 @@ app.post('/api/hostfully/import-to-gas/:connectionId', async (req, res) => {
             // Fetch and save room images
             try {
               const roomPhotos = await adapter.getPhotos(room.external_id);
+              console.log(`[Hostfully import-to-gas]   Room photos for ${room.name}: success=${roomPhotos.success}, count=${roomPhotos.data?.length || 0}`);
+              if (!roomPhotos.success) console.log(`[Hostfully import-to-gas]   Room photos error:`, roomPhotos.error);
               if (roomPhotos.success && roomPhotos.data?.length > 0) {
                 for (let i = 0; i < roomPhotos.data.length; i++) {
                   const photo = roomPhotos.data[i];
@@ -32416,6 +32438,40 @@ app.post('/api/hostfully/import-to-gas/:connectionId', async (req, res) => {
               }
             } catch (roomImgErr) {
               console.log(`[Hostfully import-to-gas] Room image error for ${room.name}: ${roomImgErr.message}`);
+            }
+            
+            // Fetch and save room description
+            try {
+              const roomDescResult = await adapter.request('/property-descriptions', 'GET', null, {
+                params: { propertyUid: room.external_id }
+              });
+              if (roomDescResult.success && roomDescResult.data) {
+                const descs = Array.isArray(roomDescResult.data) ? roomDescResult.data : [roomDescResult.data];
+                const mainDesc = descs.find(d => d.locale === 'en' || d.locale === 'default') || descs[0];
+                if (mainDesc?.description) {
+                  const descJson = JSON.stringify({ en: mainDesc.description });
+                  await pool.query('UPDATE bookable_units SET full_description = $1::jsonb WHERE id = $2', [descJson, gasRoomId]);
+                }
+              }
+            } catch (roomDescErr) {
+              console.log(`[Hostfully import-to-gas] Room desc note for ${room.name}: ${roomDescErr.message}`);
+            }
+            
+            // Fetch pricing periods for this room
+            try {
+              const pricingResult = await adapter.request('/pricing-periods', 'GET', null, {
+                params: { propertyUid: room.external_id }
+              });
+              console.log(`[Hostfully import-to-gas]   Pricing for ${room.name}: success=${pricingResult.success}, count=${Array.isArray(pricingResult.data) ? pricingResult.data.length : 'n/a'}`);
+              if (pricingResult.success && Array.isArray(pricingResult.data) && pricingResult.data.length > 0) {
+                stats.pricingPeriods = (stats.pricingPeriods || 0) + pricingResult.data.length;
+                // Store pricing periods in raw format for now - we'll map to GAS pricing later
+                for (const period of pricingResult.data) {
+                  console.log(`[Hostfully import-to-gas]     Period: ${period.startDate} - ${period.endDate} = ${period.nightlyRate || period.rate}/${period.currency || 'JPY'}`);
+                }
+              }
+            } catch (pricingErr) {
+              console.log(`[Hostfully import-to-gas] Pricing note for ${room.name}: ${pricingErr.message}`);
             }
             
           } catch (roomErr) {
