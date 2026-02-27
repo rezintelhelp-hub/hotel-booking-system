@@ -1075,14 +1075,7 @@ class HostfullyAdapter {
         property.amenities = amenitiesResult.data;
       }
       
-      // Fetch descriptions
-      const descResult = await this.getDescriptions(property.externalId);
-      if (descResult.success && descResult.data) {
-        // Use the main description or combine
-        const desc = descResult.data.DESCRIPTION || descResult.data.SUMMARY || 
-                     descResult.data.default || Object.values(descResult.data)[0];
-        if (desc) property.description = desc.text || '';
-      }
+      // Description comes from the property data itself — no separate endpoint needed
     } catch (enrichErr) {
       console.log(`[Hostfully] Enrichment partial failure for ${property.name}: ${enrichErr.message}`);
     }
@@ -1185,28 +1178,22 @@ class HostfullyAdapter {
       const result = await this.pool.query(`
         INSERT INTO gas_sync_room_types (
           connection_id, sync_property_id, external_id, name,
-          max_occupancy, base_occupancy, 
-          default_rate, currency,
-          raw_data, created_at, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())
+          max_guests, unit_count,
+          raw_data, synced_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
         ON CONFLICT (connection_id, external_id) DO UPDATE SET
           name = EXCLUDED.name,
-          max_occupancy = EXCLUDED.max_occupancy,
-          base_occupancy = EXCLUDED.base_occupancy,
-          default_rate = EXCLUDED.default_rate,
-          currency = EXCLUDED.currency,
+          max_guests = EXCLUDED.max_guests,
           raw_data = EXCLUDED.raw_data,
-          updated_at = NOW()
+          synced_at = NOW()
         RETURNING id
       `, [
         this.connectionId,
         syncPropertyId,
-        property.externalId, // In Hostfully, property UID = room type ID
+        property.externalId,
         property.name,
         property.maxGuests || 0,
-        property.baseGuests || 0,
-        property.dailyRate || 0,
-        property.currency || 'EUR',
+        1, // unit_count - each Hostfully sub-unit is 1 bookable unit
         JSON.stringify(property.raw || property)
       ]);
       
