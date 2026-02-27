@@ -3081,6 +3081,91 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
         return res.json({ success: false, error: smoobuErr.response?.data?.message || smoobuErr.message });
       }
       
+    } else if (adapterCode === 'hostfully') {
+      // Hostfully pricing sync - fetch daily prices from pricing-periods API
+      try {
+        const { HostfullyAdapter } = require('./gas-sync/adapters/hostfully-adapter');
+        const creds = typeof prop.credentials === 'string' ? JSON.parse(prop.credentials || '{}') : (prop.credentials || {});
+        
+        // Get connection credentials if not on prop
+        let apiKey = creds.apiKey;
+        let agencyUid = creds.agencyUid;
+        if (!apiKey && prop.connection_id) {
+          const connRow = await pool.query('SELECT credentials FROM gas_sync_connections WHERE id = $1', [prop.connection_id]);
+          if (connRow.rows.length > 0) {
+            const connCreds = typeof connRow.rows[0].credentials === 'string' ? JSON.parse(connRow.rows[0].credentials) : connRow.rows[0].credentials;
+            apiKey = connCreds.apiKey;
+            agencyUid = connCreds.agencyUid;
+          }
+        }
+        
+        const adapter = new HostfullyAdapter({ apiKey, agencyUid });
+        
+        // Get all room types for this property
+        const roomTypes = await pool.query(
+          `SELECT rt.id, rt.external_id, rt.gas_room_id, rt.name
+           FROM gas_sync_room_types rt
+           WHERE rt.sync_property_id = $1 AND rt.gas_room_id IS NOT NULL`,
+          [prop.id || syncPropertyId]
+        );
+        
+        let totalDaysUpdated = 0;
+        
+        // Ensure daily_prices table exists
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS daily_prices (
+            id SERIAL PRIMARY KEY,
+            room_id INTEGER NOT NULL,
+            date DATE NOT NULL,
+            price DECIMAL(12,2) NOT NULL,
+            min_stay INTEGER DEFAULT 1,
+            available_checkin BOOLEAN DEFAULT true,
+            available_checkout BOOLEAN DEFAULT true,
+            source VARCHAR(50) DEFAULT 'hostfully',
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW(),
+            UNIQUE(room_id, date)
+          )
+        `);
+        
+        for (const room of roomTypes.rows) {
+          const pricingResult = await adapter.getPricingPeriods(room.external_id);
+          if (pricingResult.success && Array.isArray(pricingResult.data)) {
+            let roomDays = 0;
+            for (const dp of pricingResult.data) {
+              if (dp.date && dp.price > 0) {
+                await pool.query(`
+                  INSERT INTO daily_prices (room_id, date, price, min_stay, available_checkin, available_checkout, source, updated_at)
+                  VALUES ($1, $2, $3, $4, $5, $6, 'hostfully', NOW())
+                  ON CONFLICT (room_id, date) DO UPDATE SET 
+                    price = EXCLUDED.price, min_stay = EXCLUDED.min_stay,
+                    available_checkin = EXCLUDED.available_checkin, available_checkout = EXCLUDED.available_checkout,
+                    updated_at = NOW()
+                `, [room.gas_room_id, dp.date, dp.price, dp.minimumStay, dp.availableForCheckIn, dp.availableForCheckOut]);
+                roomDays++;
+              }
+            }
+            
+            // Update base_price to median
+            const prices = pricingResult.data.filter(d => d.price > 0 && d.availableForCheckIn).map(d => d.price);
+            if (prices.length > 0) {
+              prices.sort((a, b) => a - b);
+              const medianPrice = prices[Math.floor(prices.length / 2)];
+              await pool.query('UPDATE bookable_units SET base_price = $1 WHERE id = $2', [medianPrice, room.gas_room_id]);
+            }
+            
+            totalDaysUpdated += roomDays;
+            console.log(`[Hostfully Sync] Room ${room.name}: ${roomDays} daily prices synced`);
+          }
+        }
+        
+        return res.json({ success: true, daysUpdated: totalDaysUpdated, rooms: roomTypes.rows.length });
+        
+      } catch (hfErr) {
+        console.error('Hostfully sync error:', hfErr.message);
+        return res.json({ success: false, error: hfErr.message });
+      }
+      
     } else {
       return res.json({ success: false, error: `Unknown adapter: ${adapterCode}` });
     }
