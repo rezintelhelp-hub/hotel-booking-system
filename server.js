@@ -15687,6 +15687,68 @@ app.post('/api/public/create-group-booking', async (req, res) => {
             
             const roomData = roomInfo.rows[0];
             
+            // ========== AVAILABILITY CHECK (LOCAL + REAL-TIME CM) ==========
+            // 1. Check GAS room_availability table first (fast)
+            const conflictCheck = await client.query(`
+                SELECT date FROM room_availability
+                WHERE room_id = $1 AND date >= $2 AND date < $3
+                AND (is_available = false OR is_blocked = true)
+                LIMIT 1
+            `, [roomId, checkin, checkout]);
+            
+            if (conflictCheck.rows.length > 0) {
+                const blockedDate = conflictCheck.rows[0].date?.toISOString?.()?.split('T')[0] || conflictCheck.rows[0].date;
+                console.log(`[Group Booking] Room ${roomId} blocked locally on ${blockedDate}`);
+                throw new Error(`Room "${roomData.name}" is not available on ${blockedDate}. Please select different dates.`);
+            }
+            
+            // 2. Real-time CM availability check (Beds24)
+            const beds24CheckResult = await client.query(`
+                SELECT bu.beds24_room_id FROM bookable_units bu WHERE bu.id = $1
+            `, [roomId]);
+            let beds24RoomIdCheck = beds24CheckResult.rows[0]?.beds24_room_id;
+            
+            // Fallback to GasSync if no legacy beds24_room_id
+            if (!beds24RoomIdCheck) {
+                const gsCheck = await client.query(`
+                    SELECT gsrt.external_id FROM gas_sync_room_types gsrt
+                    JOIN gas_sync_properties gsp ON gsrt.sync_property_id = gsp.id
+                    JOIN gas_sync_connections gsc ON gsp.connection_id = gsc.id
+                    WHERE gsrt.gas_room_id = $1 AND gsc.adapter_code = 'beds24'
+                    LIMIT 1
+                `, [roomId]);
+                beds24RoomIdCheck = gsCheck.rows[0]?.external_id;
+            }
+            
+            if (beds24RoomIdCheck) {
+                try {
+                    const cmToken = await getBeds24AccessTokenForProperty(pool, roomData.prop_id, roomId);
+                    if (cmToken) {
+                        console.log(`[Group Booking] Real-time CM check: room ${beds24RoomIdCheck}, ${checkin} to ${checkout}`);
+                        const cmAvail = await axios.get('https://beds24.com/api/v2/inventory/rooms/availability', {
+                            headers: { 'token': cmToken },
+                            params: { roomId: beds24RoomIdCheck, startDate: checkin, endDate: checkout }
+                        });
+                        const cmData = cmAvail.data?.data?.[0];
+                        if (cmData && cmData.availability) {
+                            for (const [dateStr, isAvail] of Object.entries(cmData.availability)) {
+                                if (isAvail === false) {
+                                    console.log(`[Group Booking] Real-time CM check FAILED: ${dateStr} not available`);
+                                    throw new Error(`Room "${roomData.name}" is no longer available on ${dateStr}. Please select different dates.`);
+                                }
+                            }
+                            console.log(`[Group Booking] Real-time CM check PASSED for room ${roomId}`);
+                        }
+                    }
+                } catch (cmError) {
+                    if (cmError.message.includes('no longer available') || cmError.message.includes('not available')) {
+                        throw cmError; // Re-throw availability errors
+                    }
+                    console.error(`[Group Booking] CM availability check error (non-blocking):`, cmError.message);
+                }
+            }
+            // ========== END AVAILABILITY CHECK ==========
+            
             // Create booking in GAS database (matching working endpoint structure)
             const bookingResult = await client.query(`
                 INSERT INTO bookings (
@@ -16426,8 +16488,8 @@ app.post('/api/admin/bookings/:id/push-to-beds24', async (req, res) => {
         console.log('[Beds24 Push] Response:', JSON.stringify(beds24Response.data));
         
         const respData = Array.isArray(beds24Response.data) ? beds24Response.data[0] : beds24Response.data;
-        if (respData?.id || respData?.bookingId) {
-            const newBeds24Id = respData.id || respData.bookingId;
+        const newBeds24Id = respData?.id || respData?.bookingId || respData?.new?.id;
+        if (newBeds24Id) {
             await pool.query('UPDATE bookings SET beds24_booking_id = $1 WHERE id = $2', [newBeds24Id.toString(), bookingId]);
             
             res.json({
