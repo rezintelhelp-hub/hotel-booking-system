@@ -32402,6 +32402,11 @@ app.post('/api/hostfully/import-to-gas/:connectionId', async (req, res) => {
         [connectionId]
       );
       for (const ep of existingProps.rows) {
+        await pool.query('DELETE FROM room_amenity_selections WHERE room_id IN (SELECT id FROM bookable_units WHERE property_id = $1)', [ep.gas_property_id]).catch(() => {});
+        await pool.query('DELETE FROM room_availability WHERE room_id IN (SELECT id FROM bookable_units WHERE property_id = $1)', [ep.gas_property_id]).catch(() => {});
+        await pool.query('DELETE FROM property_bedrooms WHERE property_id = $1', [ep.gas_property_id]).catch(() => {});
+        await pool.query('DELETE FROM property_bathrooms WHERE property_id = $1', [ep.gas_property_id]).catch(() => {});
+        await pool.query('DELETE FROM property_terms WHERE property_id = $1', [ep.gas_property_id]).catch(() => {});
         await pool.query('DELETE FROM room_images WHERE room_id IN (SELECT id FROM bookable_units WHERE property_id = $1)', [ep.gas_property_id]);
         await pool.query('DELETE FROM property_images WHERE property_id = $1', [ep.gas_property_id]);
         await pool.query('DELETE FROM bookable_units WHERE property_id = $1', [ep.gas_property_id]);
@@ -32859,13 +32864,65 @@ app.post('/api/hostfully/import-to-gas/:connectionId', async (req, res) => {
             
             // === UPDATE PROPERTY-LEVEL FIELDS from room data ===
             try {
-              // Check-in/out times, cancellation, wifi on the property
+              // Check-in/out times on the property
               if (checkIn || checkOut) {
                 await pool.query('UPDATE properties SET check_in_time = COALESCE(NULLIF($1,\'\'), check_in_time), check_out_time = COALESCE(NULLIF($2,\'\'), check_out_time) WHERE id = $3', 
                   [checkIn, checkOut, gasPropertyId]);
               }
+              
+              // Property terms (check-in/out, cancellation, house rules)
+              const cancellation = roomRaw.cancellationPolicy || rawData.cancellationPolicy || '';
+              const houseRules = roomRaw.houseRules || rawData.houseRules || '';
+              if (checkIn || checkOut || cancellation || houseRules) {
+                await pool.query(`
+                  INSERT INTO property_terms (property_id, checkin_from, checkout_by, additional_rules, cancellation_policy)
+                  VALUES ($1, $2, $3, $4, $5)
+                  ON CONFLICT (property_id) DO UPDATE SET
+                    checkin_from = COALESCE(NULLIF($2, ''), property_terms.checkin_from),
+                    checkout_by = COALESCE(NULLIF($3, ''), property_terms.checkout_by),
+                    additional_rules = COALESCE(NULLIF($4, ''), property_terms.additional_rules),
+                    cancellation_policy = COALESCE(NULLIF($5, ''), property_terms.cancellation_policy),
+                    updated_at = NOW()
+                `, [gasPropertyId, checkIn, checkOut, houseRules, cancellation])
+                  .catch(e => console.log(`[Hostfully import-to-gas] property_terms: ${e.message}`));
+              }
+              
+              // Create bedroom entries from bedroom count
+              if (bedrooms > 0) {
+                // Delete existing bedrooms for this room first
+                await pool.query('DELETE FROM property_bedrooms WHERE room_id = $1', [gasRoomId]).catch(() => {});
+                
+                for (let b = 1; b <= bedrooms; b++) {
+                  await pool.query(`
+                    INSERT INTO property_bedrooms (property_id, room_id, name, bed_config, display_order)
+                    VALUES ($1, $2, $3, $4, $5)
+                  `, [
+                    gasPropertyId,
+                    gasRoomId,
+                    `Bedroom ${b}`,
+                    JSON.stringify([{type: 'bed', count: 1}]),
+                    b - 1
+                  ]).catch(e => console.log(`[Hostfully import-to-gas] bedroom insert: ${e.message}`));
+                }
+                stats.bedrooms = (stats.bedrooms || 0) + bedrooms;
+              }
+              
+              // Create bathroom entries from bathroom count
+              if (bathrooms > 0) {
+                await pool.query('DELETE FROM property_bathrooms WHERE room_id = $1', [gasRoomId]).catch(() => {});
+                
+                for (let b = 1; b <= bathrooms; b++) {
+                  await pool.query(`
+                    INSERT INTO property_bathrooms (property_id, room_id, bathroom_type, quantity, display_order)
+                    VALUES ($1, $2, $3, 1, $4)
+                  `, [gasPropertyId, gasRoomId, b === 1 ? 'full' : 'standard', b - 1])
+                    .catch(e => console.log(`[Hostfully import-to-gas] bathroom insert: ${e.message}`));
+                }
+                stats.bathrooms = (stats.bathrooms || 0) + bathrooms;
+              }
+              
             } catch (propUpdateErr) {
-              // non-critical
+              console.log(`[Hostfully import-to-gas] Property update error: ${propUpdateErr.message}`);
             }
             
           } catch (roomErr) {
