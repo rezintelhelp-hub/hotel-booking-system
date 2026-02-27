@@ -207,7 +207,12 @@ class HostfullyAdapter {
   // =====================================================
   
   async getAgency() {
-    // Always discover agency from API key
+    if (this.agencyUid) {
+      // Already have it, just return
+      return { success: true, data: { uid: this.agencyUid } };
+    }
+    
+    // Auto-discover agency from API key
     const response = await this.request('/agencies');
     if (response.success) {
       const agencies = Array.isArray(response.data) ? response.data : [response.data];
