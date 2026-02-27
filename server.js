@@ -32333,7 +32333,7 @@ app.post('/api/hostfully/import-to-gas/:connectionId', async (req, res) => {
               const imageUrl = photo.url || photo.originalUrl || photo.thumbnailUrl;
               if (imageUrl) {
                 await pool.query(`
-                  INSERT INTO property_images (property_id, image_url, sort_order, image_key, created_at)
+                  INSERT INTO property_images (property_id, image_url, display_order, image_key, created_at)
                   VALUES ($1, $2, $3, $4, NOW())
                   ON CONFLICT (property_id, image_key) WHERE image_key IS NOT NULL DO UPDATE SET image_url = EXCLUDED.image_url
                 `, [gasPropertyId, imageUrl, i, `hf-${parent.external_id}-${i}`]);
@@ -32346,7 +32346,7 @@ app.post('/api/hostfully/import-to-gas/:connectionId', async (req, res) => {
             const pictureLink = rawData.pictureLink;
             if (pictureLink) {
               await pool.query(`
-                INSERT INTO property_images (property_id, image_url, sort_order, image_key, created_at)
+                INSERT INTO property_images (property_id, image_url, display_order, image_key, created_at)
                 VALUES ($1, $2, 0, $3, NOW())
                 ON CONFLICT (property_id, image_key) WHERE image_key IS NOT NULL DO UPDATE SET image_url = EXCLUDED.image_url
               `, [gasPropertyId, pictureLink, `hf-${parent.external_id}-thumb`]);
@@ -32437,7 +32437,7 @@ app.post('/api/hostfully/import-to-gas/:connectionId', async (req, res) => {
                   const imageUrl = photo.url || photo.originalUrl || photo.thumbnailUrl;
                   if (imageUrl) {
                     await pool.query(`
-                      INSERT INTO room_images (room_id, image_url, sort_order, image_key, created_at)
+                      INSERT INTO room_images (room_id, image_url, display_order, image_key, created_at)
                       VALUES ($1, $2, $3, $4, NOW())
                       ON CONFLICT (room_id, image_key) WHERE image_key IS NOT NULL DO UPDATE SET image_url = EXCLUDED.image_url
                     `, [gasRoomId, imageUrl, i, `hf-${room.external_id}-${i}`]);
@@ -32445,11 +32445,19 @@ app.post('/api/hostfully/import-to-gas/:connectionId', async (req, res) => {
                   }
                 }
               } else {
-                // Fallback: use pictureLink from raw data
-                const pictureLink = roomRaw.pictureLink;
+                // Fallback: use pictureLink from raw data or fetch fresh property detail
+                let pictureLink = roomRaw.pictureLink || roomRaw.thumbnailUrl;
+                if (!pictureLink) {
+                  try {
+                    const propDetail = await adapter.request(`/properties/${room.external_id}`, 'GET');
+                    if (propDetail.success && propDetail.data?.pictureLink) {
+                      pictureLink = propDetail.data.pictureLink;
+                    }
+                  } catch (e) {}
+                }
                 if (pictureLink) {
                   await pool.query(`
-                    INSERT INTO room_images (room_id, image_url, sort_order, image_key, created_at)
+                    INSERT INTO room_images (room_id, image_url, display_order, image_key, created_at)
                     VALUES ($1, $2, 0, $3, NOW())
                     ON CONFLICT (room_id, image_key) WHERE image_key IS NOT NULL DO UPDATE SET image_url = EXCLUDED.image_url
                   `, [gasRoomId, pictureLink, `hf-${room.external_id}-thumb`]);
