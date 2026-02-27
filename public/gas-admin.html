@@ -21655,7 +21655,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             const wrapper = document.querySelector(`[data-translation-group="${fieldId}"]`);
             if (!wrapper) return;
             
-            const enInput = wrapper.querySelector(`[data-lang="en"]`);
+            const enInput = wrapper.querySelector(`.translation-input[data-lang="en"], .translation-textarea[data-lang="en"]`);
             if (!enInput || !enInput.value.trim()) {
                 showNotification('Please enter English text first', 'warning');
                 return;
