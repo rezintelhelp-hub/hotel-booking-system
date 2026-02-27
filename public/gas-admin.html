@@ -39255,7 +39255,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     guest_last_name: document.getElementById('edit-booking-last-name').value,
                     guest_email: document.getElementById('edit-booking-email').value,
                     guest_phone: document.getElementById('edit-booking-phone').value,
-                    bookable_unit_id: parseInt(document.getElementById('edit-booking-room').value) || undefined,
+                    bookable_unit_id: parseInt(document.getElementById('edit-booking-room').value) || null,
                     arrival_date: document.getElementById('edit-booking-checkin').value,
                     departure_date: document.getElementById('edit-booking-checkout').value,
                     num_adults: parseInt(document.getElementById('edit-booking-adults').value) || 1,
