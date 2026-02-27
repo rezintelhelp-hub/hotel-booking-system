@@ -16419,14 +16419,15 @@ app.post('/api/admin/bookings/:id/push-to-beds24', async (req, res) => {
         
         console.log('[Beds24 Push] Payload:', JSON.stringify(beds24Payload));
         
-        const beds24Response = await axios.post('https://beds24.com/api/v2/bookings', beds24Payload, {
+        const beds24Response = await axios.post('https://beds24.com/api/v2/bookings', [beds24Payload], {
             headers: { 'token': accessToken, 'Content-Type': 'application/json' }
         });
         
         console.log('[Beds24 Push] Response:', JSON.stringify(beds24Response.data));
         
-        if (beds24Response.data?.id || beds24Response.data?.bookingId) {
-            const newBeds24Id = beds24Response.data.id || beds24Response.data.bookingId;
+        const respData = Array.isArray(beds24Response.data) ? beds24Response.data[0] : beds24Response.data;
+        if (respData?.id || respData?.bookingId) {
+            const newBeds24Id = respData.id || respData.bookingId;
             await pool.query('UPDATE bookings SET beds24_booking_id = $1 WHERE id = $2', [newBeds24Id.toString(), bookingId]);
             
             res.json({
@@ -16438,7 +16439,7 @@ app.post('/api/admin/bookings/:id/push-to-beds24', async (req, res) => {
             res.json({
                 success: false,
                 error: 'Beds24 API returned failure',
-                beds24_response: beds24Response.data
+                beds24_response: respData
             });
         }
     } catch (error) {
