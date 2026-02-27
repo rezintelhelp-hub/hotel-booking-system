@@ -134,7 +134,10 @@ class HostfullyAdapter {
     let code = 'UNKNOWN';
     let message = error.message;
     
-    if (statusCode === 401) {
+    if (statusCode === 400) {
+      code = 'BAD_REQUEST';
+      message = `Bad request to ${endpoint}: ${typeof errorData === 'string' ? errorData : JSON.stringify(errorData) || error.message}`;
+    } else if (statusCode === 401) {
       code = 'AUTH_FAILED';
       message = 'Hostfully authentication failed. API key may be invalid.';
     } else if (statusCode === 403) {
