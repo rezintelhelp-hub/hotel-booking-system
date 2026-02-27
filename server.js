@@ -7074,12 +7074,22 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
         try {
           const amenResult = await adapter.getAmenities(room.external_id);
           if (amenResult.success && Array.isArray(amenResult.data) && amenResult.data.length > 0) {
-            const amenitiesJson = amenResult.data.map(a => ({
-              code: a.code,
-              name: a.code.replace(/^HAS_/, '').replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase()),
-              category: a.category
-            }));
-            await pool.query('UPDATE bookable_units SET amenities = $1::jsonb WHERE id = $2', [JSON.stringify(amenitiesJson), room.gas_room_id]);
+            for (let i = 0; i < amenResult.data.length; i++) {
+              const amen = amenResult.data[i];
+              if (!amen.code) continue;
+              const strippedCode = amen.code.replace(/^HAS_/, '');
+              const friendlyName = strippedCode.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
+              let masterResult = await pool.query('SELECT id FROM master_amenities WHERE amenity_code = $1 OR amenity_code = $2 LIMIT 1', [strippedCode, amen.code]);
+              let amenityId;
+              if (masterResult.rows.length > 0) {
+                amenityId = masterResult.rows[0].id;
+              } else {
+                const nameJson = JSON.stringify({EN: friendlyName});
+                const ins = await pool.query(`INSERT INTO master_amenities (amenity_code, amenity_name, category, is_system, is_active, display_order) VALUES ($1, $2::jsonb, $3, false, true, $4) ON CONFLICT (amenity_code) DO UPDATE SET amenity_name = EXCLUDED.amenity_name RETURNING id`, [strippedCode, nameJson, 'other', 100 + i]);
+                amenityId = ins.rows[0].id;
+              }
+              await pool.query(`INSERT INTO room_amenity_selections (room_id, amenity_id, display_order, quantity) VALUES ($1, $2, $3, 1) ON CONFLICT (room_id, amenity_id) DO NOTHING`, [room.gas_room_id, amenityId, i]);
+            }
             amenCount += amenResult.data.length;
           }
         } catch (e) { console.log(`[Content Sync HF] Amenity error ${room.name}: ${e.message}`); }
@@ -32727,23 +32737,100 @@ app.post('/api/hostfully/import-to-gas/:connectionId', async (req, res) => {
               stats.errors.push(`Pricing ${room.name}: ${pricingErr.message}`);
             }
             
-            // === AMENITIES → bookable_units.amenities JSONB ===
+            // === AMENITIES → master_amenities + room_amenity_selections ===
             try {
               const amenResult = await adapter.getAmenities(room.external_id);
               console.log(`[Hostfully import-to-gas]   Amenities for ${room.name}: success=${amenResult.success}, count=${amenResult.data?.length || 0}`);
               if (amenResult.success && Array.isArray(amenResult.data) && amenResult.data.length > 0) {
-                // Store as JSONB array on bookable_units.amenities (matching GAS convention)
+                // Ensure room_amenity_selections table exists
+                await pool.query(`
+                  CREATE TABLE IF NOT EXISTS room_amenity_selections (
+                    id SERIAL PRIMARY KEY,
+                    room_id INTEGER NOT NULL,
+                    amenity_id INTEGER NOT NULL,
+                    display_order INTEGER DEFAULT 0,
+                    quantity INTEGER DEFAULT 1,
+                    UNIQUE(room_id, amenity_id)
+                  )
+                `);
+                
+                // Map Hostfully codes to GAS amenity categories
+                const categoryMap = {
+                  'WIFI': 'essentials', 'INTERNET': 'essentials', 'HEATING': 'essentials', 'AIR_CONDITIONING': 'essentials',
+                  'KITCHEN': 'kitchen', 'COOKING': 'kitchen', 'DISHES': 'kitchen', 'OVEN': 'kitchen', 'MICROWAVE': 'kitchen',
+                  'REFRIGERATOR': 'kitchen', 'DISHWASHER': 'kitchen', 'COFFEE': 'kitchen', 'TOASTER': 'kitchen',
+                  'WASHER': 'laundry', 'DRYER': 'laundry', 'IRON': 'laundry', 'LAUNDRY': 'laundry',
+                  'POOL': 'wellness', 'HOT_TUB': 'wellness', 'SAUNA': 'wellness', 'GYM': 'wellness', 'SPA': 'wellness',
+                  'TV': 'entertainment', 'CABLE': 'entertainment', 'GAME': 'entertainment', 'BOOK': 'entertainment',
+                  'PARKING': 'parking', 'GARAGE': 'parking', 'EV_CHARGER': 'parking',
+                  'BBQ': 'outdoor', 'GARDEN': 'outdoor', 'PATIO': 'outdoor', 'DECK': 'outdoor', 'BALCONY': 'outdoor',
+                  'FIREPLACE': 'outdoor', 'SKI': 'outdoor',
+                  'CRIB': 'family', 'HIGH_CHAIR': 'family', 'CHILD': 'family', 'BABY': 'family',
+                  'SMOKE_DETECTOR': 'safety', 'FIRE_EXTINGUISHER': 'safety', 'FIRST_AID': 'safety', 'LOCK': 'safety',
+                  'BATH': 'bathrooms', 'SHOWER': 'bathrooms', 'SHAMPOO': 'bathrooms', 'HAIR_DRYER': 'bathrooms', 'TOWEL': 'bathrooms',
+                  'BED': 'beds', 'LINEN': 'beds', 'PILLOW': 'beds', 'BLANKET': 'beds',
+                  'DESK': 'work', 'WORKSPACE': 'work',
+                  'PET': 'other', 'ELEVATOR': 'other', 'WHEELCHAIR': 'other', 'SMOKING': 'other'
+                };
+                
+                function getCategoryForCode(code) {
+                  const clean = code.replace(/^HAS_/, '');
+                  for (const [key, cat] of Object.entries(categoryMap)) {
+                    if (clean.includes(key)) return cat;
+                  }
+                  return 'other';
+                }
+                
+                let amenCount = 0;
+                for (let i = 0; i < amenResult.data.length; i++) {
+                  const amen = amenResult.data[i];
+                  if (!amen.code) continue;
+                  
+                  const strippedCode = amen.code.replace(/^HAS_/, '');
+                  const friendlyName = strippedCode.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
+                  const category = getCategoryForCode(amen.code);
+                  
+                  // Find existing master amenity - try stripped code first (matches GAS), then full code
+                  let masterResult = await pool.query(
+                    'SELECT id FROM master_amenities WHERE amenity_code = $1 OR amenity_code = $2 LIMIT 1', 
+                    [strippedCode, amen.code]
+                  );
+                  
+                  let amenityId;
+                  if (masterResult.rows.length > 0) {
+                    amenityId = masterResult.rows[0].id;
+                  } else {
+                    // Create with stripped code to match GAS convention
+                    const nameJson = JSON.stringify({EN: friendlyName});
+                    const insertResult = await pool.query(`
+                      INSERT INTO master_amenities (amenity_code, amenity_name, category, is_system, is_active, display_order)
+                      VALUES ($1, $2::jsonb, $3, false, true, $4)
+                      ON CONFLICT (amenity_code) DO UPDATE SET amenity_name = EXCLUDED.amenity_name
+                      RETURNING id
+                    `, [strippedCode, nameJson, category, 100 + i]);
+                    amenityId = insertResult.rows[0].id;
+                  }
+                  
+                  // Link to room
+                  await pool.query(`
+                    INSERT INTO room_amenity_selections (room_id, amenity_id, display_order, quantity)
+                    VALUES ($1, $2, $3, 1)
+                    ON CONFLICT (room_id, amenity_id) DO NOTHING
+                  `, [gasRoomId, amenityId, i]);
+                  amenCount++;
+                }
+                
+                // Also store as JSONB backup on bookable_units
                 const amenitiesJson = amenResult.data.map(a => ({
                   code: a.code,
                   name: a.code.replace(/^HAS_/, '').replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase()),
-                  category: a.category,
-                  description: a.description || null
+                  category: getCategoryForCode(a.code)
                 }));
                 await pool.query('UPDATE bookable_units SET amenities = $1::jsonb WHERE id = $2', 
                   [JSON.stringify(amenitiesJson), gasRoomId]);
                 
-                stats.amenities = (stats.amenities || 0) + amenResult.data.length;
-                console.log(`[Hostfully import-to-gas]   Saved ${amenResult.data.length} amenities for ${room.name}`);
+                stats.amenities = (stats.amenities || 0) + amenCount;
+                console.log(`[Hostfully import-to-gas]   Saved ${amenCount} amenities for ${room.name}`);
               }
             } catch (amenErr) {
               console.log(`[Hostfully import-to-gas] Amenity error for ${room.name}: ${amenErr.message}`);
