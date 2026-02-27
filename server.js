@@ -3111,17 +3111,20 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
         
         let totalDaysUpdated = 0;
         
-        // Ensure daily_prices table exists
+        // Ensure room_availability table exists
         await pool.query(`
-          CREATE TABLE IF NOT EXISTS daily_prices (
+          CREATE TABLE IF NOT EXISTS room_availability (
             id SERIAL PRIMARY KEY,
             room_id INTEGER NOT NULL,
             date DATE NOT NULL,
-            price DECIMAL(12,2) NOT NULL,
+            cm_price DECIMAL(10,2),
+            direct_price DECIMAL(10,2),
+            is_available BOOLEAN DEFAULT true,
+            is_blocked BOOLEAN DEFAULT false,
             min_stay INTEGER DEFAULT 1,
-            available_checkin BOOLEAN DEFAULT true,
-            available_checkout BOOLEAN DEFAULT true,
-            source VARCHAR(50) DEFAULT 'hostfully',
+            cm_min_stay INTEGER,
+            max_stay INTEGER,
+            source VARCHAR(50),
             created_at TIMESTAMP DEFAULT NOW(),
             updated_at TIMESTAMP DEFAULT NOW(),
             UNIQUE(room_id, date)
@@ -3134,14 +3137,17 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
             let roomDays = 0;
             for (const dp of pricingResult.data) {
               if (dp.date && dp.price > 0) {
+                const isAvailable = dp.availableForCheckIn !== false;
+                const isBlocked = !isAvailable;
                 await pool.query(`
-                  INSERT INTO daily_prices (room_id, date, price, min_stay, available_checkin, available_checkout, source, updated_at)
-                  VALUES ($1, $2, $3, $4, $5, $6, 'hostfully', NOW())
+                  INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
+                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'hostfully', NOW())
                   ON CONFLICT (room_id, date) DO UPDATE SET 
-                    price = EXCLUDED.price, min_stay = EXCLUDED.min_stay,
-                    available_checkin = EXCLUDED.available_checkin, available_checkout = EXCLUDED.available_checkout,
-                    updated_at = NOW()
-                `, [room.gas_room_id, dp.date, dp.price, dp.minimumStay, dp.availableForCheckIn, dp.availableForCheckOut]);
+                    cm_price = EXCLUDED.cm_price, direct_price = EXCLUDED.direct_price,
+                    is_available = EXCLUDED.is_available, is_blocked = EXCLUDED.is_blocked,
+                    min_stay = EXCLUDED.min_stay, cm_min_stay = EXCLUDED.cm_min_stay,
+                    source = EXCLUDED.source, updated_at = NOW()
+                `, [room.gas_room_id, dp.date, dp.price, dp.price, isAvailable, isBlocked, dp.minimumStay, dp.minimumStay]);
                 roomDays++;
               }
             }
@@ -32479,26 +32485,34 @@ app.post('/api/hostfully/import-to-gas/:connectionId', async (req, res) => {
             const checkOut = roomRaw.availability?.checkOutTime ? `${roomRaw.availability.checkOutTime}:00` : '';
             const minStay = roomRaw.availability?.minimumStay || 1;
             
-            // Create bookable unit
+            // Create bookable unit with ALL available fields
             let gasRoomId = room.gas_room_id;
             
             if (!gasRoomId) {
               const roomResult = await pool.query(`
                 INSERT INTO bookable_units (
-                  property_id, name, cm_room_id, cm_source, base_price,
-                  max_guests, max_adults,
-                  bedroom_count, bathroom_count,
+                  property_id, name, display_name, cm_room_id, cm_source, base_price, currency,
+                  max_guests, max_adults, base_occupancy,
+                  bedroom_count, bathroom_count, bedrooms, beds, bathrooms, num_bedrooms, num_bathrooms,
                   min_stay,
                   status, created_at, updated_at
-                ) VALUES ($1, $2, $3, 'hostfully', $4, $5, $6, $7, $8, $9, 'available', NOW(), NOW())
+                ) VALUES ($1, $2, $3, $4, 'hostfully', $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, 'available', NOW(), NOW())
                 RETURNING id
               `, [
                 gasPropertyId,
                 room.name,
+                room.name,
                 room.external_id,
                 roomRate,
+                roomCurrency,
                 maxGuests,
                 maxGuests,
+                baseGuests || Math.min(maxGuests, 2),
+                bedrooms,
+                bathrooms,
+                bedrooms,
+                beds,
+                bathrooms,
                 bedrooms,
                 bathrooms,
                 minStay
@@ -32509,11 +32523,10 @@ app.post('/api/hostfully/import-to-gas/:connectionId', async (req, res) => {
             }
             
             stats.rooms++;
-            console.log(`[Hostfully import-to-gas]   Room: ${room.name} → GAS room #${gasRoomId} (¥${roomRate}/night, ${maxGuests} guests)`);
+            console.log(`[Hostfully import-to-gas]   Room: ${room.name} → GAS room #${gasRoomId} (¥${roomRate}/night, ${maxGuests} guests, ${bedrooms} bed, ${bathrooms} bath)`);
             
-            // Fetch and save room images (skip for now — photos genuinely empty, manual upload later)
+            // === IMAGES (pictureLink thumbnail only — photos API returns 0) ===
             try {
-              // pictureLink fallback from raw data
               let pictureLink = roomRaw.pictureLink || roomRaw.thumbnailUrl;
               if (!pictureLink) {
                 try {
@@ -32531,156 +32544,135 @@ app.post('/api/hostfully/import-to-gas/:connectionId', async (req, res) => {
                   ON CONFLICT (room_id, image_key) WHERE image_key IS NOT NULL DO UPDATE SET image_url = EXCLUDED.image_url
                 `, [gasRoomId, pictureLink, `hf-${room.external_id}-thumb`]);
                 stats.images++;
-                console.log(`[Hostfully import-to-gas]   Used pictureLink for ${room.name}`);
               }
-            } catch (roomImgErr) {
-              console.log(`[Hostfully import-to-gas] Room image error for ${room.name}: ${roomImgErr.message}`);
+            } catch (imgErr) {
+              console.log(`[Hostfully import-to-gas] Image error for ${room.name}: ${imgErr.message}`);
             }
             
-            // Fetch and save room descriptions (multilingual)
+            // === DESCRIPTIONS (multilingual) ===
             try {
               const roomDescResult = await adapter.getDescriptions(room.external_id);
               if (roomDescResult.success && roomDescResult.data) {
                 const locales = Object.keys(roomDescResult.data);
                 console.log(`[Hostfully import-to-gas]   Descriptions for ${room.name}: ${locales.length} locale(s): ${locales.join(', ')}`);
                 
-                // Store en_US as primary description
-                const enDesc = roomDescResult.data['en_US'] || roomDescResult.data['en'] || Object.values(roomDescResult.data)[0];
-                if (enDesc?.text) {
-                  await pool.query('UPDATE bookable_units SET full_description = $1 WHERE id = $2', [enDesc.text, gasRoomId]);
-                  // Also store room name from description if richer
-                  if (enDesc.name && enDesc.name !== room.name) {
-                    await pool.query('UPDATE bookable_units SET display_name = $1 WHERE id = $2', [enDesc.name, gasRoomId]);
+                // Build JSONB description objects keyed by language
+                const fullDescObj = {};
+                const shortDescObj = {};
+                for (const [locale, desc] of Object.entries(roomDescResult.data)) {
+                  const lang = locale === 'en_US' ? 'EN' : locale === 'ja_JP' ? 'JA' : locale.split('_')[0].toUpperCase();
+                  fullDescObj[lang] = desc.text || desc.summary || '';
+                  shortDescObj[lang] = desc.shortSummary || desc.summary?.substring(0, 200) || '';
+                  
+                  // Update display_name from the English description name if richer
+                  if (locale === 'en_US' && desc.name && desc.name.length > room.name.length) {
+                    await pool.query('UPDATE bookable_units SET display_name = $1 WHERE id = $2', [desc.name, gasRoomId]);
                   }
-                  console.log(`[Hostfully import-to-gas]   Saved en description for ${room.name} (${enDesc.text.length} chars)`);
                 }
                 
-                // Store all locales as JSON in a translations column if available
-                const descTranslations = {};
-                for (const [locale, desc] of Object.entries(roomDescResult.data)) {
-                  descTranslations[locale] = {
-                    name: desc.name || '',
-                    summary: desc.summary || '',
-                    space: desc.space || '',
-                    neighbourhood: desc.neighbourhood || '',
-                    transit: desc.transit || '',
-                    notes: desc.notes || '',
-                    houseManual: desc.houseManual || ''
-                  };
+                if (Object.keys(fullDescObj).length > 0) {
+                  await pool.query('UPDATE bookable_units SET full_description = $1::jsonb WHERE id = $2', 
+                    [JSON.stringify(fullDescObj), gasRoomId]);
                 }
-                // Store translations as JSON metadata
-                try {
-                  await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS description_translations JSONB');
-                  await pool.query('UPDATE bookable_units SET description_translations = $1::jsonb WHERE id = $2', 
-                    [JSON.stringify(descTranslations), gasRoomId]);
-                } catch (e) { /* column might already exist */ }
+                if (Object.keys(shortDescObj).length > 0) {
+                  await pool.query('UPDATE bookable_units SET short_description = $1::jsonb WHERE id = $2', 
+                    [JSON.stringify(shortDescObj), gasRoomId]);
+                }
                 
                 stats.descriptions = (stats.descriptions || 0) + locales.length;
+                console.log(`[Hostfully import-to-gas]   Saved ${locales.length} description(s) for ${room.name}`);
               }
-            } catch (roomDescErr) {
-              console.log(`[Hostfully import-to-gas] Room desc note for ${room.name}: ${roomDescErr.message}`);
+            } catch (descErr) {
+              console.log(`[Hostfully import-to-gas] Desc error for ${room.name}: ${descErr.message}`);
+              stats.errors.push(`Desc ${room.name}: ${descErr.message}`);
             }
             
-            // Fetch and save daily pricing
+            // === DAILY PRICING → room_availability (correct GAS table) ===
             try {
               const pricingResult = await adapter.getPricingPeriods(room.external_id);
               console.log(`[Hostfully import-to-gas]   Pricing for ${room.name}: success=${pricingResult.success}, count=${pricingResult.data?.length || 0}`);
               if (pricingResult.success && Array.isArray(pricingResult.data) && pricingResult.data.length > 0) {
-                // Ensure daily_prices table exists
+                // Ensure room_availability table exists
                 await pool.query(`
-                  CREATE TABLE IF NOT EXISTS daily_prices (
+                  CREATE TABLE IF NOT EXISTS room_availability (
                     id SERIAL PRIMARY KEY,
                     room_id INTEGER NOT NULL,
                     date DATE NOT NULL,
-                    price DECIMAL(12,2) NOT NULL,
+                    cm_price DECIMAL(10,2),
+                    direct_price DECIMAL(10,2),
+                    is_available BOOLEAN DEFAULT true,
+                    is_blocked BOOLEAN DEFAULT false,
                     min_stay INTEGER DEFAULT 1,
-                    available_checkin BOOLEAN DEFAULT true,
-                    available_checkout BOOLEAN DEFAULT true,
-                    source VARCHAR(50) DEFAULT 'hostfully',
+                    cm_min_stay INTEGER,
+                    max_stay INTEGER,
+                    source VARCHAR(50),
                     created_at TIMESTAMP DEFAULT NOW(),
                     updated_at TIMESTAMP DEFAULT NOW(),
                     UNIQUE(room_id, date)
                   )
                 `);
                 
-                // Batch insert daily prices
-                const roomCurrency = roomRaw.pricing?.currency || rawData.pricing?.currency || 'JPY';
                 let priceCount = 0;
                 for (const dp of pricingResult.data) {
                   if (dp.date && dp.price > 0) {
+                    const isAvailable = dp.availableForCheckIn !== false;
+                    const isBlocked = !isAvailable;
                     await pool.query(`
-                      INSERT INTO daily_prices (room_id, date, price, min_stay, available_checkin, available_checkout, source, updated_at)
-                      VALUES ($1, $2, $3, $4, $5, $6, 'hostfully', NOW())
+                      INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
+                      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'hostfully', NOW())
                       ON CONFLICT (room_id, date) DO UPDATE SET 
-                        price = EXCLUDED.price, min_stay = EXCLUDED.min_stay,
-                        available_checkin = EXCLUDED.available_checkin, available_checkout = EXCLUDED.available_checkout,
-                        updated_at = NOW()
-                    `, [gasRoomId, dp.date, dp.price, dp.minimumStay, dp.availableForCheckIn, dp.availableForCheckOut]);
+                        cm_price = EXCLUDED.cm_price, direct_price = EXCLUDED.direct_price,
+                        is_available = EXCLUDED.is_available, is_blocked = EXCLUDED.is_blocked,
+                        min_stay = EXCLUDED.min_stay, cm_min_stay = EXCLUDED.cm_min_stay,
+                        source = EXCLUDED.source, updated_at = NOW()
+                    `, [gasRoomId, dp.date, dp.price, dp.price, isAvailable, isBlocked, dp.minimumStay, dp.minimumStay]);
                     priceCount++;
                   }
                 }
                 
-                // Update base_price on room to the most common price (mode)
-                const prices = pricingResult.data.filter(d => d.price > 0 && d.availableForCheckIn).map(d => d.price);
-                if (prices.length > 0) {
-                  // Use the median price as base_price
-                  prices.sort((a, b) => a - b);
-                  const medianPrice = prices[Math.floor(prices.length / 2)];
+                // Set base_price to median of available dates
+                const availPrices = pricingResult.data.filter(d => d.price > 0 && d.availableForCheckIn).map(d => d.price);
+                if (availPrices.length > 0) {
+                  availPrices.sort((a, b) => a - b);
+                  const medianPrice = availPrices[Math.floor(availPrices.length / 2)];
                   await pool.query('UPDATE bookable_units SET base_price = $1 WHERE id = $2', [medianPrice, gasRoomId]);
                 }
                 
                 stats.dailyPrices = (stats.dailyPrices || 0) + priceCount;
-                console.log(`[Hostfully import-to-gas]   Saved ${priceCount} daily prices for ${room.name}`);
+                console.log(`[Hostfully import-to-gas]   Saved ${priceCount} daily prices to room_availability for ${room.name}`);
               }
             } catch (pricingErr) {
               console.log(`[Hostfully import-to-gas] Pricing error for ${room.name}: ${pricingErr.message}`);
+              stats.errors.push(`Pricing ${room.name}: ${pricingErr.message}`);
             }
             
-            // Fetch and save amenities
+            // === AMENITIES → bookable_units.amenities JSONB ===
             try {
               const amenResult = await adapter.getAmenities(room.external_id);
               console.log(`[Hostfully import-to-gas]   Amenities for ${room.name}: success=${amenResult.success}, count=${amenResult.data?.length || 0}`);
               if (amenResult.success && Array.isArray(amenResult.data) && amenResult.data.length > 0) {
-                // Ensure room_amenities table exists
-                await pool.query(`
-                  CREATE TABLE IF NOT EXISTS room_amenities (
-                    id SERIAL PRIMARY KEY,
-                    room_id INTEGER NOT NULL,
-                    amenity_code VARCHAR(100) NOT NULL,
-                    amenity_name VARCHAR(200),
-                    category VARCHAR(50),
-                    description TEXT,
-                    source VARCHAR(50) DEFAULT 'hostfully',
-                    created_at TIMESTAMP DEFAULT NOW(),
-                    UNIQUE(room_id, amenity_code)
-                  )
-                `);
+                // Store as JSONB array on bookable_units.amenities (matching GAS convention)
+                const amenitiesJson = amenResult.data.map(a => ({
+                  code: a.code,
+                  name: a.code.replace(/^HAS_/, '').replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase()),
+                  category: a.category,
+                  description: a.description || null
+                }));
+                await pool.query('UPDATE bookable_units SET amenities = $1::jsonb WHERE id = $2', 
+                  [JSON.stringify(amenitiesJson), gasRoomId]);
                 
-                let amenCount = 0;
-                for (const amen of amenResult.data) {
-                  if (amen.code) {
-                    await pool.query(`
-                      INSERT INTO room_amenities (room_id, amenity_code, amenity_name, category, description, source)
-                      VALUES ($1, $2, $3, $4, $5, 'hostfully')
-                      ON CONFLICT (room_id, amenity_code) DO UPDATE SET
-                        amenity_name = EXCLUDED.amenity_name, category = EXCLUDED.category, description = EXCLUDED.description
-                    `, [gasRoomId, amen.code, amen.name, amen.category, amen.description]);
-                    amenCount++;
-                  }
-                }
-                
-                stats.amenities = (stats.amenities || 0) + amenCount;
-                console.log(`[Hostfully import-to-gas]   Saved ${amenCount} amenities for ${room.name}`);
+                stats.amenities = (stats.amenities || 0) + amenResult.data.length;
+                console.log(`[Hostfully import-to-gas]   Saved ${amenResult.data.length} amenities for ${room.name}`);
               }
             } catch (amenErr) {
               console.log(`[Hostfully import-to-gas] Amenity error for ${room.name}: ${amenErr.message}`);
+              stats.errors.push(`Amenity ${room.name}: ${amenErr.message}`);
             }
             
-            // Fetch and save fees
+            // === FEES → property level JSONB ===
             try {
               const feeResult = await adapter.getFees(room.external_id);
               if (feeResult.success && Array.isArray(feeResult.data) && feeResult.data.length > 0) {
-                // Store fees as JSON on property
                 await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS fees JSONB');
                 const existingFees = (await pool.query('SELECT fees FROM properties WHERE id = $1', [gasPropertyId])).rows[0]?.fees || [];
                 const allFees = Array.isArray(existingFees) ? existingFees : [];
@@ -32691,10 +32683,20 @@ app.post('/api/hostfully/import-to-gas/:connectionId', async (req, res) => {
                 }
                 await pool.query('UPDATE properties SET fees = $1::jsonb WHERE id = $2', [JSON.stringify(allFees), gasPropertyId]);
                 stats.fees = (stats.fees || 0) + feeResult.data.length;
-                console.log(`[Hostfully import-to-gas]   Saved ${feeResult.data.length} fees for ${room.name}`);
               }
             } catch (feeErr) {
               console.log(`[Hostfully import-to-gas] Fee error for ${room.name}: ${feeErr.message}`);
+            }
+            
+            // === UPDATE PROPERTY-LEVEL FIELDS from room data ===
+            try {
+              // Check-in/out times, cancellation, wifi on the property
+              if (checkIn || checkOut) {
+                await pool.query('UPDATE properties SET check_in_time = COALESCE(NULLIF($1,\'\'), check_in_time), check_out_time = COALESCE(NULLIF($2,\'\'), check_out_time) WHERE id = $3', 
+                  [checkIn, checkOut, gasPropertyId]);
+              }
+            } catch (propUpdateErr) {
+              // non-critical
             }
             
           } catch (roomErr) {
