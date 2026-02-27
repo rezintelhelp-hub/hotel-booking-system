@@ -32341,6 +32341,18 @@ app.post('/api/hostfully/import-to-gas/:connectionId', async (req, res) => {
               }
             }
             console.log(`[Hostfully import-to-gas] Saved ${photos.data.length} images for ${parent.name}`);
+          } else {
+            // Fallback: use pictureLink from raw data
+            const pictureLink = rawData.pictureLink;
+            if (pictureLink) {
+              await pool.query(`
+                INSERT INTO property_images (property_id, image_url, sort_order, image_key, created_at)
+                VALUES ($1, $2, 0, $3, NOW())
+                ON CONFLICT (property_id, image_key) WHERE image_key IS NOT NULL DO UPDATE SET image_url = EXCLUDED.image_url
+              `, [gasPropertyId, pictureLink, `hf-${parent.external_id}-thumb`]);
+              stats.images++;
+              console.log(`[Hostfully import-to-gas] Used pictureLink fallback for ${parent.name}`);
+            }
           }
         } catch (imgErr) {
           console.log(`[Hostfully import-to-gas] Image fetch error for ${parent.name}: ${imgErr.message}`);
@@ -32431,6 +32443,18 @@ app.post('/api/hostfully/import-to-gas/:connectionId', async (req, res) => {
                     `, [gasRoomId, imageUrl, i, `hf-${room.external_id}-${i}`]);
                     stats.images++;
                   }
+                }
+              } else {
+                // Fallback: use pictureLink from raw data
+                const pictureLink = roomRaw.pictureLink;
+                if (pictureLink) {
+                  await pool.query(`
+                    INSERT INTO room_images (room_id, image_url, sort_order, image_key, created_at)
+                    VALUES ($1, $2, 0, $3, NOW())
+                    ON CONFLICT (room_id, image_key) WHERE image_key IS NOT NULL DO UPDATE SET image_url = EXCLUDED.image_url
+                  `, [gasRoomId, pictureLink, `hf-${room.external_id}-thumb`]);
+                  stats.images++;
+                  console.log(`[Hostfully import-to-gas]   Used pictureLink fallback for ${room.name}`);
                 }
               }
             } catch (roomImgErr) {
