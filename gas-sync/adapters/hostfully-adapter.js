@@ -556,25 +556,77 @@ class HostfullyAdapter {
   // =====================================================
   
   async getDescriptions(propertyUid) {
-    const response = await this.request('/descriptions', 'GET', null, {
-      params: { propertyUid }
-    });
+    // V3 endpoint: GET /property-descriptions/{propertyUid}
+    const response = await this.request(`/property-descriptions/${propertyUid}`, 'GET');
     
     if (!response.success) return response;
     
-    const descriptions = Array.isArray(response.data) ? response.data : [];
+    const descriptions = Array.isArray(response.data) ? response.data : [response.data].filter(Boolean);
     
-    // Return organized by type
+    // Return organized by locale
     const result = {};
     for (const desc of descriptions) {
-      result[desc.descriptionType || desc.type || 'default'] = {
-        text: desc.description || desc.text || '',
-        locale: desc.locale || 'en',
+      result[desc.locale || 'default'] = {
+        text: desc.description || '',
+        locale: desc.locale || 'default',
         raw: desc
       };
     }
     
     return { success: true, data: result };
+  }
+  
+  // =====================================================
+  // PRICING PERIODS
+  // =====================================================
+  
+  async getPricingPeriods(propertyUid) {
+    // V3 endpoint: GET /pricing-periods?propertyUid=
+    const response = await this.request('/pricing-periods', 'GET', null, {
+      params: { propertyUid }
+    });
+    
+    if (!response.success) return response;
+    
+    const periods = Array.isArray(response.data) ? response.data : [];
+    
+    return {
+      success: true,
+      data: periods.map(p => ({
+        uid: p.uid,
+        startDate: p.startDate,
+        endDate: p.endDate,
+        nightlyRate: p.nightlyRate,
+        weeklyRate: p.weeklyRate,
+        monthlyRate: p.monthlyRate,
+        weekendNightlyRate: p.weekendNightlyRate,
+        minimumStay: p.minimumStay,
+        currency: p.currency,
+        raw: p
+      }))
+    };
+  }
+  
+  // =====================================================
+  // PROPERTY CALENDAR
+  // =====================================================
+  
+  async getPropertyCalendar(propertyUid, startDate, endDate) {
+    // V3 endpoint: GET /property-calendar/{propertyUid}
+    const params = {};
+    if (startDate) params.startDate = startDate;
+    if (endDate) params.endDate = endDate;
+    
+    const response = await this.request(`/property-calendar/${propertyUid}`, 'GET', null, {
+      params
+    });
+    
+    if (!response.success) return response;
+    
+    return {
+      success: true,
+      data: response.data
+    };
   }
   
   // =====================================================
