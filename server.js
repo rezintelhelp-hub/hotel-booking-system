@@ -7056,7 +7056,7 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
           if (descResult.success && descResult.data) {
             const fullDescObj = {}, shortDescObj = {};
             for (const [locale, desc] of Object.entries(descResult.data)) {
-              const lang = locale === 'en_US' ? 'EN' : locale === 'ja_JP' ? 'JA' : locale.split('_')[0].toUpperCase();
+              const lang = locale === 'en_US' ? 'en' : locale === 'ja_JP' ? 'ja' : locale.split('_')[0].toLowerCase();
               fullDescObj[lang] = desc.text || desc.summary || '';
               shortDescObj[lang] = desc.shortSummary || desc.summary?.substring(0, 200) || '';
             }
@@ -32657,7 +32657,7 @@ app.post('/api/hostfully/import-to-gas/:connectionId', async (req, res) => {
                 const shortDescObj = {};
                 const displayNameObj = {};
                 for (const [locale, desc] of Object.entries(roomDescResult.data)) {
-                  const lang = locale === 'en_US' ? 'EN' : locale === 'ja_JP' ? 'JA' : locale.split('_')[0].toUpperCase();
+                  const lang = locale === 'en_US' ? 'en' : locale === 'ja_JP' ? 'ja' : locale.split('_')[0].toLowerCase();
                   fullDescObj[lang] = desc.text || desc.summary || '';
                   shortDescObj[lang] = desc.shortSummary || desc.summary?.substring(0, 200) || '';
                   if (desc.name) displayNameObj[lang] = desc.name;
