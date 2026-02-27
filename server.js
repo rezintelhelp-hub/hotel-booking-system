@@ -670,6 +670,32 @@ async function runMigrations() {
     
     // ===== INLINE MIGRATIONS (no SQL files needed) =====
     
+    // Normalize JSONB language keys from uppercase to lowercase (EN→en, FR→fr, etc.)
+    try {
+      const normCheck = await pool.query(`SELECT id FROM _migrations WHERE name = 'normalize_jsonb_lang_keys'`);
+      if (normCheck.rows.length === 0) {
+        console.log('🔧 Normalizing JSONB language keys to lowercase...');
+        // master_amenities.amenity_name: {EN: "Wifi"} → {en: "Wifi"}
+        await pool.query(`
+          UPDATE master_amenities SET amenity_name = (
+            SELECT jsonb_object_agg(lower(key), value) FROM jsonb_each(amenity_name)
+          ) WHERE amenity_name IS NOT NULL AND amenity_name::text ~ '"[A-Z]{2}"'
+        `).catch(e => console.log('  amenity normalization:', e.message));
+        // bookable_units multilingual fields
+        for (const col of ['display_name', 'short_description', 'full_description']) {
+          await pool.query(`
+            UPDATE bookable_units SET ${col} = (
+              SELECT jsonb_object_agg(lower(key), value) FROM jsonb_each(${col}::jsonb)
+            ) WHERE ${col} IS NOT NULL AND ${col}::text ~ '"[A-Z]{2}"'
+          `).catch(e => console.log(`  ${col} normalization:`, e.message));
+        }
+        await pool.query(`INSERT INTO _migrations (name) VALUES ('normalize_jsonb_lang_keys')`);
+        console.log('✅ JSONB language keys normalized');
+      }
+    } catch (e) {
+      console.log('JSONB normalization check:', e.message);
+    }
+    
     // Fix: Add unique constraint to website_settings if missing
     try {
       const constraintCheck = await pool.query(`
@@ -7084,7 +7110,7 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
               if (masterResult.rows.length > 0) {
                 amenityId = masterResult.rows[0].id;
               } else {
-                const nameJson = JSON.stringify({EN: friendlyName});
+                const nameJson = JSON.stringify({en: friendlyName});
                 const ins = await pool.query(`INSERT INTO master_amenities (amenity_code, amenity_name, category, is_system, is_active, display_order) VALUES ($1, $2::jsonb, $3, false, true, $4) ON CONFLICT (amenity_code) DO UPDATE SET amenity_name = EXCLUDED.amenity_name RETURNING id`, [strippedCode, nameJson, 'other', 100 + i]);
                 amenityId = ins.rows[0].id;
               }
@@ -32836,7 +32862,7 @@ app.post('/api/hostfully/import-to-gas/:connectionId', async (req, res) => {
                     amenityId = masterResult.rows[0].id;
                   } else {
                     // Create with stripped code to match GAS convention
-                    const nameJson = JSON.stringify({EN: friendlyName});
+                    const nameJson = JSON.stringify({en: friendlyName});
                     const insertResult = await pool.query(`
                       INSERT INTO master_amenities (amenity_code, amenity_name, category, is_system, is_active, display_order)
                       VALUES ($1, $2::jsonb, $3, false, true, $4)
@@ -59643,7 +59669,142 @@ const GAS_TRANSLATIONS = {
         "cancellation_policy": "キャンセルポリシー",
         "no_terms": "一般規約は設定されていません。",
         "no_rules": "ハウスルールは設定されていません。",
-        "no_cancellation": "キャンセルポリシーは設定されていません。"
+        "no_cancellation": "キャンセルポリシーは設定されていません。",
+        "no_description": "説明はありません。",
+        "contact_cancellation": "キャンセルポリシーの詳細については施設にお問い合わせください。",
+        "unable_to_load": "お部屋の詳細を読み込めませんでした"
+      },
+      "properties_portfolio": {
+        "page_title": "施設一覧",
+        "page_subtitle": "バケーションレンタルのコレクションをご覧ください",
+        "view_apartments": "アパートメントを見る",
+        "view_rooms": "お部屋を見る",
+        "view_property": "施設を見る",
+        "rooms_available": "室空室あり",
+        "room_available": "室空室あり",
+        "from_price": "から",
+        "per_night": "1泊",
+        "no_properties": "現在利用可能な施設はありません。",
+        "loading": "施設を読み込み中...",
+        "all_locations": "すべてのエリア",
+        "filter_by_location": "エリアで絞り込む",
+        "bedrooms_range": "寝室",
+        "max_guests": "最大宿泊人数",
+        "properties_count": "件の施設",
+        "property_count": "件の施設"
+      },
+      "terms": {
+        "check_in": "チェックイン",
+        "check_out": "チェックアウト",
+        "by": "まで",
+        "self_checkin": "セルフチェックイン可能",
+        "checkin_24hr": "24時間チェックイン",
+        "late_checkout_fee": "レイトチェックアウト料金",
+        "children": "お子様",
+        "children_all_ages": "全年齢のお子様歓迎",
+        "no_children": "お子様はご遠慮ください",
+        "children_policy": "お子様に関するポリシー",
+        "cots_available": "ベビーベッドあり",
+        "highchairs_available": "ハイチェアあり",
+        "events": "イベント",
+        "no_events": "イベント・パーティー不可",
+        "events_on_request": "イベントは要相談",
+        "events_allowed": "イベント可",
+        "smoking": "喫煙",
+        "no_smoking": "禁煙",
+        "smoking_designated": "指定エリアのみ喫煙可",
+        "smoking_allowed": "喫煙可",
+        "fine": "罰金",
+        "pets": "ペット",
+        "no_pets": "ペット不可",
+        "pets_on_request": "ペットは要相談",
+        "pets_allowed": "ペット可",
+        "dogs_welcome": "犬歓迎",
+        "cats_welcome": "猫歓迎",
+        "deposit": "保証金",
+        "fee": "料金",
+        "night": "泊",
+        "quiet_hours": "静粛時間",
+        "id_required": "身分証明書が必要です",
+        "valid_id_required": "チェックイン時に有効な身分証明書が必要です",
+        "guests": "ゲスト",
+        "no_unregistered": "未登録の訪問者はお断りしています",
+        "accessibility": "バリアフリー",
+        "wheelchair": "車椅子対応",
+        "step_free": "段差なしアクセス",
+        "accessible_bathroom": "バリアフリーバスルーム",
+        "elevator": "エレベーターあり"
+      },
+      "filters": {
+        "sort_by": "並べ替え",
+        "default": "デフォルト",
+        "price_low": "価格：安い順",
+        "price_high": "価格：高い順",
+        "location": "エリア",
+        "all_locations": "すべてのエリア",
+        "amenities": "アメニティ",
+        "select_amenities": "アメニティを選択",
+        "clear_filters": "フィルターをクリア",
+        "property": "施設",
+        "all_properties": "すべての施設",
+        "load_more": "もっと見る",
+        "more": "件以上",
+        "no_results": "選択したフィルターに一致するお部屋はありません。条件を変更してください。",
+        "verify_availability": "空室確認"
+      },
+      "calendar": {
+        "today": "今日",
+        "mon": "月", "tue": "火", "wed": "水", "thu": "木", "fri": "金", "sat": "土", "sun": "日",
+        "january": "1月", "february": "2月", "march": "3月", "april": "4月",
+        "may": "5月", "june": "6月", "july": "7月", "august": "8月",
+        "september": "9月", "october": "10月", "november": "11月", "december": "12月"
+      },
+      "checkout": {
+        "your_booking": "ご予約内容",
+        "your_rooms": "お部屋",
+        "guest_details": "ゲスト情報",
+        "your_details": "お客様情報",
+        "extras": "オプション",
+        "payment": "お支払い",
+        "first_name": "名",
+        "last_name": "姓",
+        "email_address": "メールアドレス",
+        "confirm_email": "メールアドレス確認",
+        "phone_number": "電話番号",
+        "country": "国",
+        "address": "住所",
+        "city": "市区町村",
+        "postcode": "郵便番号",
+        "optional": "任意",
+        "price_details": "料金明細",
+        "total": "合計",
+        "nights": "泊",
+        "standard_rate": "通常料金",
+        "special_offer": "特別オファー",
+        "offer_discount": "割引",
+        "your_extras": "オプション",
+        "promo_code": "プロモーションコード",
+        "enter_promo": "プロモーションコードを入力",
+        "taxes_fees": "税金・手数料",
+        "includes_taxes": "税金・手数料込み",
+        "cancellation_policy": "キャンセルポリシー",
+        "free_cancellation": "無料キャンセル",
+        "until_48h": "チェックイン48時間前まで。",
+        "non_refundable": "返金不可。",
+        "cannot_cancel": "この料金はキャンセル・変更できません。",
+        "please_enter_details": "お客様情報をご入力ください。予約確認メールをお送りします。",
+        "enhance_stay": "滞在をもっと快適に",
+        "add_extras_text": "オプションを追加して特別な滞在にしましょう。",
+        "no_extras": "この予約にはオプションがありません。",
+        "continue_payment": "お支払いへ進む",
+        "continue_extras": "オプション選択へ進む",
+        "back_to_room": "お部屋に戻る",
+        "secure_booking": "安全な予約",
+        "instant_confirmation": "即時確定",
+        "support_24_7": "24時間サポート",
+        "special_requests_placeholder": "例：レイトチェックイン、食事の要望、特別な機会など...",
+        "special_requests_hint": "特別リクエストは空き状況により対応いたします。確約はできません。",
+        "marketing_opt_in": "特別オファーやお知らせを受け取る（いつでも解除可能）"
       }
     }
   }
