@@ -1002,6 +1002,7 @@ class HostfullyAdapter {
           );
           if (matchingParent) {
             matchedParentId = matchingParent.syncPropId;
+            console.log(`[Hostfully fullSync] Matched "${child.name}" → parent by address (${child.address?.street})`);
           }
         }
         
