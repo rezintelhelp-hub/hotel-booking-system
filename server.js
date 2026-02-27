@@ -32536,8 +32536,8 @@ app.get('/api/hostfully/probe/:propertyUid', async (req, res) => {
     
     const results = {};
     
-    // Property detail
-    const detail = await adapter.request(`/properties/${propertyUid}`, 'GET');
+    // Property detail - V3 needs agencyUid
+    const detail = await adapter.request(`/properties/${propertyUid}`, 'GET', null, { params: { agencyUid: creds.agencyUid } });
     results.propertyDetail = detail.success ? { 
       keys: Object.keys(detail.data),
       description: (detail.data.description || '').substring(0, 200),
@@ -32549,38 +32549,38 @@ app.get('/api/hostfully/probe/:propertyUid', async (req, res) => {
       pricing: detail.data.pricing
     } : { error: detail.error };
     
-    // Photos
-    const photos = await adapter.request('/photos', 'GET', null, { params: { propertyUid } });
-    results.photos = photos.success ? { count: Array.isArray(photos.data) ? photos.data.length : 0, sample: (photos.data || [])[0] } : { error: photos.error };
+    // Photos - V3 response uses originalImageUrl not url
+    const photos = await adapter.request('/photos', 'GET', null, { params: { propertyUid, agencyUid: creds.agencyUid } });
+    results.photos = photos.success ? { count: Array.isArray(photos.data) ? photos.data.length : 0, sample: (Array.isArray(photos.data) ? photos.data : [])[0] } : { error: photos.error };
     
     // Amenities
-    const amenities = await adapter.request('/amenities', 'GET', null, { params: { propertyUid } });
-    results.amenities = amenities.success ? { count: Array.isArray(amenities.data) ? amenities.data.length : 0, sample: (amenities.data || []).slice(0, 3) } : { error: amenities.error };
+    const amenities = await adapter.request('/amenities', 'GET', null, { params: { propertyUid, agencyUid: creds.agencyUid } });
+    results.amenities = amenities.success ? { count: Array.isArray(amenities.data) ? amenities.data.length : 'object', data: Array.isArray(amenities.data) ? amenities.data.slice(0, 3) : amenities.data } : { error: amenities.error };
     
-    // Descriptions
-    const descs = await adapter.request('/property-descriptions', 'GET', null, { params: { propertyUid } });
+    // Descriptions - V3 uses query param propertyUid
+    const descs = await adapter.request('/property-descriptions', 'GET', null, { params: { propertyUid, agencyUid: creds.agencyUid } });
     results.descriptions = descs.success ? { count: Array.isArray(descs.data) ? descs.data.length : 'object', data: descs.data } : { error: descs.error };
     
     // Rooms (internal rooms of the property)
-    const rooms = await adapter.request('/rooms', 'GET', null, { params: { propertyUid } });
-    results.rooms = rooms.success ? { count: Array.isArray(rooms.data) ? rooms.data.length : 0, sample: (rooms.data || []).slice(0, 2) } : { error: rooms.error };
+    const rooms = await adapter.request('/rooms', 'GET', null, { params: { propertyUid, agencyUid: creds.agencyUid } });
+    results.rooms = rooms.success ? { count: Array.isArray(rooms.data) ? rooms.data.length : 0, sample: (Array.isArray(rooms.data) ? rooms.data : []).slice(0, 2) } : { error: rooms.error };
     
     // Fees
-    const fees = await adapter.request('/fees', 'GET', null, { params: { propertyUid } });
+    const fees = await adapter.request('/fees', 'GET', null, { params: { propertyUid, agencyUid: creds.agencyUid } });
     results.fees = fees.success ? { count: Array.isArray(fees.data) ? fees.data.length : 0, data: fees.data } : { error: fees.error };
     
-    // Pricing periods
+    // Pricing periods - requires from/to
     const today = new Date().toISOString().split('T')[0];
     const futureDate = new Date(Date.now() + 365 * 86400000).toISOString().split('T')[0];
-    const pricing = await adapter.request('/pricing-periods', 'GET', null, { params: { propertyUid, from: today, to: futureDate } });
-    results.pricingPeriods = pricing.success ? { count: Array.isArray(pricing.data) ? pricing.data.length : 0, data: pricing.data } : { error: pricing.error };
+    const pricing = await adapter.request('/pricing-periods', 'GET', null, { params: { propertyUid, from: today, to: futureDate, agencyUid: creds.agencyUid } });
+    results.pricingPeriods = pricing.success ? { count: Array.isArray(pricing.data) ? pricing.data.length : 0, data: Array.isArray(pricing.data) ? pricing.data.slice(0, 3) : pricing.data } : { error: pricing.error };
     
-    // Property calendar
-    const calendar = await adapter.request(`/property-calendar/${propertyUid}`, 'GET');
-    results.calendar = calendar.success ? { count: Array.isArray(calendar.data) ? calendar.data.length : 'object', sample: Array.isArray(calendar.data) ? calendar.data.slice(0, 5) : calendar.data } : { error: calendar.error };
+    // Property calendar - requires from
+    const calendar = await adapter.request(`/property-calendar/${propertyUid}`, 'GET', null, { params: { from: today, to: futureDate } });
+    results.calendar = calendar.success ? { count: Array.isArray(calendar.data) ? calendar.data.length : 'object', sample: Array.isArray(calendar.data) ? calendar.data.slice(0, 3) : Object.keys(calendar.data || {}).slice(0, 10) } : { error: calendar.error };
     
-    // Pricing rules
-    const pricingRules = await adapter.request('/pricing-rules', 'GET', null, { params: { propertyUid } });
+    // Pricing rules  
+    const pricingRules = await adapter.request('/property-pricing-rules', 'GET', null, { params: { propertyUid } });
     results.pricingRules = pricingRules.success ? pricingRules.data : { error: pricingRules.error };
     
     // GraphQL - get everything in one shot
@@ -32597,6 +32597,83 @@ app.get('/api/hostfully/probe/:propertyUid', async (req, res) => {
       } : { error: gql.error };
     } catch (gqlErr) {
       results.graphql = { error: gqlErr.message };
+    }
+    
+    // V3.1 Multi-Unit endpoints
+    const v31Base = adapter.baseUrl.replace('/v3', '/v3.1');
+    
+    // Multi-unit properties (hotels)
+    try {
+      const hotelsResp = await adapter.request('/multi-units/multi-unit-properties', 'GET', null, { 
+        params: { agencyUid: creds.agencyUid },
+        baseUrlOverride: v31Base
+      });
+      // If baseUrlOverride doesn't work, try manually
+      if (!hotelsResp.success) {
+        const axios = require('axios');
+        const hResp = await axios.get(`${v31Base}/multi-units/multi-unit-properties?agencyUid=${creds.agencyUid}`, {
+          headers: { 'X-HOSTFULLY-APIKEY': creds.apiKey }
+        });
+        results.v31_hotels = { count: Array.isArray(hResp.data) ? hResp.data.length : 'object', data: Array.isArray(hResp.data) ? hResp.data.map(h => ({ uid: h.uid, name: h.name, keys: Object.keys(h) })) : Object.keys(hResp.data) };
+      } else {
+        results.v31_hotels = hotelsResp.data;
+      }
+    } catch (e) {
+      // Try direct axios call with v3.1 base
+      try {
+        const axios = require('axios');
+        const hResp = await axios.get(`https://platform.hostfully.com/api/v3.1/multi-units/multi-unit-properties?agencyUid=${creds.agencyUid}`, {
+          headers: { 'X-HOSTFULLY-APIKEY': creds.apiKey }
+        });
+        results.v31_hotels = { count: Array.isArray(hResp.data) ? hResp.data.length : 'object', data: Array.isArray(hResp.data) ? hResp.data.map(h => ({ uid: h.uid, name: h.name, keys: Object.keys(h) })) : Object.keys(hResp.data) };
+      } catch (e2) {
+        results.v31_hotels = { error: e2.response?.data || e2.message };
+      }
+    }
+    
+    // Unit types for first hotel found
+    try {
+      const axios = require('axios');
+      // Get unit types for this propertyUid (treating it as a hotel uid)
+      const utResp = await axios.get(`https://platform.hostfully.com/api/v3.1/multi-units/unit-types?hotelUid=${propertyUid}`, {
+        headers: { 'X-HOSTFULLY-APIKEY': creds.apiKey }
+      });
+      results.v31_unitTypes = { 
+        count: Array.isArray(utResp.data) ? utResp.data.length : 'object', 
+        data: Array.isArray(utResp.data) ? utResp.data.map(ut => ({ uid: ut.uid, name: ut.name, keys: Object.keys(ut) })) : utResp.data 
+      };
+      
+      // If we got unit types, probe photos/pricing for the first one using its uid as propertyUid
+      if (Array.isArray(utResp.data) && utResp.data.length > 0) {
+        const firstUT = utResp.data[0];
+        results.v31_firstUnitType = firstUT;
+        
+        // Photos using unitType.uid as propertyUid
+        const phResp = await axios.get(`https://platform.hostfully.com/api/v3/photos?propertyUid=${firstUT.uid}`, {
+          headers: { 'X-HOSTFULLY-APIKEY': creds.apiKey }
+        });
+        results.v31_unitType_photos = { count: Array.isArray(phResp.data) ? phResp.data.length : 0, sample: (Array.isArray(phResp.data) ? phResp.data : [])[0] };
+        
+        // Pricing periods using unitType.uid as propertyUid
+        const prResp = await axios.get(`https://platform.hostfully.com/api/v3/pricing-periods?propertyUid=${firstUT.uid}&from=${today}&to=${futureDate}`, {
+          headers: { 'X-HOSTFULLY-APIKEY': creds.apiKey }
+        });
+        results.v31_unitType_pricing = { count: Array.isArray(prResp.data) ? prResp.data.length : 0, sample: (Array.isArray(prResp.data) ? prResp.data : []).slice(0, 3) };
+        
+        // Amenities using unitType.uid
+        const amResp = await axios.get(`https://platform.hostfully.com/api/v3/amenities?propertyUid=${firstUT.uid}`, {
+          headers: { 'X-HOSTFULLY-APIKEY': creds.apiKey }
+        });
+        results.v31_unitType_amenities = { count: Array.isArray(amResp.data) ? amResp.data.length : (typeof amResp.data === 'object' ? Object.keys(amResp.data).length : 0), data: amResp.data };
+        
+        // Descriptions using unitType.uid
+        const descResp = await axios.get(`https://platform.hostfully.com/api/v3/property-descriptions?propertyUid=${firstUT.uid}`, {
+          headers: { 'X-HOSTFULLY-APIKEY': creds.apiKey }
+        });
+        results.v31_unitType_descriptions = descResp.data;
+      }
+    } catch (e) {
+      results.v31_unitTypes = { error: e.response?.data || e.message };
     }
     
     res.json({ success: true, propertyUid, results });
