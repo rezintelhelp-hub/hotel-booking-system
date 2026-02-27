@@ -736,8 +736,11 @@ class HostfullyAdapter {
   // =====================================================
   
   async getPricingPeriods(propertyUid) {
+    // from/to are required params
+    const today = new Date().toISOString().split('T')[0];
+    const oneYearOut = new Date(Date.now() + 365 * 86400000).toISOString().split('T')[0];
     const response = await this.request('/pricing-periods', 'GET', null, {
-      params: { propertyUid }
+      params: { propertyUid, from: today, to: oneYearOut }
     });
     
     if (!response.success) return response;
