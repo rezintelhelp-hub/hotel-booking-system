@@ -32181,6 +32181,7 @@ app.post('/api/hostfully/webhook/:eventType', async (req, res) => {
 
 // Register Hostfully webhooks for a connection
 app.post('/api/hostfully/register-webhooks/:connectionId', async (req, res) => {
+
   try {
     const { connectionId } = req.params;
     const adapter = await syncManager.getAdapterForConnection(parseInt(connectionId));
@@ -32191,6 +32192,182 @@ app.post('/api/hostfully/register-webhooks/:connectionId', async (req, res) => {
     res.json(result);
   } catch (error) {
     console.error('Hostfully register-webhooks error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Alias endpoints used by register.html wizard flow
+app.get('/api/hostfully/test-agencies', async (req, res) => {
+  try {
+    const { HostfullyAdapter } = require('./gas-sync/hostfully-adapter');
+    let apiKey = req.query.apiKey;
+    
+    // Fall back to stored key if not provided
+    if (!apiKey) {
+      const stored = await pool.query(
+        "SELECT credentials FROM gas_sync_connections WHERE adapter_code = 'hostfully' ORDER BY id DESC LIMIT 1"
+      );
+      const creds = stored.rows[0]?.credentials;
+      apiKey = typeof creds === 'string' ? JSON.parse(creds).apiKey : creds?.apiKey;
+    }
+    
+    if (!apiKey) {
+      return res.json({ success: false, error: 'No Hostfully API key provided or configured' });
+    }
+    
+    const adapter = new HostfullyAdapter({ apiKey });
+    const result = await adapter.request('/agencies');
+    
+    if (result.success) {
+      res.json({ success: true, data: Array.isArray(result.data) ? result.data : [result.data] });
+    } else {
+      res.json({ success: false, error: result.error });
+    }
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/admin/hostfully/credentials', async (req, res) => {
+  try {
+    const { api_key, agency_uid, gas_account_id } = req.body;
+    
+    if (!api_key) {
+      return res.json({ success: false, error: 'API key required' });
+    }
+    
+    // Ensure adapter exists in gas_sync_adapters table
+    await pool.query(`
+      INSERT INTO gas_sync_adapters (code, name, description, auth_type, is_active)
+      VALUES ('hostfully', 'Hostfully', 'Property Management Platform', 'api_key', true)
+      ON CONFLICT (code) DO UPDATE SET is_active = true
+    `);
+    
+    // Check for existing connection for this account
+    const accountId = gas_account_id || null;
+    let connectionId;
+    
+    if (accountId) {
+      const existing = await pool.query(
+        'SELECT id FROM gas_sync_connections WHERE account_id = $1 AND adapter_code = $2',
+        [accountId, 'hostfully']
+      );
+      
+      if (existing.rows.length > 0) {
+        connectionId = existing.rows[0].id;
+        await pool.query(`
+          UPDATE gas_sync_connections SET
+            credentials = $1, access_token = $2,
+            external_account_id = $3, status = 'connected',
+            last_error = NULL, updated_at = NOW()
+          WHERE id = $4
+        `, [
+          JSON.stringify({ apiKey: api_key, agencyUid: agency_uid }),
+          api_key, agency_uid || null, connectionId
+        ]);
+      }
+    }
+    
+    if (!connectionId) {
+      const result = await pool.query(`
+        INSERT INTO gas_sync_connections (
+          account_id, adapter_code, credentials,
+          access_token, external_account_id,
+          status, sync_enabled, sync_interval_minutes, next_sync_at
+        ) VALUES ($1, 'hostfully', $2, $3, $4, 'connected', true, 60, NOW())
+        RETURNING id
+      `, [
+        accountId,
+        JSON.stringify({ apiKey: api_key, agencyUid: agency_uid }),
+        api_key, agency_uid || null
+      ]);
+      connectionId = result.rows[0].id;
+    }
+    
+    res.json({ success: true, message: 'Credentials saved', connection_id: connectionId });
+  } catch (error) {
+    console.error('Hostfully credentials error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/hostfully/hierarchy', async (req, res) => {
+  try {
+    const { HostfullyAdapter } = require('./gas-sync/hostfully-adapter');
+    let apiKey = req.query.apiKey;
+    let agencyUid = req.query.agencyUid;
+    
+    // Fall back to stored credentials
+    if (!apiKey) {
+      const stored = await pool.query(
+        "SELECT credentials FROM gas_sync_connections WHERE adapter_code = 'hostfully' ORDER BY id DESC LIMIT 1"
+      );
+      const creds = stored.rows[0]?.credentials;
+      const parsed = typeof creds === 'string' ? JSON.parse(creds) : creds;
+      apiKey = parsed?.apiKey;
+      agencyUid = agencyUid || parsed?.agencyUid;
+    }
+    
+    if (!apiKey) {
+      return res.json({ success: false, error: 'No Hostfully connection found' });
+    }
+    
+    const adapter = new HostfullyAdapter({ apiKey, agencyUid });
+    if (!agencyUid) await adapter.getAgency();
+    
+    const hierarchy = await adapter.getPropertyHierarchy();
+    res.json(hierarchy);
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/hostfully/import', async (req, res) => {
+  try {
+    const { accountId, bookableOnly } = req.body;
+    const { HostfullyAdapter } = require('./gas-sync/hostfully-adapter');
+    
+    // Get connection
+    const connResult = await pool.query(
+      "SELECT id, credentials FROM gas_sync_connections WHERE adapter_code = 'hostfully' ORDER BY id DESC LIMIT 1"
+    );
+    
+    if (connResult.rows.length === 0) {
+      return res.json({ success: false, error: 'No Hostfully connection found. Connect first.' });
+    }
+    
+    const conn = connResult.rows[0];
+    const creds = typeof conn.credentials === 'string' ? JSON.parse(conn.credentials) : conn.credentials;
+    
+    const adapter = new HostfullyAdapter({ 
+      apiKey: creds.apiKey, 
+      agencyUid: creds.agencyUid,
+      pool,
+      connectionId: conn.id
+    });
+    if (!creds.agencyUid) await adapter.getAgency();
+    
+    // Run full sync
+    const result = await adapter.fullSync();
+    
+    // Get imported properties for the response
+    const imported = await pool.query(
+      'SELECT id, external_id, name FROM gas_sync_properties WHERE connection_id = $1',
+      [conn.id]
+    );
+    
+    res.json({
+      success: true,
+      properties_imported: imported.rows.length,
+      properties: imported.rows.map(p => ({
+        syncPropId: p.id,
+        uid: p.external_id,
+        name: p.name
+      })),
+      stats: result.stats
+    });
+  } catch (error) {
+    console.error('Hostfully import error:', error);
     res.json({ success: false, error: error.message });
   }
 });
