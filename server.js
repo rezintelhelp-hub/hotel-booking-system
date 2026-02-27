@@ -32491,16 +32491,15 @@ app.post('/api/hostfully/import-to-gas/:connectionId', async (req, res) => {
             if (!gasRoomId) {
               const roomResult = await pool.query(`
                 INSERT INTO bookable_units (
-                  property_id, name, display_name, cm_room_id, cm_source, base_price, currency,
+                  property_id, name, cm_room_id, cm_source, base_price, currency,
                   max_guests, max_adults, base_occupancy,
                   bedroom_count, bathroom_count, bedrooms, beds, bathrooms, num_bedrooms, num_bathrooms,
                   min_stay,
                   status, created_at, updated_at
-                ) VALUES ($1, $2, $3, $4, 'hostfully', $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, 'available', NOW(), NOW())
+                ) VALUES ($1, $2, $3, 'hostfully', $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, 'available', NOW(), NOW())
                 RETURNING id
               `, [
                 gasPropertyId,
-                room.name,
                 room.name,
                 room.external_id,
                 roomRate,
@@ -32566,7 +32565,7 @@ app.post('/api/hostfully/import-to-gas/:connectionId', async (req, res) => {
                   
                   // Update display_name from the English description name if richer
                   if (locale === 'en_US' && desc.name && desc.name.length > room.name.length) {
-                    await pool.query('UPDATE bookable_units SET display_name = $1 WHERE id = $2', [desc.name, gasRoomId]);
+                    await pool.query('UPDATE bookable_units SET display_name = $1::jsonb WHERE id = $2', [JSON.stringify({EN: desc.name}), gasRoomId]);
                   }
                 }
                 
