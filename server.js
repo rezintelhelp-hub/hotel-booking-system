@@ -36690,8 +36690,10 @@ app.put('/api/bookings/:id', async (req, res) => {
       guest_first_name, guest_last_name, guest_email, guest_phone,
       arrival_date, departure_date, num_adults, num_children,
       grand_total, deposit_amount, balance_amount,
-      status, payment_status, notes
+      status, payment_status, notes, bookable_unit_id
     } = req.body;
+    
+    console.log(`[Edit Booking ${id}] bookable_unit_id received:`, bookable_unit_id, typeof bookable_unit_id);
     
     // Get existing booking for comparison
     const existingResult = await client.query(`
@@ -36706,6 +36708,9 @@ app.put('/api/bookings/:id', async (req, res) => {
     const datesChanged = (arrival_date !== existingBooking.arrival_date?.toISOString().split('T')[0]) ||
                          (departure_date !== existingBooking.departure_date?.toISOString().split('T')[0]);
     const wasCancelled = existingBooking.status !== 'cancelled' && status === 'cancelled';
+    
+    // Track if room changed
+    const roomChanged = bookable_unit_id && bookable_unit_id !== existingBooking.bookable_unit_id;
     
     await client.query('BEGIN');
     
@@ -36727,6 +36732,7 @@ app.put('/api/bookings/:id', async (req, res) => {
         status = $12,
         payment_status = $13,
         notes = $14,
+        bookable_unit_id = COALESCE($16, bookable_unit_id),
         updated_at = NOW()
       WHERE id = $15
     `, [
@@ -36734,18 +36740,19 @@ app.put('/api/bookings/:id', async (req, res) => {
       arrival_date, departure_date, num_adults, num_children,
       grand_total, deposit_amount, balance_amount,
       status, payment_status, notes,
-      id
+      id, bookable_unit_id ? parseInt(bookable_unit_id) : null
     ]);
     
     // Handle availability changes
-    if (datesChanged || wasCancelled) {
-      // Clear old dates
+    if (datesChanged || wasCancelled || roomChanged) {
+      // Clear old dates on OLD room
       await client.query(`
         DELETE FROM room_availability 
         WHERE room_id = $1 AND date >= $2 AND date < $3 AND source = 'booking'
       `, [existingBooking.bookable_unit_id, existingBooking.arrival_date, existingBooking.departure_date]);
       
-      // Add new dates if not cancelled
+      // Add new dates on NEW room if not cancelled
+      const effectiveRoomId = bookable_unit_id || existingBooking.bookable_unit_id;
       if (status !== 'cancelled') {
         const startDate = new Date(arrival_date);
         const endDate = new Date(departure_date);
@@ -36756,7 +36763,7 @@ app.put('/api/bookings/:id', async (req, res) => {
             INSERT INTO room_availability (room_id, date, is_available, is_blocked, source)
             VALUES ($1, $2, false, true, 'booking')
             ON CONFLICT (room_id, date) DO UPDATE SET is_available = false, is_blocked = true, source = 'booking'
-          `, [existingBooking.bookable_unit_id, dateStr]);
+          `, [effectiveRoomId, dateStr]);
         }
       }
     }
