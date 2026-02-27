@@ -586,6 +586,7 @@
         /* CM Brand Colors */
         .cm-bg-beds24 { background: linear-gradient(135deg, #1a1a2e, #16213e); }
         .cm-bg-hostaway { background: linear-gradient(135deg, #00BFA5, #00897B); }
+        .cm-bg-hostfully { background: linear-gradient(135deg, #0ea5e9, #0369a1); }
         .cm-bg-smoobu { background: linear-gradient(135deg, #ff6b35, #f7931e); }
         .cm-bg-lodgify { background: linear-gradient(135deg, #E8545B, #D94952); }
         .cm-bg-guesty { background: linear-gradient(135deg, #2563EB, #1D4ED8); }
@@ -909,7 +910,7 @@ GAS was created to facilitate the building of an independent travel sector. It c
 
 The setup process has 5 steps:
 1. Create account (name, business name, email, password)
-2. Connect channel manager (Beds24, Hostaway, or 28+ others via Calry)
+2. Connect channel manager (Beds24, Hostaway, Hostfully, or 28+ others via Calry)
 3. Review imported properties
 4. Confirm pricing
 5. Set up Stripe payments
@@ -1291,6 +1292,23 @@ Upsells (mention only if asked): GAS Turbines (social media management), custom 
             `;
             addAiMessage("To connect <strong>Hostaway</strong>:<br><br>1. Log into your Hostaway dashboard<br>2. Go to <strong>Settings → API Keys</strong><br>3. Copy your <strong>Account ID (Client ID)</strong> and <strong>API Key (Client Secret)</strong><br><br>Paste them below and click Connect.");
 
+        // Hostfully — direct integration
+        } else if (cm === 'hostfully') {
+            fieldsDiv.innerHTML = `
+                <div class="field" style="margin-top: 1rem;">
+                    <label>API Key</label>
+                    <input type="text" id="cm-hf-api-key" placeholder="Your Hostfully API key">
+                    <p style="font-size: 0.75rem; color: var(--ink-muted); margin-top: 0.3rem;">Found in Hostfully → Agency Settings → API Key</p>
+                </div>
+                <div class="field">
+                    <label>Agency UID <span style="font-size: 0.75rem; color: var(--ink-muted); font-weight: 400;">(auto-detected)</span></label>
+                    <input type="text" id="cm-hf-agency-uid" placeholder="Will be detected automatically">
+                </div>
+                <button class="btn-primary" onclick="connectHostfully()">Connect & Import</button>
+                <div id="cm-status" style="margin-top: 1rem;"></div>
+            `;
+            addAiMessage("To connect <strong>Hostfully</strong>:<br><br>1. Log into Hostfully<br>2. Go to <strong>Agency Settings</strong><br>3. Scroll to the bottom to find your <strong>API Key</strong><br>4. Copy and paste it below<br><br>We'll auto-detect your Agency UID and import all your properties.");
+
         // Other / Not Listed
         } else if (cm === 'other') {
             fieldsDiv.innerHTML = `
@@ -1313,7 +1331,7 @@ Upsells (mention only if asked): GAS Turbines (social media management), custom 
             // Map CM IDs to Calry integration keys
             const calryKeyMap = {
                 'smoobu': 'smoobu', 'lodgify': 'lodgify', 'guesty': 'guesty',
-                'hostfully': 'hostfully', 'ownerrez': 'ownerrez', 'hospitable': 'hospitable',
+                'ownerrez': 'ownerrez', 'hospitable': 'hospitable',
                 'tokeet': 'tokeet', 'uplisting': 'uplisting', 'hostify': 'hostify',
                 'avantio': 'avantio', 'mews': 'mews', 'cloudbeds': 'cloudbeds',
                 'bookingsync': 'smily', 'streamline': 'streamline', 'track': 'track',
@@ -1695,6 +1713,119 @@ Upsells (mention only if asked): GAS Turbines (social media management), custom 
             btn.textContent = 'Connect & Import';
             statusDiv.innerHTML = `<p style="color: #ef4444; font-size: 0.85rem;">Error: ${err.message}</p>`;
             addAiMessage("Something went wrong. Check your credentials and try again.");
+        }
+    }
+
+    // =============================================
+    // HOSTFULLY CONNECTION — DIRECT API
+    // =============================================
+    async function connectHostfully() {
+        const apiKey = document.getElementById('cm-hf-api-key')?.value?.trim();
+        const agencyUidInput = document.getElementById('cm-hf-agency-uid');
+        const statusDiv = document.getElementById('cm-status');
+
+        if (!apiKey) {
+            addAiMessage("Please enter your <strong>API Key</strong> from Hostfully → Agency Settings.");
+            return;
+        }
+
+        const btn = document.querySelector('#cm-fields .btn-primary');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner"></span>Connecting...';
+        statusDiv.innerHTML = '<p style="color: var(--ink-muted); font-size: 0.85rem;">Testing connection...</p>';
+
+        try {
+            // 1. Test connection and discover agency UID
+            const testResp = await fetch(`/api/hostfully/test-agencies?apiKey=${encodeURIComponent(apiKey)}`);
+            const testResult = await testResp.json();
+
+            if (!testResult.success) {
+                btn.disabled = false;
+                btn.textContent = 'Connect & Import';
+                statusDiv.innerHTML = `<p style="color: #ef4444; font-size: 0.85rem;">${testResult.error || testResult.v3_error?.message || 'Connection failed'}</p>`;
+                addAiMessage("Connection failed. Double-check your <strong>API Key</strong> from Hostfully → Agency Settings.");
+                return;
+            }
+
+            // Auto-fill agency UID
+            const agencies = Array.isArray(testResult.data) ? testResult.data : [testResult.data];
+            const agencyUid = agencies[0]?.uid || '';
+            const agencyName = agencies[0]?.name || 'Hostfully Agency';
+            if (agencyUid) agencyUidInput.value = agencyUid;
+
+            statusDiv.innerHTML = `<p style="color: var(--success); font-size: 0.85rem;">✓ Connected to ${agencyName}</p>`;
+
+            // 2. Save credentials
+            await fetch('/api/admin/hostfully/credentials', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    api_key: apiKey,
+                    agency_uid: agencyUid,
+                    gas_account_id: accountData?.account?.id || null
+                })
+            });
+
+            // 3. Fetch property hierarchy
+            statusDiv.innerHTML += '<p style="color: var(--ink-muted); font-size: 0.85rem;">Fetching properties...</p>';
+            const hierResp = await fetch(`/api/hostfully/hierarchy?apiKey=${encodeURIComponent(apiKey)}&agencyUid=${encodeURIComponent(agencyUid)}`);
+            const hierResult = await hierResp.json();
+
+            if (!hierResult.success) {
+                btn.disabled = false;
+                btn.textContent = 'Connect & Import';
+                statusDiv.innerHTML += `<p style="color: #ef4444; font-size: 0.85rem;">Error loading properties: ${hierResult.error}</p>`;
+                return;
+            }
+
+            const hierData = hierResult.data || hierResult;
+            const total = hierData.total || 0;
+            const parents = hierData.parents || 0;
+            const subUnits = hierData.subUnits || 0;
+            statusDiv.innerHTML += `<p style="color: var(--success); font-size: 0.85rem;">✓ Found ${total} properties (${subUnits} bookable, ${parents} parent groups)</p>`;
+            addAiMessage(`Connected! I found <strong>${total}</strong> properties in your Hostfully account — <strong>${subUnits}</strong> bookable listings across <strong>${parents}</strong> property groups. Importing now...`);
+
+            // 4. Import properties
+            statusDiv.innerHTML += '<p style="color: var(--ink-muted); font-size: 0.85rem;">Importing properties...</p>';
+            const importResp = await fetch('/api/hostfully/import', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    accountId: accountData?.account?.id || null,
+                    bookableOnly: true
+                })
+            });
+            const importResult = await importResp.json();
+
+            if (importResult.success) {
+                statusDiv.innerHTML += `<p style="color: var(--success); font-size: 0.85rem;">✓ Imported ${importResult.properties_imported} properties</p>`;
+
+                // Store imported properties for Step 3 review
+                if (importResult.properties) {
+                    importedProperties = importResult.properties.map(p => ({
+                        id: p.syncPropId,
+                        name: p.name,
+                        type: p.businessType,
+                        uid: p.uid,
+                        photos: p.photos || 0,
+                        amenities: p.amenities || 0
+                    }));
+                }
+
+                addAiMessage(`Import complete! <strong>${importResult.properties_imported}</strong> properties imported with photos and amenities. Let's review them.`);
+                setTimeout(() => goToStep(3), 1500);
+            } else {
+                btn.disabled = false;
+                btn.textContent = 'Connect & Import';
+                statusDiv.innerHTML += `<p style="color: #ef4444; font-size: 0.85rem;">${importResult.error || 'Import failed'}</p>`;
+                addAiMessage("Import encountered an error. Check the details above and try again.");
+            }
+
+        } catch (err) {
+            btn.disabled = false;
+            btn.textContent = 'Connect & Import';
+            statusDiv.innerHTML = `<p style="color: #ef4444; font-size: 0.85rem;">Error: ${err.message}</p>`;
+            addAiMessage("Something went wrong. Check your API key and try again.");
         }
     }
 
