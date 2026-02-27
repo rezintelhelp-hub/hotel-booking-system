@@ -31919,7 +31919,7 @@ app.post('/api/hostfully/test-connection', async (req, res) => {
       return res.status(400).json({ success: false, error: 'API key is required' });
     }
     
-    const { HostfullyAdapter } = require('./gas-sync/hostfully-adapter');
+    const { HostfullyAdapter } = require('./gas-sync/adapters/hostfully-adapter');
     const adapter = new HostfullyAdapter({ apiKey });
     const result = await adapter.testConnection();
     
@@ -31950,7 +31950,7 @@ app.post('/api/hostfully/preview-properties', async (req, res) => {
       return res.status(400).json({ success: false, error: 'API key is required' });
     }
     
-    const { HostfullyAdapter } = require('./gas-sync/hostfully-adapter');
+    const { HostfullyAdapter } = require('./gas-sync/adapters/hostfully-adapter');
     const adapter = new HostfullyAdapter({ apiKey, agencyUid });
     
     // Auto-discover agency if not provided
@@ -32013,7 +32013,7 @@ app.post('/api/hostfully/connect', async (req, res) => {
       return res.status(400).json({ success: false, error: 'API key and account_id required' });
     }
     
-    const { HostfullyAdapter } = require('./gas-sync/hostfully-adapter');
+    const { HostfullyAdapter } = require('./gas-sync/adapters/hostfully-adapter');
     const adapter = new HostfullyAdapter({ apiKey, agencyUid, pool });
     
     // Test connection first
@@ -32199,7 +32199,7 @@ app.post('/api/hostfully/register-webhooks/:connectionId', async (req, res) => {
 // Alias endpoints used by register.html wizard flow
 app.get('/api/hostfully/test-agencies', async (req, res) => {
   try {
-    const { HostfullyAdapter } = require('./gas-sync/hostfully-adapter');
+    const { HostfullyAdapter } = require('./gas-sync/adapters/hostfully-adapter');
     let apiKey = req.query.apiKey;
     
     // Fall back to stored key if not provided
@@ -32293,7 +32293,7 @@ app.post('/api/admin/hostfully/credentials', async (req, res) => {
 
 app.get('/api/hostfully/hierarchy', async (req, res) => {
   try {
-    const { HostfullyAdapter } = require('./gas-sync/hostfully-adapter');
+    const { HostfullyAdapter } = require('./gas-sync/adapters/hostfully-adapter');
     let apiKey = req.query.apiKey;
     let agencyUid = req.query.agencyUid;
     
@@ -32325,7 +32325,7 @@ app.get('/api/hostfully/hierarchy', async (req, res) => {
 app.post('/api/hostfully/import', async (req, res) => {
   try {
     const { accountId, bookableOnly } = req.body;
-    const { HostfullyAdapter } = require('./gas-sync/hostfully-adapter');
+    const { HostfullyAdapter } = require('./gas-sync/adapters/hostfully-adapter');
     
     // Get connection
     const connResult = await pool.query(
