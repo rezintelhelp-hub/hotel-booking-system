@@ -32520,6 +32520,90 @@ app.post('/api/hostfully/import-to-gas/:connectionId', async (req, res) => {
 });
 
 // Alias endpoints used by register.html wizard flow
+
+// Diagnostic: probe what data exists for a Hostfully property
+app.get('/api/hostfully/probe/:propertyUid', async (req, res) => {
+  try {
+    const { propertyUid } = req.params;
+    const connectionId = req.query.connectionId || 96;
+    
+    const connResult = await pool.query('SELECT credentials FROM gas_sync_connections WHERE id = $1', [connectionId]);
+    if (connResult.rows.length === 0) return res.json({ error: 'Connection not found' });
+    
+    const creds = typeof connResult.rows[0].credentials === 'string' ? JSON.parse(connResult.rows[0].credentials) : connResult.rows[0].credentials;
+    const { HostfullyAdapter } = require('./gas-sync/adapters/hostfully-adapter');
+    const adapter = new HostfullyAdapter({ apiKey: creds.apiKey, agencyUid: creds.agencyUid });
+    
+    const results = {};
+    
+    // Property detail
+    const detail = await adapter.request(`/properties/${propertyUid}`, 'GET');
+    results.propertyDetail = detail.success ? { 
+      keys: Object.keys(detail.data),
+      description: (detail.data.description || '').substring(0, 200),
+      pictureLink: detail.data.pictureLink,
+      bedrooms: detail.data.bedrooms,
+      beds: detail.data.beds,
+      bathrooms: detail.data.bathrooms,
+      availability: detail.data.availability,
+      pricing: detail.data.pricing
+    } : { error: detail.error };
+    
+    // Photos
+    const photos = await adapter.request('/photos', 'GET', null, { params: { propertyUid } });
+    results.photos = photos.success ? { count: Array.isArray(photos.data) ? photos.data.length : 0, sample: (photos.data || [])[0] } : { error: photos.error };
+    
+    // Amenities
+    const amenities = await adapter.request('/amenities', 'GET', null, { params: { propertyUid } });
+    results.amenities = amenities.success ? { count: Array.isArray(amenities.data) ? amenities.data.length : 0, sample: (amenities.data || []).slice(0, 3) } : { error: amenities.error };
+    
+    // Descriptions
+    const descs = await adapter.request('/property-descriptions', 'GET', null, { params: { propertyUid } });
+    results.descriptions = descs.success ? { count: Array.isArray(descs.data) ? descs.data.length : 'object', data: descs.data } : { error: descs.error };
+    
+    // Rooms (internal rooms of the property)
+    const rooms = await adapter.request('/rooms', 'GET', null, { params: { propertyUid } });
+    results.rooms = rooms.success ? { count: Array.isArray(rooms.data) ? rooms.data.length : 0, sample: (rooms.data || []).slice(0, 2) } : { error: rooms.error };
+    
+    // Fees
+    const fees = await adapter.request('/fees', 'GET', null, { params: { propertyUid } });
+    results.fees = fees.success ? { count: Array.isArray(fees.data) ? fees.data.length : 0, data: fees.data } : { error: fees.error };
+    
+    // Pricing periods
+    const today = new Date().toISOString().split('T')[0];
+    const futureDate = new Date(Date.now() + 365 * 86400000).toISOString().split('T')[0];
+    const pricing = await adapter.request('/pricing-periods', 'GET', null, { params: { propertyUid, from: today, to: futureDate } });
+    results.pricingPeriods = pricing.success ? { count: Array.isArray(pricing.data) ? pricing.data.length : 0, data: pricing.data } : { error: pricing.error };
+    
+    // Property calendar
+    const calendar = await adapter.request(`/property-calendar/${propertyUid}`, 'GET');
+    results.calendar = calendar.success ? { count: Array.isArray(calendar.data) ? calendar.data.length : 'object', sample: Array.isArray(calendar.data) ? calendar.data.slice(0, 5) : calendar.data } : { error: calendar.error };
+    
+    // Pricing rules
+    const pricingRules = await adapter.request('/pricing-rules', 'GET', null, { params: { propertyUid } });
+    results.pricingRules = pricingRules.success ? pricingRules.data : { error: pricingRules.error };
+    
+    // GraphQL - get everything in one shot
+    try {
+      const gql = await adapter.request('/graphql', 'POST', {
+        query: `{ property(uid: "${propertyUid}") { uid name description pictureLink bedrooms beds bathrooms photos { uid url ordinal description } amenities { amenityName amenityCode } } }`
+      });
+      results.graphql = gql.success ? {
+        description: (gql.data?.data?.property?.description || '').substring(0, 200),
+        photoCount: gql.data?.data?.property?.photos?.length || 0,
+        photoSample: (gql.data?.data?.property?.photos || [])[0],
+        amenityCount: gql.data?.data?.property?.amenities?.length || 0,
+        amenitySample: (gql.data?.data?.property?.amenities || []).slice(0, 5)
+      } : { error: gql.error };
+    } catch (gqlErr) {
+      results.graphql = { error: gqlErr.message };
+    }
+    
+    res.json({ success: true, propertyUid, results });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
 app.get('/api/hostfully/test-agencies', async (req, res) => {
   try {
     const { HostfullyAdapter } = require('./gas-sync/adapters/hostfully-adapter');
