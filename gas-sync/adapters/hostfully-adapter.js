@@ -895,6 +895,177 @@ class HostfullyAdapter {
   }
   
   // =====================================================
+  // FULL SYNC & INCREMENTAL SYNC
+  // =====================================================
+  
+  /**
+   * Full sync - fetch all properties, rooms, calendar data
+   * Called by SyncManager.syncConnection()
+   */
+  async fullSync() {
+    const stats = {
+      properties: { total: 0, synced: 0, errors: 0 },
+      roomTypes: { total: 0, synced: 0, errors: 0 },
+      calendar: { total: 0, synced: 0 }
+    };
+    
+    // First, auto-discover agency if not set
+    if (!this.agencyUid) {
+      const agencyResult = await this.getAgency();
+      if (!agencyResult.success) {
+        throw new Error(`Failed to get agency: ${agencyResult.error}`);
+      }
+    }
+    
+    // Get all properties
+    const propertiesResult = await this.getProperties({ activeOnly: true });
+    if (!propertiesResult.success) {
+      throw new Error(`Failed to fetch properties: ${propertiesResult.error}`);
+    }
+    
+    const allProperties = propertiesResult.data;
+    stats.properties.total = allProperties.length;
+    console.log(`[Hostfully fullSync] Found ${allProperties.length} properties`);
+    
+    // Separate parents and bookable units
+    const parents = allProperties.filter(p => 
+      p.businessType === BUSINESS_TYPES.STANDALONE || p.businessType === BUSINESS_TYPES.MULTI_UNIT
+    );
+    const bookable = allProperties.filter(p => 
+      p.businessType === BUSINESS_TYPES.SUB_UNIT
+    );
+    // Treat any property without a parent as both property and room
+    const standalone = allProperties.filter(p => 
+      !p.businessType || (!parents.some(par => par.externalId === p.raw?.parentUid) && 
+       p.businessType !== BUSINESS_TYPES.STANDALONE && 
+       p.businessType !== BUSINESS_TYPES.MULTI_UNIT)
+    );
+    
+    console.log(`[Hostfully fullSync] Parents: ${parents.length}, Bookable: ${bookable.length}, Standalone: ${standalone.length}`);
+    
+    // Sync parent properties first
+    for (const parent of parents) {
+      try {
+        // Enrich with photos, amenities, descriptions
+        const enriched = await this.enrichProperty(parent);
+        const syncPropId = await this.syncPropertyToDatabase(enriched);
+        
+        if (syncPropId) {
+          stats.properties.synced++;
+          
+          // Find child units for this parent
+          const children = bookable.filter(b => b.raw?.parentUid === parent.externalId);
+          for (const child of children) {
+            try {
+              const enrichedChild = await this.enrichProperty(child);
+              await this.syncRoomTypeToDatabase(syncPropId, enrichedChild);
+              stats.roomTypes.synced++;
+            } catch (roomErr) {
+              console.error(`[Hostfully fullSync] Room error for ${child.name}:`, roomErr.message);
+              stats.roomTypes.errors++;
+            }
+            stats.roomTypes.total++;
+          }
+        }
+      } catch (propErr) {
+        console.error(`[Hostfully fullSync] Property error for ${parent.name}:`, propErr.message);
+        stats.properties.errors++;
+      }
+    }
+    
+    // Sync standalone properties (act as both property and room)
+    for (const prop of standalone) {
+      try {
+        const enriched = await this.enrichProperty(prop);
+        const syncPropId = await this.syncPropertyToDatabase(enriched);
+        
+        if (syncPropId) {
+          stats.properties.synced++;
+          // Create a room type from the property itself
+          await this.syncRoomTypeToDatabase(syncPropId, enriched);
+          stats.roomTypes.synced++;
+          stats.roomTypes.total++;
+        }
+      } catch (propErr) {
+        console.error(`[Hostfully fullSync] Standalone error for ${prop.name}:`, propErr.message);
+        stats.properties.errors++;
+      }
+    }
+    
+    console.log(`[Hostfully fullSync] Complete:`, stats);
+    return { success: true, stats };
+  }
+  
+  /**
+   * Incremental sync - fetch only properties updated since lastSync
+   */
+  async incrementalSync(lastSync) {
+    // Hostfully doesn't have an updatedSince filter on properties
+    // Fall back to full sync but could be optimized with webhooks
+    console.log(`[Hostfully incrementalSync] Falling back to full sync (last: ${lastSync})`);
+    return this.fullSync();
+  }
+  
+  /**
+   * Enrich a property with photos, amenities, descriptions
+   */
+  async enrichProperty(property) {
+    try {
+      // Fetch photos
+      const photosResult = await this.getPhotos(property.externalId);
+      if (photosResult.success) {
+        property.images = photosResult.data;
+      }
+      
+      // Fetch amenities
+      const amenitiesResult = await this.getAmenities(property.externalId);
+      if (amenitiesResult.success) {
+        property.amenities = amenitiesResult.data;
+      }
+      
+      // Fetch descriptions
+      const descResult = await this.getDescriptions(property.externalId);
+      if (descResult.success && descResult.data) {
+        // Use the main description or combine
+        const desc = descResult.data.DESCRIPTION || descResult.data.SUMMARY || 
+                     descResult.data.default || Object.values(descResult.data)[0];
+        if (desc) property.description = desc.text || '';
+      }
+    } catch (enrichErr) {
+      console.log(`[Hostfully] Enrichment partial failure for ${property.name}: ${enrichErr.message}`);
+    }
+    
+    return property;
+  }
+  
+  // =====================================================
+  // WEBHOOK PARSING
+  // =====================================================
+  
+  /**
+   * Parse incoming Hostfully webhook payload
+   * Returns standardized event object for SyncManager
+   */
+  parseWebhookPayload(payload, headers) {
+    const eventType = payload.eventType || payload.event || headers['x-hostfully-event'] || 'unknown';
+    
+    const eventMap = {
+      'NEW_LEAD': 'reservation.created',
+      'UPDATED_LEAD': 'reservation.updated',
+      'CANCELLED_LEAD': 'reservation.cancelled',
+      'UPDATED_PROPERTY': 'property.updated',
+      'UPDATED_PRICING': 'availability.updated'
+    };
+    
+    return {
+      event: eventMap[eventType] || eventType,
+      externalId: payload.uid || payload.leadUid || payload.propertyUid || 'unknown',
+      data: payload,
+      raw: payload
+    };
+  }
+  
+  // =====================================================
   // DATABASE SYNC METHODS
   // =====================================================
   
