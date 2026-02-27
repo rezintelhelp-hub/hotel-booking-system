@@ -32371,25 +32371,22 @@ app.post('/api/hostfully/import-to-gas/:connectionId', async (req, res) => {
             if (!gasRoomId) {
               const roomResult = await pool.query(`
                 INSERT INTO bookable_units (
-                  property_id, name, display_name, base_price, currency,
-                  max_guests, max_adults, bedrooms, bathrooms, beds,
-                  check_in_time, check_out_time, min_stay,
+                  property_id, name, cm_room_id, cm_source, base_price,
+                  max_guests, max_adults,
+                  bedroom_count, bathroom_count,
+                  min_stay,
                   status, created_at, updated_at
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'available', NOW(), NOW())
+                ) VALUES ($1, $2, $3, 'hostfully', $4, $5, $6, $7, $8, $9, 'available', NOW(), NOW())
                 RETURNING id
               `, [
                 gasPropertyId,
                 room.name,
-                room.name,
+                room.external_id,
                 roomRate,
-                roomCurrency,
                 maxGuests,
                 maxGuests,
                 bedrooms,
                 bathrooms,
-                beds,
-                checkIn,
-                checkOut,
                 minStay
               ]);
               gasRoomId = roomResult.rows[0].id;
