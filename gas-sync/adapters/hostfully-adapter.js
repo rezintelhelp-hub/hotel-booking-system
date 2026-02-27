@@ -963,6 +963,9 @@ class HostfullyAdapter {
     
     console.log(`[Hostfully fullSync] Parents: ${parents.length}, Bookable: ${bookable.length}, Standalone: ${standalone.length}`);
     
+    // Build parent lookup by externalId for parentUid matching
+    const parentMap = {};
+    
     // Sync parent properties first
     for (const parent of parents) {
       try {
@@ -972,25 +975,54 @@ class HostfullyAdapter {
         
         if (syncPropId) {
           stats.properties.synced++;
-          
-          // Find child units for this parent
-          const children = bookable.filter(b => b.raw?.parentUid === parent.externalId);
-          for (const child of children) {
-            try {
-              const enrichedChild = await this.enrichProperty(child);
-              await this.syncRoomTypeToDatabase(syncPropId, enrichedChild);
-              stats.roomTypes.synced++;
-            } catch (roomErr) {
-              console.error(`[Hostfully fullSync] Room error for ${child.name}:`, roomErr.message);
-              stats.roomTypes.errors++;
-            }
-            stats.roomTypes.total++;
-          }
+          parentMap[parent.externalId] = { syncPropId, parent: enriched };
         }
       } catch (propErr) {
         console.error(`[Hostfully fullSync] Property error for ${parent.name}:`, propErr.message);
         stats.properties.errors++;
       }
+    }
+    
+    // Now match bookable units to parents
+    for (const child of bookable) {
+      try {
+        // Try parentUid first
+        let matchedParentId = null;
+        if (child.raw?.parentUid && parentMap[child.raw.parentUid]) {
+          matchedParentId = parentMap[child.raw.parentUid].syncPropId;
+        }
+        
+        // Fall back to address matching (Hostfully often has parentUid = null)
+        if (!matchedParentId) {
+          const matchingParent = Object.values(parentMap).find(p => 
+            p.parent.address?.street === child.address?.street && 
+            p.parent.address?.city === child.address?.city
+          );
+          if (matchingParent) {
+            matchedParentId = matchingParent.syncPropId;
+          }
+        }
+        
+        if (matchedParentId) {
+          const enrichedChild = await this.enrichProperty(child);
+          await this.syncRoomTypeToDatabase(matchedParentId, enrichedChild);
+          stats.roomTypes.synced++;
+        } else {
+          // Orphan sub-unit — create as standalone property + room
+          console.log(`[Hostfully fullSync] Orphan sub-unit: ${child.name} — creating as standalone`);
+          const enrichedChild = await this.enrichProperty(child);
+          const syncPropId = await this.syncPropertyToDatabase(enrichedChild);
+          if (syncPropId) {
+            stats.properties.synced++;
+            await this.syncRoomTypeToDatabase(syncPropId, enrichedChild);
+            stats.roomTypes.synced++;
+          }
+        }
+      } catch (roomErr) {
+        console.error(`[Hostfully fullSync] Room error for ${child.name}:`, roomErr.message);
+        stats.roomTypes.errors++;
+      }
+      stats.roomTypes.total++;
     }
     
     // Sync standalone properties (act as both property and room)
