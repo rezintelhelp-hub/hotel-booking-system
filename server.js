@@ -32348,16 +32348,13 @@ app.post('/api/hostfully/import-to-gas/:connectionId', async (req, res) => {
         
         // Fetch and save property descriptions
         try {
-          const descResult = await adapter.request('/property-descriptions', 'GET', null, {
-            params: { propertyUid: parent.external_id }
-          });
-          console.log(`[Hostfully import-to-gas] Descriptions for ${parent.name}: success=${descResult.success}, count=${Array.isArray(descResult.data) ? descResult.data.length : 'n/a'}`);
+          const descResult = await adapter.getDescriptions(parent.external_id);
+          console.log(`[Hostfully import-to-gas] Descriptions for ${parent.name}: success=${descResult.success}`);
           if (descResult.success && descResult.data) {
-            const descs = Array.isArray(descResult.data) ? descResult.data : [descResult.data];
-            const mainDesc = descs.find(d => d.locale === 'en' || d.locale === 'default') || descs[0];
-            if (mainDesc?.description) {
-              await pool.query('UPDATE properties SET full_description = $1 WHERE id = $2', [mainDesc.description, gasPropertyId]);
-              console.log(`[Hostfully import-to-gas] Saved description for ${parent.name} (${mainDesc.description.length} chars)`);
+            const mainDesc = descResult.data.en || descResult.data.default || Object.values(descResult.data)[0];
+            if (mainDesc?.text) {
+              await pool.query('UPDATE properties SET full_description = $1 WHERE id = $2', [mainDesc.text, gasPropertyId]);
+              console.log(`[Hostfully import-to-gas] Saved description for ${parent.name} (${mainDesc.text.length} chars)`);
             }
           }
         } catch (descErr) {
@@ -32442,15 +32439,13 @@ app.post('/api/hostfully/import-to-gas/:connectionId', async (req, res) => {
             
             // Fetch and save room description
             try {
-              const roomDescResult = await adapter.request('/property-descriptions', 'GET', null, {
-                params: { propertyUid: room.external_id }
-              });
+              const roomDescResult = await adapter.getDescriptions(room.external_id);
               if (roomDescResult.success && roomDescResult.data) {
-                const descs = Array.isArray(roomDescResult.data) ? roomDescResult.data : [roomDescResult.data];
-                const mainDesc = descs.find(d => d.locale === 'en' || d.locale === 'default') || descs[0];
-                if (mainDesc?.description) {
-                  const descJson = JSON.stringify({ en: mainDesc.description });
+                const mainDesc = roomDescResult.data.en || roomDescResult.data.default || Object.values(roomDescResult.data)[0];
+                if (mainDesc?.text) {
+                  const descJson = JSON.stringify({ en: mainDesc.text });
                   await pool.query('UPDATE bookable_units SET full_description = $1::jsonb WHERE id = $2', [descJson, gasRoomId]);
+                  console.log(`[Hostfully import-to-gas]   Saved description for ${room.name} (${mainDesc.text.length} chars)`);
                 }
               }
             } catch (roomDescErr) {
@@ -32459,15 +32454,12 @@ app.post('/api/hostfully/import-to-gas/:connectionId', async (req, res) => {
             
             // Fetch pricing periods for this room
             try {
-              const pricingResult = await adapter.request('/pricing-periods', 'GET', null, {
-                params: { propertyUid: room.external_id }
-              });
-              console.log(`[Hostfully import-to-gas]   Pricing for ${room.name}: success=${pricingResult.success}, count=${Array.isArray(pricingResult.data) ? pricingResult.data.length : 'n/a'}`);
+              const pricingResult = await adapter.getPricingPeriods(room.external_id);
+              console.log(`[Hostfully import-to-gas]   Pricing for ${room.name}: success=${pricingResult.success}, count=${pricingResult.data?.length || 0}`);
               if (pricingResult.success && Array.isArray(pricingResult.data) && pricingResult.data.length > 0) {
                 stats.pricingPeriods = (stats.pricingPeriods || 0) + pricingResult.data.length;
-                // Store pricing periods in raw format for now - we'll map to GAS pricing later
                 for (const period of pricingResult.data) {
-                  console.log(`[Hostfully import-to-gas]     Period: ${period.startDate} - ${period.endDate} = ${period.nightlyRate || period.rate}/${period.currency || 'JPY'}`);
+                  console.log(`[Hostfully import-to-gas]     Period: ${period.startDate} - ${period.endDate} = ${period.nightlyRate}/${period.currency || 'JPY'} (weekend: ${period.weekendNightlyRate || 'n/a'})`);
                 }
               }
             } catch (pricingErr) {
