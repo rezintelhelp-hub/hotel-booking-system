@@ -82,7 +82,7 @@ function initGoogleAuth() {
 initGoogleAuth();
 
 // GasSync - Channel Manager Integration Layer
-let getAdapter, getAvailableAdapters, getAdapterInfo, getAdapterGroups, SyncManager, HostfullyAdapter;
+let getAdapter, getAvailableAdapters, getAdapterInfo, getAdapterGroups, SyncManager;
 try {
   const gasSyncModule = require('./gas-sync/adapters');
   getAdapter = gasSyncModule.getAdapter;
@@ -90,7 +90,6 @@ try {
   getAdapterInfo = gasSyncModule.getAdapterInfo;
   getAdapterGroups = gasSyncModule.getAdapterGroups;
   SyncManager = gasSyncModule.SyncManager;
-  HostfullyAdapter = gasSyncModule.HostfullyAdapter || null;
   console.log('✅ GasSync adapters loaded successfully');
 } catch (gasSyncError) {
   console.error('❌ Failed to load GasSync adapters:', gasSyncError.message);
@@ -15761,13 +15760,34 @@ app.post('/api/public/create-group-booking', async (req, res) => {
             
             const cmData = cmResult.rows[0];
             
-            // BEDS24 SYNC
-            if (cmData?.beds24_room_id) {
+            // BEDS24 SYNC — check legacy column first, then GasSync tables
+            let beds24RoomId = cmData?.beds24_room_id;
+            if (!beds24RoomId) {
+                // Try GasSync lookup
                 try {
-                    const accessToken = await getBeds24AccessToken(pool);
+                    const gsResult = await client.query(`
+                        SELECT gsrt.external_id FROM gas_sync_room_types gsrt
+                        JOIN gas_sync_properties gsp ON gsrt.sync_property_id = gsp.id
+                        JOIN gas_sync_connections gsc ON gsp.connection_id = gsc.id
+                        WHERE gsrt.gas_room_id = $1 AND gsc.adapter_code = 'beds24'
+                        LIMIT 1
+                    `, [roomId]);
+                    if (gsResult.rows[0]?.external_id) {
+                        beds24RoomId = gsResult.rows[0].external_id;
+                        console.log(`[Beds24 Push] Found beds24_room_id ${beds24RoomId} via GasSync for room ${roomId}`);
+                    }
+                } catch (gsErr) {
+                    console.log(`[Beds24 Push] GasSync lookup failed for room ${roomId}:`, gsErr.message);
+                }
+            }
+            
+            if (beds24RoomId) {
+                try {
+                    console.log(`[Beds24 Push] Room ${roomId} → beds24_room_id: ${beds24RoomId}, property_id: ${roomData.property_id}`);
+                    const accessToken = await getBeds24AccessTokenForProperty(pool, roomData.property_id, roomId);
                     
                     const beds24Booking = [{
-                        roomId: cmData.beds24_room_id,
+                        roomId: beds24RoomId,
                         status: 'confirmed',
                         arrival: checkin,
                         departure: checkout,
@@ -16178,6 +16198,117 @@ app.post('/api/public/create-group-booking', async (req, res) => {
 
 // Create payment intent for checkout (public endpoint)
 app.post('/api/public/create-payment-intent', async (req, res) => {
+
+// =====================================================
+// MANUAL RE-PUSH BOOKING TO BEDS24
+// =====================================================
+app.post('/api/admin/bookings/:id/push-to-beds24', async (req, res) => {
+    try {
+        const bookingId = parseInt(req.params.id);
+        
+        // Get full booking details
+        const bookingResult = await pool.query(`
+            SELECT b.*, bu.beds24_room_id, bu.id as unit_id, bu.name as room_name,
+                   p.id as prop_id, p.name as property_name, p.account_id
+            FROM bookings b
+            JOIN bookable_units bu ON b.bookable_unit_id = bu.id
+            JOIN properties p ON b.property_id = p.id
+            WHERE b.id = $1
+        `, [bookingId]);
+        
+        if (bookingResult.rows.length === 0) {
+            return res.json({ success: false, error: `Booking ${bookingId} not found` });
+        }
+        
+        const booking = bookingResult.rows[0];
+        
+        // Already pushed?
+        if (booking.beds24_booking_id) {
+            return res.json({ success: false, error: `Booking already in Beds24 as ${booking.beds24_booking_id}` });
+        }
+        
+        // Find beds24_room_id — legacy column first, then GasSync
+        let beds24RoomId = booking.beds24_room_id;
+        if (!beds24RoomId) {
+            const gsResult = await pool.query(`
+                SELECT gsrt.external_id FROM gas_sync_room_types gsrt
+                JOIN gas_sync_properties gsp ON gsrt.sync_property_id = gsp.id
+                JOIN gas_sync_connections gsc ON gsp.connection_id = gsc.id
+                WHERE gsrt.gas_room_id = $1 AND gsc.adapter_code = 'beds24'
+                LIMIT 1
+            `, [booking.unit_id]);
+            beds24RoomId = gsResult.rows[0]?.external_id;
+        }
+        
+        if (!beds24RoomId) {
+            return res.json({ success: false, error: `No Beds24 room ID found for room ${booking.unit_id} (${booking.room_name}). Check gas_sync_room_types mapping.` });
+        }
+        
+        // Get the correct token for this property
+        const accessToken = await getBeds24AccessTokenForProperty(pool, booking.prop_id, booking.unit_id);
+        
+        const beds24Booking = [{
+            roomId: beds24RoomId,
+            status: 'confirmed',
+            arrival: booking.arrival_date?.toISOString?.()?.split('T')[0] || booking.arrival_date,
+            departure: booking.departure_date?.toISOString?.()?.split('T')[0] || booking.departure_date,
+            numAdult: booking.num_adults || 1,
+            numChild: booking.num_children || 0,
+            firstName: booking.guest_first_name || '',
+            lastName: booking.guest_last_name || '',
+            email: booking.guest_email || '',
+            mobile: booking.guest_phone || '',
+            phone: booking.guest_phone || '',
+            address: booking.guest_address || '',
+            city: booking.guest_city || '',
+            postcode: booking.guest_postcode || '',
+            country: booking.guest_country || '',
+            referer: `GAS Direct - GAS-${booking.id}`,
+            refererEditable: `GAS Direct - GAS-${booking.id}`,
+            reference: `GAS-${booking.id}`,
+            notes: `Booked via GAS | Manual re-push | Ref: GAS-${booking.id}`,
+            price: parseFloat(booking.grand_total || booking.accommodation_price || 0),
+            invoiceItems: [{
+                description: 'Accommodation',
+                status: '',
+                qty: 1,
+                amount: parseFloat(booking.grand_total || booking.accommodation_price || 0),
+                vatRate: 0
+            }]
+        }];
+        
+        console.log(`[Manual Push] Pushing booking ${bookingId} to Beds24 room ${beds24RoomId}:`, JSON.stringify(beds24Booking));
+        
+        const beds24Response = await axios.post('https://beds24.com/api/v2/bookings', beds24Booking, {
+            headers: { 'token': accessToken, 'Content-Type': 'application/json' }
+        });
+        
+        console.log(`[Manual Push] Beds24 response:`, JSON.stringify(beds24Response.data));
+        
+        if (beds24Response.data?.[0]?.success) {
+            const beds24Id = beds24Response.data[0]?.new?.id;
+            if (beds24Id) {
+                await pool.query(`UPDATE bookings SET beds24_booking_id = $1 WHERE id = $2`, [beds24Id, bookingId]);
+            }
+            res.json({
+                success: true,
+                beds24_booking_id: beds24Id,
+                beds24_room_id: beds24RoomId,
+                message: `Booking ${bookingId} pushed to Beds24 as ${beds24Id}`
+            });
+        } else {
+            res.json({
+                success: false,
+                error: 'Beds24 API returned failure',
+                beds24_response: beds24Response.data
+            });
+        }
+    } catch (error) {
+        console.error('[Manual Push] Error:', error.response?.data || error.message);
+        res.json({ success: false, error: error.message, details: error.response?.data });
+    }
+});
+
     try {
         const { property_id, amount, currency: reqCurrency, booking_data } = req.body;
         
@@ -27794,7 +27925,6 @@ app.get('/api/calry/test-properties/:integrationAccountId', async (req, res) => 
   
   try {
     const { integrationAccountId } = req.params;
-    const { page, limit, status } = req.query;
     
     if (!CALRY_API_TOKEN || !CALRY_WORKSPACE_ID) {
       return res.json({ 
@@ -27805,48 +27935,26 @@ app.get('/api/calry/test-properties/:integrationAccountId', async (req, res) => 
     
     console.log('Fetching properties for integration account:', integrationAccountId);
     
-    // Build params - try pagination if Calry supports it
-    const params = {};
-    if (page) params.page = page;
-    if (limit) params.limit = limit;
-    if (status) params.status = status;
-    
     const response = await axios.get(`${CALRY_API_BASE}/properties`, {
       headers: {
         'Authorization': `Bearer ${CALRY_API_TOKEN}`,
         'workspaceId': CALRY_WORKSPACE_ID,
         'integrationAccountId': integrationAccountId,
         'Content-Type': 'application/json'
-      },
-      params: Object.keys(params).length > 0 ? params : undefined
+      }
     });
     
     const properties = response.data?.data || [];
     
-    // Log full response structure for debugging
-    const responseKeys = Object.keys(response.data || {});
-    console.log(`Found ${properties.length} properties. Response keys: ${responseKeys.join(', ')}`);
-    
-    // Check for pagination metadata
-    const pagination = response.data?.pagination || response.data?.meta || response.data?.paging || null;
-    const total = response.data?.total || response.data?.totalCount || response.data?.count || properties.length;
-    
-    if (pagination) {
-      console.log('Pagination data:', JSON.stringify(pagination));
-    }
+    console.log(`Found ${properties.length} properties`);
     
     res.json({ 
       success: true,
       integrationAccountId,
       count: properties.length,
-      total: total,
-      response_keys: responseKeys,
-      pagination: pagination,
       properties: properties.map(p => ({
         id: p.id,
-        externalId: p.externalId,
         name: p.name,
-        internalName: p.internalName,
         type: p.type,
         status: p.status,
         city: p.address?.city,
@@ -27854,7 +27962,7 @@ app.get('/api/calry/test-properties/:integrationAccountId', async (req, res) => 
         currency: p.currency,
         roomTypes: p.roomTypes?.length || 0
       })),
-      raw: properties
+      raw: properties // Include raw data for debugging
     });
     
   } catch (error) {
@@ -27963,418 +28071,6 @@ app.get('/api/calry/test-integration-accounts', async (req, res) => {
 });
 
 // =========================================================
-// =========================================================
-// HOSTFULLY DIRECT API - Test endpoints bypassing Calry
-// =========================================================
-
-const HOSTFULLY_API_KEY = 'tBLCKrpvZ8mIiNzH';
-const HOSTFULLY_API_BASE = 'https://platform.hostfully.com/api/v3';
-
-// GET /api/hostfully/test-agencies - Find the agencyUid for this API key
-app.get('/api/hostfully/test-agencies', async (req, res) => {
-  console.log('=== HOSTFULLY DIRECT: GET AGENCIES ===');
-  
-  try {
-    const response = await axios.get(`${HOSTFULLY_API_BASE}/agencies`, {
-      headers: {
-        'X-HOSTFULLY-APIKEY': HOSTFULLY_API_KEY,
-        'Content-Type': 'application/json'
-      },
-      timeout: 30000
-    });
-    
-    res.json({ success: true, data: response.data });
-    
-  } catch (error) {
-    // Try v2 as fallback
-    try {
-      const v2Response = await axios.get('https://platform.hostfully.com/api/v2/agencies', {
-        headers: {
-          'X-HOSTFULLY-APIKEY': HOSTFULLY_API_KEY,
-          'Content-Type': 'application/json'
-        },
-        timeout: 30000
-      });
-      res.json({ success: true, source: 'v2', data: v2Response.data });
-    } catch (v2Error) {
-      res.json({
-        success: false,
-        v3_error: { message: error.response?.data?.message || error.message, status: error.response?.status, details: error.response?.data },
-        v2_error: { message: v2Error.response?.data?.message || v2Error.message, status: v2Error.response?.status, details: v2Error.response?.data }
-      });
-    }
-  }
-});
-
-// GET /api/hostfully/test-properties - Fetch all properties directly from Hostfully
-app.get('/api/hostfully/test-properties', async (req, res) => {
-  console.log('=== HOSTFULLY DIRECT: GET PROPERTIES ===');
-  
-  try {
-    const allProperties = [];
-    let cursor = null;
-    let page = 0;
-    
-    do {
-      const params = { limit: 50, agencyUid: req.query.agencyUid || 'aa631fe9-4f0d-4629-ad0d-f6c766e0b013' };
-      if (cursor) params.cursor = cursor;
-      
-      const response = await axios.get(`${HOSTFULLY_API_BASE}/properties`, {
-        headers: {
-          'X-HOSTFULLY-APIKEY': HOSTFULLY_API_KEY,
-          'Content-Type': 'application/json'
-        },
-        params,
-        timeout: 30000
-      });
-      
-      const data = response.data;
-      const properties = Array.isArray(data) ? data : (data.properties || data.data || data.content || []);
-      
-      if (page === 0) {
-        console.log(`Hostfully response type: ${typeof data}, isArray: ${Array.isArray(data)}, keys: ${typeof data === 'object' && !Array.isArray(data) ? Object.keys(data).join(', ') : 'N/A'}`);
-        console.log(`Rate limit remaining: ${response.headers['x-ratelimit-remaining'] || 'unknown'}`);
-      }
-      
-      allProperties.push(...properties);
-      
-      // Handle cursor-based pagination (V3)
-      cursor = data.nextCursor || data.cursor || null;
-      // Also handle if no pagination at all
-      if (!cursor && properties.length < 50) cursor = null;
-      
-      page++;
-      console.log(`  Page ${page}: ${properties.length} properties${cursor ? ', has next cursor' : ''}`);
-      
-    } while (cursor && page < 10);
-    
-    console.log(`Total: ${allProperties.length} properties from Hostfully`);
-    
-    res.json({
-      success: true,
-      count: allProperties.length,
-      properties: allProperties.map(p => ({
-        uid: p.uid || p.UID || p.id,
-        name: p.name,
-        type: p.propertyType,
-        listingType: p.listingType,
-        isActive: p.isActive,
-        isLive: p.isLive,
-        parentUid: p.parentUid || p.parentUID || null,
-        city: p.address?.city,
-        country: p.address?.countryCode,
-        bedrooms: p.bedrooms,
-        bathrooms: p.bathrooms,
-        maxGuests: p.availability?.maxGuests || p.maxGuests,
-        currency: p.currency
-      })),
-      raw: allProperties
-    });
-    
-  } catch (error) {
-    console.error('Hostfully direct API error:', error.response?.data || error.message);
-    res.json({
-      success: false,
-      error: error.response?.data?.message || error.message,
-      status: error.response?.status,
-      details: error.response?.data
-    });
-  }
-});
-
-// GET /api/hostfully/test-property/:uid - Get single property detail
-app.get('/api/hostfully/test-property/:uid', async (req, res) => {
-  console.log('=== HOSTFULLY DIRECT: GET PROPERTY DETAIL ===');
-  
-  try {
-    const response = await axios.get(`${HOSTFULLY_API_BASE}/properties/${req.params.uid}`, {
-      headers: {
-        'X-HOSTFULLY-APIKEY': HOSTFULLY_API_KEY,
-        'Content-Type': 'application/json'
-      },
-      timeout: 30000
-    });
-    
-    res.json({ success: true, property: response.data });
-    
-  } catch (error) {
-    console.error('Hostfully property detail error:', error.response?.data || error.message);
-    res.json({
-      success: false,
-      error: error.response?.data?.message || error.message,
-      status: error.response?.status
-    });
-  }
-});
-
-// =====================================================
-// HOSTFULLY ADAPTER - Import & Sync Endpoints
-// =====================================================
-
-// POST /api/hostfully/import - Import all properties using the Hostfully adapter
-app.post('/api/hostfully/import', async (req, res) => {
-  console.log('=== HOSTFULLY ADAPTER: IMPORT PROPERTIES ===');
-  
-  if (!HostfullyAdapter) {
-    return res.json({ success: false, error: 'Hostfully adapter not loaded' });
-  }
-  
-  try {
-    const { 
-      accountId,     // Existing GAS account ID (optional)
-      accountName,   // Name for new account (optional)
-      bookableOnly   // Only import SUB_UNIT properties (default true)
-    } = req.body;
-    
-    const adapter = new HostfullyAdapter({
-      apiKey: HOSTFULLY_API_KEY,
-      agencyUid: 'aa631fe9-4f0d-4629-ad0d-f6c766e0b013',
-      pool: pool,
-      connectionId: null // Will be set after connection created
-    });
-    
-    // 1. Fetch all properties
-    console.log('Fetching properties from Hostfully...');
-    const allResult = await adapter.getProperties();
-    if (!allResult.success) {
-      return res.json({ success: false, error: allResult.error });
-    }
-    
-    const allProperties = allResult.data;
-    console.log(`Found ${allProperties.length} total properties`);
-    
-    // Separate parents and bookable sub-units
-    const parents = allProperties.filter(p => p.businessType === 'STANDALONE_PROPERTY' || p.businessType === 'MULTI_UNIT');
-    const subUnits = allProperties.filter(p => p.businessType === 'SUB_UNIT');
-    const importList = (bookableOnly !== false) ? subUnits : allProperties;
-    
-    console.log(`Parents: ${parents.length}, Sub-units: ${subUnits.length}, Importing: ${importList.length}`);
-    
-    // 2. Get or create GAS account
-    let gasAccountId = accountId;
-    
-    if (gasAccountId) {
-      const check = await pool.query('SELECT id, name FROM accounts WHERE id = $1', [gasAccountId]);
-      if (check.rows.length === 0) {
-        return res.json({ success: false, error: `Account ${gasAccountId} not found` });
-      }
-      console.log(`Using existing account: ${gasAccountId} (${check.rows[0].name})`);
-    } else {
-      // Check for existing Hostfully account
-      const existing = await pool.query(
-        "SELECT id, name FROM accounts WHERE settings->>'cm_source' = 'hostfully'"
-      );
-      if (existing.rows.length > 0) {
-        gasAccountId = existing.rows[0].id;
-        console.log(`Found existing Hostfully account: ${gasAccountId}`);
-      } else {
-        const name = accountName || 'Mountain Holidays (Hostfully)';
-        const result = await pool.query(`
-          INSERT INTO accounts (name, email, role, status, settings, created_at)
-          VALUES ($1, $2, 'admin', 'active', $3, NOW()) RETURNING id
-        `, [name, 'hostfully-import@gas.travel', JSON.stringify({ cm_source: 'hostfully' })]);
-        gasAccountId = result.rows[0].id;
-        console.log(`Created account: ${gasAccountId}`);
-      }
-    }
-    
-    // 3. Get or create gas_sync_connection
-    const existingConn = await pool.query(
-      "SELECT id FROM gas_sync_connections WHERE account_id = $1 AND adapter_code = 'hostfully'",
-      [gasAccountId]
-    );
-    
-    let connectionId;
-    if (existingConn.rows.length > 0) {
-      connectionId = existingConn.rows[0].id;
-      console.log(`Using existing connection: ${connectionId}`);
-    } else {
-      const connResult = await pool.query(`
-        INSERT INTO gas_sync_connections (
-          account_id, adapter_code, external_account_id, external_account_name,
-          credentials, status, sync_enabled, created_at
-        ) VALUES ($1, 'hostfully', $2, $3, $4, 'connected', true, NOW()) RETURNING id
-      `, [
-        gasAccountId,
-        'aa631fe9-4f0d-4629-ad0d-f6c766e0b013',
-        'Mountain Holidays (Hostfully Direct)',
-        JSON.stringify({ apiKey: '***', agencyUid: 'aa631fe9-4f0d-4629-ad0d-f6c766e0b013' })
-      ]);
-      connectionId = connResult.rows[0].id;
-      console.log(`Created connection: ${connectionId}`);
-    }
-    
-    adapter.connectionId = connectionId;
-    
-    // 4. Import each property
-    const results = {
-      gas_account_id: gasAccountId,
-      gas_connection_id: connectionId,
-      properties_imported: 0,
-      rooms_imported: 0,
-      parents_found: parents.length,
-      sub_units_found: subUnits.length,
-      properties: [],
-      errors: []
-    };
-    
-    for (const property of importList) {
-      try {
-        console.log(`\nImporting: ${property.name} (${property.externalId}) [${property.businessType}]`);
-        
-        // Fetch photos
-        let images = [];
-        try {
-          const photosResult = await adapter.getPhotos(property.externalId);
-          if (photosResult.success) {
-            images = photosResult.data;
-            console.log(`  Photos: ${images.length}`);
-          }
-        } catch (photoErr) {
-          console.log(`  Photos error: ${photoErr.message}`);
-        }
-        
-        // Fetch amenities
-        let amenities = [];
-        try {
-          const amenResult = await adapter.getAmenities(property.externalId);
-          if (amenResult.success) {
-            amenities = amenResult.data;
-            console.log(`  Amenities: ${amenities.length}`);
-          }
-        } catch (amenErr) {
-          console.log(`  Amenities error: ${amenErr.message}`);
-        }
-        
-        // Sync property to staging
-        const syncPropId = await adapter.syncPropertyToDatabase(property);
-        console.log(`  Synced to staging: ${syncPropId}`);
-        
-        // Sync as room type (in Hostfully each property = 1 room type)
-        const syncRoomId = await adapter.syncRoomTypeToDatabase(syncPropId, property);
-        console.log(`  Room type synced: ${syncRoomId}`);
-        
-        results.properties_imported++;
-        results.rooms_imported++;
-        results.properties.push({
-          name: property.name,
-          uid: property.externalId,
-          businessType: property.businessType,
-          syncPropId,
-          syncRoomId,
-          photos: images.length,
-          amenities: amenities.length
-        });
-        
-      } catch (propErr) {
-        console.error(`  Error importing ${property.name}:`, propErr.message);
-        results.errors.push({ name: property.name, uid: property.externalId, error: propErr.message });
-      }
-    }
-    
-    // 5. Store parent/child hierarchy metadata on the connection
-    const hierarchyMeta = {};
-    for (const parent of parents) {
-      const children = subUnits.filter(s => {
-        // Match children to parents by address
-        return s.address?.street === parent.address?.street && 
-               s.address?.city === parent.address?.city;
-      });
-      hierarchyMeta[parent.externalId] = {
-        name: parent.name,
-        children: children.map(c => ({ uid: c.externalId, name: c.name }))
-      };
-    }
-    
-    await pool.query(
-      "UPDATE gas_sync_connections SET settings = COALESCE(settings, '{}')::jsonb || $1::jsonb WHERE id = $2",
-      [JSON.stringify({ property_hierarchy: hierarchyMeta }), connectionId]
-    );
-    
-    results.hierarchy = hierarchyMeta;
-    
-    console.log(`\n=== IMPORT COMPLETE: ${results.properties_imported} properties, ${results.rooms_imported} rooms ===`);
-    res.json({ success: true, ...results });
-    
-  } catch (error) {
-    console.error('Hostfully import error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// GET /api/hostfully/hierarchy - View property parent/child structure
-app.get('/api/hostfully/hierarchy', async (req, res) => {
-  console.log('=== HOSTFULLY: PROPERTY HIERARCHY ===');
-  
-  if (!HostfullyAdapter) {
-    return res.json({ success: false, error: 'Hostfully adapter not loaded' });
-  }
-  
-  try {
-    const adapter = new HostfullyAdapter({
-      apiKey: HOSTFULLY_API_KEY,
-      agencyUid: 'aa631fe9-4f0d-4629-ad0d-f6c766e0b013'
-    });
-    
-    const result = await adapter.getPropertyHierarchy();
-    res.json(result);
-    
-  } catch (error) {
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// GET /api/hostfully/calendar/:uid - Get property calendar (availability + pricing)
-app.get('/api/hostfully/calendar/:uid', async (req, res) => {
-  console.log('=== HOSTFULLY: PROPERTY CALENDAR ===');
-  
-  if (!HostfullyAdapter) {
-    return res.json({ success: false, error: 'Hostfully adapter not loaded' });
-  }
-  
-  try {
-    const adapter = new HostfullyAdapter({
-      apiKey: HOSTFULLY_API_KEY,
-      agencyUid: 'aa631fe9-4f0d-4629-ad0d-f6c766e0b013'
-    });
-    
-    const { startDate, endDate } = req.query;
-    const result = await adapter.getPropertyCalendar(req.params.uid, startDate, endDate);
-    res.json(result);
-    
-  } catch (error) {
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// GET /api/hostfully/leads - Get bookings/reservations
-app.get('/api/hostfully/leads', async (req, res) => {
-  console.log('=== HOSTFULLY: GET LEADS ===');
-  
-  if (!HostfullyAdapter) {
-    return res.json({ success: false, error: 'Hostfully adapter not loaded' });
-  }
-  
-  try {
-    const adapter = new HostfullyAdapter({
-      apiKey: HOSTFULLY_API_KEY,
-      agencyUid: 'aa631fe9-4f0d-4629-ad0d-f6c766e0b013'
-    });
-    
-    const result = await adapter.getLeads({
-      propertyUid: req.query.propertyUid,
-      status: req.query.status,
-      checkInFrom: req.query.checkInFrom,
-      checkInTo: req.query.checkInTo,
-      limit: req.query.limit || 50
-    });
-    res.json(result);
-    
-  } catch (error) {
-    res.json({ success: false, error: error.message });
-  }
-});
-
 // CALRY IMPORT - Import properties from Calry into GAS
 // =========================================================
 
@@ -29419,20 +29115,15 @@ async function importCalryPropertiesViaAdapter(integrationAccountId, pmsName, ex
       useDev: false
     });
     
-    console.log('Fetching properties via adapter (with auto-pagination)...');
+    console.log('Fetching properties via adapter...');
     const propertiesResult = await adapter.getProperties();
     
     if (!propertiesResult.success) {
       throw new Error(`Failed to fetch properties: ${propertiesResult.error}`);
     }
     
-    let properties = propertiesResult.data || [];
-    console.log(`Found ${properties.length} properties from ${pmsName} (pagination: ${JSON.stringify(propertiesResult.pagination || {})})`);
-    
-    // Log property names and statuses for debugging
-    if (properties.length > 0 && properties.length <= 20) {
-      properties.forEach(p => console.log(`  - ${p.name} (${p.externalId}) status=${p.status} type=${p.propertyType}`));
-    }
+    const properties = propertiesResult.data || [];
+    console.log(`Found ${properties.length} properties from ${pmsName}`);
     
     if (properties.length === 0) {
       results.errors.push('No properties found');
