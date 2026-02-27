@@ -2239,6 +2239,10 @@
                                         <input type="checkbox" value="pt" class="settings-lang-checkbox">
                                         <span>🇵🇹 Português</span>
                                     </label>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; padding: 0.5rem 0.75rem; border: 1px solid #e2e8f0; border-radius: 8px;">
+                                        <input type="checkbox" value="ja" class="settings-lang-checkbox">
+                                        <span>🇯🇵 日本語</span>
+                                    </label>
                                 </div>
                                 <small style="color: #64748b; display: block; margin-top: 0.5rem;">English is always enabled. Select additional languages for translations.</small>
                             </div>
@@ -10503,6 +10507,10 @@
                                     <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
                                         <input type="checkbox" value="pt" class="supported-lang-checkbox">
                                         <span>🇵🇹 PT</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="checkbox" value="ja" class="supported-lang-checkbox">
+                                        <span>🇯🇵 JA</span>
                                     </label>
                                 </div>
                                 <small style="color: #64748b; display: block; margin-top: 0.5rem;">Select languages your guests can view your site in</small>
@@ -42704,7 +42712,8 @@ const promo = await fetch('/api/v1/offers/validate', {
             de: { flag: '🇩🇪', name: 'DE' },
             nl: { flag: '🇳🇱', name: 'NL' },
             it: { flag: '🇮🇹', name: 'IT' },
-            pt: { flag: '🇵🇹', name: 'PT' }
+            pt: { flag: '🇵🇹', name: 'PT' },
+            ja: { flag: '🇯🇵', name: 'JA' }
         };
 
         // Get account languages (fallback to en if not set)
