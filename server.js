@@ -6636,6 +6636,143 @@ app.post('/api/gas-sync/connections/:connectionId/full-sync', async (req, res) =
 });
 
 // =====================================================
+// HOSTFULLY BOOKINGS/LEADS SYNC
+// =====================================================
+app.post('/api/gas-sync/connections/:connectionId/sync-bookings', async (req, res) => {
+  try {
+    const { connectionId } = req.params;
+    const conn = await pool.query('SELECT * FROM gas_sync_connections WHERE id = $1', [connectionId]);
+    if (conn.rows.length === 0) return res.json({ success: false, error: 'Connection not found' });
+    const connection = conn.rows[0];
+
+    if (connection.adapter_code !== 'hostfully') {
+      return res.json({ success: false, error: 'Only Hostfully connections supported' });
+    }
+
+    const creds = typeof connection.credentials === 'string' ? JSON.parse(connection.credentials || '{}') : (connection.credentials || {});
+    const apiKey = creds.apiKey || connection.api_key;
+    const agencyUid = creds.agencyUid;
+    if (!apiKey || !agencyUid) return res.json({ success: false, error: 'Missing Hostfully credentials' });
+
+    // Build property UID -> GAS room mapping
+    const roomMap = await pool.query(`
+      SELECT rt.external_id as property_uid, rt.gas_room_id, bu.property_id, bu.name as room_name, p.user_id as owner_id
+      FROM gas_sync_room_types rt
+      JOIN gas_sync_properties sp ON rt.sync_property_id = sp.id
+      JOIN bookable_units bu ON rt.gas_room_id = bu.id
+      JOIN properties p ON bu.property_id = p.id
+      WHERE sp.connection_id = $1 AND rt.gas_room_id IS NOT NULL
+    `, [connectionId]);
+    const uidToRoom = {};
+    roomMap.rows.forEach(r => { uidToRoom[r.property_uid] = r; });
+
+    // Get account ID
+    const accountId = connection.account_id;
+
+    // Fetch leads from Hostfully
+    const leadsRes = await fetch(`https://platform.hostfully.com/api/v3/leads?agencyUid=${agencyUid}&limit=100`, {
+      headers: { 'X-HOSTFULLY-APIKEY': apiKey }
+    });
+    const leadsData = await leadsRes.json();
+    const leads = leadsData.leads || [];
+
+    let created = 0, updated = 0, skipped = 0;
+    const statusMap = {
+      'BOOKED': 'confirmed', 'BLOCKED': 'blocked', 'NEW': 'pending',
+      'INQUIRY': 'inquiry', 'BOOKING_REQUEST': 'pending',
+      'DECLINED': 'cancelled', 'CLOSED': 'cancelled', 'CANCELLED': 'cancelled'
+    };
+    const channelMap = {
+      'AIRBNB': 'Airbnb', 'BOOKING_COM': 'Booking.com', 'VRBO': 'VRBO',
+      'HOSTFULLY': 'Hostfully', 'DIRECT': 'Direct'
+    };
+
+    for (const lead of leads) {
+      const room = uidToRoom[lead.propertyUid];
+      if (!room) { skipped++; continue; }
+
+      // Skip blocks — they're handled by availability sync
+      if (lead.type === 'BLOCK') { skipped++; continue; }
+
+      const guest = lead.guestInformation || {};
+      const gasStatus = statusMap[lead.status] || 'pending';
+      const checkIn = lead.checkInLocalDateTime ? lead.checkInLocalDateTime.split('T')[0] : null;
+      const checkOut = lead.checkOutLocalDateTime ? lead.checkOutLocalDateTime.split('T')[0] : null;
+      if (!checkIn || !checkOut) { skipped++; continue; }
+
+      const nights = Math.round((new Date(checkOut) - new Date(checkIn)) / 86400000);
+
+      // Upsert by external booking ID
+      const existing = await pool.query(
+        `SELECT id FROM bookings WHERE api_reference = $1 AND booking_source = 'hostfully'`,
+        [lead.uid]
+      );
+
+      if (existing.rows.length > 0) {
+        await pool.query(`
+          UPDATE bookings SET
+            status = $1, guest_first_name = $2, guest_last_name = $3,
+            guest_email = $4, guest_phone = $5, guest_mobile = $6,
+            num_adults = $7, num_children = $8, num_infants = $9,
+            guest_address = $10, guest_city = $11, guest_postcode = $12,
+            guest_country_code = $13, notes = $14, channel = $15,
+            updated_at = NOW()
+          WHERE id = $16
+        `, [
+          gasStatus, guest.firstName || '', guest.lastName || '',
+          guest.email || '', guest.phoneNumber || '', guest.cellPhoneNumber || '',
+          guest.adultCount || 1, guest.childrenCount || 0, guest.infantCount || 0,
+          guest.address1 || '', guest.city || '', guest.zipCode || '',
+          guest.countryCode || '', lead.notes || '', channelMap[lead.channel] || lead.channel || '',
+          existing.rows[0].id
+        ]);
+        updated++;
+      } else if (gasStatus !== 'cancelled') {
+        await pool.query(`
+          INSERT INTO bookings (
+            property_id, bookable_unit_id, property_owner_id, arrival_date, departure_date,
+            accommodation_price, subtotal, grand_total,
+            guest_first_name, guest_last_name, guest_email, guest_phone, guest_mobile,
+            guest_address, guest_city, guest_postcode, guest_country_code,
+            num_adults, num_children, num_infants,
+            status, booking_source, channel, api_source, api_reference,
+            confirmation_code, notes, language,
+            booking_time, created_at, updated_at
+          ) VALUES (
+            $1, $2, $3, $4, $5,
+            0, 0, 0,
+            $6, $7, $8, $9, $10,
+            $11, $12, $13, $14,
+            $15, $16, $17,
+            $18, 'hostfully', $19, 'hostfully', $20,
+            $21, $22, $23,
+            $24, NOW(), NOW()
+          )
+        `, [
+          room.property_id, room.gas_room_id, room.owner_id || 1, checkIn, checkOut,
+          guest.firstName || 'Guest', guest.lastName || '', guest.email || '', guest.phoneNumber || '', guest.cellPhoneNumber || '',
+          guest.address1 || '', guest.city || '', guest.zipCode || '', guest.countryCode || '',
+          guest.adultCount || 1, guest.childrenCount || 0, guest.infantCount || 0,
+          gasStatus, channelMap[lead.channel] || lead.channel || '', lead.uid,
+          lead.externalBookingId || '', lead.notes || '', guest.preferredLocale || '',
+          lead.bookedUtcDateTime ? new Date(lead.bookedUtcDateTime) : new Date()
+        ]);
+        created++;
+      }
+    }
+
+    res.json({
+      success: true,
+      message: 'Hostfully bookings sync complete',
+      stats: { totalLeads: leads.length, created, updated, skipped }
+    });
+  } catch (error) {
+    console.error('Hostfully bookings sync error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
 // PROPERTY-LEVEL SYNC ENDPOINTS (Client Facing)
 // These allow clients to sync individual properties
 // Rate limited to once per hour per property
