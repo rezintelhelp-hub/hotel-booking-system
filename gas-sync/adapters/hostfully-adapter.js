@@ -1336,7 +1336,7 @@ class HostfullyAdapter {
   }
   
   /**
-   * Sync availability/calendar data to room_calendar table
+   * Sync availability/calendar data to room_availability table
    */
   async syncCalendarToDatabase(propertyExternalId, calendarData) {
     if (!this.pool || !this.connectionId) return;
@@ -1376,34 +1376,35 @@ class HostfullyAdapter {
       
       for (const day of calendarData) {
         try {
+          const price = day.price || null;
+          const isAvailable = day.isAvailable === true && day.status !== 'BLOCKED' && day.status !== 'BOOKED';
+          const minStay = day.minStay || 1;
+          const maxStay = day.maxStay || null;
+
           await this.pool.query(`
-            INSERT INTO room_calendar (
-              room_id, date, price, currency,
-              available, min_stay, max_stay,
-              closed_to_arrival, closed_to_departure,
-              status, updated_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
+            INSERT INTO room_availability (
+              room_id, date, cm_price, direct_price,
+              is_available, is_blocked, min_stay, cm_min_stay, max_stay,
+              source, updated_at
+            ) VALUES ($1, $2, $3, $3, $4, $5, $6, $6, $7, 'hostfully', NOW())
             ON CONFLICT (room_id, date) DO UPDATE SET
-              price = COALESCE(EXCLUDED.price, room_calendar.price),
-              currency = COALESCE(EXCLUDED.currency, room_calendar.currency),
-              available = EXCLUDED.available,
-              min_stay = COALESCE(EXCLUDED.min_stay, room_calendar.min_stay),
-              max_stay = COALESCE(EXCLUDED.max_stay, room_calendar.max_stay),
-              closed_to_arrival = EXCLUDED.closed_to_arrival,
-              closed_to_departure = EXCLUDED.closed_to_departure,
-              status = EXCLUDED.status,
+              cm_price = COALESCE(EXCLUDED.cm_price, room_availability.cm_price),
+              direct_price = COALESCE(EXCLUDED.direct_price, room_availability.direct_price),
+              is_available = EXCLUDED.is_available,
+              is_blocked = EXCLUDED.is_blocked,
+              min_stay = EXCLUDED.min_stay,
+              cm_min_stay = EXCLUDED.cm_min_stay,
+              max_stay = EXCLUDED.max_stay,
+              source = 'hostfully',
               updated_at = NOW()
           `, [
             gasRoomId,
             day.date,
-            day.price || null,
-            day.currency || 'JPY',
-            day.isAvailable !== false,
-            day.minStay || 1,
-            day.maxStay || null,
-            day.checkInAllowed === false,
-            day.checkOutAllowed === false,
-            day.status || (day.isAvailable ? 'available' : 'blocked')
+            price,
+            isAvailable,
+            !isAvailable,
+            minStay,
+            maxStay
           ]);
           syncedCount++;
         } catch (dayErr) {

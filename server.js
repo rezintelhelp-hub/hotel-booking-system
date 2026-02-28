@@ -5938,11 +5938,120 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
         debug: debug
       });
     }
-    
+
+    // ===== HOSTFULLY AVAILABILITY SYNC =====
+    if (conn.adapter_code === 'hostfully') {
+      const credentials = typeof conn.credentials === 'string'
+        ? JSON.parse(conn.credentials || '{}')
+        : (conn.credentials || {});
+
+      const apiKey = credentials.apiKey;
+      const agencyUid = credentials.agencyUid;
+
+      if (!apiKey) {
+        return res.json({ success: false, error: 'Hostfully API key not found for this connection' });
+      }
+
+      const { HostfullyAdapter } = require('./gas-sync/adapters/hostfully-adapter');
+      const adapter = new HostfullyAdapter({ apiKey, agencyUid });
+
+      // Get all synced room types with linked GAS rooms
+      const roomTypes = await pool.query(`
+        SELECT rt.id, rt.external_id, rt.gas_room_id, rt.name
+        FROM gas_sync_room_types rt
+        JOIN gas_sync_properties sp ON rt.sync_property_id = sp.id
+        WHERE sp.connection_id = $1 AND rt.gas_room_id IS NOT NULL
+      `, [connectionId]);
+
+      if (roomTypes.rows.length === 0) {
+        return res.json({ success: false, error: 'No linked rooms found.' });
+      }
+
+      // Ensure room_availability table exists
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS room_availability (
+          id SERIAL PRIMARY KEY,
+          room_id INTEGER NOT NULL,
+          date DATE NOT NULL,
+          cm_price DECIMAL(10,2),
+          direct_price DECIMAL(10,2),
+          is_available BOOLEAN DEFAULT true,
+          is_blocked BOOLEAN DEFAULT false,
+          min_stay INTEGER DEFAULT 1,
+          cm_min_stay INTEGER,
+          max_stay INTEGER,
+          source VARCHAR(50),
+          created_at TIMESTAMP DEFAULT NOW(),
+          updated_at TIMESTAMP DEFAULT NOW(),
+          UNIQUE(room_id, date)
+        )
+      `);
+
+      const today = new Date();
+      const startDate = today.toISOString().split('T')[0];
+      const endDate = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+      let totalDaysUpdated = 0;
+      let roomsSynced = 0;
+      const errors = [];
+
+      for (const room of roomTypes.rows) {
+        try {
+          const calendarResult = await adapter.getPropertyCalendar(room.external_id, startDate, endDate);
+
+          if (!calendarResult.success || !Array.isArray(calendarResult.data)) {
+            errors.push({ room: room.name, error: calendarResult.error || 'No calendar data returned' });
+            continue;
+          }
+
+          for (const day of calendarResult.data) {
+            if (!day.date) continue;
+
+            const price = day.price || null;
+            const isAvailable = day.isAvailable === true && day.status !== 'BLOCKED' && day.status !== 'BOOKED';
+            const minStay = day.minStay || 1;
+            const maxStay = day.maxStay || null;
+
+            await pool.query(`
+              INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, max_stay, source)
+              VALUES ($1, $2, $3, $3, $4, $5, $6, $6, $7, 'hostfully')
+              ON CONFLICT (room_id, date)
+              DO UPDATE SET
+                cm_price = COALESCE($3, room_availability.cm_price),
+                direct_price = COALESCE($3, room_availability.direct_price),
+                is_available = $4,
+                is_blocked = $5,
+                min_stay = $6,
+                cm_min_stay = $6,
+                max_stay = $7,
+                source = 'hostfully',
+                updated_at = NOW()
+            `, [room.gas_room_id, day.date, price, isAvailable, !isAvailable, minStay, maxStay]);
+
+            totalDaysUpdated++;
+          }
+          roomsSynced++;
+          console.log(`[Hostfully Sync] Room ${room.name}: ${calendarResult.data.length} calendar days synced`);
+        } catch (roomError) {
+          console.error(`[Hostfully Sync] Error for room ${room.name}:`, roomError.message);
+          errors.push({ room: room.name, error: roomError.message });
+        }
+      }
+
+      await pool.query('UPDATE gas_sync_connections SET last_sync_at = NOW() WHERE id = $1', [connectionId]);
+
+      return res.json({
+        success: true,
+        message: 'Hostfully availability sync complete',
+        stats: { roomsSynced, totalDaysUpdated, days },
+        errors: errors.length > 0 ? errors : undefined
+      });
+    }
+
     // ===== SMOOBU AVAILABILITY SYNC =====
     if (conn.adapter_code === 'smoobu') {
       const smoobuApiKey = conn.api_key || conn.access_token;
-      
+
       if (!smoobuApiKey) {
         return res.json({ success: false, error: 'Smoobu API key not found for this connection' });
       }
@@ -6083,7 +6192,7 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
     
     // ===== BEDS24 AVAILABILITY SYNC =====
     if (conn.adapter_code !== 'beds24') {
-      return res.json({ success: false, error: 'Only Beds24, Calry and Smoobu connections supported' });
+      return res.json({ success: false, error: 'Only Beds24, Calry, Hostfully and Smoobu connections supported' });
     }
     
     // Get access token - try stored token first, then refresh
@@ -6928,13 +7037,119 @@ app.post('/api/gas-sync/properties/:propertyId/sync-images', async (req, res) =>
     
     const prop = propResult.rows[0];
     
-    // Hostfully: photos API currently returns 0 — images need manual upload
+    // Hostfully: fetch photos via V3 API
     if (prop.adapter_code === 'hostfully') {
+      const credentials = typeof prop.credentials === 'string'
+        ? JSON.parse(prop.credentials || '{}')
+        : (prop.credentials || {});
+
+      let apiKey = credentials.apiKey;
+      let agencyUid = credentials.agencyUid;
+      if (!apiKey && prop.connection_id) {
+        const connRow = await pool.query('SELECT credentials FROM gas_sync_connections WHERE id = $1', [prop.connection_id]);
+        if (connRow.rows.length > 0) {
+          const connCreds = typeof connRow.rows[0].credentials === 'string' ? JSON.parse(connRow.rows[0].credentials) : connRow.rows[0].credentials;
+          apiKey = connCreds.apiKey;
+          agencyUid = connCreds.agencyUid;
+        }
+      }
+
+      if (!apiKey) {
+        return res.json({ success: false, error: 'Hostfully API key not found' });
+      }
+
+      const { HostfullyAdapter } = require('./gas-sync/adapters/hostfully-adapter');
+      const adapter = new HostfullyAdapter({ apiKey, agencyUid });
+
+      // Get all room types linked to this sync property
+      const roomTypes = await pool.query(`
+        SELECT rt.external_id, rt.gas_room_id FROM gas_sync_room_types rt
+        WHERE rt.sync_property_id = $1 AND rt.gas_room_id IS NOT NULL
+      `, [prop.id]);
+
+      let imagesSynced = 0;
+
+      // Fetch photos for each room type (Hostfully propertyUid = room type external_id)
+      for (const room of roomTypes.rows) {
+        try {
+          const photosResult = await adapter.getPhotos(room.external_id);
+          if (!photosResult.success || !photosResult.data.length) continue;
+
+          for (let i = 0; i < photosResult.data.length; i++) {
+            const photo = photosResult.data[i];
+            if (!photo.url) continue;
+
+            const externalId = photo.externalId || `hf_${room.external_id}_${i}`;
+
+            await pool.query(`
+              INSERT INTO gas_sync_images (connection_id, sync_property_id, external_id, original_url, thumbnail_url, caption, sort_order, image_type, room_type_external_id, synced_at)
+              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+              ON CONFLICT (connection_id, external_id) DO UPDATE SET
+                original_url = EXCLUDED.original_url,
+                thumbnail_url = EXCLUDED.thumbnail_url,
+                caption = EXCLUDED.caption,
+                sort_order = EXCLUDED.sort_order,
+                synced_at = NOW()
+            `, [
+              prop.connection_id,
+              prop.id,
+              externalId,
+              photo.url,
+              photo.thumbnailUrl || photo.url,
+              photo.caption || '',
+              photo.order || i,
+              'room',
+              room.external_id
+            ]);
+            imagesSynced++;
+          }
+        } catch (photoErr) {
+          console.log(`[Hostfully] Photo fetch error for ${room.external_id}:`, photoErr.message);
+        }
+      }
+
+      // Also fetch property-level photos using the Hostfully property external_id
+      try {
+        const propPhotos = await adapter.getPhotos(prop.external_id);
+        if (propPhotos.success && propPhotos.data.length) {
+          for (let i = 0; i < propPhotos.data.length; i++) {
+            const photo = propPhotos.data[i];
+            if (!photo.url) continue;
+
+            const externalId = photo.externalId || `hf_prop_${prop.external_id}_${i}`;
+
+            await pool.query(`
+              INSERT INTO gas_sync_images (connection_id, sync_property_id, external_id, original_url, thumbnail_url, caption, sort_order, image_type, synced_at)
+              VALUES ($1, $2, $3, $4, $5, $6, $7, 'property', NOW())
+              ON CONFLICT (connection_id, external_id) DO UPDATE SET
+                original_url = EXCLUDED.original_url,
+                thumbnail_url = EXCLUDED.thumbnail_url,
+                caption = EXCLUDED.caption,
+                sort_order = EXCLUDED.sort_order,
+                synced_at = NOW()
+            `, [
+              prop.connection_id,
+              prop.id,
+              externalId,
+              photo.url,
+              photo.thumbnailUrl || photo.url,
+              photo.caption || '',
+              photo.order || i
+            ]);
+            imagesSynced++;
+          }
+        }
+      } catch (propPhotoErr) {
+        console.log(`[Hostfully] Property photo fetch error:`, propPhotoErr.message);
+      }
+
+      await pool.query('UPDATE gas_sync_properties SET last_image_sync = NOW() WHERE id = $1', [prop.id]);
+
       return res.json({
         success: true,
-        message: 'Hostfully photos sync not yet available. Please upload images manually.',
         adapter: 'hostfully',
-        imagesSynced: 0
+        property: prop.name,
+        imagesSynced
       });
     }
     
