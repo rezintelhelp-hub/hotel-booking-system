@@ -58520,11 +58520,12 @@ async function calculateLocalQuote(pool, unit, checkin, checkout, guests, nights
     fees.push({ type: 'cleaning_fee', name: 'Cleaning Fee', amount: parseFloat(unit.cleaning_fee) });
   }
   
-  // Get fees from GAS fees table
+  // Get fees from GAS fees table - property-level (room_id IS NULL) or this specific room
   const feesResult = await pool.query(`
-    SELECT name, amount_type, amount, apply_per, is_tax 
-    FROM fees 
-    WHERE (property_id = $1 OR room_id = $2)
+    SELECT name, amount_type, amount, apply_per, is_tax
+    FROM fees
+    WHERE active = true
+      AND ((property_id = $1 AND room_id IS NULL) OR room_id = $2)
   `, [unit.property_id, unit.id]);
   
   for (const fee of feesResult.rows) {
@@ -58550,11 +58551,12 @@ async function calculateLocalQuote(pool, unit, checkin, checkout, guests, nights
     }
   }
   
-  // Get taxes from GAS taxes table
+  // Get taxes from GAS taxes table - property-level (room_id IS NULL) or this specific room
   const taxesResult = await pool.query(`
-    SELECT name, amount_type, amount, charge_per, max_nights 
-    FROM taxes 
-    WHERE (property_id = $1 OR room_id = $2)
+    SELECT name, amount_type, amount, charge_per, max_nights
+    FROM taxes
+    WHERE active = true
+      AND ((property_id = $1 AND room_id IS NULL) OR room_id = $2)
   `, [unit.property_id, unit.id]);
   
   for (const tax of taxesResult.rows) {
