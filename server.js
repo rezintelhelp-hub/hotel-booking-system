@@ -7379,6 +7379,54 @@ app.post('/api/gas-sync/properties/:propertyId/sync-images', async (req, res) =>
 });
 
 /**
+ * Sync content (descriptions, amenities, pricing) for ALL properties of a connection
+ */
+app.post('/api/gas-sync/connections/:connectionId/sync-content', async (req, res) => {
+  try {
+    const { connectionId } = req.params;
+
+    // Get all sync properties for this connection
+    const propsResult = await pool.query(
+      'SELECT id FROM gas_sync_properties WHERE connection_id = $1',
+      [connectionId]
+    );
+
+    if (propsResult.rows.length === 0) {
+      return res.json({ success: false, error: 'No properties found for this connection' });
+    }
+
+    let totalDescs = 0, totalAmens = 0, totalPricing = 0, totalProps = 0, errors = [];
+
+    for (const syncProp of propsResult.rows) {
+      try {
+        const result = await axios.post(`http://localhost:${process.env.PORT || 3000}/api/gas-sync/properties/${syncProp.id}/sync-content`, { force: true });
+        if (result.data?.success) {
+          totalDescs += result.data.descriptions || 0;
+          totalAmens += result.data.amenities || 0;
+          totalPricing += result.data.pricing || 0;
+          totalProps += result.data.propertiesUpdated || 0;
+        }
+      } catch (e) {
+        errors.push(`Property ${syncProp.id}: ${e.message}`);
+      }
+    }
+
+    res.json({
+      success: true,
+      syncProperties: propsResult.rows.length,
+      descriptions: totalDescs,
+      amenities: totalAmens,
+      pricing: totalPricing,
+      propertiesUpdated: totalProps,
+      errors: errors.length > 0 ? errors : undefined
+    });
+  } catch (error) {
+    console.error('[Connection Sync Content] Error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
  * Sync content (descriptions, amenities) for a SINGLE property
  */
 app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) => {
@@ -7418,13 +7466,17 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
       const { HostfullyAdapter } = require('./gas-sync/adapters/hostfully-adapter');
       const adapter = new HostfullyAdapter({ apiKey: credentials.apiKey, agencyUid: credentials.agencyUid });
       
-      // Get room types for this property
+      // Get room types for this property (include property_id for property-level updates)
       const roomTypes = await pool.query(
-        'SELECT rt.id, rt.external_id, rt.gas_room_id, rt.name FROM gas_sync_room_types rt WHERE rt.sync_property_id = $1 AND rt.gas_room_id IS NOT NULL',
+        `SELECT rt.id, rt.external_id, rt.gas_room_id, rt.name, bu.property_id
+         FROM gas_sync_room_types rt
+         JOIN bookable_units bu ON bu.id = rt.gas_room_id
+         WHERE rt.sync_property_id = $1 AND rt.gas_room_id IS NOT NULL`,
         [prop.id]
       );
-      
-      let descCount = 0, amenCount = 0;
+
+      let descCount = 0, amenCount = 0, pricingCount = 0;
+      const updatedPropertyIds = new Set();
       
       for (const room of roomTypes.rows) {
         // Descriptions
@@ -7470,8 +7522,64 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
             amenCount += amenResult.data.length;
           }
         } catch (e) { console.log(`[Content Sync HF] Amenity error ${room.name}: ${e.message}`); }
+
+        // Pricing & availability fields from property data
+        try {
+          const propResult = await adapter.getProperty(room.external_id);
+          if (propResult.success && propResult.data) {
+            const pd = propResult.data;
+
+            // Update bookable_units: pricing + capacity
+            await pool.query(`
+              UPDATE bookable_units SET
+                cleaning_fee = $1, security_deposit = $2, extra_adult_charge = $3,
+                base_price = $4, base_occupancy = $5, max_guests = $6,
+                currency = $7, updated_at = NOW()
+              WHERE id = $8
+            `, [
+              pd.cleaningFee || 0,
+              pd.securityDeposit || 0,
+              pd.extraGuestFee || 0,
+              pd.dailyRate || 0,
+              pd.baseGuests || 2,
+              pd.maxGuests || 0,
+              pd.currency || 'JPY',
+              room.gas_room_id
+            ]);
+
+            // Update properties: check-in/out times + currency (once per property)
+            if (room.property_id && !updatedPropertyIds.has(room.property_id)) {
+              const checkIn = pd.checkInTimeStart ? `${String(pd.checkInTimeStart).padStart(2, '0')}:00` : null;
+              const checkInEnd = pd.checkInTimeEnd ? `${String(pd.checkInTimeEnd).padStart(2, '0')}:00` : null;
+              const checkOut = pd.checkOutTime ? `${String(pd.checkOutTime).padStart(2, '0')}:00` : null;
+
+              await pool.query(`
+                UPDATE properties SET
+                  check_in_from = COALESCE($1, check_in_from),
+                  check_in_until = COALESCE($2, check_in_until),
+                  check_out_by = COALESCE($3, check_out_by),
+                  currency = COALESCE($4, currency),
+                  updated_at = NOW()
+                WHERE id = $5
+              `, [checkIn, checkInEnd, checkOut, pd.currency || null, room.property_id]);
+
+              // Update account vat_rate if taxRate is set
+              if (pd.taxRate > 0) {
+                const vatPercent = pd.taxRate < 1 ? pd.taxRate * 100 : pd.taxRate; // 0.10 → 10
+                await pool.query(`
+                  UPDATE accounts SET vat_rate = $1, vat_enabled = true WHERE id = (SELECT account_id FROM properties WHERE id = $2)
+                `, [vatPercent, room.property_id]);
+              }
+
+              updatedPropertyIds.add(room.property_id);
+            }
+
+            pricingCount++;
+            console.log(`[Content Sync HF] Pricing synced for ${room.name}: base=${pd.dailyRate} clean=${pd.cleaningFee} extra=${pd.extraGuestFee} deposit=${pd.securityDeposit}`);
+          }
+        } catch (e) { console.log(`[Content Sync HF] Pricing error ${room.name}: ${e.message}`); }
       }
-      
+
       // Update sync timestamp
       await pool.query('UPDATE gas_sync_properties SET last_content_sync = NOW() WHERE id = $1', [prop.id]);
       
@@ -7480,6 +7588,8 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
         adapter: 'hostfully',
         descriptions: descCount,
         amenities: amenCount,
+        pricing: pricingCount,
+        propertiesUpdated: updatedPropertyIds.size,
         rooms: roomTypes.rows.length
       });
     }

@@ -33998,9 +33998,18 @@ const promo = await fetch('/api/v1/offers/validate', {
                         bookingsCreated += bookResult.stats.created || 0;
                         bookingsUpdated += bookResult.stats.updated || 0;
                     }
+
+                    // Sync content (descriptions, amenities, pricing fields)
+                    btn.textContent = 'Syncing pricing & content...';
+                    const contentRes = await fetch(`/api/gas-sync/connections/${conn.id}/sync-content`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() }
+                    });
+                    const contentResult = await contentRes.json();
+                    var pricingCount = contentResult.pricing || 0;
                 }
 
-                alert(`Hostfully Sync complete!\n\nAvailability: ${totalRooms} rooms, ${totalDays} days\nBookings: ${bookingsCreated} new, ${bookingsUpdated} updated`);
+                alert(`Hostfully Sync complete!\n\nAvailability: ${totalRooms} rooms, ${totalDays} days\nBookings: ${bookingsCreated} new, ${bookingsUpdated} updated\nPricing: ${pricingCount} rooms updated`);
             } catch (error) {
                 alert(`Error: ${error.message}`);
             }
