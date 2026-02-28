@@ -75470,14 +75470,134 @@ async function syncAllHostawayAvailability() {
 
 function startHostawayAvailabilitySyncScheduler() {
   const DAY_MS = 24 * 60 * 60 * 1000;
-  
+
   // Run first sync 10 minutes after startup, then daily
   setTimeout(() => {
     syncAllHostawayAvailability();
     setInterval(syncAllHostawayAvailability, DAY_MS);
   }, 10 * 60 * 1000);
-  
+
   console.log('📅 Hostaway availability sync scheduled: daily for all connected accounts');
+}
+
+// Daily Hostfully availability sync - pulls full 365 days for all connected accounts
+async function syncAllHostfullyAvailability() {
+  console.log('📅 Starting daily Hostfully availability sync for all accounts...');
+
+  try {
+    const connections = await pool.query(`
+      SELECT gc.id, gc.account_id, gc.credentials
+      FROM gas_sync_connections gc
+      WHERE gc.adapter_code = 'hostfully' AND gc.sync_enabled = true AND gc.status = 'connected'
+    `);
+
+    if (connections.rows.length === 0) {
+      console.log('📅 No active Hostfully connections found');
+      return;
+    }
+
+    console.log(`📅 Found ${connections.rows.length} Hostfully connections to sync`);
+
+    for (const conn of connections.rows) {
+      try {
+        const credentials = typeof conn.credentials === 'string'
+          ? JSON.parse(conn.credentials || '{}')
+          : (conn.credentials || {});
+
+        const apiKey = credentials.apiKey;
+        const agencyUid = credentials.agencyUid;
+
+        if (!apiKey) {
+          console.log(`  ❌ No Hostfully API key for connection ${conn.id}`);
+          continue;
+        }
+
+        const { HostfullyAdapter } = require('./gas-sync/adapters/hostfully-adapter');
+        const adapter = new HostfullyAdapter({ apiKey, agencyUid });
+
+        // Get all linked room types for this connection
+        const roomTypes = await pool.query(`
+          SELECT rt.id, rt.external_id, rt.gas_room_id, rt.name
+          FROM gas_sync_room_types rt
+          JOIN gas_sync_properties sp ON rt.sync_property_id = sp.id
+          WHERE sp.connection_id = $1 AND rt.gas_room_id IS NOT NULL
+        `, [conn.id]);
+
+        if (roomTypes.rows.length === 0) {
+          console.log(`  ⚠️ No linked Hostfully rooms for connection ${conn.id}`);
+          continue;
+        }
+
+        const today = new Date().toISOString().split('T')[0];
+        const endDate = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        let totalDays = 0;
+
+        for (const room of roomTypes.rows) {
+          try {
+            await new Promise(resolve => setTimeout(resolve, 500)); // Rate limit
+
+            const calendarResult = await adapter.getPropertyCalendar(room.external_id, today, endDate);
+
+            if (!calendarResult.success || !Array.isArray(calendarResult.data)) {
+              console.error(`  ✗ ${room.name}: ${calendarResult.error || 'No calendar data'}`);
+              continue;
+            }
+
+            for (const day of calendarResult.data) {
+              if (!day.date) continue;
+
+              const price = day.price || null;
+              const isAvailable = day.isAvailable === true && !['BLOCKED', 'BOOKED', 'BOOKING', 'BLOCK'].includes(day.status);
+              const minStay = day.minStay || 1;
+              const maxStay = day.maxStay || null;
+
+              await pool.query(`
+                INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, max_stay, source, updated_at)
+                VALUES ($1, $2, $3, $3, $4, $5, $6, $6, $7, 'hostfully_daily_sync', NOW())
+                ON CONFLICT (room_id, date)
+                DO UPDATE SET
+                  cm_price = COALESCE($3, room_availability.cm_price),
+                  direct_price = COALESCE($3, room_availability.direct_price),
+                  is_available = $4,
+                  is_blocked = $5,
+                  min_stay = $6,
+                  cm_min_stay = $6,
+                  max_stay = $7,
+                  source = 'hostfully_daily_sync',
+                  updated_at = NOW()
+              `, [room.gas_room_id, day.date, price, isAvailable, !isAvailable, minStay, maxStay]);
+
+              totalDays++;
+            }
+            console.log(`  ✓ ${room.name}: ${calendarResult.data.length} days synced`);
+          } catch (roomError) {
+            console.error(`  ✗ Error syncing ${room.name}:`, roomError.message);
+          }
+        }
+
+        await pool.query('UPDATE gas_sync_connections SET last_sync_at = NOW() WHERE id = $1', [conn.id]);
+        console.log(`📅 Hostfully connection ${conn.id}: ${totalDays} availability records updated`);
+      } catch (connError) {
+        console.error(`📅 Error syncing Hostfully connection ${conn.id}:`, connError.message);
+      }
+    }
+
+    console.log('📅 Daily Hostfully availability sync complete');
+  } catch (error) {
+    console.error('📅 Hostfully availability sync error:', error.message);
+  }
+}
+
+function startHostfullyAvailabilitySyncScheduler() {
+  const DAY_MS = 24 * 60 * 60 * 1000;
+
+  // Run first sync 15 minutes after startup, then daily
+  setTimeout(() => {
+    syncAllHostfullyAvailability();
+    setInterval(syncAllHostfullyAvailability, DAY_MS);
+  }, 15 * 60 * 1000);
+
+  console.log('📅 Hostfully availability sync scheduled: daily for all connected accounts');
 }
 
 // Manual trigger endpoint for Hostaway availability sync
@@ -75485,6 +75605,16 @@ app.post('/api/cron/sync-hostaway-availability', async (req, res) => {
   try {
     await syncAllHostawayAvailability();
     res.json({ success: true, message: 'Hostaway availability sync triggered' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Manual trigger endpoint for Hostfully availability sync
+app.post('/api/cron/sync-hostfully-availability', async (req, res) => {
+  try {
+    await syncAllHostfullyAvailability();
+    res.json({ success: true, message: 'Hostfully availability sync triggered' });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -75535,6 +75665,9 @@ app.listen(PORT, '0.0.0.0', async () => {
   
   // Start daily Hostaway availability sync
   startHostawayAvailabilitySyncScheduler();
+
+  // Start daily Hostfully availability sync
+  startHostfullyAvailabilitySyncScheduler();
 });
 
 // =====================================================
