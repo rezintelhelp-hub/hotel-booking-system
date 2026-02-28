@@ -7712,9 +7712,11 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
               const amountType = fee.amountType === 'TAX' || fee.amountType === 'PERCENT' ? 'percentage' : 'fixed';
               const applyPer = fee.scope === 'PER_NIGHT' ? 'per_night' : fee.scope === 'PER_GUEST' ? 'per_guest' : 'per_booking';
 
+              // Tax-type fees are property-level (room_id NULL) to avoid duplicates across rooms
+              const feeRoomId = isTax ? null : room.gas_room_id;
               const existingFee = await pool.query(
-                'SELECT id FROM fees WHERE property_id = $1 AND room_id = $2 AND name = $3',
-                [room.property_id, room.gas_room_id, fee.name]
+                'SELECT id FROM fees WHERE property_id = $1 AND name = $3 AND (room_id = $2 OR (room_id IS NULL AND $2::int IS NULL))',
+                [room.property_id, feeRoomId, fee.name]
               );
               if (existingFee.rows.length > 0) {
                 await pool.query('UPDATE fees SET amount = $1, amount_type = $2, apply_per = $3, is_tax = $4, updated_at = NOW() WHERE id = $5',
@@ -7722,7 +7724,7 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
               } else {
                 await pool.query(
                   'INSERT INTO fees (property_id, room_id, name, amount_type, amount, apply_per, is_tax, active) VALUES ($1, $2, $3, $4, $5, $6, $7, true)',
-                  [room.property_id, room.gas_room_id, fee.name, amountType, fee.amount, applyPer, isTax]);
+                  [room.property_id, feeRoomId, fee.name, amountType, fee.amount, applyPer, isTax]);
               }
               feesCount++;
             }
@@ -57533,8 +57535,33 @@ app.post('/api/public/calculate-price', async (req, res) => {
       }
     }
     
+    // Get fees marked as tax from fees table
+    try {
+      const feesTaxResult = await pool.query(`
+        SELECT name, amount_type, amount, apply_per, is_tax
+        FROM fees
+        WHERE active = true
+          AND is_tax = true
+          AND (
+            (property_id = (SELECT property_id FROM bookable_units WHERE id = $1) AND room_id IS NULL)
+            OR room_id = $1
+          )
+      `, [unit_id]);
+
+      for (const fee of feesTaxResult.rows) {
+        taxes.rows.push({
+          name: fee.name,
+          amount_type: fee.amount_type,
+          amount: fee.amount,
+          charge_per: fee.apply_per
+        });
+      }
+    } catch (feeTaxError) {
+      console.log('Fee-tax query failed:', feeTaxError.message);
+    }
+
     const subtotalAfterDiscounts = accommodationTotal - discount - voucherDiscount + upsellsTotal;
-    
+
     taxes.rows.forEach(tax => {
       let taxAmount = 0;
       // Support both old (tax_type/rate) and new (amount_type/amount) column names
