@@ -7176,18 +7176,18 @@ app.post('/api/gas-sync/properties/:propertyId/sync-images', async (req, res) =>
     
     // Get property and connection info
     const propResult = await pool.query(`
-      SELECT sp.*, c.credentials, c.id as connection_id
+      SELECT sp.*, c.credentials, c.id as connection_id, c.adapter_code
       FROM gas_sync_properties sp
       JOIN gas_sync_connections c ON c.id = sp.connection_id
       WHERE sp.id = $1 OR sp.external_id = $2
     `, [propertyId, String(propertyId)]);
-    
+
     if (propResult.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Property not found' });
     }
-    
+
     const prop = propResult.rows[0];
-    
+
     // Hostfully: fetch photos via V3 API
     if (prop.adapter_code === 'hostfully') {
       const credentials = typeof prop.credentials === 'string'
