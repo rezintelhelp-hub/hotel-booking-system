@@ -5734,7 +5734,7 @@ app.post('/api/gas-sync/connections/:id/reconnect', async (req, res) => {
 app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req, res) => {
   try {
     const { connectionId } = req.params;
-    const { days = 14 } = req.body; // Default 14 days for speed
+    const { days = 365 } = req.body; // Default 365 days for full year coverage
     
     // Get connection
     const connResult = await pool.query(
@@ -60509,7 +60509,8 @@ app.get('/api/public/translations', (req, res) => {
 app.get('/api/public/client/:clientId/rooms', async (req, res) => {
   try {
     const { clientId } = req.params;
-    const { property_id, room_ids, limit, offset, random } = req.query;
+    const { property_id, room_ids, limit, offset, random, lang } = req.query;
+    const amenityLang = lang || 'en';
     
     // Pagination defaults
     const pageLimit = limit ? parseInt(limit) : null;  // null = no limit (all rooms)
@@ -60629,21 +60630,35 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
     // Get room IDs for amenities lookup
     const roomIds = result.rows.map(r => r.id);
     
-    // Fetch amenities for all rooms in one query
+    // Fetch amenities for all rooms from both tables with language support
     let amenitiesByRoom = {};
     if (roomIds.length > 0) {
       const amenitiesResult = await pool.query(`
-        SELECT 
-          bua.bookable_unit_id as room_id,
-          ma.amenity_code as code,
-          ma.amenity_name->>'en' as name,
-          ma.icon,
-          ma.category
-        FROM bookable_unit_amenities bua
-        JOIN master_amenities ma ON bua.amenity_id = ma.id
-        WHERE bua.bookable_unit_id = ANY($1::int[])
-        ORDER BY bua.display_order
-      `, [roomIds]);
+        SELECT DISTINCT ON (room_id, code) room_id, code, name, icon, category, display_order FROM (
+          SELECT
+            ras.room_id as room_id,
+            ma.amenity_code as code,
+            COALESCE(ma.amenity_name->>$2, ma.amenity_name->>'en') as name,
+            ma.icon,
+            ma.category,
+            ras.display_order
+          FROM room_amenity_selections ras
+          JOIN master_amenities ma ON ras.amenity_id = ma.id
+          WHERE ras.room_id = ANY($1::int[])
+          UNION ALL
+          SELECT
+            bua.bookable_unit_id as room_id,
+            ma.amenity_code as code,
+            COALESCE(ma.amenity_name->>$2, ma.amenity_name->>'en') as name,
+            ma.icon,
+            ma.category,
+            bua.display_order
+          FROM bookable_unit_amenities bua
+          JOIN master_amenities ma ON bua.amenity_id = ma.id
+          WHERE bua.bookable_unit_id = ANY($1::int[])
+        ) combined
+        ORDER BY room_id, code, display_order
+      `, [roomIds, amenityLang]);
       
       // Group amenities by room
       amenitiesResult.rows.forEach(a => {
