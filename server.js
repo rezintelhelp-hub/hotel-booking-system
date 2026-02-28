@@ -33145,8 +33145,8 @@ app.post('/api/hostfully/import-to-gas/:connectionId', async (req, res) => {
               latitude, longitude, cm_property_id, cm_source, currency,
               full_description, cancellation_policy,
               check_in_time, check_out_time, wifi_network, wifi_password,
-              created_at, updated_at
-            ) VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'hostfully', $12, $13, $14, $15, $16, $17, $18, NOW(), NOW())
+              status, created_at, updated_at
+            ) VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'hostfully', $12, $13, $14, $15, $16, $17, $18, 'active', NOW(), NOW())
             RETURNING id
           `, [
             accountId,
@@ -60741,47 +60741,47 @@ app.get('/api/public/client/:clientId/properties', async (req, res) => {
         -- Room count
         (SELECT COUNT(*) 
          FROM bookable_units bu 
-         WHERE bu.property_id = p.id AND bu.status = 'active'
+         WHERE bu.property_id = p.id AND bu.status IN ('active','available')
         ) as room_count,
-        
+
         -- Min price from active rooms (today's rate or base_price)
         (SELECT MIN(COALESCE(
-           (SELECT COALESCE(ra.standard_price, ra.cm_price) 
-            FROM room_availability ra 
-            WHERE ra.room_id = bu2.id AND ra.date = CURRENT_DATE 
+           (SELECT COALESCE(ra.standard_price, ra.cm_price)
+            FROM room_availability ra
+            WHERE ra.room_id = bu2.id AND ra.date = CURRENT_DATE
             LIMIT 1),
            bu2.base_price
          ))
-         FROM bookable_units bu2 
-         WHERE bu2.property_id = p.id AND bu2.status = 'active' AND bu2.base_price > 0
+         FROM bookable_units bu2
+         WHERE bu2.property_id = p.id AND bu2.status IN ('active','available') AND bu2.base_price > 0
         ) as min_price,
-        
+
         -- Max price
         (SELECT MAX(COALESCE(
-           (SELECT COALESCE(ra.standard_price, ra.cm_price) 
-            FROM room_availability ra 
-            WHERE ra.room_id = bu3.id AND ra.date = CURRENT_DATE 
+           (SELECT COALESCE(ra.standard_price, ra.cm_price)
+            FROM room_availability ra
+            WHERE ra.room_id = bu3.id AND ra.date = CURRENT_DATE
             LIMIT 1),
            bu3.base_price
          ))
-         FROM bookable_units bu3 
-         WHERE bu3.property_id = p.id AND bu3.status = 'active' AND bu3.base_price > 0
+         FROM bookable_units bu3
+         WHERE bu3.property_id = p.id AND bu3.status IN ('active','available') AND bu3.base_price > 0
         ) as max_price,
-        
+
         -- Bedroom range
-        (SELECT MIN(bu4.num_bedrooms) 
-         FROM bookable_units bu4 
-         WHERE bu4.property_id = p.id AND bu4.status = 'active' AND bu4.num_bedrooms > 0
+        (SELECT MIN(bu4.num_bedrooms)
+         FROM bookable_units bu4
+         WHERE bu4.property_id = p.id AND bu4.status IN ('active','available') AND bu4.num_bedrooms > 0
         ) as min_bedrooms,
-        (SELECT MAX(bu5.num_bedrooms) 
-         FROM bookable_units bu5 
-         WHERE bu5.property_id = p.id AND bu5.status = 'active' AND bu5.num_bedrooms > 0
+        (SELECT MAX(bu5.num_bedrooms)
+         FROM bookable_units bu5
+         WHERE bu5.property_id = p.id AND bu5.status IN ('active','available') AND bu5.num_bedrooms > 0
         ) as max_bedrooms,
-        
+
         -- Max guests
-        (SELECT MAX(COALESCE(bu6.max_guests, bu6.max_adults, 2)) 
-         FROM bookable_units bu6 
-         WHERE bu6.property_id = p.id AND bu6.status = 'active'
+        (SELECT MAX(COALESCE(bu6.max_guests, bu6.max_adults, 2))
+         FROM bookable_units bu6
+         WHERE bu6.property_id = p.id AND bu6.status IN ('active','available')
         ) as max_guests
         
       FROM properties p
@@ -60806,12 +60806,12 @@ app.get('/api/public/client/:clientId/properties', async (req, res) => {
                WHERE bu.property_id = p.id AND ri.is_active = true
                ORDER BY ri.is_primary DESC NULLS LAST, ri.display_order ASC, ri.id ASC LIMIT 1)
             ) as primary_image,
-            (SELECT COUNT(*) FROM bookable_units bu WHERE bu.property_id = p.id AND bu.status = 'active') as room_count,
-            (SELECT MIN(bu2.base_price) FROM bookable_units bu2 WHERE bu2.property_id = p.id AND bu2.status = 'active' AND bu2.base_price > 0) as min_price,
-            (SELECT MAX(bu3.base_price) FROM bookable_units bu3 WHERE bu3.property_id = p.id AND bu3.status = 'active' AND bu3.base_price > 0) as max_price,
-            (SELECT MIN(bu4.num_bedrooms) FROM bookable_units bu4 WHERE bu4.property_id = p.id AND bu4.status = 'active' AND bu4.num_bedrooms > 0) as min_bedrooms,
-            (SELECT MAX(bu5.num_bedrooms) FROM bookable_units bu5 WHERE bu5.property_id = p.id AND bu5.status = 'active' AND bu5.num_bedrooms > 0) as max_bedrooms,
-            (SELECT MAX(COALESCE(bu6.max_guests, bu6.max_adults, 2)) FROM bookable_units bu6 WHERE bu6.property_id = p.id AND bu6.status = 'active') as max_guests
+            (SELECT COUNT(*) FROM bookable_units bu WHERE bu.property_id = p.id AND bu.status IN ('active','available')) as room_count,
+            (SELECT MIN(bu2.base_price) FROM bookable_units bu2 WHERE bu2.property_id = p.id AND bu2.status IN ('active','available') AND bu2.base_price > 0) as min_price,
+            (SELECT MAX(bu3.base_price) FROM bookable_units bu3 WHERE bu3.property_id = p.id AND bu3.status IN ('active','available') AND bu3.base_price > 0) as max_price,
+            (SELECT MIN(bu4.num_bedrooms) FROM bookable_units bu4 WHERE bu4.property_id = p.id AND bu4.status IN ('active','available') AND bu4.num_bedrooms > 0) as min_bedrooms,
+            (SELECT MAX(bu5.num_bedrooms) FROM bookable_units bu5 WHERE bu5.property_id = p.id AND bu5.status IN ('active','available') AND bu5.num_bedrooms > 0) as max_bedrooms,
+            (SELECT MAX(COALESCE(bu6.max_guests, bu6.max_adults, 2)) FROM bookable_units bu6 WHERE bu6.property_id = p.id AND bu6.status IN ('active','available')) as max_guests
           FROM properties p
           WHERE p.account_id = $1 AND p.status = 'active'
           ORDER BY p.name ASC
