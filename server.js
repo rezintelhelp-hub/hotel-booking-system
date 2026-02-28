@@ -7660,6 +7660,44 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
               updatedPropertyIds.add(room.property_id);
             }
 
+            // Create bedrooms/bathrooms if none exist for this room
+            const bedroomCount = pd.bedrooms || 0;
+            const bathroomCount = Math.floor(pd.bathrooms || 0);
+            if (bedroomCount > 0) {
+              const existingBedrooms = await pool.query(
+                'SELECT COUNT(*) as cnt FROM property_bedrooms WHERE room_id = $1', [room.gas_room_id]
+              );
+              if (parseInt(existingBedrooms.rows[0].cnt) === 0) {
+                for (let b = 1; b <= bedroomCount; b++) {
+                  await pool.query(
+                    'INSERT INTO property_bedrooms (property_id, room_id, name, bed_config, display_order) VALUES ($1, $2, $3, $4, $5)',
+                    [room.property_id, room.gas_room_id, `Bedroom ${b}`, JSON.stringify([{type: 'double', qty: 1}]), b - 1]
+                  );
+                }
+                console.log(`[Content Sync HF] Created ${bedroomCount} bedrooms for ${room.name}`);
+              }
+            }
+            if (bathroomCount > 0) {
+              const existingBathrooms = await pool.query(
+                'SELECT COUNT(*) as cnt FROM property_bathrooms WHERE room_id = $1', [room.gas_room_id]
+              );
+              if (parseInt(existingBathrooms.rows[0].cnt) === 0) {
+                for (let b = 1; b <= bathroomCount; b++) {
+                  await pool.query(
+                    'INSERT INTO property_bathrooms (property_id, room_id, name, bathroom_type, quantity, display_order) VALUES ($1, $2, $3, $4, 1, $5)',
+                    [room.property_id, room.gas_room_id, `Bathroom ${b}`, 'full-private', b - 1]
+                  );
+                }
+                console.log(`[Content Sync HF] Created ${bathroomCount} bathrooms for ${room.name}`);
+              }
+            }
+
+            // Update bookable_units bedroom/bathroom counts
+            await pool.query(
+              'UPDATE bookable_units SET num_bedrooms = $1, num_bathrooms = $2, bedroom_count = $3, bathroom_count = $4 WHERE id = $5',
+              [bedroomCount, bathroomCount, bedroomCount, bathroomCount, room.gas_room_id]
+            );
+
             pricingCount++;
             console.log(`[Content Sync HF] Pricing synced for ${room.name}: base=${pd.dailyRate} clean=${pd.cleaningFee} extra=${pd.extraGuestFee} deposit=${pd.securityDeposit}`);
           }
