@@ -5986,6 +5986,8 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
           UNIQUE(room_id, date)
         )
       `);
+      // Ensure max_stay column exists (may be missing on older schemas)
+      await pool.query(`ALTER TABLE room_availability ADD COLUMN IF NOT EXISTS max_stay INTEGER`).catch(() => {});
 
       const today = new Date();
       const startDate = today.toISOString().split('T')[0];
@@ -6008,7 +6010,7 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
             if (!day.date) continue;
 
             const price = day.price || null;
-            const isAvailable = day.isAvailable === true && day.status !== 'BLOCKED' && day.status !== 'BOOKED';
+            const isAvailable = day.isAvailable === true && !['BLOCKED', 'BOOKED', 'BOOKING', 'BLOCK'].includes(day.status);
             const minStay = day.minStay || 1;
             const maxStay = day.maxStay || null;
 

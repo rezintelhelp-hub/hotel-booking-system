@@ -615,18 +615,18 @@ class HostfullyAdapter {
   // PROPERTY CALENDAR
   // =====================================================
   
-  async getPropertyCalendar(propertyUid, startDate, endDate) {
+  async getPropertyCalendarRaw(propertyUid, startDate, endDate) {
     // V3 endpoint: GET /property-calendar/{propertyUid}
     const params = {};
-    if (startDate) params.startDate = startDate;
-    if (endDate) params.endDate = endDate;
-    
+    if (startDate) params.from = startDate;
+    if (endDate) params.to = endDate;
+
     const response = await this.request(`/property-calendar/${propertyUid}`, 'GET', null, {
       params
     });
-    
+
     if (!response.success) return response;
-    
+
     return {
       success: true,
       data: response.data
@@ -672,38 +672,39 @@ class HostfullyAdapter {
    * This is the most efficient way to get both availability and rates
    */
   async getPropertyCalendar(propertyUid, startDate, endDate) {
-    const params = { propertyUid };
-    if (startDate) params.startDate = startDate;
-    if (endDate) params.endDate = endDate;
-    
-    const response = await this.request(`/propertycalendar/${propertyUid}`, 'GET', null, { params });
-    
+    const params = {};
+    if (startDate) params.from = startDate;
+    if (endDate) params.to = endDate;
+
+    const response = await this.request(`/property-calendar/${propertyUid}`, 'GET', null, { params });
+
     if (!response.success) return response;
-    
+
     const calendar = response.data;
-    
-    // Hostfully calendar returns day-by-day data
+
+    // V3 response: { calendar: { entries: [{ date, pricing: { currency, value }, availability: { unavailable, unavailabilityReason, availableForCheckIn, availableForCheckOut, minimumStayLength, maximumStayLength } }] } }
+    const rawDays = calendar?.calendar?.entries || calendar?.calendarDays || calendar?.days || [];
     const days = [];
-    
-    if (calendar?.calendarDays || calendar?.days) {
-      const rawDays = calendar.calendarDays || calendar.days || [];
-      for (const day of rawDays) {
-        days.push({
-          date: day.date,
-          price: day.price || day.nightlyRate || day.dailyRate || null,
-          currency: day.currency || calendar.currency || null,
-          isAvailable: day.isAvailable !== false && day.status !== 'BLOCKED' && day.status !== 'BOOKED',
-          status: day.status || (day.isAvailable !== false ? 'available' : 'blocked'),
-          minStay: day.minimumStay || day.minStay || null,
-          maxStay: day.maximumStay || day.maxStay || null,
-          checkInAllowed: day.checkInAllowed !== false,
-          checkOutAllowed: day.checkOutAllowed !== false,
-          leadUid: day.leadUid || null, // Booking reference if blocked
-          raw: day
-        });
-      }
+
+    for (const day of rawDays) {
+      const avail = day.availability || {};
+      const pricing = day.pricing || {};
+
+      days.push({
+        date: day.date,
+        price: pricing.value ?? day.price ?? day.nightlyRate ?? null,
+        currency: pricing.currency ?? day.currency ?? null,
+        isAvailable: avail.unavailable === false || (avail.unavailable === undefined && day.isAvailable !== false),
+        status: avail.unavailabilityReason || day.status || (avail.unavailable ? 'blocked' : 'available'),
+        minStay: avail.minimumStayLength ?? day.minimumStay ?? day.minStay ?? null,
+        maxStay: avail.maximumStayLength ?? day.maximumStay ?? day.maxStay ?? null,
+        checkInAllowed: avail.availableForCheckIn ?? day.checkInAllowed ?? true,
+        checkOutAllowed: avail.availableForCheckOut ?? day.checkOutAllowed ?? true,
+        leadUid: day.leadUid || null,
+        raw: day
+      });
     }
-    
+
     return {
       success: true,
       data: days,
@@ -1377,7 +1378,7 @@ class HostfullyAdapter {
       for (const day of calendarData) {
         try {
           const price = day.price || null;
-          const isAvailable = day.isAvailable === true && day.status !== 'BLOCKED' && day.status !== 'BOOKED';
+          const isAvailable = day.isAvailable === true && !['BLOCKED', 'BOOKED', 'BOOKING', 'BLOCK'].includes(day.status);
           const minStay = day.minStay || 1;
           const maxStay = day.maxStay || null;
 
