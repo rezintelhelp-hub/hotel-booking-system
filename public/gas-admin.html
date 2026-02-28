@@ -3284,6 +3284,7 @@
                             <p>View and manage all rooms in one place</p>
                         </div>
                         <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                            <button class="btn btn-secondary" id="sync-hostfully-avail-btn" onclick="syncHostfullyAvailability()" style="font-size: 0.85rem;">Sync Hostfully</button>
                             <button class="btn" onclick="showView('gas-sync-connections')" style="background: #3b82f6;">🔄 Manage Sync Connections</button>
                         </div>
                     </div>
@@ -33699,9 +33700,22 @@ const promo = await fetch('/api/v1/offers/validate', {
                     body: JSON.stringify({ force: true })
                 });
                 const syncResult = await syncResponse.json();
-                
+
+                // For Hostfully rooms, also sync availability (prices don't include booking status)
+                let availMsg = '';
+                if (syncPropData.connectionId && (syncPropData.adapterCode === 'hostfully' || syncResult.source === 'hostfully')) {
+                    const availResponse = await fetch(`/api/gas-sync/connections/${syncPropData.connectionId}/sync-availability`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() }
+                    });
+                    const availResult = await availResponse.json();
+                    if (availResult.success) {
+                        availMsg = ` + availability: ${availResult.stats?.totalDaysUpdated || 0} days`;
+                    }
+                }
+
                 if (syncResult.success) {
-                    showNotification(`✅ Synced pricing for ${roomName}: ${syncResult.daysUpdated || 0} days updated`, 'success');
+                    showNotification(`✅ Synced ${roomName}: ${syncResult.daysUpdated || 0} prices${availMsg}`, 'success');
                     // Reload the grid data
                     await loadGridData();
                 } else {
@@ -33937,6 +33951,48 @@ const promo = await fetch('/api/v1/offers/validate', {
             
             btn.disabled = false;
             btn.textContent = ' Smoobu';
+            loadGridData();
+        }
+
+        async function syncHostfullyAvailability() {
+            if (!confirm('Sync availability from Hostfully?\n\nThis updates booking/blocked status for all Hostfully rooms.')) return;
+
+            const btn = document.getElementById('sync-hostfully-avail-btn');
+            const originalText = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = 'Syncing...';
+
+            try {
+                // Find all Hostfully connections
+                const connResponse = await fetch('/api/gas-sync/connections', { headers: authHeaders() });
+                const connData = await connResponse.json();
+                const hfConns = (connData.data || connData.connections || []).filter(c => c.adapter_code === 'hostfully');
+
+                if (hfConns.length === 0) {
+                    alert('No Hostfully connections found.');
+                    return;
+                }
+
+                let totalRooms = 0, totalDays = 0;
+                for (const conn of hfConns) {
+                    const response = await fetch(`/api/gas-sync/connections/${conn.id}/sync-availability`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() }
+                    });
+                    const result = await response.json();
+                    if (result.success && result.stats) {
+                        totalRooms += result.stats.roomsSynced || 0;
+                        totalDays += result.stats.totalDaysUpdated || 0;
+                    }
+                }
+
+                alert(`Hostfully Availability Sync complete!\n\n${totalRooms} rooms synced\n${totalDays} days updated`);
+            } catch (error) {
+                alert(`Error: ${error.message}`);
+            }
+
+            btn.disabled = false;
+            btn.textContent = originalText;
             loadGridData();
         }
 
