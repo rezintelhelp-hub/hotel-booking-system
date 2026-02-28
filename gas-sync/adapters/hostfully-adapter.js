@@ -396,12 +396,15 @@ class HostfullyAdapter {
    */
   async getProperty(uid) {
     const response = await this.request(`/properties/${uid}`);
-    
+
     if (!response.success) return response;
-    
+
+    // V3 API wraps single property in { property: { ... } }
+    const raw = response.data?.property || response.data;
+
     return {
       success: true,
-      data: this.mapProperty(response.data)
+      data: this.mapProperty(raw)
     };
   }
   
