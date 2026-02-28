@@ -60638,7 +60638,7 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
           SELECT
             ras.room_id as room_id,
             ma.amenity_code as code,
-            COALESCE(ma.amenity_name->>$2, ma.amenity_name->>'en') as name,
+            COALESCE(ma.amenity_name->>$2, ma.amenity_name->>UPPER($2), ma.amenity_name->>'en', ma.amenity_name->>'EN') as name,
             ma.icon,
             ma.category,
             ras.display_order
@@ -60649,7 +60649,7 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
           SELECT
             bua.bookable_unit_id as room_id,
             ma.amenity_code as code,
-            COALESCE(ma.amenity_name->>$2, ma.amenity_name->>'en') as name,
+            COALESCE(ma.amenity_name->>$2, ma.amenity_name->>UPPER($2), ma.amenity_name->>'en', ma.amenity_name->>'EN') as name,
             ma.icon,
             ma.category,
             bua.display_order
