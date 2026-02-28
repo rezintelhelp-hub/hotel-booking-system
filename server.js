@@ -49012,7 +49012,7 @@ app.get('/api/partner/websites/:websiteId/contact-page', async (req, res) => {
     
     const result = await pool.query(`SELECT settings FROM website_settings WHERE deployed_site_id = $1 AND section = 'page-contact'`, [deployedSiteId]);
     const s = result.rows.length > 0 ? (result.rows[0].settings || {}) : {};
-    const d = sectionDefaults['page-contact'] || {};
+    const d = {};
     const v = (key) => s[key] !== undefined ? s[key] : d[key];
     
     res.json({
@@ -53246,11 +53246,11 @@ app.get('/api/elevate/:apiKey/property/:propertyId/offers', async (req, res) => 
     const gasPropertyId = propCheck.rows[0].id;
     
     const result = await pool.query(`
-      SELECT id, external_id, name, description, discount_type, discount_value, price_per_night,
-             property_id, room_id, room_ids, valid_from, valid_until, min_nights, max_nights,
-             active, source, created_at, updated_at
-      FROM offers 
-      WHERE (property_id = $1 OR $1 = ANY(property_ids))
+      SELECT id, name, description, discount_type, discount_value,
+             property_id, room_id, valid_from, valid_until, min_nights, max_nights,
+             active, created_at, updated_at
+      FROM offers
+      WHERE property_id = $1
       AND active = true
       ORDER BY valid_from DESC NULLS LAST
     `, [gasPropertyId]);
@@ -53634,9 +53634,9 @@ app.get('/api/elevate/:apiKey/property/:propertyId/upsells', async (req, res) =>
     const gasPropertyId = propCheck.rows[0].id;
     
     const result = await pool.query(`
-      SELECT id, external_id, name, description, price, charge_type, max_quantity,
-             category, room_id, room_ids, image_url, active, source, created_at
-      FROM upsells 
+      SELECT id, name, description, price, charge_type, max_quantity,
+             category, room_id, room_ids, image_url, active, created_at
+      FROM upsells
       WHERE property_id = $1
       ORDER BY category, name
     `, [gasPropertyId]);
@@ -53857,10 +53857,10 @@ app.get('/api/elevate/:apiKey/property/:propertyId/taxes', async (req, res) => {
     const gasPropertyId = propCheck.rows[0].id;
     
     const result = await pool.query(`
-      SELECT id, external_id, name, country, amount_type, currency, amount,
+      SELECT id, name, country, amount_type, currency, amount,
              charge_per, max_nights, min_age, star_tier, season_start, season_end,
-             active, source, created_at
-      FROM taxes 
+             active, created_at
+      FROM taxes
       WHERE property_id = $1
       ORDER BY name
     `, [gasPropertyId]);
