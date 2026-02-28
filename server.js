@@ -3228,19 +3228,24 @@ app.post('/api/gas-sync/properties/:syncPropertyId/copy-images', async (req, res
       return res.json({ success: false, error: 'Property not linked to GAS yet' });
     }
     
-    // Get sync room mappings - external_id (Beds24 room ID) -> GAS room ID
+    // Get sync room mappings - external_id -> GAS room ID
+    // Works for both Beds24 (integer IDs) and Hostfully (UUID external_ids)
     const roomMappings = await pool.query(`
-      SELECT sr.external_id as beds24_room_id, bu.id as gas_room_id
+      SELECT sr.external_id, sr.gas_room_id
       FROM gas_sync_room_types sr
-      JOIN bookable_units bu ON bu.beds24_room_id = CAST(sr.external_id AS INTEGER)
-      WHERE sr.sync_property_id = $1
+      WHERE sr.sync_property_id = $1 AND sr.gas_room_id IS NOT NULL
     `, [syncPropertyId]);
-    
-    const roomIdMap = {};
+
+    const roomIdMap = {};       // external_id -> gas_room_id
+    const beds24RoomMap = {};   // beds24_room_id -> gas_room_id (legacy)
     for (const row of roomMappings.rows) {
-      roomIdMap[row.beds24_room_id] = row.gas_room_id;
+      roomIdMap[row.external_id] = row.gas_room_id;
+      // For Beds24 backward compatibility
+      if (/^\d+$/.test(row.external_id)) {
+        beds24RoomMap[row.external_id] = row.gas_room_id;
+      }
     }
-    
+
     console.log('Room ID map:', roomIdMap);
     
     // Get images from gas_sync_images
@@ -3273,25 +3278,35 @@ app.post('/api/gas-sync/properties/:syncPropertyId/copy-images', async (req, res
     let compressed = 0;
     
     for (const img of syncImages.rows) {
-      // Extract Beds24 room ID from external_id (format: "138605-img-25-309239")
-      const parts = img.external_id?.split('-') || [];
-      const beds24RoomId = parts[parts.length - 1];
-      
-      // Find GAS room ID
-      let gasRoomId = roomIdMap[beds24RoomId];
-      
-      // If no mapping found, try to find by beds24_room_id directly
-      if (!gasRoomId && beds24RoomId) {
-        const directMatch = await pool.query(`
-          SELECT id FROM bookable_units WHERE beds24_room_id = $1
-        `, [parseInt(beds24RoomId)]);
-        if (directMatch.rows.length > 0) {
-          gasRoomId = directMatch.rows[0].id;
+      let gasRoomId = null;
+
+      // Try matching by room_type_external_id (Hostfully: stored on gas_sync_images)
+      if (img.room_type_external_id && roomIdMap[img.room_type_external_id]) {
+        gasRoomId = roomIdMap[img.room_type_external_id];
+      }
+
+      // Try Beds24 format: extract room ID from external_id (format: "138605-img-25-309239")
+      if (!gasRoomId) {
+        const parts = img.external_id?.split('-') || [];
+        const beds24RoomId = parts[parts.length - 1];
+        gasRoomId = beds24RoomMap[beds24RoomId] || roomIdMap[beds24RoomId];
+
+        // Direct DB lookup for Beds24
+        if (!gasRoomId && beds24RoomId && /^\d+$/.test(beds24RoomId)) {
+          const directMatch = await pool.query(
+            'SELECT id FROM bookable_units WHERE beds24_room_id = $1', [parseInt(beds24RoomId)]
+          );
+          if (directMatch.rows.length > 0) gasRoomId = directMatch.rows[0].id;
         }
       }
-      
+
+      // For property-level images, assign to first room of the property
+      if (!gasRoomId && img.image_type === 'property' && roomMappings.rows.length > 0) {
+        gasRoomId = roomMappings.rows[0].gas_room_id;
+      }
+
       if (!gasRoomId) {
-        console.log('No GAS room found for Beds24 room:', beds24RoomId);
+        console.log('No GAS room found for image:', img.external_id, 'room_type_ext:', img.room_type_external_id);
         skipped++;
         continue;
       }
@@ -3322,7 +3337,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/copy-images', async (req, res
         
         // Extract filename from URL
         const urlPath = new URL(img.original_url).pathname;
-        const filename = path.basename(urlPath) || `beds24-${img.external_id}.jpg`;
+        const filename = path.basename(urlPath) || `sync-${img.external_id}.jpg`;
         
         // Process through Sharp and upload to R2 (creates large/medium/thumbnail WebP + JPG original)
         const r2Result = await processAndUploadImage(buffer, 'room', gasRoomId, filename);
@@ -7374,6 +7389,55 @@ app.post('/api/gas-sync/properties/:propertyId/sync-images', async (req, res) =>
     
   } catch (error) {
     console.error('Property image sync error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * Sync images for ALL properties of a connection (fetch + copy to room_images)
+ */
+app.post('/api/gas-sync/connections/:connectionId/sync-images', async (req, res) => {
+  try {
+    const { connectionId } = req.params;
+    const propsResult = await pool.query(
+      'SELECT id FROM gas_sync_properties WHERE connection_id = $1', [connectionId]
+    );
+    if (propsResult.rows.length === 0) {
+      return res.json({ success: false, error: 'No properties found' });
+    }
+
+    let totalSynced = 0, totalCopied = 0, totalCompressed = 0, errors = [];
+    const port = process.env.PORT || 3000;
+
+    for (const syncProp of propsResult.rows) {
+      try {
+        // Step 1: Sync images from external API to gas_sync_images
+        const syncResult = await axios.post(`http://localhost:${port}/api/gas-sync/properties/${syncProp.id}/sync-images`, { force: true });
+        if (syncResult.data?.success) {
+          totalSynced += syncResult.data.images || syncResult.data.roomImages || 0;
+        }
+
+        // Step 2: Copy from gas_sync_images to room_images (with R2 compression)
+        const copyResult = await axios.post(`http://localhost:${port}/api/gas-sync/properties/${syncProp.id}/copy-images`);
+        if (copyResult.data?.success) {
+          totalCopied += copyResult.data.copied || 0;
+          totalCompressed += copyResult.data.compressed || 0;
+        }
+      } catch (e) {
+        errors.push(`Property ${syncProp.id}: ${e.message}`);
+      }
+    }
+
+    res.json({
+      success: true,
+      syncProperties: propsResult.rows.length,
+      imagesSynced: totalSynced,
+      imagesCopied: totalCopied,
+      imagesCompressed: totalCompressed,
+      errors: errors.length > 0 ? errors : undefined
+    });
+  } catch (error) {
+    console.error('[Connection Sync Images] Error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

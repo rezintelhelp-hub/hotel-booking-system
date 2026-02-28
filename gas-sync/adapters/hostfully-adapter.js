@@ -508,20 +508,22 @@ class HostfullyAdapter {
     const response = await this.request('/photos', 'GET', null, {
       params: { propertyUid, agencyUid: this.agencyUid }
     });
-    
+
     if (!response.success) return response;
-    
-    const photos = Array.isArray(response.data) ? response.data : [];
-    
+
+    // V3 wraps in { photos: [...] }
+    const photos = Array.isArray(response.data) ? response.data :
+                   response.data?.photos || response.data?.content || [];
+
     return {
       success: true,
       data: photos.map((photo, idx) => ({
         externalId: photo.uid,
-        url: photo.url || photo.original || photo.large || '',
-        thumbnailUrl: photo.thumbnail || photo.small || '',
+        url: photo.originalImageUrl || photo.largeScaleImageUrl || photo.url || '',
+        thumbnailUrl: photo.mediumThumbnailScaleImageUrl || photo.largeThumbnailScaleImageUrl || photo.thumbnail || '',
         caption: photo.description || photo.caption || '',
-        order: photo.ordinal || photo.order || idx,
-        isPrimary: idx === 0,
+        order: photo.displayOrder ?? photo.ordinal ?? idx,
+        isPrimary: (photo.displayOrder ?? idx) === 0,
         tags: photo.tags || [],
         raw: photo
       }))
