@@ -3163,17 +3163,14 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
             let roomDays = 0;
             for (const dp of pricingResult.data) {
               if (dp.date && dp.price > 0) {
-                const isAvailable = dp.availableForCheckIn !== false;
-                const isBlocked = !isAvailable;
                 await pool.query(`
                   INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
-                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'hostfully', NOW())
-                  ON CONFLICT (room_id, date) DO UPDATE SET 
+                  VALUES ($1, $2, $3, $4, true, false, $5, $6, 'hostfully', NOW())
+                  ON CONFLICT (room_id, date) DO UPDATE SET
                     cm_price = EXCLUDED.cm_price, direct_price = EXCLUDED.direct_price,
-                    is_available = EXCLUDED.is_available, is_blocked = EXCLUDED.is_blocked,
                     min_stay = EXCLUDED.min_stay, cm_min_stay = EXCLUDED.cm_min_stay,
-                    source = EXCLUDED.source, updated_at = NOW()
-                `, [room.gas_room_id, dp.date, dp.price, dp.price, isAvailable, isBlocked, dp.minimumStay, dp.minimumStay]);
+                    updated_at = NOW()
+                `, [room.gas_room_id, dp.date, dp.price, dp.price, dp.minimumStay, dp.minimumStay]);
                 roomDays++;
               }
             }
