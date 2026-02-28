@@ -6199,22 +6199,33 @@
                                         </div>
                                         <button type="button" class="btn" onclick="generatePageAboutContent()" style="background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%); margin-top: 8px;">✨ Generate About Content</button>
                                     </div>
-                                    <div class="form-group">
-                                        <label class="form-label">Content Image (Optional)</label>
-                                        <div id="wb-page-about-content-image-preview" style="width: 100%; height: 200px; background: #f1f5f9; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; background-size: cover; background-position: center;">
-                                            <span style="color: #94a3b8;">Click below to upload an image</span>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                                        <div class="form-group">
+                                            <label class="form-label">Content Image 1 (Optional)</label>
+                                            <div id="wb-page-about-content-image-preview" style="width: 100%; height: 200px; background: #f1f5f9; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; background-size: cover; background-position: center;">
+                                                <span style="color: #94a3b8;">Click to upload</span>
+                                            </div>
+                                            <input type="file" id="wb-page-about-content-image-file" accept="image/*" onchange="previewPageImage('about', 'content-image')">
+                                            <input type="hidden" id="wb-page-about-content-image">
+                                            <select class="form-select" id="wb-page-about-image-position" style="margin-top: 8px;">
+                                                <option value="right">Wrap Right</option>
+                                                <option value="left">Wrap Left</option>
+                                                <option value="none">No Image</option>
+                                            </select>
                                         </div>
-                                        <input type="file" id="wb-page-about-content-image-file" accept="image/*" onchange="previewPageImage('about', 'content-image')">
-                                        <input type="hidden" id="wb-page-about-content-image">
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label">Image Position</label>
-                                        <select class="form-select" id="wb-page-about-image-position">
-                                            <option value="right">Image Right</option>
-                                            <option value="left">Image Left</option>
-                                            <option value="top">Image Top (Full Width)</option>
-                                            <option value="none">No Image</option>
-                                        </select>
+                                        <div class="form-group">
+                                            <label class="form-label">Content Image 2 (Optional)</label>
+                                            <div id="wb-page-about-content-image-2-preview" style="width: 100%; height: 200px; background: #f1f5f9; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; background-size: cover; background-position: center;">
+                                                <span style="color: #94a3b8;">Click to upload</span>
+                                            </div>
+                                            <input type="file" id="wb-page-about-content-image-2-file" accept="image/*" onchange="previewPageImage('about', 'content-image-2')">
+                                            <input type="hidden" id="wb-page-about-content-image-2">
+                                            <select class="form-select" id="wb-page-about-image-2-position" style="margin-top: 8px;">
+                                                <option value="left">Wrap Left</option>
+                                                <option value="right">Wrap Right</option>
+                                                <option value="none">No Image</option>
+                                            </select>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -22549,25 +22560,27 @@ const promo = await fetch('/api/v1/offers/validate', {
                 formData.append('section', `page-${page}-${field}`);
                 
                 const siteId = selectedDeployedSiteId || localStorage.getItem('gas_selected_client_id') || getClientId();
-                if (siteId) {
-                    formData.append('deployed_site_id', siteId);
+                if (!siteId) {
+                    showNotification('Please select a website first', 'error');
+                    return;
                 }
-                
+                formData.append('deployed_site_id', siteId);
+
                 const token = localStorage.getItem('gas_token');
                 const response = await fetch('/api/admin/website-builder/upload-image', {
                     method: 'POST',
                     headers: token ? { 'Authorization': `Bearer ${token}` } : {},
                     body: formData
                 });
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    if (urlField && data.url) {
+
+                const data = await response.json();
+                if (data.success && data.url) {
+                    if (urlField) {
                         urlField.value = data.url;
                     }
                     showNotification('Image uploaded successfully', 'success');
                 } else {
-                    showNotification('Failed to upload image', 'error');
+                    showNotification('Upload failed: ' + (data.error || 'Unknown error'), 'error');
                 }
             } catch (error) {
                 console.error('Page image upload error:', error);
