@@ -23291,11 +23291,12 @@ app.post('/api/deploy/create', async (req, res) => {
     
     console.log(`[Deploy] Creating site "${site_name}" for account ${account_id} (${accountCheck.rows[0].name}) with template ${selectedTemplate}`);
     
-    // Call VPS to create site (no API key required in auto mode)
+    // Call VPS to create site
     const response = await fetch(`${VPS_DEPLOY_URL}?action=create-site`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'X-API-Key': VPS_DEPLOY_API_KEY
       },
       body: JSON.stringify({
         site_name,
@@ -23523,7 +23524,7 @@ app.post('/api/admin/wp-reset-password', async (req, res) => {
     // Call VPS deploy script to reset password via WP-CLI
     const response = await fetch(`${VPS_DEPLOY_URL}?action=wp-cli`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-API-Key': VPS_DEPLOY_API_KEY },
       body: JSON.stringify({
         slug: slug,
         command: `user update ${wpUser} --user_pass="${wpPass}"`
@@ -49266,7 +49267,8 @@ app.post('/api/partner/websites/:websiteId/deploy', async (req, res) => {
     const vpsResponse = await fetch(`${VPS_DEPLOY_URL}?action=create-site`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'X-API-Key': VPS_DEPLOY_API_KEY
       },
       body: JSON.stringify({
         site_name: website.name,
