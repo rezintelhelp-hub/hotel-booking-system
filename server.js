@@ -7539,25 +7539,47 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
         [prop.id]
       );
 
-      let descCount = 0, amenCount = 0, pricingCount = 0;
+      let descCount = 0, amenCount = 0, pricingCount = 0, feesCount = 0, reviewsCount = 0;
       const updatedPropertyIds = new Set();
       
       for (const room of roomTypes.rows) {
-        // Descriptions
+        // Descriptions (full text + individual sections)
         try {
           const descResult = await adapter.getDescriptions(room.external_id);
           if (descResult.success && descResult.data) {
             const fullDescObj = {}, shortDescObj = {};
+            let locationDesc = '', houseRules = '', checkInAccess = '';
+
             for (const [locale, desc] of Object.entries(descResult.data)) {
               const lang = locale === 'en_US' ? 'en' : locale === 'ja_JP' ? 'ja' : locale.split('_')[0].toLowerCase();
               fullDescObj[lang] = desc.text || desc.summary || '';
               shortDescObj[lang] = desc.shortSummary || desc.summary?.substring(0, 200) || '';
+
+              // Store English sections for property-level fields
+              if (lang === 'en') {
+                locationDesc = [desc.neighbourhood, desc.transit].filter(Boolean).join('\n\n');
+                houseRules = [desc.notes, desc.interaction].filter(Boolean).join('\n\n');
+                checkInAccess = desc.access || '';
+              }
             }
             if (Object.keys(fullDescObj).length > 0) {
               await pool.query('UPDATE bookable_units SET full_description = $1::jsonb WHERE id = $2', [JSON.stringify(fullDescObj), room.gas_room_id]);
             }
             if (Object.keys(shortDescObj).length > 0) {
               await pool.query('UPDATE bookable_units SET short_description = $1::jsonb WHERE id = $2', [JSON.stringify(shortDescObj), room.gas_room_id]);
+            }
+            // Store location description on the room
+            if (locationDesc) {
+              await pool.query('UPDATE bookable_units SET location_description = $1 WHERE id = $2', [locationDesc, room.gas_room_id]);
+            }
+            // Store house rules and check-in instructions on the property (once)
+            if (room.property_id && !updatedPropertyIds.has(room.property_id)) {
+              if (houseRules) {
+                await pool.query('UPDATE properties SET house_rules = $1 WHERE id = $2', [houseRules, room.property_id]);
+              }
+              if (checkInAccess) {
+                await pool.query('UPDATE properties SET check_in_instructions = $1 WHERE id = $2', [checkInAccess, room.property_id]);
+              }
             }
             descCount += Object.keys(descResult.data).length;
           }
@@ -7642,17 +7664,72 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
             console.log(`[Content Sync HF] Pricing synced for ${room.name}: base=${pd.dailyRate} clean=${pd.cleaningFee} extra=${pd.extraGuestFee} deposit=${pd.securityDeposit}`);
           }
         } catch (e) { console.log(`[Content Sync HF] Pricing error ${room.name}: ${e.message}`); }
+
+        // Fees/Taxes from Hostfully
+        try {
+          const feesResult = await adapter.getFees(room.external_id);
+          if (feesResult.success && Array.isArray(feesResult.data)) {
+            for (const fee of feesResult.data) {
+              const isTax = fee.type === 'TAX';
+              const amountType = fee.amountType === 'TAX' || fee.amountType === 'PERCENT' ? 'percentage' : 'fixed';
+              const applyPer = fee.scope === 'PER_NIGHT' ? 'per_night' : fee.scope === 'PER_GUEST' ? 'per_guest' : 'per_booking';
+
+              const existingFee = await pool.query(
+                'SELECT id FROM fees WHERE property_id = $1 AND room_id = $2 AND name = $3',
+                [room.property_id, room.gas_room_id, fee.name]
+              );
+              if (existingFee.rows.length > 0) {
+                await pool.query('UPDATE fees SET amount = $1, amount_type = $2, apply_per = $3, is_tax = $4, updated_at = NOW() WHERE id = $5',
+                  [fee.amount, amountType, applyPer, isTax, existingFee.rows[0].id]);
+              } else {
+                await pool.query(
+                  'INSERT INTO fees (property_id, room_id, name, amount_type, amount, apply_per, is_tax, active) VALUES ($1, $2, $3, $4, $5, $6, $7, true)',
+                  [room.property_id, room.gas_room_id, fee.name, amountType, fee.amount, applyPer, isTax]);
+              }
+              feesCount++;
+            }
+          }
+        } catch (e) { console.log(`[Content Sync HF] Fees error ${room.name}: ${e.message}`); }
+
+        // Reviews from Hostfully
+        try {
+          const reviewsResult = await adapter.getReviews(room.external_id);
+          if (reviewsResult.success && Array.isArray(reviewsResult.data)) {
+            const accountResult = await pool.query('SELECT account_id FROM properties WHERE id = $1', [room.property_id]);
+            const accountId = accountResult.rows[0]?.account_id;
+
+            for (const review of reviewsResult.data) {
+              await pool.query(`
+                INSERT INTO reviews (account_id, property_id, room_id, external_id, source, channel_name,
+                  guest_name, rating, title, comment, private_feedback, host_reply, review_date, is_public, raw_data, synced_at)
+                VALUES ($1, $2, $3, $4, 'hostfully', $5, $6, $7, $8, $9, $10, $11, $12, true, $13, NOW())
+                ON CONFLICT (source, external_id) DO UPDATE SET
+                  rating = EXCLUDED.rating, title = EXCLUDED.title, comment = EXCLUDED.comment,
+                  host_reply = EXCLUDED.host_reply, synced_at = NOW()
+              `, [
+                accountId, room.property_id, room.gas_room_id,
+                review.externalId, review.source || 'Hostfully',
+                review.author, review.rating, review.title, review.content,
+                review.privateFeedback || null, review.reviewResponse || null,
+                review.date || null, JSON.stringify(review.raw || {})
+              ]);
+              reviewsCount++;
+            }
+          }
+        } catch (e) { console.log(`[Content Sync HF] Reviews error ${room.name}: ${e.message}`); }
       }
 
       // Update sync timestamp
       await pool.query('UPDATE gas_sync_properties SET last_content_sync = NOW() WHERE id = $1', [prop.id]);
-      
+
       return res.json({
         success: true,
         adapter: 'hostfully',
         descriptions: descCount,
         amenities: amenCount,
         pricing: pricingCount,
+        fees: feesCount,
+        reviews: reviewsCount,
         propertiesUpdated: updatedPropertyIds.size,
         rooms: roomTypes.rows.length
       });

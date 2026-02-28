@@ -669,6 +669,38 @@ class HostfullyAdapter {
   }
   
   // =====================================================
+  // REVIEWS
+  // =====================================================
+
+  async getReviews(propertyUid) {
+    const response = await this.request('/reviews', 'GET', null, {
+      params: { propertyUid }
+    });
+
+    if (!response.success) return response;
+
+    const raw = response.data;
+    const reviews = Array.isArray(raw) ? raw : (raw?.reviews || []);
+
+    return {
+      success: true,
+      data: reviews.map(r => ({
+        externalId: r.uid,
+        author: r.author || '',
+        title: r.title || '',
+        content: r.content || '',
+        rating: r.rating || 0,
+        date: r.date || null,
+        source: r.source || 'Hostfully',
+        privateFeedback: r.privateFeedback || null,
+        reviewResponse: r.reviewResponse || null,
+        ratingCategories: r.ratingCategories || null,
+        raw: r
+      }))
+    };
+  }
+
+  // =====================================================
   // PROPERTY CALENDAR (Availability + Pricing combined)
   // =====================================================
   
