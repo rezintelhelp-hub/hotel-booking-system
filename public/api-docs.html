@@ -372,7 +372,7 @@
         "openapi": "3.0.3",
         "info": {
             "title": "GAS Partner API",
-            "version": "7.9",
+            "version": "7.10",
             "description": `The **Global Accommodation System (GAS)** Partner API enables property management platforms to create tenants, push properties & rooms, manage pricing & availability, deploy booking websites, and handle the complete lifecycle of vacation rental businesses.\n\n## Two API Paths\n\n| Prefix | Auth Method | Used For |\n|--------|------------|----------|\n| \`/api/partner/*\` | X-API-Key header | Tenants, Websites, Room Types, Stripe, Domains, Content |\n| \`/api/elevate/_KEY_/*\` | API key in URL path | Properties, Rooms, Images, Pricing, Availability |\n\n## Quick Start Workflow\n\n1. **Create Tenant** → 2. **Push Properties & Rooms** → 3. **Add Images** → 4. **Create Website** → 5. **Assign Rooms** → 6. **Deploy** → 7. **Configure Payments**\n\n## ID Terminology\n\n| Term | Description |\n|------|-------------|\n| \`tenant_id\` | Your unique reference for a client |\n| \`account_id\` | GAS internal database ID |\n| \`property_id\` | GAS database ID for a property |\n| \`unit_id\` | GAS database ID for a room (same as \`gas_room_id\`) |\n| \`external_id\` | Your reference for a room |\n\n**Note:** \`unit_id\` and \`gas_room_id\` are the same thing.\n\n---\n\n**Support:** steve@gas.travel`,
             "contact": {
                 "name": "GAS Support",
@@ -1584,8 +1584,12 @@
                                         "value": { "settings": { "site-name": "Mountain Lodge", "logo-image-url": "https://example.com/logo.png", "logo-size": "60", "logo-light-image-url": "https://example.com/logo-white.png", "cta-button-text-en": "Book Now", "cta-bg": "#2563eb", "bg-color": "#ffffff", "text-color": "#1e293b", "transparent": true, "sticky": true } }
                                     },
                                     "about": {
-                                        "summary": "About section",
+                                        "summary": "Homepage about section",
                                         "value": { "settings": { "title-en": "Welcome to Our Hotel", "text-en": "Experience luxury", "image-url": "https://example.com/about.jpg", "enabled": true } }
+                                    },
+                                    "page-about": {
+                                        "summary": "About Us page with hero + 2 content images",
+                                        "value": { "settings": { "enabled": true, "title-en": "About Us", "subtitle-en": "Learn more about our story", "menu-title-en": "About", "content-title-en": "Our Story", "content-en": "Tell your story across multiple paragraphs...", "hero-image": "https://example.com/hero.jpg", "content-image": "https://example.com/img1.jpg", "image-position": "left", "content-image-2": "https://example.com/img2.jpg", "image-2-position": "right", "header-bg": "#1e293b", "header-text": "#ffffff", "bg": "#ffffff", "title-color": "#1e293b", "text-color": "#475569", "transparent-header": false, "menu-order": 2 } }
                                     }
                                 }
                             }
