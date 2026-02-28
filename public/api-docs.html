@@ -262,7 +262,7 @@
     <div class="api-banner">
         <div class="api-banner-left">
             <div class="api-banner-logo">GAS<span>.</span>travel</div>
-            <div class="api-banner-version">API v7.8</div>
+            <div class="api-banner-version">API v7.9</div>
         </div>
         <div class="api-banner-right">
             <button class="api-banner-btn api-banner-btn-outline" onclick="document.getElementById('requestModal').classList.add('active')">📋 Request Feature</button>
@@ -372,7 +372,7 @@
         "openapi": "3.0.3",
         "info": {
             "title": "GAS Partner API",
-            "version": "7.8",
+            "version": "7.9",
             "description": `The **Global Accommodation System (GAS)** Partner API enables property management platforms to create tenants, push properties & rooms, manage pricing & availability, deploy booking websites, and handle the complete lifecycle of vacation rental businesses.\n\n## Two API Paths\n\n| Prefix | Auth Method | Used For |\n|--------|------------|----------|\n| \`/api/partner/*\` | X-API-Key header | Tenants, Websites, Room Types, Stripe, Domains, Content |\n| \`/api/elevate/_KEY_/*\` | API key in URL path | Properties, Rooms, Images, Pricing, Availability |\n\n## Quick Start Workflow\n\n1. **Create Tenant** → 2. **Push Properties & Rooms** → 3. **Add Images** → 4. **Create Website** → 5. **Assign Rooms** → 6. **Deploy** → 7. **Configure Payments**\n\n## ID Terminology\n\n| Term | Description |\n|------|-------------|\n| \`tenant_id\` | Your unique reference for a client |\n| \`account_id\` | GAS internal database ID |\n| \`property_id\` | GAS database ID for a property |\n| \`unit_id\` | GAS database ID for a room (same as \`gas_room_id\`) |\n| \`external_id\` | Your reference for a room |\n\n**Note:** \`unit_id\` and \`gas_room_id\` are the same thing.\n\n---\n\n**Support:** steve@gas.travel`,
             "contact": {
                 "name": "GAS Support",
@@ -832,7 +832,7 @@
                 "post": {
                     "tags": ["Pricing & Availability"],
                     "summary": "Create Offer",
-                    "description": "Create a special offer for a property. Use price_per_night for a fixed price, or discount_type + discount_value for percentage/fixed discounts. Set room_id or room_ids to target specific rooms, or omit for all rooms.",
+                    "description": "Create a special offer for a property. Use discount_type + discount_value for percentage/fixed discounts. Set room_id to target a specific room, or omit for all rooms.",
                     "parameters": [
                         { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "string" } }
                     ],
@@ -841,16 +841,16 @@
                         "content": {
                             "application/json": {
                                 "examples": {
-                                    "fixed_price": {
-                                        "summary": "Fixed price offer",
+                                    "fixed_discount": {
+                                        "summary": "Fixed amount discount",
                                         "value": {
                                             "name": "Summer Special",
                                             "description": "Reduced rate for summer season",
-                                            "price_per_night": 89.00,
+                                            "discount_type": "fixed",
+                                            "discount_value": 50,
                                             "valid_from": "2026-06-01",
                                             "valid_until": "2026-08-31",
-                                            "min_nights": 3,
-                                            "external_id": "summer-2026"
+                                            "min_nights": 3
                                         }
                                     },
                                     "percentage_discount": {
@@ -862,7 +862,7 @@
                                             "valid_from": "2026-03-01",
                                             "valid_until": "2026-05-31",
                                             "min_nights": 7,
-                                            "room_ids": [1234, 1235]
+                                            "room_id": 1234
                                         }
                                     }
                                 }
@@ -883,7 +883,7 @@
                     "requestBody": {
                         "content": {
                             "application/json": {
-                                "example": { "price_per_night": 79.00, "valid_until": "2026-09-30" }
+                                "example": { "discount_value": 20, "valid_until": "2026-09-30" }
                             }
                         }
                     },
@@ -1820,20 +1820,22 @@
             "/api/partner/v1/reservations/{bookingId}": {
                 "put": {
                     "tags": ["Lifecycle"],
-                    "summary": "Update Reservation",
-                    "description": "Send only fields to update. Date changes automatically update availability.",
+                    "summary": "Update Reservation (Deprecated)",
+                    "deprecated": true,
+                    "description": "**Deprecated** — This endpoint uses legacy Partner V1 authentication (X-Partner-Key header) which is no longer active. Use the booking discount endpoints or contact support for reservation management.",
                     "parameters": [ { "name": "bookingId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
                     "requestBody": {
                         "content": { "application/json": { "example": { "check_in": "2026-03-20", "check_out": "2026-03-25" } } }
                     },
-                    "responses": { "200": { "description": "Reservation updated" } }
+                    "responses": { "200": { "description": "Reservation updated" }, "401": { "description": "Always returns 401 — legacy auth system is inactive" } }
                 },
                 "delete": {
                     "tags": ["Lifecycle"],
-                    "summary": "Delete Reservation",
-                    "description": "Permanently removes the booking and frees dates.",
+                    "summary": "Delete Reservation (Deprecated)",
+                    "deprecated": true,
+                    "description": "**Deprecated** — This endpoint uses legacy Partner V1 authentication (X-Partner-Key header) which is no longer active.",
                     "parameters": [ { "name": "bookingId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
-                    "responses": { "200": { "description": "Reservation deleted" } }
+                    "responses": { "200": { "description": "Reservation deleted" }, "401": { "description": "Always returns 401 — legacy auth system is inactive" } }
                 }
             },
             "/api/elevate/_KEY_/booking/{bookingId}/discount": {
@@ -1893,17 +1895,17 @@
                     "parameters": [
                         { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "string" } }
                     ],
-                    "responses": { "200": { "description": "Upsells list", "content": { "application/json": { "example": { "success": true, "property_id": 5, "upsells": [{ "id": 1, "name": "Airport Transfer", "price": "75.00", "charge_type": "per_booking", "category": "airport_transport", "active": true, "source": "partner" }] } } } } }
+                    "responses": { "200": { "description": "Upsells list", "content": { "application/json": { "example": { "success": true, "property_id": 5, "upsells": [{ "id": 1, "name": "Airport Transfer", "price": "75.00", "charge_type": "per_booking", "category": "airport_transport", "active": true }] } } } } }
                 },
                 "post": {
                     "tags": ["Upsells"],
                     "summary": "Create Upsell",
-                    "description": "Create an upsell for a property. Optionally target specific rooms with room_id or room_ids array. Set external_id for lookup by your system's ID.",
+                    "description": "Create an upsell for a property. Optionally target specific rooms with room_id or room_ids array.",
                     "parameters": [
                         { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "string" } }
                     ],
-                    "requestBody": { "required": true, "content": { "application/json": { "example": { "name": "Airport Transfer", "description": "Private transfer from Zurich Airport", "price": 75.00, "charge_type": "per_booking", "category": "airport_transport", "external_id": "elv-upsell-42" } } } },
-                    "responses": { "200": { "description": "Upsell created", "content": { "application/json": { "example": { "success": true, "upsell": { "id": 1, "name": "Airport Transfer", "price": "75.00", "category": "airport_transport", "source": "partner" } } } } } }
+                    "requestBody": { "required": true, "content": { "application/json": { "example": { "name": "Airport Transfer", "description": "Private transfer from Zurich Airport", "price": 75.00, "charge_type": "per_booking", "category": "airport_transport" } } } },
+                    "responses": { "200": { "description": "Upsell created", "content": { "application/json": { "example": { "success": true, "upsell": { "id": 1, "name": "Airport Transfer", "price": "75.00", "category": "airport_transport" } } } } } }
                 }
             },
             "/api/elevate/_KEY_/upsells/{upsellId}": {
@@ -1935,17 +1937,17 @@
                     "parameters": [
                         { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "string" } }
                     ],
-                    "responses": { "200": { "description": "Taxes list", "content": { "application/json": { "example": { "success": true, "property_id": 5, "taxes": [{ "id": 1, "name": "Tourist Tax", "amount": "2.50", "amount_type": "fixed", "currency": "CHF", "charge_per": "per_person_per_night", "max_nights": 7, "active": true, "source": "partner" }] } } } } }
+                    "responses": { "200": { "description": "Taxes list", "content": { "application/json": { "example": { "success": true, "property_id": 5, "taxes": [{ "id": 1, "name": "Tourist Tax", "amount": "2.50", "amount_type": "fixed", "currency": "CHF", "charge_per": "per_person_per_night", "max_nights": 7, "active": true }] } } } } }
                 },
                 "post": {
                     "tags": ["Taxes"],
                     "summary": "Create Tax",
-                    "description": "Create a tourist/city tax for a property. Fields: name (required), amount (required), amount_type (fixed|percentage), currency, charge_per (per_person_per_night|per_night|per_booking|per_person), max_nights, min_age, star_tier, season_start, season_end, external_id.",
+                    "description": "Create a tourist/city tax for a property. Fields: name (required), amount (required), amount_type (fixed|percentage), currency, charge_per (per_person_per_night|per_night|per_booking|per_person), max_nights, min_age, star_tier, season_start, season_end.",
                     "parameters": [
                         { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "string" } }
                     ],
-                    "requestBody": { "required": true, "content": { "application/json": { "example": { "name": "Kurtaxe", "amount": 3.50, "amount_type": "fixed", "currency": "CHF", "charge_per": "per_person_per_night", "max_nights": 21, "min_age": 16, "external_id": "elv-tax-1" } } } },
-                    "responses": { "200": { "description": "Tax created", "content": { "application/json": { "example": { "success": true, "tax": { "id": 1, "name": "Kurtaxe", "amount": "3.50", "charge_per": "per_person_per_night", "source": "partner" } } } } } }
+                    "requestBody": { "required": true, "content": { "application/json": { "example": { "name": "Kurtaxe", "amount": 3.50, "amount_type": "fixed", "currency": "CHF", "charge_per": "per_person_per_night", "max_nights": 21, "min_age": 16 } } } },
+                    "responses": { "200": { "description": "Tax created", "content": { "application/json": { "example": { "success": true, "tax": { "id": 1, "name": "Kurtaxe", "amount": "3.50", "charge_per": "per_person_per_night" } } } } } }
                 }
             },
             "/api/elevate/_KEY_/taxes/{taxId}": {
