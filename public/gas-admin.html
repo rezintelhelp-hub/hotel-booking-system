@@ -23599,9 +23599,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const isPrimary = lang === primaryLang;
                 return `<button type="button" class="lang-tab${isActive ? ' active' : ''}${isPrimary ? ' primary' : ''}" data-lang="${lang}" onclick="sbSectionSwitchLang(${idx},'${lang}')">${info.flag} ${info.name}</button>`;
             }).join('');
+            const translateBtn = activeLang !== primaryLang
+                ? `<button type="button" class="auto-translate-btn" id="sb-translate-btn-${idx}" onclick="sbAutoTranslateSection(${idx})" title="Auto-translate from ${primaryLang.toUpperCase()}">✨ Translate</button>`
+                : '';
             return `<div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem 1rem; margin-bottom: 1rem; background: #f0f4ff; border: 1px solid #c7d2fe; border-radius: 8px;">
                 <span style="font-size: 0.8rem; font-weight: 600; color: #4338ca;">Language:</span>
                 <div class="lang-tabs">${tabs}</div>
+                ${translateBtn}
             </div>`;
         }
 
@@ -23625,6 +23629,83 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (previewSpan) {
                 const heading = sec['heading_' + lang] || sec.heading || '';
                 previewSpan.textContent = heading ? '- ' + heading.substring(0, 40) : '';
+            }
+        }
+
+        async function sbAutoTranslateSection(idx) {
+            const sec = aboutSbSections[idx];
+            if (!sec) return;
+            sbCollectSectionData(idx);
+            const primaryLang = getAccountPrimaryLanguage();
+            const targetLang = sec._currentLang || primaryLang;
+            if (targetLang === primaryLang) return;
+
+            // Gather primary language text from all translatable fields
+            const textsToTranslate = {};
+            SB_TRANSLATABLE_FIELDS.forEach(f => {
+                const val = sec[f + '_' + primaryLang] || sec[f] || '';
+                if (val.trim()) textsToTranslate[f] = val;
+            });
+            // Also gather translatable item fields (FAQ, testimonials)
+            const itemFields = SB_TRANSLATABLE_ITEM_FIELDS[sec.type];
+            if (itemFields && Array.isArray(sec.items)) {
+                sec.items.forEach((item, i) => {
+                    itemFields.forEach(f => {
+                        const val = item[f + '_' + primaryLang] || item[f] || '';
+                        if (val.trim()) textsToTranslate[`_item_${i}_${f}`] = val;
+                    });
+                });
+            }
+
+            if (Object.keys(textsToTranslate).length === 0) {
+                showNotification(`Please enter ${primaryLang.toUpperCase()} content first`, 'warning');
+                return;
+            }
+
+            const btn = document.getElementById(`sb-translate-btn-${idx}`);
+            const originalText = btn ? btn.innerHTML : '';
+            if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Translating...'; }
+
+            try {
+                // Translate each text field
+                const allTexts = Object.values(textsToTranslate);
+                const resp = await fetch('/api/admin/translate-text', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ text: allTexts.join('\n---FIELD_SEP---\n'), source_lang: primaryLang, target_langs: [targetLang] })
+                });
+                const data = await resp.json();
+                if (data.success && data.translations && data.translations[targetLang]) {
+                    const translated = data.translations[targetLang].split('\n---FIELD_SEP---\n');
+                    const keys = Object.keys(textsToTranslate);
+                    keys.forEach((key, i) => {
+                        if (translated[i] !== undefined) {
+                            const val = translated[i].trim();
+                            if (key.startsWith('_item_')) {
+                                const parts = key.match(/^_item_(\d+)_(.+)$/);
+                                if (parts) {
+                                    const itemIdx = parseInt(parts[1]);
+                                    const field = parts[2];
+                                    if (sec.items[itemIdx]) sec.items[itemIdx][field + '_' + targetLang] = val;
+                                }
+                            } else {
+                                sec[key + '_' + targetLang] = val;
+                            }
+                        }
+                    });
+                    // Re-render to show translated content
+                    const body = document.getElementById(`sb-body-${idx}`);
+                    if (body) { body.innerHTML = sbRenderFields(sec, idx); body.style.display = 'block'; }
+                    sbUpdateSectionPreview(idx);
+                    showNotification('Section translated!', 'success');
+                } else {
+                    showNotification('Translation failed: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (e) {
+                showNotification('Translation error: ' + e.message, 'error');
+            } finally {
+                const btn2 = document.getElementById(`sb-translate-btn-${idx}`);
+                if (btn2) { btn2.disabled = false; btn2.innerHTML = originalText; }
             }
         }
 
