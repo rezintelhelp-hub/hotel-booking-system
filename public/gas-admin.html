@@ -23180,7 +23180,7 @@ const promo = await fetch('/api/v1/offers/validate', {
 
         function sbRenderFields(sec, idx) {
             const inp = (field, label, type = 'text', val = '') => {
-                val = sec[field] ?? val;
+                if (type !== 'select') val = sec[field] ?? val;
                 if (type === 'textarea') {
                     return `<div class="form-group"><label class="form-label">${label}</label><textarea class="form-input" data-field="${field}" rows="4" style="min-height: 80px;">${val}</textarea></div>`;
                 }
