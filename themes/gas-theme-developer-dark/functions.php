@@ -2754,6 +2754,8 @@ function developer_get_api_settings() {
         'rooms_text_color' => $website_rooms['text-color'] ?? null,
         
         // Footer - MULTILINGUAL
+        'footer_heading_quicklinks' => developer_get_ml_value($website_footer, 'heading-quicklinks', $lang),
+        'footer_heading_legal' => developer_get_ml_value($website_footer, 'heading-legal', $lang),
         'footer_copyright' => developer_get_ml_value($website_footer, 'copyright', $lang),
         'footer_email' => $website_footer['email'] ?? '',
         'footer_phone' => $website_footer['phone'] ?? '',

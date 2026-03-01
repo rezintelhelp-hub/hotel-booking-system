@@ -158,7 +158,7 @@ $has_attractions = $use_api ? ($site_config['features']['has_attractions'] ?? fa
             
             <!-- Quick Links Column -->
             <div>
-                <h4 style="color: <?php echo esc_attr($footer_text); ?>;">Quick Links</h4>
+                <h4 style="color: <?php echo esc_attr($footer_text); ?>;"><?php echo esc_html($api_settings['footer_heading_quicklinks'] ?? 'Quick Links'); ?></h4>
                 <ul class="developer-footer-links">
                     <?php foreach ($quick_links as $link) : ?>
                         <li><a href="<?php echo esc_url(home_url($link['url'])); ?>" style="color: <?php echo esc_attr($footer_text); ?>; opacity: 0.8;"><?php echo esc_html($link['label']); ?></a></li>
@@ -168,7 +168,7 @@ $has_attractions = $use_api ? ($site_config['features']['has_attractions'] ?? fa
             
             <!-- Legal/Explore Column -->
             <div>
-                <h4 style="color: <?php echo esc_attr($footer_text); ?>;">Legal</h4>
+                <h4 style="color: <?php echo esc_attr($footer_text); ?>;"><?php echo esc_html($api_settings['footer_heading_legal'] ?? 'Legal'); ?></h4>
                 <ul class="developer-footer-links">
                     <?php foreach ($legal_links as $link) : ?>
                         <li><a href="<?php echo esc_url(home_url($link['url'])); ?>" style="color: <?php echo esc_attr($footer_text); ?>; opacity: 0.8;"><?php echo esc_html($link['label']); ?></a></li>
@@ -178,7 +178,7 @@ $has_attractions = $use_api ? ($site_config['features']['has_attractions'] ?? fa
             
             <!-- Contact Column -->
             <div>
-                <h4 style="color: <?php echo esc_attr($footer_text); ?>;">Contact</h4>
+                <h4 style="color: <?php echo esc_attr($footer_text); ?>;"><?php echo esc_html($api_settings['page_contact_menu_title'] ?? 'Contact'); ?></h4>
                 <ul class="developer-footer-links">
                     <?php if ($phone) : ?>
                         <li><a href="tel:<?php echo esc_attr(preg_replace('/[^0-9+]/', '', $phone)); ?>" style="color: <?php echo esc_attr($footer_text); ?>; opacity: 0.8;"><?php echo esc_html($phone); ?></a></li>
