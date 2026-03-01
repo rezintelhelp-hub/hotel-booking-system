@@ -13045,8 +13045,22 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <div class="card-header"><h3>Page Settings</h3></div>
                     <div class="card-body">
                         <div class="form-group">
-                            <label class="form-label">Page Title</label>
-                            <input type="text" class="form-input" id="wb-page-terms-title" value="Terms & Conditions">
+                            <label class="form-label">Page Title <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                            <div class="translation-field-wrapper" data-translation-group="wb-page-terms-title">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-terms-title', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-terms-title', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-terms-title', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-terms-title', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-terms-title')" title="Auto-translate">✨</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <input type="text" class="form-input translation-input active" id="wb-page-terms-title-en" data-lang="en" value="Terms & Conditions">
+                                    <input type="text" class="form-input translation-input" id="wb-page-terms-title-fr" data-lang="fr" placeholder="Conditions Générales">
+                                    <input type="text" class="form-input translation-input" id="wb-page-terms-title-es" data-lang="es" placeholder="Términos y Condiciones">
+                                    <input type="text" class="form-input translation-input" id="wb-page-terms-title-nl" data-lang="nl" placeholder="Algemene Voorwaarden">
+                                </div>
+                            </div>
                         </div>
                         <div class="form-group">
                             <label class="form-label">Last Updated Date</label>
@@ -13065,12 +13079,40 @@ const promo = await fetch('/api/v1/offers/validate', {
                     </div>
                     <div class="card-body">
                         <div class="form-group">
-                            <label class="form-label">Heading on Website</label>
-                            <input type="text" class="form-input" id="wb-page-terms-booking-title" value="Booking & Reservations" placeholder="Section heading...">
+                            <label class="form-label">Heading on Website <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                            <div class="translation-field-wrapper" data-translation-group="wb-page-terms-booking-title">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-terms-booking-title', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-terms-booking-title', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-terms-booking-title', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-terms-booking-title', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-terms-booking-title')" title="Auto-translate">✨</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <input type="text" class="form-input translation-input active" id="wb-page-terms-booking-title-en" data-lang="en" value="Booking & Reservations" placeholder="Section heading...">
+                                    <input type="text" class="form-input translation-input" id="wb-page-terms-booking-title-fr" data-lang="fr" placeholder="Réservations">
+                                    <input type="text" class="form-input translation-input" id="wb-page-terms-booking-title-es" data-lang="es" placeholder="Reservas">
+                                    <input type="text" class="form-input translation-input" id="wb-page-terms-booking-title-nl" data-lang="nl" placeholder="Boekingen & Reserveringen">
+                                </div>
+                            </div>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Booking & Reservation Terms</label>
-                            <textarea class="form-textarea" id="wb-page-terms-booking" rows="5" placeholder="Describe how bookings are made, confirmation process, deposit requirements..."></textarea>
+                            <label class="form-label">Booking & Reservation Terms <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                            <div class="translation-field-wrapper" data-translation-group="wb-page-terms-booking">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-terms-booking', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-terms-booking', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-terms-booking', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-terms-booking', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-terms-booking')" title="Auto-translate">✨</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <textarea class="form-textarea translation-input active" id="wb-page-terms-booking-en" data-lang="en" rows="5" placeholder="Describe how bookings are made, confirmation process, deposit requirements..."></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-page-terms-booking-fr" data-lang="fr" rows="5" placeholder=""></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-page-terms-booking-es" data-lang="es" rows="5" placeholder=""></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-page-terms-booking-nl" data-lang="nl" rows="5" placeholder=""></textarea>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -13086,11 +13128,39 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <div class="card-body">
                         <div class="form-group">
                             <label class="form-label">Heading on Website</label>
-                            <input type="text" class="form-input" id="wb-page-terms-cancellation-title" value="Cancellation Policy" placeholder="Section heading...">
+                            <div class="translation-field-wrapper" data-translation-group="wb-page-terms-cancellation-title">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-terms-cancellation-title', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-terms-cancellation-title', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-terms-cancellation-title', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-terms-cancellation-title', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-terms-cancellation-title')" title="Auto-translate">✨</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <input type="text" class="form-input translation-input active" id="wb-page-terms-cancellation-title-en" data-lang="en" value="Cancellation Policy" placeholder="Section heading...">
+                                    <input type="text" class="form-input translation-input" id="wb-page-terms-cancellation-title-fr" data-lang="fr" placeholder="Politique d'Annulation">
+                                    <input type="text" class="form-input translation-input" id="wb-page-terms-cancellation-title-es" data-lang="es" placeholder="Política de Cancelación">
+                                    <input type="text" class="form-input translation-input" id="wb-page-terms-cancellation-title-nl" data-lang="nl" placeholder="Annuleringsbeleid">
+                                </div>
+                            </div>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Cancellation Terms</label>
-                            <textarea class="form-textarea" id="wb-page-terms-cancellation" rows="6" placeholder="e.g., Free cancellation up to 48 hours before check-in. Cancellations within 48 hours will be charged for the first night..."></textarea>
+                            <label class="form-label">Cancellation Terms <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                            <div class="translation-field-wrapper" data-translation-group="wb-page-terms-cancellation">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-terms-cancellation', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-terms-cancellation', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-terms-cancellation', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-terms-cancellation', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-terms-cancellation')" title="Auto-translate">✨</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <textarea class="form-textarea translation-input active" id="wb-page-terms-cancellation-en" data-lang="en" rows="6" placeholder="e.g., Free cancellation up to 48 hours before check-in..."></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-page-terms-cancellation-fr" data-lang="fr" rows="6" placeholder=""></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-page-terms-cancellation-es" data-lang="es" rows="6" placeholder=""></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-page-terms-cancellation-nl" data-lang="nl" rows="6" placeholder=""></textarea>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -13106,7 +13176,21 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <div class="card-body">
                         <div class="form-group">
                             <label class="form-label">Heading on Website</label>
-                            <input type="text" class="form-input" id="wb-page-terms-checkin-title" value="Check-in & Check-out" placeholder="Section heading...">
+                            <div class="translation-field-wrapper" data-translation-group="wb-page-terms-checkin-title">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-terms-checkin-title', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-terms-checkin-title', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-terms-checkin-title', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-terms-checkin-title', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-terms-checkin-title')" title="Auto-translate">✨</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <input type="text" class="form-input translation-input active" id="wb-page-terms-checkin-title-en" data-lang="en" value="Check-in & Check-out" placeholder="Section heading...">
+                                    <input type="text" class="form-input translation-input" id="wb-page-terms-checkin-title-fr" data-lang="fr" placeholder="Arrivée & Départ">
+                                    <input type="text" class="form-input translation-input" id="wb-page-terms-checkin-title-es" data-lang="es" placeholder="Check-in & Check-out">
+                                    <input type="text" class="form-input translation-input" id="wb-page-terms-checkin-title-nl" data-lang="nl" placeholder="Inchecken & Uitchecken">
+                                </div>
+                            </div>
                         </div>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                             <div class="form-group">
@@ -13119,8 +13203,22 @@ const promo = await fetch('/api/v1/offers/validate', {
                             </div>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Additional Details</label>
-                            <textarea class="form-textarea" id="wb-page-terms-checkin-details" rows="3" placeholder="Early check-in or late check-out subject to availability..."></textarea>
+                            <label class="form-label">Additional Details <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                            <div class="translation-field-wrapper" data-translation-group="wb-page-terms-checkin-details">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-terms-checkin-details', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-terms-checkin-details', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-terms-checkin-details', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-terms-checkin-details', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-terms-checkin-details')" title="Auto-translate">✨</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <textarea class="form-textarea translation-input active" id="wb-page-terms-checkin-details-en" data-lang="en" rows="3" placeholder="Early check-in or late check-out subject to availability..."></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-page-terms-checkin-details-fr" data-lang="fr" rows="3" placeholder=""></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-page-terms-checkin-details-es" data-lang="es" rows="3" placeholder=""></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-page-terms-checkin-details-nl" data-lang="nl" rows="3" placeholder=""></textarea>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -13136,16 +13234,39 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <div class="card-body">
                         <div class="form-group">
                             <label class="form-label">Heading on Website</label>
-                            <input type="text" class="form-input" id="wb-page-terms-house-rules-title" value="House Rules" placeholder="Section heading...">
+                            <div class="translation-field-wrapper" data-translation-group="wb-page-terms-house-rules-title">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-terms-house-rules-title', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-terms-house-rules-title', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-terms-house-rules-title', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-terms-house-rules-title', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-terms-house-rules-title')" title="Auto-translate">✨</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <input type="text" class="form-input translation-input active" id="wb-page-terms-house-rules-title-en" data-lang="en" value="House Rules" placeholder="Section heading...">
+                                    <input type="text" class="form-input translation-input" id="wb-page-terms-house-rules-title-fr" data-lang="fr" placeholder="Règlement Intérieur">
+                                    <input type="text" class="form-input translation-input" id="wb-page-terms-house-rules-title-es" data-lang="es" placeholder="Normas de la Casa">
+                                    <input type="text" class="form-input translation-input" id="wb-page-terms-house-rules-title-nl" data-lang="nl" placeholder="Huisregels">
+                                </div>
+                            </div>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Property Rules</label>
-                            <textarea class="form-textarea" id="wb-page-terms-house-rules" rows="6" placeholder="List your house rules:
- No smoking
- No pets (or pet policy)
- Quiet hours: 10 PM - 8 AM
- Maximum occupancy
- No parties or events"></textarea>
+                            <label class="form-label">Property Rules <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                            <div class="translation-field-wrapper" data-translation-group="wb-page-terms-house-rules">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-terms-house-rules', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-terms-house-rules', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-terms-house-rules', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-terms-house-rules', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-terms-house-rules')" title="Auto-translate">✨</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <textarea class="form-textarea translation-input active" id="wb-page-terms-house-rules-en" data-lang="en" rows="6" placeholder="List your house rules..."></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-page-terms-house-rules-fr" data-lang="fr" rows="6" placeholder=""></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-page-terms-house-rules-es" data-lang="es" rows="6" placeholder=""></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-page-terms-house-rules-nl" data-lang="nl" rows="6" placeholder=""></textarea>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -13161,11 +13282,39 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <div class="card-body">
                         <div class="form-group">
                             <label class="form-label">Heading on Website</label>
-                            <input type="text" class="form-input" id="wb-page-terms-payment-title" value="Payment Terms" placeholder="Section heading...">
+                            <div class="translation-field-wrapper" data-translation-group="wb-page-terms-payment-title">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-terms-payment-title', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-terms-payment-title', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-terms-payment-title', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-terms-payment-title', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-terms-payment-title')" title="Auto-translate">✨</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <input type="text" class="form-input translation-input active" id="wb-page-terms-payment-title-en" data-lang="en" value="Payment Terms" placeholder="Section heading...">
+                                    <input type="text" class="form-input translation-input" id="wb-page-terms-payment-title-fr" data-lang="fr" placeholder="Conditions de Paiement">
+                                    <input type="text" class="form-input translation-input" id="wb-page-terms-payment-title-es" data-lang="es" placeholder="Condiciones de Pago">
+                                    <input type="text" class="form-input translation-input" id="wb-page-terms-payment-title-nl" data-lang="nl" placeholder="Betalingsvoorwaarden">
+                                </div>
+                            </div>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Payment Methods & Terms</label>
-                            <textarea class="form-textarea" id="wb-page-terms-payment" rows="4" placeholder="Accepted payment methods, deposit requirements, when payment is taken..."></textarea>
+                            <label class="form-label">Payment Methods & Terms <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                            <div class="translation-field-wrapper" data-translation-group="wb-page-terms-payment">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-terms-payment', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-terms-payment', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-terms-payment', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-terms-payment', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-terms-payment')" title="Auto-translate">✨</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <textarea class="form-textarea translation-input active" id="wb-page-terms-payment-en" data-lang="en" rows="4" placeholder="Accepted payment methods, deposit requirements, when payment is taken..."></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-page-terms-payment-fr" data-lang="fr" rows="4" placeholder=""></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-page-terms-payment-es" data-lang="es" rows="4" placeholder=""></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-page-terms-payment-nl" data-lang="nl" rows="4" placeholder=""></textarea>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -13181,11 +13330,39 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <div class="card-body">
                         <div class="form-group">
                             <label class="form-label">Heading on Website</label>
-                            <input type="text" class="form-input" id="wb-page-terms-liability-title" value="Liability & Damages" placeholder="Section heading...">
+                            <div class="translation-field-wrapper" data-translation-group="wb-page-terms-liability-title">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-terms-liability-title', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-terms-liability-title', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-terms-liability-title', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-terms-liability-title', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-terms-liability-title')" title="Auto-translate">✨</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <input type="text" class="form-input translation-input active" id="wb-page-terms-liability-title-en" data-lang="en" value="Liability & Damages" placeholder="Section heading...">
+                                    <input type="text" class="form-input translation-input" id="wb-page-terms-liability-title-fr" data-lang="fr" placeholder="Responsabilité & Dommages">
+                                    <input type="text" class="form-input translation-input" id="wb-page-terms-liability-title-es" data-lang="es" placeholder="Responsabilidad y Daños">
+                                    <input type="text" class="form-input translation-input" id="wb-page-terms-liability-title-nl" data-lang="nl" placeholder="Aansprakelijkheid & Schade">
+                                </div>
+                            </div>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Liability Terms</label>
-                            <textarea class="form-textarea" id="wb-page-terms-liability" rows="4" placeholder="Guest responsibility for damages, security deposit terms, liability limitations..."></textarea>
+                            <label class="form-label">Liability Terms <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                            <div class="translation-field-wrapper" data-translation-group="wb-page-terms-liability">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-terms-liability', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-terms-liability', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-terms-liability', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-terms-liability', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-terms-liability')" title="Auto-translate">✨</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <textarea class="form-textarea translation-input active" id="wb-page-terms-liability-en" data-lang="en" rows="4" placeholder="Guest responsibility for damages, security deposit terms, liability limitations..."></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-page-terms-liability-fr" data-lang="fr" rows="4" placeholder=""></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-page-terms-liability-es" data-lang="es" rows="4" placeholder=""></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-page-terms-liability-nl" data-lang="nl" rows="4" placeholder=""></textarea>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -13201,11 +13378,39 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <div class="card-body">
                         <div class="form-group">
                             <label class="form-label">Heading on Website</label>
-                            <input type="text" class="form-input" id="wb-page-terms-additional-title" value="Additional Terms" placeholder="Section heading...">
+                            <div class="translation-field-wrapper" data-translation-group="wb-page-terms-additional-title">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-terms-additional-title', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-terms-additional-title', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-terms-additional-title', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-terms-additional-title', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-terms-additional-title')" title="Auto-translate">✨</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <input type="text" class="form-input translation-input active" id="wb-page-terms-additional-title-en" data-lang="en" value="Additional Terms" placeholder="Section heading...">
+                                    <input type="text" class="form-input translation-input" id="wb-page-terms-additional-title-fr" data-lang="fr" placeholder="Conditions Supplémentaires">
+                                    <input type="text" class="form-input translation-input" id="wb-page-terms-additional-title-es" data-lang="es" placeholder="Términos Adicionales">
+                                    <input type="text" class="form-input translation-input" id="wb-page-terms-additional-title-nl" data-lang="nl" placeholder="Aanvullende Voorwaarden">
+                                </div>
+                            </div>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Other Terms & Conditions</label>
-                            <textarea class="form-textarea" id="wb-page-terms-additional" rows="5" placeholder="Any other terms not covered above..."></textarea>
+                            <label class="form-label">Other Terms & Conditions <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                            <div class="translation-field-wrapper" data-translation-group="wb-page-terms-additional">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-terms-additional', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-terms-additional', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-terms-additional', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-terms-additional', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-terms-additional')" title="Auto-translate">✨</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <textarea class="form-textarea translation-input active" id="wb-page-terms-additional-en" data-lang="en" rows="5" placeholder="Any other terms not covered above..."></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-page-terms-additional-fr" data-lang="fr" rows="5" placeholder=""></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-page-terms-additional-es" data-lang="es" rows="5" placeholder=""></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-page-terms-additional-nl" data-lang="nl" rows="5" placeholder=""></textarea>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -13227,8 +13432,22 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <div class="card-header"><h3>Page Settings</h3></div>
                     <div class="card-body">
                         <div class="form-group">
-                            <label class="form-label">Page Title</label>
-                            <input type="text" class="form-input" id="wb-page-privacy-title" value="Privacy Policy">
+                            <label class="form-label">Page Title <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                            <div class="translation-field-wrapper" data-translation-group="wb-page-privacy-title">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-privacy-title', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-privacy-title', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-privacy-title', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-privacy-title', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-privacy-title')" title="Auto-translate">✨</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <input type="text" class="form-input translation-input active" id="wb-page-privacy-title-en" data-lang="en" value="Privacy Policy">
+                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-title-fr" data-lang="fr" placeholder="Politique de Confidentialité">
+                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-title-es" data-lang="es" placeholder="Política de Privacidad">
+                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-title-nl" data-lang="nl" placeholder="Privacybeleid">
+                                </div>
+                            </div>
                         </div>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                             <div class="form-group">
@@ -13253,15 +13472,58 @@ const promo = await fetch('/api/v1/offers/validate', {
                     </div>
                     <div class="card-body">
                         <div class="form-group">
-                            <label class="form-label">Heading on Website</label>
-                            <input type="text" class="form-input" id="wb-page-privacy-intro-title" value="Introduction" placeholder="Section heading...">
+                            <label class="form-label">Heading on Website <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                            <div class="translation-field-wrapper" data-translation-group="wb-page-privacy-intro-title">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-privacy-intro-title', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-privacy-intro-title', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-privacy-intro-title', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-privacy-intro-title', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-privacy-intro-title')" title="Auto-translate">✨</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <input type="text" class="form-input translation-input active" id="wb-page-privacy-intro-title-en" data-lang="en" value="Introduction" placeholder="Section heading...">
+                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-intro-title-fr" data-lang="fr" placeholder="Introduction">
+                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-intro-title-es" data-lang="es" placeholder="Introducción">
+                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-intro-title-nl" data-lang="nl" placeholder="Inleiding">
+                                </div>
+                            </div>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Sub-heading</label>
-                            <input type="text" class="form-input" id="wb-page-privacy-intro-sub" value="" placeholder="Sub-heading (leave blank to hide)...">
+                            <label class="form-label">Sub-heading <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                            <div class="translation-field-wrapper" data-translation-group="wb-page-privacy-intro-sub">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-privacy-intro-sub', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-privacy-intro-sub', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-privacy-intro-sub', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-privacy-intro-sub', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-privacy-intro-sub')" title="Auto-translate">✨</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <input type="text" class="form-input translation-input active" id="wb-page-privacy-intro-sub-en" data-lang="en" value="" placeholder="Sub-heading (leave blank to hide)...">
+                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-intro-sub-fr" data-lang="fr" placeholder="">
+                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-intro-sub-es" data-lang="es" placeholder="">
+                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-intro-sub-nl" data-lang="nl" placeholder="">
+                                </div>
+                            </div>
                         </div>
                         <div class="form-group">
-                            <textarea class="form-textarea" id="wb-page-privacy-intro" rows="4" placeholder="We respect your privacy and are committed to protecting your personal data. This privacy policy explains how we collect, use, and safeguard your information when you visit our website or make a booking."></textarea>
+                            <label class="form-label">Content <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                            <div class="translation-field-wrapper" data-translation-group="wb-page-privacy-intro">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-privacy-intro', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-privacy-intro', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-privacy-intro', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-privacy-intro', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-privacy-intro')" title="Auto-translate">✨</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <textarea class="form-textarea translation-input active" id="wb-page-privacy-intro-en" data-lang="en" rows="4" placeholder="We respect your privacy and are committed to protecting your personal data. This privacy policy explains how we collect, use, and safeguard your information when you visit our website or make a booking."></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-page-privacy-intro-fr" data-lang="fr" rows="4" placeholder=""></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-page-privacy-intro-es" data-lang="es" rows="4" placeholder=""></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-page-privacy-intro-nl" data-lang="nl" rows="4" placeholder=""></textarea>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -13276,30 +13538,102 @@ const promo = await fetch('/api/v1/offers/validate', {
                     </div>
                     <div class="card-body">
                         <div class="form-group">
-                            <label class="form-label">Heading on Website</label>
-                            <input type="text" class="form-input" id="wb-page-privacy-collection-title" value="Information We Collect" placeholder="Section heading...">
+                            <label class="form-label">Heading on Website <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                            <div class="translation-field-wrapper" data-translation-group="wb-page-privacy-collection-title">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-privacy-collection-title', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-privacy-collection-title', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-privacy-collection-title', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-privacy-collection-title', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-privacy-collection-title')" title="Auto-translate">✨</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <input type="text" class="form-input translation-input active" id="wb-page-privacy-collection-title-en" data-lang="en" value="Information We Collect" placeholder="Section heading...">
+                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-collection-title-fr" data-lang="fr" placeholder="Informations Que Nous Collectons">
+                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-collection-title-es" data-lang="es" placeholder="Información Que Recopilamos">
+                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-collection-title-nl" data-lang="nl" placeholder="Informatie Die Wij Verzamelen">
+                                </div>
+                            </div>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Sub-heading 1</label>
-                            <input type="text" class="form-input" id="wb-page-privacy-collection-sub1" value="What Data We Collect" placeholder="Sub-heading...">
+                            <label class="form-label">Sub-heading 1 <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                            <div class="translation-field-wrapper" data-translation-group="wb-page-privacy-collection-sub1">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-privacy-collection-sub1', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-privacy-collection-sub1', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-privacy-collection-sub1', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-privacy-collection-sub1', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-privacy-collection-sub1')" title="Auto-translate">✨</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <input type="text" class="form-input translation-input active" id="wb-page-privacy-collection-sub1-en" data-lang="en" value="What Data We Collect" placeholder="Sub-heading...">
+                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-collection-sub1-fr" data-lang="fr" placeholder="">
+                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-collection-sub1-es" data-lang="es" placeholder="">
+                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-collection-sub1-nl" data-lang="nl" placeholder="">
+                                </div>
+                            </div>
                         </div>
                         <div class="form-group">
-                            <textarea class="form-textarea" id="wb-page-privacy-collection" rows="5" placeholder="Types of personal data collected:
+                            <label class="form-label">Content <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                            <div class="translation-field-wrapper" data-translation-group="wb-page-privacy-collection">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-privacy-collection', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-privacy-collection', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-privacy-collection', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-privacy-collection', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-privacy-collection')" title="Auto-translate">✨</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <textarea class="form-textarea translation-input active" id="wb-page-privacy-collection-en" data-lang="en" rows="5" placeholder="Types of personal data collected:
  Name, email, phone number
  Payment information
  Booking preferences
  Communication history
  Website usage data"></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-page-privacy-collection-fr" data-lang="fr" rows="5" placeholder=""></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-page-privacy-collection-es" data-lang="es" rows="5" placeholder=""></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-page-privacy-collection-nl" data-lang="nl" rows="5" placeholder=""></textarea>
+                                </div>
+                            </div>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Sub-heading 2</label>
-                            <input type="text" class="form-input" id="wb-page-privacy-how-collect-sub" value="How We Collect Data" placeholder="Sub-heading...">
+                            <label class="form-label">Sub-heading 2 <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                            <div class="translation-field-wrapper" data-translation-group="wb-page-privacy-how-collect-sub">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-privacy-how-collect-sub', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-privacy-how-collect-sub', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-privacy-how-collect-sub', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-privacy-how-collect-sub', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-privacy-how-collect-sub')" title="Auto-translate">✨</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <input type="text" class="form-input translation-input active" id="wb-page-privacy-how-collect-sub-en" data-lang="en" value="How We Collect Data" placeholder="Sub-heading...">
+                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-how-collect-sub-fr" data-lang="fr" placeholder="">
+                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-how-collect-sub-es" data-lang="es" placeholder="">
+                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-how-collect-sub-nl" data-lang="nl" placeholder="">
+                                </div>
+                            </div>
                         </div>
                         <div class="form-group">
-                            <textarea class="form-textarea" id="wb-page-privacy-how-collect" rows="4" placeholder="How data is collected:
+                            <label class="form-label">Content <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                            <div class="translation-field-wrapper" data-translation-group="wb-page-privacy-how-collect">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-privacy-how-collect', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-privacy-how-collect', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-privacy-how-collect', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-privacy-how-collect', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-privacy-how-collect')" title="Auto-translate">✨</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <textarea class="form-textarea translation-input active" id="wb-page-privacy-how-collect-en" data-lang="en" rows="4" placeholder="How data is collected:
  Directly from you (booking forms, contact forms)
  Automatically (cookies, analytics)
  From third parties (booking platforms)"></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-page-privacy-how-collect-fr" data-lang="fr" rows="4" placeholder=""></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-page-privacy-how-collect-es" data-lang="es" rows="4" placeholder=""></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-page-privacy-how-collect-nl" data-lang="nl" rows="4" placeholder=""></textarea>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -13314,20 +13648,63 @@ const promo = await fetch('/api/v1/offers/validate', {
                     </div>
                     <div class="card-body">
                         <div class="form-group">
-                            <label class="form-label">Heading on Website</label>
-                            <input type="text" class="form-input" id="wb-page-privacy-usage-title" value="How We Use Your Information" placeholder="Section heading...">
+                            <label class="form-label">Heading on Website <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                            <div class="translation-field-wrapper" data-translation-group="wb-page-privacy-usage-title">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-privacy-usage-title', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-privacy-usage-title', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-privacy-usage-title', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-privacy-usage-title', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-privacy-usage-title')" title="Auto-translate">✨</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <input type="text" class="form-input translation-input active" id="wb-page-privacy-usage-title-en" data-lang="en" value="How We Use Your Information" placeholder="Section heading...">
+                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-usage-title-fr" data-lang="fr" placeholder="Comment Nous Utilisons Vos Informations">
+                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-usage-title-es" data-lang="es" placeholder="Cómo Usamos Su Información">
+                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-usage-title-nl" data-lang="nl" placeholder="Hoe Wij Uw Informatie Gebruiken">
+                                </div>
+                            </div>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Sub-heading</label>
-                            <input type="text" class="form-input" id="wb-page-privacy-usage-sub" value="Data Usage" placeholder="Sub-heading (leave blank to hide)...">
+                            <label class="form-label">Sub-heading <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                            <div class="translation-field-wrapper" data-translation-group="wb-page-privacy-usage-sub">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-privacy-usage-sub', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-privacy-usage-sub', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-privacy-usage-sub', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-privacy-usage-sub', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-privacy-usage-sub')" title="Auto-translate">✨</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <input type="text" class="form-input translation-input active" id="wb-page-privacy-usage-sub-en" data-lang="en" value="Data Usage" placeholder="Sub-heading (leave blank to hide)...">
+                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-usage-sub-fr" data-lang="fr" placeholder="">
+                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-usage-sub-es" data-lang="es" placeholder="">
+                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-usage-sub-nl" data-lang="nl" placeholder="">
+                                </div>
+                            </div>
                         </div>
                         <div class="form-group">
-                            <textarea class="form-textarea" id="wb-page-privacy-usage" rows="5" placeholder="We use your data to:
+                            <label class="form-label">Content <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                            <div class="translation-field-wrapper" data-translation-group="wb-page-privacy-usage">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-privacy-usage', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-privacy-usage', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-privacy-usage', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-privacy-usage', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-privacy-usage')" title="Auto-translate">✨</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <textarea class="form-textarea translation-input active" id="wb-page-privacy-usage-en" data-lang="en" rows="5" placeholder="We use your data to:
  Process and manage bookings
  Send booking confirmations and updates
  Respond to enquiries
  Improve our services
  Send marketing communications (with consent)"></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-page-privacy-usage-fr" data-lang="fr" rows="5" placeholder=""></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-page-privacy-usage-es" data-lang="es" rows="5" placeholder=""></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-page-privacy-usage-nl" data-lang="nl" rows="5" placeholder=""></textarea>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -13342,19 +13719,62 @@ const promo = await fetch('/api/v1/offers/validate', {
                     </div>
                     <div class="card-body">
                         <div class="form-group">
-                            <label class="form-label">Heading on Website</label>
-                            <input type="text" class="form-input" id="wb-page-privacy-sharing-title" value="Information Sharing" placeholder="Section heading...">
+                            <label class="form-label">Heading on Website <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                            <div class="translation-field-wrapper" data-translation-group="wb-page-privacy-sharing-title">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-privacy-sharing-title', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-privacy-sharing-title', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-privacy-sharing-title', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-privacy-sharing-title', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-privacy-sharing-title')" title="Auto-translate">✨</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <input type="text" class="form-input translation-input active" id="wb-page-privacy-sharing-title-en" data-lang="en" value="Information Sharing" placeholder="Section heading...">
+                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-sharing-title-fr" data-lang="fr" placeholder="Partage d'Informations">
+                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-sharing-title-es" data-lang="es" placeholder="Compartir Información">
+                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-sharing-title-nl" data-lang="nl" placeholder="Informatie Delen">
+                                </div>
+                            </div>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Sub-heading</label>
-                            <input type="text" class="form-input" id="wb-page-privacy-sharing-sub" value="Who We Share Data With" placeholder="Sub-heading (leave blank to hide)...">
+                            <label class="form-label">Sub-heading <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                            <div class="translation-field-wrapper" data-translation-group="wb-page-privacy-sharing-sub">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-privacy-sharing-sub', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-privacy-sharing-sub', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-privacy-sharing-sub', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-privacy-sharing-sub', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-privacy-sharing-sub')" title="Auto-translate">✨</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <input type="text" class="form-input translation-input active" id="wb-page-privacy-sharing-sub-en" data-lang="en" value="Who We Share Data With" placeholder="Sub-heading (leave blank to hide)...">
+                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-sharing-sub-fr" data-lang="fr" placeholder="">
+                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-sharing-sub-es" data-lang="es" placeholder="">
+                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-sharing-sub-nl" data-lang="nl" placeholder="">
+                                </div>
+                            </div>
                         </div>
                         <div class="form-group">
-                            <textarea class="form-textarea" id="wb-page-privacy-sharing" rows="4" placeholder="We may share your data with:
+                            <label class="form-label">Content <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                            <div class="translation-field-wrapper" data-translation-group="wb-page-privacy-sharing">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-privacy-sharing', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-privacy-sharing', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-privacy-sharing', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-privacy-sharing', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-privacy-sharing')" title="Auto-translate">✨</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <textarea class="form-textarea translation-input active" id="wb-page-privacy-sharing-en" data-lang="en" rows="4" placeholder="We may share your data with:
  Payment processors
  Booking platforms (Booking.com, Airbnb, etc.)
  Email service providers
  Legal authorities when required"></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-page-privacy-sharing-fr" data-lang="fr" rows="4" placeholder=""></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-page-privacy-sharing-es" data-lang="es" rows="4" placeholder=""></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-page-privacy-sharing-nl" data-lang="nl" rows="4" placeholder=""></textarea>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -13369,18 +13789,61 @@ const promo = await fetch('/api/v1/offers/validate', {
                     </div>
                     <div class="card-body">
                         <div class="form-group">
-                            <label class="form-label">Heading on Website</label>
-                            <input type="text" class="form-input" id="wb-page-privacy-cookies-title" value="Cookies" placeholder="Section heading...">
+                            <label class="form-label">Heading on Website <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                            <div class="translation-field-wrapper" data-translation-group="wb-page-privacy-cookies-title">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-privacy-cookies-title', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-privacy-cookies-title', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-privacy-cookies-title', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-privacy-cookies-title', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-privacy-cookies-title')" title="Auto-translate">✨</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <input type="text" class="form-input translation-input active" id="wb-page-privacy-cookies-title-en" data-lang="en" value="Cookies" placeholder="Section heading...">
+                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-cookies-title-fr" data-lang="fr" placeholder="Cookies">
+                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-cookies-title-es" data-lang="es" placeholder="Cookies">
+                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-cookies-title-nl" data-lang="nl" placeholder="Cookies">
+                                </div>
+                            </div>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Sub-heading</label>
-                            <input type="text" class="form-input" id="wb-page-privacy-cookies-sub" value="Cookie Policy" placeholder="Sub-heading (leave blank to hide)...">
+                            <label class="form-label">Sub-heading <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                            <div class="translation-field-wrapper" data-translation-group="wb-page-privacy-cookies-sub">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-privacy-cookies-sub', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-privacy-cookies-sub', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-privacy-cookies-sub', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-privacy-cookies-sub', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-privacy-cookies-sub')" title="Auto-translate">✨</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <input type="text" class="form-input translation-input active" id="wb-page-privacy-cookies-sub-en" data-lang="en" value="Cookie Policy" placeholder="Sub-heading (leave blank to hide)...">
+                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-cookies-sub-fr" data-lang="fr" placeholder="">
+                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-cookies-sub-es" data-lang="es" placeholder="">
+                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-cookies-sub-nl" data-lang="nl" placeholder="">
+                                </div>
+                            </div>
                         </div>
                         <div class="form-group">
-                            <textarea class="form-textarea" id="wb-page-privacy-cookies" rows="4" placeholder="Our website uses cookies to improve your experience. We use:
+                            <label class="form-label">Content <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                            <div class="translation-field-wrapper" data-translation-group="wb-page-privacy-cookies">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-privacy-cookies', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-privacy-cookies', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-privacy-cookies', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-privacy-cookies', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-privacy-cookies')" title="Auto-translate">✨</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <textarea class="form-textarea translation-input active" id="wb-page-privacy-cookies-en" data-lang="en" rows="4" placeholder="Our website uses cookies to improve your experience. We use:
  Essential cookies (required for site functionality)
  Analytics cookies (to understand usage)
  Marketing cookies (with your consent)"></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-page-privacy-cookies-fr" data-lang="fr" rows="4" placeholder=""></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-page-privacy-cookies-es" data-lang="es" rows="4" placeholder=""></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-page-privacy-cookies-nl" data-lang="nl" rows="4" placeholder=""></textarea>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -13395,21 +13858,64 @@ const promo = await fetch('/api/v1/offers/validate', {
                     </div>
                     <div class="card-body">
                         <div class="form-group">
-                            <label class="form-label">Heading on Website</label>
-                            <input type="text" class="form-input" id="wb-page-privacy-rights-title" value="Your Rights" placeholder="Section heading...">
+                            <label class="form-label">Heading on Website <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                            <div class="translation-field-wrapper" data-translation-group="wb-page-privacy-rights-title">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-privacy-rights-title', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-privacy-rights-title', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-privacy-rights-title', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-privacy-rights-title', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-privacy-rights-title')" title="Auto-translate">✨</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <input type="text" class="form-input translation-input active" id="wb-page-privacy-rights-title-en" data-lang="en" value="Your Rights" placeholder="Section heading...">
+                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-rights-title-fr" data-lang="fr" placeholder="Vos Droits">
+                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-rights-title-es" data-lang="es" placeholder="Sus Derechos">
+                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-rights-title-nl" data-lang="nl" placeholder="Uw Rechten">
+                                </div>
+                            </div>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Sub-heading</label>
-                            <input type="text" class="form-input" id="wb-page-privacy-rights-sub" value="Data Subject Rights (GDPR)" placeholder="Sub-heading (leave blank to hide)...">
+                            <label class="form-label">Sub-heading <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                            <div class="translation-field-wrapper" data-translation-group="wb-page-privacy-rights-sub">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-privacy-rights-sub', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-privacy-rights-sub', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-privacy-rights-sub', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-privacy-rights-sub', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-privacy-rights-sub')" title="Auto-translate">✨</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <input type="text" class="form-input translation-input active" id="wb-page-privacy-rights-sub-en" data-lang="en" value="Data Subject Rights (GDPR)" placeholder="Sub-heading (leave blank to hide)...">
+                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-rights-sub-fr" data-lang="fr" placeholder="">
+                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-rights-sub-es" data-lang="es" placeholder="">
+                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-rights-sub-nl" data-lang="nl" placeholder="">
+                                </div>
+                            </div>
                         </div>
                         <div class="form-group">
-                            <textarea class="form-textarea" id="wb-page-privacy-rights" rows="5" placeholder="Under data protection law, you have rights including:
+                            <label class="form-label">Content <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                            <div class="translation-field-wrapper" data-translation-group="wb-page-privacy-rights">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-privacy-rights', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-privacy-rights', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-privacy-rights', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-privacy-rights', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-privacy-rights')" title="Auto-translate">✨</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <textarea class="form-textarea translation-input active" id="wb-page-privacy-rights-en" data-lang="en" rows="5" placeholder="Under data protection law, you have rights including:
  Right to access your personal data
  Right to rectification
  Right to erasure ('right to be forgotten')
  Right to restrict processing
  Right to data portability
  Right to object"></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-page-privacy-rights-fr" data-lang="fr" rows="5" placeholder=""></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-page-privacy-rights-es" data-lang="es" rows="5" placeholder=""></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-page-privacy-rights-nl" data-lang="nl" rows="5" placeholder=""></textarea>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -13424,15 +13930,58 @@ const promo = await fetch('/api/v1/offers/validate', {
                     </div>
                     <div class="card-body">
                         <div class="form-group">
-                            <label class="form-label">Heading on Website</label>
-                            <input type="text" class="form-input" id="wb-page-privacy-retention-title" value="Data Retention" placeholder="Section heading...">
+                            <label class="form-label">Heading on Website <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                            <div class="translation-field-wrapper" data-translation-group="wb-page-privacy-retention-title">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-privacy-retention-title', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-privacy-retention-title', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-privacy-retention-title', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-privacy-retention-title', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-privacy-retention-title')" title="Auto-translate">✨</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <input type="text" class="form-input translation-input active" id="wb-page-privacy-retention-title-en" data-lang="en" value="Data Retention" placeholder="Section heading...">
+                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-retention-title-fr" data-lang="fr" placeholder="Conservation des Données">
+                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-retention-title-es" data-lang="es" placeholder="Retención de Datos">
+                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-retention-title-nl" data-lang="nl" placeholder="Gegevensbewaring">
+                                </div>
+                            </div>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Sub-heading</label>
-                            <input type="text" class="form-input" id="wb-page-privacy-retention-sub" value="How Long We Keep Data" placeholder="Sub-heading (leave blank to hide)...">
+                            <label class="form-label">Sub-heading <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                            <div class="translation-field-wrapper" data-translation-group="wb-page-privacy-retention-sub">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-privacy-retention-sub', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-privacy-retention-sub', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-privacy-retention-sub', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-privacy-retention-sub', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-privacy-retention-sub')" title="Auto-translate">✨</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <input type="text" class="form-input translation-input active" id="wb-page-privacy-retention-sub-en" data-lang="en" value="How Long We Keep Data" placeholder="Sub-heading (leave blank to hide)...">
+                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-retention-sub-fr" data-lang="fr" placeholder="">
+                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-retention-sub-es" data-lang="es" placeholder="">
+                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-retention-sub-nl" data-lang="nl" placeholder="">
+                                </div>
+                            </div>
                         </div>
                         <div class="form-group">
-                            <textarea class="form-textarea" id="wb-page-privacy-retention" rows="3" placeholder="We retain your personal data for as long as necessary to fulfill the purposes we collected it for, including legal, accounting, or reporting requirements."></textarea>
+                            <label class="form-label">Content <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                            <div class="translation-field-wrapper" data-translation-group="wb-page-privacy-retention">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-privacy-retention', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-privacy-retention', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-privacy-retention', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-privacy-retention', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-privacy-retention')" title="Auto-translate">✨</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <textarea class="form-textarea translation-input active" id="wb-page-privacy-retention-en" data-lang="en" rows="3" placeholder="We retain your personal data for as long as necessary to fulfill the purposes we collected it for, including legal, accounting, or reporting requirements."></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-page-privacy-retention-fr" data-lang="fr" rows="3" placeholder=""></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-page-privacy-retention-es" data-lang="es" rows="3" placeholder=""></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-page-privacy-retention-nl" data-lang="nl" rows="3" placeholder=""></textarea>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -13447,18 +13996,61 @@ const promo = await fetch('/api/v1/offers/validate', {
                     </div>
                     <div class="card-body">
                         <div class="form-group">
-                            <label class="form-label">Heading on Website</label>
-                            <input type="text" class="form-input" id="wb-page-privacy-contact-title" value="Contact Us" placeholder="Section heading...">
+                            <label class="form-label">Heading on Website <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                            <div class="translation-field-wrapper" data-translation-group="wb-page-privacy-contact-title">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-privacy-contact-title', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-privacy-contact-title', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-privacy-contact-title', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-privacy-contact-title', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-privacy-contact-title')" title="Auto-translate">✨</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <input type="text" class="form-input translation-input active" id="wb-page-privacy-contact-title-en" data-lang="en" value="Contact Us" placeholder="Section heading...">
+                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-contact-title-fr" data-lang="fr" placeholder="Nous Contacter">
+                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-contact-title-es" data-lang="es" placeholder="Contáctenos">
+                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-contact-title-nl" data-lang="nl" placeholder="Neem Contact Op">
+                                </div>
+                            </div>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Sub-heading</label>
-                            <input type="text" class="form-input" id="wb-page-privacy-contact-sub" value="Data Controller Contact" placeholder="Sub-heading (leave blank to hide)...">
+                            <label class="form-label">Sub-heading <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                            <div class="translation-field-wrapper" data-translation-group="wb-page-privacy-contact-sub">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-privacy-contact-sub', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-privacy-contact-sub', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-privacy-contact-sub', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-privacy-contact-sub', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-privacy-contact-sub')" title="Auto-translate">✨</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <input type="text" class="form-input translation-input active" id="wb-page-privacy-contact-sub-en" data-lang="en" value="Data Controller Contact" placeholder="Sub-heading (leave blank to hide)...">
+                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-contact-sub-fr" data-lang="fr" placeholder="">
+                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-contact-sub-es" data-lang="es" placeholder="">
+                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-contact-sub-nl" data-lang="nl" placeholder="">
+                                </div>
+                            </div>
                         </div>
                         <div class="form-group">
-                            <textarea class="form-textarea" id="wb-page-privacy-contact" rows="3" placeholder="For privacy-related enquiries, contact:
+                            <label class="form-label">Content <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                            <div class="translation-field-wrapper" data-translation-group="wb-page-privacy-contact">
+                                <div class="translation-tabs">
+                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-privacy-contact', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-privacy-contact', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-privacy-contact', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-privacy-contact', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-privacy-contact')" title="Auto-translate">✨</button>
+                                </div>
+                                <div class="translation-input-group">
+                                    <textarea class="form-textarea translation-input active" id="wb-page-privacy-contact-en" data-lang="en" rows="3" placeholder="For privacy-related enquiries, contact:
 [Your Business Name]
 [Email address]
 [Phone number]"></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-page-privacy-contact-fr" data-lang="fr" rows="3" placeholder=""></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-page-privacy-contact-es" data-lang="es" rows="3" placeholder=""></textarea>
+                                    <textarea class="form-textarea translation-input" id="wb-page-privacy-contact-nl" data-lang="nl" rows="3" placeholder=""></textarea>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
