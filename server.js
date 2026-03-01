@@ -76079,6 +76079,47 @@ app.delete('/api/partner/websites/:websiteId/pages/:slug/sections/:sectionId', a
   }
 });
 
+// ============================================================
+// Public API — Page Sections for WordPress themes
+// ============================================================
+
+// GET /api/public/website/:blogId/page-sections/:slug — public, no auth
+app.get('/api/public/website/:blogId/page-sections/:slug', async (req, res) => {
+  try {
+    const { blogId, slug } = req.params;
+
+    // Look up deployed_sites by WordPress blog_id to get the website_id
+    const ds = await pool.query(
+      'SELECT id FROM deployed_sites WHERE blog_id = $1 LIMIT 1',
+      [blogId]
+    );
+    if (ds.rows.length === 0) {
+      return res.json({ success: false, sections: null });
+    }
+
+    const websiteId = ds.rows[0].id;
+
+    const result = await pool.query(
+      `SELECT page_title, sections, enabled FROM page_sections
+       WHERE website_id = $1 AND page_slug = $2 AND enabled = true`,
+      [websiteId, slug]
+    );
+
+    if (result.rows.length === 0) {
+      return res.json({ success: false, sections: null });
+    }
+
+    const page = result.rows[0];
+    res.json({
+      success: true,
+      page_title: page.page_title,
+      sections: page.sections || []
+    });
+  } catch (error) {
+    res.json({ success: false, sections: null });
+  }
+});
+
 app.listen(PORT, '0.0.0.0', async () => {
   console.log('🚀 Server running on port ' + PORT);
   console.log('🔄 Auto-sync scheduled: Prices every 15min, Beds24 bookings every 15min, Inventory every 6hrs');
