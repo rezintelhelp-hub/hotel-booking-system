@@ -6088,6 +6088,13 @@
 
                             <!-- Section Builder Mode -->
                             <div id="about-section-builder" style="display: none;">
+                                <!-- Language tabs (shown when >1 language enabled) -->
+                                <div id="about-sb-lang-bar" style="display: none; margin-bottom: 1rem;">
+                                    <div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem 1rem; background: #f0f4ff; border: 1px solid #c7d2fe; border-radius: 8px;">
+                                        <span style="font-size: 0.8rem; font-weight: 600; color: #4338ca;">Language:</span>
+                                        <div class="lang-tabs" id="about-sb-lang-tabs" style="margin: 0;"></div>
+                                    </div>
+                                </div>
                                 <!-- Section list -->
                                 <div id="about-sb-sections" style="margin-bottom: 1rem;"></div>
 
@@ -22865,6 +22872,9 @@ const promo = await fetch('/api/v1/offers/validate', {
         let aboutSbSections = [];
         let aboutSbMode = 'classic'; // 'classic' or 'sections'
         let aboutSbPageExists = false;
+        let currentSbLang = null; // set from account primary language on init
+        const SB_TRANSLATABLE_FIELDS = ['heading', 'subheading', 'body', 'cta_text'];
+        const SB_TRANSLATABLE_ITEM_FIELDS = { faq: ['q', 'a'], testimonials: ['name', 'text', 'role'] };
 
         function getDeployedSiteBlogId() {
             if (!selectedDeployedSiteId || !deployedSitesCache.length) return null;
@@ -22880,6 +22890,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const data = await resp.json();
                 if (data.success && data.sections) {
                     aboutSbSections = data.sections;
+                    sbMigrateSections();
                     aboutSbPageExists = true;
                     return true;
                 }
@@ -22889,18 +22900,78 @@ const promo = await fetch('/api/v1/offers/validate', {
             return false;
         }
 
+        // Migrate legacy unsuffixed fields → language-suffixed keys
+        function sbMigrateSections() {
+            const lang = getAccountPrimaryLanguage();
+            aboutSbSections.forEach(sec => {
+                SB_TRANSLATABLE_FIELDS.forEach(f => {
+                    if (sec[f] !== undefined && sec[f + '_' + lang] === undefined) {
+                        sec[f + '_' + lang] = sec[f];
+                    }
+                });
+                const itemFields = SB_TRANSLATABLE_ITEM_FIELDS[sec.type];
+                if (itemFields && Array.isArray(sec.items)) {
+                    sec.items.forEach(item => {
+                        itemFields.forEach(f => {
+                            if (item[f] !== undefined && item[f + '_' + lang] === undefined) {
+                                item[f + '_' + lang] = item[f];
+                            }
+                        });
+                    });
+                }
+            });
+        }
+
         async function initAboutSectionBuilder() {
             const toggle = document.getElementById('about-mode-toggle');
             const convertWrap = document.getElementById('about-convert-btn-wrap');
             if (!toggle) return;
+            // Initialise language from account settings
+            currentSbLang = getAccountPrimaryLanguage();
             const exists = await checkAboutSectionsExist();
             toggle.style.display = 'flex';
+            sbRenderLangTabs();
             if (exists) {
                 switchAboutMode('sections');
             } else {
                 convertWrap.style.display = 'block';
                 switchAboutMode('classic');
             }
+        }
+
+        function sbRenderLangTabs() {
+            const langs = getAccountLanguages();
+            const bar = document.getElementById('about-sb-lang-bar');
+            const container = document.getElementById('about-sb-lang-tabs');
+            if (!bar || !container) return;
+            if (langs.length <= 1) {
+                bar.style.display = 'none';
+                return;
+            }
+            bar.style.display = 'block';
+            const primaryLang = getAccountPrimaryLanguage();
+            const sorted = [...langs].sort((a, b) => {
+                if (a === primaryLang) return -1;
+                if (b === primaryLang) return 1;
+                return 0;
+            });
+            container.innerHTML = sorted.map(lang => {
+                const info = (typeof LANG_INFO !== 'undefined' && LANG_INFO[lang]) || { flag: '🏳️', name: lang.toUpperCase() };
+                const isActive = lang === currentSbLang;
+                const isPrimary = lang === primaryLang;
+                return `<button type="button" class="lang-tab${isActive ? ' active' : ''}${isPrimary ? ' primary' : ''}" data-lang="${lang}" onclick="sbSwitchLang('${lang}')">${info.flag} ${info.name}</button>`;
+            }).join('');
+        }
+
+        function sbSwitchLang(lang) {
+            if (lang === currentSbLang) return;
+            sbCollectAll(); // save current language edits before switching
+            currentSbLang = lang;
+            // Update active tab styling
+            document.querySelectorAll('#about-sb-lang-tabs .lang-tab').forEach(t => {
+                t.classList.toggle('active', t.dataset.lang === lang);
+            });
+            sbRenderSections(); // re-render with new language content
         }
 
         function switchAboutMode(mode) {
@@ -22962,6 +23033,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const data = await resp.json();
                 if (data.success) {
                     aboutSbSections = data.page.sections || sections;
+                    sbMigrateSections();
                     aboutSbPageExists = true;
                     document.getElementById('about-convert-btn-wrap').style.display = 'none';
                     switchAboutMode('sections');
@@ -22977,16 +23049,18 @@ const promo = await fetch('/api/v1/offers/validate', {
         function sbAddSection(type) {
             sbCollectAll();
             const id = 'sec_' + Date.now();
+            const lang = currentSbLang || getAccountPrimaryLanguage();
+            const h = 'heading_' + lang, s = 'subheading_' + lang, b = 'body_' + lang, ct = 'cta_text_' + lang;
             const defaults = {
-                hero:         { id, type, heading: '', subheading: '', image: '', cta_text: '', cta_link: '' },
-                text:         { id, type, heading: '', body: '' },
-                image_text:   { id, type, heading: '', body: '', image: '', image_position: 'left' },
-                cta:          { id, type, heading: '', body: '', cta_text: '', cta_link: '', background_color: '#2563eb' },
-                gallery:      { id, type, heading: '', images: [] },
-                faq:          { id, type, heading: '', items: [{ q: '', a: '' }] },
-                testimonials: { id, type, heading: '', items: [{ name: '', text: '', role: '' }] },
+                hero:         { id, type, [h]: '', [s]: '', image: '', [ct]: '', cta_link: '' },
+                text:         { id, type, [h]: '', [b]: '' },
+                image_text:   { id, type, [h]: '', [b]: '', image: '', image_position: 'left' },
+                cta:          { id, type, [h]: '', [b]: '', [ct]: '', cta_link: '', background_color: '#2563eb' },
+                gallery:      { id, type, [h]: '', images: [] },
+                faq:          { id, type, [h]: '', items: [{ ['q_' + lang]: '', ['a_' + lang]: '' }] },
+                testimonials: { id, type, [h]: '', items: [{ ['name_' + lang]: '', ['text_' + lang]: '', ['role_' + lang]: '' }] },
             };
-            aboutSbSections.push(defaults[type] || { id, type, heading: '' });
+            aboutSbSections.push(defaults[type] || { id, type, [h]: '' });
             sbRenderSections();
         }
 
@@ -23010,34 +23084,37 @@ const promo = await fetch('/api/v1/offers/validate', {
             const wrap = document.querySelector(`[data-sb-idx="${idx}"]`);
             if (!wrap) return;
             const sec = aboutSbSections[idx];
+            const lang = currentSbLang || getAccountPrimaryLanguage();
             wrap.querySelectorAll('[data-field]').forEach(el => {
                 const field = el.dataset.field;
+                const isTranslatable = SB_TRANSLATABLE_FIELDS.includes(field);
+                const key = isTranslatable ? field + '_' + lang : field;
                 if (el.type === 'checkbox') {
-                    sec[field] = el.checked;
+                    sec[key] = el.checked;
                 } else if (el.tagName === 'DIV' && el.contentEditable === 'true') {
-                    sec[field] = el.innerHTML;
+                    sec[key] = el.innerHTML;
                 } else {
-                    sec[field] = el.value;
+                    sec[key] = el.value;
                 }
             });
             // Collect dynamic list items (faq, testimonials, gallery images)
+            const itemFields = SB_TRANSLATABLE_ITEM_FIELDS[sec.type];
             if (sec.type === 'faq') {
-                const items = [];
-                wrap.querySelectorAll('.sb-faq-item').forEach(row => {
-                    items.push({ q: row.querySelector('[data-field="q"]').value, a: row.querySelector('[data-field="a"]').value });
+                sec.items = sec.items || [];
+                wrap.querySelectorAll('.sb-faq-item').forEach((row, i) => {
+                    if (!sec.items[i]) sec.items[i] = {};
+                    sec.items[i]['q_' + lang] = row.querySelector('[data-field="q"]').value;
+                    sec.items[i]['a_' + lang] = row.querySelector('[data-field="a"]').value;
                 });
-                sec.items = items;
             }
             if (sec.type === 'testimonials') {
-                const items = [];
-                wrap.querySelectorAll('.sb-testimonial-item').forEach(row => {
-                    items.push({
-                        name: row.querySelector('[data-field="name"]').value,
-                        text: row.querySelector('[data-field="text"]').value,
-                        role: row.querySelector('[data-field="role"]')?.value || ''
-                    });
+                sec.items = sec.items || [];
+                wrap.querySelectorAll('.sb-testimonial-item').forEach((row, i) => {
+                    if (!sec.items[i]) sec.items[i] = {};
+                    sec.items[i]['name_' + lang] = row.querySelector('[data-field="name"]').value;
+                    sec.items[i]['text_' + lang] = row.querySelector('[data-field="text"]').value;
+                    sec.items[i]['role_' + lang] = row.querySelector('[data-field="role"]')?.value || '';
                 });
-                sec.items = items;
             }
             if (sec.type === 'gallery') {
                 const imgs = [];
@@ -23067,7 +23144,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1rem; background: #faf5ff; border-radius: 8px 8px 0 0; cursor: pointer;" onclick="sbToggleExpand(${idx})">
                         <div style="display: flex; align-items: center; gap: 0.75rem;">
                             <span style="font-weight: 600; color: #6b21a8; font-size: 0.9rem;">${label}</span>
-                            <span style="font-size: 0.8rem; color: #94a3b8;">${sec.heading ? '- ' + sec.heading.substring(0, 40) : ''}</span>
+                            <span style="font-size: 0.8rem; color: #94a3b8;">${(sec['heading_' + (currentSbLang || getAccountPrimaryLanguage())] || sec.heading) ? '- ' + (sec['heading_' + (currentSbLang || getAccountPrimaryLanguage())] || sec.heading || '').substring(0, 40) : ''}</span>
                         </div>
                         <div style="display: flex; gap: 4px;" onclick="event.stopPropagation()">
                             <button onclick="sbMoveSection(${idx}, -1)" class="btn btn-sm" style="background: #e2e8f0; color: #475569; padding: 3px 8px; font-size: 0.75rem;" ${idx === 0 ? 'disabled' : ''}>Up</button>
@@ -23144,7 +23221,8 @@ const promo = await fetch('/api/v1/offers/validate', {
         function sbAddFaqItem(idx) {
             sbCollectAll();
             aboutSbSections[idx].items = aboutSbSections[idx].items || [];
-            aboutSbSections[idx].items.push({ q: '', a: '' });
+            const lang = currentSbLang || getAccountPrimaryLanguage();
+            aboutSbSections[idx].items.push({ ['q_' + lang]: '', ['a_' + lang]: '' });
             sbRenderSections();
             document.getElementById(`sb-body-${idx}`).style.display = 'block';
         }
@@ -23159,7 +23237,8 @@ const promo = await fetch('/api/v1/offers/validate', {
         function sbAddTestimonial(idx) {
             sbCollectAll();
             aboutSbSections[idx].items = aboutSbSections[idx].items || [];
-            aboutSbSections[idx].items.push({ name: '', text: '', role: '' });
+            const lang = currentSbLang || getAccountPrimaryLanguage();
+            aboutSbSections[idx].items.push({ ['name_' + lang]: '', ['text_' + lang]: '', ['role_' + lang]: '' });
             sbRenderSections();
             document.getElementById(`sb-body-${idx}`).style.display = 'block';
         }
@@ -23187,8 +23266,14 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
 
         function sbRenderFields(sec, idx) {
+            const lang = currentSbLang || getAccountPrimaryLanguage();
             const inp = (field, label, type = 'text', val = '') => {
-                if (type !== 'select') val = sec[field] ?? val;
+                if (type !== 'select') {
+                    const isTranslatable = SB_TRANSLATABLE_FIELDS.includes(field);
+                    val = isTranslatable
+                        ? (sec[field + '_' + lang] ?? sec[field] ?? val)
+                        : (sec[field] ?? val);
+                }
                 if (type === 'textarea') {
                     return `<div class="form-group"><label class="form-label">${label}</label><textarea class="form-input" data-field="${field}" rows="4" style="min-height: 80px;">${val}</textarea></div>`;
                 }
@@ -23268,8 +23353,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 <span style="font-size: 0.8rem; color: #94a3b8;">Question ${i + 1}</span>
                                 <button onclick="sbRemoveFaqItem(${idx},${i})" style="background: none; border: none; color: #dc2626; cursor: pointer; font-size: 0.8rem;">Remove</button>
                             </div>
-                            <input type="text" class="form-input" data-field="q" value="${(item.q || '').replace(/"/g, '&quot;')}" placeholder="Question" style="margin-bottom: 6px;">
-                            <textarea class="form-input" data-field="a" rows="2" placeholder="Answer">${item.a || ''}</textarea>
+                            <input type="text" class="form-input" data-field="q" value="${(item['q_' + lang] ?? item.q ?? '').replace(/"/g, '&quot;')}" placeholder="Question" style="margin-bottom: 6px;">
+                            <textarea class="form-input" data-field="a" rows="2" placeholder="Answer">${item['a_' + lang] ?? item.a ?? ''}</textarea>
                         </div>`;
                     });
                     h += `<button onclick="sbAddFaqItem(${idx})" class="btn btn-sm" style="background: #64748b; font-size: 0.78rem; margin-top: 4px;">+ Add FAQ</button></div>`;
@@ -23285,9 +23370,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 <span style="font-size: 0.8rem; color: #94a3b8;">Testimonial ${i + 1}</span>
                                 <button onclick="sbRemoveTestimonial(${idx},${i})" style="background: none; border: none; color: #dc2626; cursor: pointer; font-size: 0.8rem;">Remove</button>
                             </div>
-                            <input type="text" class="form-input" data-field="name" value="${(item.name || '').replace(/"/g, '&quot;')}" placeholder="Name" style="margin-bottom: 6px;">
-                            <input type="text" class="form-input" data-field="role" value="${(item.role || '').replace(/"/g, '&quot;')}" placeholder="Role / Title (optional)" style="margin-bottom: 6px;">
-                            <textarea class="form-input" data-field="text" rows="2" placeholder="Testimonial text">${item.text || ''}</textarea>
+                            <input type="text" class="form-input" data-field="name" value="${(item['name_' + lang] ?? item.name ?? '').replace(/"/g, '&quot;')}" placeholder="Name" style="margin-bottom: 6px;">
+                            <input type="text" class="form-input" data-field="role" value="${(item['role_' + lang] ?? item.role ?? '').replace(/"/g, '&quot;')}" placeholder="Role / Title (optional)" style="margin-bottom: 6px;">
+                            <textarea class="form-input" data-field="text" rows="2" placeholder="Testimonial text">${item['text_' + lang] ?? item.text ?? ''}</textarea>
                         </div>`;
                     });
                     h += `<button onclick="sbAddTestimonial(${idx})" class="btn btn-sm" style="background: #64748b; font-size: 0.78rem; margin-top: 4px;">+ Add Testimonial</button></div>`;
