@@ -22949,7 +22949,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             try {
                 const resp = await fetch(`/api/partner/websites/${selectedDeployedSiteId}/pages`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', ...authHeaders(), 'X-API-Key': await getSiteApiKey() },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({ page_slug: 'about', page_title: title, sections })
                 });
                 const data = await resp.json();
@@ -22965,18 +22965,6 @@ const promo = await fetch('/api/v1/offers/validate', {
             } catch (e) {
                 showNotification('Error: ' + e.message, 'error');
             }
-        }
-
-        async function getSiteApiKey() {
-            // Get API key for the account that owns this deployed site
-            if (!selectedDeployedSiteId || !deployedSitesCache.length) return '';
-            const site = deployedSitesCache.find(s => s.id == selectedDeployedSiteId);
-            if (!site) return '';
-            try {
-                const resp = await fetch(`/api/admin/accounts/${site.account_id}`, { headers: authHeaders() });
-                const data = await resp.json();
-                return data.account?.api_key || '';
-            } catch (e) { return ''; }
         }
 
         function sbAddSection(type) {
@@ -23306,14 +23294,11 @@ const promo = await fetch('/api/v1/offers/validate', {
             const orig = btn.innerHTML;
             btn.disabled = true; btn.innerHTML = ' Saving...'; btn.style.opacity = '0.7';
             try {
-                const apiKey = await getSiteApiKey();
-                if (!apiKey) { showNotification('Could not get API key for this site', 'error'); return; }
-
                 if (aboutSbPageExists) {
                     // PUT replace all sections
                     const resp = await fetch(`/api/partner/websites/${selectedDeployedSiteId}/pages/about/sections`, {
                         method: 'PUT',
-                        headers: { 'Content-Type': 'application/json', 'X-API-Key': apiKey },
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
                         body: JSON.stringify({ sections: aboutSbSections })
                     });
                     const data = await resp.json();
@@ -23326,7 +23311,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     const title = aboutSbSections.find(s => s.type === 'hero')?.heading || 'About Us';
                     const resp = await fetch(`/api/partner/websites/${selectedDeployedSiteId}/pages`, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'X-API-Key': apiKey },
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
                         body: JSON.stringify({ page_slug: 'about', page_title: title, sections: aboutSbSections })
                     });
                     const data = await resp.json();

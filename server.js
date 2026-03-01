@@ -44854,28 +44854,54 @@ async function matchAmenity(rawName, source = 'unknown') {
 // Validate Partner API key from header
 async function validatePartnerApiKey(req) {
   const apiKey = req.headers['x-api-key'];
-  if (!apiKey) {
-    return { valid: false, error: 'Missing X-API-Key header' };
+  if (apiKey) {
+    // Check if this API key belongs to an agency_admin account
+    const result = await pool.query(
+      `SELECT id, name, role, booking_webhook_url, webhook_secret FROM accounts
+       WHERE api_key = $1 AND status = 'active' AND role = 'agency_admin'`,
+      [apiKey]
+    );
+
+    if (result.rows.length > 0) {
+      return {
+        valid: true,
+        partnerId: result.rows[0].id,
+        partnerName: result.rows[0].name,
+        webhookUrl: result.rows[0].booking_webhook_url,
+        webhookSecret: result.rows[0].webhook_secret
+      };
+    }
+    return { valid: false, error: 'Invalid API key' };
   }
-  
-  // Check if this API key belongs to an agency_admin account
-  const result = await pool.query(
-    `SELECT id, name, role, booking_webhook_url, webhook_secret FROM accounts 
-     WHERE api_key = $1 AND status = 'active' AND role = 'agency_admin'`,
-    [apiKey]
-  );
-  
-  if (result.rows.length > 0) {
-    return { 
-      valid: true, 
-      partnerId: result.rows[0].id, 
-      partnerName: result.rows[0].name,
-      webhookUrl: result.rows[0].booking_webhook_url,
-      webhookSecret: result.rows[0].webhook_secret
-    };
+
+  // Fallback: Bearer token auth (admin panel)
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.split(' ')[1];
+    const session = await pool.query(
+      'SELECT account_id FROM account_sessions WHERE token = $1 AND expires_at > NOW()',
+      [token]
+    );
+    if (session.rows.length > 0) {
+      const adminAccountId = session.rows[0].account_id;
+      const adminAccount = await pool.query('SELECT id, name, role FROM accounts WHERE id = $1', [adminAccountId]);
+      if (adminAccount.rows.length > 0) {
+        const role = adminAccount.rows[0].role;
+        // Admin users: resolve partnerId from the website being accessed
+        if ((role === 'master_admin' || role === 'agency_admin') && req.params.websiteId) {
+          const site = await pool.query('SELECT account_id FROM deployed_sites WHERE id = $1', [req.params.websiteId]);
+          if (site.rows.length > 0) {
+            return { valid: true, partnerId: site.rows[0].account_id, partnerName: adminAccount.rows[0].name };
+          }
+        }
+        // Non-admin or no websiteId: use own account_id
+        return { valid: true, partnerId: adminAccountId, partnerName: adminAccount.rows[0].name };
+      }
+    }
+    return { valid: false, error: 'Invalid or expired session' };
   }
-  
-  return { valid: false, error: 'Invalid API key' };
+
+  return { valid: false, error: 'Missing X-API-Key header or Authorization token' };
 }
 
 // =====================================================
