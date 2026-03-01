@@ -75663,6 +75663,217 @@ app.post('/api/cron/sync-reviews', async (req, res) => {
   res.json({ success: true, message: 'Review sync triggered' });
 });
 
+// ============================================================
+// Page Sections CRUD API
+// ============================================================
+
+// GET /api/partner/websites/:websiteId/pages — list all pages for a website
+app.get('/api/partner/websites/:websiteId/pages', async (req, res) => {
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+
+    const { websiteId } = req.params;
+
+    // Verify website belongs to this partner's account
+    const ws = await pool.query(
+      'SELECT id FROM deployed_sites WHERE id = $1 AND account_id = $2',
+      [websiteId, auth.partnerId]
+    );
+    if (ws.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Website not found' });
+    }
+
+    const result = await pool.query(
+      `SELECT id, page_slug, parent_slug, page_title, menu_visible, menu_order, enabled, created_at, updated_at
+       FROM page_sections
+       WHERE website_id = $1 AND account_id = $2
+       ORDER BY menu_order, page_title`,
+      [websiteId, auth.partnerId]
+    );
+
+    res.json({ success: true, pages: result.rows });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/partner/websites/:websiteId/pages — create a new page
+app.post('/api/partner/websites/:websiteId/pages', async (req, res) => {
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+
+    const { websiteId } = req.params;
+    const { page_slug, parent_slug, page_title, menu_visible, menu_order, sections, enabled } = req.body;
+
+    if (!page_slug || !page_title) {
+      return res.status(400).json({ success: false, error: 'page_slug and page_title are required' });
+    }
+
+    // Verify website belongs to this partner's account
+    const ws = await pool.query(
+      'SELECT id FROM deployed_sites WHERE id = $1 AND account_id = $2',
+      [websiteId, auth.partnerId]
+    );
+    if (ws.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Website not found' });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO page_sections (account_id, website_id, page_slug, parent_slug, page_title, menu_visible, menu_order, sections, enabled)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING *`,
+      [
+        auth.partnerId,
+        websiteId,
+        page_slug,
+        parent_slug || null,
+        page_title,
+        menu_visible || 'main_menu',
+        menu_order != null ? menu_order : 50,
+        JSON.stringify(sections || []),
+        enabled != null ? enabled : true
+      ]
+    );
+
+    res.json({ success: true, page: result.rows[0] });
+  } catch (error) {
+    if (error.code === '23505') {
+      return res.status(409).json({ success: false, error: 'A page with this slug already exists for this website' });
+    }
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/partner/websites/:websiteId/pages/:slug — get a page with sections
+app.get('/api/partner/websites/:websiteId/pages/:slug', async (req, res) => {
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+
+    const { websiteId, slug } = req.params;
+
+    // Verify website belongs to this partner's account
+    const ws = await pool.query(
+      'SELECT id FROM deployed_sites WHERE id = $1 AND account_id = $2',
+      [websiteId, auth.partnerId]
+    );
+    if (ws.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Website not found' });
+    }
+
+    const result = await pool.query(
+      'SELECT * FROM page_sections WHERE website_id = $1 AND page_slug = $2 AND account_id = $3',
+      [websiteId, slug, auth.partnerId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Page not found' });
+    }
+
+    res.json({ success: true, page: result.rows[0] });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/partner/websites/:websiteId/pages/:slug — update page settings
+app.put('/api/partner/websites/:websiteId/pages/:slug', async (req, res) => {
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+
+    const { websiteId, slug } = req.params;
+    const { page_title, menu_visible, menu_order, enabled, sections, parent_slug } = req.body;
+
+    // Verify website belongs to this partner's account
+    const ws = await pool.query(
+      'SELECT id FROM deployed_sites WHERE id = $1 AND account_id = $2',
+      [websiteId, auth.partnerId]
+    );
+    if (ws.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Website not found' });
+    }
+
+    // Build dynamic update
+    const updates = [];
+    const values = [];
+    let paramIndex = 1;
+
+    if (page_title !== undefined) { updates.push(`page_title = $${paramIndex++}`); values.push(page_title); }
+    if (menu_visible !== undefined) { updates.push(`menu_visible = $${paramIndex++}`); values.push(menu_visible); }
+    if (menu_order !== undefined) { updates.push(`menu_order = $${paramIndex++}`); values.push(menu_order); }
+    if (enabled !== undefined) { updates.push(`enabled = $${paramIndex++}`); values.push(enabled); }
+    if (sections !== undefined) { updates.push(`sections = $${paramIndex++}`); values.push(JSON.stringify(sections)); }
+    if (parent_slug !== undefined) { updates.push(`parent_slug = $${paramIndex++}`); values.push(parent_slug); }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ success: false, error: 'No fields to update' });
+    }
+
+    updates.push(`updated_at = NOW()`);
+
+    values.push(websiteId, slug, auth.partnerId);
+    const result = await pool.query(
+      `UPDATE page_sections SET ${updates.join(', ')}
+       WHERE website_id = $${paramIndex++} AND page_slug = $${paramIndex++} AND account_id = $${paramIndex++}
+       RETURNING *`,
+      values
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Page not found' });
+    }
+
+    res.json({ success: true, page: result.rows[0] });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// DELETE /api/partner/websites/:websiteId/pages/:slug — delete a page
+app.delete('/api/partner/websites/:websiteId/pages/:slug', async (req, res) => {
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+
+    const { websiteId, slug } = req.params;
+
+    // Verify website belongs to this partner's account
+    const ws = await pool.query(
+      'SELECT id FROM deployed_sites WHERE id = $1 AND account_id = $2',
+      [websiteId, auth.partnerId]
+    );
+    if (ws.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Website not found' });
+    }
+
+    const result = await pool.query(
+      'DELETE FROM page_sections WHERE website_id = $1 AND page_slug = $2 AND account_id = $3 RETURNING id, page_slug',
+      [websiteId, slug, auth.partnerId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Page not found' });
+    }
+
+    res.json({ success: true, deleted: result.rows[0] });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 app.listen(PORT, '0.0.0.0', async () => {
   console.log('🚀 Server running on port ' + PORT);
   console.log('🔄 Auto-sync scheduled: Prices every 15min, Beds24 bookings every 15min, Inventory every 6hrs');
