@@ -22968,6 +22968,7 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
 
         function sbAddSection(type) {
+            sbCollectAll();
             const id = 'sec_' + Date.now();
             const defaults = {
                 hero:         { id, type, heading: '', subheading: '', image: '', cta_text: '', cta_link: '' },
@@ -22983,6 +22984,7 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
 
         function sbRemoveSection(idx) {
+            sbCollectAll();
             aboutSbSections.splice(idx, 1);
             sbRenderSections();
         }
@@ -23133,7 +23135,7 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
 
         function sbAddFaqItem(idx) {
-            sbCollectSectionData(idx);
+            sbCollectAll();
             aboutSbSections[idx].items = aboutSbSections[idx].items || [];
             aboutSbSections[idx].items.push({ q: '', a: '' });
             sbRenderSections();
@@ -23141,14 +23143,14 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
 
         function sbRemoveFaqItem(idx, itemIdx) {
-            sbCollectSectionData(idx);
+            sbCollectAll();
             aboutSbSections[idx].items.splice(itemIdx, 1);
             sbRenderSections();
             document.getElementById(`sb-body-${idx}`).style.display = 'block';
         }
 
         function sbAddTestimonial(idx) {
-            sbCollectSectionData(idx);
+            sbCollectAll();
             aboutSbSections[idx].items = aboutSbSections[idx].items || [];
             aboutSbSections[idx].items.push({ name: '', text: '', role: '' });
             sbRenderSections();
@@ -23156,14 +23158,14 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
 
         function sbRemoveTestimonial(idx, itemIdx) {
-            sbCollectSectionData(idx);
+            sbCollectAll();
             aboutSbSections[idx].items.splice(itemIdx, 1);
             sbRenderSections();
             document.getElementById(`sb-body-${idx}`).style.display = 'block';
         }
 
         function sbAddGalleryImage(idx) {
-            sbCollectSectionData(idx);
+            sbCollectAll();
             aboutSbSections[idx].images = aboutSbSections[idx].images || [];
             aboutSbSections[idx].images.push('');
             sbRenderSections();
@@ -23171,7 +23173,7 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
 
         function sbRemoveGalleryImage(idx, imgIdx) {
-            sbCollectSectionData(idx);
+            sbCollectAll();
             aboutSbSections[idx].images.splice(imgIdx, 1);
             sbRenderSections();
             document.getElementById(`sb-body-${idx}`).style.display = 'block';
