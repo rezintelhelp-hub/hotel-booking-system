@@ -23224,9 +23224,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                         '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">' + inp('cta_text', 'Button Text') + inp('cta_link', 'Button Link') + '</div>';
                 case 'text':
                     return inp('heading', 'Heading') + inp('body', 'Content', 'richtext');
-                case 'image_text':
+                case 'image_text': {
+                    const posVal = sec.image_position || 'left';
                     return inp('heading', 'Heading') + inp('body', 'Content', 'richtext') + inp('image', 'Image', 'image') +
-                        inp('image_position', 'Image Position', 'select', '<option value="left"' + (sec.image_position === 'left' ? ' selected' : '') + '>Left</option><option value="right"' + (sec.image_position === 'right' ? ' selected' : '') + '>Right</option>');
+                        `<div class="form-group"><label class="form-label">Image Position</label><select class="form-input" data-field="image_position"><option value="left"${posVal === 'left' ? ' selected' : ''}>Left</option><option value="right"${posVal === 'right' ? ' selected' : ''}>Right</option></select></div>`;
+                }
                 case 'cta':
                     return inp('heading', 'Heading') + inp('body', 'Description', 'textarea') +
                         '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">' + inp('cta_text', 'Button Text') + inp('cta_link', 'Button Link') + '</div>' +
