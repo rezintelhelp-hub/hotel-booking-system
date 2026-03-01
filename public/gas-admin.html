@@ -22990,6 +22990,7 @@ const promo = await fetch('/api/v1/offers/validate', {
         function sbMoveSection(idx, dir) {
             const newIdx = idx + dir;
             if (newIdx < 0 || newIdx >= aboutSbSections.length) return;
+            sbCollectAll();
             const tmp = aboutSbSections[idx];
             aboutSbSections[idx] = aboutSbSections[newIdx];
             aboutSbSections[newIdx] = tmp;
@@ -23049,8 +23050,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                 container.innerHTML = '<div style="text-align: center; padding: 3rem; color: #94a3b8; border: 2px dashed #e2e8f0; border-radius: 12px;">No sections yet. Add one using the buttons below.</div>';
                 return;
             }
-            // Collect data from any currently open editors before re-render
-            sbCollectAll();
             let html = '';
             aboutSbSections.forEach((sec, idx) => {
                 const typeLabels = { hero: 'Hero Banner', text: 'Text Block', image_text: 'Image + Text', cta: 'Call to Action', gallery: 'Gallery', faq: 'FAQ', testimonials: 'Testimonials' };
@@ -23226,8 +23225,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                     return inp('heading', 'Heading') + inp('body', 'Content', 'richtext');
                 case 'image_text': {
                     const posVal = sec.image_position || 'left';
-                    return inp('heading', 'Heading') + inp('body', 'Content', 'richtext') + inp('image', 'Image', 'image') +
-                        `<div class="form-group"><label class="form-label">Image Position</label><select class="form-input" data-field="image_position"><option value="left"${posVal === 'left' ? ' selected' : ''}>Left</option><option value="right"${posVal === 'right' ? ' selected' : ''}>Right</option></select></div>`;
+                    const posOpts = `<option value="left"${posVal === 'left' ? ' selected' : ''}>Left</option><option value="right"${posVal === 'right' ? ' selected' : ''}>Right</option>`;
+                    return inp('heading', 'Heading') + inp('body', 'Content', 'richtext') + inp('image', 'Image', 'image') + inp('image_position', 'Image Position', 'select', posOpts);
                 }
                 case 'cta':
                     return inp('heading', 'Heading') + inp('body', 'Description', 'textarea') +
