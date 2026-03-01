@@ -195,8 +195,8 @@ $has_attractions = $use_api ? ($site_config['features']['has_attractions'] ?? fa
         
         <div class="developer-footer-bottom" style="border-color: <?php echo esc_attr($footer_text); ?>33;">
             <p style="color: <?php echo esc_attr($footer_text); ?>; opacity: 0.7;">
-                <?php if ($copyright) : ?>
-                    <?php echo esc_html($copyright); ?>
+                <?php if (!empty($api_settings['footer_copyright'])) : ?>
+                    <?php echo esc_html($api_settings['footer_copyright']); ?>
                 <?php else : ?>
                     &copy; <?php echo date('Y'); ?> <?php echo esc_html($business_name); ?>. All rights reserved.
                 <?php endif; ?>
