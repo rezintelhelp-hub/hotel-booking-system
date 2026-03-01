@@ -2206,17 +2206,17 @@ function developer_get_current_language() {
         return sanitize_text_field($_COOKIE['gas_lang']);
     }
     
-    // Check browser language
-    if (isset($_SERVER['HTTP_ACCEPT_LANGUAGE'])) {
-        $browser_lang = substr($_SERVER['HTTP_ACCEPT_LANGUAGE'], 0, 2);
-        $supported = array('en', 'fr', 'es', 'de', 'nl', 'it', 'pt', 'ru', 'zh', 'ja');
-        if (in_array($browser_lang, $supported)) {
-            return $browser_lang;
+    // Default to site's primary language from account settings
+    $primary = 'en';
+    $client_id = get_option('gas_client_id', '');
+    if ($client_id) {
+        $cache_key = 'gas_site_config_' . $client_id;
+        $site_config = get_transient($cache_key);
+        if ($site_config && isset($site_config['languages']['primary'])) {
+            $primary = $site_config['languages']['primary'];
         }
     }
-    
-    // Default to English
-    return 'en';
+    return $primary;
 }
 
 /**
