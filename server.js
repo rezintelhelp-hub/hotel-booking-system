@@ -75874,6 +75874,211 @@ app.delete('/api/partner/websites/:websiteId/pages/:slug', async (req, res) => {
   }
 });
 
+// ============================================================
+// Page Sections — Section-Level CRUD API
+// ============================================================
+
+// Helper: load a page row and validate ownership in one step
+async function loadPageForPartner(req, res) {
+  const auth = await validatePartnerApiKey(req);
+  if (!auth.valid) {
+    res.status(401).json({ success: false, error: auth.error });
+    return null;
+  }
+  const { websiteId, slug } = req.params;
+  const ws = await pool.query(
+    'SELECT id FROM deployed_sites WHERE id = $1 AND account_id = $2',
+    [websiteId, auth.partnerId]
+  );
+  if (ws.rows.length === 0) {
+    res.status(404).json({ success: false, error: 'Website not found' });
+    return null;
+  }
+  const page = await pool.query(
+    'SELECT * FROM page_sections WHERE website_id = $1 AND page_slug = $2 AND account_id = $3',
+    [websiteId, slug, auth.partnerId]
+  );
+  if (page.rows.length === 0) {
+    res.status(404).json({ success: false, error: 'Page not found' });
+    return null;
+  }
+  return page.rows[0];
+}
+
+// GET /api/partner/section-types — available section types with schemas (public, no auth)
+app.get('/api/partner/section-types', (req, res) => {
+  const sectionTypes = [
+    { type: 'hero', label: 'Hero Banner', fields: ['heading', 'subheading', 'image', 'cta_text', 'cta_link'] },
+    { type: 'text', label: 'Text Block', fields: ['heading', 'body'] },
+    { type: 'image_text', label: 'Image + Text', fields: ['heading', 'body', 'image', 'image_position'] },
+    { type: 'gallery', label: 'Image Gallery', fields: ['heading', 'images'] },
+    { type: 'cards', label: 'Card Grid', fields: ['heading', 'cards'] },
+    { type: 'cta', label: 'Call to Action', fields: ['heading', 'body', 'cta_text', 'cta_link', 'background_color'] },
+    { type: 'faq', label: 'FAQ Accordion', fields: ['heading', 'items'] },
+    { type: 'testimonials', label: 'Testimonials', fields: ['heading', 'items'] },
+    { type: 'contact_form', label: 'Contact Form', fields: ['heading', 'email_to', 'fields'] },
+    { type: 'map', label: 'Map Embed', fields: ['heading', 'latitude', 'longitude', 'zoom'] },
+    { type: 'video', label: 'Video Embed', fields: ['heading', 'video_url'] },
+    { type: 'rooms', label: 'Room Listing', fields: ['heading', 'filter_tags'] },
+    { type: 'reviews', label: 'Reviews', fields: ['heading', 'source', 'max_count'] },
+    { type: 'html', label: 'Custom HTML', fields: ['html'] },
+  ];
+  res.json({ success: true, section_types: sectionTypes });
+});
+
+// PUT /api/partner/websites/:websiteId/pages/:slug/sections — replace ALL sections
+app.put('/api/partner/websites/:websiteId/pages/:slug/sections', async (req, res) => {
+  try {
+    const page = await loadPageForPartner(req, res);
+    if (!page) return;
+
+    const { sections } = req.body;
+    if (!Array.isArray(sections)) {
+      return res.status(400).json({ success: false, error: 'sections must be an array' });
+    }
+
+    // Ensure every section has an id
+    const stamped = sections.map((s, i) => ({
+      ...s,
+      id: s.id || `sec_${Date.now()}_${i}`
+    }));
+
+    const result = await pool.query(
+      `UPDATE page_sections SET sections = $1, updated_at = NOW()
+       WHERE id = $2 RETURNING sections, updated_at`,
+      [JSON.stringify(stamped), page.id]
+    );
+
+    res.json({ success: true, sections: result.rows[0].sections, updated_at: result.rows[0].updated_at });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/partner/websites/:websiteId/pages/:slug/sections — append one section
+app.post('/api/partner/websites/:websiteId/pages/:slug/sections', async (req, res) => {
+  try {
+    const page = await loadPageForPartner(req, res);
+    if (!page) return;
+
+    const section = req.body;
+    if (!section.type) {
+      return res.status(400).json({ success: false, error: 'section type is required' });
+    }
+
+    section.id = section.id || `sec_${Date.now()}`;
+    const sections = Array.isArray(page.sections) ? page.sections : [];
+    sections.push(section);
+
+    const result = await pool.query(
+      `UPDATE page_sections SET sections = $1, updated_at = NOW()
+       WHERE id = $2 RETURNING sections, updated_at`,
+      [JSON.stringify(sections), page.id]
+    );
+
+    res.json({ success: true, section, sections: result.rows[0].sections, updated_at: result.rows[0].updated_at });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/partner/websites/:websiteId/pages/:slug/sections/reorder — reorder sections by id array
+// NOTE: must be registered BEFORE the :sectionId route
+app.put('/api/partner/websites/:websiteId/pages/:slug/sections/reorder', async (req, res) => {
+  try {
+    const page = await loadPageForPartner(req, res);
+    if (!page) return;
+
+    const { order } = req.body;
+    if (!Array.isArray(order)) {
+      return res.status(400).json({ success: false, error: 'order must be an array of section IDs' });
+    }
+
+    const sections = Array.isArray(page.sections) ? page.sections : [];
+    const byId = {};
+    for (const s of sections) { byId[s.id] = s; }
+
+    const missing = order.filter(id => !byId[id]);
+    if (missing.length > 0) {
+      return res.status(400).json({ success: false, error: `Unknown section IDs: ${missing.join(', ')}` });
+    }
+
+    // Reorder: requested IDs first in given order, then any unlisted sections at the end
+    const reordered = order.map(id => byId[id]);
+    for (const s of sections) {
+      if (!order.includes(s.id)) reordered.push(s);
+    }
+
+    const result = await pool.query(
+      `UPDATE page_sections SET sections = $1, updated_at = NOW()
+       WHERE id = $2 RETURNING sections, updated_at`,
+      [JSON.stringify(reordered), page.id]
+    );
+
+    res.json({ success: true, sections: result.rows[0].sections, updated_at: result.rows[0].updated_at });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/partner/websites/:websiteId/pages/:slug/sections/:sectionId — update one section
+app.put('/api/partner/websites/:websiteId/pages/:slug/sections/:sectionId', async (req, res) => {
+  try {
+    const page = await loadPageForPartner(req, res);
+    if (!page) return;
+
+    const { sectionId } = req.params;
+    const updates = req.body;
+    const sections = Array.isArray(page.sections) ? page.sections : [];
+    const idx = sections.findIndex(s => s.id === sectionId);
+
+    if (idx === -1) {
+      return res.status(404).json({ success: false, error: 'Section not found' });
+    }
+
+    // Merge updates into existing section, preserving id
+    sections[idx] = { ...sections[idx], ...updates, id: sectionId };
+
+    const result = await pool.query(
+      `UPDATE page_sections SET sections = $1, updated_at = NOW()
+       WHERE id = $2 RETURNING sections, updated_at`,
+      [JSON.stringify(sections), page.id]
+    );
+
+    res.json({ success: true, section: sections[idx], sections: result.rows[0].sections, updated_at: result.rows[0].updated_at });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// DELETE /api/partner/websites/:websiteId/pages/:slug/sections/:sectionId — remove one section
+app.delete('/api/partner/websites/:websiteId/pages/:slug/sections/:sectionId', async (req, res) => {
+  try {
+    const page = await loadPageForPartner(req, res);
+    if (!page) return;
+
+    const { sectionId } = req.params;
+    const sections = Array.isArray(page.sections) ? page.sections : [];
+    const idx = sections.findIndex(s => s.id === sectionId);
+
+    if (idx === -1) {
+      return res.status(404).json({ success: false, error: 'Section not found' });
+    }
+
+    const removed = sections.splice(idx, 1)[0];
+
+    const result = await pool.query(
+      `UPDATE page_sections SET sections = $1, updated_at = NOW()
+       WHERE id = $2 RETURNING sections, updated_at`,
+      [JSON.stringify(sections), page.id]
+    );
+
+    res.json({ success: true, deleted: removed, sections: result.rows[0].sections, updated_at: result.rows[0].updated_at });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 app.listen(PORT, '0.0.0.0', async () => {
   console.log('🚀 Server running on port ' + PORT);
   console.log('🔄 Auto-sync scheduled: Prices every 15min, Beds24 bookings every 15min, Inventory every 6hrs');
