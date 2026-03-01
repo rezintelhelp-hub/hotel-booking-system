@@ -6071,7 +6071,48 @@
                                 </div>
                                 <button class="btn" onclick="saveWebsiteSection('page-about', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save About Page</button>
                             </div>
-                            
+
+                            <!-- About Page Mode Toggle -->
+                            <div id="about-mode-toggle" style="display: none; margin-bottom: 1rem; padding: 0.75rem 1rem; background: #f8fafc; border-radius: 10px; border: 1px solid #e2e8f0;">
+                                <div style="display: flex; align-items: center; justify-content: space-between;">
+                                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                        <button id="about-mode-classic-btn" onclick="switchAboutMode('classic')" class="btn btn-sm" style="background: #7c3aed; color: white; border-radius: 20px; padding: 6px 16px; font-size: 0.8rem;">Classic Editor</button>
+                                        <button id="about-mode-sections-btn" onclick="switchAboutMode('sections')" class="btn btn-sm" style="background: white; color: #64748b; border: 1px solid #e2e8f0; border-radius: 20px; padding: 6px 16px; font-size: 0.8rem;">Section Builder</button>
+                                    </div>
+                                    <div id="about-convert-btn-wrap" style="display: none;">
+                                        <button onclick="convertAboutToSections()" class="btn btn-sm" style="background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%); padding: 6px 16px; font-size: 0.8rem;">Convert to Section Builder</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Section Builder Mode -->
+                            <div id="about-section-builder" style="display: none;">
+                                <!-- Section list -->
+                                <div id="about-sb-sections" style="margin-bottom: 1rem;"></div>
+
+                                <!-- Add section bar -->
+                                <div class="card" style="margin-bottom: 1rem;">
+                                    <div style="padding: 1rem; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                                        <span style="font-weight: 600; color: #475569; font-size: 0.85rem; margin-right: 0.5rem;">Add Section:</span>
+                                        <button onclick="sbAddSection('hero')" class="btn btn-sm" style="background: #475569; font-size: 0.78rem; padding: 5px 12px;">Hero</button>
+                                        <button onclick="sbAddSection('text')" class="btn btn-sm" style="background: #475569; font-size: 0.78rem; padding: 5px 12px;">Text</button>
+                                        <button onclick="sbAddSection('image_text')" class="btn btn-sm" style="background: #475569; font-size: 0.78rem; padding: 5px 12px;">Image + Text</button>
+                                        <button onclick="sbAddSection('cta')" class="btn btn-sm" style="background: #475569; font-size: 0.78rem; padding: 5px 12px;">CTA</button>
+                                        <button onclick="sbAddSection('gallery')" class="btn btn-sm" style="background: #475569; font-size: 0.78rem; padding: 5px 12px;">Gallery</button>
+                                        <button onclick="sbAddSection('faq')" class="btn btn-sm" style="background: #475569; font-size: 0.78rem; padding: 5px 12px;">FAQ</button>
+                                        <button onclick="sbAddSection('testimonials')" class="btn btn-sm" style="background: #475569; font-size: 0.78rem; padding: 5px 12px;">Testimonials</button>
+                                    </div>
+                                </div>
+
+                                <!-- Save bar -->
+                                <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-bottom: 1.5rem;">
+                                    <button id="about-sb-save-btn" onclick="sbSaveSections()" class="btn" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%); padding: 10px 24px;">Save Sections</button>
+                                </div>
+                            </div>
+
+                            <!-- Classic Editor Mode -->
+                            <div id="about-classic-editor">
+
                             <!-- Page Header Section -->
                             <div class="card" style="margin-bottom: 1.5rem;">
                                 <div class="card-header"><h3>📄 Page Header <span style="font-size: 0.75rem; color: #8b5cf6; font-weight: normal;">🌐 Multilingual</span></h3></div>
@@ -6296,6 +6337,7 @@
                                     </div>
                                 </div>
                             </div>
+                            </div><!-- /about-classic-editor -->
                         </div>
                         <div id="editor-subpage-page-gallery" class="subpage-panel" style="display: none;">
                             <!-- Page Enable Toggle -->
@@ -22815,7 +22857,501 @@ const promo = await fetch('/api/v1/offers/validate', {
                 }
             }
         }
-        
+
+        // ============================================================
+        // About Page — Section Builder
+        // ============================================================
+        let aboutSbSections = [];
+        let aboutSbMode = 'classic'; // 'classic' or 'sections'
+        let aboutSbPageExists = false;
+
+        function getDeployedSiteBlogId() {
+            if (!selectedDeployedSiteId || !deployedSitesCache.length) return null;
+            const site = deployedSitesCache.find(s => s.id == selectedDeployedSiteId);
+            return site ? site.blog_id : null;
+        }
+
+        async function checkAboutSectionsExist() {
+            const blogId = getDeployedSiteBlogId();
+            if (!blogId) { aboutSbPageExists = false; return false; }
+            try {
+                const resp = await fetch(`/api/public/website/${blogId}/page-sections/about`);
+                const data = await resp.json();
+                if (data.success && data.sections) {
+                    aboutSbSections = data.sections;
+                    aboutSbPageExists = true;
+                    return true;
+                }
+            } catch (e) { console.error('checkAboutSections error:', e); }
+            aboutSbPageExists = false;
+            aboutSbSections = [];
+            return false;
+        }
+
+        async function initAboutSectionBuilder() {
+            const toggle = document.getElementById('about-mode-toggle');
+            const convertWrap = document.getElementById('about-convert-btn-wrap');
+            if (!toggle) return;
+            const exists = await checkAboutSectionsExist();
+            toggle.style.display = 'flex';
+            if (exists) {
+                switchAboutMode('sections');
+            } else {
+                convertWrap.style.display = 'block';
+                switchAboutMode('classic');
+            }
+        }
+
+        function switchAboutMode(mode) {
+            aboutSbMode = mode;
+            const classicEl = document.getElementById('about-classic-editor');
+            const builderEl = document.getElementById('about-section-builder');
+            const classicBtn = document.getElementById('about-mode-classic-btn');
+            const sectionsBtn = document.getElementById('about-mode-sections-btn');
+            if (mode === 'sections') {
+                classicEl.style.display = 'none';
+                builderEl.style.display = 'block';
+                classicBtn.style.background = 'white'; classicBtn.style.color = '#64748b'; classicBtn.style.border = '1px solid #e2e8f0';
+                sectionsBtn.style.background = '#7c3aed'; sectionsBtn.style.color = 'white'; sectionsBtn.style.border = 'none';
+                sbRenderSections();
+            } else {
+                classicEl.style.display = 'block';
+                builderEl.style.display = 'none';
+                sectionsBtn.style.background = 'white'; sectionsBtn.style.color = '#64748b'; sectionsBtn.style.border = '1px solid #e2e8f0';
+                classicBtn.style.background = '#7c3aed'; classicBtn.style.color = 'white'; classicBtn.style.border = 'none';
+            }
+        }
+
+        async function convertAboutToSections() {
+            if (!selectedDeployedSiteId) { showNotification('No website selected', 'error'); return; }
+            // Read current about page settings from the classic editor fields
+            const title = document.getElementById('wb-page-about-title-en')?.value || 'About Us';
+            const subtitle = document.getElementById('wb-page-about-subtitle-en')?.value || '';
+            const heroImg = document.getElementById('wb-page-about-hero-image')?.value || '';
+            const contentTitle = document.getElementById('wb-page-about-content-title-en')?.value || '';
+            const content = document.getElementById('wb-page-about-content-en')?.value || '';
+            const contentImg = document.getElementById('wb-page-about-content-image')?.value || '';
+            const imgPos = document.getElementById('wb-page-about-image-position')?.value || 'left';
+
+            const sections = [];
+            // Hero section
+            sections.push({ id: 'sec_hero', type: 'hero', heading: title, subheading: subtitle, image: heroImg });
+            // Content as image_text or text
+            if (content) {
+                if (contentImg) {
+                    sections.push({ id: 'sec_content', type: 'image_text', heading: contentTitle, body: content, image: contentImg, image_position: imgPos });
+                } else {
+                    sections.push({ id: 'sec_content', type: 'text', heading: contentTitle, body: content });
+                }
+            }
+
+            // Create via partner API
+            try {
+                const resp = await fetch(`/api/partner/websites/${selectedDeployedSiteId}/pages`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders(), 'X-API-Key': await getSiteApiKey() },
+                    body: JSON.stringify({ page_slug: 'about', page_title: title, sections })
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    aboutSbSections = data.page.sections || sections;
+                    aboutSbPageExists = true;
+                    document.getElementById('about-convert-btn-wrap').style.display = 'none';
+                    switchAboutMode('sections');
+                    showNotification('Converted to Section Builder!', 'success');
+                } else {
+                    showNotification('Error: ' + (data.error || 'Failed'), 'error');
+                }
+            } catch (e) {
+                showNotification('Error: ' + e.message, 'error');
+            }
+        }
+
+        async function getSiteApiKey() {
+            // Get API key for the account that owns this deployed site
+            if (!selectedDeployedSiteId || !deployedSitesCache.length) return '';
+            const site = deployedSitesCache.find(s => s.id == selectedDeployedSiteId);
+            if (!site) return '';
+            try {
+                const resp = await fetch(`/api/admin/accounts/${site.account_id}`, { headers: authHeaders() });
+                const data = await resp.json();
+                return data.account?.api_key || '';
+            } catch (e) { return ''; }
+        }
+
+        function sbAddSection(type) {
+            const id = 'sec_' + Date.now();
+            const defaults = {
+                hero:         { id, type, heading: '', subheading: '', image: '', cta_text: '', cta_link: '' },
+                text:         { id, type, heading: '', body: '' },
+                image_text:   { id, type, heading: '', body: '', image: '', image_position: 'left' },
+                cta:          { id, type, heading: '', body: '', cta_text: '', cta_link: '', background_color: '#2563eb' },
+                gallery:      { id, type, heading: '', images: [] },
+                faq:          { id, type, heading: '', items: [{ q: '', a: '' }] },
+                testimonials: { id, type, heading: '', items: [{ name: '', text: '', role: '' }] },
+            };
+            aboutSbSections.push(defaults[type] || { id, type, heading: '' });
+            sbRenderSections();
+        }
+
+        function sbRemoveSection(idx) {
+            aboutSbSections.splice(idx, 1);
+            sbRenderSections();
+        }
+
+        function sbMoveSection(idx, dir) {
+            const newIdx = idx + dir;
+            if (newIdx < 0 || newIdx >= aboutSbSections.length) return;
+            const tmp = aboutSbSections[idx];
+            aboutSbSections[idx] = aboutSbSections[newIdx];
+            aboutSbSections[newIdx] = tmp;
+            sbRenderSections();
+        }
+
+        function sbCollectSectionData(idx) {
+            const wrap = document.querySelector(`[data-sb-idx="${idx}"]`);
+            if (!wrap) return;
+            const sec = aboutSbSections[idx];
+            wrap.querySelectorAll('[data-field]').forEach(el => {
+                const field = el.dataset.field;
+                if (el.type === 'checkbox') {
+                    sec[field] = el.checked;
+                } else if (el.tagName === 'DIV' && el.contentEditable === 'true') {
+                    sec[field] = el.innerHTML;
+                } else {
+                    sec[field] = el.value;
+                }
+            });
+            // Collect dynamic list items (faq, testimonials, gallery images)
+            if (sec.type === 'faq') {
+                const items = [];
+                wrap.querySelectorAll('.sb-faq-item').forEach(row => {
+                    items.push({ q: row.querySelector('[data-field="q"]').value, a: row.querySelector('[data-field="a"]').value });
+                });
+                sec.items = items;
+            }
+            if (sec.type === 'testimonials') {
+                const items = [];
+                wrap.querySelectorAll('.sb-testimonial-item').forEach(row => {
+                    items.push({
+                        name: row.querySelector('[data-field="name"]').value,
+                        text: row.querySelector('[data-field="text"]').value,
+                        role: row.querySelector('[data-field="role"]')?.value || ''
+                    });
+                });
+                sec.items = items;
+            }
+            if (sec.type === 'gallery') {
+                const imgs = [];
+                wrap.querySelectorAll('.sb-gallery-item input').forEach(inp => {
+                    if (inp.value) imgs.push(inp.value);
+                });
+                sec.images = imgs;
+            }
+        }
+
+        function sbCollectAll() {
+            aboutSbSections.forEach((_, i) => sbCollectSectionData(i));
+        }
+
+        function sbRenderSections() {
+            const container = document.getElementById('about-sb-sections');
+            if (!container) return;
+            if (aboutSbSections.length === 0) {
+                container.innerHTML = '<div style="text-align: center; padding: 3rem; color: #94a3b8; border: 2px dashed #e2e8f0; border-radius: 12px;">No sections yet. Add one using the buttons below.</div>';
+                return;
+            }
+            // Collect data from any currently open editors before re-render
+            sbCollectAll();
+            let html = '';
+            aboutSbSections.forEach((sec, idx) => {
+                const typeLabels = { hero: 'Hero Banner', text: 'Text Block', image_text: 'Image + Text', cta: 'Call to Action', gallery: 'Gallery', faq: 'FAQ', testimonials: 'Testimonials' };
+                const label = typeLabels[sec.type] || sec.type;
+                html += `<div class="card" style="margin-bottom: 0.75rem; border-left: 4px solid #7c3aed;" data-sb-idx="${idx}">
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1rem; background: #faf5ff; border-radius: 8px 8px 0 0; cursor: pointer;" onclick="sbToggleExpand(${idx})">
+                        <div style="display: flex; align-items: center; gap: 0.75rem;">
+                            <span style="font-weight: 600; color: #6b21a8; font-size: 0.9rem;">${label}</span>
+                            <span style="font-size: 0.8rem; color: #94a3b8;">${sec.heading ? '- ' + sec.heading.substring(0, 40) : ''}</span>
+                        </div>
+                        <div style="display: flex; gap: 4px;" onclick="event.stopPropagation()">
+                            <button onclick="sbMoveSection(${idx}, -1)" class="btn btn-sm" style="background: #e2e8f0; color: #475569; padding: 3px 8px; font-size: 0.75rem;" ${idx === 0 ? 'disabled' : ''}>Up</button>
+                            <button onclick="sbMoveSection(${idx}, 1)" class="btn btn-sm" style="background: #e2e8f0; color: #475569; padding: 3px 8px; font-size: 0.75rem;" ${idx === aboutSbSections.length - 1 ? 'disabled' : ''}>Down</button>
+                            <button onclick="sbRemoveSection(${idx})" class="btn btn-sm" style="background: #fee2e2; color: #dc2626; padding: 3px 8px; font-size: 0.75rem;">Remove</button>
+                        </div>
+                    </div>
+                    <div id="sb-body-${idx}" style="padding: 1rem; display: none;">
+                        ${sbRenderFields(sec, idx)}
+                    </div>
+                </div>`;
+            });
+            container.innerHTML = html;
+        }
+
+        function sbToggleExpand(idx) {
+            const body = document.getElementById(`sb-body-${idx}`);
+            if (!body) return;
+            // Collect data from all sections before toggling (preserve edits)
+            sbCollectAll();
+            body.style.display = body.style.display === 'none' ? 'block' : 'none';
+        }
+
+        function sbImageUpload(idx, field) {
+            const fileInput = document.getElementById(`sb-file-${idx}-${field}`);
+            if (!fileInput || !fileInput.files[0]) return;
+            const file = fileInput.files[0];
+            const preview = document.getElementById(`sb-preview-${idx}-${field}`);
+
+            // Instant preview
+            const reader = new FileReader();
+            reader.onload = function(e) { if (preview) preview.style.backgroundImage = `url(${e.target.result})`; };
+            reader.readAsDataURL(file);
+
+            // Upload
+            const formData = new FormData();
+            formData.append('image', file);
+            formData.append('section', `page-about-sb-${idx}`);
+            const siteId = selectedDeployedSiteId || localStorage.getItem('gas_selected_client_id');
+            formData.append('deployed_site_id', siteId);
+            const token = localStorage.getItem('gas_token');
+            fetch('/api/admin/website-builder/upload-image', {
+                method: 'POST', headers: token ? { 'Authorization': 'Bearer ' + token } : {}, body: formData
+            }).then(r => r.json()).then(data => {
+                if (data.success && data.url) {
+                    const urlInput = document.querySelector(`[data-sb-idx="${idx}"] [data-field="${field}"]`);
+                    if (urlInput) urlInput.value = data.url;
+                    showNotification('Image uploaded', 'success');
+                } else { showNotification('Upload failed: ' + (data.error || 'Unknown'), 'error'); }
+            }).catch(e => showNotification('Upload failed: ' + e.message, 'error'));
+        }
+
+        function sbGalleryImageUpload(idx, imgIdx) {
+            const fileInput = document.getElementById(`sb-gal-file-${idx}-${imgIdx}`);
+            if (!fileInput || !fileInput.files[0]) return;
+            const file = fileInput.files[0];
+            const formData = new FormData();
+            formData.append('image', file);
+            formData.append('section', `page-about-sb-gallery-${idx}`);
+            const siteId = selectedDeployedSiteId || localStorage.getItem('gas_selected_client_id');
+            formData.append('deployed_site_id', siteId);
+            const token = localStorage.getItem('gas_token');
+            fetch('/api/admin/website-builder/upload-image', {
+                method: 'POST', headers: token ? { 'Authorization': 'Bearer ' + token } : {}, body: formData
+            }).then(r => r.json()).then(data => {
+                if (data.success && data.url) {
+                    const urlInput = document.getElementById(`sb-gal-url-${idx}-${imgIdx}`);
+                    if (urlInput) urlInput.value = data.url;
+                    showNotification('Image uploaded', 'success');
+                } else { showNotification('Upload failed', 'error'); }
+            }).catch(e => showNotification('Upload failed: ' + e.message, 'error'));
+        }
+
+        function sbAddFaqItem(idx) {
+            sbCollectSectionData(idx);
+            aboutSbSections[idx].items = aboutSbSections[idx].items || [];
+            aboutSbSections[idx].items.push({ q: '', a: '' });
+            sbRenderSections();
+            document.getElementById(`sb-body-${idx}`).style.display = 'block';
+        }
+
+        function sbRemoveFaqItem(idx, itemIdx) {
+            sbCollectSectionData(idx);
+            aboutSbSections[idx].items.splice(itemIdx, 1);
+            sbRenderSections();
+            document.getElementById(`sb-body-${idx}`).style.display = 'block';
+        }
+
+        function sbAddTestimonial(idx) {
+            sbCollectSectionData(idx);
+            aboutSbSections[idx].items = aboutSbSections[idx].items || [];
+            aboutSbSections[idx].items.push({ name: '', text: '', role: '' });
+            sbRenderSections();
+            document.getElementById(`sb-body-${idx}`).style.display = 'block';
+        }
+
+        function sbRemoveTestimonial(idx, itemIdx) {
+            sbCollectSectionData(idx);
+            aboutSbSections[idx].items.splice(itemIdx, 1);
+            sbRenderSections();
+            document.getElementById(`sb-body-${idx}`).style.display = 'block';
+        }
+
+        function sbAddGalleryImage(idx) {
+            sbCollectSectionData(idx);
+            aboutSbSections[idx].images = aboutSbSections[idx].images || [];
+            aboutSbSections[idx].images.push('');
+            sbRenderSections();
+            document.getElementById(`sb-body-${idx}`).style.display = 'block';
+        }
+
+        function sbRemoveGalleryImage(idx, imgIdx) {
+            sbCollectSectionData(idx);
+            aboutSbSections[idx].images.splice(imgIdx, 1);
+            sbRenderSections();
+            document.getElementById(`sb-body-${idx}`).style.display = 'block';
+        }
+
+        function sbRenderFields(sec, idx) {
+            const inp = (field, label, type = 'text', val = '') => {
+                val = sec[field] ?? val;
+                if (type === 'textarea') {
+                    return `<div class="form-group"><label class="form-label">${label}</label><textarea class="form-input" data-field="${field}" rows="4" style="min-height: 80px;">${val}</textarea></div>`;
+                }
+                if (type === 'richtext') {
+                    return `<div class="form-group"><label class="form-label">${label}</label>
+                        <div style="border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden;">
+                            <div style="display: flex; gap: 2px; padding: 4px 6px; background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+                                <button type="button" onclick="document.execCommand('bold')" style="padding: 2px 8px; border: 1px solid #e2e8f0; border-radius: 4px; background: white; cursor: pointer; font-weight: bold;">B</button>
+                                <button type="button" onclick="document.execCommand('italic')" style="padding: 2px 8px; border: 1px solid #e2e8f0; border-radius: 4px; background: white; cursor: pointer; font-style: italic;">I</button>
+                                <button type="button" onclick="var u=prompt('URL:');if(u)document.execCommand('createLink',false,u)" style="padding: 2px 8px; border: 1px solid #e2e8f0; border-radius: 4px; background: white; cursor: pointer;">Link</button>
+                                <button type="button" onclick="document.execCommand('formatBlock',false,'h3')" style="padding: 2px 8px; border: 1px solid #e2e8f0; border-radius: 4px; background: white; cursor: pointer;">H3</button>
+                                <button type="button" onclick="document.execCommand('insertUnorderedList')" style="padding: 2px 8px; border: 1px solid #e2e8f0; border-radius: 4px; background: white; cursor: pointer;">List</button>
+                            </div>
+                            <div contenteditable="true" data-field="${field}" style="padding: 10px; min-height: 120px; font-size: 0.9rem; line-height: 1.6; outline: none;">${val}</div>
+                        </div></div>`;
+                }
+                if (type === 'color') {
+                    return `<div class="form-group"><label class="form-label">${label}</label><div style="display: flex; gap: 8px; align-items: center;"><input type="text" class="form-input" data-field="${field}" value="${val}" style="width: 120px;"><input type="color" value="${val}" onchange="this.previousElementSibling.value=this.value" style="width: 40px; height: 34px; border: 1px solid #e2e8f0; border-radius: 6px; cursor: pointer;"></div></div>`;
+                }
+                if (type === 'image') {
+                    return `<div class="form-group"><label class="form-label">${label}</label>
+                        <div style="display: flex; gap: 8px; align-items: flex-start;">
+                            <input type="text" class="form-input" data-field="${field}" value="${val}" placeholder="Image URL" style="flex: 1;">
+                            <label style="display: inline-flex; align-items: center; gap: 4px; padding: 7px 12px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 6px; cursor: pointer; font-size: 0.8rem; white-space: nowrap;">
+                                Upload <input type="file" id="sb-file-${idx}-${field}" accept="image/*" onchange="sbImageUpload(${idx},'${field}')" style="display: none;">
+                            </label>
+                        </div>
+                        <div id="sb-preview-${idx}-${field}" style="margin-top: 8px; height: 100px; background-size: cover; background-position: center; border-radius: 8px; ${val ? 'background-image: url(' + val + ');' : 'display: none;'}"></div>
+                    </div>`;
+                }
+                if (type === 'select') {
+                    return `<div class="form-group"><label class="form-label">${label}</label>
+                        <select class="form-input" data-field="${field}">${val}</select></div>`;
+                }
+                return `<div class="form-group"><label class="form-label">${label}</label><input type="${type}" class="form-input" data-field="${field}" value="${val}"></div>`;
+            };
+
+            switch (sec.type) {
+                case 'hero':
+                    return inp('heading', 'Heading') + inp('subheading', 'Subheading') + inp('image', 'Background Image', 'image') +
+                        '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">' + inp('cta_text', 'Button Text') + inp('cta_link', 'Button Link') + '</div>';
+                case 'text':
+                    return inp('heading', 'Heading') + inp('body', 'Content', 'richtext');
+                case 'image_text':
+                    return inp('heading', 'Heading') + inp('body', 'Content', 'richtext') + inp('image', 'Image', 'image') +
+                        inp('image_position', 'Image Position', 'select', '<option value="left"' + (sec.image_position === 'left' ? ' selected' : '') + '>Left</option><option value="right"' + (sec.image_position === 'right' ? ' selected' : '') + '>Right</option>');
+                case 'cta':
+                    return inp('heading', 'Heading') + inp('body', 'Description', 'textarea') +
+                        '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">' + inp('cta_text', 'Button Text') + inp('cta_link', 'Button Link') + '</div>' +
+                        inp('background_color', 'Background Color', 'color', sec.background_color || '#2563eb');
+                case 'gallery': {
+                    const imgs = sec.images || [];
+                    let h = inp('heading', 'Heading');
+                    h += '<div class="form-group"><label class="form-label">Images</label>';
+                    imgs.forEach((img, i) => {
+                        const src = typeof img === 'string' ? img : (img.url || img.src || '');
+                        h += `<div class="sb-gallery-item" style="display: flex; gap: 8px; align-items: center; margin-bottom: 6px;">
+                            <input type="text" class="form-input" id="sb-gal-url-${idx}-${i}" value="${src}" placeholder="Image URL" style="flex: 1;">
+                            <label style="display: inline-flex; padding: 7px 10px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 6px; cursor: pointer; font-size: 0.78rem;">
+                                Upload <input type="file" id="sb-gal-file-${idx}-${i}" accept="image/*" onchange="sbGalleryImageUpload(${idx},${i})" style="display: none;">
+                            </label>
+                            <button onclick="sbRemoveGalleryImage(${idx},${i})" style="background: #fee2e2; color: #dc2626; border: none; border-radius: 6px; padding: 6px 10px; cursor: pointer; font-size: 0.78rem;">X</button>
+                        </div>`;
+                    });
+                    h += `<button onclick="sbAddGalleryImage(${idx})" class="btn btn-sm" style="background: #64748b; font-size: 0.78rem; margin-top: 4px;">+ Add Image</button></div>`;
+                    return h;
+                }
+                case 'faq': {
+                    const items = sec.items || [];
+                    let h = inp('heading', 'Heading');
+                    h += '<div class="form-group"><label class="form-label">FAQ Items</label>';
+                    items.forEach((item, i) => {
+                        h += `<div class="sb-faq-item" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; margin-bottom: 8px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                                <span style="font-size: 0.8rem; color: #94a3b8;">Question ${i + 1}</span>
+                                <button onclick="sbRemoveFaqItem(${idx},${i})" style="background: none; border: none; color: #dc2626; cursor: pointer; font-size: 0.8rem;">Remove</button>
+                            </div>
+                            <input type="text" class="form-input" data-field="q" value="${(item.q || '').replace(/"/g, '&quot;')}" placeholder="Question" style="margin-bottom: 6px;">
+                            <textarea class="form-input" data-field="a" rows="2" placeholder="Answer">${item.a || ''}</textarea>
+                        </div>`;
+                    });
+                    h += `<button onclick="sbAddFaqItem(${idx})" class="btn btn-sm" style="background: #64748b; font-size: 0.78rem; margin-top: 4px;">+ Add FAQ</button></div>`;
+                    return h;
+                }
+                case 'testimonials': {
+                    const items = sec.items || [];
+                    let h = inp('heading', 'Heading');
+                    h += '<div class="form-group"><label class="form-label">Testimonials</label>';
+                    items.forEach((item, i) => {
+                        h += `<div class="sb-testimonial-item" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; margin-bottom: 8px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                                <span style="font-size: 0.8rem; color: #94a3b8;">Testimonial ${i + 1}</span>
+                                <button onclick="sbRemoveTestimonial(${idx},${i})" style="background: none; border: none; color: #dc2626; cursor: pointer; font-size: 0.8rem;">Remove</button>
+                            </div>
+                            <input type="text" class="form-input" data-field="name" value="${(item.name || '').replace(/"/g, '&quot;')}" placeholder="Name" style="margin-bottom: 6px;">
+                            <input type="text" class="form-input" data-field="role" value="${(item.role || '').replace(/"/g, '&quot;')}" placeholder="Role / Title (optional)" style="margin-bottom: 6px;">
+                            <textarea class="form-input" data-field="text" rows="2" placeholder="Testimonial text">${item.text || ''}</textarea>
+                        </div>`;
+                    });
+                    h += `<button onclick="sbAddTestimonial(${idx})" class="btn btn-sm" style="background: #64748b; font-size: 0.78rem; margin-top: 4px;">+ Add Testimonial</button></div>`;
+                    return h;
+                }
+                default:
+                    return '<p style="color: #94a3b8;">Unknown section type: ' + sec.type + '</p>';
+            }
+        }
+
+        async function sbSaveSections() {
+            sbCollectAll();
+            const btn = document.getElementById('about-sb-save-btn');
+            const orig = btn.innerHTML;
+            btn.disabled = true; btn.innerHTML = ' Saving...'; btn.style.opacity = '0.7';
+            try {
+                const apiKey = await getSiteApiKey();
+                if (!apiKey) { showNotification('Could not get API key for this site', 'error'); return; }
+
+                if (aboutSbPageExists) {
+                    // PUT replace all sections
+                    const resp = await fetch(`/api/partner/websites/${selectedDeployedSiteId}/pages/about/sections`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json', 'X-API-Key': apiKey },
+                        body: JSON.stringify({ sections: aboutSbSections })
+                    });
+                    const data = await resp.json();
+                    if (data.success) {
+                        aboutSbSections = data.sections || aboutSbSections;
+                        showNotification('Sections saved!', 'success');
+                    } else { showNotification('Error: ' + (data.error || 'Failed'), 'error'); }
+                } else {
+                    // POST create page
+                    const title = aboutSbSections.find(s => s.type === 'hero')?.heading || 'About Us';
+                    const resp = await fetch(`/api/partner/websites/${selectedDeployedSiteId}/pages`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-API-Key': apiKey },
+                        body: JSON.stringify({ page_slug: 'about', page_title: title, sections: aboutSbSections })
+                    });
+                    const data = await resp.json();
+                    if (data.success) {
+                        aboutSbPageExists = true;
+                        aboutSbSections = data.page.sections || aboutSbSections;
+                        showNotification('Sections saved!', 'success');
+                    } else { showNotification('Error: ' + (data.error || 'Failed'), 'error'); }
+                }
+            } catch (e) {
+                showNotification('Save failed: ' + e.message, 'error');
+            } finally {
+                btn.disabled = false; btn.innerHTML = orig; btn.style.opacity = '1';
+            }
+        }
+
+        // Hook into tab switching to initialize section builder when About tab loads
+        const _origSwitchSubPageTab = switchSubPageTab;
+        switchSubPageTab = function(subTabName) {
+            _origSwitchSubPageTab(subTabName);
+            if (subTabName === 'page-about') {
+                initAboutSectionBuilder();
+            }
+        };
+
         async function loadWebsiteSection(section) {
             const websiteId = selectedWebsiteId;
             const clientId = getClientId() || localStorage.getItem('gas_selected_client_id');
