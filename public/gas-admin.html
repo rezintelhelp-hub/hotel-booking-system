@@ -6069,7 +6069,7 @@
                                         <span style="font-size: 0.85rem; color: #6b21a8;">Transparent Header</span>
                                     </label>
                                 </div>
-                                <button class="btn" onclick="saveWebsiteSection('page-about', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save About Page</button>
+                                <button id="about-classic-save-btn" class="btn" onclick="saveWebsiteSection('page-about', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save About Page</button>
                             </div>
 
                             <!-- About Page Mode Toggle -->
@@ -6082,6 +6082,7 @@
                                     <div id="about-convert-btn-wrap" style="display: none;">
                                         <button onclick="convertAboutToSections()" class="btn btn-sm" style="background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%); padding: 6px 16px; font-size: 0.8rem;">Convert to Section Builder</button>
                                     </div>
+                                    <button id="about-sb-save-top-btn" onclick="sbSaveSections()" class="btn btn-sm" style="display: none; background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%); padding: 6px 16px; font-size: 0.8rem;">Save Sections</button>
                                 </div>
                             </div>
 
@@ -22908,17 +22909,23 @@ const promo = await fetch('/api/v1/offers/validate', {
             const builderEl = document.getElementById('about-section-builder');
             const classicBtn = document.getElementById('about-mode-classic-btn');
             const sectionsBtn = document.getElementById('about-mode-sections-btn');
+            const classicSaveBtn = document.getElementById('about-classic-save-btn');
+            const sbSaveTopBtn = document.getElementById('about-sb-save-top-btn');
             if (mode === 'sections') {
                 classicEl.style.display = 'none';
                 builderEl.style.display = 'block';
                 classicBtn.style.background = 'white'; classicBtn.style.color = '#64748b'; classicBtn.style.border = '1px solid #e2e8f0';
                 sectionsBtn.style.background = '#7c3aed'; sectionsBtn.style.color = 'white'; sectionsBtn.style.border = 'none';
+                if (classicSaveBtn) classicSaveBtn.style.display = 'none';
+                if (sbSaveTopBtn) sbSaveTopBtn.style.display = '';
                 sbRenderSections();
             } else {
                 classicEl.style.display = 'block';
                 builderEl.style.display = 'none';
                 sectionsBtn.style.background = 'white'; sectionsBtn.style.color = '#64748b'; sectionsBtn.style.border = '1px solid #e2e8f0';
                 classicBtn.style.background = '#7c3aed'; classicBtn.style.color = 'white'; classicBtn.style.border = 'none';
+                if (classicSaveBtn) classicSaveBtn.style.display = '';
+                if (sbSaveTopBtn) sbSaveTopBtn.style.display = 'none';
             }
         }
 
