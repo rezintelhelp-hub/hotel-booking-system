@@ -34,8 +34,8 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
     $page_title = $data['page_title'] ?? get_the_title();
     $sections = $data['sections'];
 
-    // Detect current language: get_locale() returns e.g. fr_FR, es_ES, en_US
-    $lang = substr(get_locale(), 0, 2);
+    // Detect current language using GAS language system (URL param / cookie / site primary)
+    $lang = function_exists('developer_get_current_language') ? developer_get_current_language() : substr(get_locale(), 0, 2);
 
     // Only render the page title hero if sections don't already contain a hero
     $has_hero_section = in_array('hero', array_column($sections, 'type'));
