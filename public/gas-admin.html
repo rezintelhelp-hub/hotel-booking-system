@@ -8785,7 +8785,7 @@
                 </div>
 
                 <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header"><h3>Button</h3></div>
+                    <div class="card-header"><h3>Button <span style="font-size: 0.75rem; color: #8b5cf6; font-weight: normal;">🌐 Multilingual</span></h3></div>
                     <div class="card-body">
                         <div class="form-group" style="margin-bottom: 1rem;">
                             <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
@@ -8794,8 +8794,22 @@
                         </div>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                             <div class="form-group">
-                                <label class="form-label">Button Text</label>
-                                <input type="text" class="form-input" id="wb-featured-btn-text" value="View All Properties">
+                                <label class="form-label">Button Text <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                                <div class="translation-field-wrapper" data-translation-group="wb-featured-btn-text">
+                                    <div class="translation-tabs">
+                                        <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-featured-btn-text', 'en')"><span class="flag">🇬🇧</span>EN</button>
+                                        <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-featured-btn-text', 'fr')"><span class="flag">🇫🇷</span>FR</button>
+                                        <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-featured-btn-text', 'es')"><span class="flag">🇪🇸</span>ES</button>
+                                        <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-featured-btn-text', 'nl')"><span class="flag">🇳🇱</span>NL</button>
+                                        <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-featured-btn-text')" title="Auto-translate">✨</button>
+                                    </div>
+                                    <div class="translation-input-group">
+                                        <input type="text" class="form-input translation-input active" id="wb-featured-btn-text-en" data-lang="en" value="View All Properties" placeholder="e.g., View All Properties">
+                                        <input type="text" class="form-input translation-input" id="wb-featured-btn-text-fr" data-lang="fr" placeholder="Voir toutes les propriétés">
+                                        <input type="text" class="form-input translation-input" id="wb-featured-btn-text-es" data-lang="es" placeholder="Ver todas las propiedades">
+                                        <input type="text" class="form-input translation-input" id="wb-featured-btn-text-nl" data-lang="nl" placeholder="Bekijk alle accommodaties">
+                                    </div>
+                                </div>
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Button URL</label>
