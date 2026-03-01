@@ -6088,13 +6088,6 @@
 
                             <!-- Section Builder Mode -->
                             <div id="about-section-builder" style="display: none;">
-                                <!-- Language tabs (shown when >1 language enabled) -->
-                                <div id="about-sb-lang-bar" style="display: none; margin-bottom: 1rem;">
-                                    <div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem 1rem; background: #f0f4ff; border: 1px solid #c7d2fe; border-radius: 8px;">
-                                        <span style="font-size: 0.8rem; font-weight: 600; color: #4338ca;">Language:</span>
-                                        <div class="lang-tabs" id="about-sb-lang-tabs" style="margin: 0;"></div>
-                                    </div>
-                                </div>
                                 <!-- Section list -->
                                 <div id="about-sb-sections" style="margin-bottom: 1rem;"></div>
 
@@ -23517,7 +23510,7 @@ const promo = await fetch('/api/v1/offers/validate', {
         let aboutSbSections = [];
         let aboutSbMode = 'classic'; // 'classic' or 'sections'
         let aboutSbPageExists = false;
-        let currentSbLang = null; // set from account primary language on init
+        // Per-section language is stored as sec._currentLang on each section object
         const SB_TRANSLATABLE_FIELDS = ['heading', 'subheading', 'body', 'cta_text'];
         const SB_TRANSLATABLE_ITEM_FIELDS = { faq: ['q', 'a'], testimonials: ['name', 'text', 'role'] };
 
@@ -23536,6 +23529,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 if (data.success && data.sections) {
                     aboutSbSections = data.sections;
                     sbMigrateSections();
+                    sbInitSectionLangs();
                     aboutSbPageExists = true;
                     return true;
                 }
@@ -23543,6 +23537,14 @@ const promo = await fetch('/api/v1/offers/validate', {
             aboutSbPageExists = false;
             aboutSbSections = [];
             return false;
+        }
+
+        // Initialize per-section language state
+        function sbInitSectionLangs() {
+            const primaryLang = getAccountPrimaryLanguage();
+            aboutSbSections.forEach(sec => {
+                if (!sec._currentLang) sec._currentLang = primaryLang;
+            });
         }
 
         // Migrate legacy unsuffixed fields → language-suffixed keys
@@ -23571,11 +23573,8 @@ const promo = await fetch('/api/v1/offers/validate', {
             const toggle = document.getElementById('about-mode-toggle');
             const convertWrap = document.getElementById('about-convert-btn-wrap');
             if (!toggle) return;
-            // Initialise language from account settings
-            currentSbLang = getAccountPrimaryLanguage();
             const exists = await checkAboutSectionsExist();
             toggle.style.display = 'flex';
-            sbRenderLangTabs();
             if (exists) {
                 switchAboutMode('sections');
             } else {
@@ -23584,39 +23583,49 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
 
-        function sbRenderLangTabs() {
+        function sbRenderSectionLangTabs(sec, idx) {
             const langs = getAccountLanguages();
-            const bar = document.getElementById('about-sb-lang-bar');
-            const container = document.getElementById('about-sb-lang-tabs');
-            if (!bar || !container) return;
-            if (langs.length <= 1) {
-                bar.style.display = 'none';
-                return;
-            }
-            bar.style.display = 'block';
+            if (langs.length <= 1) return '';
             const primaryLang = getAccountPrimaryLanguage();
+            const activeLang = sec._currentLang || primaryLang;
             const sorted = [...langs].sort((a, b) => {
                 if (a === primaryLang) return -1;
                 if (b === primaryLang) return 1;
                 return 0;
             });
-            container.innerHTML = sorted.map(lang => {
+            const tabs = sorted.map(lang => {
                 const info = (typeof LANG_INFO !== 'undefined' && LANG_INFO[lang]) || { flag: '🏳️', name: lang.toUpperCase() };
-                const isActive = lang === currentSbLang;
+                const isActive = lang === activeLang;
                 const isPrimary = lang === primaryLang;
-                return `<button type="button" class="lang-tab${isActive ? ' active' : ''}${isPrimary ? ' primary' : ''}" data-lang="${lang}" onclick="sbSwitchLang('${lang}')">${info.flag} ${info.name}</button>`;
+                return `<button type="button" class="lang-tab${isActive ? ' active' : ''}${isPrimary ? ' primary' : ''}" data-lang="${lang}" onclick="sbSectionSwitchLang(${idx},'${lang}')">${info.flag} ${info.name}</button>`;
             }).join('');
+            return `<div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem 1rem; margin-bottom: 1rem; background: #f0f4ff; border: 1px solid #c7d2fe; border-radius: 8px;">
+                <span style="font-size: 0.8rem; font-weight: 600; color: #4338ca;">Language:</span>
+                <div class="lang-tabs">${tabs}</div>
+            </div>`;
         }
 
-        function sbSwitchLang(lang) {
-            if (lang === currentSbLang) return;
-            sbCollectAll(); // save current language edits before switching
-            currentSbLang = lang;
-            // Update active tab styling
-            document.querySelectorAll('#about-sb-lang-tabs .lang-tab').forEach(t => {
-                t.classList.toggle('active', t.dataset.lang === lang);
-            });
-            sbRenderSections(); // re-render with new language content
+        function sbSectionSwitchLang(idx, lang) {
+            const sec = aboutSbSections[idx];
+            if (!sec || lang === sec._currentLang) return;
+            sbCollectSectionData(idx);
+            sec._currentLang = lang;
+            const body = document.getElementById(`sb-body-${idx}`);
+            if (body) {
+                body.innerHTML = sbRenderFields(sec, idx);
+                body.style.display = 'block';
+            }
+            sbUpdateSectionPreview(idx);
+        }
+
+        function sbUpdateSectionPreview(idx) {
+            const sec = aboutSbSections[idx];
+            const lang = sec._currentLang || getAccountPrimaryLanguage();
+            const previewSpan = document.querySelector(`[data-sb-idx="${idx}"] .sb-heading-preview`);
+            if (previewSpan) {
+                const heading = sec['heading_' + lang] || sec.heading || '';
+                previewSpan.textContent = heading ? '- ' + heading.substring(0, 40) : '';
+            }
         }
 
         function switchAboutMode(mode) {
@@ -23679,6 +23688,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 if (data.success) {
                     aboutSbSections = data.page.sections || sections;
                     sbMigrateSections();
+                    sbInitSectionLangs();
                     aboutSbPageExists = true;
                     document.getElementById('about-convert-btn-wrap').style.display = 'none';
                     switchAboutMode('sections');
@@ -23694,18 +23704,18 @@ const promo = await fetch('/api/v1/offers/validate', {
         function sbAddSection(type) {
             sbCollectAll();
             const id = 'sec_' + Date.now();
-            const lang = currentSbLang || getAccountPrimaryLanguage();
+            const lang = getAccountPrimaryLanguage();
             const h = 'heading_' + lang, s = 'subheading_' + lang, b = 'body_' + lang, ct = 'cta_text_' + lang;
             const defaults = {
-                hero:         { id, type, [h]: '', [s]: '', image: '', [ct]: '', cta_link: '' },
-                text:         { id, type, [h]: '', [b]: '' },
-                image_text:   { id, type, [h]: '', [b]: '', image: '', image_position: 'left' },
-                cta:          { id, type, [h]: '', [b]: '', [ct]: '', cta_link: '', background_color: '#2563eb' },
-                gallery:      { id, type, [h]: '', images: [] },
-                faq:          { id, type, [h]: '', items: [{ ['q_' + lang]: '', ['a_' + lang]: '' }] },
-                testimonials: { id, type, [h]: '', items: [{ ['name_' + lang]: '', ['text_' + lang]: '', ['role_' + lang]: '' }] },
+                hero:         { id, type, _currentLang: lang, [h]: '', [s]: '', image: '', [ct]: '', cta_link: '' },
+                text:         { id, type, _currentLang: lang, [h]: '', [b]: '' },
+                image_text:   { id, type, _currentLang: lang, [h]: '', [b]: '', image: '', image_position: 'left' },
+                cta:          { id, type, _currentLang: lang, [h]: '', [b]: '', [ct]: '', cta_link: '', background_color: '#2563eb' },
+                gallery:      { id, type, _currentLang: lang, [h]: '', images: [] },
+                faq:          { id, type, _currentLang: lang, [h]: '', items: [{ ['q_' + lang]: '', ['a_' + lang]: '' }] },
+                testimonials: { id, type, _currentLang: lang, [h]: '', items: [{ ['name_' + lang]: '', ['text_' + lang]: '', ['role_' + lang]: '' }] },
             };
-            aboutSbSections.push(defaults[type] || { id, type, [h]: '' });
+            aboutSbSections.push(defaults[type] || { id, type, _currentLang: lang, [h]: '' });
             sbRenderSections();
         }
 
@@ -23729,7 +23739,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             const wrap = document.querySelector(`[data-sb-idx="${idx}"]`);
             if (!wrap) return;
             const sec = aboutSbSections[idx];
-            const lang = currentSbLang || getAccountPrimaryLanguage();
+            const lang = (sec && sec._currentLang) || getAccountPrimaryLanguage();
             wrap.querySelectorAll('[data-field]').forEach(el => {
                 const field = el.dataset.field;
                 const isTranslatable = SB_TRANSLATABLE_FIELDS.includes(field);
@@ -23789,7 +23799,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1rem; background: #faf5ff; border-radius: 8px 8px 0 0; cursor: pointer;" onclick="sbToggleExpand(${idx})">
                         <div style="display: flex; align-items: center; gap: 0.75rem;">
                             <span style="font-weight: 600; color: #6b21a8; font-size: 0.9rem;">${label}</span>
-                            <span style="font-size: 0.8rem; color: #94a3b8;">${(sec['heading_' + (currentSbLang || getAccountPrimaryLanguage())] || sec.heading) ? '- ' + (sec['heading_' + (currentSbLang || getAccountPrimaryLanguage())] || sec.heading || '').substring(0, 40) : ''}</span>
+                            <span class="sb-heading-preview" style="font-size: 0.8rem; color: #94a3b8;">${(sec['heading_' + (sec._currentLang || getAccountPrimaryLanguage())] || sec.heading) ? '- ' + (sec['heading_' + (sec._currentLang || getAccountPrimaryLanguage())] || sec.heading || '').substring(0, 40) : ''}</span>
                         </div>
                         <div style="display: flex; gap: 4px;" onclick="event.stopPropagation()">
                             <button onclick="sbMoveSection(${idx}, -1)" class="btn btn-sm" style="background: #e2e8f0; color: #475569; padding: 3px 8px; font-size: 0.75rem;" ${idx === 0 ? 'disabled' : ''}>Up</button>
@@ -23866,7 +23876,7 @@ const promo = await fetch('/api/v1/offers/validate', {
         function sbAddFaqItem(idx) {
             sbCollectAll();
             aboutSbSections[idx].items = aboutSbSections[idx].items || [];
-            const lang = currentSbLang || getAccountPrimaryLanguage();
+            const lang = aboutSbSections[idx]._currentLang || getAccountPrimaryLanguage();
             aboutSbSections[idx].items.push({ ['q_' + lang]: '', ['a_' + lang]: '' });
             sbRenderSections();
             document.getElementById(`sb-body-${idx}`).style.display = 'block';
@@ -23882,7 +23892,7 @@ const promo = await fetch('/api/v1/offers/validate', {
         function sbAddTestimonial(idx) {
             sbCollectAll();
             aboutSbSections[idx].items = aboutSbSections[idx].items || [];
-            const lang = currentSbLang || getAccountPrimaryLanguage();
+            const lang = aboutSbSections[idx]._currentLang || getAccountPrimaryLanguage();
             aboutSbSections[idx].items.push({ ['name_' + lang]: '', ['text_' + lang]: '', ['role_' + lang]: '' });
             sbRenderSections();
             document.getElementById(`sb-body-${idx}`).style.display = 'block';
@@ -23911,7 +23921,8 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
 
         function sbRenderFields(sec, idx) {
-            const lang = currentSbLang || getAccountPrimaryLanguage();
+            const lang = sec._currentLang || getAccountPrimaryLanguage();
+            const langTabsHtml = sbRenderSectionLangTabs(sec, idx);
             const inp = (field, label, type = 'text', val = '') => {
                 if (type !== 'select') {
                     const isTranslatable = SB_TRANSLATABLE_FIELDS.includes(field);
@@ -23958,22 +23969,22 @@ const promo = await fetch('/api/v1/offers/validate', {
 
             switch (sec.type) {
                 case 'hero':
-                    return inp('heading', 'Heading') + inp('subheading', 'Subheading') + inp('image', 'Background Image', 'image') +
+                    return langTabsHtml + inp('heading', 'Heading') + inp('subheading', 'Subheading') + inp('image', 'Background Image', 'image') +
                         '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">' + inp('cta_text', 'Button Text') + inp('cta_link', 'Button Link') + '</div>';
                 case 'text':
-                    return inp('heading', 'Heading') + inp('body', 'Content', 'richtext');
+                    return langTabsHtml + inp('heading', 'Heading') + inp('body', 'Content', 'richtext');
                 case 'image_text': {
                     const posVal = sec.image_position || 'left';
                     const posOpts = `<option value="left"${posVal === 'left' ? ' selected' : ''}>Left</option><option value="right"${posVal === 'right' ? ' selected' : ''}>Right</option>`;
-                    return inp('heading', 'Heading') + inp('body', 'Content', 'richtext') + inp('image', 'Image', 'image') + inp('image_position', 'Image Position', 'select', posOpts);
+                    return langTabsHtml + inp('heading', 'Heading') + inp('body', 'Content', 'richtext') + inp('image', 'Image', 'image') + inp('image_position', 'Image Position', 'select', posOpts);
                 }
                 case 'cta':
-                    return inp('heading', 'Heading') + inp('body', 'Description', 'textarea') +
+                    return langTabsHtml + inp('heading', 'Heading') + inp('body', 'Description', 'textarea') +
                         '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">' + inp('cta_text', 'Button Text') + inp('cta_link', 'Button Link') + '</div>' +
                         inp('background_color', 'Background Color', 'color', sec.background_color || '#2563eb');
                 case 'gallery': {
                     const imgs = sec.images || [];
-                    let h = inp('heading', 'Heading');
+                    let h = langTabsHtml + inp('heading', 'Heading');
                     h += '<div class="form-group"><label class="form-label">Images</label>';
                     imgs.forEach((img, i) => {
                         const src = typeof img === 'string' ? img : (img.url || img.src || '');
@@ -23990,7 +24001,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 }
                 case 'faq': {
                     const items = sec.items || [];
-                    let h = inp('heading', 'Heading');
+                    let h = langTabsHtml + inp('heading', 'Heading');
                     h += '<div class="form-group"><label class="form-label">FAQ Items</label>';
                     items.forEach((item, i) => {
                         h += `<div class="sb-faq-item" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; margin-bottom: 8px;">
@@ -24007,7 +24018,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 }
                 case 'testimonials': {
                     const items = sec.items || [];
-                    let h = inp('heading', 'Heading');
+                    let h = langTabsHtml + inp('heading', 'Heading');
                     h += '<div class="form-group"><label class="form-label">Testimonials</label>';
                     items.forEach((item, i) => {
                         h += `<div class="sb-testimonial-item" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; margin-bottom: 8px;">
@@ -24030,6 +24041,15 @@ const promo = await fetch('/api/v1/offers/validate', {
 
         async function sbSaveSections() {
             sbCollectAll();
+            // Strip _currentLang from sections before saving (UI-only property)
+            const sectionsToSave = aboutSbSections.map(sec => {
+                const clone = { ...sec };
+                delete clone._currentLang;
+                if (Array.isArray(clone.items)) {
+                    clone.items = clone.items.map(item => { const ic = { ...item }; delete ic._currentLang; return ic; });
+                }
+                return clone;
+            });
             const btn = document.getElementById('about-sb-save-btn');
             const orig = btn.innerHTML;
             btn.disabled = true; btn.innerHTML = ' Saving...'; btn.style.opacity = '0.7';
@@ -24039,25 +24059,28 @@ const promo = await fetch('/api/v1/offers/validate', {
                     const resp = await fetch(`/api/partner/websites/${selectedDeployedSiteId}/pages/about/sections`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                        body: JSON.stringify({ sections: aboutSbSections })
+                        body: JSON.stringify({ sections: sectionsToSave })
                     });
                     const data = await resp.json();
                     if (data.success) {
                         aboutSbSections = data.sections || aboutSbSections;
+                        sbInitSectionLangs();
                         showNotification('Sections saved!', 'success');
                     } else { showNotification('Error: ' + (data.error || 'Failed'), 'error'); }
                 } else {
                     // POST create page
-                    const title = aboutSbSections.find(s => s.type === 'hero')?.heading || 'About Us';
+                    const heroSec = aboutSbSections.find(s => s.type === 'hero');
+                    const title = (heroSec && (heroSec['heading_' + getAccountPrimaryLanguage()] || heroSec.heading)) || 'About Us';
                     const resp = await fetch(`/api/partner/websites/${selectedDeployedSiteId}/pages`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                        body: JSON.stringify({ page_slug: 'about', page_title: title, sections: aboutSbSections })
+                        body: JSON.stringify({ page_slug: 'about', page_title: title, sections: sectionsToSave })
                     });
                     const data = await resp.json();
                     if (data.success) {
                         aboutSbPageExists = true;
                         aboutSbSections = data.page.sections || aboutSbSections;
+                        sbInitSectionLangs();
                         showNotification('Sections saved!', 'success');
                     } else { showNotification('Error: ' + (data.error || 'Failed'), 'error'); }
                 }
