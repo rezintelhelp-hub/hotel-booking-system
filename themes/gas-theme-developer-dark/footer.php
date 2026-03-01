@@ -177,6 +177,7 @@ $has_attractions = $use_api ? ($site_config['features']['has_attractions'] ?? fa
             </div>
             
             <!-- Contact Column -->
+            <?php if ($phone || $email) : ?>
             <div>
                 <h4 style="color: <?php echo esc_attr($footer_text); ?>;"><?php echo esc_html($api_settings['page_contact_menu_title'] ?? 'Contact'); ?></h4>
                 <ul class="developer-footer-links">
@@ -191,6 +192,7 @@ $has_attractions = $use_api ? ($site_config['features']['has_attractions'] ?? fa
                     <?php endif; ?>
                 </ul>
             </div>
+            <?php endif; ?>
         </div>
         
         <div class="developer-footer-bottom" style="border-color: <?php echo esc_attr($footer_text); ?>33;">
