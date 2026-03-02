@@ -32225,8 +32225,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                                         <a href="${site.admin_url}" target="_blank" class="btn btn-small btn-secondary" style="font-size: 0.75rem;">⚙️ WP Admin</a>
                                         <button onclick="renameDeployedSite(${site.id}, '${(site.slug || '').replace(/'/g, "\\'")}')" class="btn btn-small" style="font-size: 0.75rem; background: #f59e0b; border-color: #f59e0b;">🔗 Rename</button>
                                         <button onclick="renameDeployedSiteName(${site.id}, '${(site.site_name || site.slug || '').replace(/'/g, "\\'")}')" class="btn btn-small" style="font-size: 0.75rem; background: #8b5cf6; border-color: #8b5cf6;">✏️ Name</button>
-                                        <button onclick="manageWebsiteRooms(${site.id}, ${site.property_id}, '${(site.site_name || site.slug).replace(/'/g, "\\'")}')" class="btn btn-small" style="font-size: 0.75rem; background: #10b981; border-color: #10b981;">🛏️ Rooms</button>
-                                                                                <button onclick="deleteDeployedSite(${site.id}, '${(site.site_name || site.slug).replace(/'/g, "\\'")}')" class="btn btn-small" style="font-size: 0.75rem; background: #ef4444; border-color: #ef4444;">🗑️ Delete</button>
+                                        <button onclick="manageWebsiteRooms(${site.id}, ${site.property_id}, '${(site.site_name || site.slug || '').replace(/'/g, "\\'")}')" class="btn btn-small" style="font-size: 0.75rem; background: #10b981; border-color: #10b981;">🛏️ Rooms</button>
+                                                                                <button onclick="deleteDeployedSite(${site.id}, '${(site.site_name || site.slug || '').replace(/'/g, "\\'")}')" class="btn btn-small" style="font-size: 0.75rem; background: #ef4444; border-color: #ef4444;">🗑️ Delete</button>
                                     </div>
                                 </div>
                                 <div style="text-align: right;">
