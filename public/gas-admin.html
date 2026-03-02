@@ -10011,12 +10011,86 @@
                 </div>
 
                 <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header"><h3>Currency</h3></div>
+                    <div class="card-body">
+                        <p style="color: #64748b; font-size: 0.9rem; margin-bottom: 1rem;">Control how currencies are displayed across your site.</p>
+                        <button class="btn" id="currencySettingsBtn" onclick="openCurrencySettingsModal()" style="font-size: 0.9rem;">Configure Currency Settings</button>
+                        <input type="hidden" id="wb-styles-currency-mode" value="property">
+                        <input type="hidden" id="wb-styles-site-currency" value="">
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top: 1rem;">
                     <div class="card-header"><h3>Custom CSS</h3></div>
                     <div class="card-body">
                         <div class="form-group">
                             <label class="form-label">Additional CSS</label>
                             <textarea class="form-textarea" id="wb-styles-custom-css" rows="6" placeholder="/* Add custom CSS here */"></textarea>
                             <small class="form-hint">Advanced: Add custom CSS to override theme styles</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Currency Settings Modal -->
+                <div id="currencySettingsModal" class="modal" style="display: none;" onclick="if(event.target === this) closeModal('currencySettingsModal')">
+                    <div class="modal-content" style="max-width: 540px; border-radius: 16px;">
+                        <div class="modal-header" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem; display: flex; justify-content: space-between; align-items: center;">
+                            <h3 style="margin: 0;">Currency Settings</h3>
+                            <button onclick="closeModal('currencySettingsModal')" style="background: rgba(255,255,255,0.2); border: none; color: white; font-size: 1.5rem; cursor: pointer; width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; line-height: 1;">&times;</button>
+                        </div>
+                        <div class="modal-body" style="padding: 1.5rem;">
+                            <p style="color: #64748b; margin-bottom: 1.25rem; font-size: 0.9rem;">Choose how currencies are displayed on your website.</p>
+                            <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                                <div id="currencyModeCard-property" onclick="selectCurrencyMode('property')" style="cursor: pointer; border: 2px solid #e5e7eb; background: #fff; border-radius: 12px; padding: 1.25rem; transition: all 0.15s ease;">
+                                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                        <div style="width: 40px; height: 40px; border-radius: 50%; background: #f0fdf4; display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">🏨</div>
+                                        <div>
+                                            <div style="font-weight: 600; color: #1e293b;">Property Currency</div>
+                                            <div style="font-size: 0.85rem; color: #64748b; margin-top: 2px;">Each property displays prices in its own native currency. Multi-currency checkout if properties differ.</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div id="currencyModeCard-site" onclick="selectCurrencyMode('site')" style="cursor: pointer; border: 2px solid #e5e7eb; background: #fff; border-radius: 12px; padding: 1.25rem; transition: all 0.15s ease;">
+                                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                        <div style="width: 40px; height: 40px; border-radius: 50%; background: #eff6ff; display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">🌐</div>
+                                        <div>
+                                            <div style="font-weight: 600; color: #1e293b;">Site Currency</div>
+                                            <div style="font-size: 0.85rem; color: #64748b; margin-top: 2px;">Display all prices in a single currency across the entire site.</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div id="siteCurrencyDropdown" style="display: none; margin-top: 1rem;">
+                                <label style="font-weight: 500; font-size: 0.9rem; color: #374151; display: block; margin-bottom: 0.5rem;">Display Currency</label>
+                                <select id="siteCurrencySelect" style="width: 100%; padding: 0.5rem 0.75rem; border-radius: 8px; border: 1px solid #d1d5db; font-size: 0.9rem;">
+                                    <option value="">-- Select Currency --</option>
+                                    <option value="GBP">£ GBP</option>
+                                    <option value="USD">$ USD</option>
+                                    <option value="EUR">€ EUR</option>
+                                    <option value="AUD">$ AUD</option>
+                                    <option value="CAD">$ CAD</option>
+                                    <option value="CHF">CHF</option>
+                                    <option value="NZD">$ NZD</option>
+                                    <option value="THB">฿ THB</option>
+                                    <option value="JPY">¥ JPY</option>
+                                    <option value="ZAR">R ZAR</option>
+                                    <option value="AED">د.إ AED</option>
+                                    <option value="SGD">$ SGD</option>
+                                    <option value="MYR">RM MYR</option>
+                                    <option value="INR">₹ INR</option>
+                                    <option value="IDR">Rp IDR</option>
+                                    <option value="PHP">₱ PHP</option>
+                                    <option value="VND">₫ VND</option>
+                                    <option value="CNY">¥ CNY</option>
+                                    <option value="KRW">₩ KRW</option>
+                                    <option value="MXN">$ MXN</option>
+                                    <option value="BRL">R$ BRL</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="modal-footer" style="padding: 1rem 1.5rem; border-top: 1px solid #e5e7eb; display: flex; justify-content: flex-end; gap: 0.75rem;">
+                            <button class="btn btn-secondary" onclick="closeModal('currencySettingsModal')">Cancel</button>
+                            <button class="btn" onclick="saveCurrencySettings()">Save</button>
                         </div>
                     </div>
                 </div>
@@ -20804,7 +20878,72 @@ const promo = await fetch('/api/v1/offers/validate', {
                 picker.value = text.value;
             }
         }
-        
+
+        // Currency Settings Modal
+        function selectCurrencyMode(mode) {
+            const propertyCard = document.getElementById('currencyModeCard-property');
+            const siteCard = document.getElementById('currencyModeCard-site');
+            const dropdown = document.getElementById('siteCurrencyDropdown');
+
+            if (mode === 'property') {
+                propertyCard.style.border = '2px solid #2563eb';
+                propertyCard.style.background = '#eff6ff';
+                siteCard.style.border = '2px solid #e5e7eb';
+                siteCard.style.background = '#fff';
+                dropdown.style.display = 'none';
+            } else {
+                siteCard.style.border = '2px solid #2563eb';
+                siteCard.style.background = '#eff6ff';
+                propertyCard.style.border = '2px solid #e5e7eb';
+                propertyCard.style.background = '#fff';
+                dropdown.style.display = 'block';
+            }
+            // Store selected mode on the modal for saveCurrencySettings to read
+            document.getElementById('currencySettingsModal').dataset.selectedMode = mode;
+        }
+
+        function openCurrencySettingsModal() {
+            // Read current values from hidden inputs
+            const mode = document.getElementById('wb-styles-currency-mode')?.value || 'property';
+            const currency = document.getElementById('wb-styles-site-currency')?.value || '';
+
+            // Set dropdown value
+            const sel = document.getElementById('siteCurrencySelect');
+            if (sel) sel.value = currency;
+
+            // Highlight the correct card
+            selectCurrencyMode(mode);
+
+            openModal('currencySettingsModal');
+        }
+
+        function saveCurrencySettings() {
+            const mode = document.getElementById('currencySettingsModal').dataset.selectedMode || 'property';
+            const currency = document.getElementById('siteCurrencySelect')?.value || '';
+
+            // Write to hidden inputs (both original and any cloned versions)
+            document.querySelectorAll('[id="wb-styles-currency-mode"]').forEach(el => el.value = mode);
+            document.querySelectorAll('[id="wb-styles-site-currency"]').forEach(el => el.value = mode === 'site' ? currency : '');
+
+            // Update button label
+            initCurrencySettingsButton();
+
+            closeModal('currencySettingsModal');
+        }
+
+        function initCurrencySettingsButton() {
+            const mode = document.getElementById('wb-styles-currency-mode')?.value || 'property';
+            const currency = document.getElementById('wb-styles-site-currency')?.value || '';
+            const btn = document.getElementById('currencySettingsBtn');
+            if (!btn) return;
+
+            if (mode === 'site' && currency) {
+                btn.textContent = 'Site Currency: ' + currency;
+            } else {
+                btn.textContent = 'Property Currency (Default)';
+            }
+        }
+
         // Toggle Reviews App fields visibility
         function toggleReviewsAppFields() {
             const useApp = document.getElementById('wb-reviews-use-app')?.checked;
@@ -22795,6 +22934,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                             console.error('Error parsing FAQs:', e);
                         }
                     }
+                    // Update currency settings button label after styles load
+                    if (section === 'styles') {
+                        initCurrencySettingsButton();
+                    }
                 } else {
                     console.log(`No saved ${section} settings, using template defaults`);
                 }
@@ -22802,7 +22945,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 console.error('Error loading website builder section:', error);
             }
         }
-        
+
         // Generate SEO Meta Title & Description with AI
         async function generateSEOMeta(section) {
             const btn = event.target;
