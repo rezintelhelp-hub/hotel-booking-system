@@ -65085,12 +65085,12 @@ app.get('/api/public/client/:clientId/site-config', async (req, res) => {
             pool.query(`SELECT * FROM client_contact_info WHERE client_id = $1`, [clientId]),
             pool.query(`SELECT * FROM client_branding WHERE client_id = $1`, [clientId]),
             pool.query(`SELECT * FROM client_navigation WHERE client_id = $1 AND is_active = true ORDER BY menu_location, display_order`, [clientId]),
-            pool.query(`SELECT * FROM properties WHERE client_id = $1`, [clientId]),
+            pool.query(`SELECT * FROM properties WHERE account_id = $1`, [clientId]),
             pool.query(`
-                SELECT r.*, p.name as property_name 
-                FROM rooms r 
-                JOIN properties p ON r.property_id = p.id 
-                WHERE p.client_id = $1
+                SELECT r.*, p.name as property_name
+                FROM rooms r
+                JOIN properties p ON r.property_id = p.id
+                WHERE p.account_id = $1
             `, [clientId]),
             // Check deployed_site_id first, then fall back to account_id
             pool.query(`
