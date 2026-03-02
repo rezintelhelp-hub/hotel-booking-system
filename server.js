@@ -16310,7 +16310,7 @@ app.post('/api/public/payment-failed', async (req, res) => {
             SELECT bu.id, bu.name as room_name, bu.beds24_room_id, bu.hostaway_listing_id,
                    p.id as property_id, p.name as property_name, p.account_id,
                    a.email as owner_email, a.name as owner_name, a.contact_name,
-                   COALESCE(bu.currency, p.currency, a.default_currency) as currency
+                   COALESCE(p.currency, a.default_currency) as currency
             FROM bookable_units bu
             LEFT JOIN properties p ON bu.property_id = p.id
             LEFT JOIN accounts a ON p.account_id = a.id
@@ -16525,7 +16525,7 @@ app.post('/api/public/create-group-booking', async (req, res) => {
             
             // Get room and property info
             const roomInfo = await client.query(`
-                SELECT bu.id, bu.name, bu.property_id, p.id as prop_id, COALESCE(bu.currency, p.currency, a.default_currency) as currency
+                SELECT bu.id, bu.name, bu.property_id, p.id as prop_id, COALESCE(p.currency, a.default_currency) as currency
                 FROM bookable_units bu
                 JOIN properties p ON bu.property_id = p.id
                 LEFT JOIN accounts a ON p.account_id = a.id
@@ -27696,7 +27696,7 @@ app.post('/api/db/book', async (req, res) => {
     const propertyOwnerId = 1;
     
     // Get property currency
-    const propCurrency = await client.query('SELECT COALESCE(bu.currency, p.currency, a.default_currency) as currency FROM bookable_units bu JOIN properties p ON bu.property_id = p.id LEFT JOIN accounts a ON p.account_id = a.id WHERE bu.id = $1', [room_id]);
+    const propCurrency = await client.query('SELECT COALESCE(p.currency, a.default_currency) as currency FROM bookable_units bu JOIN properties p ON bu.property_id = p.id LEFT JOIN accounts a ON p.account_id = a.id WHERE bu.id = $1', [room_id]);
     const bookingCurrency = propCurrency.rows[0]?.currency || null;
     
     // 1. Create booking in our database (using correct column names)
@@ -40497,7 +40497,7 @@ app.get('/api/availability/:roomId', async (req, res) => {
     
     // Get room info including property currency
     const roomInfo = await pool.query(`
-      SELECT bu.id, bu.name, bu.property_id, COALESCE(bu.currency, p.currency, a.default_currency) as currency, p.country
+      SELECT bu.id, bu.name, bu.property_id, COALESCE(p.currency, a.default_currency) as currency, p.country
       FROM bookable_units bu
       JOIN properties p ON bu.property_id = p.id
       LEFT JOIN accounts a ON p.account_id = a.id
@@ -52852,21 +52852,21 @@ app.put('/api/elevate/:apiKey/room/:roomId/calendar', async (req, res) => {
     
     // Find room
     const roomCheck = await pool.query(`
-      SELECT bu.id, bu.currency
+      SELECT bu.id, p.currency
       FROM bookable_units bu
       JOIN properties p ON p.id = bu.property_id
       JOIN accounts a ON a.id = p.account_id
-      WHERE (a.parent_id = $1 OR a.id = $1) 
+      WHERE (a.parent_id = $1 OR a.id = $1)
       AND (bu.id::text = $2 OR bu.cm_room_id = $2)
     `, [ELEVATE_MASTER_ACCOUNT_ID, roomId]);
-    
+
     if (roomCheck.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Room not found' });
     }
-    
+
     const gasRoomId = roomCheck.rows[0].id;
-    const defaultCurrency = roomCheck.rows[0].currency || 'USD';
-    
+    const defaultCurrency = roomCheck.rows[0].currency || '';
+
     // Ensure room_calendar table exists
     await pool.query(`
       CREATE TABLE IF NOT EXISTS room_calendar (
@@ -53008,20 +53008,20 @@ app.put('/api/elevate/:apiKey/room/:roomId/pricing', async (req, res) => {
     
     // Find room
     const roomCheck = await pool.query(`
-      SELECT bu.id, bu.currency
+      SELECT bu.id, p.currency
       FROM bookable_units bu
       JOIN properties p ON p.id = bu.property_id
       JOIN accounts a ON a.id = p.account_id
-      WHERE (a.parent_id = $1 OR a.id = $1) 
+      WHERE (a.parent_id = $1 OR a.id = $1)
       AND (bu.id::text = $2 OR bu.cm_room_id = $2)
     `, [ELEVATE_MASTER_ACCOUNT_ID, roomId]);
-    
+
     if (roomCheck.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Room not found' });
     }
-    
+
     const gasRoomId = roomCheck.rows[0].id;
-    const defaultCurrency = roomCheck.rows[0].currency || 'USD';
+    const defaultCurrency = roomCheck.rows[0].currency || '';
     
     let processedCount = 0;
     
@@ -56760,9 +56760,9 @@ app.get('/api/public/unit/:unitId', async (req, res) => {
     const { unitId } = req.params;
     
     const unit = await pool.query(`
-      SELECT bu.*, 
-             p.name as property_name, 
-             p.currency, 
+      SELECT bu.*,
+             p.name as property_name,
+             p.currency,
              p.timezone,
              COALESCE(
                NULLIF((SELECT COUNT(*) FROM property_bedrooms pb WHERE pb.room_id = bu.id), 0),
@@ -57159,7 +57159,7 @@ app.get('/api/public/availability/:unitId', async (req, res) => {
     
     // Get unit info for base price fallback
     const unit = await pool.query(`
-      SELECT bu.base_price, COALESCE(bu.currency, p.currency) as currency FROM bookable_units bu
+      SELECT bu.base_price, p.currency FROM bookable_units bu
       LEFT JOIN properties p ON bu.property_id = p.id
       WHERE bu.id = $1
     `, [unitId]);
@@ -58320,7 +58320,7 @@ app.get('/api/public/quote/:unitId', async (req, res) => {
     const unitResult = await pool.query(`
       SELECT bu.id, bu.hostaway_listing_id, bu.cleaning_fee, bu.security_deposit,
              bu.base_price, bu.beds24_room_id, bu.smoobu_id,
-             COALESCE(bu.currency, p.currency) as currency,
+             p.currency,
              p.id as property_id, p.account_id, p.channel_manager,
              p.hostaway_listing_id as prop_hostaway_id
       FROM bookable_units bu
@@ -58533,7 +58533,7 @@ function buildHostawayBreakdown(raw, nights, currency) {
   return {
     nights,
     pricePerNight: Math.round(pricePerNight * 100) / 100,
-    currency: currency || raw.currency || 'USD',
+    currency: currency || raw.currency || '',
     total: Math.round(total * 100) / 100,
     damageDeposit: Math.round(damageDeposit * 100) / 100,
     grandTotal: Math.round((total + damageDeposit) * 100) / 100,
@@ -58551,8 +58551,8 @@ function buildHostawayBreakdown(raw, nights, currency) {
  * Calculate price locally from GAS database when no CM quote available
  */
 async function calculateLocalQuote(pool, unit, checkin, checkout, guests, nights) {
-  const currency = unit.currency || 'USD';
-  
+  const currency = unit.currency || '';
+
   // Get nightly rates from availability table
   const ratesResult = await pool.query(`
     SELECT date, COALESCE(direct_price, cm_price) as price
