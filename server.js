@@ -65181,14 +65181,22 @@ app.get('/api/public/client/:clientId/site-config', async (req, res) => {
         
         // Fetch property-level terms as fallback (from API or channel manager sync)
         let propertyTerms = {};
+        let propertyPayment = {};
         if (properties.length > 0) {
             try {
                 const ptResult = await pool.query(
-                    'SELECT checkin_from, checkout_by, additional_rules, cancellation_policy FROM property_terms WHERE property_id = $1',
+                    'SELECT * FROM property_terms WHERE property_id = $1',
                     [properties[0].id]
                 );
                 if (ptResult.rows.length > 0) propertyTerms = ptResult.rows[0];
             } catch (e) { /* property_terms table may not exist */ }
+            try {
+                const ppResult = await pool.query(
+                    'SELECT deposit_type, deposit_amount, balance_due_days, accepted_methods, currency FROM property_payment_settings WHERE property_id = $1',
+                    [properties[0].id]
+                );
+                if (ppResult.rows.length > 0) propertyPayment = ppResult.rows[0];
+            } catch (e) { /* property_payment_settings table may not exist */ }
             // Also check properties table directly
             if (!propertyTerms.checkin_from && properties[0].check_in_time) propertyTerms.checkin_from = properties[0].check_in_time;
             if (!propertyTerms.checkout_by && properties[0].check_out_time) propertyTerms.checkout_by = properties[0].check_out_time;
@@ -65215,6 +65223,8 @@ app.get('/api/public/client/:clientId/site-config', async (req, res) => {
                 updated_date: termsSettings.updated || null,
                 faq_enabled: termsSettings['faq-enabled'] !== false,
                 faqs: termsFaqs,
+                property_terms: propertyTerms,
+                property_payment: propertyPayment,
                 sections: {
                     booking: {
                         enabled: termsSettings['booking-enabled'] !== false,
