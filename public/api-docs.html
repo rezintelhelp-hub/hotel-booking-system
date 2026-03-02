@@ -1502,14 +1502,14 @@
                     "summary": "Get Global Styles",
                     "description": "Returns global colour palette, fonts, button styling, and custom CSS.",
                     "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
-                    "responses": { "200": { "description": "Styles settings", "content": { "application/json": { "example": { "success": true, "styles": { "primary_color": "#2563eb", "secondary_color": "#0f172a", "accent_color": "#f59e0b", "btn_primary_bg": "#2563eb", "btn_primary_text": "#ffffff", "heading_font": "Playfair Display", "body_font": "Inter" } } } } } }
+                    "responses": { "200": { "description": "Styles settings", "content": { "application/json": { "example": { "success": true, "styles": { "primary_color": "#2563eb", "secondary_color": "#0f172a", "accent_color": "#f59e0b", "btn_primary_bg": "#2563eb", "btn_primary_text": "#ffffff", "heading_font": "Playfair Display", "body_font": "Inter", "currency_mode": "property", "site_currency": "" } } } } } }
                 },
                 "put": {
                     "tags": ["Websites"],
                     "summary": "Update Global Styles",
-                    "description": "Update site-wide colours, fonts, and button styling. All fields optional. This controls the search button colour via `btn_primary_bg`.\n\n**Colours:** primary_color, secondary_color, accent_color, link_color\n**Fonts:** heading_font, body_font\n**Buttons:** btn_primary_bg (background), btn_primary_text (text colour), btn_radius (px)\n**Advanced:** custom_css",
+                    "description": "Update site-wide colours, fonts, button styling, and currency display. All fields optional. This controls the search button colour via `btn_primary_bg`.\n\n**Colours:** primary_color, secondary_color, accent_color, link_color\n**Fonts:** heading_font, body_font\n**Buttons:** btn_primary_bg (background), btn_primary_text (text colour), btn_radius (px)\n**Currency:** currency_mode (`property` = each property shows native currency, `site` = single display currency), site_currency (ISO 4217 code, e.g. `USD` — only used when currency_mode is `site`)\n**Advanced:** custom_css",
                     "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
-                    "requestBody": { "content": { "application/json": { "examples": { "brand_colours": { "summary": "Set brand colours", "value": { "primary_color": "#10b981", "secondary_color": "#064e3b", "accent_color": "#fbbf24" } }, "fix_search_button": { "summary": "Fix search button colour", "value": { "btn_primary_bg": "#10b981", "btn_primary_text": "#ffffff" } } } } } },
+                    "requestBody": { "content": { "application/json": { "examples": { "brand_colours": { "summary": "Set brand colours", "value": { "primary_color": "#10b981", "secondary_color": "#064e3b", "accent_color": "#fbbf24" } }, "fix_search_button": { "summary": "Fix search button colour", "value": { "btn_primary_bg": "#10b981", "btn_primary_text": "#ffffff" } }, "site_currency": { "summary": "Set single site-wide display currency", "value": { "currency_mode": "site", "site_currency": "USD" } }, "property_currency": { "summary": "Use each property's native currency (default)", "value": { "currency_mode": "property", "site_currency": "" } } } } } },
                     "responses": { "200": { "description": "Styles updated and pushed to WordPress" } }
                 }
             },
@@ -1586,6 +1586,10 @@
                                     "about": {
                                         "summary": "Homepage about section",
                                         "value": { "settings": { "title-en": "Welcome to Our Hotel", "text-en": "Experience luxury", "image-url": "https://example.com/about.jpg", "enabled": true } }
+                                    },
+                                    "styles": {
+                                        "summary": "Styles with currency settings",
+                                        "value": { "settings": { "primary-color": "#2563eb", "secondary-color": "#7c3aed", "currency-mode": "site", "site-currency": "USD" } }
                                     },
                                     "page-about": {
                                         "summary": "About Us page with hero + 2 content images",
