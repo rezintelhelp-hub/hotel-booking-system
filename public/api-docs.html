@@ -1502,14 +1502,14 @@
                     "summary": "Get Global Styles",
                     "description": "Returns global colour palette, fonts, button styling, and custom CSS.",
                     "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
-                    "responses": { "200": { "description": "Styles settings", "content": { "application/json": { "example": { "success": true, "styles": { "primary_color": "#2563eb", "secondary_color": "#0f172a", "accent_color": "#f59e0b", "btn_primary_bg": "#2563eb", "btn_primary_text": "#ffffff", "heading_font": "Playfair Display", "body_font": "Inter", "currency_mode": "property", "site_currency": "" } } } } } }
+                    "responses": { "200": { "description": "Styles settings", "content": { "application/json": { "example": { "success": true, "styles": { "primary_color": "#2563eb", "secondary_color": "#0f172a", "accent_color": "#f59e0b", "btn_primary_bg": "#2563eb", "btn_primary_text": "#ffffff", "heading_font": "Playfair Display", "body_font": "Inter" } } } } } }
                 },
                 "put": {
                     "tags": ["Websites"],
                     "summary": "Update Global Styles",
-                    "description": "Update site-wide colours, fonts, button styling, and currency display. All fields optional. This controls the search button colour via `btn_primary_bg`.\n\n**Colours:** primary_color, secondary_color, accent_color, link_color\n**Fonts:** heading_font, body_font\n**Buttons:** btn_primary_bg (background), btn_primary_text (text colour), btn_radius (px)\n**Currency:** currency_mode (`property` = each property shows native currency, `site` = single display currency), site_currency (ISO 4217 code, e.g. `USD` — only used when currency_mode is `site`)\n**Advanced:** custom_css",
+                    "description": "Update site-wide colours, fonts, and button styling. All fields optional. This controls the search button colour via `btn_primary_bg`.\n\n**Colours:** primary_color, secondary_color, accent_color, link_color\n**Fonts:** heading_font, body_font\n**Buttons:** btn_primary_bg (background), btn_primary_text (text colour), btn_radius (px)\n**Advanced:** custom_css\n\nNote: Currency settings have moved to their own `currency` section — see the Content Section endpoint.",
                     "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
-                    "requestBody": { "content": { "application/json": { "examples": { "brand_colours": { "summary": "Set brand colours", "value": { "primary_color": "#10b981", "secondary_color": "#064e3b", "accent_color": "#fbbf24" } }, "fix_search_button": { "summary": "Fix search button colour", "value": { "btn_primary_bg": "#10b981", "btn_primary_text": "#ffffff" } }, "site_currency": { "summary": "Set single site-wide display currency", "value": { "currency_mode": "site", "site_currency": "USD" } }, "property_currency": { "summary": "Use each property's native currency (default)", "value": { "currency_mode": "property", "site_currency": "" } } } } } },
+                    "requestBody": { "content": { "application/json": { "examples": { "brand_colours": { "summary": "Set brand colours", "value": { "primary_color": "#10b981", "secondary_color": "#064e3b", "accent_color": "#fbbf24" } }, "fix_search_button": { "summary": "Fix search button colour", "value": { "btn_primary_bg": "#10b981", "btn_primary_text": "#ffffff" } } } } } },
                     "responses": { "200": { "description": "Styles updated and pushed to WordPress" } }
                 }
             },
@@ -1570,10 +1570,10 @@
                 "put": {
                     "tags": ["Website Content"],
                     "summary": "Update Content Section",
-                    "description": "Update website content sections. Changes are saved to GAS and automatically pushed to the live WordPress site. You must send the complete settings object — any fields not included will be reset to defaults.\n\n**Valid sections:** header, hero, intro, featured, about, services, reviews, cta, footer, styles, seo, page-rooms, page-about, page-gallery, page-blog, page-attractions, page-dining, page-offers, page-properties, page-reviews, page-contact, page-terms, page-privacy\n\n**Multilingual:** All text fields support language variants by appending: -en, -fr, -es, -nl",
+                    "description": "Update website content sections. Changes are saved to GAS and automatically pushed to the live WordPress site. You must send the complete settings object — any fields not included will be reset to defaults.\n\n**Valid sections:** header, hero, intro, featured, about, services, reviews, cta, footer, styles, currency, seo, page-rooms, page-about, page-gallery, page-blog, page-attractions, page-dining, page-offers, page-properties, page-reviews, page-contact, page-terms, page-privacy\n\n**Multilingual:** All text fields support language variants by appending: -en, -fr, -es, -nl",
                     "parameters": [
                         { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } },
-                        { "name": "section", "in": "path", "required": true, "schema": { "type": "string", "enum": ["header", "hero", "intro", "featured", "about", "services", "reviews", "cta", "footer", "styles", "seo", "page-rooms", "page-about", "page-gallery", "page-blog", "page-attractions", "page-dining", "page-offers", "page-properties", "page-reviews", "page-contact", "page-terms", "page-privacy"] } }
+                        { "name": "section", "in": "path", "required": true, "schema": { "type": "string", "enum": ["header", "hero", "intro", "featured", "about", "services", "reviews", "cta", "footer", "styles", "currency", "seo", "page-rooms", "page-about", "page-gallery", "page-blog", "page-attractions", "page-dining", "page-offers", "page-properties", "page-reviews", "page-contact", "page-terms", "page-privacy"] } }
                     ],
                     "requestBody": {
                         "content": {
@@ -1588,8 +1588,16 @@
                                         "value": { "settings": { "title-en": "Welcome to Our Hotel", "text-en": "Experience luxury", "image-url": "https://example.com/about.jpg", "enabled": true } }
                                     },
                                     "styles": {
-                                        "summary": "Styles with currency settings",
-                                        "value": { "settings": { "primary-color": "#2563eb", "secondary-color": "#7c3aed", "currency-mode": "site", "site-currency": "USD" } }
+                                        "summary": "Styles — colours, fonts, buttons",
+                                        "value": { "settings": { "primary-color": "#2563eb", "secondary-color": "#7c3aed", "heading-font": "Playfair Display", "body-font": "Inter", "btn-primary-bg": "#2563eb", "btn-primary-text": "#ffffff", "btn-radius": "8", "custom-css": "" } }
+                                    },
+                                    "currency": {
+                                        "summary": "Currency display mode",
+                                        "value": { "settings": { "currency-mode": "site", "site-currency": "CHF" } }
+                                    },
+                                    "seo": {
+                                        "summary": "SEO & Analytics settings",
+                                        "value": { "settings": { "enabled": true, "meta-title": "Mountain Lodge — Luxury Alpine Retreat", "meta-description": "Book your stay at our award-winning mountain lodge in the Swiss Alps.", "og-image": "https://example.com/og.jpg", "include-schema": true, "include-faqs": true, "google-analytics-id": "G-XXXXXXXXXX", "google-tag-manager-id": "GTM-XXXXXXX", "facebook-pixel-id": "123456789", "google-site-verification": "abc123xyz" } }
                                     },
                                     "page-about": {
                                         "summary": "About Us page with hero + 2 content images",
