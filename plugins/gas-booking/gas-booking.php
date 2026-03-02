@@ -3,7 +3,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.1.36
+ * Version: 3.2.3
  * Author: GAS
  * License: GPL v2 or later
  * Text Domain: gas-booking
@@ -11,7 +11,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.1.36');
+define('GAS_BOOKING_VERSION', '3.2.2');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -1869,8 +1869,11 @@ class GAS_Booking {
                                 if (!empty($seo['google_tag_manager_id'])) { 
                                     update_option('gas_google_tag_manager_id', sanitize_text_field($seo['google_tag_manager_id'])); 
                                 }
-                                if (!empty($seo['facebook_pixel_id'])) { 
-                                    update_option('gas_facebook_pixel_id', sanitize_text_field($seo['facebook_pixel_id'])); 
+                                if (!empty($seo['facebook_pixel_id'])) {
+                                    update_option('gas_facebook_pixel_id', sanitize_text_field($seo['facebook_pixel_id']));
+                                }
+                                if (!empty($seo['google_site_verification'])) {
+                                    update_option('gas_google_site_verification', sanitize_text_field($seo['google_site_verification']));
                                 }
                                 $synced[] = 'SEO';
                             }
@@ -3794,7 +3797,13 @@ class GAS_Booking {
         if (!empty($meta_description)) {
             echo '<meta name="description" content="' . esc_attr($meta_description) . '">' . "\n";
         }
-        
+
+        // Google Search Console verification
+        $google_verification = get_option('gas_google_site_verification', '');
+        if (!empty($google_verification)) {
+            echo '<meta name="google-site-verification" content="' . esc_attr($google_verification) . '">' . "\n";
+        }
+
         // Open Graph tags
         echo '<!-- GAS Booking SEO - Page: ' . esc_attr($page_type) . ' -->' . "\n";
         echo '<meta property="og:type" content="website">' . "\n";
