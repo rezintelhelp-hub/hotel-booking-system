@@ -30275,7 +30275,27 @@ const promo = await fetch('/api/v1/offers/validate', {
         // Load property terms when property is selected
         async function loadPropertyTerms(propertyId) {
             if (!propertyId) return;
-            
+
+            // Reset ALL form fields before populating to prevent data contamination
+            // Text inputs and textareas
+            ['terms-checkin-from','terms-checkin-until','terms-checkout','terms-late-checkout-fee',
+             'terms-smoking-fine','terms-pet-deposit','terms-pet-fee','terms-max-pets','terms-cot-fee',
+             'terms-quiet-from','terms-quiet-until','terms-additional-rules','terms-cancellation-policy'
+            ].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+            // Checkboxes
+            ['terms-self-checkin','terms-24hr-checkin','terms-dogs-allowed','terms-cats-allowed',
+             'terms-small-pets-only','terms-cots-available','terms-highchairs','terms-no-outside-guests',
+             'terms-id-required','access-wheelchair','access-step-free','access-bathroom',
+             'access-grab-rails','access-roll-in-shower','access-elevator','access-ground-floor',
+             'bath-shower','bath-bathtub','bath-rainfall','bath-walkin','bath-jacuzzi','bath-bidet',
+             'bath-heated-floor','bath-double-vanity','bath-hairdryer','bath-toiletries','bath-towels','bath-robes'
+            ].forEach(id => { const el = document.getElementById(id); if (el) el.checked = false; });
+            // Radio buttons
+            document.querySelectorAll('input[name="smoking-policy"], input[name="pet-policy"], input[name="children-policy"], input[name="events-policy"]').forEach(r => r.checked = false);
+            // Hide conditional panels
+            const petDetails = document.getElementById('pet-details');
+            if (petDetails) petDetails.style.display = 'none';
+
             try {
                 const response = await fetch(`/api/admin/properties/${propertyId}/terms`);
                 const result = await response.json();
