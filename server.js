@@ -16477,7 +16477,7 @@ app.post('/api/public/create-group-booking', async (req, res) => {
         // Ensure group_booking_id column exists
         await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS group_booking_id VARCHAR(50)`);
         
-        const { 
+        const {
             rooms,  // Array of room booking data
             checkin,
             checkout,
@@ -16495,7 +16495,8 @@ app.post('/api/public/create-group-booking', async (req, res) => {
             total_amount,
             payment_method,
             enigma_reference_id,
-            source_site_url
+            source_site_url,
+            currency: reqCurrency
         } = req.body;
         
         if (!rooms || !Array.isArray(rooms) || rooms.length === 0) {
@@ -16936,8 +16937,8 @@ app.post('/api/public/create-group-booking', async (req, res) => {
                 await client.query('SAVEPOINT payment_tx');
                 await client.query(`
                     INSERT INTO payment_transactions (booking_id, type, amount, currency, status, stripe_payment_intent_id, created_at)
-                    VALUES ($1, 'deposit', $2, 'USD', 'completed', $3, NOW())
-                `, [createdBookings[0].id, deposit_amount, stripe_payment_intent_id]);
+                    VALUES ($1, 'deposit', $2, $3, 'completed', $4, NOW())
+                `, [createdBookings[0].id, deposit_amount, reqCurrency || rooms[0]?.currency || 'USD', stripe_payment_intent_id]);
                 await client.query('RELEASE SAVEPOINT payment_tx');
             } catch (txError) {
                 await client.query('ROLLBACK TO SAVEPOINT payment_tx');
@@ -17025,7 +17026,7 @@ app.post('/api/public/create-group-booking', async (req, res) => {
                 total: total_amount,
                 depositAmount: depositPaid,
                 balanceAmount: balanceAmount,
-                currency: rooms[0]?.currency || '$',
+                currency: reqCurrency || rooms[0]?.currency || '$',
                 checkin: checkin,
                 checkout: checkout,
                 upsells: upsells

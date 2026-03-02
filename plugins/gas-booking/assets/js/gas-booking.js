@@ -2927,14 +2927,76 @@ jQuery(document).ready(function($) {
                 return;
             }
             
+            // Build currency-aware payment groups
+            var apiUrl = $checkoutPage.data('api-url');
+            var clientId = $checkoutPage.data('client-id');
+
+            var paymentGroups = {};
+            cart.forEach(function(item) {
+                var groupKey = (item.currency || '') + '_' + (item.paymentAccountId || item.propertyId || 'default');
+                if (!paymentGroups[groupKey]) {
+                    paymentGroups[groupKey] = {
+                        items: [],
+                        currency: item.currency || '',
+                        propertyId: item.propertyId,
+                        accountId: item.paymentAccountId || null,
+                        subtotal: 0,
+                        taxTotal: 0,
+                        taxes: [],
+                        depositRule: null,
+                        depositAmount: 0,
+                        balanceAmount: 0,
+                        stripe: null,
+                        cardElement: null,
+                        stripeEnabled: false,
+                        selectedUpsells: []
+                    };
+                }
+                paymentGroups[groupKey].items.push(item);
+                paymentGroups[groupKey].subtotal += parseFloat(item.totalPrice) || 0;
+            });
+
+            var paymentGroupKeys = Object.keys(paymentGroups);
+            var hasMultiplePaymentGroups = paymentGroupKeys.length > 1;
+            var currentPaymentGroupIndex = 0;
+
+            function getCurrentGroup() {
+                return paymentGroups[paymentGroupKeys[currentPaymentGroupIndex]];
+            }
+
+            function recalcGroupDeposit(group) {
+                var grandTotal = group.subtotal + (group.taxTotal || 0);
+                var upsellsTotal = (group.selectedUpsells || []).reduce(function(sum, u) { return sum + u.price; }, 0);
+                grandTotal += upsellsTotal;
+
+                var depositAmt = grandTotal;
+                var balanceAmt = 0;
+
+                if (group.depositRule) {
+                    var rule = group.depositRule;
+                    if (rule.deposit_type === 'percentage') {
+                        depositAmt = grandTotal * (rule.deposit_percentage / 100);
+                        balanceAmt = grandTotal - depositAmt;
+                    } else if (rule.deposit_type === 'fixed') {
+                        depositAmt = parseFloat(rule.deposit_fixed_amount) || grandTotal;
+                        balanceAmt = grandTotal - depositAmt;
+                    }
+                }
+
+                group.depositAmount = depositAmt;
+                group.balanceAmount = balanceAmt;
+
+                $('.gas-deposit-amount-display').text(formatPrice(depositAmt, group.currency));
+                if (balanceAmt > 0) {
+                    $('.gas-balance-row').show();
+                    $('.gas-balance-amount-display').text(formatPrice(balanceAmt, group.currency));
+                }
+            }
+
             // Populate rooms list
             var roomsHtml = '';
             var totalPrice = 0;
             var taxTotal = 0;
-            var currency = cart[0].currency || '';
-            var apiUrl = $checkoutPage.data('api-url');
-            var clientId = $checkoutPage.data('client-id');
-            var propertyId = cart[0].propertyId;
             
             cart.forEach(function(item, index) {
                 totalPrice += parseFloat(item.totalPrice) || 0;
@@ -2954,91 +3016,77 @@ jQuery(document).ready(function($) {
                 roomsHtml += '<div style="font-weight:600;">' + item.name + '</div>';
                 roomsHtml += '<div style="font-size:13px;color:#666;">👤 ' + guestsDisplay + '</div>';
                 roomsHtml += '</div>';
-                roomsHtml += '<div style="font-weight:600;color:#2563eb;">' + formatPrice(item.totalPrice, currency) + '</div>';
+                roomsHtml += '<div style="font-weight:600;color:#2563eb;">' + formatPrice(item.totalPrice, item.currency) + '</div>';
                 roomsHtml += '<button type="button" class="gas-remove-room-btn" data-index="' + index + '" style="background:none;border:none;color:#dc2626;cursor:pointer;padding:4px 8px;font-size:18px;" title="Remove room">×</button>';
                 roomsHtml += '</div>';
             });
             
             $('.gas-group-rooms-list').html(roomsHtml);
             
-            // Fetch taxes for first room (taxes usually same across property)
-            console.log('GAS: Fetching taxes from', apiUrl + '/api/public/calculate-price');
-            $.ajax({
-                url: apiUrl + '/api/public/calculate-price',
-                method: 'POST',
-                contentType: 'application/json',
-                data: JSON.stringify({
-                    unit_id: cart[0].roomId,
-                    check_in: cart[0].checkin,
-                    check_out: cart[0].checkout,
-                    guests: cart[0].guests,
-                    pricing_tier: gasBooking.pricingTier || 'standard'
-                }),
-                success: function(response) {
-                    console.log('GAS: Price response', response);
-                    if (response.success && response.taxes && response.taxes.length > 0) {
-                        var taxesHtml = '';
-                        response.taxes.forEach(function(tax) {
-                            console.log('GAS: Tax object', tax);
-                            var taxAmt = 0;
-                            var taxLabel = '';
-                            
-                            // Handle fixed or percentage tax
-                            if (tax.type === 'fixed' || tax.amount) {
-                                // Fixed amount tax - multiply by number of rooms
-                                taxAmt = (parseFloat(tax.amount) || parseFloat(tax.rate) || 0) * cart.length;
-                                taxLabel = tax.name;
-                            } else {
-                                // Percentage tax
-                                taxAmt = totalPrice * (parseFloat(tax.rate) / 100);
-                                taxLabel = tax.name + ' (' + tax.rate + '%)';
+            // Fetch taxes for each payment group
+            paymentGroupKeys.forEach(function(groupKey, gIndex) {
+                var group = paymentGroups[groupKey];
+                var firstItem = group.items[0];
+                console.log('GAS: Fetching taxes for group', gIndex, groupKey);
+                $.ajax({
+                    url: apiUrl + '/api/public/calculate-price',
+                    method: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({
+                        unit_id: firstItem.roomId,
+                        check_in: firstItem.checkin,
+                        check_out: firstItem.checkout,
+                        guests: firstItem.guests,
+                        pricing_tier: gasBooking.pricingTier || 'standard'
+                    }),
+                    success: function(response) {
+                        console.log('GAS: Price response for group', gIndex, response);
+                        if (response.success && response.taxes && response.taxes.length > 0) {
+                            group.taxTotal = 0;
+                            group.taxes = [];
+                            response.taxes.forEach(function(tax) {
+                                var taxAmt = 0;
+                                var taxLabel = '';
+
+                                if (tax.type === 'fixed' || tax.amount) {
+                                    taxAmt = (parseFloat(tax.amount) || parseFloat(tax.rate) || 0) * group.items.length;
+                                    taxLabel = tax.name;
+                                } else {
+                                    taxAmt = group.subtotal * (parseFloat(tax.rate) / 100);
+                                    taxLabel = tax.name + ' (' + tax.rate + '%)';
+                                }
+
+                                group.taxTotal += taxAmt;
+                                group.taxes.push({ label: taxLabel, amount: taxAmt });
+                            });
+
+                            // Only update DOM for the current group
+                            if (gIndex === currentPaymentGroupIndex) {
+                                var taxesHtml = '';
+                                group.taxes.forEach(function(t) {
+                                    taxesHtml += '<div class="gas-tax-item" style="display:flex;justify-content:space-between;font-size:14px;color:#666;margin-bottom:4px;">';
+                                    taxesHtml += '<span>' + t.label + '</span>';
+                                    taxesHtml += '<span>' + formatPrice(t.amount, group.currency) + '</span>';
+                                    taxesHtml += '</div>';
+                                });
+                                $('.gas-taxes-list').html(taxesHtml);
+                                $('.gas-taxes-section').show();
+
+                                var grandTotal = group.subtotal + group.taxTotal;
+                                $('.gas-grand-total').text(formatPrice(grandTotal, group.currency));
+                                console.log('GAS: Taxes applied for group', gIndex, 'total:', grandTotal);
                             }
-                            
-                            taxTotal += taxAmt;
-                            taxesHtml += '<div class="gas-tax-item" style="display:flex;justify-content:space-between;font-size:14px;color:#666;margin-bottom:4px;">';
-                            taxesHtml += '<span>' + taxLabel + '</span>';
-                            taxesHtml += '<span>' + formatPrice(taxAmt, currency) + '</span>';
-                            taxesHtml += '</div>';
-                        });
-                        $('.gas-taxes-list').html(taxesHtml);
-                        $('.gas-taxes-section').show();
-                        
-                        // Update grand total with taxes
-                        var grandTotal = totalPrice + taxTotal;
-                        $('.gas-grand-total').text(formatPrice(grandTotal, currency));
-                        window.groupCheckoutData.total = grandTotal;
-                        window.groupCheckoutData.taxTotal = taxTotal;
-                        console.log('GAS: Taxes applied, new total:', grandTotal);
-                        
-                        // Recalculate deposit if rule already loaded
-                        if (window.groupCheckoutData.depositRule) {
-                            var rule = window.groupCheckoutData.depositRule;
-                            var depositAmt = grandTotal;
-                            var balanceAmt = 0;
-                            
-                            if (rule.deposit_type === 'percentage') {
-                                depositAmt = grandTotal * (rule.deposit_percentage / 100);
-                                balanceAmt = grandTotal - depositAmt;
-                            } else if (rule.deposit_type === 'fixed') {
-                                depositAmt = parseFloat(rule.deposit_fixed_amount) || grandTotal;
-                                balanceAmt = grandTotal - depositAmt;
-                            }
-                            
-                            window.groupCheckoutData.depositAmount = depositAmt;
-                            window.groupCheckoutData.balanceAmount = balanceAmt;
-                            $('.gas-deposit-amount-display').text(formatPrice(depositAmt, currency));
-                            if (balanceAmt > 0) {
-                                $('.gas-balance-row').show();
-                                $('.gas-balance-amount-display').text(formatPrice(balanceAmt, currency));
-                            }
+
+                            // Recalculate deposit if rule already loaded
+                            recalcGroupDeposit(group);
+                        } else {
+                            console.log('GAS: No taxes for group', gIndex);
                         }
-                    } else {
-                        console.log('GAS: No taxes in response');
+                    },
+                    error: function(xhr, status, error) {
+                        console.log('GAS: Tax fetch error for group', gIndex, error);
                     }
-                },
-                error: function(xhr, status, error) {
-                    console.log('GAS: Tax fetch error', error);
-                }
+                });
             });
             
             // Update dates
@@ -3052,80 +3100,69 @@ jQuery(document).ready(function($) {
             }
             
             // Update total (before taxes - will be updated after tax fetch)
-            $('.gas-grand-total').text(formatPrice(totalPrice, currency));
-            $('.gas-nights-label').text(cart.length + ' room(s) × ' + (cart[0].nights || 1) + ' night(s)');
-            $('.gas-nights-total').text(formatPrice(totalPrice, currency));
+            var currentGroup = getCurrentGroup();
+            $('.gas-grand-total').text(formatPrice(currentGroup.subtotal, currentGroup.currency));
+            $('.gas-nights-label').text(currentGroup.items.length + ' room(s) × ' + (currentGroup.items[0].nights || 1) + ' night(s)');
+            $('.gas-nights-total').text(formatPrice(currentGroup.subtotal, currentGroup.currency));
             
-            // Check for multiple payment accounts
-            var paymentGroups = {};
-            cart.forEach(function(item) {
-                var accountId = item.paymentAccountId || 'default';
-                if (!paymentGroups[accountId]) {
-                    paymentGroups[accountId] = [];
-                }
-                paymentGroups[accountId].push(item);
-            });
-            
-            var paymentGroupKeys = Object.keys(paymentGroups);
-            var hasMultiplePaymentAccounts = paymentGroupKeys.length > 1;
+            // Alias for downstream compatibility
+            var hasMultiplePaymentAccounts = hasMultiplePaymentGroups;
             
             // Store for submission
             window.groupCheckoutData = {
                 items: cart,
                 checkin: cart[0].checkin,
                 checkout: cart[0].checkout,
-                total: totalPrice,
-                taxTotal: 0,
-                currency: currency,
-                apiUrl: $checkoutPage.data('api-url'),
+                apiUrl: apiUrl,
                 hasMultiplePaymentAccounts: hasMultiplePaymentAccounts,
+                hasMultiplePaymentGroups: hasMultiplePaymentGroups,
                 paymentGroups: paymentGroups,
-                currentPaymentGroupIndex: 0
+                paymentGroupKeys: paymentGroupKeys,
+                currentPaymentGroupIndex: currentPaymentGroupIndex
             };
             
-            // Show split payment notice if multiple accounts
-            if (hasMultiplePaymentAccounts) {
+            // Show split payment notice if multiple payment groups
+            if (hasMultiplePaymentGroups) {
                 var groupCount = paymentGroupKeys.length;
                 var noticeHtml = '<div class="gas-split-payment-notice" style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 16px; margin-bottom: 20px;">' +
                     '<div style="display: flex; align-items: flex-start; gap: 12px;">' +
                     '<span style="font-size: 24px;">ℹ️</span>' +
                     '<div>' +
-                    '<strong style="color: #92400e;">Multiple Payment Accounts</strong><br>' +
-                    '<span style="color: #78350f;">Your selected rooms use ' + groupCount + ' different payment accounts. ' +
-                    'You\'ll complete ' + groupCount + ' separate payments, one for each property group.</span>' +
+                    '<strong style="color: #92400e;">Multiple Payment Groups</strong><br>' +
+                    '<span style="color: #78350f;">Your selected rooms use ' + groupCount + ' different payment groups. ' +
+                    'You\'ll complete ' + groupCount + ' separate payments, one for each group.</span>' +
                     '</div>' +
                     '</div>' +
                     '</div>';
-                
+
                 // Insert notice at top of checkout
                 if ($('.gas-split-payment-notice').length === 0) {
                     $('.gas-checkout-summary, .gas-group-checkout-summary').before(noticeHtml);
                 }
-                
+
                 // Show payment groups breakdown
                 var groupsHtml = '<div class="gas-payment-groups" style="margin-bottom: 20px;">';
                 var groupIndex = 1;
-                paymentGroupKeys.forEach(function(accountId) {
-                    var groupItems = paymentGroups[accountId];
-                    var groupTotal = groupItems.reduce(function(sum, item) { return sum + (item.totalPrice || 0); }, 0);
+                paymentGroupKeys.forEach(function(gKey) {
+                    var group = paymentGroups[gKey];
                     var groupLabel = groupIndex === 1 ? '(Current)' : '';
-                    
-                    groupsHtml += '<div class="gas-payment-group" data-account-id="' + accountId + '" style="background: ' + (groupIndex === 1 ? '#f0fdf4' : '#f8fafc') + '; border: 1px solid ' + (groupIndex === 1 ? '#22c55e' : '#e2e8f0') + '; border-radius: 8px; padding: 12px; margin-bottom: 8px;">' +
+
+                    groupsHtml += '<div class="gas-payment-group" data-group-key="' + gKey + '" style="background: ' + (groupIndex === 1 ? '#f0fdf4' : '#f8fafc') + '; border: 1px solid ' + (groupIndex === 1 ? '#22c55e' : '#e2e8f0') + '; border-radius: 8px; padding: 12px; margin-bottom: 8px;">' +
                         '<div style="font-weight: 600; margin-bottom: 8px;">Payment ' + groupIndex + ' of ' + groupCount + ' ' + groupLabel + '</div>' +
                         '<ul style="margin: 0; padding-left: 20px;">';
-                    
-                    groupItems.forEach(function(item) {
-                        groupsHtml += '<li>' + item.name + ' - ' + formatPrice(item.totalPrice || 0, currency) + '</li>';
+
+                    group.items.forEach(function(item) {
+                        groupsHtml += '<li>' + item.name + ' - ' + formatPrice(item.totalPrice || 0, group.currency) + '</li>';
                     });
-                    
+
                     groupsHtml += '</ul>' +
-                        '<div style="text-align: right; font-weight: 600; margin-top: 8px;">Subtotal: ' + formatPrice(groupTotal, currency) + '</div>' +
+                        '<div style="text-align: right; font-weight: 600; margin-top: 8px;">Subtotal: ' + formatPrice(group.subtotal, group.currency) + '</div>' +
                         '</div>';
-                    
+
                     groupIndex++;
                 });
                 groupsHtml += '</div>';
-                
+
                 // Insert groups after notice
                 if ($('.gas-payment-groups').length === 0) {
                     $('.gas-split-payment-notice').after(groupsHtml);
@@ -3154,30 +3191,24 @@ jQuery(document).ready(function($) {
                 $btn.prop('disabled', true);
                 
                 var paymentMethod = window.groupCheckoutData.paymentMethod || 'property';
-                
-                // For split payments, determine current group to process
-                var currentItems = window.groupCheckoutData.items;
-                if (window.groupCheckoutData.hasMultiplePaymentAccounts) {
-                    var paymentGroupKeys = Object.keys(window.groupCheckoutData.paymentGroups);
-                    var currentGroupKey = paymentGroupKeys[window.groupCheckoutData.currentPaymentGroupIndex];
-                    currentItems = window.groupCheckoutData.paymentGroups[currentGroupKey];
-                    window.groupCheckoutData.currentPaymentGroup = currentItems;
-                }
-                
+
+                // Get current payment group
+                var curGroup = getCurrentGroup();
+                var currentItems = curGroup.items;
+
                 // If card payment, process Stripe first
-                if (paymentMethod === 'card' && window.groupCheckoutData.stripe && window.groupCheckoutData.cardElement) {
-                    // Calculate amount for current group only
-                    var groupTotal = currentItems.reduce(function(sum, item) { return sum + (item.totalPrice || 0); }, 0);
-                    var paymentAmount = window.groupCheckoutData.hasMultiplePaymentAccounts ? groupTotal : (window.groupCheckoutData.depositAmount || window.groupCheckoutData.total);
-                    var currencyCode = (window.groupCheckoutData.currency || '').toLowerCase().replace(/[^a-z]/g, '').slice(0, 3);
-                    
-                    // Create payment intent - use first item's property in current group
+                if (paymentMethod === 'card' && curGroup.stripe && curGroup.cardElement) {
+                    // Payment amount from current group's deposit or full total
+                    var paymentAmount = curGroup.depositAmount || (curGroup.subtotal + (curGroup.taxTotal || 0));
+                    var currencyCode = (curGroup.currency || '').toLowerCase().replace(/[^a-z]/g, '').slice(0, 3);
+
+                    // Create payment intent - use current group's property
                     $.ajax({
                         url: window.groupCheckoutData.apiUrl + '/api/public/create-payment-intent',
                         method: 'POST',
                         contentType: 'application/json',
                         data: JSON.stringify({
-                            property_id: currentItems[0].propertyId,
+                            property_id: curGroup.propertyId,
                             amount: paymentAmount,
                             currency: currencyCode,
                             booking_data: {
@@ -3188,10 +3219,10 @@ jQuery(document).ready(function($) {
                         }),
                         success: function(response) {
                             if (response.success && response.client_secret) {
-                                // Confirm card payment
-                                window.groupCheckoutData.stripe.confirmCardPayment(response.client_secret, {
+                                // Confirm card payment with current group's Stripe
+                                curGroup.stripe.confirmCardPayment(response.client_secret, {
                                     payment_method: {
-                                        card: window.groupCheckoutData.cardElement,
+                                        card: curGroup.cardElement,
                                         billing_details: {
                                             name: $form.find('[name="first_name"]').val() + ' ' + $form.find('[name="last_name"]').val(),
                                             email: $form.find('[name="email"]').val()
@@ -3245,12 +3276,10 @@ jQuery(document).ready(function($) {
                 // Save email to groupCheckoutData for confirmation page
                 window.groupCheckoutData.guestEmail = $form.find('[name="email"]').val();
                 
-                // If split payments, only submit current group
-                var itemsToSubmit = window.groupCheckoutData.items;
-                if (window.groupCheckoutData.hasMultiplePaymentAccounts && window.groupCheckoutData.currentPaymentGroup) {
-                    itemsToSubmit = window.groupCheckoutData.currentPaymentGroup;
-                }
-                
+                // Submit current payment group
+                var submitGroup = getCurrentGroup();
+                var itemsToSubmit = submitGroup.items;
+
                 var postData = {
                     rooms: itemsToSubmit.map(function(item) {
                         return {
@@ -3258,9 +3287,11 @@ jQuery(document).ready(function($) {
                             propertyId: item.propertyId,
                             totalPrice: item.totalPrice,
                             guests: item.guests,
-                            name: item.name
+                            name: item.name,
+                            currency: item.currency
                         };
                     }),
+                    currency: submitGroup.currency,
                     checkin: window.groupCheckoutData.checkin,
                     checkout: window.groupCheckoutData.checkout,
                     guest_first_name: $form.find('[name="first_name"]').val(),
@@ -3274,13 +3305,11 @@ jQuery(document).ready(function($) {
                     notes: $form.find('[name="notes"]').val() || '',
                     payment_method: window.groupCheckoutData.paymentMethod || 'property',
                     stripe_payment_intent_id: paymentIntentId || null,
-                    deposit_amount: window.groupCheckoutData.depositAmount || null,
-                    upsells: window.groupCheckoutData.selectedUpsells || [],
+                    deposit_amount: submitGroup.depositAmount || null,
+                    upsells: submitGroup.selectedUpsells || [],
                     enigma_reference_id: window.gasEnigmaReferenceId || null,
                     source_site_url: window.location.origin + window.location.pathname,
-                    total_amount: window.groupCheckoutData.hasMultiplePaymentAccounts ? 
-                        itemsToSubmit.reduce(function(sum, item) { return sum + (item.totalPrice || 0); }, 0) : 
-                        window.groupCheckoutData.total
+                    total_amount: submitGroup.subtotal + (submitGroup.taxTotal || 0)
                 };
                 
                 console.log('GAS: Submitting group booking', postData);
@@ -3345,49 +3374,50 @@ jQuery(document).ready(function($) {
                             $('.gas-conf-property-name').text('Group Booking - ' + window.groupCheckoutData.items.length + ' room(s)');
                             $('.gas-conf-room-name').hide(); // Hide the simple room name, we'll use boxes
                             
-                            // Build individual room boxes
-                            var currency = window.groupCheckoutData.currency || '';
+                            // Build individual room boxes — per-item currency
+                            var confGroup = getCurrentGroup();
                             var roomsHtml = '';
                             window.groupCheckoutData.items.forEach(function(item) {
                                 var guests = parseInt(item.guests) || 1;
                                 roomsHtml += '<div class="gas-conf-room-box">';
                                 roomsHtml += '<div><span class="room-name">' + escapeHtml(item.name) + '</span>';
                                 roomsHtml += '<div class="room-guests">' + guests + ' guest' + (guests > 1 ? 's' : '') + '</div></div>';
-                                roomsHtml += '<span class="room-price">' + formatPrice(item.price, currency) + '</span>';
+                                roomsHtml += '<span class="room-price">' + formatPrice(item.price || item.totalPrice, item.currency) + '</span>';
                                 roomsHtml += '</div>';
                             });
                             $('.gas-conf-rooms-list').html(roomsHtml).show();
-                            
+
                             // Show extras/upsells if any
-                            if (window.groupCheckoutData.selectedUpsells && window.groupCheckoutData.selectedUpsells.length > 0) {
+                            if (confGroup.selectedUpsells && confGroup.selectedUpsells.length > 0) {
                                 var extrasHtml = '<div class="gas-conf-extras-title">Extras</div>';
-                                window.groupCheckoutData.selectedUpsells.forEach(function(upsell) {
+                                confGroup.selectedUpsells.forEach(function(upsell) {
                                     extrasHtml += '<div class="gas-conf-extra-box">';
                                     extrasHtml += '<span class="extra-name">' + escapeHtml(upsell.name) + '</span>';
-                                    extrasHtml += '<span class="extra-price">' + formatPrice(upsell.price, currency) + '</span>';
+                                    extrasHtml += '<span class="extra-price">' + formatPrice(upsell.price, confGroup.currency) + '</span>';
                                     extrasHtml += '</div>';
                                 });
                                 $('.gas-conf-extras-list').html(extrasHtml).show();
                             }
-                            
+
                             // Fill in dates
                             $('.gas-conf-checkin').text(window.groupCheckoutData.checkin);
                             $('.gas-conf-checkout').text(window.groupCheckoutData.checkout);
-                            
+
                             // Fill in guests
                             var totalGuests = 0;
                             window.groupCheckoutData.items.forEach(function(item) {
                                 totalGuests += parseInt(item.guests) || 1;
                             });
                             $('.gas-conf-guests').text(totalGuests + ' guest(s)');
-                            
-                            // Fill in pricing
-                            $('.gas-conf-total').text(formatPrice(window.groupCheckoutData.total, currency));
-                            if (window.groupCheckoutData.depositAmount) {
-                                $('.gas-conf-deposit').text(formatPrice(window.groupCheckoutData.depositAmount, currency));
+
+                            // Fill in pricing using current group
+                            var confTotal = confGroup.subtotal + (confGroup.taxTotal || 0);
+                            $('.gas-conf-total').text(formatPrice(confTotal, confGroup.currency));
+                            if (confGroup.depositAmount) {
+                                $('.gas-conf-deposit').text(formatPrice(confGroup.depositAmount, confGroup.currency));
                             }
-                            if (window.groupCheckoutData.balanceAmount > 0) {
-                                $('.gas-conf-balance').text(formatPrice(window.groupCheckoutData.balanceAmount, currency));
+                            if (confGroup.balanceAmount > 0) {
+                                $('.gas-conf-balance').text(formatPrice(confGroup.balanceAmount, confGroup.currency));
                             }
                             
                             // Fill in email - use saved value from groupCheckoutData
@@ -3438,14 +3468,16 @@ jQuery(document).ready(function($) {
                 });
             }
             
-            // Load upsells for group bookings
-            if (clientId && cart[0].roomId) {
+            // Load upsells for current payment group
+            var upsellGroup = getCurrentGroup();
+            if (clientId && upsellGroup.items[0] && upsellGroup.items[0].roomId) {
                 $('.gas-upsells-loading').show();
                 $.ajax({
-                    url: apiUrl + '/api/public/client/' + clientId + '/upsells?unit_id=' + cart[0].roomId,
+                    url: apiUrl + '/api/public/client/' + clientId + '/upsells?unit_id=' + upsellGroup.items[0].roomId,
                     method: 'GET',
                     success: function(response) {
                         $('.gas-upsells-loading').hide();
+                        var ug = getCurrentGroup();
                         if (response.success && response.upsells && response.upsells.length > 0) {
                             var html = '';
                             var perNight = '/' + t('booking', 'night', 'night');
@@ -3458,9 +3490,9 @@ jQuery(document).ready(function($) {
                                     case 'per_guest_per_night': priceLabel = perGuest + perNight; break;
                                     default: priceLabel = '';
                                 }
-                                
+
                                 html += '<div class="gas-upsell-card" data-upsell-id="' + upsell.id + '" data-price="' + upsell.price + '" data-charge-type="' + (upsell.charge_type || 'per_booking') + '">';
-                                
+
                                 // Icon based on name
                                 var icon = '✨';
                                 var nameLower = upsell.name.toLowerCase();
@@ -3475,15 +3507,15 @@ jQuery(document).ready(function($) {
                                 else if (nameLower.includes('late') || nameLower.includes('early')) icon = '🕐';
                                 else if (nameLower.includes('cot') || nameLower.includes('baby') || nameLower.includes('crib')) icon = '👶';
                                 html += '<div class="gas-upsell-icon">' + icon + '</div>';
-                                
+
                                 html += '<div class="gas-upsell-info">';
                                 html += '<div class="gas-upsell-name">' + upsell.name + '</div>';
                                 if (upsell.description) {
                                     html += '<div class="gas-upsell-desc">' + upsell.description + '</div>';
                                 }
-                                html += '<div class="gas-upsell-price">' + formatPrice(upsell.price, currency) + '<small>' + priceLabel + '</small></div>';
+                                html += '<div class="gas-upsell-price">' + formatPrice(upsell.price, ug.currency) + '<small>' + priceLabel + '</small></div>';
                                 html += '</div>';
-                                
+
                                 html += '<div class="gas-upsell-check">✓</div>';
                                 html += '</div>';
                             });
@@ -3502,11 +3534,12 @@ jQuery(document).ready(function($) {
                 $('.gas-no-upsells').show();
             }
             
-            // Load Stripe info for group bookings
-            if (propertyId) {
+            // Load Stripe info for current payment group
+            var stripeGroup = getCurrentGroup();
+            if (stripeGroup.propertyId) {
                 // Check card guarantee availability
                 $.ajax({
-                    url: apiUrl + '/api/public/property/' + propertyId + '/card-guarantee-info',
+                    url: apiUrl + '/api/public/property/' + stripeGroup.propertyId + '/card-guarantee-info',
                     method: 'GET',
                     success: function(response) {
                         if (response.success && response.card_guarantee_enabled) {
@@ -3521,11 +3554,12 @@ jQuery(document).ready(function($) {
                     }
                 });
                 $.ajax({
-                    url: apiUrl + '/api/public/property/' + propertyId + '/stripe-info',
+                    url: apiUrl + '/api/public/property/' + stripeGroup.propertyId + '/stripe-info',
                     method: 'GET',
                     success: function(response) {
                         console.log('GAS: Stripe info response', response);
-                        
+                        var cg = getCurrentGroup();
+
                         // Always load payment methods and bank details regardless of Stripe
                         if (response.payment_methods) {
                             var methods = response.payment_methods;
@@ -3537,7 +3571,7 @@ jQuery(document).ready(function($) {
                         }
                         if (response.pay_property_mode) window.gasPayPropertyMode = response.pay_property_mode;
                         if (response.bank_details) window.gasBankDetails = response.bank_details;
-                        
+
                         if (response.pay_property_mode === 'bank_required') {
                             var $pap = $('.gas-payment-option').filter(function() { return $(this).find('input[value="pay_at_property"]').length > 0; });
                             $pap.find('.gas-payment-details span').text('Bank transfer required — booking held until payment received');
@@ -3545,61 +3579,33 @@ jQuery(document).ready(function($) {
                             var $pap2 = $('.gas-payment-option').filter(function() { return $(this).find('input[value="pay_at_property"]').length > 0; });
                             $pap2.find('.gas-payment-details span').text('Pay by bank transfer or cash on arrival');
                         }
-                        
+
                         // Auto-select pay at property if card not available
                         if (!response.stripe_enabled && response.payment_methods && response.payment_methods.pay_at_property !== false) {
                             var $pap3 = $('.gas-payment-option').filter(function() { return $(this).find('input[value="pay_at_property"]').length > 0; });
                             $pap3.addClass('selected').find('input').prop('checked', true).prop('disabled', false).trigger('change');
-                            // Also show bank details panel
                             var mode = window.gasPayPropertyMode || 'no_payment';
                             if ((mode === 'bank_optional' || mode === 'bank_required') && window.gasBankDetails) {
                                 window.gasRenderBankDetails(window.gasBankDetails);
                                 $('.gas-bank-transfer-panel').slideDown(200);
                             }
                         }
-                        
+
                         if (response.success && response.stripe_enabled) {
-                            window.groupCheckoutData.stripeEnabled = true;
-                            window.groupCheckoutData.stripePublishableKey = response.stripe_publishable_key;
-                            window.groupCheckoutData.stripeAccountId = response.stripe_account_id;
-                            
-                            // Store deposit rule
+                            cg.stripeEnabled = true;
+
+                            // Store deposit rule on current group
                             if (response.deposit_rule) {
                                 console.log('GAS: Deposit rule', response.deposit_rule);
-                                window.groupCheckoutData.depositRule = response.deposit_rule;
-                                
-                                // Calculate deposit amount
-                                var rule = response.deposit_rule;
-                                var total = window.groupCheckoutData.total;
-                                var depositAmt = total;
-                                var balanceAmt = 0;
-                                
-                                if (rule.deposit_type === 'percentage') {
-                                    depositAmt = total * (rule.deposit_percentage / 100);
-                                    balanceAmt = total - depositAmt;
-                                } else if (rule.deposit_type === 'fixed') {
-                                    depositAmt = parseFloat(rule.deposit_fixed_amount) || total;
-                                    balanceAmt = total - depositAmt;
-                                }
-                                // 'full' type means depositAmt = total
-                                
-                                window.groupCheckoutData.depositAmount = depositAmt;
-                                window.groupCheckoutData.balanceAmount = balanceAmt;
-                                
-                                // Update display
-                                $('.gas-deposit-amount-display').text(formatPrice(depositAmt, currency));
-                                if (balanceAmt > 0) {
-                                    $('.gas-balance-row').show();
-                                    $('.gas-balance-amount-display').text(formatPrice(balanceAmt, currency));
-                                }
-                                console.log('GAS: Deposit calculated', depositAmt, 'Balance', balanceAmt);
+                                cg.depositRule = response.deposit_rule;
+                                recalcGroupDeposit(cg);
                             }
-                            
+
                             var $cardOption = $('.gas-payment-card-option');
                             $cardOption.removeClass('disabled').addClass('stripe-enabled');
                             $cardOption.find('input').prop('disabled', false);
                             $cardOption.find('.gas-card-status').text('Secure payment via Stripe');
-                            
+
                             // Handle payment method visibility based on account settings
                             if (response.payment_methods) {
                                 var methods = response.payment_methods;
@@ -3609,7 +3615,7 @@ jQuery(document).ready(function($) {
                                 var $paypal = $('.gas-payment-option').filter(function() {
                                     return $(this).find('input[value="paypal"]').length > 0;
                                 });
-                                
+
                                 if (methods.pay_at_property === false) {
                                     $payAtProperty.hide();
                                 }
@@ -3619,7 +3625,7 @@ jQuery(document).ready(function($) {
                                 if (methods.card === false) {
                                     $cardOption.hide();
                                 }
-                                
+
                                 // Store bank details and pay property mode
                                 if (response.pay_property_mode) {
                                     window.gasPayPropertyMode = response.pay_property_mode;
@@ -3627,32 +3633,31 @@ jQuery(document).ready(function($) {
                                 if (response.bank_details) {
                                     window.gasBankDetails = response.bank_details;
                                 }
-                                
+
                                 // Update Pay at Property description based on mode
                                 if (response.pay_property_mode === 'bank_required') {
                                     $payAtProperty.find('.gas-payment-details span').text('Bank transfer required — booking held until payment received');
                                 } else if (response.pay_property_mode === 'bank_optional' && response.bank_details) {
                                     $payAtProperty.find('.gas-payment-details span').text('Pay by bank transfer or cash on arrival');
                                 }
-                                
+
                                 // Auto-select card if it's the only visible option
                                 var visibleOptions = $('.gas-payment-option:visible');
                                 if (visibleOptions.length === 1) {
                                     visibleOptions.addClass('selected').find('input').prop('checked', true).prop('disabled', false).trigger('change');
                                 } else if (methods.pay_at_property === false && methods.card !== false) {
-                                    // If pay at property hidden, select card by default
                                     $cardOption.addClass('selected').find('input').prop('checked', true).trigger('change');
                                     $payAtProperty.removeClass('selected');
                                 }
                             }
-                            
+
                             if (typeof Stripe !== 'undefined') {
-                                window.groupCheckoutData.stripe = Stripe(response.stripe_publishable_key, {
+                                cg.stripe = Stripe(response.stripe_publishable_key, {
                                     stripeAccount: response.stripe_account_id
                                 });
-                                
-                                var elements = window.groupCheckoutData.stripe.elements();
-                                window.groupCheckoutData.cardElement = elements.create('card', {
+
+                                var elements = cg.stripe.elements();
+                                cg.cardElement = elements.create('card', {
                                     style: {
                                         base: {
                                             fontSize: '16px',
@@ -3663,7 +3668,7 @@ jQuery(document).ready(function($) {
                                         invalid: { color: '#ef4444' }
                                     }
                                 });
-                                window.groupCheckoutData.cardElement.mount('#gas-card-element');
+                                cg.cardElement.mount('#gas-card-element');
                             }
                         }
                     }
@@ -3708,23 +3713,22 @@ jQuery(document).ready(function($) {
                 $('.gas-step[data-step="' + prevStep + '"]').addClass('active');
             });
             
-            // Upsell selection for group bookings (same as single-room)
-            window.groupCheckoutData.selectedUpsells = [];
-            
+            // Upsell selection for group bookings — per-group
             $(document).on('click', '.gas-upsell-card', function() {
                 var $card = $(this);
                 $card.toggleClass('selected');
-                
+                var upsellGroup = getCurrentGroup();
+
                 var upsellId = $card.data('upsell-id');
                 var upsellPrice = parseFloat($card.data('price')) || 0;
                 var upsellName = $card.find('.gas-upsell-name').text();
                 var chargeType = $card.data('charge-type');
-                
-                // Calculate actual price based on charge type
-                var nights = cart[0].nights || 1;
-                var guests = cart.reduce(function(sum, item) { return sum + (item.guests || 1); }, 0);
+
+                // Calculate actual price based on charge type using current group's items
+                var nights = upsellGroup.items[0].nights || 1;
+                var guests = upsellGroup.items.reduce(function(sum, item) { return sum + (item.guests || 1); }, 0);
                 var actualPrice = upsellPrice;
-                
+
                 if (chargeType === 'per_night') {
                     actualPrice = upsellPrice * nights;
                 } else if (chargeType === 'per_guest') {
@@ -3732,58 +3736,34 @@ jQuery(document).ready(function($) {
                 } else if (chargeType === 'per_guest_per_night') {
                     actualPrice = upsellPrice * nights * guests;
                 }
-                
+
                 if ($card.hasClass('selected')) {
-                    window.groupCheckoutData.selectedUpsells.push({
+                    upsellGroup.selectedUpsells.push({
                         id: upsellId,
                         price: actualPrice,
                         name: upsellName
                     });
                 } else {
-                    window.groupCheckoutData.selectedUpsells = window.groupCheckoutData.selectedUpsells.filter(function(u) {
+                    upsellGroup.selectedUpsells = upsellGroup.selectedUpsells.filter(function(u) {
                         return u.id !== upsellId;
                     });
                 }
-                
-                // Update total using stored base values
-                var baseTotal = window.groupCheckoutData.items.reduce(function(sum, item) {
-                    return sum + (parseFloat(item.totalPrice) || 0);
-                }, 0);
-                var upsellsTotal = window.groupCheckoutData.selectedUpsells.reduce(function(sum, u) {
+
+                // Update total using current group's values
+                var upsellsTotal = upsellGroup.selectedUpsells.reduce(function(sum, u) {
                     return sum + u.price;
                 }, 0);
-                var newTotal = baseTotal + (window.groupCheckoutData.taxTotal || 0) + upsellsTotal;
-                window.groupCheckoutData.total = newTotal;
-                $('.gas-grand-total').text(formatPrice(newTotal, window.groupCheckoutData.currency));
-                
-                // Recalculate deposit if rule exists
-                if (window.groupCheckoutData.depositRule) {
-                    var rule = window.groupCheckoutData.depositRule;
-                    var depositAmt = newTotal;
-                    var balanceAmt = 0;
-                    
-                    if (rule.deposit_type === 'percentage') {
-                        depositAmt = newTotal * (rule.deposit_percentage / 100);
-                        balanceAmt = newTotal - depositAmt;
-                    } else if (rule.deposit_type === 'fixed') {
-                        depositAmt = parseFloat(rule.deposit_fixed_amount) || newTotal;
-                        balanceAmt = newTotal - depositAmt;
-                    }
-                    
-                    window.groupCheckoutData.depositAmount = depositAmt;
-                    window.groupCheckoutData.balanceAmount = balanceAmt;
-                    $('.gas-deposit-amount-display').text(formatPrice(depositAmt, window.groupCheckoutData.currency));
-                    if (balanceAmt > 0) {
-                        $('.gas-balance-row').show();
-                        $('.gas-balance-amount-display').text(formatPrice(balanceAmt, window.groupCheckoutData.currency));
-                    }
-                }
-                
+                var newTotal = upsellGroup.subtotal + (upsellGroup.taxTotal || 0) + upsellsTotal;
+                $('.gas-grand-total').text(formatPrice(newTotal, upsellGroup.currency));
+
+                // Recalculate deposit using shared helper
+                recalcGroupDeposit(upsellGroup);
+
                 // Update upsells display in summary
-                if (window.groupCheckoutData.selectedUpsells.length > 0) {
+                if (upsellGroup.selectedUpsells.length > 0) {
                     var extrasHtml = '';
-                    window.groupCheckoutData.selectedUpsells.forEach(function(u) {
-                        extrasHtml += '<div class="gas-price-line"><span>' + u.name + '</span><span>' + formatPrice(u.price, window.groupCheckoutData.currency) + '</span></div>';
+                    upsellGroup.selectedUpsells.forEach(function(u) {
+                        extrasHtml += '<div class="gas-price-line"><span>' + u.name + '</span><span>' + formatPrice(u.price, upsellGroup.currency) + '</span></div>';
                     });
                     $('.gas-selected-extras .gas-extras-list').html(extrasHtml);
                     $('.gas-selected-extras').show();
@@ -3809,7 +3789,7 @@ jQuery(document).ready(function($) {
                     $('.gas-stripe-form').slideUp(200);
                     $('.gas-card-guarantee-form').slideDown(200);
                     $('.gas-bank-transfer-panel').slideUp(200);
-                    window.gasLoadEnigmaForm(window.groupCheckoutData.items[0].propertyId);
+                    window.gasLoadEnigmaForm(getCurrentGroup().propertyId);
                 } else if (method === 'pay_at_property') {
                     $('.gas-stripe-form').slideUp(200);
                     $('.gas-card-guarantee-form').slideUp(200);
@@ -5110,13 +5090,14 @@ jQuery(document).ready(function($) {
             guests = checkoutData.guests;
             totalPrice = checkoutData.grandTotal;
         } else if (typeof window.groupCheckoutData !== 'undefined') {
-            unitId = window.groupCheckoutData.items?.[0]?.unitId;
+            var eqGroup = window.groupCheckoutData.paymentGroups[window.groupCheckoutData.paymentGroupKeys[window.groupCheckoutData.currentPaymentGroupIndex]];
+            unitId = eqGroup ? eqGroup.items[0]?.unitId : window.groupCheckoutData.items?.[0]?.unitId;
             checkin = window.groupCheckoutData.checkin;
             checkout = window.groupCheckoutData.checkout;
-            guests = window.groupCheckoutData.guests;
-            totalPrice = window.groupCheckoutData.total;
+            guests = eqGroup ? eqGroup.items.reduce(function(s, i) { return s + (i.guests || 1); }, 0) : null;
+            totalPrice = eqGroup ? (eqGroup.subtotal + (eqGroup.taxTotal || 0)) : null;
         }
-        
+
         // Confirm with guest
         if (!confirm(t('booking', 'send_enquiry_confirm', 'Send your booking enquiry to the property owner? They will contact you to arrange payment.'))) {
             return;
@@ -5185,13 +5166,14 @@ jQuery(document).ready(function($) {
                 guests = checkoutData.guests;
                 totalPrice = checkoutData.grandTotal;
             } else if (typeof window.groupCheckoutData !== 'undefined') {
-                unitId = window.groupCheckoutData.items?.[0]?.unitId;
+                var pfGroup = window.groupCheckoutData.paymentGroups[window.groupCheckoutData.paymentGroupKeys[window.groupCheckoutData.currentPaymentGroupIndex]];
+                unitId = pfGroup ? pfGroup.items[0]?.unitId : window.groupCheckoutData.items?.[0]?.unitId;
                 checkin = window.groupCheckoutData.checkin;
                 checkout = window.groupCheckoutData.checkout;
-                guests = window.groupCheckoutData.guests;
-                totalPrice = window.groupCheckoutData.total;
+                guests = pfGroup ? pfGroup.items.reduce(function(s, i) { return s + (i.guests || 1); }, 0) : null;
+                totalPrice = pfGroup ? (pfGroup.subtotal + (pfGroup.taxTotal || 0)) : null;
             }
-            
+
             var payload = {
                 unit_id: unitId,
                 check_in: checkin,
