@@ -6230,6 +6230,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         $children = isset($_GET['children']) ? intval($_GET['children']) : 0;
         $rate_type = isset($_GET['rate']) ? sanitize_text_field($_GET['rate']) : 'standard';
         $property_id = isset($_GET['property']) ? intval($_GET['property']) : 0;
+        $currency_param = isset($_GET['currency']) ? sanitize_text_field($_GET['currency']) : '';
         
         // For group bookings, data comes from localStorage via JS
         if (!$is_group && (!$unit_id || !$checkin || !$checkout)) {
@@ -6253,6 +6254,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
              data-rate-type="<?php echo esc_attr($rate_type); ?>"
              data-api-url="<?php echo esc_attr($api_url); ?>"
              data-client-id="<?php echo esc_attr($client_id); ?>"
+             data-currency="<?php echo esc_attr($currency_param); ?>"
              data-is-group="<?php echo $is_group ? '1' : '0'; ?>">
             
             <h1 class="gas-checkout-title"><?php echo esc_html($t_checkout['your_booking'] ?? 'Your Booking'); ?></h1>

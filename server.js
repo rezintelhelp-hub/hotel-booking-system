@@ -57266,7 +57266,7 @@ app.post('/api/public/calculate-price', async (req, res) => {
     
     const roomData = unit.rows[0];
     const basePrice = roomData.base_price || 0;
-    const currency = roomData.currency || 'GBP';
+    const currency = roomData.currency || '';
     
     // Parse guests - support both old (guests) and new (adults + children) format
     const numAdults = parseInt(adults) || parseInt(guests) || 2;
@@ -58320,7 +58320,7 @@ app.get('/api/public/quote/:unitId', async (req, res) => {
     const unitResult = await pool.query(`
       SELECT bu.id, bu.hostaway_listing_id, bu.cleaning_fee, bu.security_deposit,
              bu.base_price, bu.beds24_room_id, bu.smoobu_id,
-             COALESCE(bu.currency, p.currency, 'USD') as currency,
+             COALESCE(bu.currency, p.currency) as currency,
              p.id as property_id, p.account_id, p.channel_manager,
              p.hostaway_listing_id as prop_hostaway_id
       FROM bookable_units bu

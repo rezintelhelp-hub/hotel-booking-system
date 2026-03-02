@@ -2164,6 +2164,10 @@ jQuery(document).ready(function($) {
         checkoutUrl += '&adults=' + numAdults;
         checkoutUrl += '&children=' + numChildren;
         checkoutUrl += '&rate=' + rateType;
+        var roomCurrency = $roomWidget.data('currency') || '';
+        if (roomCurrency) {
+            checkoutUrl += '&currency=' + encodeURIComponent(roomCurrency);
+        }
         if (propertyId) {
             checkoutUrl += '&property=' + propertyId;
         }
@@ -3841,6 +3845,7 @@ jQuery(document).ready(function($) {
             apiUrl: $checkoutPage.data('api-url'),
             clientId: $checkoutPage.data('client-id'),
             propertyId: $checkoutPage.data('property-id'),
+            currency: $checkoutPage.data('currency') || '',
             selectedUpsells: [],
             voucherCode: '',
             pricing: {},
