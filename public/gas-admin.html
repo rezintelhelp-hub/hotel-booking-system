@@ -22442,6 +22442,8 @@ const promo = await fetch('/api/v1/offers/validate', {
         // Rebuild ALL translation tab wrappers in the DOM to match current account languages
         function rebuildAllTranslationTabs() {
             refreshSupportedLanguages();
+            const primaryLang = getAccountPrimaryLanguage();
+            SUPPORTED_LANGUAGES.sort((a, b) => a.code === primaryLang ? -1 : b.code === primaryLang ? 1 : 0);
             document.querySelectorAll('[data-translation-group]').forEach(wrapper => {
                 const group = wrapper.dataset.translationGroup;
                 if (!group) return;
