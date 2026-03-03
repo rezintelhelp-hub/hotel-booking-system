@@ -18129,6 +18129,7 @@ app.get('/api/setup-database', async (req, res) => {
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS bookable_unit_id INTEGER`);
     // Add hostaway columns
     await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS hostaway_listing_id INTEGER`);
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS available_for_agents BOOLEAN DEFAULT false`);
     await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS hostaway_listing_id INTEGER`);
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS hostaway_reservation_id VARCHAR(50)`);
     
@@ -20541,7 +20542,9 @@ app.get('/api/setup-deploy', async (req, res) => {
     await pool.query(`ALTER TABLE deployed_sites ADD COLUMN IF NOT EXISTS pricing_tier VARCHAR(50) DEFAULT 'standard'`);
     
     // Per-site billing columns
-    await pool.query(`ALTER TABLE deployed_sites ADD COLUMN IF NOT EXISTS site_type VARCHAR(20) DEFAULT 'standard'`).catch(() => {}); // standard, plugin, custom
+    await pool.query(`ALTER TABLE deployed_sites ADD COLUMN IF NOT EXISTS site_type VARCHAR(20) DEFAULT 'standard'`).catch(() => {}); // owner, agent, plugin, custom
+    await pool.query(`ALTER TABLE deployed_sites ALTER COLUMN site_type SET DEFAULT 'owner'`).catch(() => {});
+    await pool.query(`UPDATE deployed_sites SET site_type = 'owner' WHERE site_type = 'standard'`).catch(() => {});
     await pool.query(`ALTER TABLE deployed_sites ADD COLUMN IF NOT EXISTS monthly_fee DECIMAL(10,2)`).catch(() => {}); // override auto-calc, or custom site monthly
     await pool.query(`ALTER TABLE deployed_sites ADD COLUMN IF NOT EXISTS setup_fee DECIMAL(10,2) DEFAULT 0`).catch(() => {}); // one-off fee for custom sites
     await pool.query(`ALTER TABLE deployed_sites ADD COLUMN IF NOT EXISTS setup_fee_invoiced BOOLEAN DEFAULT false`).catch(() => {}); // track if one-off already billed
@@ -20552,8 +20555,83 @@ app.get('/api/setup-deploy', async (req, res) => {
     
     // Add website_url column to bookable_units if it doesn't exist
     await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS website_url VARCHAR(255)`);
-    
+
+    // Travel Agent: site_properties junction table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS site_properties (
+        id SERIAL PRIMARY KEY,
+        site_id INTEGER REFERENCES deployed_sites(id) ON DELETE CASCADE,
+        property_id INTEGER REFERENCES properties(id) ON DELETE CASCADE,
+        added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(site_id, property_id)
+      )
+    `).catch(() => {});
+
     res.json({ success: true, message: 'Deployed sites table created/updated with room_ids support' });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
+// TRAVEL AGENT API - Property marketplace & site-properties
+// =====================================================
+
+// Get properties available for agents
+app.get('/api/admin/agent/available-properties', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT p.id, p.name, p.description, p.city, p.country, p.property_type, p.star_rating, p.hero_image_url,
+             a.name as owner_name, a.business_name as owner_business
+      FROM properties p
+      LEFT JOIN accounts a ON p.account_id = a.id
+      WHERE p.available_for_agents = true AND p.active = true
+      ORDER BY p.name
+    `);
+    res.json({ success: true, properties: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Add a property to an agent site
+app.post('/api/admin/agent/site-properties', async (req, res) => {
+  try {
+    const { site_id, property_id } = req.body;
+    if (!site_id || !property_id) {
+      return res.json({ success: false, error: 'site_id and property_id required' });
+    }
+    const result = await pool.query(
+      `INSERT INTO site_properties (site_id, property_id) VALUES ($1, $2) ON CONFLICT (site_id, property_id) DO NOTHING RETURNING *`,
+      [site_id, property_id]
+    );
+    res.json({ success: true, siteProperty: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Remove a property from an agent site
+app.delete('/api/admin/agent/site-properties/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM site_properties WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get properties assigned to an agent site
+app.get('/api/admin/agent/site/:siteId/properties', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT sp.id as site_property_id, sp.added_at, p.id, p.name, p.description, p.city, p.country, p.property_type, p.star_rating, p.hero_image_url
+      FROM site_properties sp
+      JOIN properties p ON sp.property_id = p.id
+      WHERE sp.site_id = $1
+      ORDER BY sp.added_at DESC
+    `, [req.params.siteId]);
+    res.json({ success: true, properties: result.rows });
   } catch (error) {
     res.json({ success: false, error: error.message });
   }

@@ -1872,6 +1872,24 @@
                     </div>
                 </div>
 
+                <div class="nav-section collapsed" id="nav-travel-agents-section">
+                    <div class="nav-label" onclick="toggleNavSection(this)">Travel Agents</div>
+                    <div class="nav-section-items">
+                    <a class="nav-item" data-view="travel-agents" href="#" onclick="navClick(this, 'travel-agents'); return false;">
+                        <span class="nav-icon">🌍</span>
+                        <span>Agent Sites</span>
+                    </a>
+                    <a class="nav-item" data-view="ta-marketplace" href="#" onclick="navClick(this, 'ta-marketplace'); return false;">
+                        <span class="nav-icon">🏨</span>
+                        <span>Property Marketplace</span>
+                    </a>
+                    <a class="nav-item" data-view="management-requests" href="#" onclick="navClick(this, 'management-requests'); return false;">
+                        <span class="nav-icon">📋</span>
+                        <span>Requests</span>
+                    </a>
+                    </div>
+                </div>
+
                 <div class="nav-section collapsed">
                     <div class="nav-label" onclick="toggleNavSection(this)">Website Builder</div>
                     <div class="nav-section-items">
@@ -5085,6 +5103,48 @@
                                 Agent pays you: £160/night ✓
                             </p>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Travel Agent Sites View -->
+            <div id="travel-agents" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>🌍 Agent Sites</h2>
+                            <p>Travel agent websites with assigned properties</p>
+                        </div>
+                    </div>
+                </div>
+                <div id="ta-sites-list">
+                    <div class="card" style="text-align: center; padding: 3rem;">
+                        <div style="font-size: 4rem; margin-bottom: 1rem;">🌍</div>
+                        <h3 style="margin-bottom: 0.5rem; color: #1e293b;">No Agent Sites Yet</h3>
+                        <p style="color: #64748b; max-width: 500px; margin: 0 auto;">
+                            Agent sites will appear here once travel agents create their booking websites.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Travel Agent Marketplace View -->
+            <div id="ta-marketplace" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>🏨 Property Marketplace</h2>
+                            <p>Browse properties available for agent booking</p>
+                        </div>
+                    </div>
+                </div>
+                <div id="ta-marketplace-list">
+                    <div class="card" style="text-align: center; padding: 3rem;">
+                        <div style="font-size: 4rem; margin-bottom: 1rem;">🏨</div>
+                        <h3 style="margin-bottom: 0.5rem; color: #1e293b;">No Properties Available</h3>
+                        <p style="color: #64748b; max-width: 500px; margin: 0 auto;">
+                            Properties marked as available for agents will appear here.
+                        </p>
                     </div>
                 </div>
             </div>
@@ -21732,6 +21792,8 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (viewName === 'plugin-licenses') {
                 loadPluginLicenses();
             }
+            if (viewName === 'travel-agents') loadTravelAgentSites();
+            if (viewName === 'ta-marketplace') loadTAMarketplace();
             if (viewName === 'integrations') loadIntegrations();
             if (viewName === 'offers') loadOffers();
             if (viewName === 'vouchers') loadVouchers();
@@ -25646,9 +25708,85 @@ const promo = await fetch('/api/v1/offers/validate', {
         // MANAGEMENT REQUESTS FUNCTIONS (Agency View)
         // =====================================================
         
+        // =====================================================
+        // TRAVEL AGENT FUNCTIONS
+        // =====================================================
+
+        async function loadTravelAgentSites() {
+            const container = document.getElementById('ta-sites-list');
+            if (!container) return;
+            try {
+                const response = await fetch('/api/deployed-sites', { headers: authHeaders() });
+                const data = await response.json();
+                if (!data.success) throw new Error(data.error);
+                const agentSites = (data.sites || []).filter(s => s.site_type === 'agent');
+                if (agentSites.length === 0) {
+                    container.innerHTML = `
+                        <div class="card" style="text-align: center; padding: 3rem;">
+                            <div style="font-size: 4rem; margin-bottom: 1rem;">🌍</div>
+                            <h3 style="margin-bottom: 0.5rem; color: #1e293b;">No Agent Sites Yet</h3>
+                            <p style="color: #64748b; max-width: 500px; margin: 0 auto;">
+                                Agent sites will appear here once travel agents create their booking websites.
+                            </p>
+                        </div>`;
+                    return;
+                }
+                container.innerHTML = agentSites.map(site => `
+                    <div class="card" style="margin-bottom: 1rem; padding: 1.5rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <h3 style="margin: 0 0 0.25rem;">${site.site_name || 'Unnamed Site'}</h3>
+                                <p style="margin: 0; color: #64748b; font-size: 0.9rem;">${site.site_url || 'No URL'}</p>
+                            </div>
+                            <span style="background: #dbeafe; color: #1e40af; padding: 0.25rem 0.75rem; border-radius: 999px; font-size: 0.8rem; font-weight: 500;">Agent</span>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                container.innerHTML = `<div class="card" style="padding: 2rem; text-align: center; color: #ef4444;">Error loading agent sites: ${error.message}</div>`;
+            }
+        }
+
+        async function loadTAMarketplace() {
+            const container = document.getElementById('ta-marketplace-list');
+            if (!container) return;
+            try {
+                const response = await fetch('/api/admin/agent/available-properties', { headers: authHeaders() });
+                const data = await response.json();
+                if (!data.success) throw new Error(data.error);
+                const properties = data.properties || [];
+                if (properties.length === 0) {
+                    container.innerHTML = `
+                        <div class="card" style="text-align: center; padding: 3rem;">
+                            <div style="font-size: 4rem; margin-bottom: 1rem;">🏨</div>
+                            <h3 style="margin-bottom: 0.5rem; color: #1e293b;">No Properties Available</h3>
+                            <p style="color: #64748b; max-width: 500px; margin: 0 auto;">
+                                Properties marked as available for agents will appear here.
+                            </p>
+                        </div>`;
+                    return;
+                }
+                container.innerHTML = properties.map(p => `
+                    <div class="card" style="margin-bottom: 1rem; padding: 1.5rem;">
+                        <div style="display: flex; gap: 1.5rem; align-items: center;">
+                            ${p.hero_image_url ? `<img src="${p.hero_image_url}" style="width: 80px; height: 60px; object-fit: cover; border-radius: 8px;" alt="">` : `<div style="width: 80px; height: 60px; background: #f1f5f9; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem;">🏨</div>`}
+                            <div style="flex: 1;">
+                                <h3 style="margin: 0 0 0.25rem;">${p.name}</h3>
+                                <p style="margin: 0; color: #64748b; font-size: 0.9rem;">${[p.city, p.country].filter(Boolean).join(', ') || 'Location not set'}</p>
+                                ${p.property_type ? `<span style="background: #f0fdf4; color: #166534; padding: 0.15rem 0.5rem; border-radius: 999px; font-size: 0.75rem; margin-top: 0.25rem; display: inline-block;">${p.property_type}</span>` : ''}
+                            </div>
+                            ${p.owner_business ? `<div style="text-align: right; color: #94a3b8; font-size: 0.8rem;">${p.owner_business}</div>` : ''}
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                container.innerHTML = `<div class="card" style="padding: 2rem; text-align: center; color: #ef4444;">Error loading marketplace: ${error.message}</div>`;
+            }
+        }
+
         let allManagementRequests = [];
         let currentRequestFilter = 'pending';
-        
+
         async function loadManagementRequests() {
             try {
                 // Determine the viewing context
