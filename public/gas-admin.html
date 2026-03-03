@@ -24710,35 +24710,20 @@ const promo = await fetch('/api/v1/offers/validate', {
         // Shared: fetch the best property_terms for this account (apply_to_all first, then first with data)
         async function fetchAccountPropertyTerms() {
             const acctId = selectedAccountId || selectedWebsiteData?.account_id;
-            console.log('[TERMS DEBUG] acctId:', acctId, 'selectedAccountId:', selectedAccountId, 'selectedWebsiteData?.account_id:', selectedWebsiteData?.account_id);
-            if (!acctId) { console.log('[TERMS DEBUG] No acctId, returning null'); return null; }
-            const propsUrl = `/api/accounts/${acctId}/properties`;
-            console.log('[TERMS DEBUG] Fetching properties:', propsUrl);
-            const propsResp = await fetch(propsUrl, { headers: authHeaders() });
-            console.log('[TERMS DEBUG] Properties response status:', propsResp.status);
+            if (!acctId) return null;
+            const propsResp = await fetch(`/api/accounts/${acctId}/properties`, { headers: authHeaders() });
             const propsData = await propsResp.json();
-            console.log('[TERMS DEBUG] Properties response:', JSON.stringify(propsData).substring(0, 500));
-            if (!propsData.success || !propsData.properties?.length) { console.log('[TERMS DEBUG] No properties found, returning null'); return null; }
-            console.log('[TERMS DEBUG] Found', propsData.properties.length, 'properties');
+            if (!propsData.success || !propsData.properties?.length) return null;
             let best = null, bestName = '';
             for (const prop of propsData.properties) {
-                const termsUrl = `/api/admin/properties/${prop.id}/terms`;
-                console.log('[TERMS DEBUG] Fetching terms for property', prop.id, prop.name, ':', termsUrl);
-                const resp = await fetch(termsUrl, { headers: authHeaders() });
-                console.log('[TERMS DEBUG] Terms response status:', resp.status);
+                const resp = await fetch(`/api/admin/properties/${prop.id}/terms`, { headers: authHeaders() });
                 const d = await resp.json();
-                console.log('[TERMS DEBUG] Terms response for', prop.id, ':', JSON.stringify(d).substring(0, 500));
                 const t = d.success ? (d.data?.terms || d.data) : null;
-                console.log('[TERMS DEBUG] Extracted terms:', t ? Object.keys(t).filter(k => t[k]).join(', ') : 'null');
                 if (t && (t.checkin_from || t.cancellation_policy || t.check_in_instructions || t.additional_rules)) {
-                    console.log('[TERMS DEBUG] MATCH found:', prop.name);
                     if (!best || t.apply_to_all) { best = t; bestName = prop.name; }
                     if (t.apply_to_all) break;
-                } else {
-                    console.log('[TERMS DEBUG] No match - checkin_from:', t?.checkin_from, 'cancellation_policy:', t?.cancellation_policy, 'check_in_instructions:', t?.check_in_instructions, 'additional_rules:', t?.additional_rules);
                 }
             }
-            console.log('[TERMS DEBUG] Final result:', best ? 'Found: ' + bestName : 'null');
             return best ? { terms: best, propertyName: bestName } : null;
         }
 
@@ -24791,7 +24776,8 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
 
         async function copyTermsFromGAS() {
-            if (!selectedAccountId) { showNotification('No account selected', 'error'); return; }
+            const acctId = selectedAccountId || selectedWebsiteData?.account_id;
+            if (!acctId) { showNotification('No account selected', 'error'); return; }
             try {
                 const result = await fetchAccountPropertyTerms();
                 if (!result) { showNotification('No property terms found to copy', 'error'); return; }
