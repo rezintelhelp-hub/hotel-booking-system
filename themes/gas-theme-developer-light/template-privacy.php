@@ -38,7 +38,6 @@ $legacy = !empty($site_config['pages']['privacy']) ? $site_config['pages']['priv
 $legacy_sections = $legacy ? ($legacy['sections'] ?? []) : [];
 
 $use_api = !empty($wp) || !empty($legacy_sections);
-$privacy_source = $wp['source'] ?? 'custom';
 
 // Get current language for multilingual content
 $lang = function_exists('developer_get_current_language') ? developer_get_current_language() : 'en';
@@ -59,24 +58,26 @@ if (empty($page_title)) {
 $updated_date = $wp['updated'] ?? ($legacy['updated_date'] ?? '');
 $effective_date = $wp['effective'] ?? ($legacy['effective_date'] ?? '');
 
-// Build displayable sections array
+// Build displayable sections array — always auto-generate
 $all_sections = [];
 
-if ($privacy_source === 'gas-account') {
-    // Auto-generate professional privacy policy from site_config contact/seo data
-    $contact = $site_config['contact'] ?? [];
-    $seo = $site_config['seo'] ?? [];
-    $business_name = !empty($contact['business_name']) ? esc_html($contact['business_name']) : 'Our Business';
-    $email = !empty($contact['email']) ? esc_html($contact['email']) : '';
-    $address = !empty($contact['address_formatted']) ? esc_html($contact['address_formatted']) : '';
-    $ga_id = !empty($seo['google_analytics_id']) ? $seo['google_analytics_id'] : '';
+// Read dedicated privacy fields, falling back to contact info
+$contact = $site_config['contact'] ?? [];
+$seo = $site_config['seo'] ?? [];
+$business_name = !empty($wp['business-name']) ? esc_html($wp['business-name'])
+    : (!empty($contact['business_name']) ? esc_html($contact['business_name']) : 'Our Business');
+$email = !empty($wp['contact-email']) ? esc_html($wp['contact-email'])
+    : (!empty($contact['email']) ? esc_html($contact['email']) : '');
+$address = !empty($wp['business-address']) ? esc_html($wp['business-address'])
+    : (!empty($contact['address_formatted']) ? esc_html($contact['address_formatted']) : '');
+$ga_id = !empty($seo['google_analytics_id']) ? $seo['google_analytics_id'] : '';
 
-    // If no updated_date set, use today
-    if (empty($updated_date)) {
-        $updated_date = date('Y-m-d');
-    }
+// If no updated_date set, use today
+if (empty($updated_date)) {
+    $updated_date = date('Y-m-d');
+}
 
-    // 1. Introduction
+// 1. Introduction
     $all_sections[] = [
         'title' => 'Introduction',
         'content' => '<p>' . $business_name . ' ("we", "us", or "our") is committed to protecting and respecting your privacy. This Privacy Policy explains how we collect, use, store, and protect your personal information when you visit our website, make a booking, or interact with our services.</p>'
@@ -206,98 +207,6 @@ if ($privacy_source === 'gas-account') {
     ];
 
     $use_api = true;
-
-} else {
-
-// Helper: build a section with optional sub-heading
-$build_section = function($key, $default_title, $sub_key = 'sub', $legacy_key = null) use ($wp, $ml, $lang, $legacy_sections) {
-    $lk = $legacy_key ?: $key;
-    $enabled = $wp[$key . '-enabled'] ?? true;
-    if ($enabled === false || $enabled === 'false') return null;
-
-    $content = $ml ? $ml($wp, $key, $lang) : ($wp[$key] ?? '');
-    if (empty($content) && !empty($legacy_sections[$lk]['content'])) {
-        $content = $legacy_sections[$lk]['content'];
-    }
-    if (empty($content)) return null;
-
-    $title = $ml ? $ml($wp, $key . '-title', $lang) : ($wp[$key . '-title'] ?? '');
-    if (empty($title)) $title = $legacy_sections[$lk]['title'] ?? $default_title;
-
-    $sub_heading = $ml ? $ml($wp, $key . '-' . $sub_key, $lang) : ($wp[$key . '-' . $sub_key] ?? '');
-    if (empty($sub_heading) && !empty($legacy_sections[$lk]['sub_heading'])) {
-        $sub_heading = $legacy_sections[$lk]['sub_heading'];
-    }
-
-    $sub_items = [];
-    if ($sub_heading) {
-        $sub_items[] = ['heading' => $sub_heading, 'content' => $content];
-        $content = '';
-    }
-
-    return ['title' => $title, 'content' => $content, 'sub_items' => $sub_items];
-};
-
-// Introduction
-$section = $build_section('intro', 'Introduction');
-if ($section) $all_sections[] = $section;
-
-// Data Collection - has two sub-sections
-$collection_enabled = $wp['collection-enabled'] ?? true;
-if ($collection_enabled !== false && $collection_enabled !== 'false') {
-    $content1 = $ml ? $ml($wp, 'collection', $lang) : ($wp['collection'] ?? '');
-    if (empty($content1) && !empty($legacy_sections['collection']['content'])) {
-        $content1 = $legacy_sections['collection']['content'];
-    }
-    $content2 = $ml ? $ml($wp, 'how-collect', $lang) : ($wp['how-collect'] ?? '');
-    if (empty($content2) && !empty($legacy_sections['collection']['how_collect'])) {
-        $content2 = $legacy_sections['collection']['how_collect'];
-    }
-
-    if ($content1 || $content2) {
-        $title = $ml ? $ml($wp, 'collection-title', $lang) : ($wp['collection-title'] ?? '');
-        if (empty($title)) $title = $legacy_sections['collection']['title'] ?? 'Information We Collect';
-
-        $sub_items = [];
-        if ($content1) {
-            $sub1 = $ml ? $ml($wp, 'collection-sub1', $lang) : ($wp['collection-sub1'] ?? '');
-            if (empty($sub1)) $sub1 = $legacy_sections['collection']['sub_heading_1'] ?? 'What Data We Collect';
-            $sub_items[] = ['heading' => $sub1, 'content' => $content1];
-        }
-        if ($content2) {
-            $sub2 = $ml ? $ml($wp, 'how-collect-sub', $lang) : ($wp['how-collect-sub'] ?? '');
-            if (empty($sub2)) $sub2 = $legacy_sections['collection']['sub_heading_2'] ?? 'How We Collect Data';
-            $sub_items[] = ['heading' => $sub2, 'content' => $content2];
-        }
-        $all_sections[] = ['title' => $title, 'content' => '', 'sub_items' => $sub_items];
-    }
-}
-
-// Data Usage
-$section = $build_section('usage', 'How We Use Your Information');
-if ($section) $all_sections[] = $section;
-
-// Data Sharing
-$section = $build_section('sharing', 'Information Sharing');
-if ($section) $all_sections[] = $section;
-
-// Cookies
-$section = $build_section('cookies', 'Cookies');
-if ($section) $all_sections[] = $section;
-
-// Your Rights
-$section = $build_section('rights', 'Your Rights');
-if ($section) $all_sections[] = $section;
-
-// Data Retention
-$section = $build_section('retention', 'Data Retention');
-if ($section) $all_sections[] = $section;
-
-// Contact
-$section = $build_section('contact', 'Contact Us');
-if ($section) $all_sections[] = $section;
-
-} // end privacy_source else (custom)
 ?>
 
 <main id="primary" class="site-main">

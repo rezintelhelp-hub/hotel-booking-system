@@ -13612,24 +13612,22 @@ const promo = await fetch('/api/v1/offers/validate', {
                 </div>
 
                 <div class="card" style="border: 2px solid #2563eb; background: #eff6ff;">
-                    <div class="card-body" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
-                        <div>
-                            <strong style="font-size: 1rem;">Privacy Policy Source</strong>
-                            <p id="wb-privacy-source-desc" style="margin: 0.25rem 0 0; font-size: 0.85rem; color: #475569;">Auto-generate a professional privacy policy from your business details, or select custom content to write your own</p>
+                    <div class="card-body">
+                        <strong style="font-size: 1rem;">Privacy Policy Details</strong>
+                        <p style="margin: 0.25rem 0 1rem; font-size: 0.85rem; color: #475569;">These details are used to auto-generate your privacy policy. The policy is displayed on your website automatically.</p>
+                        <div class="form-group">
+                            <label class="form-label">Legal Business Name</label>
+                            <input type="text" class="form-input" id="wb-page-privacy-business-name" placeholder="e.g., The Grand Hotel Ltd" oninput="renderPrivacyPreview()">
                         </div>
-                        <select class="form-input" id="wb-page-privacy-source" style="width: 220px;" onchange="togglePrivacySource(this.value)">
-                            <option value="custom">Custom Content</option>
-                            <option value="gas-account">From GAS Account</option>
-                        </select>
+                        <div class="form-group">
+                            <label class="form-label">Contact Email</label>
+                            <input type="email" class="form-input" id="wb-page-privacy-contact-email" placeholder="e.g., privacy@example.com" oninput="renderPrivacyPreview()">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label">Business Address</label>
+                            <textarea class="form-textarea" id="wb-page-privacy-business-address" rows="2" placeholder="e.g., 123 High Street, London, UK" oninput="renderPrivacyPreview()"></textarea>
+                        </div>
                     </div>
-                </div>
-
-                <div id="wb-privacy-gas-readonly-note" style="display:none; margin-top:1rem; padding:0.75rem 1rem; background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; color:#1e40af; font-size:0.85rem;">
-                    Editing disabled — privacy policy auto-generated from your business details. Switch to <strong>Custom Content</strong> to edit.
-                </div>
-
-                <div id="wb-privacy-copy-btn" style="margin-top: 1rem; margin-bottom: 0.5rem; text-align: right;">
-                    <button type="button" class="btn btn-sm" onclick="copyPrivacyFromGAS()" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); font-size: 0.85rem;">Copy from GAS Account</button>
                 </div>
 
                 <div class="card">
@@ -13666,596 +13664,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                     </div>
                 </div>
 
-                <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
-                        <h3>Introduction</h3>
-                        <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.9rem;">
-                            <input type="checkbox" id="wb-page-privacy-intro-enabled" checked>
-                            Show Section
-                        </label>
-                    </div>
-                    <div class="card-body">
-                        <div class="form-group">
-                            <label class="form-label">Heading on Website <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
-                            <div class="translation-field-wrapper" data-translation-group="wb-page-privacy-intro-title">
-                                <div class="translation-tabs">
-                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-privacy-intro-title', 'en')"><span class="flag">🇬🇧</span>EN</button>
-                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-privacy-intro-title', 'fr')"><span class="flag">🇫🇷</span>FR</button>
-                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-privacy-intro-title', 'es')"><span class="flag">🇪🇸</span>ES</button>
-                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-privacy-intro-title', 'nl')"><span class="flag">🇳🇱</span>NL</button>
-                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-privacy-intro-title')" title="Auto-translate">✨</button>
-                                </div>
-                                <div class="translation-input-group">
-                                    <input type="text" class="form-input translation-input active" id="wb-page-privacy-intro-title-en" data-lang="en" value="Introduction" placeholder="Section heading...">
-                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-intro-title-fr" data-lang="fr" placeholder="Introduction">
-                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-intro-title-es" data-lang="es" placeholder="Introducción">
-                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-intro-title-nl" data-lang="nl" placeholder="Inleiding">
-                                </div>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Sub-heading <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
-                            <div class="translation-field-wrapper" data-translation-group="wb-page-privacy-intro-sub">
-                                <div class="translation-tabs">
-                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-privacy-intro-sub', 'en')"><span class="flag">🇬🇧</span>EN</button>
-                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-privacy-intro-sub', 'fr')"><span class="flag">🇫🇷</span>FR</button>
-                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-privacy-intro-sub', 'es')"><span class="flag">🇪🇸</span>ES</button>
-                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-privacy-intro-sub', 'nl')"><span class="flag">🇳🇱</span>NL</button>
-                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-privacy-intro-sub')" title="Auto-translate">✨</button>
-                                </div>
-                                <div class="translation-input-group">
-                                    <input type="text" class="form-input translation-input active" id="wb-page-privacy-intro-sub-en" data-lang="en" value="" placeholder="Sub-heading (leave blank to hide)...">
-                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-intro-sub-fr" data-lang="fr" placeholder="">
-                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-intro-sub-es" data-lang="es" placeholder="">
-                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-intro-sub-nl" data-lang="nl" placeholder="">
-                                </div>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Content <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
-                            <div class="translation-field-wrapper" data-translation-group="wb-page-privacy-intro">
-                                <div class="translation-tabs">
-                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-privacy-intro', 'en')"><span class="flag">🇬🇧</span>EN</button>
-                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-privacy-intro', 'fr')"><span class="flag">🇫🇷</span>FR</button>
-                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-privacy-intro', 'es')"><span class="flag">🇪🇸</span>ES</button>
-                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-privacy-intro', 'nl')"><span class="flag">🇳🇱</span>NL</button>
-                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-privacy-intro')" title="Auto-translate">✨</button>
-                                </div>
-                                <div class="translation-input-group">
-                                    <textarea class="form-textarea translation-input active" id="wb-page-privacy-intro-en" data-lang="en" rows="4" placeholder="We respect your privacy and are committed to protecting your personal data. This privacy policy explains how we collect, use, and safeguard your information when you visit our website or make a booking."></textarea>
-                                    <textarea class="form-textarea translation-input" id="wb-page-privacy-intro-fr" data-lang="fr" rows="4" placeholder=""></textarea>
-                                    <textarea class="form-textarea translation-input" id="wb-page-privacy-intro-es" data-lang="es" rows="4" placeholder=""></textarea>
-                                    <textarea class="form-textarea translation-input" id="wb-page-privacy-intro-nl" data-lang="nl" rows="4" placeholder=""></textarea>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
 
                 <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
-                        <h3>Data Collection</h3>
-                        <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.9rem;">
-                            <input type="checkbox" id="wb-page-privacy-collection-enabled" checked>
-                            Show Section
-                        </label>
-                    </div>
-                    <div class="card-body">
-                        <div class="form-group">
-                            <label class="form-label">Heading on Website <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
-                            <div class="translation-field-wrapper" data-translation-group="wb-page-privacy-collection-title">
-                                <div class="translation-tabs">
-                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-privacy-collection-title', 'en')"><span class="flag">🇬🇧</span>EN</button>
-                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-privacy-collection-title', 'fr')"><span class="flag">🇫🇷</span>FR</button>
-                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-privacy-collection-title', 'es')"><span class="flag">🇪🇸</span>ES</button>
-                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-privacy-collection-title', 'nl')"><span class="flag">🇳🇱</span>NL</button>
-                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-privacy-collection-title')" title="Auto-translate">✨</button>
-                                </div>
-                                <div class="translation-input-group">
-                                    <input type="text" class="form-input translation-input active" id="wb-page-privacy-collection-title-en" data-lang="en" value="Information We Collect" placeholder="Section heading...">
-                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-collection-title-fr" data-lang="fr" placeholder="Informations Que Nous Collectons">
-                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-collection-title-es" data-lang="es" placeholder="Información Que Recopilamos">
-                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-collection-title-nl" data-lang="nl" placeholder="Informatie Die Wij Verzamelen">
-                                </div>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Sub-heading 1 <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
-                            <div class="translation-field-wrapper" data-translation-group="wb-page-privacy-collection-sub1">
-                                <div class="translation-tabs">
-                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-privacy-collection-sub1', 'en')"><span class="flag">🇬🇧</span>EN</button>
-                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-privacy-collection-sub1', 'fr')"><span class="flag">🇫🇷</span>FR</button>
-                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-privacy-collection-sub1', 'es')"><span class="flag">🇪🇸</span>ES</button>
-                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-privacy-collection-sub1', 'nl')"><span class="flag">🇳🇱</span>NL</button>
-                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-privacy-collection-sub1')" title="Auto-translate">✨</button>
-                                </div>
-                                <div class="translation-input-group">
-                                    <input type="text" class="form-input translation-input active" id="wb-page-privacy-collection-sub1-en" data-lang="en" value="What Data We Collect" placeholder="Sub-heading...">
-                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-collection-sub1-fr" data-lang="fr" placeholder="">
-                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-collection-sub1-es" data-lang="es" placeholder="">
-                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-collection-sub1-nl" data-lang="nl" placeholder="">
-                                </div>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Content <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
-                            <div class="translation-field-wrapper" data-translation-group="wb-page-privacy-collection">
-                                <div class="translation-tabs">
-                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-privacy-collection', 'en')"><span class="flag">🇬🇧</span>EN</button>
-                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-privacy-collection', 'fr')"><span class="flag">🇫🇷</span>FR</button>
-                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-privacy-collection', 'es')"><span class="flag">🇪🇸</span>ES</button>
-                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-privacy-collection', 'nl')"><span class="flag">🇳🇱</span>NL</button>
-                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-privacy-collection')" title="Auto-translate">✨</button>
-                                </div>
-                                <div class="translation-input-group">
-                                    <textarea class="form-textarea translation-input active" id="wb-page-privacy-collection-en" data-lang="en" rows="5" placeholder="Types of personal data collected:
- Name, email, phone number
- Payment information
- Booking preferences
- Communication history
- Website usage data"></textarea>
-                                    <textarea class="form-textarea translation-input" id="wb-page-privacy-collection-fr" data-lang="fr" rows="5" placeholder=""></textarea>
-                                    <textarea class="form-textarea translation-input" id="wb-page-privacy-collection-es" data-lang="es" rows="5" placeholder=""></textarea>
-                                    <textarea class="form-textarea translation-input" id="wb-page-privacy-collection-nl" data-lang="nl" rows="5" placeholder=""></textarea>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Sub-heading 2 <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
-                            <div class="translation-field-wrapper" data-translation-group="wb-page-privacy-how-collect-sub">
-                                <div class="translation-tabs">
-                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-privacy-how-collect-sub', 'en')"><span class="flag">🇬🇧</span>EN</button>
-                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-privacy-how-collect-sub', 'fr')"><span class="flag">🇫🇷</span>FR</button>
-                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-privacy-how-collect-sub', 'es')"><span class="flag">🇪🇸</span>ES</button>
-                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-privacy-how-collect-sub', 'nl')"><span class="flag">🇳🇱</span>NL</button>
-                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-privacy-how-collect-sub')" title="Auto-translate">✨</button>
-                                </div>
-                                <div class="translation-input-group">
-                                    <input type="text" class="form-input translation-input active" id="wb-page-privacy-how-collect-sub-en" data-lang="en" value="How We Collect Data" placeholder="Sub-heading...">
-                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-how-collect-sub-fr" data-lang="fr" placeholder="">
-                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-how-collect-sub-es" data-lang="es" placeholder="">
-                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-how-collect-sub-nl" data-lang="nl" placeholder="">
-                                </div>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Content <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
-                            <div class="translation-field-wrapper" data-translation-group="wb-page-privacy-how-collect">
-                                <div class="translation-tabs">
-                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-privacy-how-collect', 'en')"><span class="flag">🇬🇧</span>EN</button>
-                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-privacy-how-collect', 'fr')"><span class="flag">🇫🇷</span>FR</button>
-                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-privacy-how-collect', 'es')"><span class="flag">🇪🇸</span>ES</button>
-                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-privacy-how-collect', 'nl')"><span class="flag">🇳🇱</span>NL</button>
-                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-privacy-how-collect')" title="Auto-translate">✨</button>
-                                </div>
-                                <div class="translation-input-group">
-                                    <textarea class="form-textarea translation-input active" id="wb-page-privacy-how-collect-en" data-lang="en" rows="4" placeholder="How data is collected:
- Directly from you (booking forms, contact forms)
- Automatically (cookies, analytics)
- From third parties (booking platforms)"></textarea>
-                                    <textarea class="form-textarea translation-input" id="wb-page-privacy-how-collect-fr" data-lang="fr" rows="4" placeholder=""></textarea>
-                                    <textarea class="form-textarea translation-input" id="wb-page-privacy-how-collect-es" data-lang="es" rows="4" placeholder=""></textarea>
-                                    <textarea class="form-textarea translation-input" id="wb-page-privacy-how-collect-nl" data-lang="nl" rows="4" placeholder=""></textarea>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
-                        <h3>Data Usage</h3>
-                        <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.9rem;">
-                            <input type="checkbox" id="wb-page-privacy-usage-enabled" checked>
-                            Show Section
-                        </label>
-                    </div>
-                    <div class="card-body">
-                        <div class="form-group">
-                            <label class="form-label">Heading on Website <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
-                            <div class="translation-field-wrapper" data-translation-group="wb-page-privacy-usage-title">
-                                <div class="translation-tabs">
-                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-privacy-usage-title', 'en')"><span class="flag">🇬🇧</span>EN</button>
-                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-privacy-usage-title', 'fr')"><span class="flag">🇫🇷</span>FR</button>
-                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-privacy-usage-title', 'es')"><span class="flag">🇪🇸</span>ES</button>
-                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-privacy-usage-title', 'nl')"><span class="flag">🇳🇱</span>NL</button>
-                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-privacy-usage-title')" title="Auto-translate">✨</button>
-                                </div>
-                                <div class="translation-input-group">
-                                    <input type="text" class="form-input translation-input active" id="wb-page-privacy-usage-title-en" data-lang="en" value="How We Use Your Information" placeholder="Section heading...">
-                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-usage-title-fr" data-lang="fr" placeholder="Comment Nous Utilisons Vos Informations">
-                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-usage-title-es" data-lang="es" placeholder="Cómo Usamos Su Información">
-                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-usage-title-nl" data-lang="nl" placeholder="Hoe Wij Uw Informatie Gebruiken">
-                                </div>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Sub-heading <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
-                            <div class="translation-field-wrapper" data-translation-group="wb-page-privacy-usage-sub">
-                                <div class="translation-tabs">
-                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-privacy-usage-sub', 'en')"><span class="flag">🇬🇧</span>EN</button>
-                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-privacy-usage-sub', 'fr')"><span class="flag">🇫🇷</span>FR</button>
-                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-privacy-usage-sub', 'es')"><span class="flag">🇪🇸</span>ES</button>
-                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-privacy-usage-sub', 'nl')"><span class="flag">🇳🇱</span>NL</button>
-                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-privacy-usage-sub')" title="Auto-translate">✨</button>
-                                </div>
-                                <div class="translation-input-group">
-                                    <input type="text" class="form-input translation-input active" id="wb-page-privacy-usage-sub-en" data-lang="en" value="Data Usage" placeholder="Sub-heading (leave blank to hide)...">
-                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-usage-sub-fr" data-lang="fr" placeholder="">
-                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-usage-sub-es" data-lang="es" placeholder="">
-                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-usage-sub-nl" data-lang="nl" placeholder="">
-                                </div>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Content <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
-                            <div class="translation-field-wrapper" data-translation-group="wb-page-privacy-usage">
-                                <div class="translation-tabs">
-                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-privacy-usage', 'en')"><span class="flag">🇬🇧</span>EN</button>
-                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-privacy-usage', 'fr')"><span class="flag">🇫🇷</span>FR</button>
-                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-privacy-usage', 'es')"><span class="flag">🇪🇸</span>ES</button>
-                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-privacy-usage', 'nl')"><span class="flag">🇳🇱</span>NL</button>
-                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-privacy-usage')" title="Auto-translate">✨</button>
-                                </div>
-                                <div class="translation-input-group">
-                                    <textarea class="form-textarea translation-input active" id="wb-page-privacy-usage-en" data-lang="en" rows="5" placeholder="We use your data to:
- Process and manage bookings
- Send booking confirmations and updates
- Respond to enquiries
- Improve our services
- Send marketing communications (with consent)"></textarea>
-                                    <textarea class="form-textarea translation-input" id="wb-page-privacy-usage-fr" data-lang="fr" rows="5" placeholder=""></textarea>
-                                    <textarea class="form-textarea translation-input" id="wb-page-privacy-usage-es" data-lang="es" rows="5" placeholder=""></textarea>
-                                    <textarea class="form-textarea translation-input" id="wb-page-privacy-usage-nl" data-lang="nl" rows="5" placeholder=""></textarea>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
-                        <h3>Data Sharing</h3>
-                        <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.9rem;">
-                            <input type="checkbox" id="wb-page-privacy-sharing-enabled" checked>
-                            Show Section
-                        </label>
-                    </div>
-                    <div class="card-body">
-                        <div class="form-group">
-                            <label class="form-label">Heading on Website <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
-                            <div class="translation-field-wrapper" data-translation-group="wb-page-privacy-sharing-title">
-                                <div class="translation-tabs">
-                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-privacy-sharing-title', 'en')"><span class="flag">🇬🇧</span>EN</button>
-                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-privacy-sharing-title', 'fr')"><span class="flag">🇫🇷</span>FR</button>
-                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-privacy-sharing-title', 'es')"><span class="flag">🇪🇸</span>ES</button>
-                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-privacy-sharing-title', 'nl')"><span class="flag">🇳🇱</span>NL</button>
-                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-privacy-sharing-title')" title="Auto-translate">✨</button>
-                                </div>
-                                <div class="translation-input-group">
-                                    <input type="text" class="form-input translation-input active" id="wb-page-privacy-sharing-title-en" data-lang="en" value="Information Sharing" placeholder="Section heading...">
-                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-sharing-title-fr" data-lang="fr" placeholder="Partage d'Informations">
-                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-sharing-title-es" data-lang="es" placeholder="Compartir Información">
-                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-sharing-title-nl" data-lang="nl" placeholder="Informatie Delen">
-                                </div>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Sub-heading <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
-                            <div class="translation-field-wrapper" data-translation-group="wb-page-privacy-sharing-sub">
-                                <div class="translation-tabs">
-                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-privacy-sharing-sub', 'en')"><span class="flag">🇬🇧</span>EN</button>
-                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-privacy-sharing-sub', 'fr')"><span class="flag">🇫🇷</span>FR</button>
-                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-privacy-sharing-sub', 'es')"><span class="flag">🇪🇸</span>ES</button>
-                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-privacy-sharing-sub', 'nl')"><span class="flag">🇳🇱</span>NL</button>
-                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-privacy-sharing-sub')" title="Auto-translate">✨</button>
-                                </div>
-                                <div class="translation-input-group">
-                                    <input type="text" class="form-input translation-input active" id="wb-page-privacy-sharing-sub-en" data-lang="en" value="Who We Share Data With" placeholder="Sub-heading (leave blank to hide)...">
-                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-sharing-sub-fr" data-lang="fr" placeholder="">
-                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-sharing-sub-es" data-lang="es" placeholder="">
-                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-sharing-sub-nl" data-lang="nl" placeholder="">
-                                </div>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Content <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
-                            <div class="translation-field-wrapper" data-translation-group="wb-page-privacy-sharing">
-                                <div class="translation-tabs">
-                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-privacy-sharing', 'en')"><span class="flag">🇬🇧</span>EN</button>
-                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-privacy-sharing', 'fr')"><span class="flag">🇫🇷</span>FR</button>
-                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-privacy-sharing', 'es')"><span class="flag">🇪🇸</span>ES</button>
-                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-privacy-sharing', 'nl')"><span class="flag">🇳🇱</span>NL</button>
-                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-privacy-sharing')" title="Auto-translate">✨</button>
-                                </div>
-                                <div class="translation-input-group">
-                                    <textarea class="form-textarea translation-input active" id="wb-page-privacy-sharing-en" data-lang="en" rows="4" placeholder="We may share your data with:
- Payment processors
- Booking platforms (Booking.com, Airbnb, etc.)
- Email service providers
- Legal authorities when required"></textarea>
-                                    <textarea class="form-textarea translation-input" id="wb-page-privacy-sharing-fr" data-lang="fr" rows="4" placeholder=""></textarea>
-                                    <textarea class="form-textarea translation-input" id="wb-page-privacy-sharing-es" data-lang="es" rows="4" placeholder=""></textarea>
-                                    <textarea class="form-textarea translation-input" id="wb-page-privacy-sharing-nl" data-lang="nl" rows="4" placeholder=""></textarea>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
-                        <h3>Cookies</h3>
-                        <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.9rem;">
-                            <input type="checkbox" id="wb-page-privacy-cookies-enabled" checked>
-                            Show Section
-                        </label>
-                    </div>
-                    <div class="card-body">
-                        <div class="form-group">
-                            <label class="form-label">Heading on Website <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
-                            <div class="translation-field-wrapper" data-translation-group="wb-page-privacy-cookies-title">
-                                <div class="translation-tabs">
-                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-privacy-cookies-title', 'en')"><span class="flag">🇬🇧</span>EN</button>
-                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-privacy-cookies-title', 'fr')"><span class="flag">🇫🇷</span>FR</button>
-                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-privacy-cookies-title', 'es')"><span class="flag">🇪🇸</span>ES</button>
-                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-privacy-cookies-title', 'nl')"><span class="flag">🇳🇱</span>NL</button>
-                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-privacy-cookies-title')" title="Auto-translate">✨</button>
-                                </div>
-                                <div class="translation-input-group">
-                                    <input type="text" class="form-input translation-input active" id="wb-page-privacy-cookies-title-en" data-lang="en" value="Cookies" placeholder="Section heading...">
-                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-cookies-title-fr" data-lang="fr" placeholder="Cookies">
-                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-cookies-title-es" data-lang="es" placeholder="Cookies">
-                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-cookies-title-nl" data-lang="nl" placeholder="Cookies">
-                                </div>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Sub-heading <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
-                            <div class="translation-field-wrapper" data-translation-group="wb-page-privacy-cookies-sub">
-                                <div class="translation-tabs">
-                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-privacy-cookies-sub', 'en')"><span class="flag">🇬🇧</span>EN</button>
-                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-privacy-cookies-sub', 'fr')"><span class="flag">🇫🇷</span>FR</button>
-                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-privacy-cookies-sub', 'es')"><span class="flag">🇪🇸</span>ES</button>
-                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-privacy-cookies-sub', 'nl')"><span class="flag">🇳🇱</span>NL</button>
-                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-privacy-cookies-sub')" title="Auto-translate">✨</button>
-                                </div>
-                                <div class="translation-input-group">
-                                    <input type="text" class="form-input translation-input active" id="wb-page-privacy-cookies-sub-en" data-lang="en" value="Cookie Policy" placeholder="Sub-heading (leave blank to hide)...">
-                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-cookies-sub-fr" data-lang="fr" placeholder="">
-                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-cookies-sub-es" data-lang="es" placeholder="">
-                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-cookies-sub-nl" data-lang="nl" placeholder="">
-                                </div>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Content <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
-                            <div class="translation-field-wrapper" data-translation-group="wb-page-privacy-cookies">
-                                <div class="translation-tabs">
-                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-privacy-cookies', 'en')"><span class="flag">🇬🇧</span>EN</button>
-                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-privacy-cookies', 'fr')"><span class="flag">🇫🇷</span>FR</button>
-                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-privacy-cookies', 'es')"><span class="flag">🇪🇸</span>ES</button>
-                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-privacy-cookies', 'nl')"><span class="flag">🇳🇱</span>NL</button>
-                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-privacy-cookies')" title="Auto-translate">✨</button>
-                                </div>
-                                <div class="translation-input-group">
-                                    <textarea class="form-textarea translation-input active" id="wb-page-privacy-cookies-en" data-lang="en" rows="4" placeholder="Our website uses cookies to improve your experience. We use:
- Essential cookies (required for site functionality)
- Analytics cookies (to understand usage)
- Marketing cookies (with your consent)"></textarea>
-                                    <textarea class="form-textarea translation-input" id="wb-page-privacy-cookies-fr" data-lang="fr" rows="4" placeholder=""></textarea>
-                                    <textarea class="form-textarea translation-input" id="wb-page-privacy-cookies-es" data-lang="es" rows="4" placeholder=""></textarea>
-                                    <textarea class="form-textarea translation-input" id="wb-page-privacy-cookies-nl" data-lang="nl" rows="4" placeholder=""></textarea>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
-                        <h3>Your Rights</h3>
-                        <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.9rem;">
-                            <input type="checkbox" id="wb-page-privacy-rights-enabled" checked>
-                            Show Section
-                        </label>
-                    </div>
-                    <div class="card-body">
-                        <div class="form-group">
-                            <label class="form-label">Heading on Website <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
-                            <div class="translation-field-wrapper" data-translation-group="wb-page-privacy-rights-title">
-                                <div class="translation-tabs">
-                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-privacy-rights-title', 'en')"><span class="flag">🇬🇧</span>EN</button>
-                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-privacy-rights-title', 'fr')"><span class="flag">🇫🇷</span>FR</button>
-                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-privacy-rights-title', 'es')"><span class="flag">🇪🇸</span>ES</button>
-                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-privacy-rights-title', 'nl')"><span class="flag">🇳🇱</span>NL</button>
-                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-privacy-rights-title')" title="Auto-translate">✨</button>
-                                </div>
-                                <div class="translation-input-group">
-                                    <input type="text" class="form-input translation-input active" id="wb-page-privacy-rights-title-en" data-lang="en" value="Your Rights" placeholder="Section heading...">
-                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-rights-title-fr" data-lang="fr" placeholder="Vos Droits">
-                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-rights-title-es" data-lang="es" placeholder="Sus Derechos">
-                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-rights-title-nl" data-lang="nl" placeholder="Uw Rechten">
-                                </div>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Sub-heading <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
-                            <div class="translation-field-wrapper" data-translation-group="wb-page-privacy-rights-sub">
-                                <div class="translation-tabs">
-                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-privacy-rights-sub', 'en')"><span class="flag">🇬🇧</span>EN</button>
-                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-privacy-rights-sub', 'fr')"><span class="flag">🇫🇷</span>FR</button>
-                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-privacy-rights-sub', 'es')"><span class="flag">🇪🇸</span>ES</button>
-                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-privacy-rights-sub', 'nl')"><span class="flag">🇳🇱</span>NL</button>
-                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-privacy-rights-sub')" title="Auto-translate">✨</button>
-                                </div>
-                                <div class="translation-input-group">
-                                    <input type="text" class="form-input translation-input active" id="wb-page-privacy-rights-sub-en" data-lang="en" value="Data Subject Rights (GDPR)" placeholder="Sub-heading (leave blank to hide)...">
-                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-rights-sub-fr" data-lang="fr" placeholder="">
-                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-rights-sub-es" data-lang="es" placeholder="">
-                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-rights-sub-nl" data-lang="nl" placeholder="">
-                                </div>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Content <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
-                            <div class="translation-field-wrapper" data-translation-group="wb-page-privacy-rights">
-                                <div class="translation-tabs">
-                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-privacy-rights', 'en')"><span class="flag">🇬🇧</span>EN</button>
-                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-privacy-rights', 'fr')"><span class="flag">🇫🇷</span>FR</button>
-                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-privacy-rights', 'es')"><span class="flag">🇪🇸</span>ES</button>
-                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-privacy-rights', 'nl')"><span class="flag">🇳🇱</span>NL</button>
-                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-privacy-rights')" title="Auto-translate">✨</button>
-                                </div>
-                                <div class="translation-input-group">
-                                    <textarea class="form-textarea translation-input active" id="wb-page-privacy-rights-en" data-lang="en" rows="5" placeholder="Under data protection law, you have rights including:
- Right to access your personal data
- Right to rectification
- Right to erasure ('right to be forgotten')
- Right to restrict processing
- Right to data portability
- Right to object"></textarea>
-                                    <textarea class="form-textarea translation-input" id="wb-page-privacy-rights-fr" data-lang="fr" rows="5" placeholder=""></textarea>
-                                    <textarea class="form-textarea translation-input" id="wb-page-privacy-rights-es" data-lang="es" rows="5" placeholder=""></textarea>
-                                    <textarea class="form-textarea translation-input" id="wb-page-privacy-rights-nl" data-lang="nl" rows="5" placeholder=""></textarea>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
-                        <h3>Data Retention</h3>
-                        <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.9rem;">
-                            <input type="checkbox" id="wb-page-privacy-retention-enabled" checked>
-                            Show Section
-                        </label>
-                    </div>
-                    <div class="card-body">
-                        <div class="form-group">
-                            <label class="form-label">Heading on Website <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
-                            <div class="translation-field-wrapper" data-translation-group="wb-page-privacy-retention-title">
-                                <div class="translation-tabs">
-                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-privacy-retention-title', 'en')"><span class="flag">🇬🇧</span>EN</button>
-                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-privacy-retention-title', 'fr')"><span class="flag">🇫🇷</span>FR</button>
-                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-privacy-retention-title', 'es')"><span class="flag">🇪🇸</span>ES</button>
-                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-privacy-retention-title', 'nl')"><span class="flag">🇳🇱</span>NL</button>
-                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-privacy-retention-title')" title="Auto-translate">✨</button>
-                                </div>
-                                <div class="translation-input-group">
-                                    <input type="text" class="form-input translation-input active" id="wb-page-privacy-retention-title-en" data-lang="en" value="Data Retention" placeholder="Section heading...">
-                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-retention-title-fr" data-lang="fr" placeholder="Conservation des Données">
-                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-retention-title-es" data-lang="es" placeholder="Retención de Datos">
-                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-retention-title-nl" data-lang="nl" placeholder="Gegevensbewaring">
-                                </div>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Sub-heading <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
-                            <div class="translation-field-wrapper" data-translation-group="wb-page-privacy-retention-sub">
-                                <div class="translation-tabs">
-                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-privacy-retention-sub', 'en')"><span class="flag">🇬🇧</span>EN</button>
-                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-privacy-retention-sub', 'fr')"><span class="flag">🇫🇷</span>FR</button>
-                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-privacy-retention-sub', 'es')"><span class="flag">🇪🇸</span>ES</button>
-                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-privacy-retention-sub', 'nl')"><span class="flag">🇳🇱</span>NL</button>
-                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-privacy-retention-sub')" title="Auto-translate">✨</button>
-                                </div>
-                                <div class="translation-input-group">
-                                    <input type="text" class="form-input translation-input active" id="wb-page-privacy-retention-sub-en" data-lang="en" value="How Long We Keep Data" placeholder="Sub-heading (leave blank to hide)...">
-                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-retention-sub-fr" data-lang="fr" placeholder="">
-                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-retention-sub-es" data-lang="es" placeholder="">
-                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-retention-sub-nl" data-lang="nl" placeholder="">
-                                </div>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Content <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
-                            <div class="translation-field-wrapper" data-translation-group="wb-page-privacy-retention">
-                                <div class="translation-tabs">
-                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-privacy-retention', 'en')"><span class="flag">🇬🇧</span>EN</button>
-                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-privacy-retention', 'fr')"><span class="flag">🇫🇷</span>FR</button>
-                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-privacy-retention', 'es')"><span class="flag">🇪🇸</span>ES</button>
-                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-privacy-retention', 'nl')"><span class="flag">🇳🇱</span>NL</button>
-                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-privacy-retention')" title="Auto-translate">✨</button>
-                                </div>
-                                <div class="translation-input-group">
-                                    <textarea class="form-textarea translation-input active" id="wb-page-privacy-retention-en" data-lang="en" rows="3" placeholder="We retain your personal data for as long as necessary to fulfill the purposes we collected it for, including legal, accounting, or reporting requirements."></textarea>
-                                    <textarea class="form-textarea translation-input" id="wb-page-privacy-retention-fr" data-lang="fr" rows="3" placeholder=""></textarea>
-                                    <textarea class="form-textarea translation-input" id="wb-page-privacy-retention-es" data-lang="es" rows="3" placeholder=""></textarea>
-                                    <textarea class="form-textarea translation-input" id="wb-page-privacy-retention-nl" data-lang="nl" rows="3" placeholder=""></textarea>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
-                        <h3>Contact Information</h3>
-                        <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.9rem;">
-                            <input type="checkbox" id="wb-page-privacy-contact-enabled" checked>
-                            Show Section
-                        </label>
-                    </div>
-                    <div class="card-body">
-                        <div class="form-group">
-                            <label class="form-label">Heading on Website <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
-                            <div class="translation-field-wrapper" data-translation-group="wb-page-privacy-contact-title">
-                                <div class="translation-tabs">
-                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-privacy-contact-title', 'en')"><span class="flag">🇬🇧</span>EN</button>
-                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-privacy-contact-title', 'fr')"><span class="flag">🇫🇷</span>FR</button>
-                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-privacy-contact-title', 'es')"><span class="flag">🇪🇸</span>ES</button>
-                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-privacy-contact-title', 'nl')"><span class="flag">🇳🇱</span>NL</button>
-                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-privacy-contact-title')" title="Auto-translate">✨</button>
-                                </div>
-                                <div class="translation-input-group">
-                                    <input type="text" class="form-input translation-input active" id="wb-page-privacy-contact-title-en" data-lang="en" value="Contact Us" placeholder="Section heading...">
-                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-contact-title-fr" data-lang="fr" placeholder="Nous Contacter">
-                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-contact-title-es" data-lang="es" placeholder="Contáctenos">
-                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-contact-title-nl" data-lang="nl" placeholder="Neem Contact Op">
-                                </div>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Sub-heading <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
-                            <div class="translation-field-wrapper" data-translation-group="wb-page-privacy-contact-sub">
-                                <div class="translation-tabs">
-                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-privacy-contact-sub', 'en')"><span class="flag">🇬🇧</span>EN</button>
-                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-privacy-contact-sub', 'fr')"><span class="flag">🇫🇷</span>FR</button>
-                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-privacy-contact-sub', 'es')"><span class="flag">🇪🇸</span>ES</button>
-                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-privacy-contact-sub', 'nl')"><span class="flag">🇳🇱</span>NL</button>
-                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-privacy-contact-sub')" title="Auto-translate">✨</button>
-                                </div>
-                                <div class="translation-input-group">
-                                    <input type="text" class="form-input translation-input active" id="wb-page-privacy-contact-sub-en" data-lang="en" value="Data Controller Contact" placeholder="Sub-heading (leave blank to hide)...">
-                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-contact-sub-fr" data-lang="fr" placeholder="">
-                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-contact-sub-es" data-lang="es" placeholder="">
-                                    <input type="text" class="form-input translation-input" id="wb-page-privacy-contact-sub-nl" data-lang="nl" placeholder="">
-                                </div>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Content <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
-                            <div class="translation-field-wrapper" data-translation-group="wb-page-privacy-contact">
-                                <div class="translation-tabs">
-                                    <button type="button" class="translation-tab active" data-lang="en" onclick="switchTranslationTab('wb-page-privacy-contact', 'en')"><span class="flag">🇬🇧</span>EN</button>
-                                    <button type="button" class="translation-tab" data-lang="fr" onclick="switchTranslationTab('wb-page-privacy-contact', 'fr')"><span class="flag">🇫🇷</span>FR</button>
-                                    <button type="button" class="translation-tab" data-lang="es" onclick="switchTranslationTab('wb-page-privacy-contact', 'es')"><span class="flag">🇪🇸</span>ES</button>
-                                    <button type="button" class="translation-tab" data-lang="nl" onclick="switchTranslationTab('wb-page-privacy-contact', 'nl')"><span class="flag">🇳🇱</span>NL</button>
-                                    <button type="button" class="auto-translate-btn" onclick="autoTranslateField('wb-page-privacy-contact')" title="Auto-translate">✨</button>
-                                </div>
-                                <div class="translation-input-group">
-                                    <textarea class="form-textarea translation-input active" id="wb-page-privacy-contact-en" data-lang="en" rows="3" placeholder="For privacy-related enquiries, contact:
-[Your Business Name]
-[Email address]
-[Phone number]"></textarea>
-                                    <textarea class="form-textarea translation-input" id="wb-page-privacy-contact-fr" data-lang="fr" rows="3" placeholder=""></textarea>
-                                    <textarea class="form-textarea translation-input" id="wb-page-privacy-contact-es" data-lang="es" rows="3" placeholder=""></textarea>
-                                    <textarea class="form-textarea translation-input" id="wb-page-privacy-contact-nl" data-lang="nl" rows="3" placeholder=""></textarea>
-                                </div>
-                            </div>
-                        </div>
+                    <div class="card-header"><h3>Privacy Policy Preview</h3></div>
+                    <div class="card-body" id="wb-privacy-preview" style="max-height: 500px; overflow-y: auto; font-size: 0.9rem; color: #475569; line-height: 1.7;">
+                        <p style="color: #94a3b8; font-style: italic;">Fill in the details above to preview your privacy policy.</p>
                     </div>
                 </div>
             </div>
@@ -24704,10 +24117,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                         if (src) toggleTermsSource(src.value);
                     }
 
-                    // After loading privacy page, apply source toggle visibility
+                    // After loading privacy page, render preview
                     if (pageName === 'privacy') {
-                        const src = document.getElementById('wb-page-privacy-source');
-                        if (src) togglePrivacySource(src.value);
+                        renderPrivacyPreview();
                     }
                 }
             } catch (error) {
@@ -24823,97 +24235,91 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
 
-        // Privacy field IDs that get populated from auto-generated defaults
-        const privacyFieldIds = [
-            'wb-page-privacy-intro-en', 'wb-page-privacy-collection-en',
-            'wb-page-privacy-how-collect-en', 'wb-page-privacy-usage-en',
-            'wb-page-privacy-sharing-en', 'wb-page-privacy-cookies-en',
-            'wb-page-privacy-rights-en', 'wb-page-privacy-retention-en',
-            'wb-page-privacy-contact-en'
-        ];
+        // Render privacy policy preview from dedicated input fields
+        function renderPrivacyPreview() {
+            const container = document.getElementById('wb-privacy-preview');
+            if (!container) return;
+            const biz = document.getElementById('wb-page-privacy-business-name')?.value?.trim() || '';
+            const email = document.getElementById('wb-page-privacy-contact-email')?.value?.trim() || '';
+            const addr = document.getElementById('wb-page-privacy-business-address')?.value?.trim() || '';
+            const name = biz || 'Our Business';
+            const emailHtml = email ? `<a href="mailto:${email}">${email}</a>` : '';
 
-        function setPrivacyFieldsReadonly(readonly) {
-            privacyFieldIds.forEach(id => {
-                const el = document.getElementById(id);
-                if (el) {
-                    el.readOnly = readonly;
-                    el.style.opacity = readonly ? '0.6' : '';
-                    el.style.backgroundColor = readonly ? '#f1f5f9' : '';
-                }
-            });
-        }
+            const sections = [];
 
-        function getPrivacyDefaults() {
-            const businessName = document.getElementById('wb-header-site-name')?.value || 'Our Property';
-            const email = document.getElementById('wb-footer-email')?.value || '';
+            sections.push({ title: 'Introduction', body:
+                `<p>${name} (\u201cwe\u201d, \u201cus\u201d, or \u201cour\u201d) is committed to protecting and respecting your privacy. This Privacy Policy explains how we collect, use, store, and protect your personal information when you visit our website, make a booking, or interact with our services.</p>`
+              + `<p>We are committed to complying with the General Data Protection Regulation (GDPR) and other applicable data protection laws. By using our website or services, you acknowledge that you have read and understood this Privacy Policy.</p>` });
 
-            const emailLink = email ? email : 'us';
-            const contactLine = email ? `\nEmail: ${email}` : '';
+            sections.push({ title: 'Information We Collect', body:
+                `<p>We may collect and process the following categories of personal data:</p>`
+              + `<p><strong>Personal Information:</strong> Name, email address, telephone number, postal address, and other contact details you provide when making a booking or enquiry.</p>`
+              + `<p><strong>Booking Details:</strong> Check-in and check-out dates, room preferences, number of guests, and any special requests or requirements.</p>`
+              + `<p><strong>Payment Information:</strong> Payment card details are processed securely by our third-party payment processor and are never stored on our servers.</p>`
+              + `<p><strong>Technical Data:</strong> IP address, browser type and version, device information, operating system, time zone setting, and browsing actions on our website.</p>` });
 
-            return {
-                'wb-page-privacy-intro-en': `${businessName} ("we", "us", or "our") is committed to protecting and respecting your privacy. This Privacy Policy explains how we collect, use, store, and protect your personal information when you visit our website, make a booking, or interact with our services.\n\nWe are committed to complying with the General Data Protection Regulation (GDPR) and other applicable data protection laws. By using our website or services, you acknowledge that you have read and understood this Privacy Policy.`,
+            sections.push({ title: 'How We Use Your Information', body:
+                `<p>We use the personal information we collect for the following purposes:</p>`
+              + `<ul><li>To process and manage your bookings and payments</li>`
+              + `<li>To send booking confirmations, reminders, and pre-arrival information</li>`
+              + `<li>To communicate with you about your stay, including responding to enquiries and requests</li>`
+              + `<li>To comply with legal and regulatory obligations, including tax and accounting requirements</li>`
+              + `<li>To improve our website, services, and guest experience</li>`
+              + `<li>To send marketing communications where you have given consent (you may opt out at any time)</li></ul>` });
 
-                'wb-page-privacy-collection-en': `We may collect and process the following categories of personal data:\n\nPersonal Information: Name, email address, telephone number, postal address, and other contact details you provide when making a booking or enquiry.\n\nBooking Details: Check-in and check-out dates, room preferences, number of guests, and any special requests or requirements.\n\nPayment Information: Payment card details are processed securely by our third-party payment processor and are never stored on our servers.\n\nTechnical Data: IP address, browser type and version, device information, operating system, time zone setting, and browsing actions on our website.`,
+            sections.push({ title: 'Payment Processing', body:
+                `<p>All payment transactions are processed through Stripe, our trusted third-party payment processor. Stripe handles your card data in compliance with PCI DSS (Payment Card Industry Data Security Standard) requirements.</p>`
+              + `<p>We never store, process, or have access to your full credit or debit card numbers. Payment information is transmitted directly to Stripe using industry-standard encryption.</p>` });
 
-                'wb-page-privacy-how-collect-en': `We collect information directly from you when you make a booking, submit an enquiry, or communicate with us. We also collect technical data automatically through cookies and similar technologies when you browse our website.`,
+            sections.push({ title: 'Cookies &amp; Analytics', body:
+                `<p>Our website uses essential cookies that are necessary for the site to function correctly, such as maintaining your session and remembering your preferences.</p>`
+              + `<p>We may use analytics tools to understand how visitors interact with our website. These tools use cookies to collect anonymised information about page visits and user behaviour, helping us improve our website and services.</p>`
+              + `<p>You can control and manage cookies through your browser settings. Please note that disabling certain cookies may affect the functionality of our website.</p>` });
 
-                'wb-page-privacy-usage-en': `We use the personal information we collect for the following purposes:\n\n- To process and manage your bookings and payments\n- To send booking confirmations, reminders, and pre-arrival information\n- To communicate with you about your stay, including responding to enquiries and requests\n- To comply with legal and regulatory obligations, including tax and accounting requirements\n- To improve our website, services, and guest experience\n- To send marketing communications where you have given consent (you may opt out at any time)`,
+            sections.push({ title: 'Third Party Services', body:
+                `<p>We work with trusted third-party service providers to deliver our services. These may include:</p>`
+              + `<ul><li><strong>Payment Processor (Stripe):</strong> To securely process payments for bookings</li>`
+              + `<li><strong>Channel Managers:</strong> To distribute availability across booking platforms</li>`
+              + `<li><strong>Hosting Provider:</strong> To host and maintain our website infrastructure</li></ul>`
+              + `<p>We only share personal data with third parties to the extent necessary for them to provide their services.</p>` });
 
-                'wb-page-privacy-sharing-en': `We work with trusted third-party service providers to deliver our services. These may include:\n\n- Payment Processor (Stripe): To securely process payments for bookings\n- Channel Managers: To distribute availability across booking platforms\n- Hosting Provider: To host and maintain our website infrastructure\n\nWe only share personal data with third parties to the extent necessary for them to provide their services. All third-party providers are contractually required to protect your data and use it only for the purposes we specify.\n\nAll payment transactions are processed through Stripe in compliance with PCI DSS requirements. We never store, process, or have access to your full credit or debit card numbers.`,
+            sections.push({ title: 'Data Retention', body:
+                `<p>We retain personal data only for as long as necessary to fulfil the purposes for which it was collected:</p>`
+              + `<ul><li><strong>Booking and financial records:</strong> Retained for the period required by applicable tax and accounting regulations (typically 7 years)</li>`
+              + `<li><strong>Marketing data:</strong> Retained until you withdraw your consent or unsubscribe</li>`
+              + `<li><strong>Technical logs:</strong> Retained for up to 90 days for security and performance monitoring</li></ul>`
+              + `<p>After the applicable retention period, personal data is securely deleted or anonymised.</p>` });
 
-                'wb-page-privacy-cookies-en': `Our website uses essential cookies that are necessary for the site to function correctly, such as maintaining your session and remembering your preferences.\n\nWe may use analytics tools to understand how visitors interact with our website. These tools use cookies to collect anonymised information about page visits and user behaviour, helping us improve our website and services.\n\nYou can control and manage cookies through your browser settings. Please note that disabling certain cookies may affect the functionality of our website.`,
+            sections.push({ title: 'Your Rights (GDPR)', body:
+                `<p>Under the General Data Protection Regulation (GDPR), you have the following rights regarding your personal data:</p>`
+              + `<ul><li><strong>Right of Access:</strong> You may request a copy of the personal data we hold about you</li>`
+              + `<li><strong>Right to Rectification:</strong> You may request that we correct any inaccurate or incomplete data</li>`
+              + `<li><strong>Right to Erasure:</strong> You may request that we delete your personal data, subject to legal obligations</li>`
+              + `<li><strong>Right to Data Portability:</strong> You may request your data in a structured, commonly used, machine-readable format</li>`
+              + `<li><strong>Right to Restrict Processing:</strong> You may request that we limit how we use your data</li>`
+              + `<li><strong>Right to Object:</strong> You may object to the processing of your personal data for certain purposes</li>`
+              + `<li><strong>Right to Lodge a Complaint:</strong> You have the right to lodge a complaint with a supervisory authority</li></ul>`
+              + (email ? `<p>To exercise any of these rights, please contact us at ${emailHtml}. We will respond to your request within 30 days.</p>` : `<p>To exercise any of these rights, please contact us using the details provided below. We will respond to your request within 30 days.</p>`) });
 
-                'wb-page-privacy-rights-en': `Under the General Data Protection Regulation (GDPR), you have the following rights regarding your personal data:\n\n- Right of Access: You may request a copy of the personal data we hold about you\n- Right to Rectification: You may request that we correct any inaccurate or incomplete data\n- Right to Erasure: You may request that we delete your personal data, subject to legal obligations\n- Right to Data Portability: You may request your data in a structured, commonly used, machine-readable format\n- Right to Restrict Processing: You may request that we limit how we use your data\n- Right to Object: You may object to the processing of your personal data for certain purposes\n- Right to Lodge a Complaint: You have the right to lodge a complaint with a supervisory authority\n\nTo exercise any of these rights, please contact ${emailLink}. We will respond to your request within 30 days.`,
+            sections.push({ title: 'Google API Services Disclosure', body:
+                `<p>Our use and transfer of information received from Google APIs to any other app will adhere to the <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener noreferrer">Google API Services User Data Policy</a>, including the Limited Use requirements.</p>` });
 
-                'wb-page-privacy-retention-en': `We retain personal data only for as long as necessary to fulfil the purposes for which it was collected:\n\n- Booking and financial records: Retained for the period required by applicable tax and accounting regulations (typically 7 years)\n- Marketing data: Retained until you withdraw your consent or unsubscribe\n- Technical logs: Retained for up to 90 days for security and performance monitoring\n\nAfter the applicable retention period, personal data is securely deleted or anonymised.`,
+            let contactBody = '<p>If you have any questions about this Privacy Policy or how we handle your personal data, please contact us:</p>';
+            if (biz) contactBody += `<p><strong>${name}</strong></p>`;
+            if (email) contactBody += `<p>Email: ${emailHtml}</p>`;
+            if (addr) contactBody += `<p>Address: ${addr.replace(/\n/g, ', ')}</p>`;
+            sections.push({ title: 'Contact Us', body: contactBody });
 
-                'wb-page-privacy-contact-en': `If you have any questions about this Privacy Policy or how we handle your personal data, please contact us:\n\n${businessName}${contactLine}`
-            };
-        }
-
-        function populatePrivacyDefaults() {
-            const defaults = getPrivacyDefaults();
-            Object.entries(defaults).forEach(([id, val]) => {
-                const el = document.getElementById(id);
-                if (el) el.value = val;
-            });
-        }
-
-        function togglePrivacySource(mode) {
-            const note = document.getElementById('wb-privacy-gas-readonly-note');
-            const copyBtn = document.getElementById('wb-privacy-copy-btn');
-            const desc = document.getElementById('wb-privacy-source-desc');
-            if (mode === 'gas-account') {
-                if (desc) desc.textContent = 'Auto-generate a professional privacy policy from your business details, or select custom content to write your own';
-                if (note) note.style.display = '';
-                if (copyBtn) copyBtn.style.display = 'none';
-                setPrivacyFieldsReadonly(true);
-                populatePrivacyDefaults();
-            } else {
-                if (desc) desc.textContent = 'The content below has been copied from GAS Account, please edit to display your custom Privacy Policy on your web site';
-                if (copyBtn) copyBtn.style.display = '';
-                setPrivacyFieldsReadonly(false);
-                const hasContent = privacyFieldIds.some(id => { const el = document.getElementById(id); return el && el.value.trim(); });
-                if (note) {
-                    if (hasContent) {
-                        note.innerHTML = 'The Privacy Policy content has been copied from GAS Account, edit to change the content on your website';
-                        note.style.display = '';
-                    } else {
-                        note.style.display = 'none';
-                    }
-                }
+            if (!biz && !email && !addr) {
+                container.innerHTML = '<p style="color: #94a3b8; font-style: italic;">Fill in the details above to preview your privacy policy.</p>';
+                return;
             }
-        }
 
-        function copyPrivacyFromGAS() {
-            const hasContent = privacyFieldIds.some(id => { const el = document.getElementById(id); return el && el.value.trim(); });
-            if (hasContent && !confirm('This will overwrite existing content. Continue?')) return;
-            populatePrivacyDefaults();
-            const note = document.getElementById('wb-privacy-gas-readonly-note');
-            if (note) {
-                note.innerHTML = 'The Privacy Policy content has been copied from GAS Account, edit to change the content on your website';
-                note.style.display = '';
-            }
+            container.innerHTML = sections.map((s, i) =>
+                `<div style="margin-bottom: 1.5rem;${i > 0 ? ' padding-top: 1.5rem; border-top: 1px solid #e2e8f0;' : ''}">`
+              + `<h4 style="color: #1e293b; margin: 0 0 0.75rem; font-size: 1rem;">${s.title}</h4>`
+              + `<div style="line-height: 1.7;">${s.body}</div></div>`
+            ).join('');
         }
 
         function previewSubPageImage(pageName, imageType) {
