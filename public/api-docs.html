@@ -625,6 +625,18 @@
                 }
             },
             
+            "/api/elevate/_KEY_/tenant/{tenantId}/properties": {
+                "get": {
+                    "tags": ["Tenants"],
+                    "summary": "List Tenant Properties",
+                    "description": "Returns all properties belonging to a tenant account, with room counts. Use property IDs to fetch terms, rooms, images, etc.",
+                    "parameters": [
+                        { "name": "tenantId", "in": "path", "required": true, "schema": { "type": "string" }, "description": "Tenant account ID" }
+                    ],
+                    "responses": { "200": { "description": "List of properties", "content": { "application/json": { "example": { "success": true, "properties": [{ "id": 532, "name": "Mountain Lodge", "account_id": 42, "address": "Hauptgasse 33, Olten", "currency": "CHF", "room_count_live": 5 }] } } } } }
+                }
+            },
+
             // ===== PROPERTIES & ROOMS =====
             "/api/elevate/_KEY_/property": {
                 "post": {
@@ -788,7 +800,7 @@
                 "get": {
                     "tags": ["Properties & Rooms"],
                     "summary": "Get Property Terms",
-                    "description": "Get check-in/out times, house rules, cancellation policy and other terms.",
+                    "description": "Get check-in/out times, house rules, cancellation policy and other terms for a property.\n\n**Extended fields** (synced from channel managers or set manually):\n- `check_in_instructions` / `check_out_instructions` — guest arrival/departure details\n- `directions` — how to reach the property\n- `area_info` — neighbourhood and local information\n- `damage_policy` — security deposit and damage terms\n- `terms_conditions` — full booking terms and conditions\n- `apply_to_all` — when true, these terms apply to all properties in the account\n\n**Channel manager sync:** Beds24, Hostfully, and Hostaway automatically populate these fields during property sync. Values use COALESCE — channel data only fills empty fields, never overwrites manual entries.",
                     "parameters": [
                         { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "string" } }
                     ],
@@ -797,7 +809,7 @@
                 "put": {
                     "tags": ["Properties & Rooms"],
                     "summary": "Set Property Terms",
-                    "description": "Update check-in/out times, house rules, cancellation policy and other terms. Send only the fields you want to update.",
+                    "description": "Update check-in/out times, house rules, cancellation policy and other terms. Send only the fields you want to update. Set `apply_to_all: true` to use these terms for every property in the account.",
                     "parameters": [
                         { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "string" } }
                     ],
@@ -1604,6 +1616,10 @@
                                     "seo": {
                                         "summary": "SEO & Analytics settings",
                                         "value": { "settings": { "enabled": true, "meta-title": "Mountain Lodge — Luxury Alpine Retreat", "meta-description": "Book your stay at our award-winning mountain lodge in the Swiss Alps.", "og-image": "https://example.com/og.jpg", "include-schema": true, "include-faqs": true, "google-analytics-id": "G-XXXXXXXXXX", "google-tag-manager-id": "GTM-XXXXXXX", "facebook-pixel-id": "123456789", "google-site-verification": "abc123xyz" } }
+                                    },
+                                    "page-terms": {
+                                        "summary": "Terms & Conditions page",
+                                        "value": { "settings": { "enabled": true, "source": "gas-account", "title-en": "Terms & Conditions", "menu-title-en": "Terms", "checkin-time": "15:00", "checkout-time": "11:00", "checkin-details-en": "Key collection from lockbox.", "cancellation-en": "Free cancellation up to 48 hours.", "house-rules-en": "No smoking. No parties.", "booking-en": "By booking you agree to the house rules.", "liability-en": "Security deposit: EUR 500", "additional-en": "Located in historic quarter." } }
                                     },
                                     "page-about": {
                                         "summary": "About Us page with hero + 2 content images",
