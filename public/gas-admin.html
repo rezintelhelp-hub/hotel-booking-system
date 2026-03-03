@@ -24709,7 +24709,7 @@ const promo = await fetch('/api/v1/offers/validate', {
 
         // Shared: fetch the best property_terms for this account (apply_to_all first, then first with data)
         async function fetchAccountPropertyTerms() {
-            const acctId = selectedAccountId;
+            const acctId = selectedAccountId || selectedWebsiteData?.account_id;
             if (!acctId) return null;
             const propsResp = await fetch(`/api/accounts/${acctId}/properties`, { headers: authHeaders() });
             const propsData = await propsResp.json();
