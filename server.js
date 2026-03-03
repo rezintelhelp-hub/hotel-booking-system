@@ -35851,15 +35851,33 @@ app.post('/api/hostaway/import-property', async (req, res) => {
       console.log('   Created new bookable unit');
     }
     
+    // Sync property_terms with Hostaway data (check-in/out, house rules)
+    await pool.query(`
+      INSERT INTO property_terms (property_id, checkin_from, checkout_by, checkin_until, additional_rules)
+      VALUES ($1, $2, $3, $4, $5)
+      ON CONFLICT (property_id) DO UPDATE SET
+        checkin_from = COALESCE(NULLIF($2, ''), property_terms.checkin_from),
+        checkout_by = COALESCE(NULLIF($3, ''), property_terms.checkout_by),
+        checkin_until = COALESCE(NULLIF($4, ''), property_terms.checkin_until),
+        additional_rules = COALESCE(NULLIF($5, ''), property_terms.additional_rules),
+        updated_at = NOW()
+    `, [
+      propertyId,
+      property.checkInTimeStart ? `${property.checkInTimeStart}:00` : '',
+      property.checkOutTime ? `${property.checkOutTime}:00` : '',
+      property.checkInTimeEnd ? `${property.checkInTimeEnd}:00` : '',
+      property.houseRules || ''
+    ]).catch(e => console.log('Hostaway import: property_terms sync:', e.message));
+
     await client.query('COMMIT');
-    
+
     res.json({
       success: true,
       propertyId,
       hostawayListingId: property.id,
       message: 'Property imported successfully'
     });
-    
+
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('Hostaway import error:', error.message);
@@ -36006,14 +36024,32 @@ app.post('/api/hostaway/resync-single-property', async (req, res) => {
       console.log('   Note: Could not update cache:', cacheErr.message);
     }
     
+    // Sync property_terms with Hostaway data (check-in/out, house rules)
+    await pool.query(`
+      INSERT INTO property_terms (property_id, checkin_from, checkout_by, checkin_until, additional_rules)
+      VALUES ($1, $2, $3, $4, $5)
+      ON CONFLICT (property_id) DO UPDATE SET
+        checkin_from = COALESCE(NULLIF($2, ''), property_terms.checkin_from),
+        checkout_by = COALESCE(NULLIF($3, ''), property_terms.checkout_by),
+        checkin_until = COALESCE(NULLIF($4, ''), property_terms.checkin_until),
+        additional_rules = COALESCE(NULLIF($5, ''), property_terms.additional_rules),
+        updated_at = NOW()
+    `, [
+      propertyId,
+      listing.checkInTimeStart ? `${listing.checkInTimeStart}:00` : '',
+      listing.checkOutTime ? `${listing.checkOutTime}:00` : '',
+      listing.checkInTimeEnd ? `${listing.checkInTimeEnd}:00` : '',
+      listing.houseRules || ''
+    ]).catch(e => console.log('Hostaway resync: property_terms sync:', e.message));
+
     console.log(`   ✓ Updated: "${propertyName}" / display: "${displayNameText}"`);
-    
+
     res.json({
       success: true,
       message: `Synced: ${displayNameText}`,
       property: { id: propertyId, name: propertyName, displayName: displayNameText }
     });
-    
+
   } catch (error) {
     console.error('Hostaway resync error:', error.message);
     res.json({ success: false, error: error.message });
@@ -73127,10 +73163,28 @@ app.post('/api/hostaway-wizard/import', async (req, res) => {
       }
     }
     
+    // Sync property_terms with Hostaway data (check-in/out, house rules)
+    await pool.query(`
+      INSERT INTO property_terms (property_id, checkin_from, checkout_by, checkin_until, additional_rules)
+      VALUES ($1, $2, $3, $4, $5)
+      ON CONFLICT (property_id) DO UPDATE SET
+        checkin_from = COALESCE(NULLIF($2, ''), property_terms.checkin_from),
+        checkout_by = COALESCE(NULLIF($3, ''), property_terms.checkout_by),
+        checkin_until = COALESCE(NULLIF($4, ''), property_terms.checkin_until),
+        additional_rules = COALESCE(NULLIF($5, ''), property_terms.additional_rules),
+        updated_at = NOW()
+    `, [
+      gasPropertyId,
+      listing.checkInTimeStart ? `${listing.checkInTimeStart}:00` : '',
+      listing.checkOutTime ? `${listing.checkOutTime}:00` : '',
+      listing.checkInTimeEnd ? `${listing.checkInTimeEnd}:00` : '',
+      listing.houseRules || ''
+    ]).catch(e => console.log('Hostaway wizard: property_terms sync:', e.message));
+
     console.log(`Hostaway wizard: Imported listing ${listing.name} (ID ${listing.id}) -> GAS property ${gasPropertyId}`);
     console.log(`  - Bookable unit created: ${gasRoomId}`);
     console.log(`  - Images: ${imagesCreated}`);
-    
+
     res.json({
       success: true,
       message: 'Property imported successfully',
@@ -73141,7 +73195,7 @@ app.post('/api/hostaway-wizard/import', async (req, res) => {
         imagesCreated
       }
     });
-    
+
   } catch (error) {
     console.error('Hostaway wizard import error:', error);
     res.json({ success: false, error: error.message });
