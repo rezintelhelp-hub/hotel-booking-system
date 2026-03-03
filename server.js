@@ -13790,11 +13790,11 @@ app.get('/api/accounts/:id/properties', async (req, res) => {
     const { id } = req.params;
 
     const result = await pool.query(`
-      SELECT ap.*,
-             (SELECT COUNT(*) FROM account_rooms ar WHERE ar.property_id = ap.id) as room_count_live
-      FROM account_properties ap
-      WHERE ap.account_id = $1
-      ORDER BY ap.name
+      SELECT p.*,
+             (SELECT COUNT(*) FROM bookable_units bu WHERE bu.property_id = p.id) as room_count_live
+      FROM properties p
+      WHERE p.account_id = $1
+      ORDER BY p.name
     `, [id]);
 
     res.json({ success: true, properties: result.rows });
