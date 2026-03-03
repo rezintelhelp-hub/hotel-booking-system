@@ -24028,6 +24028,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const prefix = `wb-page-${pageName}-`;
 
                 // Collect all inputs for this page
+                // When cloned elements exist (footer panel), prefer non-empty values
                 document.querySelectorAll(`[id^="wb-page-${pageName}-"]`).forEach(el => {
                     const key = el.id.replace(prefix, '');
                     if (key.endsWith('-picker') || key.endsWith('-value') || key.endsWith('-preview')) return;
@@ -24036,7 +24037,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                     } else if (el.type === 'file') {
                         // Skip file inputs
                     } else if (el.tagName === 'SELECT' || el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
-                        settings[key] = el.value;
+                        // Prefer non-empty: don't overwrite a non-empty value with empty
+                        if (!settings.hasOwnProperty(key) || el.value !== '') {
+                            settings[key] = el.value;
+                        }
                     }
                 });
 
@@ -24079,31 +24083,23 @@ const promo = await fetch('/api/v1/offers/validate', {
                 if (data.success && data.settings) {
                     const settings = data.settings;
                     const prefix = `wb-page-${pageName}`;
-                    // Scope lookups to the main view container to avoid cloned duplicates
-                    const pageContainer = document.getElementById(`wb-page-${pageName}`);
 
+                    // Set ALL matching elements (originals + clones) so both views stay in sync
                     Object.keys(settings).forEach(key => {
-                        const el = pageContainer
-                            ? pageContainer.querySelector(`[id="${prefix}-${key}"]`)
-                            : document.getElementById(`${prefix}-${key}`);
-                        if (el) {
+                        document.querySelectorAll(`[id="${prefix}-${key}"]`).forEach(el => {
                             if (el.type === 'checkbox') {
                                 el.checked = !!settings[key];
-                            } else {
+                            } else if (el.tagName === 'SELECT' || el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
                                 el.value = settings[key] || '';
                             }
+                        });
 
-                            // Handle image previews
-                            if (key.endsWith('-url') && settings[key]) {
-                                const previewId = el.id.replace('-url', '-preview');
-                                const preview = pageContainer
-                                    ? pageContainer.querySelector(`[id="${previewId}"]`)
-                                    : document.getElementById(previewId);
-                                if (preview) {
-                                    preview.style.backgroundImage = `url(${settings[key]})`;
-                                    preview.innerHTML = '';
-                                }
-                            }
+                        // Handle image previews
+                        if (key.endsWith('-url') && settings[key]) {
+                            document.querySelectorAll(`[id="${prefix}-${key.replace('-url', '-preview')}"]`).forEach(preview => {
+                                preview.style.backgroundImage = `url(${settings[key]})`;
+                                preview.innerHTML = '';
+                            });
                         }
                     });
 
@@ -24241,91 +24237,360 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
 
-        // Render privacy policy preview from dedicated input fields
-        function renderPrivacyPreview() {
-            const container = document.getElementById('wb-privacy-preview');
-            if (!container) return;
-            const biz = document.getElementById('wb-page-privacy-business-name')?.value?.trim() || '';
-            const email = document.getElementById('wb-page-privacy-contact-email')?.value?.trim() || '';
-            const addr = document.getElementById('wb-page-privacy-business-address')?.value?.trim() || '';
-            const name = biz || 'Our Business';
-            const emailHtml = email ? `<a href="mailto:${email}">${email}</a>` : '';
+        // Privacy policy translations — mirrors template-privacy.php $t array
+        const privacyTranslations = {
+            en: {
+                our_business: 'Our Business', intro_title: 'Introduction',
+                intro_p1: '%s (\u201cwe\u201d, \u201cus\u201d, or \u201cour\u201d) is committed to protecting and respecting your privacy. This Privacy Policy explains how we collect, use, store, and protect your personal information when you visit our website, make a booking, or interact with our services.',
+                intro_p2: 'We are committed to complying with the General Data Protection Regulation (GDPR) and other applicable data protection laws. By using our website or services, you acknowledge that you have read and understood this Privacy Policy.',
+                collect_title: 'Information We Collect', collect_intro: 'We may collect and process the following categories of personal data:',
+                collect_personal: 'Personal Information:', collect_personal_d: 'Name, email address, telephone number, postal address, and other contact details you provide when making a booking or enquiry.',
+                collect_booking: 'Booking Details:', collect_booking_d: 'Check-in and check-out dates, room preferences, number of guests, and any special requests or requirements.',
+                collect_payment: 'Payment Information:', collect_payment_d: 'Payment card details are processed securely by our third-party payment processor and are never stored on our servers.',
+                collect_tech: 'Technical Data:', collect_tech_d: 'IP address, browser type and version, device information, operating system, time zone setting, and browsing actions on our website.',
+                usage_title: 'How We Use Your Information', usage_intro: 'We use the personal information we collect for the following purposes:',
+                usage_1: 'To process and manage your bookings and payments', usage_2: 'To send booking confirmations, reminders, and pre-arrival information',
+                usage_3: 'To communicate with you about your stay, including responding to enquiries and requests', usage_4: 'To comply with legal and regulatory obligations, including tax and accounting requirements',
+                usage_5: 'To improve our website, services, and guest experience', usage_6: 'To send marketing communications where you have given consent (you may opt out at any time)',
+                payment_title: 'Payment Processing',
+                payment_p1: 'All payment transactions are processed through Stripe, our trusted third-party payment processor. Stripe handles your card data in compliance with PCI DSS (Payment Card Industry Data Security Standard) requirements.',
+                payment_p2: 'We never store, process, or have access to your full credit or debit card numbers. Payment information is transmitted directly to Stripe using industry-standard encryption.',
+                cookies_title: 'Cookies & Analytics',
+                cookies_generic: 'Our website uses essential cookies that are necessary for the site to function correctly, such as maintaining your session and remembering your preferences.',
+                cookies_analytics: 'We may use analytics tools to understand how visitors interact with our website. These tools use cookies to collect anonymised information about page visits and user behaviour, helping us improve our website and services.',
+                cookies_manage: 'You can control and manage cookies through your browser settings. Please note that disabling certain cookies may affect the functionality of our website.',
+                third_title: 'Third Party Services', third_intro: 'We work with trusted third-party service providers to deliver our services. These may include:',
+                third_stripe: 'Payment Processor (Stripe):', third_stripe_d: 'To securely process payments for bookings',
+                third_channel: 'Channel Managers:', third_channel_d: 'To distribute availability across booking platforms',
+                third_hosting: 'Hosting Provider:', third_hosting_d: 'To host and maintain our website infrastructure',
+                third_outro: 'We only share personal data with third parties to the extent necessary for them to provide their services.',
+                retention_title: 'Data Retention', retention_intro: 'We retain personal data only for as long as necessary to fulfil the purposes for which it was collected:',
+                retention_booking: 'Booking and financial records:', retention_booking_d: 'Retained for the period required by applicable tax and accounting regulations (typically 7 years)',
+                retention_market: 'Marketing data:', retention_market_d: 'Retained until you withdraw your consent or unsubscribe',
+                retention_logs: 'Technical logs:', retention_logs_d: 'Retained for up to 90 days for security and performance monitoring',
+                retention_outro: 'After the applicable retention period, personal data is securely deleted or anonymised.',
+                rights_title: 'Your Rights (GDPR)', rights_intro: 'Under the General Data Protection Regulation (GDPR), you have the following rights regarding your personal data:',
+                rights_access: 'Right of Access:', rights_access_d: 'You may request a copy of the personal data we hold about you',
+                rights_rectify: 'Right to Rectification:', rights_rectify_d: 'You may request that we correct any inaccurate or incomplete data',
+                rights_erase: 'Right to Erasure:', rights_erase_d: 'You may request that we delete your personal data, subject to legal obligations',
+                rights_port: 'Right to Data Portability:', rights_port_d: 'You may request your data in a structured, commonly used, machine-readable format',
+                rights_restrict: 'Right to Restrict Processing:', rights_restrict_d: 'You may request that we limit how we use your data',
+                rights_object: 'Right to Object:', rights_object_d: 'You may object to the processing of your personal data for certain purposes',
+                rights_complaint: 'Right to Lodge a Complaint:', rights_complaint_d: 'You have the right to lodge a complaint with a supervisory authority',
+                rights_contact: 'To exercise any of these rights, please contact us at %s. We will respond to your request within 30 days.',
+                rights_contact_generic: 'To exercise any of these rights, please contact us using the details provided below. We will respond to your request within 30 days.',
+                google_title: 'Google API Services Disclosure',
+                google_body: 'Our use and transfer of information received from Google APIs to any other app will adhere to the <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener noreferrer">Google API Services User Data Policy</a>, including the Limited Use requirements.',
+                contact_title: 'Contact Us', contact_intro: 'If you have any questions about this Privacy Policy or how we handle your personal data, please contact us:',
+                contact_email: 'Email:', contact_address: 'Address:',
+            },
+            fr: {
+                our_business: 'Notre Entreprise', intro_title: 'Introduction',
+                intro_p1: '%s (\u00ab nous \u00bb, \u00ab notre \u00bb ou \u00ab nos \u00bb) s\'engage \u00e0 prot\u00e9ger et \u00e0 respecter votre vie priv\u00e9e. Cette Politique de Confidentialit\u00e9 explique comment nous collectons, utilisons, stockons et prot\u00e9geons vos informations personnelles lorsque vous visitez notre site web, effectuez une r\u00e9servation ou interagissez avec nos services.',
+                intro_p2: 'Nous nous engageons \u00e0 respecter le R\u00e8glement G\u00e9n\u00e9ral sur la Protection des Donn\u00e9es (RGPD) et les autres lois applicables en mati\u00e8re de protection des donn\u00e9es. En utilisant notre site web ou nos services, vous reconnaissez avoir lu et compris cette Politique de Confidentialit\u00e9.',
+                collect_title: 'Informations que nous collectons', collect_intro: 'Nous pouvons collecter et traiter les cat\u00e9gories suivantes de donn\u00e9es personnelles :',
+                collect_personal: 'Informations personnelles :', collect_personal_d: 'Nom, adresse e-mail, num\u00e9ro de t\u00e9l\u00e9phone, adresse postale et autres coordonn\u00e9es que vous fournissez lors d\'une r\u00e9servation ou d\'une demande.',
+                collect_booking: 'D\u00e9tails de r\u00e9servation :', collect_booking_d: 'Dates d\'arriv\u00e9e et de d\u00e9part, pr\u00e9f\u00e9rences de chambre, nombre de voyageurs et toute demande ou exigence particuli\u00e8re.',
+                collect_payment: 'Informations de paiement :', collect_payment_d: 'Les donn\u00e9es de carte de paiement sont trait\u00e9es de mani\u00e8re s\u00e9curis\u00e9e par notre prestataire de paiement tiers et ne sont jamais stock\u00e9es sur nos serveurs.',
+                collect_tech: 'Donn\u00e9es techniques :', collect_tech_d: 'Adresse IP, type et version du navigateur, informations sur l\'appareil, syst\u00e8me d\'exploitation, fuseau horaire et actions de navigation sur notre site web.',
+                usage_title: 'Comment nous utilisons vos informations', usage_intro: 'Nous utilisons les informations personnelles collect\u00e9es aux fins suivantes :',
+                usage_1: 'Traiter et g\u00e9rer vos r\u00e9servations et paiements', usage_2: 'Envoyer des confirmations de r\u00e9servation, des rappels et des informations pr\u00e9-arriv\u00e9e',
+                usage_3: 'Communiquer avec vous au sujet de votre s\u00e9jour, y compris r\u00e9pondre aux demandes et requ\u00eates', usage_4: 'Respecter les obligations l\u00e9gales et r\u00e9glementaires, y compris les exigences fiscales et comptables',
+                usage_5: 'Am\u00e9liorer notre site web, nos services et l\'exp\u00e9rience de nos clients', usage_6: 'Envoyer des communications marketing lorsque vous avez donn\u00e9 votre consentement (vous pouvez vous d\u00e9sinscrire \u00e0 tout moment)',
+                payment_title: 'Traitement des paiements',
+                payment_p1: 'Toutes les transactions de paiement sont trait\u00e9es par Stripe, notre prestataire de paiement tiers de confiance. Stripe traite vos donn\u00e9es de carte conform\u00e9ment aux exigences PCI DSS.',
+                payment_p2: 'Nous ne stockons, traitons ni n\'avons acc\u00e8s \u00e0 vos num\u00e9ros complets de carte de cr\u00e9dit ou de d\u00e9bit. Les informations de paiement sont transmises directement \u00e0 Stripe \u00e0 l\'aide d\'un chiffrement conforme aux normes du secteur.',
+                cookies_title: 'Cookies et analyse',
+                cookies_generic: 'Notre site web utilise des cookies essentiels n\u00e9cessaires au bon fonctionnement du site, tels que le maintien de votre session et la m\u00e9morisation de vos pr\u00e9f\u00e9rences.',
+                cookies_analytics: 'Nous pouvons utiliser des outils d\'analyse pour comprendre comment les visiteurs interagissent avec notre site web. Ces outils utilisent des cookies pour collecter des informations anonymis\u00e9es sur les visites de pages et le comportement des utilisateurs.',
+                cookies_manage: 'Vous pouvez contr\u00f4ler et g\u00e9rer les cookies via les param\u00e8tres de votre navigateur. Veuillez noter que la d\u00e9sactivation de certains cookies peut affecter le fonctionnement de notre site web.',
+                third_title: 'Services tiers', third_intro: 'Nous travaillons avec des prestataires de services tiers de confiance pour fournir nos services. Ceux-ci peuvent inclure :',
+                third_stripe: 'Processeur de paiement (Stripe) :', third_stripe_d: 'Pour traiter de mani\u00e8re s\u00e9curis\u00e9e les paiements des r\u00e9servations',
+                third_channel: 'Gestionnaires de canaux :', third_channel_d: 'Pour distribuer la disponibilit\u00e9 sur les plateformes de r\u00e9servation',
+                third_hosting: 'Fournisseur d\'h\u00e9bergement :', third_hosting_d: 'Pour h\u00e9berger et maintenir l\'infrastructure de notre site web',
+                third_outro: 'Nous ne partageons les donn\u00e9es personnelles avec des tiers que dans la mesure n\u00e9cessaire \u00e0 la fourniture de leurs services.',
+                retention_title: 'Conservation des donn\u00e9es', retention_intro: 'Nous conservons les donn\u00e9es personnelles uniquement pendant la dur\u00e9e n\u00e9cessaire \u00e0 la r\u00e9alisation des finalit\u00e9s pour lesquelles elles ont \u00e9t\u00e9 collect\u00e9es :',
+                retention_booking: 'Dossiers de r\u00e9servation et financiers :', retention_booking_d: 'Conserv\u00e9s pendant la dur\u00e9e requise par les r\u00e9glementations fiscales et comptables applicables (g\u00e9n\u00e9ralement 7 ans)',
+                retention_market: 'Donn\u00e9es marketing :', retention_market_d: 'Conserv\u00e9es jusqu\'au retrait de votre consentement ou \u00e0 votre d\u00e9sinscription',
+                retention_logs: 'Journaux techniques :', retention_logs_d: 'Conserv\u00e9s jusqu\'\u00e0 90 jours pour la surveillance de la s\u00e9curit\u00e9 et des performances',
+                retention_outro: 'Apr\u00e8s la p\u00e9riode de conservation applicable, les donn\u00e9es personnelles sont supprim\u00e9es de mani\u00e8re s\u00e9curis\u00e9e ou anonymis\u00e9es.',
+                rights_title: 'Vos droits (RGPD)', rights_intro: 'En vertu du R\u00e8glement G\u00e9n\u00e9ral sur la Protection des Donn\u00e9es (RGPD), vous disposez des droits suivants concernant vos donn\u00e9es personnelles :',
+                rights_access: 'Droit d\'acc\u00e8s :', rights_access_d: 'Vous pouvez demander une copie des donn\u00e9es personnelles que nous d\u00e9tenons \u00e0 votre sujet',
+                rights_rectify: 'Droit de rectification :', rights_rectify_d: 'Vous pouvez demander la correction de toute donn\u00e9e inexacte ou incompl\u00e8te',
+                rights_erase: 'Droit \u00e0 l\'effacement :', rights_erase_d: 'Vous pouvez demander la suppression de vos donn\u00e9es personnelles, sous r\u00e9serve des obligations l\u00e9gales',
+                rights_port: 'Droit \u00e0 la portabilit\u00e9 :', rights_port_d: 'Vous pouvez demander vos donn\u00e9es dans un format structur\u00e9, couramment utilis\u00e9 et lisible par machine',
+                rights_restrict: 'Droit \u00e0 la limitation du traitement :', rights_restrict_d: 'Vous pouvez demander la limitation de l\'utilisation de vos donn\u00e9es',
+                rights_object: 'Droit d\'opposition :', rights_object_d: 'Vous pouvez vous opposer au traitement de vos donn\u00e9es personnelles \u00e0 certaines fins',
+                rights_complaint: 'Droit de r\u00e9clamation :', rights_complaint_d: 'Vous avez le droit de d\u00e9poser une r\u00e9clamation aupr\u00e8s d\'une autorit\u00e9 de contr\u00f4le',
+                rights_contact: 'Pour exercer l\'un de ces droits, veuillez nous contacter \u00e0 %s. Nous r\u00e9pondrons \u00e0 votre demande dans un d\u00e9lai de 30 jours.',
+                rights_contact_generic: 'Pour exercer l\'un de ces droits, veuillez nous contacter en utilisant les coordonn\u00e9es ci-dessous. Nous r\u00e9pondrons \u00e0 votre demande dans un d\u00e9lai de 30 jours.',
+                google_title: 'Divulgation relative aux services API Google',
+                google_body: 'Notre utilisation et notre transfert d\'informations re\u00e7ues des API Google vers toute autre application respecteront la <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener noreferrer">Politique relative aux donn\u00e9es utilisateur des services API Google</a>, y compris les exigences d\'utilisation limit\u00e9e.',
+                contact_title: 'Nous contacter', contact_intro: 'Si vous avez des questions concernant cette Politique de Confidentialit\u00e9 ou la mani\u00e8re dont nous traitons vos donn\u00e9es personnelles, veuillez nous contacter :',
+                contact_email: 'E-mail :', contact_address: 'Adresse :',
+            },
+            es: {
+                our_business: 'Nuestra Empresa', intro_title: 'Introducci\u00f3n',
+                intro_p1: '%s (\u201cnosotros\u201d, \u201cnuestro\u201d o \u201cnos\u201d) se compromete a proteger y respetar su privacidad. Esta Pol\u00edtica de Privacidad explica c\u00f3mo recopilamos, utilizamos, almacenamos y protegemos su informaci\u00f3n personal cuando visita nuestro sitio web, realiza una reserva o interact\u00faa con nuestros servicios.',
+                intro_p2: 'Nos comprometemos a cumplir con el Reglamento General de Protecci\u00f3n de Datos (RGPD) y otras leyes de protecci\u00f3n de datos aplicables. Al utilizar nuestro sitio web o servicios, usted reconoce haber le\u00eddo y comprendido esta Pol\u00edtica de Privacidad.',
+                collect_title: 'Informaci\u00f3n que recopilamos', collect_intro: 'Podemos recopilar y procesar las siguientes categor\u00edas de datos personales:',
+                collect_personal: 'Informaci\u00f3n personal:', collect_personal_d: 'Nombre, direcci\u00f3n de correo electr\u00f3nico, n\u00famero de tel\u00e9fono, direcci\u00f3n postal y otros datos de contacto que proporcione al realizar una reserva o consulta.',
+                collect_booking: 'Detalles de reserva:', collect_booking_d: 'Fechas de entrada y salida, preferencias de habitaci\u00f3n, n\u00famero de hu\u00e9spedes y cualquier solicitud o requisito especial.',
+                collect_payment: 'Informaci\u00f3n de pago:', collect_payment_d: 'Los datos de la tarjeta de pago son procesados de forma segura por nuestro procesador de pagos externo y nunca se almacenan en nuestros servidores.',
+                collect_tech: 'Datos t\u00e9cnicos:', collect_tech_d: 'Direcci\u00f3n IP, tipo y versi\u00f3n del navegador, informaci\u00f3n del dispositivo, sistema operativo, zona horaria y acciones de navegaci\u00f3n en nuestro sitio web.',
+                usage_title: 'C\u00f3mo utilizamos su informaci\u00f3n', usage_intro: 'Utilizamos la informaci\u00f3n personal recopilada para los siguientes fines:',
+                usage_1: 'Procesar y gestionar sus reservas y pagos', usage_2: 'Enviar confirmaciones de reserva, recordatorios e informaci\u00f3n previa a la llegada',
+                usage_3: 'Comunicarnos con usted sobre su estancia, incluyendo responder a consultas y solicitudes', usage_4: 'Cumplir con las obligaciones legales y reglamentarias, incluidos los requisitos fiscales y contables',
+                usage_5: 'Mejorar nuestro sitio web, servicios y experiencia del hu\u00e9sped', usage_6: 'Enviar comunicaciones de marketing cuando haya dado su consentimiento (puede darse de baja en cualquier momento)',
+                payment_title: 'Procesamiento de pagos',
+                payment_p1: 'Todas las transacciones de pago se procesan a trav\u00e9s de Stripe, nuestro procesador de pagos externo de confianza. Stripe gestiona los datos de su tarjeta en cumplimiento con los requisitos PCI DSS.',
+                payment_p2: 'Nunca almacenamos, procesamos ni tenemos acceso a sus n\u00fameros completos de tarjeta de cr\u00e9dito o d\u00e9bito. La informaci\u00f3n de pago se transmite directamente a Stripe utilizando cifrado est\u00e1ndar de la industria.',
+                cookies_title: 'Cookies y an\u00e1lisis',
+                cookies_generic: 'Nuestro sitio web utiliza cookies esenciales necesarias para el correcto funcionamiento del sitio, como mantener su sesi\u00f3n y recordar sus preferencias.',
+                cookies_analytics: 'Podemos utilizar herramientas de an\u00e1lisis para comprender c\u00f3mo los visitantes interact\u00faan con nuestro sitio web. Estas herramientas utilizan cookies para recopilar informaci\u00f3n anonimizada sobre visitas a p\u00e1ginas y comportamiento del usuario.',
+                cookies_manage: 'Puede controlar y gestionar las cookies a trav\u00e9s de la configuraci\u00f3n de su navegador. Tenga en cuenta que desactivar ciertas cookies puede afectar al funcionamiento de nuestro sitio web.',
+                third_title: 'Servicios de terceros', third_intro: 'Trabajamos con proveedores de servicios externos de confianza para prestar nuestros servicios. Estos pueden incluir:',
+                third_stripe: 'Procesador de pagos (Stripe):', third_stripe_d: 'Para procesar de forma segura los pagos de las reservas',
+                third_channel: 'Gestores de canales:', third_channel_d: 'Para distribuir la disponibilidad en las plataformas de reserva',
+                third_hosting: 'Proveedor de alojamiento:', third_hosting_d: 'Para alojar y mantener la infraestructura de nuestro sitio web',
+                third_outro: 'Solo compartimos datos personales con terceros en la medida necesaria para que presten sus servicios.',
+                retention_title: 'Conservaci\u00f3n de datos', retention_intro: 'Conservamos los datos personales \u00fanicamente durante el tiempo necesario para cumplir los fines para los que fueron recopilados:',
+                retention_booking: 'Registros de reservas y financieros:', retention_booking_d: 'Conservados durante el per\u00edodo requerido por las regulaciones fiscales y contables aplicables (normalmente 7 a\u00f1os)',
+                retention_market: 'Datos de marketing:', retention_market_d: 'Conservados hasta que retire su consentimiento o se d\u00e9 de baja',
+                retention_logs: 'Registros t\u00e9cnicos:', retention_logs_d: 'Conservados hasta 90 d\u00edas para la supervisi\u00f3n de seguridad y rendimiento',
+                retention_outro: 'Tras el per\u00edodo de conservaci\u00f3n aplicable, los datos personales se eliminan de forma segura o se anonimizan.',
+                rights_title: 'Sus derechos (RGPD)', rights_intro: 'En virtud del Reglamento General de Protecci\u00f3n de Datos (RGPD), usted tiene los siguientes derechos respecto a sus datos personales:',
+                rights_access: 'Derecho de acceso:', rights_access_d: 'Puede solicitar una copia de los datos personales que tenemos sobre usted',
+                rights_rectify: 'Derecho de rectificaci\u00f3n:', rights_rectify_d: 'Puede solicitar la correcci\u00f3n de cualquier dato inexacto o incompleto',
+                rights_erase: 'Derecho de supresi\u00f3n:', rights_erase_d: 'Puede solicitar la eliminaci\u00f3n de sus datos personales, sujeto a obligaciones legales',
+                rights_port: 'Derecho a la portabilidad:', rights_port_d: 'Puede solicitar sus datos en un formato estructurado, de uso com\u00fan y lectura mec\u00e1nica',
+                rights_restrict: 'Derecho a la limitaci\u00f3n del tratamiento:', rights_restrict_d: 'Puede solicitar que limitemos el uso de sus datos',
+                rights_object: 'Derecho de oposici\u00f3n:', rights_object_d: 'Puede oponerse al tratamiento de sus datos personales para determinados fines',
+                rights_complaint: 'Derecho a presentar una reclamaci\u00f3n:', rights_complaint_d: 'Tiene derecho a presentar una reclamaci\u00f3n ante una autoridad de control',
+                rights_contact: 'Para ejercer cualquiera de estos derechos, cont\u00e1ctenos en %s. Responderemos a su solicitud en un plazo de 30 d\u00edas.',
+                rights_contact_generic: 'Para ejercer cualquiera de estos derechos, cont\u00e1ctenos utilizando los datos proporcionados a continuaci\u00f3n. Responderemos a su solicitud en un plazo de 30 d\u00edas.',
+                google_title: 'Divulgaci\u00f3n de servicios de API de Google',
+                google_body: 'Nuestro uso y transferencia de informaci\u00f3n recibida de las API de Google a cualquier otra aplicaci\u00f3n cumplir\u00e1 con la <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener noreferrer">Pol\u00edtica de Datos de Usuario de los Servicios de API de Google</a>, incluidos los requisitos de uso limitado.',
+                contact_title: 'Cont\u00e1ctenos', contact_intro: 'Si tiene alguna pregunta sobre esta Pol\u00edtica de Privacidad o sobre c\u00f3mo tratamos sus datos personales, cont\u00e1ctenos:',
+                contact_email: 'Correo electr\u00f3nico:', contact_address: 'Direcci\u00f3n:',
+            },
+            de: {
+                our_business: 'Unser Unternehmen', intro_title: 'Einleitung',
+                intro_p1: '%s (\u201ewir\u201c, \u201euns\u201c oder \u201eunser\u201c) verpflichtet sich, Ihre Privatsph\u00e4re zu sch\u00fctzen und zu respektieren. Diese Datenschutzerkl\u00e4rung erl\u00e4utert, wie wir Ihre personenbezogenen Daten erfassen, verwenden, speichern und sch\u00fctzen, wenn Sie unsere Website besuchen, eine Buchung vornehmen oder mit unseren Diensten interagieren.',
+                intro_p2: 'Wir verpflichten uns zur Einhaltung der Datenschutz-Grundverordnung (DSGVO) und anderer geltender Datenschutzgesetze. Durch die Nutzung unserer Website oder Dienste best\u00e4tigen Sie, dass Sie diese Datenschutzerkl\u00e4rung gelesen und verstanden haben.',
+                collect_title: 'Informationen, die wir erheben', collect_intro: 'Wir k\u00f6nnen die folgenden Kategorien personenbezogener Daten erheben und verarbeiten:',
+                collect_personal: 'Pers\u00f6nliche Daten:', collect_personal_d: 'Name, E-Mail-Adresse, Telefonnummer, Postanschrift und andere Kontaktdaten, die Sie bei einer Buchung oder Anfrage angeben.',
+                collect_booking: 'Buchungsdetails:', collect_booking_d: 'An- und Abreisedaten, Zimmerpr\u00e4ferenzen, Anzahl der G\u00e4ste sowie besondere W\u00fcnsche oder Anforderungen.',
+                collect_payment: 'Zahlungsinformationen:', collect_payment_d: 'Zahlungskartendaten werden sicher von unserem externen Zahlungsdienstleister verarbeitet und niemals auf unseren Servern gespeichert.',
+                collect_tech: 'Technische Daten:', collect_tech_d: 'IP-Adresse, Browsertyp und -version, Ger\u00e4teinformationen, Betriebssystem, Zeitzoneneinstellung und Browsing-Aktivit\u00e4ten auf unserer Website.',
+                usage_title: 'Wie wir Ihre Daten verwenden', usage_intro: 'Wir verwenden die erhobenen personenbezogenen Daten f\u00fcr folgende Zwecke:',
+                usage_1: 'Verarbeitung und Verwaltung Ihrer Buchungen und Zahlungen', usage_2: 'Versand von Buchungsbest\u00e4tigungen, Erinnerungen und Vorab-Informationen',
+                usage_3: 'Kommunikation mit Ihnen \u00fcber Ihren Aufenthalt, einschlie\u00dflich der Beantwortung von Anfragen und W\u00fcnschen', usage_4: 'Erf\u00fcllung gesetzlicher und regulatorischer Pflichten, einschlie\u00dflich steuer- und buchhaltungsrechtlicher Anforderungen',
+                usage_5: 'Verbesserung unserer Website, Dienste und des G\u00e4steerlebnisses', usage_6: 'Versand von Marketingmitteilungen, sofern Sie Ihre Einwilligung erteilt haben (Sie k\u00f6nnen sich jederzeit abmelden)',
+                payment_title: 'Zahlungsabwicklung',
+                payment_p1: 'Alle Zahlungstransaktionen werden \u00fcber Stripe, unseren vertrauensw\u00fcrdigen externen Zahlungsdienstleister, abgewickelt. Stripe verarbeitet Ihre Kartendaten in \u00dcbereinstimmung mit den Anforderungen des PCI DSS.',
+                payment_p2: 'Wir speichern, verarbeiten oder haben zu keinem Zeitpunkt Zugriff auf Ihre vollst\u00e4ndigen Kredit- oder Debitkartennummern. Zahlungsinformationen werden direkt mit branchen\u00fcblicher Verschl\u00fcsselung an Stripe \u00fcbermittelt.',
+                cookies_title: 'Cookies und Analyse',
+                cookies_generic: 'Unsere Website verwendet essenzielle Cookies, die f\u00fcr die ordnungsgem\u00e4\u00dfe Funktion der Website erforderlich sind, wie z. B. die Aufrechterhaltung Ihrer Sitzung und das Speichern Ihrer Einstellungen.',
+                cookies_analytics: 'Wir k\u00f6nnen Analysetools verwenden, um zu verstehen, wie Besucher mit unserer Website interagieren. Diese Tools verwenden Cookies, um anonymisierte Informationen \u00fcber Seitenbesuche und Nutzerverhalten zu sammeln.',
+                cookies_manage: 'Sie k\u00f6nnen Cookies \u00fcber die Einstellungen Ihres Browsers verwalten. Bitte beachten Sie, dass die Deaktivierung bestimmter Cookies die Funktionalit\u00e4t unserer Website beeintr\u00e4chtigen kann.',
+                third_title: 'Dienste Dritter', third_intro: 'Wir arbeiten mit vertrauensw\u00fcrdigen externen Dienstleistern zusammen, um unsere Dienste zu erbringen. Dazu k\u00f6nnen geh\u00f6ren:',
+                third_stripe: 'Zahlungsdienstleister (Stripe):', third_stripe_d: 'F\u00fcr die sichere Abwicklung von Buchungszahlungen',
+                third_channel: 'Channel-Manager:', third_channel_d: 'F\u00fcr die Verteilung der Verf\u00fcgbarkeit auf Buchungsplattformen',
+                third_hosting: 'Hosting-Anbieter:', third_hosting_d: 'F\u00fcr das Hosting und die Wartung unserer Website-Infrastruktur',
+                third_outro: 'Wir geben personenbezogene Daten nur in dem Umfang an Dritte weiter, der f\u00fcr die Erbringung ihrer Dienste erforderlich ist.',
+                retention_title: 'Datenspeicherung', retention_intro: 'Wir speichern personenbezogene Daten nur so lange, wie es zur Erf\u00fcllung der Zwecke erforderlich ist, f\u00fcr die sie erhoben wurden:',
+                retention_booking: 'Buchungs- und Finanzunterlagen:', retention_booking_d: 'Aufbewahrt f\u00fcr den Zeitraum, der durch die geltenden Steuer- und Buchhaltungsvorschriften vorgeschrieben ist (in der Regel 7 Jahre)',
+                retention_market: 'Marketingdaten:', retention_market_d: 'Aufbewahrt bis zum Widerruf Ihrer Einwilligung oder Abmeldung',
+                retention_logs: 'Technische Protokolle:', retention_logs_d: 'Aufbewahrt bis zu 90 Tage f\u00fcr die Sicherheits- und Leistungs\u00fcberwachung',
+                retention_outro: 'Nach Ablauf der geltenden Aufbewahrungsfrist werden personenbezogene Daten sicher gel\u00f6scht oder anonymisiert.',
+                rights_title: 'Ihre Rechte (DSGVO)', rights_intro: 'Gem\u00e4\u00df der Datenschutz-Grundverordnung (DSGVO) haben Sie folgende Rechte in Bezug auf Ihre personenbezogenen Daten:',
+                rights_access: 'Auskunftsrecht:', rights_access_d: 'Sie k\u00f6nnen eine Kopie der personenbezogenen Daten anfordern, die wir \u00fcber Sie gespeichert haben',
+                rights_rectify: 'Recht auf Berichtigung:', rights_rectify_d: 'Sie k\u00f6nnen die Korrektur unrichtiger oder unvollst\u00e4ndiger Daten verlangen',
+                rights_erase: 'Recht auf L\u00f6schung:', rights_erase_d: 'Sie k\u00f6nnen die L\u00f6schung Ihrer personenbezogenen Daten verlangen, vorbehaltlich gesetzlicher Pflichten',
+                rights_port: 'Recht auf Daten\u00fcbertragbarkeit:', rights_port_d: 'Sie k\u00f6nnen Ihre Daten in einem strukturierten, g\u00e4ngigen und maschinenlesbaren Format anfordern',
+                rights_restrict: 'Recht auf Einschr\u00e4nkung der Verarbeitung:', rights_restrict_d: 'Sie k\u00f6nnen verlangen, dass wir die Nutzung Ihrer Daten einschr\u00e4nken',
+                rights_object: 'Widerspruchsrecht:', rights_object_d: 'Sie k\u00f6nnen der Verarbeitung Ihrer personenbezogenen Daten f\u00fcr bestimmte Zwecke widersprechen',
+                rights_complaint: 'Beschwerderecht:', rights_complaint_d: 'Sie haben das Recht, eine Beschwerde bei einer Aufsichtsbeh\u00f6rde einzureichen',
+                rights_contact: 'Um eines dieser Rechte auszu\u00fcben, kontaktieren Sie uns bitte unter %s. Wir werden Ihre Anfrage innerhalb von 30 Tagen beantworten.',
+                rights_contact_generic: 'Um eines dieser Rechte auszu\u00fcben, kontaktieren Sie uns bitte \u00fcber die unten angegebenen Kontaktdaten. Wir werden Ihre Anfrage innerhalb von 30 Tagen beantworten.',
+                google_title: 'Offenlegung zu Google-API-Diensten',
+                google_body: 'Unsere Nutzung und \u00dcbertragung von Informationen, die von Google-APIs empfangen werden, an andere Anwendungen erfolgt in \u00dcbereinstimmung mit der <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener noreferrer">Google API Services User Data Policy</a>, einschlie\u00dflich der Anforderungen zur eingeschr\u00e4nkten Nutzung.',
+                contact_title: 'Kontakt', contact_intro: 'Wenn Sie Fragen zu dieser Datenschutzerkl\u00e4rung oder zur Verarbeitung Ihrer personenbezogenen Daten haben, kontaktieren Sie uns bitte:',
+                contact_email: 'E-Mail:', contact_address: 'Adresse:',
+            },
+            nl: {
+                our_business: 'Ons Bedrijf', intro_title: 'Inleiding',
+                intro_p1: '%s (\u201cwij\u201d, \u201cons\u201d of \u201conze\u201d) zet zich in voor de bescherming en eerbiediging van uw privacy. Dit Privacybeleid legt uit hoe wij uw persoonlijke gegevens verzamelen, gebruiken, opslaan en beschermen wanneer u onze website bezoekt, een boeking maakt of met onze diensten communiceert.',
+                intro_p2: 'Wij zetten ons in voor naleving van de Algemene Verordening Gegevensbescherming (AVG) en andere toepasselijke wetgeving inzake gegevensbescherming. Door gebruik te maken van onze website of diensten erkent u dit Privacybeleid te hebben gelezen en begrepen.',
+                collect_title: 'Informatie die wij verzamelen', collect_intro: 'Wij kunnen de volgende categorie\u00ebn persoonsgegevens verzamelen en verwerken:',
+                collect_personal: 'Persoonlijke informatie:', collect_personal_d: 'Naam, e-mailadres, telefoonnummer, postadres en andere contactgegevens die u verstrekt bij het maken van een boeking of het indienen van een vraag.',
+                collect_booking: 'Boekingsgegevens:', collect_booking_d: 'In- en uitcheckdatums, kamervoorkeuren, aantal gasten en eventuele speciale verzoeken of vereisten.',
+                collect_payment: 'Betalingsgegevens:', collect_payment_d: 'Betaalkaartgegevens worden veilig verwerkt door onze externe betalingsverwerker en worden nooit op onze servers opgeslagen.',
+                collect_tech: 'Technische gegevens:', collect_tech_d: 'IP-adres, browsertype en -versie, apparaatinformatie, besturingssysteem, tijdzone-instelling en browseactiviteiten op onze website.',
+                usage_title: 'Hoe wij uw informatie gebruiken', usage_intro: 'Wij gebruiken de verzamelde persoonlijke informatie voor de volgende doeleinden:',
+                usage_1: 'Het verwerken en beheren van uw boekingen en betalingen', usage_2: 'Het verzenden van boekingsbevestigingen, herinneringen en pre-arrival informatie',
+                usage_3: 'Communiceren met u over uw verblijf, inclusief het beantwoorden van vragen en verzoeken', usage_4: 'Voldoen aan wettelijke en regelgevende verplichtingen, waaronder fiscale en boekhoudkundige vereisten',
+                usage_5: 'Het verbeteren van onze website, diensten en gastervaring', usage_6: 'Het verzenden van marketingcommunicatie wanneer u toestemming heeft gegeven (u kunt zich op elk moment afmelden)',
+                payment_title: 'Betalingsverwerking',
+                payment_p1: 'Alle betalingstransacties worden verwerkt via Stripe, onze vertrouwde externe betalingsverwerker. Stripe verwerkt uw kaartgegevens in overeenstemming met de PCI DSS-vereisten.',
+                payment_p2: 'Wij slaan nooit uw volledige creditcard- of debetkaartnummers op, verwerken deze niet en hebben er geen toegang toe. Betalingsinformatie wordt rechtstreeks naar Stripe verzonden met behulp van industriestandaard versleuteling.',
+                cookies_title: 'Cookies en analyse',
+                cookies_generic: 'Onze website maakt gebruik van essenti\u00eble cookies die noodzakelijk zijn voor het correct functioneren van de site, zoals het onderhouden van uw sessie en het onthouden van uw voorkeuren.',
+                cookies_analytics: 'Wij kunnen analysetools gebruiken om te begrijpen hoe bezoekers met onze website omgaan. Deze tools maken gebruik van cookies om geanonimiseerde informatie te verzamelen over paginabezoeken en gebruikersgedrag.',
+                cookies_manage: 'U kunt cookies beheren via de instellingen van uw browser. Houd er rekening mee dat het uitschakelen van bepaalde cookies de functionaliteit van onze website kan be\u00efnvloeden.',
+                third_title: 'Diensten van derden', third_intro: 'Wij werken samen met vertrouwde externe dienstverleners om onze diensten te leveren. Deze kunnen zijn:',
+                third_stripe: 'Betalingsverwerker (Stripe):', third_stripe_d: 'Voor het veilig verwerken van betalingen voor boekingen',
+                third_channel: 'Channelmanagers:', third_channel_d: 'Voor het distribueren van beschikbaarheid op boekingsplatformen',
+                third_hosting: 'Hostingprovider:', third_hosting_d: 'Voor het hosten en onderhouden van onze website-infrastructuur',
+                third_outro: 'Wij delen persoonsgegevens alleen met derden voor zover dit noodzakelijk is om hun diensten te verlenen.',
+                retention_title: 'Bewaring van gegevens', retention_intro: 'Wij bewaren persoonsgegevens alleen zo lang als nodig is om de doeleinden te vervullen waarvoor ze zijn verzameld:',
+                retention_booking: 'Boekings- en financi\u00eble gegevens:', retention_booking_d: 'Bewaard gedurende de periode vereist door toepasselijke belasting- en boekhoudregelgeving (doorgaans 7 jaar)',
+                retention_market: 'Marketinggegevens:', retention_market_d: 'Bewaard totdat u uw toestemming intrekt of zich afmeldt',
+                retention_logs: 'Technische logs:', retention_logs_d: 'Bewaard tot 90 dagen voor beveiligings- en prestatiemonitoring',
+                retention_outro: 'Na de toepasselijke bewaartermijn worden persoonsgegevens veilig verwijderd of geanonimiseerd.',
+                rights_title: 'Uw rechten (AVG)', rights_intro: 'Op grond van de Algemene Verordening Gegevensbescherming (AVG) heeft u de volgende rechten met betrekking tot uw persoonsgegevens:',
+                rights_access: 'Recht op inzage:', rights_access_d: 'U kunt een kopie opvragen van de persoonsgegevens die wij over u bewaren',
+                rights_rectify: 'Recht op rectificatie:', rights_rectify_d: 'U kunt verzoeken om correctie van onjuiste of onvolledige gegevens',
+                rights_erase: 'Recht op wissing:', rights_erase_d: 'U kunt verzoeken om verwijdering van uw persoonsgegevens, onder voorbehoud van wettelijke verplichtingen',
+                rights_port: 'Recht op overdraagbaarheid:', rights_port_d: 'U kunt uw gegevens opvragen in een gestructureerd, gangbaar en machineleesbaar formaat',
+                rights_restrict: 'Recht op beperking van verwerking:', rights_restrict_d: 'U kunt verzoeken dat wij het gebruik van uw gegevens beperken',
+                rights_object: 'Recht van bezwaar:', rights_object_d: 'U kunt bezwaar maken tegen de verwerking van uw persoonsgegevens voor bepaalde doeleinden',
+                rights_complaint: 'Recht om een klacht in te dienen:', rights_complaint_d: 'U heeft het recht een klacht in te dienen bij een toezichthoudende autoriteit',
+                rights_contact: 'Om een van deze rechten uit te oefenen, neem contact met ons op via %s. Wij zullen binnen 30 dagen op uw verzoek reageren.',
+                rights_contact_generic: 'Om een van deze rechten uit te oefenen, neem contact met ons op via de onderstaande gegevens. Wij zullen binnen 30 dagen op uw verzoek reageren.',
+                google_title: 'Google API Services Openbaarmaking',
+                google_body: 'Ons gebruik en overdracht van informatie ontvangen van Google API\'s naar elke andere app zal voldoen aan het <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener noreferrer">Google API Services Gebruikersgegevensbeleid</a>, inclusief de vereisten voor beperkt gebruik.',
+                contact_title: 'Contact', contact_intro: 'Als u vragen heeft over dit Privacybeleid of over de manier waarop wij uw persoonsgegevens verwerken, neem dan contact met ons op:',
+                contact_email: 'E-mail:', contact_address: 'Adres:',
+            },
+            ja: {
+                our_business: '\u5f53\u793e', intro_title: '\u306f\u3058\u3081\u306b',
+                intro_p1: '%s\uff08\u4ee5\u4e0b\u300c\u5f53\u793e\u300d\uff09\u306f\u3001\u304a\u5ba2\u69d8\u306e\u30d7\u30e9\u30a4\u30d0\u30b7\u30fc\u306e\u4fdd\u8b77\u3068\u5c0a\u91cd\u306b\u52aa\u3081\u3066\u3044\u307e\u3059\u3002\u672c\u30d7\u30e9\u30a4\u30d0\u30b7\u30fc\u30dd\u30ea\u30b7\u30fc\u306f\u3001\u304a\u5ba2\u69d8\u304c\u5f53\u793e\u306e\u30a6\u30a7\u30d6\u30b5\u30a4\u30c8\u3092\u3054\u5229\u7528\u306b\u306a\u308b\u969b\u3001\u3054\u4e88\u7d04\u3092\u3055\u308c\u308b\u969b\u3001\u307e\u305f\u306f\u5f53\u793e\u306e\u30b5\u30fc\u30d3\u30b9\u3092\u3054\u5229\u7528\u306b\u306a\u308b\u969b\u306b\u3001\u5f53\u793e\u304c\u304a\u5ba2\u69d8\u306e\u500b\u4eba\u60c5\u5831\u3092\u3069\u306e\u3088\u3046\u306b\u53ce\u96c6\u3001\u4f7f\u7528\u3001\u4fdd\u7ba1\u3001\u4fdd\u8b77\u3059\u308b\u304b\u306b\u3064\u3044\u3066\u8aac\u660e\u3059\u308b\u3082\u306e\u3067\u3059\u3002',
+                intro_p2: '\u5f53\u793e\u306f\u3001EU\u4e00\u822c\u30c7\u30fc\u30bf\u4fdd\u8b77\u898f\u5247\uff08GDPR\uff09\u304a\u3088\u3073\u305d\u306e\u4ed6\u306e\u9069\u7528\u3055\u308c\u308b\u30c7\u30fc\u30bf\u4fdd\u8b77\u6cd5\u306e\u9075\u5b88\u306b\u52aa\u3081\u3066\u3044\u307e\u3059\u3002\u5f53\u793e\u306e\u30a6\u30a7\u30d6\u30b5\u30a4\u30c8\u307e\u305f\u306f\u30b5\u30fc\u30d3\u30b9\u3092\u3054\u5229\u7528\u306b\u306a\u308b\u3053\u3068\u306b\u3088\u308a\u3001\u304a\u5ba2\u69d8\u306f\u672c\u30d7\u30e9\u30a4\u30d0\u30b7\u30fc\u30dd\u30ea\u30b7\u30fc\u3092\u8aad\u307f\u3001\u7406\u89e3\u3057\u305f\u3053\u3068\u3092\u8a8d\u3081\u308b\u3082\u306e\u3068\u3057\u307e\u3059\u3002',
+                collect_title: '\u53ce\u96c6\u3059\u308b\u60c5\u5831', collect_intro: '\u5f53\u793e\u306f\u3001\u4ee5\u4e0b\u306e\u30ab\u30c6\u30b4\u30ea\u30fc\u306e\u500b\u4eba\u30c7\u30fc\u30bf\u3092\u53ce\u96c6\u30fb\u51e6\u7406\u3059\u308b\u5834\u5408\u304c\u3042\u308a\u307e\u3059\uff1a',
+                collect_personal: '\u500b\u4eba\u60c5\u5831\uff1a', collect_personal_d: '\u3054\u4e88\u7d04\u3084\u304a\u554f\u3044\u5408\u308f\u305b\u306e\u969b\u306b\u3054\u63d0\u4f9b\u3044\u305f\u3060\u304f\u3001\u6c0f\u540d\u3001\u30e1\u30fc\u30eb\u30a2\u30c9\u30ec\u30b9\u3001\u96fb\u8a71\u756a\u53f7\u3001\u4f4f\u6240\u3001\u305d\u306e\u4ed6\u306e\u9023\u7d61\u5148\u60c5\u5831\u3002',
+                collect_booking: '\u4e88\u7d04\u60c5\u5831\uff1a', collect_booking_d: '\u30c1\u30a7\u30c3\u30af\u30a4\u30f3\u30fb\u30c1\u30a7\u30c3\u30af\u30a2\u30a6\u30c8\u65e5\u3001\u5ba2\u5ba4\u306e\u3054\u5e0c\u671b\u3001\u3054\u5bbf\u6cca\u4eba\u6570\u3001\u7279\u5225\u306a\u3054\u8981\u671b\u3084\u3054\u8981\u4ef6\u3002',
+                collect_payment: '\u6c7a\u6e08\u60c5\u5831\uff1a', collect_payment_d: '\u304a\u652f\u6255\u3044\u30ab\u30fc\u30c9\u60c5\u5831\u306f\u3001\u5f53\u793e\u306e\u7b2c\u4e09\u8005\u6c7a\u6e08\u30b5\u30fc\u30d3\u30b9\u30d7\u30ed\u30d0\u30a4\u30c0\u30fc\u306b\u3088\u308a\u5b89\u5168\u306b\u51e6\u7406\u3055\u308c\u3001\u5f53\u793e\u306e\u30b5\u30fc\u30d0\u30fc\u306b\u4fdd\u5b58\u3055\u308c\u308b\u3053\u3068\u306f\u3042\u308a\u307e\u305b\u3093\u3002',
+                collect_tech: '\u6280\u8853\u30c7\u30fc\u30bf\uff1a', collect_tech_d: 'IP\u30a2\u30c9\u30ec\u30b9\u3001\u30d6\u30e9\u30a6\u30b6\u306e\u7a2e\u985e\u3068\u30d0\u30fc\u30b8\u30e7\u30f3\u3001\u30c7\u30d0\u30a4\u30b9\u60c5\u5831\u3001\u30aa\u30da\u30ec\u30fc\u30c6\u30a3\u30f3\u30b0\u30b7\u30b9\u30c6\u30e0\u3001\u30bf\u30a4\u30e0\u30be\u30fc\u30f3\u8a2d\u5b9a\u3001\u304a\u3088\u3073\u5f53\u793e\u30a6\u30a7\u30d6\u30b5\u30a4\u30c8\u3067\u306e\u95b2\u89a7\u884c\u52d5\u3002',
+                usage_title: '\u60c5\u5831\u306e\u5229\u7528\u65b9\u6cd5', usage_intro: '\u5f53\u793e\u306f\u3001\u53ce\u96c6\u3057\u305f\u500b\u4eba\u60c5\u5831\u3092\u4ee5\u4e0b\u306e\u76ee\u7684\u3067\u4f7f\u7528\u3057\u307e\u3059\uff1a',
+                usage_1: '\u3054\u4e88\u7d04\u304a\u3088\u3073\u304a\u652f\u6255\u3044\u306e\u51e6\u7406\u30fb\u7ba1\u7406', usage_2: '\u4e88\u7d04\u78ba\u8a8d\u3001\u30ea\u30de\u30a4\u30f3\u30c0\u30fc\u3001\u5230\u7740\u524d\u60c5\u5831\u306e\u9001\u4fe1',
+                usage_3: '\u3054\u6ede\u5728\u306b\u95a2\u3059\u308b\u304a\u5ba2\u69d8\u3068\u306e\u30b3\u30df\u30e5\u30cb\u30b1\u30fc\u30b7\u30e7\u30f3\uff08\u304a\u554f\u3044\u5408\u308f\u305b\u3084\u3054\u8981\u671b\u3078\u306e\u5bfe\u5fdc\u3092\u542b\u3080\uff09', usage_4: '\u7a0e\u52d9\u30fb\u4f1a\u8a08\u4e0a\u306e\u8981\u4ef6\u3092\u542b\u3080\u6cd5\u7684\u30fb\u898f\u5236\u4e0a\u306e\u7fa9\u52d9\u306e\u9075\u5b88',
+                usage_5: '\u5f53\u793e\u30a6\u30a7\u30d6\u30b5\u30a4\u30c8\u3001\u30b5\u30fc\u30d3\u30b9\u3001\u304a\u3088\u3073\u304a\u5ba2\u69d8\u4f53\u9a13\u306e\u5411\u4e0a', usage_6: '\u304a\u5ba2\u69d8\u306e\u540c\u610f\u3092\u5f97\u305f\u5834\u5408\u306e\u30de\u30fc\u30b1\u30c6\u30a3\u30f3\u30b0\u30b3\u30df\u30e5\u30cb\u30b1\u30fc\u30b7\u30e7\u30f3\u306e\u9001\u4fe1\uff08\u3044\u3064\u3067\u3082\u914d\u4fe1\u505c\u6b62\u304c\u53ef\u80fd\u3067\u3059\uff09',
+                payment_title: '\u6c7a\u6e08\u51e6\u7406',
+                payment_p1: '\u3059\u3079\u3066\u306e\u6c7a\u6e08\u53d6\u5f15\u306f\u3001\u5f53\u793e\u306e\u4fe1\u983c\u3067\u304d\u308b\u7b2c\u4e09\u8005\u6c7a\u6e08\u30b5\u30fc\u30d3\u30b9\u30d7\u30ed\u30d0\u30a4\u30c0\u30fc\u3067\u3042\u308bStripe\u3092\u901a\u3058\u3066\u51e6\u7406\u3055\u308c\u307e\u3059\u3002Stripe\u306f\u3001PCI DSS\u306e\u8981\u4ef6\u306b\u6e96\u62e0\u3057\u3066\u304a\u5ba2\u69d8\u306e\u30ab\u30fc\u30c9\u30c7\u30fc\u30bf\u3092\u51e6\u7406\u3057\u307e\u3059\u3002',
+                payment_p2: '\u5f53\u793e\u306f\u3001\u304a\u5ba2\u69d8\u306e\u30af\u30ec\u30b8\u30c3\u30c8\u30ab\u30fc\u30c9\u307e\u305f\u306f\u30c7\u30d3\u30c3\u30c8\u30ab\u30fc\u30c9\u306e\u5b8c\u5168\u306a\u756a\u53f7\u3092\u4fdd\u5b58\u3001\u51e6\u7406\u3001\u307e\u305f\u306f\u30a2\u30af\u30bb\u30b9\u3059\u308b\u3053\u3068\u306f\u4e00\u5207\u3042\u308a\u307e\u305b\u3093\u3002\u6c7a\u6e08\u60c5\u5831\u306f\u3001\u696d\u754c\u6a19\u6e96\u306e\u6697\u53f7\u5316\u6280\u8853\u3092\u4f7f\u7528\u3057\u3066Stripe\u306b\u76f4\u63a5\u9001\u4fe1\u3055\u308c\u307e\u3059\u3002',
+                cookies_title: 'Cookie\u304a\u3088\u3073\u30a2\u30af\u30bb\u30b9\u89e3\u6790',
+                cookies_generic: '\u5f53\u793e\u306e\u30a6\u30a7\u30d6\u30b5\u30a4\u30c8\u3067\u306f\u3001\u30bb\u30c3\u30b7\u30e7\u30f3\u306e\u7dad\u6301\u3084\u304a\u5ba2\u69d8\u306e\u8a2d\u5b9a\u306e\u8a18\u61b6\u306a\u3069\u3001\u30b5\u30a4\u30c8\u306e\u6b63\u5e38\u306a\u52d5\u4f5c\u306b\u5fc5\u8981\u306a\u5fc5\u9808Cookie\u3092\u4f7f\u7528\u3057\u3066\u3044\u307e\u3059\u3002',
+                cookies_analytics: '\u5f53\u793e\u306f\u3001\u8a2a\u554f\u8005\u304c\u5f53\u793e\u306e\u30a6\u30a7\u30d6\u30b5\u30a4\u30c8\u3068\u3069\u306e\u3088\u3046\u306b\u3084\u308a\u53d6\u308a\u3059\u308b\u304b\u3092\u7406\u89e3\u3059\u308b\u305f\u3081\u306b\u30a2\u30af\u30bb\u30b9\u89e3\u6790\u30c4\u30fc\u30eb\u3092\u4f7f\u7528\u3059\u308b\u5834\u5408\u304c\u3042\u308a\u307e\u3059\u3002',
+                cookies_manage: '\u30d6\u30e9\u30a6\u30b6\u306e\u8a2d\u5b9a\u304b\u3089Cookie\u3092\u7ba1\u7406\u3059\u308b\u3053\u3068\u304c\u3067\u304d\u307e\u3059\u3002\u7279\u5b9a\u306eCookie\u3092\u7121\u52b9\u306b\u3059\u308b\u3068\u3001\u5f53\u793e\u30a6\u30a7\u30d6\u30b5\u30a4\u30c8\u306e\u6a5f\u80fd\u306b\u5f71\u97ff\u3092\u4e0e\u3048\u308b\u5834\u5408\u304c\u3042\u308a\u307e\u3059\u306e\u3067\u3054\u6ce8\u610f\u304f\u3060\u3055\u3044\u3002',
+                third_title: '\u7b2c\u4e09\u8005\u30b5\u30fc\u30d3\u30b9', third_intro: '\u5f53\u793e\u306f\u3001\u30b5\u30fc\u30d3\u30b9\u3092\u63d0\u4f9b\u3059\u308b\u305f\u3081\u306b\u3001\u4fe1\u983c\u3067\u304d\u308b\u7b2c\u4e09\u8005\u306e\u30b5\u30fc\u30d3\u30b9\u30d7\u30ed\u30d0\u30a4\u30c0\u30fc\u3068\u9023\u643a\u3057\u3066\u3044\u307e\u3059\uff1a',
+                third_stripe: '\u6c7a\u6e08\u51e6\u7406\u696d\u8005\uff08Stripe\uff09\uff1a', third_stripe_d: '\u3054\u4e88\u7d04\u306e\u6c7a\u6e08\u3092\u5b89\u5168\u306b\u51e6\u7406\u3059\u308b\u305f\u3081',
+                third_channel: '\u30c1\u30e3\u30cd\u30eb\u30de\u30cd\u30fc\u30b8\u30e3\u30fc\uff1a', third_channel_d: '\u4e88\u7d04\u30d7\u30e9\u30c3\u30c8\u30d5\u30a9\u30fc\u30e0\u5168\u4f53\u3067\u7a7a\u5ba4\u72b6\u6cc1\u3092\u914d\u4fe1\u3059\u308b\u305f\u3081',
+                third_hosting: '\u30db\u30b9\u30c6\u30a3\u30f3\u30b0\u30d7\u30ed\u30d0\u30a4\u30c0\u30fc\uff1a', third_hosting_d: '\u5f53\u793e\u30a6\u30a7\u30d6\u30b5\u30a4\u30c8\u306e\u30a4\u30f3\u30d5\u30e9\u30b9\u30c8\u30e9\u30af\u30c1\u30e3\u3092\u30db\u30b9\u30c6\u30a3\u30f3\u30b0\u304a\u3088\u3073\u7dad\u6301\u3059\u308b\u305f\u3081',
+                third_outro: '\u5f53\u793e\u306f\u3001\u7b2c\u4e09\u8005\u304c\u30b5\u30fc\u30d3\u30b9\u3092\u63d0\u4f9b\u3059\u308b\u305f\u3081\u306b\u5fc5\u8981\u306a\u7bc4\u56f2\u3067\u306e\u307f\u500b\u4eba\u30c7\u30fc\u30bf\u3092\u5171\u6709\u3057\u307e\u3059\u3002',
+                retention_title: '\u30c7\u30fc\u30bf\u306e\u4fdd\u6301', retention_intro: '\u5f53\u793e\u306f\u3001\u53ce\u96c6\u3057\u305f\u76ee\u7684\u3092\u9054\u6210\u3059\u308b\u305f\u3081\u306b\u5fc5\u8981\u306a\u671f\u9593\u306e\u307f\u500b\u4eba\u30c7\u30fc\u30bf\u3092\u4fdd\u6301\u3057\u307e\u3059\uff1a',
+                retention_booking: '\u4e88\u7d04\u304a\u3088\u3073\u8ca1\u52d9\u8a18\u9332\uff1a', retention_booking_d: '\u9069\u7528\u3055\u308c\u308b\u7a0e\u52d9\u30fb\u4f1a\u8a08\u898f\u5236\u3067\u8981\u6c42\u3055\u308c\u308b\u671f\u9593\uff08\u901a\u5e387\u5e74\u9593\uff09\u4fdd\u6301',
+                retention_market: '\u30de\u30fc\u30b1\u30c6\u30a3\u30f3\u30b0\u30c7\u30fc\u30bf\uff1a', retention_market_d: '\u304a\u5ba2\u69d8\u304c\u540c\u610f\u3092\u64a4\u56de\u3059\u308b\u304b\u914d\u4fe1\u505c\u6b62\u3059\u308b\u307e\u3067\u4fdd\u6301',
+                retention_logs: '\u6280\u8853\u30ed\u30b0\uff1a', retention_logs_d: '\u30bb\u30ad\u30e5\u30ea\u30c6\u30a3\u304a\u3088\u3073\u30d1\u30d5\u30a9\u30fc\u30de\u30f3\u30b9\u76e3\u8996\u306e\u305f\u3081\u6700\u592790\u65e5\u9593\u4fdd\u6301',
+                retention_outro: '\u8a72\u5f53\u3059\u308b\u4fdd\u6301\u671f\u9593\u306e\u7d42\u4e86\u5f8c\u3001\u500b\u4eba\u30c7\u30fc\u30bf\u306f\u5b89\u5168\u306b\u524a\u9664\u307e\u305f\u306f\u533f\u540d\u5316\u3055\u308c\u307e\u3059\u3002',
+                rights_title: '\u304a\u5ba2\u69d8\u306e\u6a29\u5229\uff08GDPR\uff09', rights_intro: 'EU\u4e00\u822c\u30c7\u30fc\u30bf\u4fdd\u8b77\u898f\u5247\uff08GDPR\uff09\u306b\u57fa\u3065\u304d\u3001\u304a\u5ba2\u69d8\u306f\u500b\u4eba\u30c7\u30fc\u30bf\u306b\u95a2\u3057\u3066\u4ee5\u4e0b\u306e\u6a29\u5229\u3092\u6709\u3057\u307e\u3059\uff1a',
+                rights_access: '\u30a2\u30af\u30bb\u30b9\u6a29\uff1a', rights_access_d: '\u5f53\u793e\u304c\u4fdd\u6709\u3059\u308b\u304a\u5ba2\u69d8\u306e\u500b\u4eba\u30c7\u30fc\u30bf\u306e\u5199\u3057\u3092\u8acb\u6c42\u3059\u308b\u3053\u3068\u304c\u3067\u304d\u307e\u3059',
+                rights_rectify: '\u8a02\u6b63\u6a29\uff1a', rights_rectify_d: '\u4e0d\u6b63\u78ba\u307e\u305f\u306f\u4e0d\u5b8c\u5168\u306a\u30c7\u30fc\u30bf\u306e\u8a02\u6b63\u3092\u8acb\u6c42\u3059\u308b\u3053\u3068\u304c\u3067\u304d\u307e\u3059',
+                rights_erase: '\u6d88\u53bb\u6a29\uff1a', rights_erase_d: '\u6cd5\u7684\u7fa9\u52d9\u306b\u5f93\u3044\u3001\u304a\u5ba2\u69d8\u306e\u500b\u4eba\u30c7\u30fc\u30bf\u306e\u524a\u9664\u3092\u8acb\u6c42\u3059\u308b\u3053\u3068\u304c\u3067\u304d\u307e\u3059',
+                rights_port: '\u30c7\u30fc\u30bf\u30dd\u30fc\u30bf\u30d3\u30ea\u30c6\u30a3\u6a29\uff1a', rights_port_d: '\u69cb\u9020\u5316\u3055\u308c\u305f\u3001\u4e00\u822c\u7684\u306b\u4f7f\u7528\u3055\u308c\u308b\u6a5f\u68b0\u53ef\u8aad\u5f62\u5f0f\u3067\u30c7\u30fc\u30bf\u3092\u8acb\u6c42\u3059\u308b\u3053\u3068\u304c\u3067\u304d\u307e\u3059',
+                rights_restrict: '\u51e6\u7406\u5236\u9650\u6a29\uff1a', rights_restrict_d: '\u5f53\u793e\u306b\u3088\u308b\u304a\u5ba2\u69d8\u306e\u30c7\u30fc\u30bf\u306e\u4f7f\u7528\u306e\u5236\u9650\u3092\u8acb\u6c42\u3059\u308b\u3053\u3068\u304c\u3067\u304d\u307e\u3059',
+                rights_object: '\u7570\u8b70\u7533\u7acb\u6a29\uff1a', rights_object_d: '\u7279\u5b9a\u306e\u76ee\u7684\u306e\u305f\u3081\u306e\u304a\u5ba2\u69d8\u306e\u500b\u4eba\u30c7\u30fc\u30bf\u306e\u51e6\u7406\u306b\u7570\u8b70\u3092\u7533\u3057\u7acb\u3066\u308b\u3053\u3068\u304c\u3067\u304d\u307e\u3059',
+                rights_complaint: '\u82e6\u60c5\u7533\u7acb\u6a29\uff1a', rights_complaint_d: '\u30c7\u30fc\u30bf\u4fdd\u8b77\u306b\u95a2\u3059\u308b\u6a29\u5229\u304c\u4fb5\u5bb3\u3055\u308c\u305f\u3068\u8003\u3048\u308b\u5834\u5408\u3001\u76e3\u7763\u6a5f\u95a2\u306b\u82e6\u60c5\u3092\u7533\u3057\u7acb\u3066\u308b\u6a29\u5229\u304c\u3042\u308a\u307e\u3059',
+                rights_contact: '\u3053\u308c\u3089\u306e\u6a29\u5229\u3092\u884c\u4f7f\u3059\u308b\u306b\u306f\u3001%s \u307e\u3067\u3054\u9023\u7d61\u304f\u3060\u3055\u3044\u300230\u65e5\u4ee5\u5185\u306b\u3054\u56de\u7b54\u3044\u305f\u3057\u307e\u3059\u3002',
+                rights_contact_generic: '\u3053\u308c\u3089\u306e\u6a29\u5229\u3092\u884c\u4f7f\u3059\u308b\u306b\u306f\u3001\u4ee5\u4e0b\u306e\u9023\u7d61\u5148\u307e\u3067\u3054\u9023\u7d61\u304f\u3060\u3055\u3044\u300230\u65e5\u4ee5\u5185\u306b\u3054\u56de\u7b54\u3044\u305f\u3057\u307e\u3059\u3002',
+                google_title: 'Google API\u30b5\u30fc\u30d3\u30b9\u306b\u95a2\u3059\u308b\u958b\u793a',
+                google_body: '\u5f53\u793e\u306b\u3088\u308bGoogle API\u304b\u3089\u53d7\u4fe1\u3057\u305f\u60c5\u5831\u306e\u4f7f\u7528\u304a\u3088\u3073\u4ed6\u306e\u30a2\u30d7\u30ea\u3078\u306e\u8ee2\u9001\u306f\u3001\u9650\u5b9a\u4f7f\u7528\u306e\u8981\u4ef6\u3092\u542b\u3080<a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener noreferrer">Google API\u30b5\u30fc\u30d3\u30b9\u30e6\u30fc\u30b6\u30fc\u30c7\u30fc\u30bf\u30dd\u30ea\u30b7\u30fc</a>\u306b\u6e96\u62e0\u3057\u307e\u3059\u3002',
+                contact_title: '\u304a\u554f\u3044\u5408\u308f\u305b', contact_intro: '\u672c\u30d7\u30e9\u30a4\u30d0\u30b7\u30fc\u30dd\u30ea\u30b7\u30fc\u307e\u305f\u306f\u5f53\u793e\u306b\u3088\u308b\u500b\u4eba\u30c7\u30fc\u30bf\u306e\u53d6\u308a\u6271\u3044\u306b\u3064\u3044\u3066\u3054\u8cea\u554f\u304c\u3042\u308b\u5834\u5408\u306f\u3001\u4ee5\u4e0b\u307e\u3067\u304a\u554f\u3044\u5408\u308f\u305b\u304f\u3060\u3055\u3044\uff1a',
+                contact_email: '\u30e1\u30fc\u30eb\uff1a', contact_address: '\u4f4f\u6240\uff1a',
+            }
+        };
 
+        // Render privacy policy preview from dedicated input fields (multilingual)
+        function renderPrivacyPreview() {
+            const containers = document.querySelectorAll('[id="wb-privacy-preview"]');
+            if (!containers.length) return;
+            const lang = getAccountPrimaryLanguage();
+            const s = privacyTranslations[lang] || privacyTranslations.en;
+
+            // Read from whichever copy has a value (clone or original)
+            let biz = '', email = '', addr = '';
+            document.querySelectorAll('[id="wb-page-privacy-business-name"]').forEach(el => { if (el.value.trim()) biz = el.value.trim(); });
+            document.querySelectorAll('[id="wb-page-privacy-contact-email"]').forEach(el => { if (el.value.trim()) email = el.value.trim(); });
+            document.querySelectorAll('[id="wb-page-privacy-business-address"]').forEach(el => { if (el.value.trim()) addr = el.value.trim(); });
+
+            const name = biz || s.our_business;
+            const emailHtml = email ? `<a href="mailto:${email}">${email}</a>` : '';
             const sections = [];
 
-            sections.push({ title: 'Introduction', body:
-                `<p>${name} (\u201cwe\u201d, \u201cus\u201d, or \u201cour\u201d) is committed to protecting and respecting your privacy. This Privacy Policy explains how we collect, use, store, and protect your personal information when you visit our website, make a booking, or interact with our services.</p>`
-              + `<p>We are committed to complying with the General Data Protection Regulation (GDPR) and other applicable data protection laws. By using our website or services, you acknowledge that you have read and understood this Privacy Policy.</p>` });
+            sections.push({ title: s.intro_title, body:
+                `<p>${s.intro_p1.replace('%s', name)}</p><p>${s.intro_p2}</p>` });
 
-            sections.push({ title: 'Information We Collect', body:
-                `<p>We may collect and process the following categories of personal data:</p>`
-              + `<p><strong>Personal Information:</strong> Name, email address, telephone number, postal address, and other contact details you provide when making a booking or enquiry.</p>`
-              + `<p><strong>Booking Details:</strong> Check-in and check-out dates, room preferences, number of guests, and any special requests or requirements.</p>`
-              + `<p><strong>Payment Information:</strong> Payment card details are processed securely by our third-party payment processor and are never stored on our servers.</p>`
-              + `<p><strong>Technical Data:</strong> IP address, browser type and version, device information, operating system, time zone setting, and browsing actions on our website.</p>` });
+            sections.push({ title: s.collect_title, body:
+                `<p>${s.collect_intro}</p>`
+              + `<p><strong>${s.collect_personal}</strong> ${s.collect_personal_d}</p>`
+              + `<p><strong>${s.collect_booking}</strong> ${s.collect_booking_d}</p>`
+              + `<p><strong>${s.collect_payment}</strong> ${s.collect_payment_d}</p>`
+              + `<p><strong>${s.collect_tech}</strong> ${s.collect_tech_d}</p>` });
 
-            sections.push({ title: 'How We Use Your Information', body:
-                `<p>We use the personal information we collect for the following purposes:</p>`
-              + `<ul><li>To process and manage your bookings and payments</li>`
-              + `<li>To send booking confirmations, reminders, and pre-arrival information</li>`
-              + `<li>To communicate with you about your stay, including responding to enquiries and requests</li>`
-              + `<li>To comply with legal and regulatory obligations, including tax and accounting requirements</li>`
-              + `<li>To improve our website, services, and guest experience</li>`
-              + `<li>To send marketing communications where you have given consent (you may opt out at any time)</li></ul>` });
+            sections.push({ title: s.usage_title, body:
+                `<p>${s.usage_intro}</p>`
+              + `<ul><li>${s.usage_1}</li><li>${s.usage_2}</li><li>${s.usage_3}</li>`
+              + `<li>${s.usage_4}</li><li>${s.usage_5}</li><li>${s.usage_6}</li></ul>` });
 
-            sections.push({ title: 'Payment Processing', body:
-                `<p>All payment transactions are processed through Stripe, our trusted third-party payment processor. Stripe handles your card data in compliance with PCI DSS (Payment Card Industry Data Security Standard) requirements.</p>`
-              + `<p>We never store, process, or have access to your full credit or debit card numbers. Payment information is transmitted directly to Stripe using industry-standard encryption.</p>` });
+            sections.push({ title: s.payment_title, body: `<p>${s.payment_p1}</p><p>${s.payment_p2}</p>` });
 
-            sections.push({ title: 'Cookies &amp; Analytics', body:
-                `<p>Our website uses essential cookies that are necessary for the site to function correctly, such as maintaining your session and remembering your preferences.</p>`
-              + `<p>We may use analytics tools to understand how visitors interact with our website. These tools use cookies to collect anonymised information about page visits and user behaviour, helping us improve our website and services.</p>`
-              + `<p>You can control and manage cookies through your browser settings. Please note that disabling certain cookies may affect the functionality of our website.</p>` });
+            sections.push({ title: s.cookies_title, body:
+                `<p>${s.cookies_generic}</p><p>${s.cookies_analytics}</p><p>${s.cookies_manage}</p>` });
 
-            sections.push({ title: 'Third Party Services', body:
-                `<p>We work with trusted third-party service providers to deliver our services. These may include:</p>`
-              + `<ul><li><strong>Payment Processor (Stripe):</strong> To securely process payments for bookings</li>`
-              + `<li><strong>Channel Managers:</strong> To distribute availability across booking platforms</li>`
-              + `<li><strong>Hosting Provider:</strong> To host and maintain our website infrastructure</li></ul>`
-              + `<p>We only share personal data with third parties to the extent necessary for them to provide their services.</p>` });
+            sections.push({ title: s.third_title, body:
+                `<p>${s.third_intro}</p>`
+              + `<ul><li><strong>${s.third_stripe}</strong> ${s.third_stripe_d}</li>`
+              + `<li><strong>${s.third_channel}</strong> ${s.third_channel_d}</li>`
+              + `<li><strong>${s.third_hosting}</strong> ${s.third_hosting_d}</li></ul>`
+              + `<p>${s.third_outro}</p>` });
 
-            sections.push({ title: 'Data Retention', body:
-                `<p>We retain personal data only for as long as necessary to fulfil the purposes for which it was collected:</p>`
-              + `<ul><li><strong>Booking and financial records:</strong> Retained for the period required by applicable tax and accounting regulations (typically 7 years)</li>`
-              + `<li><strong>Marketing data:</strong> Retained until you withdraw your consent or unsubscribe</li>`
-              + `<li><strong>Technical logs:</strong> Retained for up to 90 days for security and performance monitoring</li></ul>`
-              + `<p>After the applicable retention period, personal data is securely deleted or anonymised.</p>` });
+            sections.push({ title: s.retention_title, body:
+                `<p>${s.retention_intro}</p>`
+              + `<ul><li><strong>${s.retention_booking}</strong> ${s.retention_booking_d}</li>`
+              + `<li><strong>${s.retention_market}</strong> ${s.retention_market_d}</li>`
+              + `<li><strong>${s.retention_logs}</strong> ${s.retention_logs_d}</li></ul>`
+              + `<p>${s.retention_outro}</p>` });
 
-            sections.push({ title: 'Your Rights (GDPR)', body:
-                `<p>Under the General Data Protection Regulation (GDPR), you have the following rights regarding your personal data:</p>`
-              + `<ul><li><strong>Right of Access:</strong> You may request a copy of the personal data we hold about you</li>`
-              + `<li><strong>Right to Rectification:</strong> You may request that we correct any inaccurate or incomplete data</li>`
-              + `<li><strong>Right to Erasure:</strong> You may request that we delete your personal data, subject to legal obligations</li>`
-              + `<li><strong>Right to Data Portability:</strong> You may request your data in a structured, commonly used, machine-readable format</li>`
-              + `<li><strong>Right to Restrict Processing:</strong> You may request that we limit how we use your data</li>`
-              + `<li><strong>Right to Object:</strong> You may object to the processing of your personal data for certain purposes</li>`
-              + `<li><strong>Right to Lodge a Complaint:</strong> You have the right to lodge a complaint with a supervisory authority</li></ul>`
-              + (email ? `<p>To exercise any of these rights, please contact us at ${emailHtml}. We will respond to your request within 30 days.</p>` : `<p>To exercise any of these rights, please contact us using the details provided below. We will respond to your request within 30 days.</p>`) });
+            sections.push({ title: s.rights_title, body:
+                `<p>${s.rights_intro}</p>`
+              + `<ul><li><strong>${s.rights_access}</strong> ${s.rights_access_d}</li>`
+              + `<li><strong>${s.rights_rectify}</strong> ${s.rights_rectify_d}</li>`
+              + `<li><strong>${s.rights_erase}</strong> ${s.rights_erase_d}</li>`
+              + `<li><strong>${s.rights_port}</strong> ${s.rights_port_d}</li>`
+              + `<li><strong>${s.rights_restrict}</strong> ${s.rights_restrict_d}</li>`
+              + `<li><strong>${s.rights_object}</strong> ${s.rights_object_d}</li>`
+              + `<li><strong>${s.rights_complaint}</strong> ${s.rights_complaint_d}</li></ul>`
+              + (email ? `<p>${s.rights_contact.replace('%s', emailHtml)}</p>` : `<p>${s.rights_contact_generic}</p>`) });
 
-            sections.push({ title: 'Google API Services Disclosure', body:
-                `<p>Our use and transfer of information received from Google APIs to any other app will adhere to the <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener noreferrer">Google API Services User Data Policy</a>, including the Limited Use requirements.</p>` });
+            sections.push({ title: s.google_title, body: `<p>${s.google_body}</p>` });
 
-            let contactBody = '<p>If you have any questions about this Privacy Policy or how we handle your personal data, please contact us:</p>';
+            let contactBody = `<p>${s.contact_intro}</p>`;
             if (biz) contactBody += `<p><strong>${name}</strong></p>`;
-            if (email) contactBody += `<p>Email: ${emailHtml}</p>`;
-            if (addr) contactBody += `<p>Address: ${addr.replace(/\n/g, ', ')}</p>`;
-            sections.push({ title: 'Contact Us', body: contactBody });
+            if (email) contactBody += `<p>${s.contact_email} ${emailHtml}</p>`;
+            if (addr) contactBody += `<p>${s.contact_address} ${addr.replace(/\n/g, ', ')}</p>`;
+            sections.push({ title: s.contact_title, body: contactBody });
 
-            if (!biz && !email && !addr) {
-                container.innerHTML = '<p style="color: #94a3b8; font-style: italic;">Fill in the details above to preview your privacy policy.</p>';
-                return;
-            }
+            const html = (!biz && !email && !addr)
+                ? '<p style="color: #94a3b8; font-style: italic;">Fill in the details above to preview your privacy policy.</p>'
+                : sections.map((sec, i) =>
+                    `<div style="margin-bottom: 1.5rem;${i > 0 ? ' padding-top: 1.5rem; border-top: 1px solid #e2e8f0;' : ''}">`
+                  + `<h4 style="color: #1e293b; margin: 0 0 0.75rem; font-size: 1rem;">${sec.title}</h4>`
+                  + `<div style="line-height: 1.7;">${sec.body}</div></div>`
+                ).join('');
 
-            container.innerHTML = sections.map((s, i) =>
-                `<div style="margin-bottom: 1.5rem;${i > 0 ? ' padding-top: 1.5rem; border-top: 1px solid #e2e8f0;' : ''}">`
-              + `<h4 style="color: #1e293b; margin: 0 0 0.75rem; font-size: 1rem;">${s.title}</h4>`
-              + `<div style="line-height: 1.7;">${s.body}</div></div>`
-            ).join('');
+            // Set ALL preview containers (original + clone)
+            containers.forEach(c => { c.innerHTML = html; });
         }
 
         function previewSubPageImage(pageName, imageType) {
