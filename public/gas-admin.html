@@ -20786,8 +20786,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 { source: 'wb-cta', target: 'editor-cta-content', section: 'cta' },
                 { source: 'wb-footer', target: 'editor-footer-content', section: 'footer' },
                 { source: 'wb-styles', target: 'editor-styles-content', section: 'styles' },
-                { source: 'wb-page-terms', target: 'editor-terms-content', section: 'page-terms' },
-                { source: 'wb-page-privacy', target: 'editor-privacy-content', section: 'page-privacy' }
+                { source: 'wb-page-terms', target: 'editor-terms-content', section: 'page-terms' }
             ];
             
             mappings.forEach(map => {
@@ -24079,9 +24078,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                 if (data.success && data.settings) {
                     const settings = data.settings;
                     const prefix = `wb-page-${pageName}`;
+                    // Scope lookups to the main view container to avoid cloned duplicates
+                    const pageContainer = document.getElementById(`wb-page-${pageName}`);
 
                     Object.keys(settings).forEach(key => {
-                        const el = document.getElementById(`${prefix}-${key}`);
+                        const el = pageContainer
+                            ? pageContainer.querySelector(`[id="${prefix}-${key}"]`)
+                            : document.getElementById(`${prefix}-${key}`);
                         if (el) {
                             if (el.type === 'checkbox') {
                                 el.checked = !!settings[key];
@@ -24092,7 +24095,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                             // Handle image previews
                             if (key.endsWith('-url') && settings[key]) {
                                 const previewId = el.id.replace('-url', '-preview');
-                                const preview = document.getElementById(previewId);
+                                const preview = pageContainer
+                                    ? pageContainer.querySelector(`[id="${previewId}"]`)
+                                    : document.getElementById(previewId);
                                 if (preview) {
                                     preview.style.backgroundImage = `url(${settings[key]})`;
                                     preview.innerHTML = '';
