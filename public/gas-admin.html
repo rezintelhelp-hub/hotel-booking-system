@@ -2931,6 +2931,13 @@
 
                     <!-- Terms & Policies Tab -->
                     <div id="amenities-tab-terms" class="amenity-tab-panel" style="display: none;">
+                        <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.75rem;">
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin: 0; white-space: nowrap;">
+                                <input type="checkbox" id="terms-apply-to-all">
+                                <strong>Apply these terms to all properties</strong>
+                            </label>
+                            <span style="color: #64748b; font-size: 0.85rem;">When checked, this property's terms become the default for your entire account on the website.</span>
+                        </div>
                         <div class="card">
                             <div class="card-header">
                                 <h3> Check-in / Check-out</h3>
@@ -13194,7 +13201,22 @@ const promo = await fetch('/api/v1/offers/validate', {
                     </div>
                 </div>
 
-                <div class="card">
+                <div class="card" style="border: 2px solid #2563eb; background: #eff6ff;">
+                    <div class="card-body" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                        <div>
+                            <strong style="font-size: 1rem;">Terms Source</strong>
+                            <p style="margin: 0.25rem 0 0; font-size: 0.85rem; color: #475569;">Pull terms automatically from your property data, or write custom content below.</p>
+                        </div>
+                        <select class="form-input" id="wb-page-terms-source" style="width: 220px;" onchange="toggleTermsSource(this.value)">
+                            <option value="custom">Custom Content</option>
+                            <option value="gas-account">From GAS Account</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="wb-terms-custom-sections">
+
+                <div class="card" style="margin-top: 1rem;">
                     <div class="card-header"><h3>Page Settings</h3></div>
                     <div class="card-body">
                         <div class="form-group">
@@ -13567,6 +13589,19 @@ const promo = await fetch('/api/v1/offers/validate', {
                         </div>
                     </div>
                 </div>
+
+                </div><!-- /wb-terms-custom-sections -->
+
+                <div id="wb-terms-gas-message" style="display: none;">
+                    <div class="card" style="margin-top: 1rem;">
+                        <div class="card-body" style="text-align: center; padding: 2rem;">
+                            <div style="font-size: 2rem; margin-bottom: 0.75rem;">&#9989;</div>
+                            <h3 style="margin: 0 0 0.5rem;">Terms pulled from your GAS Account</h3>
+                            <p style="color: #64748b; margin: 0;">Your Terms & Conditions page will automatically display the check-in/out times, cancellation policy, house rules, and other terms from your property data in GAS Admin.<br><br>To choose which property's terms are used, go to <strong>Properties &gt; Amenities &gt; Terms &amp; Policies</strong> and check <em>"Apply these terms to all properties"</em>.</p>
+                        </div>
+                    </div>
+                </div>
+
             </div>
 
             <!-- Sub Page: Privacy Policy -->
@@ -24627,12 +24662,24 @@ const promo = await fetch('/api/v1/offers/validate', {
                             }
                         }
                     });
+                    // After loading terms page, apply source toggle visibility
+                    if (pageName === 'terms') {
+                        const src = document.getElementById('wb-page-terms-source');
+                        if (src) toggleTermsSource(src.value);
+                    }
                 }
             } catch (error) {
                 console.error('Error loading sub page:', error);
             }
         }
-        
+
+        function toggleTermsSource(mode) {
+            const custom = document.getElementById('wb-terms-custom-sections');
+            const gasMsg = document.getElementById('wb-terms-gas-message');
+            if (custom) custom.style.display = mode === 'gas-account' ? 'none' : '';
+            if (gasMsg) gasMsg.style.display = mode === 'gas-account' ? '' : 'none';
+        }
+
         function previewSubPageImage(pageName, imageType) {
             const input = document.getElementById(`wb-page-${pageName}-${imageType}`);
             const preview = document.getElementById(`wb-page-${pageName}-${imageType}-preview`);
@@ -30279,7 +30326,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                 damage_policy: document.getElementById('terms-damage-policy')?.value || null,
                 terms_conditions: document.getElementById('terms-conditions')?.value || null,
                 directions: document.getElementById('terms-directions')?.value || null,
-                area_info: document.getElementById('terms-area-info')?.value || null
+                area_info: document.getElementById('terms-area-info')?.value || null,
+                apply_to_all: document.getElementById('terms-apply-to-all')?.checked || false
             };
             
             // Also save room amenities if a room is selected
@@ -30331,7 +30379,7 @@ const promo = await fetch('/api/v1/offers/validate', {
              'terms-conditions','terms-directions','terms-area-info'
             ].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
             // Checkboxes
-            ['terms-self-checkin','terms-24hr-checkin','terms-dogs-allowed','terms-cats-allowed',
+            ['terms-apply-to-all','terms-self-checkin','terms-24hr-checkin','terms-dogs-allowed','terms-cats-allowed',
              'terms-small-pets-only','terms-cots-available','terms-highchairs','terms-no-outside-guests',
              'terms-id-required','access-wheelchair','access-step-free','access-bathroom',
              'access-grab-rails','access-roll-in-shower','access-elevator','access-ground-floor',
@@ -30423,6 +30471,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     if (terms.terms_conditions) document.getElementById('terms-conditions').value = terms.terms_conditions;
                     if (terms.directions) document.getElementById('terms-directions').value = terms.directions;
                     if (terms.area_info) document.getElementById('terms-area-info').value = terms.area_info;
+                    if (terms.apply_to_all) document.getElementById('terms-apply-to-all').checked = true;
 
                     // Beds (using bed_type from database) - OLD FORMAT
                     // Only load into old UI if container exists

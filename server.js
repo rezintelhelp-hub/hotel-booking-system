@@ -1301,6 +1301,7 @@ async function runMigrations() {
       await pool.query(`ALTER TABLE property_terms ADD COLUMN IF NOT EXISTS terms_conditions TEXT`);
       await pool.query(`ALTER TABLE property_terms ADD COLUMN IF NOT EXISTS directions TEXT`);
       await pool.query(`ALTER TABLE property_terms ADD COLUMN IF NOT EXISTS area_info TEXT`);
+      await pool.query(`ALTER TABLE property_terms ADD COLUMN IF NOT EXISTS apply_to_all BOOLEAN DEFAULT false`);
       console.log('✅ property_terms text columns ensured');
     } catch (e) {
       console.log('ℹ️  property_terms text columns:', e.message);
@@ -43596,8 +43597,8 @@ app.put('/api/admin/properties/:id/terms', async (req, res) => {
         grab_rails, roll_in_shower, elevator_access, ground_floor_available,
         quiet_hours_from, quiet_hours_until, no_outside_guests, id_required,
         additional_rules, bathroom_features, additional_rules_ml, cancellation_policy_ml,
-        check_in_instructions, check_out_instructions, damage_policy, terms_conditions, directions, area_info
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42)
+        check_in_instructions, check_out_instructions, damage_policy, terms_conditions, directions, area_info, apply_to_all
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43)
       ON CONFLICT (property_id) DO UPDATE SET
         checkin_from = EXCLUDED.checkin_from,
         checkin_until = EXCLUDED.checkin_until,
@@ -43640,6 +43641,7 @@ app.put('/api/admin/properties/:id/terms', async (req, res) => {
         terms_conditions = EXCLUDED.terms_conditions,
         directions = EXCLUDED.directions,
         area_info = EXCLUDED.area_info,
+        apply_to_all = EXCLUDED.apply_to_all,
         updated_at = CURRENT_TIMESTAMP
     `, [
       propertyId,
@@ -43683,7 +43685,8 @@ app.put('/api/admin/properties/:id/terms', async (req, res) => {
       terms.damage_policy || null,
       terms.terms_conditions || null,
       terms.directions || null,
-      terms.area_info || null
+      terms.area_info || null,
+      terms.apply_to_all || false
     ]);
     
     // Update beds - delete existing property-level beds and insert new
@@ -43754,6 +43757,15 @@ app.put('/api/admin/properties/:id/terms', async (req, res) => {
       }
     }
     
+    // If apply_to_all is set, clear it on all other properties in the same account
+    if (terms.apply_to_all) {
+      await client.query(`
+        UPDATE property_terms SET apply_to_all = false
+        WHERE property_id IN (SELECT id FROM properties WHERE account_id = (SELECT account_id FROM properties WHERE id = $1))
+        AND property_id != $1
+      `, [propertyId]);
+    }
+
     // Update cancellation_policy on properties table
     if (terms.cancellation_policy !== undefined) {
       await client.query(
@@ -65275,14 +65287,16 @@ app.get('/api/public/client/:clientId/site-config', async (req, res) => {
         // Add/merge terms page from website_settings
         const termsSettings = websiteSettings['page-terms'] || {};
         
-        // Fetch property-level terms as fallback (from API or channel manager sync)
+        // Fetch property-level terms (prefer apply_to_all=true, then first property)
         let propertyTerms = {};
         let propertyPayment = {};
         if (properties.length > 0) {
             try {
+                const propertyIds = properties.map(p => p.id);
                 const ptResult = await pool.query(
-                    'SELECT * FROM property_terms WHERE property_id = $1',
-                    [properties[0].id]
+                    `SELECT * FROM property_terms WHERE property_id = ANY($1)
+                     ORDER BY apply_to_all DESC NULLS LAST, property_id ASC LIMIT 1`,
+                    [propertyIds]
                 );
                 if (ptResult.rows.length > 0) propertyTerms = ptResult.rows[0];
             } catch (e) { /* property_terms table may not exist */ }
@@ -65313,6 +65327,7 @@ app.get('/api/public/client/:clientId/site-config', async (req, res) => {
                 ...(pagesObject['terms'] || {}),
                 page_type: 'terms',
                 slug: '/terms/',
+                terms_source: termsSettings.source || 'custom',
                 title: termsSettings.title || pagesObject['terms']?.title || 'Terms & Conditions',
                 meta_title: termsSettings['meta-title'] || pagesObject['terms']?.meta_title || '',
                 meta_description: termsSettings['meta-description'] || pagesObject['terms']?.meta_description || '',

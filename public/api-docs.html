@@ -792,7 +792,7 @@
                     "parameters": [
                         { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "string" } }
                     ],
-                    "responses": { "200": { "description": "Property terms", "content": { "application/json": { "example": { "success": true, "property_id": 532, "terms": { "check_in_time": "15:00", "check_out_time": "11:00", "house_rules": "No smoking. No parties.", "cancellation_policy": "Free cancellation up to 48 hours before check-in.", "terms_conditions": null, "min_stay": null, "max_stay": null, "damage_deposit": null, "cleaning_fee": null } } } } } }
+                    "responses": { "200": { "description": "Property terms", "content": { "application/json": { "example": { "success": true, "property_id": 532, "terms": { "check_in_time": "15:00", "check_out_time": "11:00", "house_rules": "No smoking. No parties.", "cancellation_policy": "Free cancellation up to 48 hours before check-in.", "terms_conditions": "By booking you agree to the house rules.", "damage_policy": "Security deposit: EUR 500", "check_in_instructions": "Key collection from lockbox.", "check_out_instructions": "Leave keys on counter.", "directions": "From airport, take express train.", "area_info": "5 min walk to restaurants.", "apply_to_all": false, "min_stay": null, "max_stay": null, "damage_deposit": null, "cleaning_fee": null } } } } } }
                 },
                 "put": {
                     "tags": ["Properties & Rooms"],
@@ -809,7 +809,13 @@
                                     "check_out_time": "11:00",
                                     "house_rules": "No smoking. No parties. Quiet hours 22:00-08:00.",
                                     "cancellation_policy": "Free cancellation up to 48 hours before check-in. 50% refund for cancellations within 48 hours.",
-                                    "terms_conditions": "By booking you agree to the house rules."
+                                    "terms_conditions": "By booking you agree to the house rules.",
+                                    "damage_policy": "Security deposit: EUR 500",
+                                    "check_in_instructions": "Key collection from lockbox, code sent 24hrs before.",
+                                    "check_out_instructions": "Leave keys on kitchen counter.",
+                                    "directions": "From airport, take express train to Central Station.",
+                                    "area_info": "Located in historic quarter, 5 min walk to restaurants.",
+                                    "apply_to_all": true
                                 }
                             }
                         }

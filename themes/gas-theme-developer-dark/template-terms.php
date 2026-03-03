@@ -38,6 +38,7 @@ $legacy = !empty($site_config['pages']['terms']) ? $site_config['pages']['terms'
 $legacy_sections = $legacy ? ($legacy['sections'] ?? []) : [];
 
 $use_api = !empty($wt) || !empty($legacy_sections);
+$terms_source = $wt['source'] ?? 'custom';
 
 // Get current language for multilingual content
 $lang = function_exists('developer_get_current_language') ? developer_get_current_language() : 'en';
@@ -61,6 +62,60 @@ $ml = function_exists('developer_get_ml_value') ? 'developer_get_ml_value' : nul
 
 // Build displayable sections array
 $all_sections = [];
+
+if ($terms_source === 'gas-account') {
+    // Auto-generate from property_terms data
+    $pt = $site_config['pages']['terms']['property_terms']
+       ?? $site_config['website']['page-terms']['property_terms'] ?? [];
+
+    if (!empty($pt['checkin_from']) || !empty($pt['checkout_by'])) {
+        $ci = '';
+        if (!empty($pt['checkin_from'])) $ci .= "Check-in: from " . $pt['checkin_from'];
+        if (!empty($pt['checkin_until'])) $ci .= " until " . $pt['checkin_until'];
+        if (!empty($pt['checkout_by'])) $ci .= "\nCheck-out: by " . $pt['checkout_by'];
+        if (!empty($pt['late_checkout_fee'])) $ci .= " (late check-out fee: " . $pt['late_checkout_fee'] . ")";
+        if (!empty($pt['self_checkin'])) $ci .= "\nSelf check-in available.";
+        if (!empty($pt['check_in_instructions'])) $ci .= "\n\n" . $pt['check_in_instructions'];
+        if (!empty($pt['check_out_instructions'])) $ci .= "\n\n" . $pt['check_out_instructions'];
+        $all_sections[] = ['title' => 'Check-in & Check-out', 'content' => trim($ci)];
+    }
+
+    if (!empty($pt['cancellation_policy'])) {
+        $all_sections[] = ['title' => 'Cancellation Policy', 'content' => $pt['cancellation_policy']];
+    }
+
+    // House rules (smoking, pets, quiet hours, additional rules)
+    $hr = '';
+    if (!empty($pt['smoking_policy']) && $pt['smoking_policy'] !== 'yes') {
+        $hr .= $pt['smoking_policy'] === 'no' ? "No smoking.\n" : "Smoking in designated areas only.\n";
+    }
+    if (!empty($pt['pet_policy'])) {
+        $hr .= $pt['pet_policy'] === 'no' ? "No pets allowed.\n" : ($pt['pet_policy'] === 'request' ? "Pets on request.\n" : "Pets allowed.\n");
+    }
+    if (!empty($pt['quiet_hours_from']) && !empty($pt['quiet_hours_until'])) {
+        $hr .= "Quiet hours: " . $pt['quiet_hours_from'] . " - " . $pt['quiet_hours_until'] . "\n";
+    }
+    if (!empty($pt['additional_rules'])) $hr .= "\n" . $pt['additional_rules'];
+    if (!empty(trim($hr))) {
+        $all_sections[] = ['title' => 'House Rules', 'content' => trim($hr)];
+    }
+
+    if (!empty($pt['terms_conditions'])) {
+        $all_sections[] = ['title' => 'Terms & Conditions', 'content' => $pt['terms_conditions']];
+    }
+    if (!empty($pt['damage_policy'])) {
+        $all_sections[] = ['title' => 'Liability & Damages', 'content' => $pt['damage_policy']];
+    }
+    if (!empty($pt['directions'])) {
+        $all_sections[] = ['title' => 'Directions', 'content' => $pt['directions']];
+    }
+    if (!empty($pt['area_info'])) {
+        $all_sections[] = ['title' => 'Area Information', 'content' => $pt['area_info']];
+    }
+
+    $use_api = true;
+
+} else {
 
 // Booking section
 $booking_enabled = $wt['booking-enabled'] ?? true;
@@ -188,6 +243,8 @@ if ($additional_enabled !== false && $additional_enabled !== 'false') {
         $all_sections[] = ['title' => $title, 'content' => $content];
     }
 }
+
+} // end terms_source else (custom)
 ?>
 
 <main id="primary" class="site-main">
