@@ -1293,6 +1293,19 @@ async function runMigrations() {
       console.log('ℹ️  property_terms multilingual:', e.message);
     }
     
+    // Add text columns to property_terms for Beds24 sync (check-in/out instructions, damage, terms, directions, area)
+    try {
+      await pool.query(`ALTER TABLE property_terms ADD COLUMN IF NOT EXISTS check_in_instructions TEXT`);
+      await pool.query(`ALTER TABLE property_terms ADD COLUMN IF NOT EXISTS check_out_instructions TEXT`);
+      await pool.query(`ALTER TABLE property_terms ADD COLUMN IF NOT EXISTS damage_policy TEXT`);
+      await pool.query(`ALTER TABLE property_terms ADD COLUMN IF NOT EXISTS terms_conditions TEXT`);
+      await pool.query(`ALTER TABLE property_terms ADD COLUMN IF NOT EXISTS directions TEXT`);
+      await pool.query(`ALTER TABLE property_terms ADD COLUMN IF NOT EXISTS area_info TEXT`);
+      console.log('✅ property_terms text columns ensured');
+    } catch (e) {
+      console.log('ℹ️  property_terms text columns:', e.message);
+    }
+
     // Add price_linking JSONB column to gas_sync_room_types for linked pricing
     try {
       await pool.query(`ALTER TABLE gas_sync_room_types ADD COLUMN IF NOT EXISTS price_linking JSONB`);
@@ -3904,25 +3917,38 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         await pool.query('UPDATE properties SET display_name = $1 WHERE id = $2', [propDisplayName, gasPropertyId]).catch(() => {});
       }
       
-      // Sync property_terms with Beds24 data (check-in/out, house rules, cancellation)
+      // Sync property_terms with Beds24 data (check-in/out, house rules, cancellation, instructions, etc.)
       const checkInTime = rawData.checkInStart || rawData.checkInTime || '15:00';
       const checkOutTime = rawData.checkOutEnd || rawData.checkOutTime || '11:00';
-      
+
       await pool.query(`
-        INSERT INTO property_terms (property_id, checkin_from, checkout_by, additional_rules, cancellation_policy)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO property_terms (property_id, checkin_from, checkout_by, additional_rules, cancellation_policy,
+          check_in_instructions, check_out_instructions, damage_policy, terms_conditions, directions, area_info)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         ON CONFLICT (property_id) DO UPDATE SET
           checkin_from = COALESCE(NULLIF($2, ''), property_terms.checkin_from),
           checkout_by = COALESCE(NULLIF($3, ''), property_terms.checkout_by),
           additional_rules = COALESCE(NULLIF($4, ''), property_terms.additional_rules),
           cancellation_policy = COALESCE(NULLIF($5, ''), property_terms.cancellation_policy),
+          check_in_instructions = COALESCE(NULLIF($6, ''), property_terms.check_in_instructions),
+          check_out_instructions = COALESCE(NULLIF($7, ''), property_terms.check_out_instructions),
+          damage_policy = COALESCE(NULLIF($8, ''), property_terms.damage_policy),
+          terms_conditions = COALESCE(NULLIF($9, ''), property_terms.terms_conditions),
+          directions = COALESCE(NULLIF($10, ''), property_terms.directions),
+          area_info = COALESCE(NULLIF($11, ''), property_terms.area_info),
           updated_at = NOW()
       `, [
         gasPropertyId,
         checkInTime,
         checkOutTime,
         propHouseRules || '',
-        propCancellation || ''
+        propCancellation || '',
+        propCheckInInstr || '',
+        propCheckOutInstr || '',
+        propDamagePolicy || '',
+        propTerms || '',
+        propDirections || '',
+        propAreaInfo || ''
       ]).catch(e => console.log('link-to-gas: property_terms sync:', e.message));
       
       console.log('link-to-gas: Updated property', gasPropertyId);
