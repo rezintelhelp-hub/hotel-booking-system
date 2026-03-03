@@ -24709,7 +24709,9 @@ const promo = await fetch('/api/v1/offers/validate', {
 
         // Shared: fetch the best property_terms for this account (apply_to_all first, then first with data)
         async function fetchAccountPropertyTerms() {
-            const propsResp = await fetch(`/api/accounts/${accountId}/properties`, { headers: authHeaders() });
+            const acctId = selectedAccountId;
+            if (!acctId) return null;
+            const propsResp = await fetch(`/api/accounts/${acctId}/properties`, { headers: authHeaders() });
             const propsData = await propsResp.json();
             if (!propsData.success || !propsData.properties?.length) return null;
             let best = null, bestName = '';
@@ -24727,7 +24729,7 @@ const promo = await fetch('/api/v1/offers/validate', {
 
         async function loadTermsPreview() {
             const preview = document.getElementById('wb-terms-gas-preview');
-            if (!preview || !accountId) return;
+            if (!preview || !selectedAccountId) return;
             preview.innerHTML = '<p style="color:#94a3b8;font-style:italic;">Loading property terms...</p>';
             try {
                 const result = await fetchAccountPropertyTerms();
@@ -24774,7 +24776,7 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
 
         async function copyTermsFromGAS() {
-            if (!accountId) { showNotification('No account selected', 'error'); return; }
+            if (!selectedAccountId) { showNotification('No account selected', 'error'); return; }
             try {
                 const result = await fetchAccountPropertyTerms();
                 if (!result) { showNotification('No property terms found to copy', 'error'); return; }
