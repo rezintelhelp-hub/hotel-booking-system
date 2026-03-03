@@ -65479,6 +65479,8 @@ app.get('/api/public/client/:clientId/site-config', async (req, res) => {
                 ...(pagesObject['privacy'] || {}),
                 page_type: 'privacy',
                 slug: '/privacy/',
+                privacy_source: privacySettings.source || 'custom',
+                google_analytics_id: websiteSettings.seo?.['google-analytics-id'] || '',
                 title: privacySettings.title || pagesObject['privacy']?.title || 'Privacy Policy',
                 meta_title: privacySettings['meta-title'] || pagesObject['privacy']?.meta_title || '',
                 meta_description: privacySettings['meta-description'] || pagesObject['privacy']?.meta_description || '',

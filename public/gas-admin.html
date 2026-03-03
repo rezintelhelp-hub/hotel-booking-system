@@ -13611,6 +13611,27 @@ const promo = await fetch('/api/v1/offers/validate', {
                     </div>
                 </div>
 
+                <div class="card" style="border: 2px solid #2563eb; background: #eff6ff;">
+                    <div class="card-body" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                        <div>
+                            <strong style="font-size: 1rem;">Privacy Policy Source</strong>
+                            <p id="wb-privacy-source-desc" style="margin: 0.25rem 0 0; font-size: 0.85rem; color: #475569;">Auto-generate a professional privacy policy from your business details, or select custom content to write your own</p>
+                        </div>
+                        <select class="form-input" id="wb-page-privacy-source" style="width: 220px;" onchange="togglePrivacySource(this.value)">
+                            <option value="custom">Custom Content</option>
+                            <option value="gas-account">From GAS Account</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="wb-privacy-gas-readonly-note" style="display:none; margin-top:1rem; padding:0.75rem 1rem; background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; color:#1e40af; font-size:0.85rem;">
+                    Editing disabled — privacy policy auto-generated from your business details. Switch to <strong>Custom Content</strong> to edit.
+                </div>
+
+                <div id="wb-privacy-copy-btn" style="margin-top: 1rem; margin-bottom: 0.5rem; text-align: right;">
+                    <button type="button" class="btn btn-sm" onclick="copyPrivacyFromGAS()" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); font-size: 0.85rem;">Copy from GAS Account</button>
+                </div>
+
                 <div class="card">
                     <div class="card-header"><h3>Page Settings</h3></div>
                     <div class="card-body">
@@ -24682,6 +24703,12 @@ const promo = await fetch('/api/v1/offers/validate', {
                         const src = document.getElementById('wb-page-terms-source');
                         if (src) toggleTermsSource(src.value);
                     }
+
+                    // After loading privacy page, apply source toggle visibility
+                    if (pageName === 'privacy') {
+                        const src = document.getElementById('wb-page-privacy-source');
+                        if (src) togglePrivacySource(src.value);
+                    }
                 }
             } catch (error) {
                 console.error('Error loading sub page:', error);
@@ -24793,6 +24820,99 @@ const promo = await fetch('/api/v1/offers/validate', {
             } catch (e) {
                 console.error('copyTermsFromGAS error:', e);
                 showNotification('Error copying terms', 'error');
+            }
+        }
+
+        // Privacy field IDs that get populated from auto-generated defaults
+        const privacyFieldIds = [
+            'wb-page-privacy-intro-en', 'wb-page-privacy-collection-en',
+            'wb-page-privacy-how-collect-en', 'wb-page-privacy-usage-en',
+            'wb-page-privacy-sharing-en', 'wb-page-privacy-cookies-en',
+            'wb-page-privacy-rights-en', 'wb-page-privacy-retention-en',
+            'wb-page-privacy-contact-en'
+        ];
+
+        function setPrivacyFieldsReadonly(readonly) {
+            privacyFieldIds.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.readOnly = readonly;
+                    el.style.opacity = readonly ? '0.6' : '';
+                    el.style.backgroundColor = readonly ? '#f1f5f9' : '';
+                }
+            });
+        }
+
+        function getPrivacyDefaults() {
+            const businessName = document.getElementById('wb-header-site-name')?.value || 'Our Property';
+            const email = document.getElementById('wb-footer-email')?.value || '';
+
+            const emailLink = email ? email : 'us';
+            const contactLine = email ? `\nEmail: ${email}` : '';
+
+            return {
+                'wb-page-privacy-intro-en': `${businessName} ("we", "us", or "our") is committed to protecting and respecting your privacy. This Privacy Policy explains how we collect, use, store, and protect your personal information when you visit our website, make a booking, or interact with our services.\n\nWe are committed to complying with the General Data Protection Regulation (GDPR) and other applicable data protection laws. By using our website or services, you acknowledge that you have read and understood this Privacy Policy.`,
+
+                'wb-page-privacy-collection-en': `We may collect and process the following categories of personal data:\n\nPersonal Information: Name, email address, telephone number, postal address, and other contact details you provide when making a booking or enquiry.\n\nBooking Details: Check-in and check-out dates, room preferences, number of guests, and any special requests or requirements.\n\nPayment Information: Payment card details are processed securely by our third-party payment processor and are never stored on our servers.\n\nTechnical Data: IP address, browser type and version, device information, operating system, time zone setting, and browsing actions on our website.`,
+
+                'wb-page-privacy-how-collect-en': `We collect information directly from you when you make a booking, submit an enquiry, or communicate with us. We also collect technical data automatically through cookies and similar technologies when you browse our website.`,
+
+                'wb-page-privacy-usage-en': `We use the personal information we collect for the following purposes:\n\n- To process and manage your bookings and payments\n- To send booking confirmations, reminders, and pre-arrival information\n- To communicate with you about your stay, including responding to enquiries and requests\n- To comply with legal and regulatory obligations, including tax and accounting requirements\n- To improve our website, services, and guest experience\n- To send marketing communications where you have given consent (you may opt out at any time)`,
+
+                'wb-page-privacy-sharing-en': `We work with trusted third-party service providers to deliver our services. These may include:\n\n- Payment Processor (Stripe): To securely process payments for bookings\n- Channel Managers: To distribute availability across booking platforms\n- Hosting Provider: To host and maintain our website infrastructure\n\nWe only share personal data with third parties to the extent necessary for them to provide their services. All third-party providers are contractually required to protect your data and use it only for the purposes we specify.\n\nAll payment transactions are processed through Stripe in compliance with PCI DSS requirements. We never store, process, or have access to your full credit or debit card numbers.`,
+
+                'wb-page-privacy-cookies-en': `Our website uses essential cookies that are necessary for the site to function correctly, such as maintaining your session and remembering your preferences.\n\nWe may use analytics tools to understand how visitors interact with our website. These tools use cookies to collect anonymised information about page visits and user behaviour, helping us improve our website and services.\n\nYou can control and manage cookies through your browser settings. Please note that disabling certain cookies may affect the functionality of our website.`,
+
+                'wb-page-privacy-rights-en': `Under the General Data Protection Regulation (GDPR), you have the following rights regarding your personal data:\n\n- Right of Access: You may request a copy of the personal data we hold about you\n- Right to Rectification: You may request that we correct any inaccurate or incomplete data\n- Right to Erasure: You may request that we delete your personal data, subject to legal obligations\n- Right to Data Portability: You may request your data in a structured, commonly used, machine-readable format\n- Right to Restrict Processing: You may request that we limit how we use your data\n- Right to Object: You may object to the processing of your personal data for certain purposes\n- Right to Lodge a Complaint: You have the right to lodge a complaint with a supervisory authority\n\nTo exercise any of these rights, please contact ${emailLink}. We will respond to your request within 30 days.`,
+
+                'wb-page-privacy-retention-en': `We retain personal data only for as long as necessary to fulfil the purposes for which it was collected:\n\n- Booking and financial records: Retained for the period required by applicable tax and accounting regulations (typically 7 years)\n- Marketing data: Retained until you withdraw your consent or unsubscribe\n- Technical logs: Retained for up to 90 days for security and performance monitoring\n\nAfter the applicable retention period, personal data is securely deleted or anonymised.`,
+
+                'wb-page-privacy-contact-en': `If you have any questions about this Privacy Policy or how we handle your personal data, please contact us:\n\n${businessName}${contactLine}`
+            };
+        }
+
+        function populatePrivacyDefaults() {
+            const defaults = getPrivacyDefaults();
+            Object.entries(defaults).forEach(([id, val]) => {
+                const el = document.getElementById(id);
+                if (el) el.value = val;
+            });
+        }
+
+        function togglePrivacySource(mode) {
+            const note = document.getElementById('wb-privacy-gas-readonly-note');
+            const copyBtn = document.getElementById('wb-privacy-copy-btn');
+            const desc = document.getElementById('wb-privacy-source-desc');
+            if (mode === 'gas-account') {
+                if (desc) desc.textContent = 'Auto-generate a professional privacy policy from your business details, or select custom content to write your own';
+                if (note) note.style.display = '';
+                if (copyBtn) copyBtn.style.display = 'none';
+                setPrivacyFieldsReadonly(true);
+                populatePrivacyDefaults();
+            } else {
+                if (desc) desc.textContent = 'The content below has been copied from GAS Account, please edit to display your custom Privacy Policy on your web site';
+                if (copyBtn) copyBtn.style.display = '';
+                setPrivacyFieldsReadonly(false);
+                const hasContent = privacyFieldIds.some(id => { const el = document.getElementById(id); return el && el.value.trim(); });
+                if (note) {
+                    if (hasContent) {
+                        note.innerHTML = 'The Privacy Policy content has been copied from GAS Account, edit to change the content on your website';
+                        note.style.display = '';
+                    } else {
+                        note.style.display = 'none';
+                    }
+                }
+            }
+        }
+
+        function copyPrivacyFromGAS() {
+            const hasContent = privacyFieldIds.some(id => { const el = document.getElementById(id); return el && el.value.trim(); });
+            if (hasContent && !confirm('This will overwrite existing content. Continue?')) return;
+            populatePrivacyDefaults();
+            const note = document.getElementById('wb-privacy-gas-readonly-note');
+            if (note) {
+                note.innerHTML = 'The Privacy Policy content has been copied from GAS Account, edit to change the content on your website';
+                note.style.display = '';
             }
         }
 
