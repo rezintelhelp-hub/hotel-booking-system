@@ -13205,7 +13205,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <div class="card-body" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
                         <div>
                             <strong style="font-size: 1rem;">Terms Source</strong>
-                            <p style="margin: 0.25rem 0 0; font-size: 0.85rem; color: #475569;">Pull terms automatically from your property data, or write custom content below.</p>
+                            <p id="wb-terms-source-desc" style="margin: 0.25rem 0 0; font-size: 0.85rem; color: #475569;">Pull terms automatically from your property data, or select custom content to edit what is viewed on your web site</p>
                         </div>
                         <select class="form-input" id="wb-page-terms-source" style="width: 220px;" onchange="toggleTermsSource(this.value)">
                             <option value="custom">Custom Content</option>
@@ -24727,7 +24727,9 @@ const promo = await fetch('/api/v1/offers/validate', {
         async function toggleTermsSource(mode) {
             const note = document.getElementById('wb-terms-gas-readonly-note');
             const copyBtn = document.getElementById('wb-terms-copy-btn');
+            const desc = document.getElementById('wb-terms-source-desc');
             if (mode === 'gas-account') {
+                if (desc) desc.textContent = 'Pull terms automatically from your property data, or select custom content to edit what is viewed on your web site';
                 if (note) note.style.display = '';
                 if (copyBtn) copyBtn.style.display = 'none';
                 setTermsFieldsReadonly(true);
@@ -24738,6 +24740,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     showNotification('No property terms found. Add terms in Properties > Amenities > Terms & Policies.', 'warning');
                 }
             } else {
+                if (desc) desc.textContent = 'The content below has been copied from GAS Admin, please edit to display the Custom Content on your web site';
                 if (copyBtn) copyBtn.style.display = '';
                 setTermsFieldsReadonly(false);
                 const hasContent = termsFieldIds.some(id => { const el = document.getElementById(id); return el && el.value.trim(); });
