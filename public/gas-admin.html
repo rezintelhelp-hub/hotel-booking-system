@@ -13216,7 +13216,11 @@ const promo = await fetch('/api/v1/offers/validate', {
 
                 <div id="wb-terms-custom-sections">
 
-                <div class="card" style="margin-top: 1rem;">
+                <div style="margin-top: 1rem; margin-bottom: 0.5rem; text-align: right;">
+                    <button type="button" class="btn btn-sm" onclick="copyTermsFromGAS()" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); font-size: 0.85rem;">Copy terms from GAS Account</button>
+                </div>
+
+                <div class="card" style="margin-top: 0.5rem;">
                     <div class="card-header"><h3>Page Settings</h3></div>
                     <div class="card-body">
                         <div class="form-group">
@@ -24703,36 +24707,37 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (mode === 'gas-account') loadTermsPreview();
         }
 
+        // Shared: fetch the best property_terms for this account (apply_to_all first, then first with data)
+        async function fetchAccountPropertyTerms() {
+            const propsResp = await fetch(`/api/accounts/${accountId}/properties`, { headers: authHeaders() });
+            const propsData = await propsResp.json();
+            if (!propsData.success || !propsData.properties?.length) return null;
+            let best = null, bestName = '';
+            for (const prop of propsData.properties) {
+                const resp = await fetch(`/api/admin/properties/${prop.id}/terms`, { headers: authHeaders() });
+                const d = await resp.json();
+                const t = d.success ? (d.data?.terms || d.data) : null;
+                if (t && (t.checkin_from || t.cancellation_policy || t.check_in_instructions || t.additional_rules)) {
+                    if (!best || t.apply_to_all) { best = t; bestName = prop.name; }
+                    if (t.apply_to_all) break;
+                }
+            }
+            return best ? { terms: best, propertyName: bestName } : null;
+        }
+
         async function loadTermsPreview() {
             const preview = document.getElementById('wb-terms-gas-preview');
             if (!preview || !accountId) return;
             preview.innerHTML = '<p style="color:#94a3b8;font-style:italic;">Loading property terms...</p>';
             try {
-                // Fetch properties for this account to find one with property_terms
-                const propsResp = await fetch(`/api/admin/properties?account_id=${accountId}`, { headers: authHeaders() });
-                const propsData = await propsResp.json();
-                if (!propsData.success || !propsData.data?.length) {
-                    preview.innerHTML = '<p style="color:#ef4444;">No properties found for this account.</p>';
-                    return;
-                }
-                // Try each property until we find one with terms
-                let pt = null, ptPropName = '';
-                for (const prop of propsData.data) {
-                    const resp = await fetch(`/api/admin/properties/${prop.id}/terms`, { headers: authHeaders() });
-                    const d = await resp.json();
-                    if (d.success && d.data && (d.data.checkin_from || d.data.cancellation_policy || d.data.check_in_instructions)) {
-                        pt = d.data;
-                        ptPropName = prop.name;
-                        if (pt.apply_to_all) break; // prefer the designated property
-                    }
-                }
-                if (!pt) {
+                const result = await fetchAccountPropertyTerms();
+                if (!result) {
                     preview.innerHTML = '<p style="color:#f59e0b;">No property terms data found. Add terms in <strong>Properties &gt; Amenities &gt; Terms &amp; Policies</strong>.</p>';
                     return;
                 }
-                let html = `<p style="font-size:0.8rem;color:#94a3b8;margin-bottom:1rem;">Source: <strong>${ptPropName}</strong>${pt.apply_to_all ? ' (apply to all)' : ''}</p>`;
+                const pt = result.terms;
+                let html = `<p style="font-size:0.8rem;color:#94a3b8;margin-bottom:1rem;">Source: <strong>${result.propertyName}</strong>${pt.apply_to_all ? ' (apply to all)' : ''}</p>`;
                 const sections = [];
-                // Check-in/out
                 if (pt.checkin_from || pt.checkout_by) {
                     let s = '';
                     if (pt.checkin_from) s += `<strong>Check-in:</strong> from ${pt.checkin_from}${pt.checkin_until ? ' until ' + pt.checkin_until : ''}<br>`;
@@ -24741,7 +24746,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                     sections.push({ title: 'Check-in & Check-out', content: s });
                 }
                 if (pt.cancellation_policy) sections.push({ title: 'Cancellation Policy', content: pt.cancellation_policy.replace(/\n/g, '<br>') });
-                // House rules
                 const rules = [];
                 if (pt.smoking_policy && pt.smoking_policy !== 'yes') rules.push(pt.smoking_policy === 'no' ? 'No smoking.' : 'Smoking in designated areas only.');
                 if (pt.pet_policy) rules.push(pt.pet_policy === 'no' ? 'No pets allowed.' : pt.pet_policy === 'request' ? 'Pets on request.' : 'Pets allowed.');
@@ -24752,7 +24756,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                 if (pt.damage_policy) sections.push({ title: 'Liability & Damages', content: pt.damage_policy.replace(/\n/g, '<br>') });
                 if (pt.directions) sections.push({ title: 'Directions', content: pt.directions.replace(/\n/g, '<br>') });
                 if (pt.area_info) sections.push({ title: 'Area Information', content: pt.area_info.replace(/\n/g, '<br>') });
-
                 if (!sections.length) {
                     preview.innerHTML = html + '<p style="color:#f59e0b;">Property terms exist but no displayable content found.</p>';
                     return;
@@ -24767,6 +24770,39 @@ const promo = await fetch('/api/v1/offers/validate', {
             } catch (e) {
                 console.error('loadTermsPreview error:', e);
                 preview.innerHTML = '<p style="color:#ef4444;">Error loading preview.</p>';
+            }
+        }
+
+        async function copyTermsFromGAS() {
+            if (!accountId) { showNotification('No account selected', 'error'); return; }
+            try {
+                const result = await fetchAccountPropertyTerms();
+                if (!result) { showNotification('No property terms found to copy', 'error'); return; }
+                const pt = result.terms;
+                // Map property_terms → custom section fields
+                const setVal = (id, val) => { const el = document.getElementById(id); if (el && val) el.value = val; };
+                setVal('wb-page-terms-checkin-time', pt.checkin_from);
+                setVal('wb-page-terms-checkout-time', pt.checkout_by);
+                // Check-in details: combine check_in_instructions + check_out_instructions
+                const checkinDetails = [pt.check_in_instructions, pt.check_out_instructions].filter(Boolean).join('\n\n');
+                setVal('wb-page-terms-checkin-details-en', checkinDetails);
+                setVal('wb-page-terms-cancellation-en', pt.cancellation_policy);
+                // House rules: combine smoking, pets, quiet hours, additional_rules
+                const hrParts = [];
+                if (pt.smoking_policy && pt.smoking_policy !== 'yes') hrParts.push(pt.smoking_policy === 'no' ? 'No smoking.' : 'Smoking in designated areas only.');
+                if (pt.pet_policy) hrParts.push(pt.pet_policy === 'no' ? 'No pets allowed.' : pt.pet_policy === 'request' ? 'Pets on request.' : 'Pets allowed.');
+                if (pt.quiet_hours_from && pt.quiet_hours_until) hrParts.push('Quiet hours: ' + pt.quiet_hours_from + ' – ' + pt.quiet_hours_until);
+                if (pt.additional_rules) hrParts.push(pt.additional_rules);
+                setVal('wb-page-terms-house-rules-en', hrParts.join('\n'));
+                setVal('wb-page-terms-booking-en', pt.terms_conditions);
+                setVal('wb-page-terms-liability-en', pt.damage_policy);
+                // Additional: combine directions + area_info
+                const additional = [pt.directions ? 'Directions:\n' + pt.directions : '', pt.area_info ? 'Area Information:\n' + pt.area_info : ''].filter(Boolean).join('\n\n');
+                setVal('wb-page-terms-additional-en', additional);
+                showNotification(`Terms copied from ${result.propertyName}. Review and save.`, 'success');
+            } catch (e) {
+                console.error('copyTermsFromGAS error:', e);
+                showNotification('Error copying terms', 'error');
             }
         }
 
