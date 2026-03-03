@@ -29328,6 +29328,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                 if (roomSelect) {
                     roomSelect.innerHTML = '<option value="">Select Room...</option>';
                 }
+                // Clear terms form (no property selected yet)
+                loadPropertyTerms(null);
             } catch (error) {
                 console.error('Error loading properties for amenities:', error);
             }
@@ -30274,9 +30276,7 @@ const promo = await fetch('/api/v1/offers/validate', {
         
         // Load property terms when property is selected
         async function loadPropertyTerms(propertyId) {
-            if (!propertyId) return;
-
-            // Reset ALL form fields before populating to prevent data contamination
+            // Reset ALL form fields ALWAYS to prevent data contamination (even when no property selected)
             // Text inputs and textareas
             ['terms-checkin-from','terms-checkin-until','terms-checkout','terms-late-checkout-fee',
              'terms-smoking-fine','terms-pet-deposit','terms-pet-fee','terms-max-pets','terms-cot-fee',
@@ -30295,6 +30295,8 @@ const promo = await fetch('/api/v1/offers/validate', {
             // Hide conditional panels
             const petDetails = document.getElementById('pet-details');
             if (petDetails) petDetails.style.display = 'none';
+
+            if (!propertyId) return;
 
             try {
                 const response = await fetch(`/api/admin/properties/${propertyId}/terms`);
