@@ -3785,12 +3785,15 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
       propShortDesc = extractText(texts.propertyShortDescription, texts.shortDescription, rawData.shortDescription);
       propHouseRules = extractText(texts.houseRules, texts.propertyHouseRules, rawData.houseRules);
       propCancellation = extractText(texts.cancellationPolicy, texts.cancellation, rawData.cancellationPolicy);
-      propTerms = extractText(texts.termsConditions, texts.terms, rawData.termsConditions);
+      propTerms = extractText(texts.generalPolicy, texts.termsConditions, texts.terms, rawData.termsConditions);
       propDirections = extractText(texts.directions, texts.howToGetThere, rawData.directions);
       propCheckInInstr = extractText(texts.checkInInstructions, rawData.checkInInstructions);
       propCheckOutInstr = extractText(texts.checkOutInstructions, rawData.checkOutInstructions);
-      propAreaInfo = extractText(texts.areaInfo, texts.areaDescription, rawData.areaInfo);
-      propDamagePolicy = extractText(texts.damagePolicy, rawData.damagePolicy);
+      propAreaInfo = extractText(texts.locationDescription, texts.areaInfo, texts.areaDescription, rawData.areaInfo);
+      // Beds24 has securityDeposit on roomTypes, not as a text field
+      const secDep = rawData.roomTypes?.[0]?.securityDeposit || 0;
+      const propCurrency = rawData.currency || 'EUR';
+      propDamagePolicy = secDep > 0 ? `Security deposit: ${propCurrency} ${secDep}` : extractText(texts.damagePolicy, rawData.damagePolicy);
       
       // Extract propertyDescription1 and propertyDescription2 for room-level fallbacks
       console.log('link-to-gas: texts.propertyDescription1 type:', typeof texts.propertyDescription1, 'value:', JSON.stringify(texts.propertyDescription1)?.substring(0, 100));
@@ -3919,28 +3922,31 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
       
       // Sync property_terms with Beds24 data (check-in/out, house rules, cancellation, instructions, etc.)
       const checkInTime = rawData.checkInStart || rawData.checkInTime || '15:00';
+      const checkInUntil = rawData.checkInEnd || rawData.checkInTo || '';
       const checkOutTime = rawData.checkOutEnd || rawData.checkOutTime || '11:00';
 
       await pool.query(`
-        INSERT INTO property_terms (property_id, checkin_from, checkout_by, additional_rules, cancellation_policy,
+        INSERT INTO property_terms (property_id, checkin_from, checkout_by, checkin_until, additional_rules, cancellation_policy,
           check_in_instructions, check_out_instructions, damage_policy, terms_conditions, directions, area_info)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         ON CONFLICT (property_id) DO UPDATE SET
           checkin_from = COALESCE(NULLIF($2, ''), property_terms.checkin_from),
           checkout_by = COALESCE(NULLIF($3, ''), property_terms.checkout_by),
-          additional_rules = COALESCE(NULLIF($4, ''), property_terms.additional_rules),
-          cancellation_policy = COALESCE(NULLIF($5, ''), property_terms.cancellation_policy),
-          check_in_instructions = COALESCE(NULLIF($6, ''), property_terms.check_in_instructions),
-          check_out_instructions = COALESCE(NULLIF($7, ''), property_terms.check_out_instructions),
-          damage_policy = COALESCE(NULLIF($8, ''), property_terms.damage_policy),
-          terms_conditions = COALESCE(NULLIF($9, ''), property_terms.terms_conditions),
-          directions = COALESCE(NULLIF($10, ''), property_terms.directions),
-          area_info = COALESCE(NULLIF($11, ''), property_terms.area_info),
+          checkin_until = COALESCE(NULLIF($4, ''), property_terms.checkin_until),
+          additional_rules = COALESCE(NULLIF($5, ''), property_terms.additional_rules),
+          cancellation_policy = COALESCE(NULLIF($6, ''), property_terms.cancellation_policy),
+          check_in_instructions = COALESCE(NULLIF($7, ''), property_terms.check_in_instructions),
+          check_out_instructions = COALESCE(NULLIF($8, ''), property_terms.check_out_instructions),
+          damage_policy = COALESCE(NULLIF($9, ''), property_terms.damage_policy),
+          terms_conditions = COALESCE(NULLIF($10, ''), property_terms.terms_conditions),
+          directions = COALESCE(NULLIF($11, ''), property_terms.directions),
+          area_info = COALESCE(NULLIF($12, ''), property_terms.area_info),
           updated_at = NOW()
       `, [
         gasPropertyId,
         checkInTime,
         checkOutTime,
+        checkInUntil,
         propHouseRules || '',
         propCancellation || '',
         propCheckInInstr || '',
