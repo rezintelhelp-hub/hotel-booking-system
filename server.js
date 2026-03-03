@@ -3660,12 +3660,74 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     
     // Handle different adapters
     if (prop.adapter_code === 'hostfully') {
-      // Hostfully: data already written directly to bookable_units and room_availability during import
-      // No need for link-to-gas processing
+      // Hostfully: fetch room data + descriptions and upsert property_terms
+      const hfRoomTypes = await pool.query(
+        `SELECT rt.*, bu.property_id as gas_property_id FROM gas_sync_room_types rt
+         LEFT JOIN bookable_units bu ON bu.id = rt.gas_room_id
+         WHERE rt.sync_property_id = $1 AND rt.gas_room_id IS NOT NULL LIMIT 1`,
+        [prop.id]
+      );
+
+      if (hfRoomTypes.rows.length === 0) {
+        return res.json({ success: true, message: 'Hostfully property not yet linked to GAS.', stats: { roomsUpdated: 0 } });
+      }
+
+      const hfRoom = hfRoomTypes.rows[0];
+      const hfGasPropertyId = hfRoom.gas_property_id;
+      const hfRoomRaw = typeof hfRoom.raw_data === 'string' ? JSON.parse(hfRoom.raw_data) : (hfRoom.raw_data || {});
+
+      let hfCheckIn = hfRoomRaw.availability?.checkInTimeStart ? `${hfRoomRaw.availability.checkInTimeStart}:00` : '';
+      let hfCheckOut = hfRoomRaw.availability?.checkOutTime ? `${hfRoomRaw.availability.checkOutTime}:00` : '';
+      let hfCheckInEnd = hfRoomRaw.availability?.checkInTimeEnd ? `${hfRoomRaw.availability.checkInTimeEnd}:00` : '';
+      let hfCancellation = hfRoomRaw.cancellationPolicy || '';
+      let hfHouseRules = hfRoomRaw.houseRules || '';
+      const hfSecDep = hfRoomRaw.pricing?.securityDeposit || 0;
+      const hfCurrency = hfRoomRaw.pricing?.currency || 'USD';
+      let hfDamagePolicy = hfSecDep > 0 ? `Security deposit: ${hfCurrency} ${hfSecDep}` : '';
+      let hfCheckInAccess = '', hfLocationDesc = '', hfDescTransit = '';
+
+      // Fetch descriptions from Hostfully API
+      try {
+        const connResult = await pool.query('SELECT credentials FROM gas_sync_connections WHERE id = $1', [prop.connection_id]);
+        if (connResult.rows.length > 0) {
+          const hfCreds = typeof connResult.rows[0].credentials === 'string'
+            ? JSON.parse(connResult.rows[0].credentials) : (connResult.rows[0].credentials || {});
+          const { HostfullyAdapter } = require('./gas-sync/adapters/hostfully-adapter');
+          const hfAdapter = new HostfullyAdapter({ apiKey: hfCreds.apiKey, agencyUid: hfCreds.agencyUid });
+          const descResult = await hfAdapter.getDescriptions(hfRoom.external_id);
+          if (descResult.success && descResult.data) {
+            const enDesc = descResult.data['en_US'] || descResult.data['en'] || Object.values(descResult.data)[0] || {};
+            hfCheckInAccess = enDesc.access || '';
+            hfLocationDesc = [enDesc.neighbourhood, enDesc.transit].filter(Boolean).join('\n\n');
+            hfDescTransit = enDesc.transit || '';
+          }
+        }
+      } catch (descErr) {
+        console.log('link-to-gas: Hostfully description fetch:', descErr.message);
+      }
+
+      // Upsert property_terms
+      await pool.query(`
+        INSERT INTO property_terms (property_id, checkin_from, checkout_by, checkin_until, additional_rules, cancellation_policy, check_in_instructions, area_info, directions, damage_policy)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        ON CONFLICT (property_id) DO UPDATE SET
+          checkin_from = COALESCE(NULLIF($2, ''), property_terms.checkin_from),
+          checkout_by = COALESCE(NULLIF($3, ''), property_terms.checkout_by),
+          checkin_until = COALESCE(NULLIF($4, ''), property_terms.checkin_until),
+          additional_rules = COALESCE(NULLIF($5, ''), property_terms.additional_rules),
+          cancellation_policy = COALESCE(NULLIF($6, ''), property_terms.cancellation_policy),
+          check_in_instructions = COALESCE(NULLIF($7, ''), property_terms.check_in_instructions),
+          area_info = COALESCE(NULLIF($8, ''), property_terms.area_info),
+          directions = COALESCE(NULLIF($9, ''), property_terms.directions),
+          damage_policy = COALESCE(NULLIF($10, ''), property_terms.damage_policy),
+          updated_at = NOW()
+      `, [hfGasPropertyId, hfCheckIn, hfCheckOut, hfCheckInEnd, hfHouseRules, hfCancellation, hfCheckInAccess, hfLocationDesc, hfDescTransit, hfDamagePolicy])
+        .catch(e => console.log('link-to-gas: Hostfully property_terms:', e.message));
+
       return res.json({
         success: true,
-        message: 'Hostfully properties are synced directly during import.',
-        stats: { roomsUpdated: 0, note: 'Use import-to-gas or sync-content for Hostfully' }
+        message: 'Hostfully property_terms updated.',
+        stats: { propertyTermsUpdated: hfGasPropertyId ? 1 : 0 }
       });
     }
     
@@ -7576,12 +7638,12 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
       const updatedPropertyIds = new Set();
       
       for (const room of roomTypes.rows) {
+        let locationDesc = '', houseRules = '', checkInAccess = '', descTransit = '';
         // Descriptions (full text + individual sections)
         try {
           const descResult = await adapter.getDescriptions(room.external_id);
           if (descResult.success && descResult.data) {
             const fullDescObj = {}, shortDescObj = {};
-            let locationDesc = '', houseRules = '', checkInAccess = '';
 
             for (const [locale, desc] of Object.entries(descResult.data)) {
               const lang = locale === 'en_US' ? 'en' : locale === 'ja_JP' ? 'ja' : locale.split('_')[0].toLowerCase();
@@ -7591,6 +7653,7 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
               // Store English sections for property-level fields
               if (lang === 'en') {
                 locationDesc = [desc.neighbourhood, desc.transit].filter(Boolean).join('\n\n');
+                descTransit = desc.transit || '';
                 houseRules = [desc.notes, desc.interaction].filter(Boolean).join('\n\n');
                 checkInAccess = desc.access || '';
               }
@@ -7689,6 +7752,27 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
                   UPDATE accounts SET vat_rate = $1, vat_enabled = true WHERE id = (SELECT account_id FROM properties WHERE id = $2)
                 `, [vatPercent, room.property_id]);
               }
+
+              // Upsert property_terms with description + policy fields
+              const secDep = pd.securityDeposit || 0;
+              const ptDamagePolicy = secDep > 0 ? `Security deposit: ${pd.currency || 'USD'} ${secDep}` : '';
+              const ptCancellation = pd.cancellationPolicy || '';
+              await pool.query(`
+                INSERT INTO property_terms (property_id, checkin_from, checkout_by, checkin_until, additional_rules, cancellation_policy, check_in_instructions, area_info, directions, damage_policy)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                ON CONFLICT (property_id) DO UPDATE SET
+                  checkin_from = COALESCE(NULLIF($2, ''), property_terms.checkin_from),
+                  checkout_by = COALESCE(NULLIF($3, ''), property_terms.checkout_by),
+                  checkin_until = COALESCE(NULLIF($4, ''), property_terms.checkin_until),
+                  additional_rules = COALESCE(NULLIF($5, ''), property_terms.additional_rules),
+                  cancellation_policy = COALESCE(NULLIF($6, ''), property_terms.cancellation_policy),
+                  check_in_instructions = COALESCE(NULLIF($7, ''), property_terms.check_in_instructions),
+                  area_info = COALESCE(NULLIF($8, ''), property_terms.area_info),
+                  directions = COALESCE(NULLIF($9, ''), property_terms.directions),
+                  damage_policy = COALESCE(NULLIF($10, ''), property_terms.damage_policy),
+                  updated_at = NOW()
+              `, [room.property_id, checkIn || '', checkOut || '', checkInEnd || '', houseRules, ptCancellation, checkInAccess, locationDesc, descTransit, ptDamagePolicy])
+                .catch(e => console.log(`[Content Sync HF] property_terms: ${e.message}`));
 
               updatedPropertyIds.add(room.property_id);
             }
