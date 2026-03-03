@@ -24738,9 +24738,17 @@ const promo = await fetch('/api/v1/offers/validate', {
                     showNotification('No property terms found. Add terms in Properties > Amenities > Terms & Policies.', 'warning');
                 }
             } else {
-                if (note) note.style.display = 'none';
                 if (copyBtn) copyBtn.style.display = '';
                 setTermsFieldsReadonly(false);
+                const hasContent = termsFieldIds.some(id => { const el = document.getElementById(id); return el && el.value.trim(); });
+                if (note) {
+                    if (hasContent) {
+                        note.innerHTML = 'The Terms & Conditions have been copied from GAS Admin, edit to change the content on your website';
+                        note.style.display = '';
+                    } else {
+                        note.style.display = 'none';
+                    }
+                }
             }
         }
 
