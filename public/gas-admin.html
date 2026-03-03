@@ -24772,7 +24772,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const result = await fetchAccountPropertyTerms();
                 if (!result) { showNotification('No property terms found to copy', 'error'); return; }
                 populateTermsFields(result.terms);
-                showNotification(`Terms copied from ${result.propertyName}. Review and save.`, 'success');
+                const note = document.getElementById('wb-terms-gas-readonly-note');
+                if (note) {
+                    note.innerHTML = 'The Terms & Conditions have been copied from GAS Admin, edit to change the content on your website';
+                    note.style.display = '';
+                }
             } catch (e) {
                 console.error('copyTermsFromGAS error:', e);
                 showNotification('Error copying terms', 'error');
