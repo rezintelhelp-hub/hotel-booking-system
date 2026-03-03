@@ -13214,10 +13214,12 @@ const promo = await fetch('/api/v1/offers/validate', {
                     </div>
                 </div>
 
-                <div id="wb-terms-custom-sections">
+                <div id="wb-terms-gas-readonly-note" style="display:none; margin-top:1rem; padding:0.75rem 1rem; background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; color:#1e40af; font-size:0.85rem;">
+                    Editing disabled — data pulled from Property Management. Switch to <strong>Custom Content</strong> to edit.
+                </div>
 
-                <div style="margin-top: 1rem; margin-bottom: 0.5rem; text-align: right;">
-                    <button type="button" class="btn btn-sm" onclick="copyTermsFromGAS()" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); font-size: 0.85rem;">Copy terms from GAS Account</button>
+                <div id="wb-terms-copy-btn" style="margin-top: 1rem; margin-bottom: 0.5rem; text-align: right;">
+                    <button type="button" class="btn btn-sm" onclick="copyTermsFromGAS()" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); font-size: 0.85rem;">Copy from GAS Account</button>
                 </div>
 
                 <div class="card" style="margin-top: 0.5rem;">
@@ -13594,21 +13596,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                     </div>
                 </div>
 
-                </div><!-- /wb-terms-custom-sections -->
-
-                <div id="wb-terms-gas-message" style="display: none;">
-                    <div class="card" style="margin-top: 1rem; border: 2px solid #10b981;">
-                        <div class="card-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white;">
-                            <h3>Property Terms Preview</h3>
-                        </div>
-                        <div class="card-body">
-                            <p style="color: #64748b; margin: 0 0 1rem; font-size: 0.85rem;">This data will appear on your Terms page. Edit it in <strong>Properties &gt; Amenities &gt; Terms &amp; Policies</strong>.</p>
-                            <div id="wb-terms-gas-preview" style="color: #475569; font-size: 0.9rem;">
-                                <p style="color: #94a3b8; font-style: italic;">Loading property terms...</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
 
             </div>
 
@@ -24699,15 +24686,65 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
 
-        function toggleTermsSource(mode) {
-            const custom = document.getElementById('wb-terms-custom-sections');
-            const gasMsg = document.getElementById('wb-terms-gas-message');
-            if (custom) custom.style.display = mode === 'gas-account' ? 'none' : '';
-            if (gasMsg) gasMsg.style.display = mode === 'gas-account' ? '' : 'none';
-            if (mode === 'gas-account') loadTermsPreview();
+        // Terms field IDs that get populated from property_terms
+        const termsFieldIds = [
+            'wb-page-terms-checkin-time', 'wb-page-terms-checkout-time',
+            'wb-page-terms-checkin-details-en', 'wb-page-terms-cancellation-en',
+            'wb-page-terms-house-rules-en', 'wb-page-terms-booking-en',
+            'wb-page-terms-liability-en', 'wb-page-terms-additional-en'
+        ];
+
+        function setTermsFieldsReadonly(readonly) {
+            termsFieldIds.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.readOnly = readonly;
+                    el.style.opacity = readonly ? '0.6' : '';
+                    el.style.backgroundColor = readonly ? '#f1f5f9' : '';
+                }
+            });
         }
 
-        // Shared: fetch the best property_terms for this account (apply_to_all first, then first with data)
+        function populateTermsFields(pt) {
+            const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
+            setVal('wb-page-terms-checkin-time', pt.checkin_from);
+            setVal('wb-page-terms-checkout-time', pt.checkout_by);
+            const checkinDetails = [pt.check_in_instructions, pt.check_out_instructions].filter(Boolean).join('\n\n');
+            setVal('wb-page-terms-checkin-details-en', checkinDetails);
+            setVal('wb-page-terms-cancellation-en', pt.cancellation_policy);
+            const hrParts = [];
+            if (pt.smoking_policy && pt.smoking_policy !== 'yes') hrParts.push(pt.smoking_policy === 'no' ? 'No smoking.' : 'Smoking in designated areas only.');
+            if (pt.pet_policy) hrParts.push(pt.pet_policy === 'no' ? 'No pets allowed.' : pt.pet_policy === 'request' ? 'Pets on request.' : 'Pets allowed.');
+            if (pt.quiet_hours_from && pt.quiet_hours_until) hrParts.push('Quiet hours: ' + pt.quiet_hours_from + ' – ' + pt.quiet_hours_until);
+            if (pt.additional_rules) hrParts.push(pt.additional_rules);
+            setVal('wb-page-terms-house-rules-en', hrParts.join('\n'));
+            setVal('wb-page-terms-booking-en', pt.terms_conditions);
+            setVal('wb-page-terms-liability-en', pt.damage_policy);
+            const additional = [pt.directions ? 'Directions:\n' + pt.directions : '', pt.area_info ? 'Area Information:\n' + pt.area_info : ''].filter(Boolean).join('\n\n');
+            setVal('wb-page-terms-additional-en', additional);
+        }
+
+        async function toggleTermsSource(mode) {
+            const note = document.getElementById('wb-terms-gas-readonly-note');
+            const copyBtn = document.getElementById('wb-terms-copy-btn');
+            if (mode === 'gas-account') {
+                if (note) note.style.display = '';
+                if (copyBtn) copyBtn.style.display = 'none';
+                setTermsFieldsReadonly(true);
+                const result = await fetchAccountPropertyTerms();
+                if (result) {
+                    populateTermsFields(result.terms);
+                } else {
+                    showNotification('No property terms found. Add terms in Properties > Amenities > Terms & Policies.', 'warning');
+                }
+            } else {
+                if (note) note.style.display = 'none';
+                if (copyBtn) copyBtn.style.display = '';
+                setTermsFieldsReadonly(false);
+            }
+        }
+
+        // Shared: fetch the best property_terms for this account
         async function fetchAccountPropertyTerms() {
             const acctId = selectedAccountId || selectedWebsiteData?.account_id;
             if (!acctId) return null;
@@ -24727,81 +24764,14 @@ const promo = await fetch('/api/v1/offers/validate', {
             return best ? { terms: best, propertyName: bestName } : null;
         }
 
-        async function loadTermsPreview() {
-            const preview = document.getElementById('wb-terms-gas-preview');
-            if (!preview || !selectedAccountId) return;
-            preview.innerHTML = '<p style="color:#94a3b8;font-style:italic;">Loading property terms...</p>';
-            try {
-                const result = await fetchAccountPropertyTerms();
-                if (!result) {
-                    preview.innerHTML = '<p style="color:#f59e0b;">No property terms data found. Add terms in <strong>Properties &gt; Amenities &gt; Terms &amp; Policies</strong>.</p>';
-                    return;
-                }
-                const pt = result.terms;
-                let html = `<p style="font-size:0.8rem;color:#94a3b8;margin-bottom:1rem;">Source: <strong>${result.propertyName}</strong>${pt.apply_to_all ? ' (apply to all)' : ''}</p>`;
-                const sections = [];
-                if (pt.checkin_from || pt.checkout_by) {
-                    let s = '';
-                    if (pt.checkin_from) s += `<strong>Check-in:</strong> from ${pt.checkin_from}${pt.checkin_until ? ' until ' + pt.checkin_until : ''}<br>`;
-                    if (pt.checkout_by) s += `<strong>Check-out:</strong> by ${pt.checkout_by}<br>`;
-                    if (pt.check_in_instructions) s += `<br>${pt.check_in_instructions.replace(/\n/g, '<br>')}`;
-                    sections.push({ title: 'Check-in & Check-out', content: s });
-                }
-                if (pt.cancellation_policy) sections.push({ title: 'Cancellation Policy', content: pt.cancellation_policy.replace(/\n/g, '<br>') });
-                const rules = [];
-                if (pt.smoking_policy && pt.smoking_policy !== 'yes') rules.push(pt.smoking_policy === 'no' ? 'No smoking.' : 'Smoking in designated areas only.');
-                if (pt.pet_policy) rules.push(pt.pet_policy === 'no' ? 'No pets allowed.' : pt.pet_policy === 'request' ? 'Pets on request.' : 'Pets allowed.');
-                if (pt.quiet_hours_from && pt.quiet_hours_until) rules.push(`Quiet hours: ${pt.quiet_hours_from} – ${pt.quiet_hours_until}`);
-                if (pt.additional_rules) rules.push(pt.additional_rules.replace(/\n/g, '<br>'));
-                if (rules.length) sections.push({ title: 'House Rules', content: rules.join('<br>') });
-                if (pt.terms_conditions) sections.push({ title: 'Terms & Conditions', content: pt.terms_conditions.replace(/\n/g, '<br>') });
-                if (pt.damage_policy) sections.push({ title: 'Liability & Damages', content: pt.damage_policy.replace(/\n/g, '<br>') });
-                if (pt.directions) sections.push({ title: 'Directions', content: pt.directions.replace(/\n/g, '<br>') });
-                if (pt.area_info) sections.push({ title: 'Area Information', content: pt.area_info.replace(/\n/g, '<br>') });
-                if (!sections.length) {
-                    preview.innerHTML = html + '<p style="color:#f59e0b;">Property terms exist but no displayable content found.</p>';
-                    return;
-                }
-                sections.forEach(s => {
-                    html += `<div style="margin-bottom:1rem;padding:0.75rem;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;">`;
-                    html += `<div style="font-weight:600;color:#1e293b;margin-bottom:0.35rem;font-size:0.85rem;">${s.title}</div>`;
-                    html += `<div style="color:#475569;font-size:0.85rem;line-height:1.6;">${s.content}</div>`;
-                    html += `</div>`;
-                });
-                preview.innerHTML = html;
-            } catch (e) {
-                console.error('loadTermsPreview error:', e);
-                preview.innerHTML = '<p style="color:#ef4444;">Error loading preview.</p>';
-            }
-        }
-
         async function copyTermsFromGAS() {
-            const acctId = selectedAccountId || selectedWebsiteData?.account_id;
-            if (!acctId) { showNotification('No account selected', 'error'); return; }
+            // Check if fields already have content
+            const hasContent = termsFieldIds.some(id => { const el = document.getElementById(id); return el && el.value.trim(); });
+            if (hasContent && !confirm('This will overwrite existing content. Continue?')) return;
             try {
                 const result = await fetchAccountPropertyTerms();
                 if (!result) { showNotification('No property terms found to copy', 'error'); return; }
-                const pt = result.terms;
-                // Map property_terms → custom section fields
-                const setVal = (id, val) => { const el = document.getElementById(id); if (el && val) el.value = val; };
-                setVal('wb-page-terms-checkin-time', pt.checkin_from);
-                setVal('wb-page-terms-checkout-time', pt.checkout_by);
-                // Check-in details: combine check_in_instructions + check_out_instructions
-                const checkinDetails = [pt.check_in_instructions, pt.check_out_instructions].filter(Boolean).join('\n\n');
-                setVal('wb-page-terms-checkin-details-en', checkinDetails);
-                setVal('wb-page-terms-cancellation-en', pt.cancellation_policy);
-                // House rules: combine smoking, pets, quiet hours, additional_rules
-                const hrParts = [];
-                if (pt.smoking_policy && pt.smoking_policy !== 'yes') hrParts.push(pt.smoking_policy === 'no' ? 'No smoking.' : 'Smoking in designated areas only.');
-                if (pt.pet_policy) hrParts.push(pt.pet_policy === 'no' ? 'No pets allowed.' : pt.pet_policy === 'request' ? 'Pets on request.' : 'Pets allowed.');
-                if (pt.quiet_hours_from && pt.quiet_hours_until) hrParts.push('Quiet hours: ' + pt.quiet_hours_from + ' – ' + pt.quiet_hours_until);
-                if (pt.additional_rules) hrParts.push(pt.additional_rules);
-                setVal('wb-page-terms-house-rules-en', hrParts.join('\n'));
-                setVal('wb-page-terms-booking-en', pt.terms_conditions);
-                setVal('wb-page-terms-liability-en', pt.damage_policy);
-                // Additional: combine directions + area_info
-                const additional = [pt.directions ? 'Directions:\n' + pt.directions : '', pt.area_info ? 'Area Information:\n' + pt.area_info : ''].filter(Boolean).join('\n\n');
-                setVal('wb-page-terms-additional-en', additional);
+                populateTermsFields(result.terms);
                 showNotification(`Terms copied from ${result.propertyName}. Review and save.`, 'success');
             } catch (e) {
                 console.error('copyTermsFromGAS error:', e);
