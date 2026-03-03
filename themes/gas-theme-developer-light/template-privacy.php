@@ -65,7 +65,7 @@ $all_sections = [];
 $contact = $site_config['contact'] ?? [];
 $seo = $site_config['seo'] ?? [];
 $business_name = !empty($wp['business-name']) ? esc_html($wp['business-name'])
-    : (!empty($contact['business_name']) ? esc_html($contact['business_name']) : 'Our Business');
+    : (!empty($contact['business_name']) ? esc_html($contact['business_name']) : '');
 $email = !empty($wp['contact-email']) ? esc_html($wp['contact-email'])
     : (!empty($contact['email']) ? esc_html($contact['email']) : '');
 $address = !empty($wp['business-address']) ? esc_html($wp['business-address'])
@@ -77,136 +77,435 @@ if (empty($updated_date)) {
     $updated_date = date('Y-m-d');
 }
 
+// Translated strings per language
+$t = [
+    'en' => [
+        'our_business'     => 'Our Business',
+        'intro_title'      => 'Introduction',
+        'intro_p1'         => '%s ("we", "us", or "our") is committed to protecting and respecting your privacy. This Privacy Policy explains how we collect, use, store, and protect your personal information when you visit our website, make a booking, or interact with our services.',
+        'intro_p2'         => 'We are committed to complying with the General Data Protection Regulation (GDPR) and other applicable data protection laws. By using our website or services, you acknowledge that you have read and understood this Privacy Policy.',
+        'collect_title'    => 'Information We Collect',
+        'collect_intro'    => 'We may collect and process the following categories of personal data:',
+        'collect_personal' => 'Personal Information:',
+        'collect_personal_d'=> 'Name, email address, telephone number, postal address, and other contact details you provide when making a booking or enquiry.',
+        'collect_booking'  => 'Booking Details:',
+        'collect_booking_d'=> 'Check-in and check-out dates, room preferences, number of guests, and any special requests or requirements.',
+        'collect_payment'  => 'Payment Information:',
+        'collect_payment_d'=> 'Payment card details are processed securely by our third-party payment processor and are never stored on our servers.',
+        'collect_tech'     => 'Technical Data:',
+        'collect_tech_d'   => 'IP address, browser type and version, device information, operating system, time zone setting, and browsing actions on our website.',
+        'usage_title'      => 'How We Use Your Information',
+        'usage_intro'      => 'We use the personal information we collect for the following purposes:',
+        'usage_1'          => 'To process and manage your bookings and payments',
+        'usage_2'          => 'To send booking confirmations, reminders, and pre-arrival information',
+        'usage_3'          => 'To communicate with you about your stay, including responding to enquiries and requests',
+        'usage_4'          => 'To comply with legal and regulatory obligations, including tax and accounting requirements',
+        'usage_5'          => 'To improve our website, services, and guest experience',
+        'usage_6'          => 'To send marketing communications where you have given consent (you may opt out at any time)',
+        'payment_title'    => 'Payment Processing',
+        'payment_p1'       => 'All payment transactions are processed through Stripe, our trusted third-party payment processor. Stripe handles your card data in compliance with PCI DSS (Payment Card Industry Data Security Standard) requirements.',
+        'payment_p2'       => 'We never store, process, or have access to your full credit or debit card numbers. Payment information is transmitted directly to Stripe using industry-standard encryption.',
+        'cookies_title'    => 'Cookies & Analytics',
+        'cookies_essential' => 'Our website uses essential cookies that are necessary for the site to function correctly, such as maintaining your session and remembering your preferences.',
+        'cookies_ga'       => 'We use Google Analytics to understand how visitors interact with our website. Google Analytics uses cookies to collect anonymised information about page visits, traffic sources, and user behaviour. This helps us improve our website and the services we offer.',
+        'cookies_ga_optout'=> 'Google Analytics Opt-out Browser Add-on',
+        'cookies_generic'  => 'We may use analytics tools to understand how visitors interact with our website. These tools use cookies to collect anonymised information about page visits and user behaviour, helping us improve our website and services.',
+        'cookies_manage'   => 'You can control and manage cookies through your browser settings. Please note that disabling certain cookies may affect the functionality of our website.',
+        'third_title'      => 'Third Party Services',
+        'third_intro'      => 'We work with trusted third-party service providers to deliver our services. These may include:',
+        'third_stripe'     => 'Payment Processor (Stripe):',
+        'third_stripe_d'   => 'To securely process payments for bookings',
+        'third_channel'    => 'Channel Managers:',
+        'third_channel_d'  => 'To distribute availability across booking platforms',
+        'third_hosting'    => 'Hosting Provider:',
+        'third_hosting_d'  => 'To host and maintain our website infrastructure',
+        'third_outro'      => 'We only share personal data with third parties to the extent necessary for them to provide their services. All third-party providers are contractually required to protect your data and use it only for the purposes we specify.',
+        'retention_title'  => 'Data Retention',
+        'retention_intro'  => 'We retain personal data only for as long as necessary to fulfil the purposes for which it was collected:',
+        'retention_booking'=> 'Booking and financial records:',
+        'retention_booking_d'=> 'Retained for the period required by applicable tax and accounting regulations (typically 7 years)',
+        'retention_market' => 'Marketing data:',
+        'retention_market_d'=> 'Retained until you withdraw your consent or unsubscribe',
+        'retention_logs'   => 'Technical logs:',
+        'retention_logs_d' => 'Retained for up to 90 days for security and performance monitoring',
+        'retention_outro'  => 'After the applicable retention period, personal data is securely deleted or anonymised.',
+        'rights_title'     => 'Your Rights (GDPR)',
+        'rights_intro'     => 'Under the General Data Protection Regulation (GDPR), you have the following rights regarding your personal data:',
+        'rights_access'    => 'Right of Access:',
+        'rights_access_d'  => 'You may request a copy of the personal data we hold about you',
+        'rights_rectify'   => 'Right to Rectification:',
+        'rights_rectify_d' => 'You may request that we correct any inaccurate or incomplete data',
+        'rights_erase'     => 'Right to Erasure:',
+        'rights_erase_d'   => 'You may request that we delete your personal data, subject to legal obligations',
+        'rights_port'      => 'Right to Data Portability:',
+        'rights_port_d'    => 'You may request your data in a structured, commonly used, machine-readable format',
+        'rights_restrict'  => 'Right to Restrict Processing:',
+        'rights_restrict_d'=> 'You may request that we limit how we use your data',
+        'rights_object'    => 'Right to Object:',
+        'rights_object_d'  => 'You may object to the processing of your personal data for certain purposes',
+        'rights_complaint' => 'Right to Lodge a Complaint:',
+        'rights_complaint_d'=> 'You have the right to lodge a complaint with a supervisory authority if you believe your data protection rights have been violated',
+        'rights_contact'   => 'To exercise any of these rights, please contact us at %s. We will respond to your request within 30 days.',
+        'rights_contact_generic' => 'To exercise any of these rights, please contact us using the details provided below. We will respond to your request within 30 days.',
+        'google_title'     => 'Google API Services Disclosure',
+        'google_body'      => 'Our use and transfer of information received from Google APIs to any other app will adhere to the <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener noreferrer">Google API Services User Data Policy</a>, including the Limited Use requirements.',
+        'contact_title'    => 'Contact Us',
+        'contact_intro'    => 'If you have any questions about this Privacy Policy or how we handle your personal data, please contact us:',
+        'contact_email'    => 'Email:',
+        'contact_address'  => 'Address:',
+    ],
+    'fr' => [
+        'our_business'     => 'Notre Entreprise',
+        'intro_title'      => 'Introduction',
+        'intro_p1'         => '%s (« nous », « notre » ou « nos ») s\'engage à protéger et à respecter votre vie privée. Cette Politique de Confidentialité explique comment nous collectons, utilisons, stockons et protégeons vos informations personnelles lorsque vous visitez notre site web, effectuez une réservation ou interagissez avec nos services.',
+        'intro_p2'         => 'Nous nous engageons à respecter le Règlement Général sur la Protection des Données (RGPD) et les autres lois applicables en matière de protection des données. En utilisant notre site web ou nos services, vous reconnaissez avoir lu et compris cette Politique de Confidentialité.',
+        'collect_title'    => 'Informations que nous collectons',
+        'collect_intro'    => 'Nous pouvons collecter et traiter les catégories suivantes de données personnelles :',
+        'collect_personal' => 'Informations personnelles :',
+        'collect_personal_d'=> 'Nom, adresse e-mail, numéro de téléphone, adresse postale et autres coordonnées que vous fournissez lors d\'une réservation ou d\'une demande.',
+        'collect_booking'  => 'Détails de réservation :',
+        'collect_booking_d'=> 'Dates d\'arrivée et de départ, préférences de chambre, nombre de voyageurs et toute demande ou exigence particulière.',
+        'collect_payment'  => 'Informations de paiement :',
+        'collect_payment_d'=> 'Les données de carte de paiement sont traitées de manière sécurisée par notre prestataire de paiement tiers et ne sont jamais stockées sur nos serveurs.',
+        'collect_tech'     => 'Données techniques :',
+        'collect_tech_d'   => 'Adresse IP, type et version du navigateur, informations sur l\'appareil, système d\'exploitation, fuseau horaire et actions de navigation sur notre site web.',
+        'usage_title'      => 'Comment nous utilisons vos informations',
+        'usage_intro'      => 'Nous utilisons les informations personnelles collectées aux fins suivantes :',
+        'usage_1'          => 'Traiter et gérer vos réservations et paiements',
+        'usage_2'          => 'Envoyer des confirmations de réservation, des rappels et des informations pré-arrivée',
+        'usage_3'          => 'Communiquer avec vous au sujet de votre séjour, y compris répondre aux demandes et requêtes',
+        'usage_4'          => 'Respecter les obligations légales et réglementaires, y compris les exigences fiscales et comptables',
+        'usage_5'          => 'Améliorer notre site web, nos services et l\'expérience de nos clients',
+        'usage_6'          => 'Envoyer des communications marketing lorsque vous avez donné votre consentement (vous pouvez vous désinscrire à tout moment)',
+        'payment_title'    => 'Traitement des paiements',
+        'payment_p1'       => 'Toutes les transactions de paiement sont traitées par Stripe, notre prestataire de paiement tiers de confiance. Stripe traite vos données de carte conformément aux exigences PCI DSS (Payment Card Industry Data Security Standard).',
+        'payment_p2'       => 'Nous ne stockons, traitons ni n\'avons accès à vos numéros complets de carte de crédit ou de débit. Les informations de paiement sont transmises directement à Stripe à l\'aide d\'un chiffrement conforme aux normes du secteur.',
+        'cookies_title'    => 'Cookies et analyse',
+        'cookies_essential' => 'Notre site web utilise des cookies essentiels nécessaires au bon fonctionnement du site, tels que le maintien de votre session et la mémorisation de vos préférences.',
+        'cookies_ga'       => 'Nous utilisons Google Analytics pour comprendre comment les visiteurs interagissent avec notre site web. Google Analytics utilise des cookies pour collecter des informations anonymisées sur les visites de pages, les sources de trafic et le comportement des utilisateurs. Cela nous aide à améliorer notre site web et les services que nous proposons.',
+        'cookies_ga_optout'=> 'Module complémentaire de désactivation de Google Analytics',
+        'cookies_generic'  => 'Nous pouvons utiliser des outils d\'analyse pour comprendre comment les visiteurs interagissent avec notre site web. Ces outils utilisent des cookies pour collecter des informations anonymisées sur les visites de pages et le comportement des utilisateurs, nous aidant à améliorer notre site web et nos services.',
+        'cookies_manage'   => 'Vous pouvez contrôler et gérer les cookies via les paramètres de votre navigateur. Veuillez noter que la désactivation de certains cookies peut affecter le fonctionnement de notre site web.',
+        'third_title'      => 'Services tiers',
+        'third_intro'      => 'Nous travaillons avec des prestataires de services tiers de confiance pour fournir nos services. Ceux-ci peuvent inclure :',
+        'third_stripe'     => 'Processeur de paiement (Stripe) :',
+        'third_stripe_d'   => 'Pour traiter de manière sécurisée les paiements des réservations',
+        'third_channel'    => 'Gestionnaires de canaux :',
+        'third_channel_d'  => 'Pour distribuer la disponibilité sur les plateformes de réservation',
+        'third_hosting'    => 'Fournisseur d\'hébergement :',
+        'third_hosting_d'  => 'Pour héberger et maintenir l\'infrastructure de notre site web',
+        'third_outro'      => 'Nous ne partageons les données personnelles avec des tiers que dans la mesure nécessaire à la fourniture de leurs services. Tous les prestataires tiers sont contractuellement tenus de protéger vos données et de les utiliser uniquement aux fins que nous spécifions.',
+        'retention_title'  => 'Conservation des données',
+        'retention_intro'  => 'Nous conservons les données personnelles uniquement pendant la durée nécessaire à la réalisation des finalités pour lesquelles elles ont été collectées :',
+        'retention_booking'=> 'Dossiers de réservation et financiers :',
+        'retention_booking_d'=> 'Conservés pendant la durée requise par les réglementations fiscales et comptables applicables (généralement 7 ans)',
+        'retention_market' => 'Données marketing :',
+        'retention_market_d'=> 'Conservées jusqu\'au retrait de votre consentement ou à votre désinscription',
+        'retention_logs'   => 'Journaux techniques :',
+        'retention_logs_d' => 'Conservés jusqu\'à 90 jours pour la surveillance de la sécurité et des performances',
+        'retention_outro'  => 'Après la période de conservation applicable, les données personnelles sont supprimées de manière sécurisée ou anonymisées.',
+        'rights_title'     => 'Vos droits (RGPD)',
+        'rights_intro'     => 'En vertu du Règlement Général sur la Protection des Données (RGPD), vous disposez des droits suivants concernant vos données personnelles :',
+        'rights_access'    => 'Droit d\'accès :',
+        'rights_access_d'  => 'Vous pouvez demander une copie des données personnelles que nous détenons à votre sujet',
+        'rights_rectify'   => 'Droit de rectification :',
+        'rights_rectify_d' => 'Vous pouvez demander la correction de toute donnée inexacte ou incomplète',
+        'rights_erase'     => 'Droit à l\'effacement :',
+        'rights_erase_d'   => 'Vous pouvez demander la suppression de vos données personnelles, sous réserve des obligations légales',
+        'rights_port'      => 'Droit à la portabilité :',
+        'rights_port_d'    => 'Vous pouvez demander vos données dans un format structuré, couramment utilisé et lisible par machine',
+        'rights_restrict'  => 'Droit à la limitation du traitement :',
+        'rights_restrict_d'=> 'Vous pouvez demander la limitation de l\'utilisation de vos données',
+        'rights_object'    => 'Droit d\'opposition :',
+        'rights_object_d'  => 'Vous pouvez vous opposer au traitement de vos données personnelles à certaines fins',
+        'rights_complaint' => 'Droit de réclamation :',
+        'rights_complaint_d'=> 'Vous avez le droit de déposer une réclamation auprès d\'une autorité de contrôle si vous estimez que vos droits en matière de protection des données ont été violés',
+        'rights_contact'   => 'Pour exercer l\'un de ces droits, veuillez nous contacter à %s. Nous répondrons à votre demande dans un délai de 30 jours.',
+        'rights_contact_generic' => 'Pour exercer l\'un de ces droits, veuillez nous contacter en utilisant les coordonnées ci-dessous. Nous répondrons à votre demande dans un délai de 30 jours.',
+        'google_title'     => 'Divulgation relative aux services API Google',
+        'google_body'      => 'Notre utilisation et notre transfert d\'informations reçues des API Google vers toute autre application respecteront la <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener noreferrer">Politique relative aux données utilisateur des services API Google</a>, y compris les exigences d\'utilisation limitée.',
+        'contact_title'    => 'Nous contacter',
+        'contact_intro'    => 'Si vous avez des questions concernant cette Politique de Confidentialité ou la manière dont nous traitons vos données personnelles, veuillez nous contacter :',
+        'contact_email'    => 'E-mail :',
+        'contact_address'  => 'Adresse :',
+    ],
+    'es' => [
+        'our_business'     => 'Nuestra Empresa',
+        'intro_title'      => 'Introducción',
+        'intro_p1'         => '%s ("nosotros", "nuestro" o "nos") se compromete a proteger y respetar su privacidad. Esta Política de Privacidad explica cómo recopilamos, utilizamos, almacenamos y protegemos su información personal cuando visita nuestro sitio web, realiza una reserva o interactúa con nuestros servicios.',
+        'intro_p2'         => 'Nos comprometemos a cumplir con el Reglamento General de Protección de Datos (RGPD) y otras leyes de protección de datos aplicables. Al utilizar nuestro sitio web o servicios, usted reconoce haber leído y comprendido esta Política de Privacidad.',
+        'collect_title'    => 'Información que recopilamos',
+        'collect_intro'    => 'Podemos recopilar y procesar las siguientes categorías de datos personales:',
+        'collect_personal' => 'Información personal:',
+        'collect_personal_d'=> 'Nombre, dirección de correo electrónico, número de teléfono, dirección postal y otros datos de contacto que proporcione al realizar una reserva o consulta.',
+        'collect_booking'  => 'Detalles de reserva:',
+        'collect_booking_d'=> 'Fechas de entrada y salida, preferencias de habitación, número de huéspedes y cualquier solicitud o requisito especial.',
+        'collect_payment'  => 'Información de pago:',
+        'collect_payment_d'=> 'Los datos de la tarjeta de pago son procesados de forma segura por nuestro procesador de pagos externo y nunca se almacenan en nuestros servidores.',
+        'collect_tech'     => 'Datos técnicos:',
+        'collect_tech_d'   => 'Dirección IP, tipo y versión del navegador, información del dispositivo, sistema operativo, zona horaria y acciones de navegación en nuestro sitio web.',
+        'usage_title'      => 'Cómo utilizamos su información',
+        'usage_intro'      => 'Utilizamos la información personal recopilada para los siguientes fines:',
+        'usage_1'          => 'Procesar y gestionar sus reservas y pagos',
+        'usage_2'          => 'Enviar confirmaciones de reserva, recordatorios e información previa a la llegada',
+        'usage_3'          => 'Comunicarnos con usted sobre su estancia, incluyendo responder a consultas y solicitudes',
+        'usage_4'          => 'Cumplir con las obligaciones legales y reglamentarias, incluidos los requisitos fiscales y contables',
+        'usage_5'          => 'Mejorar nuestro sitio web, servicios y experiencia del huésped',
+        'usage_6'          => 'Enviar comunicaciones de marketing cuando haya dado su consentimiento (puede darse de baja en cualquier momento)',
+        'payment_title'    => 'Procesamiento de pagos',
+        'payment_p1'       => 'Todas las transacciones de pago se procesan a través de Stripe, nuestro procesador de pagos externo de confianza. Stripe gestiona los datos de su tarjeta en cumplimiento con los requisitos PCI DSS (Estándar de Seguridad de Datos de la Industria de Tarjetas de Pago).',
+        'payment_p2'       => 'Nunca almacenamos, procesamos ni tenemos acceso a sus números completos de tarjeta de crédito o débito. La información de pago se transmite directamente a Stripe utilizando cifrado estándar de la industria.',
+        'cookies_title'    => 'Cookies y análisis',
+        'cookies_essential' => 'Nuestro sitio web utiliza cookies esenciales necesarias para el correcto funcionamiento del sitio, como mantener su sesión y recordar sus preferencias.',
+        'cookies_ga'       => 'Utilizamos Google Analytics para comprender cómo los visitantes interactúan con nuestro sitio web. Google Analytics utiliza cookies para recopilar información anonimizada sobre visitas a páginas, fuentes de tráfico y comportamiento del usuario. Esto nos ayuda a mejorar nuestro sitio web y los servicios que ofrecemos.',
+        'cookies_ga_optout'=> 'Complemento de inhabilitación de Google Analytics',
+        'cookies_generic'  => 'Podemos utilizar herramientas de análisis para comprender cómo los visitantes interactúan con nuestro sitio web. Estas herramientas utilizan cookies para recopilar información anonimizada sobre visitas a páginas y comportamiento del usuario, ayudándonos a mejorar nuestro sitio web y servicios.',
+        'cookies_manage'   => 'Puede controlar y gestionar las cookies a través de la configuración de su navegador. Tenga en cuenta que desactivar ciertas cookies puede afectar al funcionamiento de nuestro sitio web.',
+        'third_title'      => 'Servicios de terceros',
+        'third_intro'      => 'Trabajamos con proveedores de servicios externos de confianza para prestar nuestros servicios. Estos pueden incluir:',
+        'third_stripe'     => 'Procesador de pagos (Stripe):',
+        'third_stripe_d'   => 'Para procesar de forma segura los pagos de las reservas',
+        'third_channel'    => 'Gestores de canales:',
+        'third_channel_d'  => 'Para distribuir la disponibilidad en las plataformas de reserva',
+        'third_hosting'    => 'Proveedor de alojamiento:',
+        'third_hosting_d'  => 'Para alojar y mantener la infraestructura de nuestro sitio web',
+        'third_outro'      => 'Solo compartimos datos personales con terceros en la medida necesaria para que presten sus servicios. Todos los proveedores externos están contractualmente obligados a proteger sus datos y utilizarlos únicamente para los fines que especificamos.',
+        'retention_title'  => 'Conservación de datos',
+        'retention_intro'  => 'Conservamos los datos personales únicamente durante el tiempo necesario para cumplir los fines para los que fueron recopilados:',
+        'retention_booking'=> 'Registros de reservas y financieros:',
+        'retention_booking_d'=> 'Conservados durante el período requerido por las regulaciones fiscales y contables aplicables (normalmente 7 años)',
+        'retention_market' => 'Datos de marketing:',
+        'retention_market_d'=> 'Conservados hasta que retire su consentimiento o se dé de baja',
+        'retention_logs'   => 'Registros técnicos:',
+        'retention_logs_d' => 'Conservados hasta 90 días para la supervisión de seguridad y rendimiento',
+        'retention_outro'  => 'Tras el período de conservación aplicable, los datos personales se eliminan de forma segura o se anonimizan.',
+        'rights_title'     => 'Sus derechos (RGPD)',
+        'rights_intro'     => 'En virtud del Reglamento General de Protección de Datos (RGPD), usted tiene los siguientes derechos respecto a sus datos personales:',
+        'rights_access'    => 'Derecho de acceso:',
+        'rights_access_d'  => 'Puede solicitar una copia de los datos personales que tenemos sobre usted',
+        'rights_rectify'   => 'Derecho de rectificación:',
+        'rights_rectify_d' => 'Puede solicitar la corrección de cualquier dato inexacto o incompleto',
+        'rights_erase'     => 'Derecho de supresión:',
+        'rights_erase_d'   => 'Puede solicitar la eliminación de sus datos personales, sujeto a obligaciones legales',
+        'rights_port'      => 'Derecho a la portabilidad:',
+        'rights_port_d'    => 'Puede solicitar sus datos en un formato estructurado, de uso común y lectura mecánica',
+        'rights_restrict'  => 'Derecho a la limitación del tratamiento:',
+        'rights_restrict_d'=> 'Puede solicitar que limitemos el uso de sus datos',
+        'rights_object'    => 'Derecho de oposición:',
+        'rights_object_d'  => 'Puede oponerse al tratamiento de sus datos personales para determinados fines',
+        'rights_complaint' => 'Derecho a presentar una reclamación:',
+        'rights_complaint_d'=> 'Tiene derecho a presentar una reclamación ante una autoridad de control si considera que se han vulnerado sus derechos de protección de datos',
+        'rights_contact'   => 'Para ejercer cualquiera de estos derechos, contáctenos en %s. Responderemos a su solicitud en un plazo de 30 días.',
+        'rights_contact_generic' => 'Para ejercer cualquiera de estos derechos, contáctenos utilizando los datos proporcionados a continuación. Responderemos a su solicitud en un plazo de 30 días.',
+        'google_title'     => 'Divulgación de servicios de API de Google',
+        'google_body'      => 'Nuestro uso y transferencia de información recibida de las API de Google a cualquier otra aplicación cumplirá con la <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener noreferrer">Política de Datos de Usuario de los Servicios de API de Google</a>, incluidos los requisitos de uso limitado.',
+        'contact_title'    => 'Contáctenos',
+        'contact_intro'    => 'Si tiene alguna pregunta sobre esta Política de Privacidad o sobre cómo tratamos sus datos personales, contáctenos:',
+        'contact_email'    => 'Correo electrónico:',
+        'contact_address'  => 'Dirección:',
+    ],
+    'nl' => [
+        'our_business'     => 'Ons Bedrijf',
+        'intro_title'      => 'Inleiding',
+        'intro_p1'         => '%s ("wij", "ons" of "onze") zet zich in voor de bescherming en eerbiediging van uw privacy. Dit Privacybeleid legt uit hoe wij uw persoonlijke gegevens verzamelen, gebruiken, opslaan en beschermen wanneer u onze website bezoekt, een boeking maakt of met onze diensten communiceert.',
+        'intro_p2'         => 'Wij zetten ons in voor naleving van de Algemene Verordening Gegevensbescherming (AVG) en andere toepasselijke wetgeving inzake gegevensbescherming. Door gebruik te maken van onze website of diensten erkent u dit Privacybeleid te hebben gelezen en begrepen.',
+        'collect_title'    => 'Informatie die wij verzamelen',
+        'collect_intro'    => 'Wij kunnen de volgende categorieën persoonsgegevens verzamelen en verwerken:',
+        'collect_personal' => 'Persoonlijke informatie:',
+        'collect_personal_d'=> 'Naam, e-mailadres, telefoonnummer, postadres en andere contactgegevens die u verstrekt bij het maken van een boeking of het indienen van een vraag.',
+        'collect_booking'  => 'Boekingsgegevens:',
+        'collect_booking_d'=> 'In- en uitcheckdatums, kamervoorkeuren, aantal gasten en eventuele speciale verzoeken of vereisten.',
+        'collect_payment'  => 'Betalingsgegevens:',
+        'collect_payment_d'=> 'Betaalkaartgegevens worden veilig verwerkt door onze externe betalingsverwerker en worden nooit op onze servers opgeslagen.',
+        'collect_tech'     => 'Technische gegevens:',
+        'collect_tech_d'   => 'IP-adres, browsertype en -versie, apparaatinformatie, besturingssysteem, tijdzone-instelling en browseactiviteiten op onze website.',
+        'usage_title'      => 'Hoe wij uw informatie gebruiken',
+        'usage_intro'      => 'Wij gebruiken de verzamelde persoonlijke informatie voor de volgende doeleinden:',
+        'usage_1'          => 'Het verwerken en beheren van uw boekingen en betalingen',
+        'usage_2'          => 'Het verzenden van boekingsbevestigingen, herinneringen en pre-arrival informatie',
+        'usage_3'          => 'Communiceren met u over uw verblijf, inclusief het beantwoorden van vragen en verzoeken',
+        'usage_4'          => 'Voldoen aan wettelijke en regelgevende verplichtingen, waaronder fiscale en boekhoudkundige vereisten',
+        'usage_5'          => 'Het verbeteren van onze website, diensten en gastervaring',
+        'usage_6'          => 'Het verzenden van marketingcommunicatie wanneer u toestemming heeft gegeven (u kunt zich op elk moment afmelden)',
+        'payment_title'    => 'Betalingsverwerking',
+        'payment_p1'       => 'Alle betalingstransacties worden verwerkt via Stripe, onze vertrouwde externe betalingsverwerker. Stripe verwerkt uw kaartgegevens in overeenstemming met de PCI DSS-vereisten (Payment Card Industry Data Security Standard).',
+        'payment_p2'       => 'Wij slaan nooit uw volledige creditcard- of debetkaanummers op, verwerken deze niet en hebben er geen toegang toe. Betalingsinformatie wordt rechtstreeks naar Stripe verzonden met behulp van industriestandaard versleuteling.',
+        'cookies_title'    => 'Cookies en analyse',
+        'cookies_essential' => 'Onze website maakt gebruik van essentiële cookies die noodzakelijk zijn voor het correct functioneren van de site, zoals het onderhouden van uw sessie en het onthouden van uw voorkeuren.',
+        'cookies_ga'       => 'Wij gebruiken Google Analytics om te begrijpen hoe bezoekers met onze website omgaan. Google Analytics maakt gebruik van cookies om geanonimiseerde informatie te verzamelen over paginabezoeken, verkeersbronnen en gebruikersgedrag. Dit helpt ons onze website en de diensten die wij aanbieden te verbeteren.',
+        'cookies_ga_optout'=> 'Google Analytics Opt-out Browser Add-on',
+        'cookies_generic'  => 'Wij kunnen analysetools gebruiken om te begrijpen hoe bezoekers met onze website omgaan. Deze tools maken gebruik van cookies om geanonimiseerde informatie te verzamelen over paginabezoeken en gebruikersgedrag, waardoor wij onze website en diensten kunnen verbeteren.',
+        'cookies_manage'   => 'U kunt cookies beheren via de instellingen van uw browser. Houd er rekening mee dat het uitschakelen van bepaalde cookies de functionaliteit van onze website kan beïnvloeden.',
+        'third_title'      => 'Diensten van derden',
+        'third_intro'      => 'Wij werken samen met vertrouwde externe dienstverleners om onze diensten te leveren. Deze kunnen zijn:',
+        'third_stripe'     => 'Betalingsverwerker (Stripe):',
+        'third_stripe_d'   => 'Voor het veilig verwerken van betalingen voor boekingen',
+        'third_channel'    => 'Channelmanagers:',
+        'third_channel_d'  => 'Voor het distribueren van beschikbaarheid op boekingsplatformen',
+        'third_hosting'    => 'Hostingprovider:',
+        'third_hosting_d'  => 'Voor het hosten en onderhouden van onze website-infrastructuur',
+        'third_outro'      => 'Wij delen persoonsgegevens alleen met derden voor zover dit noodzakelijk is om hun diensten te verlenen. Alle externe dienstverleners zijn contractueel verplicht uw gegevens te beschermen en uitsluitend te gebruiken voor de doeleinden die wij specificeren.',
+        'retention_title'  => 'Bewaring van gegevens',
+        'retention_intro'  => 'Wij bewaren persoonsgegevens alleen zo lang als nodig is om de doeleinden te vervullen waarvoor ze zijn verzameld:',
+        'retention_booking'=> 'Boekings- en financiële gegevens:',
+        'retention_booking_d'=> 'Bewaard gedurende de periode vereist door toepasselijke belasting- en boekhoudregelgeving (doorgaans 7 jaar)',
+        'retention_market' => 'Marketinggegevens:',
+        'retention_market_d'=> 'Bewaard totdat u uw toestemming intrekt of zich afmeldt',
+        'retention_logs'   => 'Technische logs:',
+        'retention_logs_d' => 'Bewaard tot 90 dagen voor beveiligings- en prestatiemonitoring',
+        'retention_outro'  => 'Na de toepasselijke bewaartermijn worden persoonsgegevens veilig verwijderd of geanonimiseerd.',
+        'rights_title'     => 'Uw rechten (AVG)',
+        'rights_intro'     => 'Op grond van de Algemene Verordening Gegevensbescherming (AVG) heeft u de volgende rechten met betrekking tot uw persoonsgegevens:',
+        'rights_access'    => 'Recht op inzage:',
+        'rights_access_d'  => 'U kunt een kopie opvragen van de persoonsgegevens die wij over u bewaren',
+        'rights_rectify'   => 'Recht op rectificatie:',
+        'rights_rectify_d' => 'U kunt verzoeken om correctie van onjuiste of onvolledige gegevens',
+        'rights_erase'     => 'Recht op wissing:',
+        'rights_erase_d'   => 'U kunt verzoeken om verwijdering van uw persoonsgegevens, onder voorbehoud van wettelijke verplichtingen',
+        'rights_port'      => 'Recht op overdraagbaarheid:',
+        'rights_port_d'    => 'U kunt uw gegevens opvragen in een gestructureerd, gangbaar en machineleesbaar formaat',
+        'rights_restrict'  => 'Recht op beperking van verwerking:',
+        'rights_restrict_d'=> 'U kunt verzoeken dat wij het gebruik van uw gegevens beperken',
+        'rights_object'    => 'Recht van bezwaar:',
+        'rights_object_d'  => 'U kunt bezwaar maken tegen de verwerking van uw persoonsgegevens voor bepaalde doeleinden',
+        'rights_complaint' => 'Recht om een klacht in te dienen:',
+        'rights_complaint_d'=> 'U heeft het recht een klacht in te dienen bij een toezichthoudende autoriteit als u van mening bent dat uw gegevensbeschermingsrechten zijn geschonden',
+        'rights_contact'   => 'Om een van deze rechten uit te oefenen, neem contact met ons op via %s. Wij zullen binnen 30 dagen op uw verzoek reageren.',
+        'rights_contact_generic' => 'Om een van deze rechten uit te oefenen, neem contact met ons op via de onderstaande gegevens. Wij zullen binnen 30 dagen op uw verzoek reageren.',
+        'google_title'     => 'Google API Services Openbaarmaking',
+        'google_body'      => 'Ons gebruik en overdracht van informatie ontvangen van Google API\'s naar elke andere app zal voldoen aan het <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener noreferrer">Google API Services Gebruikersgegevensbeleid</a>, inclusief de vereisten voor beperkt gebruik.',
+        'contact_title'    => 'Contact',
+        'contact_intro'    => 'Als u vragen heeft over dit Privacybeleid of over de manier waarop wij uw persoonsgegevens verwerken, neem dan contact met ons op:',
+        'contact_email'    => 'E-mail:',
+        'contact_address'  => 'Adres:',
+    ],
+];
+
+// Pick current language strings, fallback to English
+$s = $t[$lang] ?? $t['en'];
+$display_name = !empty($business_name) ? $business_name : $s['our_business'];
+
 // 1. Introduction
-    $all_sections[] = [
-        'title' => 'Introduction',
-        'content' => '<p>' . $business_name . ' ("we", "us", or "our") is committed to protecting and respecting your privacy. This Privacy Policy explains how we collect, use, store, and protect your personal information when you visit our website, make a booking, or interact with our services.</p>'
-            . '<p>We are committed to complying with the General Data Protection Regulation (GDPR) and other applicable data protection laws. By using our website or services, you acknowledge that you have read and understood this Privacy Policy.</p>',
-        'html' => true
-    ];
+$all_sections[] = [
+    'title' => $s['intro_title'],
+    'content' => '<p>' . sprintf($s['intro_p1'], $display_name) . '</p><p>' . $s['intro_p2'] . '</p>',
+    'html' => true
+];
 
-    // 2. Information We Collect
-    $all_sections[] = [
-        'title' => 'Information We Collect',
-        'content' => '<p>We may collect and process the following categories of personal data:</p>'
-            . '<p><strong>Personal Information:</strong> Name, email address, telephone number, postal address, and other contact details you provide when making a booking or enquiry.</p>'
-            . '<p><strong>Booking Details:</strong> Check-in and check-out dates, room preferences, number of guests, and any special requests or requirements.</p>'
-            . '<p><strong>Payment Information:</strong> Payment card details are processed securely by our third-party payment processor and are never stored on our servers.</p>'
-            . '<p><strong>Technical Data:</strong> IP address, browser type and version, device information, operating system, time zone setting, and browsing actions on our website.</p>',
-        'html' => true
-    ];
+// 2. Information We Collect
+$all_sections[] = [
+    'title' => $s['collect_title'],
+    'content' => '<p>' . $s['collect_intro'] . '</p>'
+        . '<p><strong>' . $s['collect_personal'] . '</strong> ' . $s['collect_personal_d'] . '</p>'
+        . '<p><strong>' . $s['collect_booking'] . '</strong> ' . $s['collect_booking_d'] . '</p>'
+        . '<p><strong>' . $s['collect_payment'] . '</strong> ' . $s['collect_payment_d'] . '</p>'
+        . '<p><strong>' . $s['collect_tech'] . '</strong> ' . $s['collect_tech_d'] . '</p>',
+    'html' => true
+];
 
-    // 3. How We Use Your Information
-    $all_sections[] = [
-        'title' => 'How We Use Your Information',
-        'content' => '<p>We use the personal information we collect for the following purposes:</p>'
-            . '<ul>'
-            . '<li>To process and manage your bookings and payments</li>'
-            . '<li>To send booking confirmations, reminders, and pre-arrival information</li>'
-            . '<li>To communicate with you about your stay, including responding to enquiries and requests</li>'
-            . '<li>To comply with legal and regulatory obligations, including tax and accounting requirements</li>'
-            . '<li>To improve our website, services, and guest experience</li>'
-            . '<li>To send marketing communications where you have given consent (you may opt out at any time)</li>'
-            . '</ul>',
-        'html' => true
-    ];
+// 3. How We Use Your Information
+$all_sections[] = [
+    'title' => $s['usage_title'],
+    'content' => '<p>' . $s['usage_intro'] . '</p><ul>'
+        . '<li>' . $s['usage_1'] . '</li>'
+        . '<li>' . $s['usage_2'] . '</li>'
+        . '<li>' . $s['usage_3'] . '</li>'
+        . '<li>' . $s['usage_4'] . '</li>'
+        . '<li>' . $s['usage_5'] . '</li>'
+        . '<li>' . $s['usage_6'] . '</li></ul>',
+    'html' => true
+];
 
-    // 4. Payment Processing
-    $all_sections[] = [
-        'title' => 'Payment Processing',
-        'content' => '<p>All payment transactions are processed through Stripe, our trusted third-party payment processor. Stripe handles your card data in compliance with PCI DSS (Payment Card Industry Data Security Standard) requirements.</p>'
-            . '<p>We never store, process, or have access to your full credit or debit card numbers. Payment information is transmitted directly to Stripe using industry-standard encryption.</p>',
-        'html' => true
-    ];
+// 4. Payment Processing
+$all_sections[] = [
+    'title' => $s['payment_title'],
+    'content' => '<p>' . $s['payment_p1'] . '</p><p>' . $s['payment_p2'] . '</p>',
+    'html' => true
+];
 
-    // 5. Cookies & Analytics
-    $cookies_content = '<p>Our website uses essential cookies that are necessary for the site to function correctly, such as maintaining your session and remembering your preferences.</p>';
-    if (!empty($ga_id)) {
-        $cookies_content .= '<p>We use Google Analytics to understand how visitors interact with our website. Google Analytics uses cookies to collect anonymised information about page visits, traffic sources, and user behaviour. This helps us improve our website and the services we offer. You can opt out of Google Analytics by installing the <a href="https://tools.google.com/dlpage/gaoptout" target="_blank" rel="noopener noreferrer">Google Analytics Opt-out Browser Add-on</a>.</p>';
-    } else {
-        $cookies_content .= '<p>We may use analytics tools to understand how visitors interact with our website. These tools use cookies to collect anonymised information about page visits and user behaviour, helping us improve our website and services.</p>';
-    }
-    $cookies_content .= '<p>You can control and manage cookies through your browser settings. Please note that disabling certain cookies may affect the functionality of our website.</p>';
-    $all_sections[] = [
-        'title' => 'Cookies & Analytics',
-        'content' => $cookies_content,
-        'html' => true
-    ];
+// 5. Cookies & Analytics
+$cookies_content = '<p>' . $s['cookies_essential'] . '</p>';
+if (!empty($ga_id)) {
+    $cookies_content .= '<p>' . $s['cookies_ga'] . ' <a href="https://tools.google.com/dlpage/gaoptout" target="_blank" rel="noopener noreferrer">' . $s['cookies_ga_optout'] . '</a>.</p>';
+} else {
+    $cookies_content .= '<p>' . $s['cookies_generic'] . '</p>';
+}
+$cookies_content .= '<p>' . $s['cookies_manage'] . '</p>';
+$all_sections[] = [
+    'title' => $s['cookies_title'],
+    'content' => $cookies_content,
+    'html' => true
+];
 
-    // 6. Third Party Services
-    $all_sections[] = [
-        'title' => 'Third Party Services',
-        'content' => '<p>We work with trusted third-party service providers to deliver our services. These may include:</p>'
-            . '<ul>'
-            . '<li><strong>Payment Processor (Stripe):</strong> To securely process payments for bookings</li>'
-            . '<li><strong>Channel Managers:</strong> To distribute availability across booking platforms</li>'
-            . '<li><strong>Hosting Provider:</strong> To host and maintain our website infrastructure</li>'
-            . '</ul>'
-            . '<p>We only share personal data with third parties to the extent necessary for them to provide their services. All third-party providers are contractually required to protect your data and use it only for the purposes we specify.</p>',
-        'html' => true
-    ];
+// 6. Third Party Services
+$all_sections[] = [
+    'title' => $s['third_title'],
+    'content' => '<p>' . $s['third_intro'] . '</p><ul>'
+        . '<li><strong>' . $s['third_stripe'] . '</strong> ' . $s['third_stripe_d'] . '</li>'
+        . '<li><strong>' . $s['third_channel'] . '</strong> ' . $s['third_channel_d'] . '</li>'
+        . '<li><strong>' . $s['third_hosting'] . '</strong> ' . $s['third_hosting_d'] . '</li>'
+        . '</ul><p>' . $s['third_outro'] . '</p>',
+    'html' => true
+];
 
-    // 7. Data Retention
-    $all_sections[] = [
-        'title' => 'Data Retention',
-        'content' => '<p>We retain personal data only for as long as necessary to fulfil the purposes for which it was collected:</p>'
-            . '<ul>'
-            . '<li><strong>Booking and financial records:</strong> Retained for the period required by applicable tax and accounting regulations (typically 7 years)</li>'
-            . '<li><strong>Marketing data:</strong> Retained until you withdraw your consent or unsubscribe</li>'
-            . '<li><strong>Technical logs:</strong> Retained for up to 90 days for security and performance monitoring</li>'
-            . '</ul>'
-            . '<p>After the applicable retention period, personal data is securely deleted or anonymised.</p>',
-        'html' => true
-    ];
+// 7. Data Retention
+$all_sections[] = [
+    'title' => $s['retention_title'],
+    'content' => '<p>' . $s['retention_intro'] . '</p><ul>'
+        . '<li><strong>' . $s['retention_booking'] . '</strong> ' . $s['retention_booking_d'] . '</li>'
+        . '<li><strong>' . $s['retention_market'] . '</strong> ' . $s['retention_market_d'] . '</li>'
+        . '<li><strong>' . $s['retention_logs'] . '</strong> ' . $s['retention_logs_d'] . '</li>'
+        . '</ul><p>' . $s['retention_outro'] . '</p>',
+    'html' => true
+];
 
-    // 8. Your Rights (GDPR)
-    $rights_content = '<p>Under the General Data Protection Regulation (GDPR), you have the following rights regarding your personal data:</p>'
-        . '<ul>'
-        . '<li><strong>Right of Access:</strong> You may request a copy of the personal data we hold about you</li>'
-        . '<li><strong>Right to Rectification:</strong> You may request that we correct any inaccurate or incomplete data</li>'
-        . '<li><strong>Right to Erasure:</strong> You may request that we delete your personal data, subject to legal obligations</li>'
-        . '<li><strong>Right to Data Portability:</strong> You may request your data in a structured, commonly used, machine-readable format</li>'
-        . '<li><strong>Right to Restrict Processing:</strong> You may request that we limit how we use your data</li>'
-        . '<li><strong>Right to Object:</strong> You may object to the processing of your personal data for certain purposes</li>'
-        . '<li><strong>Right to Lodge a Complaint:</strong> You have the right to lodge a complaint with a supervisory authority if you believe your data protection rights have been violated</li>'
-        . '</ul>';
-    if (!empty($email)) {
-        $rights_content .= '<p>To exercise any of these rights, please contact us at <a href="mailto:' . $email . '">' . $email . '</a>. We will respond to your request within 30 days.</p>';
-    } else {
-        $rights_content .= '<p>To exercise any of these rights, please contact us using the details provided below. We will respond to your request within 30 days.</p>';
-    }
-    $all_sections[] = [
-        'title' => 'Your Rights (GDPR)',
-        'content' => $rights_content,
-        'html' => true
-    ];
+// 8. Your Rights (GDPR)
+$rights_content = '<p>' . $s['rights_intro'] . '</p><ul>'
+    . '<li><strong>' . $s['rights_access'] . '</strong> ' . $s['rights_access_d'] . '</li>'
+    . '<li><strong>' . $s['rights_rectify'] . '</strong> ' . $s['rights_rectify_d'] . '</li>'
+    . '<li><strong>' . $s['rights_erase'] . '</strong> ' . $s['rights_erase_d'] . '</li>'
+    . '<li><strong>' . $s['rights_port'] . '</strong> ' . $s['rights_port_d'] . '</li>'
+    . '<li><strong>' . $s['rights_restrict'] . '</strong> ' . $s['rights_restrict_d'] . '</li>'
+    . '<li><strong>' . $s['rights_object'] . '</strong> ' . $s['rights_object_d'] . '</li>'
+    . '<li><strong>' . $s['rights_complaint'] . '</strong> ' . $s['rights_complaint_d'] . '</li></ul>';
+if (!empty($email)) {
+    $email_link = '<a href="mailto:' . $email . '">' . $email . '</a>';
+    $rights_content .= '<p>' . sprintf($s['rights_contact'], $email_link) . '</p>';
+} else {
+    $rights_content .= '<p>' . $s['rights_contact_generic'] . '</p>';
+}
+$all_sections[] = [
+    'title' => $s['rights_title'],
+    'content' => $rights_content,
+    'html' => true
+];
 
-    // 9. Google API Services Disclosure
-    $all_sections[] = [
-        'title' => 'Google API Services Disclosure',
-        'content' => '<p>Our use and transfer of information received from Google APIs to any other app will adhere to the <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener noreferrer">Google API Services User Data Policy</a>, including the Limited Use requirements.</p>',
-        'html' => true
-    ];
+// 9. Google API Services Disclosure
+$all_sections[] = [
+    'title' => $s['google_title'],
+    'content' => '<p>' . $s['google_body'] . '</p>',
+    'html' => true
+];
 
-    // 10. Contact Us
-    $contact_parts = [];
-    if (!empty($business_name) && $business_name !== 'Our Business') {
-        $contact_parts[] = '<p><strong>' . $business_name . '</strong></p>';
-    }
-    if (!empty($email)) {
-        $contact_parts[] = '<p>Email: <a href="mailto:' . $email . '">' . $email . '</a></p>';
-    }
-    if (!empty($address)) {
-        $contact_parts[] = '<p>Address: ' . $address . '</p>';
-    }
-    $contact_content = '<p>If you have any questions about this Privacy Policy or how we handle your personal data, please contact us:</p>' . implode('', $contact_parts);
-    $all_sections[] = [
-        'title' => 'Contact Us',
-        'content' => $contact_content,
-        'html' => true
-    ];
+// 10. Contact Us
+$contact_parts = [];
+if (!empty($business_name)) {
+    $contact_parts[] = '<p><strong>' . $business_name . '</strong></p>';
+}
+if (!empty($email)) {
+    $contact_parts[] = '<p>' . $s['contact_email'] . ' <a href="mailto:' . $email . '">' . $email . '</a></p>';
+}
+if (!empty($address)) {
+    $contact_parts[] = '<p>' . $s['contact_address'] . ' ' . $address . '</p>';
+}
+$contact_content = '<p>' . $s['contact_intro'] . '</p>' . implode('', $contact_parts);
+$all_sections[] = [
+    'title' => $s['contact_title'],
+    'content' => $contact_content,
+    'html' => true
+];
 
-    $use_api = true;
+$use_api = true;
 ?>
 
 <main id="primary" class="site-main">
