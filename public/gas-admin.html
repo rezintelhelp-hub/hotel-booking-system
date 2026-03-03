@@ -2962,6 +2962,10 @@
                                             <option value="flexible">Flexible / 24hr</option>
                                         </select>
                                     </div>
+                                    <div class="form-group" style="grid-column: 1 / -1;">
+                                        <label class="form-label">Check-in Instructions</label>
+                                        <textarea class="form-input" id="terms-checkin-instructions" rows="3" placeholder="e.g., Key collection from lockbox, access code will be sent 24hrs before arrival..."></textarea>
+                                    </div>
                                     <div class="form-group">
                                         <label class="form-label">Check-out By</label>
                                         <select class="form-input" id="terms-checkout">
@@ -2978,6 +2982,10 @@
                                             <input type="number" class="form-input" id="terms-late-checkout-fee" min="0" placeholder="0" style="width: 100px;">
                                             <span style="color: #64748b; font-size: 0.85rem;">(leave blank if not offered)</span>
                                         </div>
+                                    </div>
+                                    <div class="form-group" style="grid-column: 1 / -1;">
+                                        <label class="form-label">Check-out Instructions</label>
+                                        <textarea class="form-input" id="terms-checkout-instructions" rows="3" placeholder="e.g., Please leave keys on kitchen counter, strip beds, take rubbish out..."></textarea>
                                     </div>
                                 </div>
                                 <div style="display: flex; gap: 1rem; margin-top: 1rem; flex-wrap: wrap;">
@@ -3252,6 +3260,37 @@
                                     <label class="form-label">Cancellation Policy</label>
                                     <textarea class="form-input" id="terms-cancellation-policy" rows="4" placeholder="e.g., Free cancellation up to 48 hours before check-in. Cancellations within 48 hours will be charged for the first night. No-shows will be charged the full booking amount."></textarea>
                                     <p style="color: #64748b; font-size: 0.85rem; margin-top: 0.5rem;">This will be displayed on the room page under the Terms tab.</p>
+                                </div>
+                                <div class="form-group" style="margin-top: 1rem;">
+                                    <label class="form-label">Damage Policy</label>
+                                    <textarea class="form-input" id="terms-damage-policy" rows="3" placeholder="e.g., Security deposit of $500 required. Guests are responsible for any damage to the property during their stay."></textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card" style="margin-top: 1rem;">
+                            <div class="card-header">
+                                <h3>Terms & Conditions</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="form-group">
+                                    <textarea class="form-input" id="terms-conditions" rows="4" placeholder="General terms and conditions for guests staying at this property..."></textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card" style="margin-top: 1rem;">
+                            <div class="card-header">
+                                <h3>Directions & Area Info</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="form-group">
+                                    <label class="form-label">Directions</label>
+                                    <textarea class="form-input" id="terms-directions" rows="3" placeholder="e.g., From the airport, take the express train to Central Station, then bus 42 to..."></textarea>
+                                </div>
+                                <div class="form-group" style="margin-top: 1rem;">
+                                    <label class="form-label">Area Info</label>
+                                    <textarea class="form-input" id="terms-area-info" rows="3" placeholder="e.g., Located in the historic quarter, 5 minutes walk from restaurants and shops..."></textarea>
                                 </div>
                             </div>
                         </div>
@@ -30233,7 +30272,14 @@ const promo = await fetch('/api/v1/offers/validate', {
                 id_required: document.getElementById('terms-id-required')?.checked,
                 additional_rules: document.getElementById('terms-additional-rules')?.value,
                 
-                cancellation_policy: document.getElementById('terms-cancellation-policy')?.value || null
+                cancellation_policy: document.getElementById('terms-cancellation-policy')?.value || null,
+
+                check_in_instructions: document.getElementById('terms-checkin-instructions')?.value || null,
+                check_out_instructions: document.getElementById('terms-checkout-instructions')?.value || null,
+                damage_policy: document.getElementById('terms-damage-policy')?.value || null,
+                terms_conditions: document.getElementById('terms-conditions')?.value || null,
+                directions: document.getElementById('terms-directions')?.value || null,
+                area_info: document.getElementById('terms-area-info')?.value || null
             };
             
             // Also save room amenities if a room is selected
@@ -30280,7 +30326,9 @@ const promo = await fetch('/api/v1/offers/validate', {
             // Text inputs and textareas
             ['terms-checkin-from','terms-checkin-until','terms-checkout','terms-late-checkout-fee',
              'terms-smoking-fine','terms-pet-deposit','terms-pet-fee','terms-max-pets','terms-cot-fee',
-             'terms-quiet-from','terms-quiet-until','terms-additional-rules','terms-cancellation-policy'
+             'terms-quiet-from','terms-quiet-until','terms-additional-rules','terms-cancellation-policy',
+             'terms-checkin-instructions','terms-checkout-instructions','terms-damage-policy',
+             'terms-conditions','terms-directions','terms-area-info'
             ].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
             // Checkboxes
             ['terms-self-checkin','terms-24hr-checkin','terms-dogs-allowed','terms-cats-allowed',
@@ -30369,7 +30417,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                     if (terms.id_required) document.getElementById('terms-id-required').checked = true;
                     if (terms.additional_rules) document.getElementById('terms-additional-rules').value = terms.additional_rules;
                     if (terms.cancellation_policy) document.getElementById('terms-cancellation-policy').value = terms.cancellation_policy;
-                    
+                    if (terms.check_in_instructions) document.getElementById('terms-checkin-instructions').value = terms.check_in_instructions;
+                    if (terms.check_out_instructions) document.getElementById('terms-checkout-instructions').value = terms.check_out_instructions;
+                    if (terms.damage_policy) document.getElementById('terms-damage-policy').value = terms.damage_policy;
+                    if (terms.terms_conditions) document.getElementById('terms-conditions').value = terms.terms_conditions;
+                    if (terms.directions) document.getElementById('terms-directions').value = terms.directions;
+                    if (terms.area_info) document.getElementById('terms-area-info').value = terms.area_info;
+
                     // Beds (using bed_type from database) - OLD FORMAT
                     // Only load into old UI if container exists
                     const bedContainer = document.getElementById('bed-configuration');

@@ -43589,8 +43589,9 @@ app.put('/api/admin/properties/:id/terms', async (req, res) => {
         wheelchair_accessible, step_free_access, accessible_bathroom,
         grab_rails, roll_in_shower, elevator_access, ground_floor_available,
         quiet_hours_from, quiet_hours_until, no_outside_guests, id_required,
-        additional_rules, bathroom_features, additional_rules_ml, cancellation_policy_ml
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36)
+        additional_rules, bathroom_features, additional_rules_ml, cancellation_policy_ml,
+        check_in_instructions, check_out_instructions, damage_policy, terms_conditions, directions, area_info
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42)
       ON CONFLICT (property_id) DO UPDATE SET
         checkin_from = EXCLUDED.checkin_from,
         checkin_until = EXCLUDED.checkin_until,
@@ -43627,6 +43628,12 @@ app.put('/api/admin/properties/:id/terms', async (req, res) => {
         bathroom_features = EXCLUDED.bathroom_features,
         additional_rules_ml = EXCLUDED.additional_rules_ml,
         cancellation_policy_ml = EXCLUDED.cancellation_policy_ml,
+        check_in_instructions = EXCLUDED.check_in_instructions,
+        check_out_instructions = EXCLUDED.check_out_instructions,
+        damage_policy = EXCLUDED.damage_policy,
+        terms_conditions = EXCLUDED.terms_conditions,
+        directions = EXCLUDED.directions,
+        area_info = EXCLUDED.area_info,
         updated_at = CURRENT_TIMESTAMP
     `, [
       propertyId,
@@ -43664,7 +43671,13 @@ app.put('/api/admin/properties/:id/terms', async (req, res) => {
       terms.additional_rules || null,
       bathroom_features ? JSON.stringify(bathroom_features) : null,
       terms.additional_rules_ml ? JSON.stringify(terms.additional_rules_ml) : null,
-      terms.cancellation_policy_ml ? JSON.stringify(terms.cancellation_policy_ml) : null
+      terms.cancellation_policy_ml ? JSON.stringify(terms.cancellation_policy_ml) : null,
+      terms.check_in_instructions || null,
+      terms.check_out_instructions || null,
+      terms.damage_policy || null,
+      terms.terms_conditions || null,
+      terms.directions || null,
+      terms.area_info || null
     ]);
     
     // Update beds - delete existing property-level beds and insert new
