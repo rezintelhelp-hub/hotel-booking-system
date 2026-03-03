@@ -13593,11 +13593,15 @@ const promo = await fetch('/api/v1/offers/validate', {
                 </div><!-- /wb-terms-custom-sections -->
 
                 <div id="wb-terms-gas-message" style="display: none;">
-                    <div class="card" style="margin-top: 1rem;">
-                        <div class="card-body" style="text-align: center; padding: 2rem;">
-                            <div style="font-size: 2rem; margin-bottom: 0.75rem;">&#9989;</div>
-                            <h3 style="margin: 0 0 0.5rem;">Terms pulled from your GAS Account</h3>
-                            <p style="color: #64748b; margin: 0;">Your Terms & Conditions page will automatically display the check-in/out times, cancellation policy, house rules, and other terms from your property data in GAS Admin.<br><br>To choose which property's terms are used, go to <strong>Properties &gt; Amenities &gt; Terms &amp; Policies</strong> and check <em>"Apply these terms to all properties"</em>.</p>
+                    <div class="card" style="margin-top: 1rem; border: 2px solid #10b981;">
+                        <div class="card-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white;">
+                            <h3>Property Terms Preview</h3>
+                        </div>
+                        <div class="card-body">
+                            <p style="color: #64748b; margin: 0 0 1rem; font-size: 0.85rem;">This data will appear on your Terms page. Edit it in <strong>Properties &gt; Amenities &gt; Terms &amp; Policies</strong>.</p>
+                            <div id="wb-terms-gas-preview" style="color: #475569; font-size: 0.9rem;">
+                                <p style="color: #94a3b8; font-style: italic;">Loading property terms...</p>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -24588,36 +24592,42 @@ const promo = await fetch('/api/v1/offers/validate', {
         
         async function saveSubPage(pageName) {
             try {
-                const clientId = getClientId() || localStorage.getItem('gas_selected_client_id');
-                if (!accountId) {
-                    alert('Please select a client/property first');
+                if (!selectedDeployedSiteId) {
+                    showNotification('Please select a website to edit first', 'error');
                     return;
                 }
-                
+
                 const settings = {};
-                const prefix = `wb-page-${pageName}`;
-                
+                const prefix = `wb-page-${pageName}-`;
+
                 // Collect all inputs for this page
-                document.querySelectorAll(`[id^="${prefix}"]`).forEach(el => {
-                    const key = el.id.replace(prefix + '-', '');
+                document.querySelectorAll(`[id^="wb-page-${pageName}-"]`).forEach(el => {
+                    const key = el.id.replace(prefix, '');
+                    if (key.endsWith('-picker') || key.endsWith('-value') || key.endsWith('-preview')) return;
                     if (el.type === 'checkbox') {
                         settings[key] = el.checked;
+                    } else if (el.type === 'file') {
+                        // Skip file inputs
                     } else if (el.tagName === 'SELECT' || el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
                         settings[key] = el.value;
                     }
                 });
-                
-                console.log(`Saving sub page ${pageName}:`, JSON.stringify(settings, null, 2));
-                
-                const response = await fetch(`/api/admin/website-builder/page/${pageName}`, {
+
+                // Collect FAQs if present
+                const faqSection = pageName;
+                const faqs = typeof getFAQsFromSection === 'function' ? getFAQsFromSection(faqSection) : [];
+                if (faqs.length > 0) settings['faqs'] = JSON.stringify(faqs);
+                const faqEl = document.getElementById(`wb-page-${pageName}-faq-enabled`);
+                if (faqEl) settings['faq-enabled'] = faqEl.checked;
+
+                console.log(`Saving sub page page-${pageName}:`, settings);
+
+                const response = await fetch(`/api/deployed-sites/${selectedDeployedSiteId}/settings/page-${pageName}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                    body: JSON.stringify({
-                        account_id: accountId,
-                        settings: settings
-                    })
+                    body: JSON.stringify({ settings })
                 });
-                
+
                 const data = await response.json();
                 if (data.success) {
                     showNotification(`${pageName.charAt(0).toUpperCase() + pageName.slice(1)} page saved!`, 'success');
@@ -24632,25 +24642,26 @@ const promo = await fetch('/api/v1/offers/validate', {
         
         async function loadSubPage(pageName) {
             try {
-                const clientId = getClientId() || localStorage.getItem('gas_selected_client_id');
-                if (!accountId) return;
-                
-                const response = await fetch(`/api/admin/website-builder/page/${pageName}?account_id=${accountId}`);
+                if (!selectedDeployedSiteId) return;
+
+                const response = await fetch(`/api/deployed-sites/${selectedDeployedSiteId}/settings/page-${pageName}`, {
+                    headers: authHeaders()
+                });
                 const data = await response.json();
-                
-                if (data.success && data.data) {
-                    const settings = data.data;
+
+                if (data.success && data.settings) {
+                    const settings = data.settings;
                     const prefix = `wb-page-${pageName}`;
-                    
+
                     Object.keys(settings).forEach(key => {
                         const el = document.getElementById(`${prefix}-${key}`);
                         if (el) {
                             if (el.type === 'checkbox') {
-                                el.checked = settings[key];
+                                el.checked = !!settings[key];
                             } else {
                                 el.value = settings[key] || '';
                             }
-                            
+
                             // Handle image previews
                             if (key.endsWith('-url') && settings[key]) {
                                 const previewId = el.id.replace('-url', '-preview');
@@ -24662,6 +24673,17 @@ const promo = await fetch('/api/v1/offers/validate', {
                             }
                         }
                     });
+
+                    // Restore FAQs if present
+                    if (settings.faqs) {
+                        try {
+                            const faqs = typeof settings.faqs === 'string' ? JSON.parse(settings.faqs) : settings.faqs;
+                            if (Array.isArray(faqs) && typeof loadFAQsIntoSection === 'function') {
+                                loadFAQsIntoSection(pageName, faqs);
+                            }
+                        } catch (e) {}
+                    }
+
                     // After loading terms page, apply source toggle visibility
                     if (pageName === 'terms') {
                         const src = document.getElementById('wb-page-terms-source');
@@ -24678,6 +24700,74 @@ const promo = await fetch('/api/v1/offers/validate', {
             const gasMsg = document.getElementById('wb-terms-gas-message');
             if (custom) custom.style.display = mode === 'gas-account' ? 'none' : '';
             if (gasMsg) gasMsg.style.display = mode === 'gas-account' ? '' : 'none';
+            if (mode === 'gas-account') loadTermsPreview();
+        }
+
+        async function loadTermsPreview() {
+            const preview = document.getElementById('wb-terms-gas-preview');
+            if (!preview || !accountId) return;
+            preview.innerHTML = '<p style="color:#94a3b8;font-style:italic;">Loading property terms...</p>';
+            try {
+                // Fetch properties for this account to find one with property_terms
+                const propsResp = await fetch(`/api/admin/properties?account_id=${accountId}`, { headers: authHeaders() });
+                const propsData = await propsResp.json();
+                if (!propsData.success || !propsData.data?.length) {
+                    preview.innerHTML = '<p style="color:#ef4444;">No properties found for this account.</p>';
+                    return;
+                }
+                // Try each property until we find one with terms
+                let pt = null, ptPropName = '';
+                for (const prop of propsData.data) {
+                    const resp = await fetch(`/api/admin/properties/${prop.id}/terms`, { headers: authHeaders() });
+                    const d = await resp.json();
+                    if (d.success && d.data && (d.data.checkin_from || d.data.cancellation_policy || d.data.check_in_instructions)) {
+                        pt = d.data;
+                        ptPropName = prop.name;
+                        if (pt.apply_to_all) break; // prefer the designated property
+                    }
+                }
+                if (!pt) {
+                    preview.innerHTML = '<p style="color:#f59e0b;">No property terms data found. Add terms in <strong>Properties &gt; Amenities &gt; Terms &amp; Policies</strong>.</p>';
+                    return;
+                }
+                let html = `<p style="font-size:0.8rem;color:#94a3b8;margin-bottom:1rem;">Source: <strong>${ptPropName}</strong>${pt.apply_to_all ? ' (apply to all)' : ''}</p>`;
+                const sections = [];
+                // Check-in/out
+                if (pt.checkin_from || pt.checkout_by) {
+                    let s = '';
+                    if (pt.checkin_from) s += `<strong>Check-in:</strong> from ${pt.checkin_from}${pt.checkin_until ? ' until ' + pt.checkin_until : ''}<br>`;
+                    if (pt.checkout_by) s += `<strong>Check-out:</strong> by ${pt.checkout_by}<br>`;
+                    if (pt.check_in_instructions) s += `<br>${pt.check_in_instructions.replace(/\n/g, '<br>')}`;
+                    sections.push({ title: 'Check-in & Check-out', content: s });
+                }
+                if (pt.cancellation_policy) sections.push({ title: 'Cancellation Policy', content: pt.cancellation_policy.replace(/\n/g, '<br>') });
+                // House rules
+                const rules = [];
+                if (pt.smoking_policy && pt.smoking_policy !== 'yes') rules.push(pt.smoking_policy === 'no' ? 'No smoking.' : 'Smoking in designated areas only.');
+                if (pt.pet_policy) rules.push(pt.pet_policy === 'no' ? 'No pets allowed.' : pt.pet_policy === 'request' ? 'Pets on request.' : 'Pets allowed.');
+                if (pt.quiet_hours_from && pt.quiet_hours_until) rules.push(`Quiet hours: ${pt.quiet_hours_from} – ${pt.quiet_hours_until}`);
+                if (pt.additional_rules) rules.push(pt.additional_rules.replace(/\n/g, '<br>'));
+                if (rules.length) sections.push({ title: 'House Rules', content: rules.join('<br>') });
+                if (pt.terms_conditions) sections.push({ title: 'Terms & Conditions', content: pt.terms_conditions.replace(/\n/g, '<br>') });
+                if (pt.damage_policy) sections.push({ title: 'Liability & Damages', content: pt.damage_policy.replace(/\n/g, '<br>') });
+                if (pt.directions) sections.push({ title: 'Directions', content: pt.directions.replace(/\n/g, '<br>') });
+                if (pt.area_info) sections.push({ title: 'Area Information', content: pt.area_info.replace(/\n/g, '<br>') });
+
+                if (!sections.length) {
+                    preview.innerHTML = html + '<p style="color:#f59e0b;">Property terms exist but no displayable content found.</p>';
+                    return;
+                }
+                sections.forEach(s => {
+                    html += `<div style="margin-bottom:1rem;padding:0.75rem;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;">`;
+                    html += `<div style="font-weight:600;color:#1e293b;margin-bottom:0.35rem;font-size:0.85rem;">${s.title}</div>`;
+                    html += `<div style="color:#475569;font-size:0.85rem;line-height:1.6;">${s.content}</div>`;
+                    html += `</div>`;
+                });
+                preview.innerHTML = html;
+            } catch (e) {
+                console.error('loadTermsPreview error:', e);
+                preview.innerHTML = '<p style="color:#ef4444;">Error loading preview.</p>';
+            }
         }
 
         function previewSubPageImage(pageName, imageType) {
