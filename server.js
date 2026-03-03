@@ -33342,6 +33342,7 @@ app.post('/api/hostfully/import-to-gas/:connectionId', async (req, res) => {
             }
             
             // === DESCRIPTIONS (multilingual) ===
+            let descAccess = '', descNeighbourhood = '', descTransit = '';
             try {
               const roomDescResult = await adapter.getDescriptions(room.external_id);
               if (roomDescResult.success && roomDescResult.data) {
@@ -33358,7 +33359,13 @@ app.post('/api/hostfully/import-to-gas/:connectionId', async (req, res) => {
                   shortDescObj[lang] = desc.shortSummary || desc.summary?.substring(0, 200) || '';
                   if (desc.name) displayNameObj[lang] = desc.name;
                 }
-                
+
+                // Extract section fields for property_terms (prefer English)
+                const enDesc = roomDescResult.data['en_US'] || roomDescResult.data[Object.keys(roomDescResult.data)[0]] || {};
+                descAccess = enDesc.access || '';
+                descNeighbourhood = enDesc.neighbourhood || '';
+                descTransit = enDesc.transit || '';
+
                 if (Object.keys(displayNameObj).length > 0) {
                   await pool.query('UPDATE bookable_units SET display_name = $1::jsonb WHERE id = $2', [JSON.stringify(displayNameObj), gasRoomId]);
                 }
@@ -33595,20 +33602,28 @@ app.post('/api/hostfully/import-to-gas/:connectionId', async (req, res) => {
                   [checkIn, checkOut, gasPropertyId]);
               }
               
-              // Property terms (check-in/out, cancellation, house rules)
+              // Property terms (check-in/out, cancellation, house rules, descriptions, deposit)
               const cancellation = roomRaw.cancellationPolicy || rawData.cancellationPolicy || '';
               const houseRules = roomRaw.houseRules || rawData.houseRules || '';
-              if (checkIn || checkOut || cancellation || houseRules) {
+              const checkinUntil = roomRaw.availability?.checkInTimeEnd ? `${roomRaw.availability.checkInTimeEnd}:00` : '';
+              const securityDeposit = roomRaw.pricing?.securityDeposit || rawData.pricing?.securityDeposit || 0;
+              const damagePolicy = securityDeposit > 0 ? `Security deposit: ${roomCurrency} ${securityDeposit}` : '';
+              if (checkIn || checkOut || cancellation || houseRules || checkinUntil || descAccess || descNeighbourhood || descTransit || damagePolicy) {
                 await pool.query(`
-                  INSERT INTO property_terms (property_id, checkin_from, checkout_by, additional_rules, cancellation_policy)
-                  VALUES ($1, $2, $3, $4, $5)
+                  INSERT INTO property_terms (property_id, checkin_from, checkout_by, additional_rules, cancellation_policy, checkin_until, check_in_instructions, area_info, directions, damage_policy)
+                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
                   ON CONFLICT (property_id) DO UPDATE SET
                     checkin_from = COALESCE(NULLIF($2, ''), property_terms.checkin_from),
                     checkout_by = COALESCE(NULLIF($3, ''), property_terms.checkout_by),
                     additional_rules = COALESCE(NULLIF($4, ''), property_terms.additional_rules),
                     cancellation_policy = COALESCE(NULLIF($5, ''), property_terms.cancellation_policy),
+                    checkin_until = COALESCE(NULLIF($6, ''), property_terms.checkin_until),
+                    check_in_instructions = COALESCE(NULLIF($7, ''), property_terms.check_in_instructions),
+                    area_info = COALESCE(NULLIF($8, ''), property_terms.area_info),
+                    directions = COALESCE(NULLIF($9, ''), property_terms.directions),
+                    damage_policy = COALESCE(NULLIF($10, ''), property_terms.damage_policy),
                     updated_at = NOW()
-                `, [gasPropertyId, checkIn, checkOut, houseRules, cancellation])
+                `, [gasPropertyId, checkIn, checkOut, houseRules, cancellation, checkinUntil, descAccess, descNeighbourhood, descTransit, damagePolicy])
                   .catch(e => console.log(`[Hostfully import-to-gas] property_terms: ${e.message}`));
               }
               
