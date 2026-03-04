@@ -2428,13 +2428,18 @@ app.post('/api/gas-sync/test-prop-key', async (req, res) => {
             });
           }
         } else if (testResponse.data && testResponse.data.error) {
-          const errCode = testResponse.data.errorCode;
-          const errMsg = errCode === 1002
-            ? 'V1 API key is invalid. Check your API key in connection settings.'
-            : errCode === 1003
-            ? 'Prop Key is invalid for this API key. Get the correct key from Beds24: Settings → Properties → Access.'
-            : testResponse.data.error;
-          return res.json({ success: false, error: errMsg });
+          const errCode = String(testResponse.data.errorCode);
+          let errMsg;
+          if (errCode === '1002') {
+            errMsg = 'V1 API key is invalid. Check your API key in connection settings.';
+          } else if (errCode === '1003') {
+            errMsg = 'V1 API key is unauthorized. The key may have been regenerated or access revoked. Get a new API key from Beds24: Account → API.';
+          } else if (errCode === '2002') {
+            errMsg = 'Prop Key not found in this account. Get the correct key from Beds24: Settings → Properties → Access.';
+          } else {
+            errMsg = testResponse.data.error;
+          }
+          return res.json({ success: false, error: errMsg, errorCode: errCode });
         } else {
           console.log('Invalid response structure:', JSON.stringify(testResponse.data));
           return res.json({ success: false, error: 'Invalid response from Beds24. Check your propKey.' });
