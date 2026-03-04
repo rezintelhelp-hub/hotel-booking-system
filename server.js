@@ -2384,66 +2384,111 @@ app.post('/api/gas-sync/test-prop-key', async (req, res) => {
     
     console.log('Test prop key - credentials found:', !!credentials, 'v1ApiKey:', !!credentials.v1ApiKey);
     
-    // For Beds24, test by fetching property data using the propKey
+    // For Beds24, test by fetching property data using V1 propKey or V2 fallback
     if (prop.adapter_code === 'beds24') {
       const v1ApiKey = credentials.v1ApiKey;
-      
-      if (!v1ApiKey) {
-        return res.json({ success: false, error: 'V1 API key not configured for this connection. Add it in the connection settings.' });
-      }
-      
-      // Test the V1 API with this propKey
-      try {
-        console.log('Testing Beds24 V1 API with propKey:', propKey.substring(0, 4) + '...');
-        
-        // V1 API requires POST with JSON body
-        const testResponse = await axios.post('https://api.beds24.com/json/getProperty', {
-          authentication: {
-            apiKey: v1ApiKey,
-            propKey: propKey
+      let v1Succeeded = false;
+
+      // Try V1 API first (if v1ApiKey is configured)
+      if (v1ApiKey) {
+        try {
+          console.log('Testing Beds24 V1 API with propKey:', propKey.substring(0, 4) + '...');
+
+          const testResponse = await axios.post('https://api.beds24.com/json/getProperty', {
+            authentication: {
+              apiKey: v1ApiKey,
+              propKey: propKey
+            }
+          }, {
+            headers: { 'Content-Type': 'application/json' },
+            timeout: 15000
+          });
+
+          console.log('Beds24 V1 API response:', JSON.stringify(testResponse.data).substring(0, 200));
+
+          const propertyData = testResponse.data?.getProperty?.[0] || testResponse.data;
+
+          if (propertyData && propertyData.propId) {
+            if (String(propertyData.propId) === String(externalPropertyId)) {
+              v1Succeeded = true;
+              await pool.query(`ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS prop_key_tested BOOLEAN DEFAULT FALSE`);
+              await pool.query(`
+                UPDATE gas_sync_properties SET prop_key_tested = TRUE, updated_at = NOW() WHERE id = $1
+              `, [syncPropertyId]);
+
+              return res.json({
+                success: true,
+                message: 'Prop Key validated successfully (V1)',
+                propertyName: propertyData.name || prop.name
+              });
+            } else {
+              return res.json({
+                success: false,
+                error: `Property ID mismatch. Expected ${externalPropertyId}, got ${propertyData.propId}. Check your propKey.`
+              });
+            }
+          } else if (testResponse.data && testResponse.data.error) {
+            console.log('V1 API returned error:', testResponse.data.error, '- falling back to V2');
           }
-        }, {
-          headers: { 'Content-Type': 'application/json' },
-          timeout: 15000
-        });
-        
-        console.log('Beds24 V1 API response:', JSON.stringify(testResponse.data).substring(0, 200));
-        
-        // Beds24 returns { getProperty: [ { propId, name, ... } ] }
-        const propertyData = testResponse.data?.getProperty?.[0] || testResponse.data;
-        
-        console.log('Parsed propertyData:', propertyData ? 'found' : 'null', 'propId:', propertyData?.propId);
-        
-        // Check if we got valid property data back
-        if (propertyData && propertyData.propId) {
-          // Verify the propId matches
-          if (String(propertyData.propId) === String(externalPropertyId)) {
-            // Success! Mark as tested
+        } catch (apiError) {
+          console.log('V1 API test failed:', apiError.message, '- falling back to V2');
+        }
+      }
+
+      // V2 fallback — verify property exists via V2 API (no V1 key needed)
+      if (!v1Succeeded) {
+        try {
+          // Get fresh V2 token
+          const refreshToken = credentials.refreshToken || prop.refresh_token;
+          if (!refreshToken) {
+            return res.json({ success: false, error: 'No V1 API key and no V2 refresh token. Please reconnect to Beds24.' });
+          }
+
+          const tokenResponse = await axios.get('https://beds24.com/api/v2/authentication/token', {
+            headers: { 'refreshToken': refreshToken },
+            timeout: 10000
+          });
+          const accessToken = tokenResponse.data.token;
+
+          if (!accessToken) {
+            return res.json({ success: false, error: 'Failed to refresh V2 token. Please reconnect to Beds24.' });
+          }
+
+          // Update stored token
+          await pool.query(
+            'UPDATE gas_sync_connections SET access_token = $1, updated_at = NOW() WHERE id = $2',
+            [accessToken, prop.connection_id]
+          );
+
+          // Check property exists via V2
+          const propResponse = await axios.get('https://beds24.com/api/v2/properties', {
+            headers: { token: accessToken },
+            params: { id: parseInt(externalPropertyId) },
+            timeout: 10000
+          });
+
+          const v2Props = propResponse.data?.data || [];
+          const matched = v2Props.find(p => String(p.id) === String(externalPropertyId));
+
+          if (matched) {
             await pool.query(`ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS prop_key_tested BOOLEAN DEFAULT FALSE`);
             await pool.query(`
               UPDATE gas_sync_properties SET prop_key_tested = TRUE, updated_at = NOW() WHERE id = $1
             `, [syncPropertyId]);
-            
-            return res.json({ 
-              success: true, 
-              message: 'Prop Key validated successfully',
-              propertyName: propertyData.name || prop.name
+
+            const note = v1ApiKey ? ' (V1 key failed, validated via V2)' : ' (via V2, no V1 key)';
+            return res.json({
+              success: true,
+              message: 'Prop Key saved and property validated' + note,
+              propertyName: matched.name || prop.name
             });
           } else {
-            return res.json({ 
-              success: false, 
-              error: `Property ID mismatch. Expected ${externalPropertyId}, got ${propertyData.propId}. Check your propKey.`
-            });
+            return res.json({ success: false, error: 'Property not found in Beds24 V2 API. Check the property ID.' });
           }
-        } else if (testResponse.data && testResponse.data.error) {
-          return res.json({ success: false, error: testResponse.data.error });
-        } else {
-          console.log('Invalid response structure:', JSON.stringify(testResponse.data));
-          return res.json({ success: false, error: 'Invalid response from Beds24. Check your propKey.' });
+        } catch (v2Error) {
+          console.error('V2 fallback error:', v2Error.message);
+          return res.json({ success: false, error: 'V1 API key invalid and V2 fallback failed: ' + v2Error.message });
         }
-      } catch (apiError) {
-        console.error('Beds24 API test error:', apiError.message);
-        return res.json({ success: false, error: 'Failed to connect to Beds24: ' + apiError.message });
       }
     }
     
