@@ -2227,7 +2227,7 @@ function renderBookingPage({ account, rooms }) {
         }
 
         try {
-          const res = await fetch('/api/availability/' + roomId + '?start=' + checkin + '&end=' + checkout);
+          const res = await fetch('/api/availability/' + roomId + '?from=' + checkin + '&to=' + checkout);
           const data = await res.json();
           const dates = data.availability || [];
 
