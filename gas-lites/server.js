@@ -517,6 +517,52 @@ app.get('/', (req, res) => {
 });
 
 // ============================================
+// ACCOUNT BOOKING PAGE - /book/:accountSlug
+// ============================================
+app.get('/book/:accountSlug', async (req, res) => {
+  try {
+    const { accountSlug } = req.params;
+
+    // Look up account by account_code first, then try numeric ID
+    let accountResult;
+    accountResult = await pool.query(
+      `SELECT id, name, business_name, logo_url, primary_color, account_code
+       FROM accounts WHERE account_code = $1`, [accountSlug]
+    );
+    if (accountResult.rows.length === 0 && /^\d+$/.test(accountSlug)) {
+      accountResult = await pool.query(
+        `SELECT id, name, business_name, logo_url, primary_color, account_code
+         FROM accounts WHERE id = $1`, [parseInt(accountSlug)]
+      );
+    }
+    if (accountResult.rows.length === 0) {
+      return res.status(404).send(renderError('Account not found'));
+    }
+    const account = accountResult.rows[0];
+
+    // Fetch all active rooms for this account with property info, images, and lite slugs
+    const roomsResult = await pool.query(`
+      SELECT bu.id as room_id, bu.name as room_name, bu.display_name,
+             bu.short_description, bu.max_guests, bu.base_price, bu.unit_type,
+             p.id as property_id, p.name as property_name, p.city, p.country, p.currency,
+             l.slug as lite_slug,
+             (SELECT image_url FROM room_images WHERE room_id = bu.id ORDER BY is_primary DESC NULLS LAST, display_order ASC NULLS LAST LIMIT 1) as room_image,
+             (SELECT image_url FROM property_images WHERE property_id = p.id ORDER BY is_primary DESC NULLS LAST, display_order ASC NULLS LAST LIMIT 1) as property_image
+      FROM bookable_units bu
+      JOIN properties p ON bu.property_id = p.id
+      LEFT JOIN gas_lites l ON l.room_id = bu.id AND l.active = true
+      WHERE p.account_id = $1 AND bu.active = true AND p.active = true
+      ORDER BY p.name, bu.name
+    `, [account.id]);
+
+    res.send(renderBookingPage({ account, rooms: roomsResult.rows }));
+  } catch (error) {
+    console.error('Account booking page error:', error);
+    res.status(500).send(renderError('Something went wrong'));
+  }
+});
+
+// ============================================
 // MAIN ROOM PAGE - /:slug
 // ============================================
 app.get('/:slug', async (req, res) => {
@@ -1984,6 +2030,248 @@ function renderError(msg) {
   return `<!DOCTYPE html><html><head><title>Error</title></head>
   <body style="font-family:system-ui,sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh">
   <div style="text-align:center"><h1>⚠️ Error</h1><p>${msg||'Please try again.'}</p></div></body></html>`;
+}
+
+// ============================================
+// ACCOUNT BOOKING PAGE RENDERER
+// ============================================
+function renderBookingPage({ account, rooms }) {
+  const accent = account.primary_color || '#3b82f6';
+  const businessName = account.business_name || account.name || 'Book Your Stay';
+  const logoHtml = account.logo_url
+    ? `<img src="${account.logo_url}" alt="${escapeForHTML(businessName)}" style="height: 48px; margin-right: 1rem;">`
+    : '';
+
+  const roomCardsHtml = rooms.map((r, i) => {
+    const image = r.room_image || r.property_image || '';
+    const displayName = r.display_name ? (typeof r.display_name === 'object' ? (r.display_name.en || Object.values(r.display_name)[0]) : r.display_name) : r.room_name;
+    const currency = getCurrencySymbol(r.currency);
+    const price = r.base_price ? `${currency}${Math.round(r.base_price)}` : '';
+    const liteUrl = r.lite_slug ? `/${r.lite_slug}` : '';
+    return `
+      <div class="room-card" id="room-${r.room_id}" data-room-id="${r.room_id}" data-max-guests="${r.max_guests || 99}" data-lite-slug="${r.lite_slug || ''}">
+        <div class="room-image" style="background-image: url('${image}');">
+          ${!image ? '<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:3rem;color:#cbd5e1;">🏨</div>' : ''}
+          <div class="avail-badge" id="badge-${r.room_id}"></div>
+        </div>
+        <div class="room-info">
+          <h3 class="room-name">${escapeForHTML(displayName)}</h3>
+          <p class="room-property">${escapeForHTML(r.property_name)}${r.city ? ' · ' + escapeForHTML(r.city) : ''}</p>
+          <div class="room-meta">
+            ${r.max_guests ? `<span class="meta-pill">👥 ${r.max_guests} guests</span>` : ''}
+            ${r.unit_type ? `<span class="meta-pill">${escapeForHTML(r.unit_type)}</span>` : ''}
+          </div>
+          <div class="room-bottom">
+            <div class="room-price">${price ? `${price}<span class="per-night"> / night</span>` : ''}</div>
+            ${liteUrl ? `<a href="${liteUrl}" class="book-btn" id="bookbtn-${r.room_id}">Book Now</a>` : '<span class="book-btn disabled">Coming Soon</span>'}
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escapeForHTML(businessName)} — Book Your Stay</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', system-ui, sans-serif; background: #f8fafc; color: #1e293b; min-height: 100vh; }
+    .header { background: white; border-bottom: 1px solid #e2e8f0; padding: 1.25rem 1.5rem; display: flex; align-items: center; justify-content: center; gap: 0.75rem; }
+    .header h1 { font-size: 1.4rem; font-weight: 700; }
+    .search-bar { background: white; border-bottom: 1px solid #e2e8f0; padding: 1rem 1.5rem; position: sticky; top: 0; z-index: 100; }
+    .search-inner { max-width: 1200px; margin: 0 auto; display: flex; gap: 0.75rem; align-items: flex-end; flex-wrap: wrap; }
+    .search-field { display: flex; flex-direction: column; gap: 0.25rem; flex: 1; min-width: 140px; }
+    .search-field label { font-size: 0.75rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; }
+    .search-field input, .search-field select { padding: 0.6rem 0.75rem; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.95rem; font-family: inherit; background: white; }
+    .search-field input:focus, .search-field select:focus { outline: none; border-color: ${accent}; box-shadow: 0 0 0 3px ${accent}22; }
+    .check-btn { padding: 0.6rem 1.5rem; background: ${accent}; color: white; border: none; border-radius: 8px; font-size: 0.95rem; font-weight: 600; cursor: pointer; white-space: nowrap; font-family: inherit; transition: opacity 0.2s; }
+    .check-btn:hover { opacity: 0.9; }
+    .check-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .container { max-width: 1200px; margin: 0 auto; padding: 1.5rem; }
+    .room-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.5rem; }
+    .room-card { background: white; border-radius: 12px; overflow: hidden; border: 2px solid transparent; box-shadow: 0 1px 3px rgba(0,0,0,0.06); transition: all 0.3s; }
+    .room-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    .room-card.available { border-color: #22c55e; }
+    .room-card.unavailable { opacity: 0.55; }
+    .room-image { height: 200px; background-size: cover; background-position: center; background-color: #f1f5f9; position: relative; }
+    .avail-badge { position: absolute; top: 0.75rem; right: 0.75rem; padding: 0.3rem 0.75rem; border-radius: 999px; font-size: 0.8rem; font-weight: 600; display: none; }
+    .avail-badge.show-avail { display: block; background: #dcfce7; color: #166534; }
+    .avail-badge.show-unavail { display: block; background: #fee2e2; color: #991b1b; }
+    .room-info { padding: 1.25rem; }
+    .room-name { font-size: 1.1rem; font-weight: 600; margin-bottom: 0.25rem; }
+    .room-property { font-size: 0.85rem; color: #64748b; margin-bottom: 0.75rem; }
+    .room-meta { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1rem; }
+    .meta-pill { background: #f1f5f9; color: #475569; padding: 0.2rem 0.6rem; border-radius: 999px; font-size: 0.78rem; font-weight: 500; }
+    .room-bottom { display: flex; justify-content: space-between; align-items: center; }
+    .room-price { font-size: 1.2rem; font-weight: 700; color: #0f172a; }
+    .per-night { font-size: 0.8rem; font-weight: 400; color: #64748b; }
+    .book-btn { display: inline-block; padding: 0.5rem 1.25rem; background: ${accent}; color: white; text-decoration: none; border-radius: 8px; font-size: 0.9rem; font-weight: 600; transition: opacity 0.2s; }
+    .book-btn:hover { opacity: 0.9; }
+    .book-btn.disabled { background: #cbd5e1; cursor: not-allowed; pointer-events: none; }
+    .empty-state { text-align: center; padding: 4rem 2rem; color: #64748b; }
+    .empty-state h2 { font-size: 1.3rem; margin-bottom: 0.5rem; color: #1e293b; }
+    .spinner { display: none; width: 18px; height: 18px; border: 2px solid #ffffff55; border-top-color: white; border-radius: 50%; animation: spin 0.6s linear infinite; margin: 0 auto; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @media (max-width: 640px) {
+      .search-inner { flex-direction: column; }
+      .search-field { min-width: 100%; }
+      .check-btn { width: 100%; }
+      .room-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    ${logoHtml}
+    <h1>${escapeForHTML(businessName)}</h1>
+  </div>
+
+  <div class="search-bar">
+    <div class="search-inner">
+      <div class="search-field">
+        <label>Check-in</label>
+        <input type="text" id="checkin" placeholder="Select date" readonly>
+      </div>
+      <div class="search-field">
+        <label>Check-out</label>
+        <input type="text" id="checkout" placeholder="Select date" readonly>
+      </div>
+      <div class="search-field" style="max-width: 120px;">
+        <label>Guests</label>
+        <select id="guests">
+          ${[1,2,3,4,5,6,7,8,9,10].map(n => `<option value="${n}"${n === 2 ? ' selected' : ''}>${n}</option>`).join('')}
+        </select>
+      </div>
+      <button class="check-btn" id="checkBtn" onclick="checkAvailability()">
+        <span id="checkText">Check Availability</span>
+        <div class="spinner" id="checkSpinner"></div>
+      </button>
+    </div>
+  </div>
+
+  <div class="container">
+    ${rooms.length > 0 ? `<div class="room-grid">${roomCardsHtml}</div>` : `
+      <div class="empty-state">
+        <h2>No rooms available</h2>
+        <p>This property hasn't listed any rooms yet.</p>
+      </div>`}
+  </div>
+
+  <script>
+    const checkinPicker = flatpickr('#checkin', {
+      dateFormat: 'Y-m-d',
+      altInput: true,
+      altFormat: 'd M Y',
+      minDate: 'today',
+      onChange: function(selectedDates) {
+        if (selectedDates[0]) {
+          const next = new Date(selectedDates[0]);
+          next.setDate(next.getDate() + 1);
+          checkoutPicker.set('minDate', next);
+          if (!checkoutPicker.selectedDates[0] || checkoutPicker.selectedDates[0] <= selectedDates[0]) {
+            checkoutPicker.setDate(next);
+          }
+          setTimeout(() => checkoutPicker.open(), 100);
+        }
+      }
+    });
+    const checkoutPicker = flatpickr('#checkout', {
+      dateFormat: 'Y-m-d',
+      altInput: true,
+      altFormat: 'd M Y',
+      minDate: new Date().fp_incr(1)
+    });
+
+    async function checkAvailability() {
+      const checkin = document.getElementById('checkin').value;
+      const checkout = document.getElementById('checkout').value;
+      const guests = parseInt(document.getElementById('guests').value);
+
+      if (!checkin || !checkout) {
+        alert('Please select check-in and check-out dates');
+        return;
+      }
+
+      const btn = document.getElementById('checkBtn');
+      const text = document.getElementById('checkText');
+      const spinner = document.getElementById('checkSpinner');
+      btn.disabled = true;
+      text.style.display = 'none';
+      spinner.style.display = 'block';
+
+      const cards = document.querySelectorAll('.room-card');
+      const fetches = Array.from(cards).map(async (card) => {
+        const roomId = card.dataset.roomId;
+        const maxGuests = parseInt(card.dataset.maxGuests) || 99;
+        const liteSlug = card.dataset.liteSlug;
+        const badge = document.getElementById('badge-' + roomId);
+        const bookBtn = document.getElementById('bookbtn-' + roomId);
+
+        // Guest count check
+        if (guests > maxGuests) {
+          card.classList.remove('available');
+          card.classList.add('unavailable');
+          badge.className = 'avail-badge show-unavail';
+          badge.textContent = 'Max ' + maxGuests + ' guests';
+          if (bookBtn && !bookBtn.classList.contains('disabled')) {
+            bookBtn.classList.add('disabled');
+            bookBtn.removeAttribute('href');
+          }
+          return;
+        }
+
+        try {
+          const res = await fetch('/api/availability/' + roomId + '?start=' + checkin + '&end=' + checkout);
+          const data = await res.json();
+          const dates = data.availability || [];
+
+          // Check every night is available (check-in to day before check-out)
+          const start = new Date(checkin);
+          const end = new Date(checkout);
+          const nights = Math.round((end - start) / 86400000);
+          let allAvailable = dates.length >= nights;
+          for (const d of dates) {
+            if (!d.is_available || d.is_blocked) { allAvailable = false; break; }
+          }
+
+          if (allAvailable && nights > 0) {
+            card.classList.add('available');
+            card.classList.remove('unavailable');
+            badge.className = 'avail-badge show-avail';
+            badge.textContent = 'Available';
+            if (bookBtn && liteSlug) {
+              bookBtn.classList.remove('disabled');
+              bookBtn.href = '/' + liteSlug + '?checkin=' + checkin + '&checkout=' + checkout + '&guests=' + guests;
+            }
+          } else {
+            card.classList.remove('available');
+            card.classList.add('unavailable');
+            badge.className = 'avail-badge show-unavail';
+            badge.textContent = 'Unavailable';
+            if (bookBtn && !bookBtn.classList.contains('disabled')) {
+              bookBtn.classList.add('disabled');
+              bookBtn.removeAttribute('href');
+            }
+          }
+        } catch (err) {
+          console.error('Availability check failed for room ' + roomId, err);
+        }
+      });
+
+      await Promise.all(fetches);
+      btn.disabled = false;
+      text.style.display = 'inline';
+      spinner.style.display = 'none';
+    }
+  </script>
+</body>
+</html>`;
 }
 
 function renderFullPage({ lite, images, amenities, reviews, availability, todayPrice, qrCode, liteUrl, showReviews, roomId, propertyId, accountId, activeOffer, lang = 'en', supportedLangs = ['en', 'es', 'fr', 'de', 'nl'] }) {
