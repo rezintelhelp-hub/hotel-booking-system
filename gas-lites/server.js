@@ -551,14 +551,14 @@ app.get('/book/:accountSlug', async (req, res) => {
       FROM bookable_units bu
       JOIN properties p ON bu.property_id = p.id
       LEFT JOIN gas_lites l ON l.room_id = bu.id AND l.active = true
-      WHERE p.account_id = $1 AND bu.status IN ('active', 'available') AND p.active = true
+      WHERE p.account_id = $1 AND bu.status IN ('active', 'available')
       ORDER BY p.name, bu.name
     `, [account.id]);
 
     res.send(renderBookingPage({ account, rooms: roomsResult.rows }));
   } catch (error) {
     console.error('Account booking page error:', error);
-    res.status(500).send(renderError('Debug: ' + (error.message || String(error))));
+    res.status(500).send(renderError('Something went wrong'));
   }
 });
 
