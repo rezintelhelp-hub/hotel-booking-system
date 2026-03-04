@@ -543,7 +543,7 @@ app.get('/book/:accountSlug', async (req, res) => {
     // Fetch all active rooms for this account with property info, images, and lite slugs
     const roomsResult = await pool.query(`
       SELECT bu.id as room_id, bu.name as room_name, bu.display_name,
-             bu.short_description, bu.max_guests, bu.base_price, bu.unit_type,
+             bu.short_description, bu.max_guests, bu.base_price, bu.room_type,
              p.id as property_id, p.name as property_name, p.city, p.country, p.currency,
              l.slug as lite_slug,
              (SELECT image_url FROM room_images WHERE room_id = bu.id ORDER BY is_primary DESC NULLS LAST, display_order ASC NULLS LAST LIMIT 1) as room_image,
@@ -551,7 +551,7 @@ app.get('/book/:accountSlug', async (req, res) => {
       FROM bookable_units bu
       JOIN properties p ON bu.property_id = p.id
       LEFT JOIN gas_lites l ON l.room_id = bu.id AND l.active = true
-      WHERE p.account_id = $1 AND bu.active = true AND p.active = true
+      WHERE p.account_id = $1 AND bu.status IN ('active', 'available') AND p.active = true
       ORDER BY p.name, bu.name
     `, [account.id]);
 
@@ -2059,7 +2059,7 @@ function renderBookingPage({ account, rooms }) {
           <p class="room-property">${escapeForHTML(r.property_name)}${r.city ? ' · ' + escapeForHTML(r.city) : ''}</p>
           <div class="room-meta">
             ${r.max_guests ? `<span class="meta-pill">👥 ${r.max_guests} guests</span>` : ''}
-            ${r.unit_type ? `<span class="meta-pill">${escapeForHTML(r.unit_type)}</span>` : ''}
+            ${r.room_type ? `<span class="meta-pill">${escapeForHTML(r.room_type)}</span>` : ''}
           </div>
           <div class="room-bottom">
             <div class="room-price">${price ? `${price}<span class="per-night"> / night</span>` : ''}</div>
