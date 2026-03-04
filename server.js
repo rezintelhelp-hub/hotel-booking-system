@@ -5873,10 +5873,7 @@ async function applyV1RatesFallback({ gasRoomId, beds24RoomId, v1ApiKey, propKey
     return { skipped: true, reason: 'has_prices', total, with_price };
   }
 
-  // Skip if no availability rows exist (nothing to update)
-  if (parseInt(total) === 0) {
-    return { skipped: true, reason: 'no_rows' };
-  }
+  const hasExistingRows = parseInt(total) > 0;
 
   // 2. Call V1 getRates — single call, returns ALL rate rules for the property
   console.log(`  [V1 Fallback] ${roomName}: ${total} rows with 0 prices, fetching V1 getRates...`);
@@ -5909,53 +5906,97 @@ async function applyV1RatesFallback({ gasRoomId, beds24RoomId, v1ApiKey, propKey
 
   console.log(`  [V1 Fallback] ${roomName}: ${roomRates.length} active rate rules found`);
 
-  // 4. Get all null-price dates for this room
-  const nullDates = await pool.query(
-    `SELECT date FROM room_availability
-     WHERE room_id = $1 AND date >= CURRENT_DATE AND cm_price IS NULL
-     ORDER BY date`,
-    [gasRoomId]
-  );
-
-  // 5. For each null-price date, find the best matching rate rule
   let daysUpdated = 0;
 
-  for (const row of nullDates.rows) {
-    const dateStr = row.date.toISOString().split('T')[0];
-
-    // Find all rate rules that cover this date
-    const matching = roomRates.filter(r =>
-      dateStr >= r.firstNight && dateStr <= r.lastNight
+  if (hasExistingRows) {
+    // 4a. UPDATE path — rows exist from V2 but have null prices
+    const nullDates = await pool.query(
+      `SELECT date FROM room_availability
+       WHERE room_id = $1 AND date >= CURRENT_DATE AND cm_price IS NULL
+       ORDER BY date`,
+      [gasRoomId]
     );
 
-    if (matching.length === 0) continue;
+    for (const row of nullDates.rows) {
+      const dateStr = row.date.toISOString().split('T')[0];
 
-    // Pick the most specific rule (shortest date range)
-    const bestRule = matching.reduce((best, curr) => {
-      const bestSpan = new Date(best.lastNight) - new Date(best.firstNight);
-      const currSpan = new Date(curr.lastNight) - new Date(curr.firstNight);
-      return currSpan < bestSpan ? curr : best;
-    });
+      const matching = roomRates.filter(r =>
+        dateStr >= r.firstNight && dateStr <= r.lastNight
+      );
+      if (matching.length === 0) continue;
 
-    const price = parseFloat(bestRule.roomPrice);
-    const minStay = parseInt(bestRule.minNights) || 1;
+      const bestRule = matching.reduce((best, curr) => {
+        const bestSpan = new Date(best.lastNight) - new Date(best.firstNight);
+        const currSpan = new Date(curr.lastNight) - new Date(curr.firstNight);
+        return currSpan < bestSpan ? curr : best;
+      });
 
-    // 6. UPDATE existing row (not INSERT — rows already exist from V2)
-    await pool.query(`
-      UPDATE room_availability
-      SET cm_price = $2, direct_price = $2,
-          min_stay = CASE WHEN min_stay_override IS NOT NULL THEN min_stay ELSE $3 END,
-          cm_min_stay = $3,
+      const price = parseFloat(bestRule.roomPrice);
+      const minStay = parseInt(bestRule.minNights) || 1;
+
+      await pool.query(`
+        UPDATE room_availability
+        SET cm_price = $2, direct_price = $2,
+            min_stay = CASE WHEN min_stay_override IS NOT NULL THEN min_stay ELSE $3 END,
+            cm_min_stay = $3,
+            source = 'beds24-v1-rates',
+            updated_at = NOW()
+        WHERE room_id = $1 AND date = $4 AND cm_price IS NULL
+      `, [gasRoomId, price, minStay, dateStr]);
+
+      daysUpdated++;
+    }
+
+    console.log(`  [V1 Fallback] ${roomName}: Updated ${daysUpdated}/${nullDates.rowCount} null-price days`);
+  } else {
+    // 4b. INSERT path — V2 returned no calendar data, create rows from rate rules
+    console.log(`  [V1 Fallback] ${roomName}: No V2 rows, inserting from ${roomRates.length} rate rules...`);
+
+    // Build date -> best rule map (capped at 365 days from today)
+    const maxDate = new Date();
+    maxDate.setDate(maxDate.getDate() + 365);
+    const maxDateStr = maxDate.toISOString().split('T')[0];
+    const dateMap = {}; // dateStr -> { price, minStay, span }
+
+    for (const rule of roomRates) {
+      const ruleStart = rule.firstNight < today ? today : rule.firstNight;
+      const ruleEnd = rule.lastNight > maxDateStr ? maxDateStr : rule.lastNight;
+      const span = new Date(rule.lastNight) - new Date(rule.firstNight);
+
+      for (let d = new Date(ruleStart); d.toISOString().split('T')[0] <= ruleEnd; d.setDate(d.getDate() + 1)) {
+        const dateStr = d.toISOString().split('T')[0];
+        // Pick most specific rule (shortest date range)
+        if (!dateMap[dateStr] || span < dateMap[dateStr].span) {
+          dateMap[dateStr] = {
+            price: parseFloat(rule.roomPrice),
+            minStay: parseInt(rule.minNights) || 1,
+            span
+          };
+        }
+      }
+    }
+
+    // Insert rows
+    for (const [dateStr, data] of Object.entries(dateMap)) {
+      await pool.query(`
+        INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
+        VALUES ($1, $2, $3, $3, true, false, $4, $4, 'beds24-v1-rates', NOW())
+        ON CONFLICT (room_id, date)
+        DO UPDATE SET
+          cm_price = $3, direct_price = $3,
+          min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $4 END,
+          cm_min_stay = $4,
           source = 'beds24-v1-rates',
           updated_at = NOW()
-      WHERE room_id = $1 AND date = $4 AND cm_price IS NULL
-    `, [gasRoomId, price, minStay, dateStr]);
+      `, [gasRoomId, dateStr, data.price, data.minStay]);
 
-    daysUpdated++;
+      daysUpdated++;
+    }
+
+    console.log(`  [V1 Fallback] ${roomName}: Inserted ${daysUpdated} days from rate rules`);
   }
 
-  console.log(`  [V1 Fallback] ${roomName}: Updated ${daysUpdated}/${nullDates.rowCount} null-price days`);
-  return { skipped: false, daysUpdated, totalNullDates: nullDates.rowCount, rateRules: roomRates.length };
+  return { skipped: false, daysUpdated, totalNullDates: hasExistingRows ? parseInt(total) : 0, rateRules: roomRates.length };
 }
 
 // Sync availability and pricing from Beds24 using OFFERS API (like Lehmann)
