@@ -57428,44 +57428,42 @@ app.get('/api/public/availability/:unitId', async (req, res) => {
       ORDER BY date
     `, [unitId, startDate, endDate]);
     
-    // Get unit info for base price fallback
+    // Get unit currency
     const unit = await pool.query(`
-      SELECT bu.base_price, p.currency FROM bookable_units bu
+      SELECT p.currency FROM bookable_units bu
       LEFT JOIN properties p ON bu.property_id = p.id
       WHERE bu.id = $1
     `, [unitId]);
-    
-    const basePrice = unit.rows[0]?.base_price || 0;
+
     const currency = unit.rows[0]?.currency || 'GBP';
-    
+
     // Build calendar with all dates
     const calendar = [];
     let current = new Date(startDate);
     const end = new Date(endDate);
     const availMap = {};
-    
+
     availability.rows.forEach(a => {
       const dateStr = a.date.toISOString().split('T')[0];
       availMap[dateStr] = a;
     });
-    
+
     // Check overall availability and calculate total
     let isAvailable = true;
     let totalPrice = 0;
     let nightCount = 0;
-    
+
     while (current < end) {
       const dateStr = current.toISOString().split('T')[0];
       const dayData = availMap[dateStr];
-      
-      const dayPrice = dayData?.price || basePrice;
-      // Day is unavailable if: explicitly unavailable, blocked, OR no price set
-      const hasPrice = dayPrice && parseFloat(dayPrice) > 0;
-      const dayAvailable = dayData ? (dayData.is_available && !dayData.is_blocked && hasPrice) : (basePrice > 0);
-      
+
+      const dayPrice = dayData?.price ? parseFloat(dayData.price) : null;
+      // Day is unavailable if: no calendar data, explicitly unavailable, blocked, OR no price
+      const dayAvailable = dayData ? (dayData.is_available && !dayData.is_blocked && dayPrice > 0) : false;
+
       calendar.push({
         date: dateStr,
-        price: parseFloat(dayPrice) || 0,
+        price: dayPrice,
         available: dayAvailable,
         min_stay: dayData?.min_stay || 1
       });
@@ -57536,7 +57534,6 @@ app.post('/api/public/calculate-price', async (req, res) => {
     }
     
     const roomData = unit.rows[0];
-    const basePrice = roomData.base_price || 0;
     const currency = roomData.currency || '';
     
     // Parse guests - support both old (guests) and new (adults + children) format
@@ -57595,7 +57592,10 @@ app.post('/api/public/calculate-price', async (req, res) => {
       const dateStr = current.toISOString().split('T')[0];
       const dayData = availability.rows.find(a => a.date.toISOString().split('T')[0] === dateStr);
       
-      let nightPrice = parseFloat(dayData?.price || basePrice);
+      let nightPrice = dayData?.price ? parseFloat(dayData.price) : 0;
+      if (!nightPrice && !dayData) {
+        allAvailable = false; // No calendar data for this date
+      }
       let nightOccupancyAdjustment = 0;
       
       // Apply occupancy pricing if enabled
@@ -61089,28 +61089,22 @@ app.get('/api/public/client/:clientId/properties', async (req, res) => {
          WHERE bu.property_id = p.id AND bu.status IN ('active','available')
         ) as room_count,
 
-        -- Min price from active rooms (today's rate or base_price)
-        (SELECT MIN(COALESCE(
-           (SELECT COALESCE(ra.standard_price, ra.cm_price)
-            FROM room_availability ra
-            WHERE ra.room_id = bu2.id AND ra.date = CURRENT_DATE
-            LIMIT 1),
-           bu2.base_price
-         ))
-         FROM bookable_units bu2
-         WHERE bu2.property_id = p.id AND bu2.status IN ('active','available') AND bu2.base_price > 0
+        -- Min price from active rooms (today's calendar rate only)
+        (SELECT MIN(COALESCE(ra2.standard_price, ra2.cm_price))
+         FROM room_availability ra2
+         JOIN bookable_units bu2 ON ra2.room_id = bu2.id
+         WHERE bu2.property_id = p.id AND bu2.status IN ('active','available')
+           AND ra2.date = CURRENT_DATE AND ra2.is_available = true
+           AND COALESCE(ra2.standard_price, ra2.cm_price) > 0
         ) as min_price,
 
-        -- Max price
-        (SELECT MAX(COALESCE(
-           (SELECT COALESCE(ra.standard_price, ra.cm_price)
-            FROM room_availability ra
-            WHERE ra.room_id = bu3.id AND ra.date = CURRENT_DATE
-            LIMIT 1),
-           bu3.base_price
-         ))
-         FROM bookable_units bu3
-         WHERE bu3.property_id = p.id AND bu3.status IN ('active','available') AND bu3.base_price > 0
+        -- Max price from active rooms (today's calendar rate only)
+        (SELECT MAX(COALESCE(ra3.standard_price, ra3.cm_price))
+         FROM room_availability ra3
+         JOIN bookable_units bu3 ON ra3.room_id = bu3.id
+         WHERE bu3.property_id = p.id AND bu3.status IN ('active','available')
+           AND ra3.date = CURRENT_DATE AND ra3.is_available = true
+           AND COALESCE(ra3.standard_price, ra3.cm_price) > 0
         ) as max_price,
 
         -- Bedroom range

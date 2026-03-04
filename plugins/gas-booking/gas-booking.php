@@ -5409,7 +5409,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                             if ($checkout) $room_url .= '&checkout=' . urlencode($checkout);
                             if ($guests) $room_url .= '&guests=' . intval($guests);
                             
-                            $price = floatval($room['price'] ?? $room['base_price'] ?? 0);
+                            $price = floatval($room['price'] ?? 0);
                             $max_guests = intval($room['max_guests'] ?? $room['max_adults'] ?? 2);
                             $bedrooms = intval($room['num_bedrooms'] ?? $room['bedroom_count'] ?? 0);
                             $bathrooms = floatval($room['num_bathrooms'] ?? $room['bathroom_count'] ?? 0);
@@ -5508,7 +5508,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                             if ($checkout) $room_url .= '&checkout=' . urlencode($checkout);
                             if ($guests) $room_url .= '&guests=' . intval($guests);
                             
-                            $price = floatval($room['price'] ?? $room['base_price'] ?? 0);
+                            $price = floatval($room['price'] ?? 0);
                             $max_guests = intval($room['max_guests'] ?? $room['max_adults'] ?? 2);
                             $bedrooms = intval($room['num_bedrooms'] ?? $room['bedroom_count'] ?? 0);
                             $bathrooms = floatval($room['num_bathrooms'] ?? $room['bathroom_count'] ?? 0);
@@ -5620,7 +5620,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                         'name' => $room['name'],
                         'display_name' => $room['display_name'] ?? null,
                         'property_name' => $room['property_name'] ?? '',
-                        'price' => floatval($room['price'] ?? $room['base_price'] ?? 0),
+                        'price' => floatval($room['price'] ?? 0),
                         'image_url' => $room['image_url'] ?? '',
                         'lat' => floatval($room['latitude']),
                         'lng' => floatval($room['longitude']),

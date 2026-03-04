@@ -869,16 +869,14 @@ jQuery(document).ready(function($) {
         }
         $('.gas-room-meta').html(metaHtml);
         
-        // Set base price - use todays_rate as fallback if base_price is 0
-        var basePrice = parseFloat(room.base_price) || parseFloat(room.todays_rate) || parseFloat(room.price) || 0;
-        if (basePrice > 0) {
-            $('.gas-price-amount').text(formatPriceShort(basePrice, currency));
+        // Show "Select dates" prompt — actual price comes from calendar pricing only
+        var todaysRate = parseFloat(room.todays_rate) || parseFloat(room.price) || 0;
+        if (todaysRate > 0) {
+            $('.gas-price-amount').text(formatPriceShort(todaysRate, currency));
         } else {
             $('.gas-price-amount').text('—');
             $('.gas-price-period').text(t('booking', 'select_dates', 'Select dates'));
         }
-        // Store base price for later reference
-        $roomWidget.data('base-price', basePrice);
         
         // Render gallery
         renderGallery(images);
@@ -1779,16 +1777,9 @@ jQuery(document).ready(function($) {
                     $('.gas-tab-content').removeClass('active');
                     $('.gas-tab-content[data-tab="availability"]').addClass('active');
                     
-                    // Show "Not available" in price area but keep base price for reference
-                    var basePrice = parseFloat($roomWidget.data('base-price')) || 0;
-                    var currency = $roomWidget.data('currency') || gasBooking.currency || '';
-                    if (basePrice > 0) {
-                        $('.gas-price-amount').html('<span style="text-decoration: line-through; opacity: 0.5;">' + formatPriceShort(basePrice, currency) + '</span>');
-                        $('.gas-price-period').html('<span style="color: #dc2626; font-weight: 600;">' + t('booking', 'not_available', 'Not available') + '</span>');
-                    } else {
-                        $('.gas-price-amount').text('—');
-                        $('.gas-price-period').html('<span style="color: #dc2626; font-weight: 600;">' + t('booking', 'not_available', 'Not available') + '</span>');
-                    }
+                    // Show "Not available" in price area
+                    $('.gas-price-amount').text('—');
+                    $('.gas-price-period').html('<span style="color: #dc2626; font-weight: 600;">' + t('booking', 'not_available', 'Not available') + '</span>');
                     
                     $('.gas-price-breakdown').hide();
                     $('.gas-rate-options').hide();
@@ -2402,8 +2393,8 @@ jQuery(document).ready(function($) {
                         }
                     },
                     error: function() {
-                        // On error, don't mark as unavailable - just show base price
-                        $room.find('.gas-room-price, .gas-room-row-price').html($room.data('base-price') || '');
+                        // On error, show dash — no fallback to base price
+                        $room.find('.gas-room-price, .gas-room-row-price').html('—');
                     }
                 });
             }
@@ -3121,7 +3112,12 @@ jQuery(document).ready(function($) {
                 paymentGroupKeys: paymentGroupKeys,
                 currentPaymentGroupIndex: currentPaymentGroupIndex
             };
-            
+
+            // Hide price breakdown and total for multi-group (dates/guests still visible)
+            if (hasMultiplePaymentGroups) {
+                $('.gas-price-breakdown, .gas-summary-total, .gas-tax-note').hide();
+            }
+
             // Multi-group stepper state
             var multiGroupInitialized = false;
             var originalStep3Html = '';

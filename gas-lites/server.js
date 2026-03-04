@@ -717,7 +717,7 @@ app.get('/:slug', async (req, res) => {
       
       // Get today's price
       const todayAvail = availability.find(a => a.date.toISOString().split('T')[0] === today.toISOString().split('T')[0]);
-      todayPrice = todayAvail?.price || lite.base_price;
+      todayPrice = todayAvail?.price || null;
     }
     
     const liteUrl = `https://lite.gas.travel/#${slug}`;
@@ -865,7 +865,7 @@ app.get('/:slug/card', async (req, res) => {
     
     // Get today's price
     const today = new Date().toISOString().split('T')[0];
-    let price = lite.base_price;
+    let price = null;
     if (lite.room_id) {
       const priceRes = await pool.query(`
         SELECT COALESCE(direct_price, cm_price, standard_price) as price
@@ -1208,62 +1208,68 @@ app.get('/api/pricing/:roomId', async (req, res) => {
     const { checkin, checkout, adults, children } = req.query;
     const roomId = req.params.roomId;
     
-    // Get room base price
+    // Get room info
     const roomResult = await pool.query(
-      'SELECT base_price, cleaning_fee, max_guests FROM bookable_units WHERE id = $1',
+      'SELECT cleaning_fee, max_guests FROM bookable_units WHERE id = $1',
       [roomId]
     );
     if (roomResult.rows.length === 0) return res.json({ success: false, error: 'Room not found' });
     const room = roomResult.rows[0];
-    
-    // Get availability/pricing for each night
+
+    // Get availability/pricing for each night — calendar data only, no fallback
     const availResult = await pool.query(`
       SELECT date, is_available, is_blocked,
-             COALESCE(direct_price, cm_price, standard_price, $2) as price, min_stay
-      FROM room_availability 
-      WHERE room_id = $1 AND date >= $3 AND date < $4
+             COALESCE(direct_price, cm_price, standard_price) as price, min_stay
+      FROM room_availability
+      WHERE room_id = $1 AND date >= $2 AND date < $3
       ORDER BY date
-    `, [roomId, room.base_price, checkin, checkout]);
-    
+    `, [roomId, checkin, checkout]);
+
     const nights = availResult.rows;
     const numNights = nights.length;
-    
+
+    // If no calendar data exists, cannot price
+    if (numNights === 0) {
+      return res.json({ success: false, error: 'No pricing data available for selected dates' });
+    }
+
     // Check all nights available
     const unavailable = nights.filter(n => !n.is_available || n.is_blocked);
     if (unavailable.length > 0) {
       return res.json({ success: false, error: 'Some dates are not available', unavailable });
     }
-    
+
+    // Check any nights missing price
+    const unpriced = nights.filter(n => n.price === null || n.price === undefined);
+    if (unpriced.length > 0) {
+      return res.json({ success: false, error: 'Pricing not available for some dates' });
+    }
+
     // Check min stay
     const minStay = nights[0]?.min_stay || 1;
     if (numNights < minStay) {
       return res.json({ success: false, error: `Minimum stay is ${minStay} nights`, minStay, nights: numNights });
     }
-    
-    // Calculate totals - use base_price as fallback if no availability price
-    const basePrice = parseFloat(room.base_price) || 0;
-    const nightlyTotal = nights.reduce((sum, n) => {
-      const nightPrice = n.price !== null && n.price !== undefined ? parseFloat(n.price) : basePrice;
-      return sum + (nightPrice || basePrice);
-    }, 0);
+
+    // Calculate totals from calendar pricing only
+    const nightlyTotal = nights.reduce((sum, n) => sum + parseFloat(n.price), 0);
     const cleaningFee = parseFloat(room.cleaning_fee) || 0;
     const totalGuests = parseInt(adults || 1) + parseInt(children || 0);
-    const extraGuestFee = 0; // extra_guest_fee column not available
-    
-    // Debug logging
-    console.log('[Pricing] Room', roomId, '- base_price:', basePrice, ', nights:', numNights, ', nightlyTotal:', nightlyTotal);
-    
+    const extraGuestFee = 0;
+
+    console.log('[Pricing] Room', roomId, '- nights:', numNights, ', nightlyTotal:', nightlyTotal);
+
     res.json({
       success: true,
       pricing: {
         nights: numNights,
         minStay: minStay,
-        nightlyRates: nights.map(n => ({ date: n.date, price: parseFloat(n.price) || basePrice })),
-        nightlyTotal: nightlyTotal || (basePrice * numNights),
+        nightlyRates: nights.map(n => ({ date: n.date, price: parseFloat(n.price) })),
+        nightlyTotal,
         cleaningFee,
         extraGuestFee,
-        subtotal: (nightlyTotal || (basePrice * numNights)) + cleaningFee + extraGuestFee,
-        avgPerNight: (nightlyTotal || (basePrice * numNights)) / numNights
+        subtotal: nightlyTotal + cleaningFee + extraGuestFee,
+        avgPerNight: nightlyTotal / numNights
       }
     });
   } catch (error) {
@@ -2046,7 +2052,7 @@ function renderBookingPage({ account, rooms }) {
     const image = r.room_image || r.property_image || '';
     const displayName = r.display_name ? (typeof r.display_name === 'object' ? (r.display_name.en || Object.values(r.display_name)[0]) : r.display_name) : r.room_name;
     const currency = getCurrencySymbol(r.currency);
-    const price = r.base_price ? `${currency}${Math.round(r.base_price)}` : '';
+    const price = ''; // Price shown only after availability check with calendar data
     const liteUrl = r.lite_slug ? `/${r.lite_slug}` : '';
     return `
       <div class="room-card" id="room-${r.room_id}" data-room-id="${r.room_id}" data-max-guests="${r.max_guests || 99}" data-lite-slug="${r.lite_slug || ''}">
