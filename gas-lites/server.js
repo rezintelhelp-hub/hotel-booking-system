@@ -558,7 +558,7 @@ app.get('/book/:accountSlug', async (req, res) => {
     res.send(renderBookingPage({ account, rooms: roomsResult.rows }));
   } catch (error) {
     console.error('Account booking page error:', error);
-    res.status(500).send(renderError('Something went wrong'));
+    res.status(500).send(renderError('Debug: ' + (error.message || String(error))));
   }
 });
 
