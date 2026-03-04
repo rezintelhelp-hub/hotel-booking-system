@@ -5825,6 +5825,108 @@ app.post('/api/gas-sync/connections/:id/reconnect', async (req, res) => {
   }
 });
 
+// V1 Fixed Price fallback — fills null prices using V1 getRates for rooms without PriceLabs/daily pricing
+async function applyV1RatesFallback({ gasRoomId, beds24RoomId, v1ApiKey, propKey, roomName }) {
+  // 1. Check if this room has any non-null prices in room_availability
+  const priceCheck = await pool.query(
+    `SELECT COUNT(*) as total, COUNT(cm_price) as with_price
+     FROM room_availability
+     WHERE room_id = $1 AND date >= CURRENT_DATE`,
+    [gasRoomId]
+  );
+
+  const { total, with_price } = priceCheck.rows[0];
+
+  // Skip if room already has prices (V2/PriceLabs worked)
+  if (parseInt(with_price) > 0) {
+    return { skipped: true, reason: 'has_prices', total, with_price };
+  }
+
+  // Skip if no availability rows exist (nothing to update)
+  if (parseInt(total) === 0) {
+    return { skipped: true, reason: 'no_rows' };
+  }
+
+  // 2. Call V1 getRates — single call, returns ALL rate rules for the property
+  console.log(`  [V1 Fallback] ${roomName}: ${total} rows with 0 prices, fetching V1 getRates...`);
+
+  const ratesResponse = await axios.post('https://api.beds24.com/json/getRates', {
+    authentication: { apiKey: v1ApiKey, propKey: propKey }
+  }, {
+    headers: { 'Content-Type': 'application/json' },
+    timeout: 10000
+  });
+
+  const rates = ratesResponse.data;
+  if (!Array.isArray(rates) || rates.length === 0) {
+    console.log(`  [V1 Fallback] ${roomName}: No rate rules returned`);
+    return { skipped: true, reason: 'no_rates' };
+  }
+
+  // 3. Filter to rates for THIS room with future dates and valid prices
+  const today = new Date().toISOString().split('T')[0];
+  const roomRates = rates.filter(r =>
+    String(r.roomId) === String(beds24RoomId) &&
+    r.lastNight >= today &&
+    parseFloat(r.roomPrice) > 0
+  );
+
+  if (roomRates.length === 0) {
+    console.log(`  [V1 Fallback] ${roomName}: No active rate rules for this room`);
+    return { skipped: true, reason: 'no_matching_rates' };
+  }
+
+  console.log(`  [V1 Fallback] ${roomName}: ${roomRates.length} active rate rules found`);
+
+  // 4. Get all null-price dates for this room
+  const nullDates = await pool.query(
+    `SELECT date FROM room_availability
+     WHERE room_id = $1 AND date >= CURRENT_DATE AND cm_price IS NULL
+     ORDER BY date`,
+    [gasRoomId]
+  );
+
+  // 5. For each null-price date, find the best matching rate rule
+  let daysUpdated = 0;
+
+  for (const row of nullDates.rows) {
+    const dateStr = row.date.toISOString().split('T')[0];
+
+    // Find all rate rules that cover this date
+    const matching = roomRates.filter(r =>
+      dateStr >= r.firstNight && dateStr <= r.lastNight
+    );
+
+    if (matching.length === 0) continue;
+
+    // Pick the most specific rule (shortest date range)
+    const bestRule = matching.reduce((best, curr) => {
+      const bestSpan = new Date(best.lastNight) - new Date(best.firstNight);
+      const currSpan = new Date(curr.lastNight) - new Date(curr.firstNight);
+      return currSpan < bestSpan ? curr : best;
+    });
+
+    const price = parseFloat(bestRule.roomPrice);
+    const minStay = parseInt(bestRule.minNights) || 1;
+
+    // 6. UPDATE existing row (not INSERT — rows already exist from V2)
+    await pool.query(`
+      UPDATE room_availability
+      SET cm_price = $2, direct_price = $2,
+          min_stay = CASE WHEN min_stay_override IS NOT NULL THEN min_stay ELSE $3 END,
+          cm_min_stay = $3,
+          source = 'beds24-v1-rates',
+          updated_at = NOW()
+      WHERE room_id = $1 AND date = $4 AND cm_price IS NULL
+    `, [gasRoomId, price, minStay, dateStr]);
+
+    daysUpdated++;
+  }
+
+  console.log(`  [V1 Fallback] ${roomName}: Updated ${daysUpdated}/${nullDates.rowCount} null-price days`);
+  return { skipped: false, daysUpdated, totalNullDates: nullDates.rowCount, rateRules: roomRates.length };
+}
+
 // Sync availability and pricing from Beds24 using OFFERS API (like Lehmann)
 app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req, res) => {
   try {
@@ -6303,7 +6405,13 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
     if (conn.adapter_code !== 'beds24') {
       return res.json({ success: false, error: 'Only Beds24, Calry, Hostfully and Smoobu connections supported' });
     }
-    
+
+    // Extract V1 credentials for fixed price fallback
+    const credentials = typeof conn.credentials === 'string'
+      ? JSON.parse(conn.credentials)
+      : (conn.credentials || {});
+    const v1ApiKey = credentials.v1ApiKey || credentials.apiKey;
+
     // Get access token - try stored token first, then refresh
     let accessToken = conn.access_token;
     const refreshToken = conn.refresh_token;
@@ -6326,7 +6434,7 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
     
     // Get all synced properties with linked rooms
     const propsResult = await pool.query(`
-      SELECT sp.id, sp.external_id, sp.name, sp.gas_property_id
+      SELECT sp.id, sp.external_id, sp.name, sp.gas_property_id, sp.prop_key
       FROM gas_sync_properties sp
       WHERE sp.connection_id = $1 AND sp.gas_property_id IS NOT NULL
     `, [connectionId]);
@@ -6654,12 +6762,35 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
             }
           }
           
+          // V1 Fixed Price fallback — if V2 wrote zero prices, try V1 getRates
+          if (daysWithPrice === 0 && v1ApiKey && prop.prop_key) {
+            try {
+              const v1Result = await applyV1RatesFallback({
+                gasRoomId: room.gas_room_id,
+                beds24RoomId: room.beds24_room_id,
+                v1ApiKey,
+                propKey: prop.prop_key,
+                roomName: room.name
+              });
+              if (!v1Result.skipped) {
+                daysWithPrice = v1Result.daysUpdated;
+                totalDaysUpdated += v1Result.daysUpdated;
+              }
+            } catch (v1Err) {
+              console.log(`  [V1 Fallback] Error for ${room.name}: ${v1Err.message}`);
+              if (v1Err.response?.status === 429) {
+                console.log('  V1 rate limited - waiting 60 seconds...');
+                await new Promise(resolve => setTimeout(resolve, 60000));
+              }
+            }
+          }
+
           roomsSynced++;
           console.log(`  ✓ ${room.name}: ${daysWithPrice} prices, ${daysBlocked} blocked`);
-          
+
           // Delay between rooms to avoid rate limits (5 seconds)
           await new Promise(resolve => setTimeout(resolve, 5000));
-          
+
         } catch (roomError) {
           console.error(`  Error syncing ${room.name}:`, roomError.response?.data || roomError.message);
           errors.push({ room: room.name, error: roomError.message });
@@ -7122,70 +7253,22 @@ app.post('/api/gas-sync/properties/:propertyId/sync-prices', async (req, res) =>
             }
           }
         }
-        // If still no prices and we have V1 credentials, try V1 getPrice fallback
+        // V1 Fixed Price fallback — use getRates instead of broken getPrice endpoint
         else if (!hasAnyPrices && v1ApiKey && prop.prop_key) {
-          console.log(`  [${room.name}] V2 returned no prices, trying V1 fallback...`);
-          
-          // V1 fallback - get prices day by day (slower but works for Fixed Prices)
-          let v1DebugLogged = false;
-          for (let i = 0; i < Math.min(days, 30); i++) { // Limit V1 to 30 days to avoid rate limits
-            const d = new Date(today);
-            d.setDate(d.getDate() + i);
-            const dateStr = d.toISOString().split('T')[0];
-            const nextDay = new Date(d);
-            nextDay.setDate(nextDay.getDate() + 1);
-            const departStr = nextDay.toISOString().split('T')[0];
-            
-            try {
-              const v1Response = await axios.post('https://api.beds24.com/json/getPrice', {
-                authentication: { apiKey: v1ApiKey, propKey: prop.prop_key },
-                roomId: String(beds24RoomId),
-                arrival: dateStr,
-                departure: departStr,
-                numAdult: 2
-              });
-              
-              const priceData = v1Response.data;
-              
-              // Debug: log first V1 response
-              if (!v1DebugLogged) {
-                console.log(`    V1 response for ${room.name}:`, JSON.stringify(priceData).substring(0, 300));
-                v1DebugLogged = true;
-              }
-              
-              const price = priceData?.price || priceData?.totalPrice || priceData?.[0]?.price || null;
-              const minStay = priceData?.minStay || 1;
-              const isAvailable = priceData?.available !== false && priceData?.numAvail !== 0;
-              
-              if (price !== null) {
-                await pool.query(`
-                  INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
-                  VALUES ($1, $2, $3, $3, $4, $5, $6, $6, 'beds24-v1', NOW())
-                  ON CONFLICT (room_id, date) 
-                  DO UPDATE SET 
-                    cm_price = COALESCE($3, room_availability.cm_price),
-                    is_available = $4,
-                    is_blocked = $5,
-                    min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $6 END,
-                    cm_min_stay = $6,
-                    source = 'beds24-v1',
-                    updated_at = NOW()
-                `, [room.gas_room_id, dateStr, price, isAvailable, !isAvailable, minStay]);
-                
-                daysUpdated++;
-              }
-              
-              // Small delay between V1 calls
-              await new Promise(resolve => setTimeout(resolve, 300));
-              
-            } catch (v1Err) {
-              if (!v1DebugLogged) {
-                console.log(`    V1 error for ${room.name}:`, v1Err.response?.data || v1Err.message);
-                v1DebugLogged = true;
-              }
-              if (v1Err.response?.status === 429) throw v1Err;
-              // Skip individual day errors
+          try {
+            const v1Result = await applyV1RatesFallback({
+              gasRoomId: room.gas_room_id,
+              beds24RoomId: beds24RoomId,
+              v1ApiKey,
+              propKey: prop.prop_key,
+              roomName: room.name
+            });
+            if (!v1Result.skipped) {
+              daysUpdated += v1Result.daysUpdated;
             }
+          } catch (v1Err) {
+            console.log(`  [V1 Fallback] Error for ${room.name}: ${v1Err.message}`);
+            if (v1Err.response?.status === 429) throw v1Err;
           }
         }
         
