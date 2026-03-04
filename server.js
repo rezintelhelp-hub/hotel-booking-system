@@ -5867,16 +5867,17 @@ async function applyV1RatesFallback({ gasRoomId, beds24RoomId, v1ApiKey, propKey
   );
 
   const { total, with_price } = priceCheck.rows[0];
+  const nullCount = parseInt(total) - parseInt(with_price);
 
-  // Skip if room already has prices (V2/PriceLabs worked)
-  if (parseInt(with_price) > 0) {
-    return { skipped: true, reason: 'has_prices', total, with_price };
+  // Skip only if ALL rows already have prices (zero null-price rows)
+  if (parseInt(total) > 0 && nullCount === 0) {
+    return { skipped: true, reason: 'all_priced', total, with_price };
   }
 
   const hasExistingRows = parseInt(total) > 0;
 
   // 2. Call V1 getRates — single call, returns ALL rate rules for the property
-  console.log(`  [V1 Fallback] ${roomName}: ${total} rows with 0 prices, fetching V1 getRates...`);
+  console.log(`  [V1 Fallback] ${roomName}: ${nullCount} null-price rows (${with_price}/${total} priced), fetching V1 getRates...`);
 
   const ratesResponse = await axios.post('https://api.beds24.com/json/getRates', {
     authentication: { apiKey: v1ApiKey, propKey: propKey }
