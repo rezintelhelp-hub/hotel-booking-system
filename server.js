@@ -2795,7 +2795,20 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
       
       const conn = connResult.rows[0];
       let accessToken = conn.access_token;
-      
+
+      // Extract V1 credentials for fixed price fallback
+      const connCreds = typeof conn.credentials === 'string'
+        ? JSON.parse(conn.credentials)
+        : (conn.credentials || {});
+      const v1ApiKey = connCreds.v1ApiKey || connCreds.apiKey;
+
+      // Get prop_key for V1 fallback
+      const propKeyResult = await pool.query(
+        'SELECT prop_key FROM gas_sync_properties WHERE connection_id = $1 AND gas_property_id = $2 LIMIT 1',
+        [connectionId, gasPropertyId]
+      );
+      const propKey = propKeyResult.rows[0]?.prop_key;
+
       // Refresh token if needed
       if (!accessToken && conn.refresh_token) {
         try {
@@ -2990,11 +3003,29 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
               }
             }
           }
+
+          // V1 Fixed Price fallback — if V2 wrote zero prices, try V1 getRates
+          if (!hasAnyPrices && v1ApiKey && propKey) {
+            try {
+              const v1Result = await applyV1RatesFallback({
+                gasRoomId: room.gas_room_id,
+                beds24RoomId: room.beds24_room_id,
+                v1ApiKey,
+                propKey,
+                roomName: room.name
+              });
+              if (!v1Result.skipped) {
+                totalDaysUpdated += v1Result.daysUpdated;
+              }
+            } catch (v1Err) {
+              console.log(`  [V1 Fallback] Error for ${room.name}: ${v1Err.message}`);
+            }
+          }
         } catch (roomErr) {
           console.error(`Beds24 sync error for room ${room.beds24_room_id}:`, roomErr.message);
         }
       }
-      
+
       return res.json({ success: true, daysUpdated: totalDaysUpdated });
     } else if (adapterCode === 'elevate') {
       // Elevate properties are synced via the Elevate partner API pushing data to us
