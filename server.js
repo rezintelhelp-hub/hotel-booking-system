@@ -5981,7 +5981,7 @@ async function applyV1RatesFallback({ gasRoomId, beds24RoomId, v1ApiKey, propKey
     for (const [dateStr, data] of Object.entries(dateMap)) {
       await pool.query(`
         INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
-        VALUES ($1, $2, $3, $3, true, false, $4, $4, 'beds24-v1-rates', NOW())
+        VALUES ($1, $2, $3, $3, false, false, $4, $4, 'beds24-v1-rates', NOW())
         ON CONFLICT (room_id, date)
         DO UPDATE SET
           cm_price = $3, direct_price = $3,
