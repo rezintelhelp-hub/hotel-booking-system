@@ -17603,7 +17603,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 Enter the Beds24 invite code to connect this account. Generate one in Beds24 → Settings → Account Access → Invite Codes.
                             </p>
                             <div style="display: flex; gap: 0.5rem;">
-                                <input type="text" id="beds24-invite-code" class="form-input" placeholder="Paste invite code here..." style="padding: 0.5rem; flex: 1; font-family: monospace;">
+                                <input type="text" id="beds24-invite-code" class="form-input" placeholder="Paste invite code here..." style="padding: 0.5rem; flex: 1; font-family: monospace;" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
                                 <button type="button" class="btn" onclick="connectBeds24()" style="white-space: nowrap; background: #059669; color: white; border: none; padding: 0.5rem 1rem; border-radius: 8px; cursor: pointer;">
                                     ⚡ Connect
                                 </button>
@@ -55279,8 +55279,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 </td>` : ''}
                                 ${isBeds24 ? `<td>
                                     <div style="display: flex; align-items: center; gap: 4px;">
-                                        <input type="text" id="propKey-${p.id}" value="${p.prop_key || ''}" placeholder="Enter key" 
-                                            style="width: 80px; padding: 4px 6px; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 0.8rem;">
+                                        <input type="text" id="propKey-${p.id}" value="${p.prop_key || ''}" placeholder="Enter key"
+                                            style="width: 80px; padding: 4px 6px; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 0.8rem;" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
                                         <button onclick="savePropKey(${p.id})" class="btn btn-sm" style="padding: 4px 6px;" title="Save">💾</button>
                                         ${p.prop_key && !p.gas_property_id ? `<button onclick="clearPropKey(${p.id})" class="btn btn-sm" style="padding: 4px 6px; background: #fee2e2; color: #dc2626;" title="Clear">🗑️</button>` : ''}
                                         <span id="propkey-test-${p.id}">
@@ -55786,7 +55786,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 <p style="font-size: 0.9rem; color: #64748b; margin-bottom: 12px;">${hasV1Key ? 'Update the V1 API key:' : 'Enter your V1 API key to enable image download and fixed pricing:'}</p>
                 <div class="form-group" style="margin-bottom: 15px;">
                     <div style="display: flex; gap: 10px; align-items: center;">
-                        <input type="text" id="settingV1ApiKey" class="form-control" placeholder="Paste V1 API key here" style="flex: 1;">
+                        <input type="text" id="settingV1ApiKey" class="form-control" placeholder="Paste V1 API key here" style="flex: 1;" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
                         <button class="btn btn-primary" onclick="saveV1ApiKey()">💾 Save Key</button>
                     </div>
                     <small style="color: #6b7280; display: block; margin-top: 8px;"> Find this in Beds24: Settings  Account  Account Access</small>

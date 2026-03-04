@@ -1176,7 +1176,7 @@ Upsells (mention only if asked): GAS Turbines (social media management), custom 
                 <div id="beds24-phase-1" class="cm-phase">
                     <div class="field" style="margin-top: 1rem;">
                         <label>Invite Code</label>
-                        <input type="text" id="cm-invite-code" placeholder="Paste your invite code here">
+                        <input type="text" id="cm-invite-code" placeholder="Paste your invite code here" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
                         <p style="font-size: 0.75rem; color: var(--ink-muted); margin-top: 0.3rem;">This connects us to your Beds24 account securely</p>
                     </div>
                     <button class="btn-primary" onclick="connectBeds24Phase1()">Connect & Import</button>
@@ -1205,7 +1205,7 @@ Upsells (mention only if asked): GAS Turbines (social media management), custom 
 
                     <div class="field">
                         <label>V1 API Key</label>
-                        <input type="text" id="beds24-v1-key" placeholder="Paste your V1 API key here">
+                        <input type="text" id="beds24-v1-key" placeholder="Paste your V1 API key here" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
                     </div>
                     <div style="display: flex; gap: 0.75rem;">
                         <button class="btn-primary" onclick="saveBeds24V1Key()">Save & Continue</button>
@@ -1519,7 +1519,7 @@ Upsells (mention only if asked): GAS Turbines (social media management), custom 
                 <div style="padding: 0.75rem; background: var(--surface-subtle); border-radius: 8px; margin-bottom: 0.5rem;">
                     <p style="font-size: 0.85rem; font-weight: 600; margin-bottom: 0.4rem;">${prop.name || prop.property_name}</p>
                     <p style="font-size: 0.75rem; color: var(--ink-muted); margin-bottom: 0.4rem;">Find in Beds24: Settings → Properties → select "${prop.name || prop.property_name}" → Access → Api Access (V1 Only)</p>
-                    <input type="text" class="beds24-propkey-input" data-property-id="${prop.id}" placeholder="Paste PropKey for this property" style="width: 100%; padding: 0.5rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.85rem;">
+                    <input type="text" class="beds24-propkey-input" data-property-id="${prop.id}" placeholder="Paste PropKey for this property" style="width: 100%; padding: 0.5rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.85rem;" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
                 </div>
             `).join('');
         } else {
