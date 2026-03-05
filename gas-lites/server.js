@@ -3786,6 +3786,12 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
         if (data.success) {
           currentPricing = data.pricing;
           displayPricing();
+          // Update header price to show avg nightly rate for selected dates
+          var priceHeader = document.querySelector('.price-amount');
+          if (priceHeader && data.pricing.avgPerNight) {
+            priceHeader.textContent = currency + Math.round(data.pricing.avgPerNight);
+            priceHeader.removeAttribute('style');
+          }
           // Show min stay info if applicable
           if (data.pricing.minStay > 1) {
             availMsg.className = 'availability-msg info';
