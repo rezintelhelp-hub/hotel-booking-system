@@ -7785,13 +7785,71 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
     // Skip content sync for Calry - it doesn't have a separate content endpoint
     // Calry content comes with the property data during initial import
     if (prop.adapter_code === 'calry') {
-      return res.json({ 
-        success: true, 
+      return res.json({
+        success: true,
         message: 'Calry properties sync content during import. Use resync to refresh.',
         adapter: 'calry'
       });
     }
-    
+
+    // Beds24 content sync — push descriptions from gas_sync_room_types.raw_data to bookable_units
+    if (prop.adapter_code === 'beds24') {
+      const roomTypes = await pool.query(
+        `SELECT rt.id, rt.gas_room_id, rt.name, rt.raw_data,
+                bu.short_description, bu.full_description, bu.display_name
+         FROM gas_sync_room_types rt
+         JOIN bookable_units bu ON bu.id = rt.gas_room_id
+         WHERE rt.sync_property_id = $1 AND rt.gas_room_id IS NOT NULL`,
+        [prop.id]
+      );
+
+      const stripHtmlSimple = (s) => {
+        if (!s) return '';
+        return s.replace(/<[^>]*>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+          .replace(/&eacute;/g, 'é').replace(/&agrave;/g, 'à').replace(/&egrave;/g, 'è')
+          .replace(/&ocirc;/g, 'ô').replace(/&ucirc;/g, 'û').replace(/&nbsp;/g, ' ')
+          .replace(/&iuml;/g, 'ï').replace(/&ccedil;/g, 'ç').replace(/&acirc;/g, 'â').trim();
+      };
+      const cleanMultilang = (obj) => {
+        if (!obj || typeof obj !== 'object') return null;
+        const cleaned = {};
+        for (const [lang, val] of Object.entries(obj)) {
+          if (typeof val === 'string' && val.trim()) cleaned[lang.toLowerCase()] = stripHtmlSimple(val);
+        }
+        return Object.keys(cleaned).length > 0 ? cleaned : null;
+      };
+
+      let descCount = 0;
+      for (const room of roomTypes.rows) {
+        const raw = room.raw_data;
+        if (!raw) continue;
+        const shortDesc = cleanMultilang(raw.short_description);
+        const fullDesc = cleanMultilang(raw.full_description);
+        const displayName = cleanMultilang(raw.displayName);
+
+        if (shortDesc && (!room.short_description || force)) {
+          await pool.query('UPDATE bookable_units SET short_description = $1::jsonb WHERE id = $2', [JSON.stringify(shortDesc), room.gas_room_id]);
+          descCount++;
+        }
+        if (fullDesc && (!room.full_description || force)) {
+          await pool.query('UPDATE bookable_units SET full_description = $1::jsonb WHERE id = $2', [JSON.stringify(fullDesc), room.gas_room_id]);
+        }
+        if (displayName && (!room.display_name || force)) {
+          await pool.query('UPDATE bookable_units SET display_name = $1::jsonb WHERE id = $2', [JSON.stringify(displayName), room.gas_room_id]);
+        }
+      }
+
+      await pool.query('UPDATE gas_sync_properties SET last_content_sync = NOW() WHERE id = $1', [prop.id]);
+      return res.json({
+        success: true,
+        message: `Beds24 content synced: ${descCount} descriptions updated from ${roomTypes.rowCount} rooms`,
+        adapter: 'beds24',
+        roomsProcessed: roomTypes.rowCount,
+        descriptionsUpdated: descCount
+      });
+    }
+
     // Hostfully content sync - fetch descriptions + amenities from V3 API
     if (prop.adapter_code === 'hostfully') {
       const credentials = typeof prop.credentials === 'string' ? JSON.parse(prop.credentials || '{}') : (prop.credentials || {});
