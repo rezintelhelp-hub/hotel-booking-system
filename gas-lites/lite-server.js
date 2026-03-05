@@ -517,11 +517,75 @@ app.get('/', (req, res) => {
 });
 
 // ============================================
+// EMBED SCRIPT - /embed.js
+// ============================================
+app.get('/embed.js', (req, res) => {
+  res.setHeader('Content-Type', 'application/javascript');
+  res.setHeader('Cache-Control', 'public, max-age=3600');
+  res.send(`(function(){
+  var script = document.currentScript || (function(){
+    var scripts = document.getElementsByTagName('script');
+    for (var i = scripts.length - 1; i >= 0; i--) {
+      if (scripts[i].src && scripts[i].src.indexOf('/embed.js') !== -1) return scripts[i];
+    }
+  })();
+  if (!script) return;
+
+  var account = script.getAttribute('data-account');
+  if (!account) { console.error('GAS Lites embed: missing data-account attribute'); return; }
+
+  var origin = script.src.replace(/\\/embed\\.js.*$/, '');
+  var src = origin + '/book/' + encodeURIComponent(account) + '?embed=1';
+
+  // Pass through optional params
+  var checkin = script.getAttribute('data-checkin');
+  var checkout = script.getAttribute('data-checkout');
+  var guests = script.getAttribute('data-guests');
+  if (checkin) src += '&checkin=' + encodeURIComponent(checkin);
+  if (checkout) src += '&checkout=' + encodeURIComponent(checkout);
+  if (guests) src += '&guests=' + encodeURIComponent(guests);
+
+  // Create container
+  var container = document.createElement('div');
+  container.id = 'gas-booking-embed';
+  container.style.cssText = 'width:100%;overflow:hidden;';
+
+  // Create iframe
+  var iframe = document.createElement('iframe');
+  iframe.src = src;
+  iframe.style.cssText = 'width:100%;border:none;display:block;min-height:600px;';
+  iframe.setAttribute('scrolling', 'no');
+  iframe.setAttribute('title', 'Book Your Stay');
+  iframe.setAttribute('loading', 'lazy');
+  iframe.allow = 'payment';
+
+  container.appendChild(iframe);
+  script.parentNode.insertBefore(container, script.nextSibling);
+
+  // Listen for height messages from the iframe
+  window.addEventListener('message', function(e) {
+    if (e.source !== iframe.contentWindow) return;
+    var data = e.data;
+    if (data && data.type === 'gas-embed-resize' && typeof data.height === 'number') {
+      iframe.style.height = data.height + 'px';
+    }
+  });
+})();`);
+});
+
+// ============================================
 // ACCOUNT BOOKING PAGE - /book/:accountSlug
 // ============================================
 app.get('/book/:accountSlug', async (req, res) => {
   try {
     const { accountSlug } = req.params;
+    const isEmbed = req.query.embed === '1';
+
+    // Allow embedding on any domain
+    if (isEmbed) {
+      res.removeHeader('X-Frame-Options');
+      res.setHeader('Content-Security-Policy', "frame-ancestors *");
+    }
 
     // Look up account by account_code first, then try numeric ID
     let accountResult;
@@ -555,7 +619,7 @@ app.get('/book/:accountSlug', async (req, res) => {
       ORDER BY p.name, bu.name
     `, [account.id]);
 
-    res.send(renderBookingPage({ account, rooms: roomsResult.rows }));
+    res.send(renderBookingPage({ account, rooms: roomsResult.rows, embed: isEmbed }));
   } catch (error) {
     console.error('Account booking page error:', error);
     res.status(500).send(renderError('Something went wrong'));
@@ -2041,7 +2105,7 @@ function renderError(msg) {
 // ============================================
 // ACCOUNT BOOKING PAGE RENDERER
 // ============================================
-function renderBookingPage({ account, rooms }) {
+function renderBookingPage({ account, rooms, embed = false }) {
   const accent = account.primary_color || '#3b82f6';
   const businessName = account.business_name || account.name || 'Book Your Stay';
   const logoHtml = account.logo_url
@@ -2087,7 +2151,7 @@ function renderBookingPage({ account, rooms }) {
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Inter', system-ui, sans-serif; background: #f8fafc; color: #1e293b; min-height: 100vh; }
+    body { font-family: 'Inter', system-ui, sans-serif; background: ${embed ? 'transparent' : '#f8fafc'}; color: #1e293b; min-height: ${embed ? 'auto' : '100vh'}; }
     .header { background: white; border-bottom: 1px solid #e2e8f0; padding: 1.25rem 1.5rem; display: flex; align-items: center; justify-content: center; gap: 0.75rem; }
     .header h1 { font-size: 1.4rem; font-weight: 700; }
     .search-bar { background: white; border-bottom: 1px solid #e2e8f0; padding: 1rem 1.5rem; position: sticky; top: 0; z-index: 100; }
@@ -2133,10 +2197,10 @@ function renderBookingPage({ account, rooms }) {
   </style>
 </head>
 <body>
-  <div class="header">
+  ${embed ? '' : `<div class="header">
     ${logoHtml}
     <h1>${escapeForHTML(businessName)}</h1>
-  </div>
+  </div>`}
 
   <div class="search-bar">
     <div class="search-inner">
@@ -2275,6 +2339,32 @@ function renderBookingPage({ account, rooms }) {
       text.style.display = 'inline';
       spinner.style.display = 'none';
     }
+${embed ? `
+    // === EMBED MODE ===
+    // Report height to parent for auto-sizing iframe
+    function reportHeight() {
+      var h = document.documentElement.scrollHeight;
+      window.parent.postMessage({ type: 'gas-embed-resize', height: h }, '*');
+    }
+    // Report on load, resize, and after DOM changes
+    reportHeight();
+    window.addEventListener('resize', reportHeight);
+    new MutationObserver(reportHeight).observe(document.body, { childList: true, subtree: true, attributes: true });
+    // Re-report after availability check settles
+    setInterval(reportHeight, 500);
+
+    // Make Book Now links open in parent window (not inside iframe)
+    document.addEventListener('click', function(e) {
+      var link = e.target.closest('a.book-btn');
+      if (link && link.href) {
+        e.preventDefault();
+        // Convert relative URL to absolute
+        var url = link.href;
+        if (url.startsWith('/')) url = location.origin + url;
+        window.open(url, '_blank');
+      }
+    });
+` : ''}
   </script>
 </body>
 </html>`;
