@@ -610,6 +610,7 @@ app.get('/book/:accountSlug', async (req, res) => {
              bu.short_description, bu.max_guests, bu.room_type,
              bu.num_bedrooms, bu.num_bathrooms,
              p.id as property_id, p.name as property_name, p.city, p.country, p.currency,
+             p.latitude, p.longitude,
              l.slug as lite_slug,
              (SELECT image_url FROM room_images WHERE room_id = bu.id ORDER BY is_primary DESC NULLS LAST, display_order ASC NULLS LAST LIMIT 1) as room_image,
              (SELECT image_url FROM property_images WHERE property_id = p.id ORDER BY is_primary DESC NULLS LAST, display_order ASC NULLS LAST LIMIT 1) as property_image,
@@ -618,7 +619,9 @@ app.get('/book/:accountSlug', async (req, res) => {
       JOIN properties p ON bu.property_id = p.id
       LEFT JOIN gas_lites l ON l.room_id = bu.id AND l.active = true
       WHERE p.account_id = $1 AND bu.status IN ('active', 'available')
-      ORDER BY p.name, bu.name
+      ORDER BY
+        (SELECT price FROM room_availability WHERE room_id = bu.id AND date = CURRENT_DATE AND is_available = true AND price > 0 LIMIT 1) IS NOT NULL DESC,
+        p.name, bu.name
     `, [account.id]);
 
     res.send(renderBookingPage({ account, rooms: roomsResult.rows, embed: isEmbed }));
@@ -2115,6 +2118,23 @@ function renderBookingPage({ account, rooms, embed = false }) {
     : '';
   const defaultCurrency = getCurrencySymbol(rooms.length > 0 ? rooms[0].currency : 'USD');
 
+  // Build property map pins (deduplicate by property_id)
+  const propertyMap = {};
+  rooms.forEach(r => {
+    if (!r.latitude || !r.longitude) return;
+    const pid = r.property_id;
+    if (!propertyMap[pid]) {
+      propertyMap[pid] = { name: r.property_name, city: r.city || '', lat: parseFloat(r.latitude), lng: parseFloat(r.longitude), rooms: [], minPrice: null };
+    }
+    propertyMap[pid].rooms.push(r.room_name || r.display_name);
+    const price = parseFloat(r.today_price || 0);
+    if (price > 0 && (propertyMap[pid].minPrice === null || price < propertyMap[pid].minPrice)) {
+      propertyMap[pid].minPrice = price;
+    }
+  });
+  const mapPins = Object.values(propertyMap).filter(p => p.lat && p.lng);
+  const mapDataJson = JSON.stringify(mapPins);
+
   const roomCardsHtml = rooms.map((r, i) => {
     const image = r.room_image || r.property_image || '';
     const displayName = r.display_name ? (typeof r.display_name === 'object' ? (r.display_name.en || Object.values(r.display_name)[0]) : r.display_name) : r.room_name;
@@ -2142,7 +2162,7 @@ function renderBookingPage({ account, rooms, embed = false }) {
           </div>
           <div class="room-bottom">
             <div class="room-price">${priceHtml}</div>
-            ${liteUrl ? `<a href="${liteUrl}" class="book-btn" id="bookbtn-${r.room_id}">View & Book</a>` : '<a href="#" class="book-btn disabled" id="bookbtn-${r.room_id}">View & Book</a>'}
+            ${liteUrl ? `<a href="${liteUrl}" class="book-btn" id="bookbtn-${r.room_id}">View & Book</a>` : `<span class="book-btn disabled" id="bookbtn-${r.room_id}">Enquire</span>`}
           </div>
         </div>
       </div>`;
@@ -2157,7 +2177,9 @@ function renderBookingPage({ account, rooms, embed = false }) {
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Inter', system-ui, sans-serif; background: ${embed ? 'transparent' : '#f8fafc'}; color: #1e293b; min-height: ${embed ? 'auto' : '100vh'}; }
@@ -2198,11 +2220,13 @@ function renderBookingPage({ account, rooms, embed = false }) {
     .empty-state h2 { font-size: 1.3rem; margin-bottom: 0.5rem; color: #1e293b; }
     .spinner { display: none; width: 18px; height: 18px; border: 2px solid #ffffff55; border-top-color: white; border-radius: 50%; animation: spin 0.6s linear infinite; margin: 0 auto; }
     @keyframes spin { to { transform: rotate(360deg); } }
+    #property-map { height: 400px; border-radius: 12px; margin-bottom: 1.5rem; z-index: 0; }
     @media (max-width: 640px) {
       .search-inner { flex-direction: column; }
       .search-field { min-width: 100%; }
       .check-btn { width: 100%; }
       .room-grid { grid-template-columns: 1fr; }
+      #property-map { height: 280px; }
     }
   </style>
 </head>
@@ -2236,6 +2260,7 @@ function renderBookingPage({ account, rooms, embed = false }) {
   </div>
 
   <div class="container">
+    ${mapPins.length > 1 ? '<div id="property-map"></div>' : ''}
     ${rooms.length > 0 ? `<div class="room-grid">${roomCardsHtml}</div>` : `
       <div class="empty-state">
         <h2>No rooms available</h2>
@@ -2385,6 +2410,27 @@ ${embed ? `
         window.open(url, '_blank');
       }
     });
+` : ''}
+${mapPins.length > 1 ? `
+    // === PROPERTY MAP ===
+    (function() {
+      var pins = ${mapDataJson};
+      if (!pins.length || !document.getElementById('property-map')) return;
+      var map = L.map('property-map', { scrollWheelZoom: false });
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap'
+      }).addTo(map);
+      var bounds = [];
+      var currency = '${defaultCurrency}';
+      pins.forEach(function(p) {
+        var priceText = p.minPrice ? currency + Math.round(p.minPrice) + '/night' : 'Price on request';
+        var roomList = p.rooms.length > 1 ? '<br>' + p.rooms.length + ' rooms' : '';
+        var marker = L.marker([p.lat, p.lng]).addTo(map);
+        marker.bindPopup('<strong>' + p.name + '</strong>' + (p.city ? '<br>' + p.city : '') + '<br>' + priceText + roomList);
+        bounds.push([p.lat, p.lng]);
+      });
+      if (bounds.length > 0) map.fitBounds(bounds, { padding: [40, 40], maxZoom: 13 });
+    })();
 ` : ''}
   </script>
 </body>
