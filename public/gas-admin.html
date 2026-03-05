@@ -1808,16 +1808,6 @@
                 </div>
 
                 <div class="nav-section collapsed">
-                    <div class="nav-label" onclick="toggleNavSection(this)">GAS Lites</div>
-                    <div class="nav-section-items">
-                    <a class="nav-item" data-view="gas-lites" href="#" onclick="navClick(this, 'gas-lites'); return false;">
-                        <span class="nav-icon">🏠</span>
-                        <span>Lite Pages</span>
-                    </a>
-                    </div>
-                </div>
-
-                <div class="nav-section collapsed">
                     <div class="nav-label" onclick="toggleNavSection(this)">GAS Network</div>
                     <div class="nav-section-items">
                     <a class="nav-item" data-view="network-contacts" href="#" onclick="navClick(this, 'network-contacts'); return false;">
@@ -1860,6 +1850,10 @@
                     <a class="nav-item" data-view="app-seo" href="#" onclick="showView('app-seo'); return false;">
                         <span class="nav-icon">📋</span>
                         <span>SEO Analytics</span>
+                    </a>
+                    <a class="nav-item" data-view="gas-lites" href="#" onclick="navClick(this, 'gas-lites'); return false;">
+                        <span class="nav-icon">🏠</span>
+                        <span>GAS Lites</span>
                     </a>
                     </div>
                 </div>
@@ -4683,19 +4677,46 @@
                             <h2>GAS Lites</h2>
                             <p>Free property micro-sites with instant booking</p>
                         </div>
-                        <div style="display: flex; gap: 0.5rem;">
-                            <a id="lites-book-link" href="#" target="_blank" class="btn btn-secondary">
-                                <span>🔗</span>
-                                <span>View Booking Page</span>
-                            </a>
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 0; border-bottom: 2px solid #e2e8f0; margin-bottom: 1rem;">
+                    <button class="lites-tab active" data-tab="lites-cards" onclick="switchLitesTab(this, 'lites-cards')">Playing Cards</button>
+                    <button class="lites-tab" data-tab="lites-rooms" onclick="switchLitesTab(this, 'lites-rooms')">Room Pages</button>
+                    <button class="lites-tab" data-tab="lites-booking" onclick="switchLitesTab(this, 'lites-booking')">Booking Page</button>
+                </div>
+
+                <style>
+                    .lites-tab { padding: 0.6rem 1.25rem; border: none; background: none; cursor: pointer; font-size: 0.85rem; font-weight: 500; color: #64748b; border-bottom: 2px solid transparent; margin-bottom: -2px; font-family: inherit; }
+                    .lites-tab.active { color: #0f172a; border-bottom-color: #3b82f6; }
+                    .lites-tab:hover { color: #0f172a; }
+                    .lites-tab-content { display: none; }
+                    .lites-tab-content.active { display: block; }
+                    .lites-copy-btn { padding: 0.3rem 0.75rem; border: 1px solid #e2e8f0; border-radius: 6px; background: white; cursor: pointer; font-size: 0.8rem; color: #3b82f6; font-family: inherit; }
+                    .lites-copy-btn:hover { background: #f8fafc; }
+                    .lites-embed-code { background: #1e293b; color: #e2e8f0; padding: 1rem; border-radius: 8px; font-family: monospace; font-size: 0.8rem; white-space: pre-wrap; word-break: break-all; margin-top: 0.5rem; }
+                </style>
+
+                <div class="lites-tab-content active" id="lites-cards">
+                    <div class="card">
+                        <div id="lites-cards-list">
+                            <div class="loading"><div class="spinner"></div><p style="margin-top: 1rem;">Loading...</p></div>
                         </div>
                     </div>
                 </div>
-                <div class="card">
-                    <div id="lites-list">
-                        <div class="loading">
-                            <div class="spinner"></div>
-                            <p style="margin-top: 1rem;">Loading Lite pages...</p>
+
+                <div class="lites-tab-content" id="lites-rooms">
+                    <div class="card">
+                        <div id="lites-rooms-list">
+                            <div class="loading"><div class="spinner"></div><p style="margin-top: 1rem;">Loading...</p></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="lites-tab-content" id="lites-booking">
+                    <div class="card">
+                        <div id="lites-booking-content">
+                            <div class="loading"><div class="spinner"></div><p style="margin-top: 1rem;">Loading...</p></div>
                         </div>
                     </div>
                 </div>
@@ -36579,62 +36600,107 @@ const promo = await fetch('/api/v1/offers/validate', {
         })();
         
         // ==================== GAS LITES ====================
-        async function loadGasLites() {
-            const container = document.getElementById('lites-list');
-            if (!container) return;
-            container.innerHTML = '<div class="loading"><div class="spinner"></div><p style="margin-top:1rem;">Loading Lite pages...</p></div>';
+        function switchLitesTab(btn, tabId) {
+            document.querySelectorAll('.lites-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.lites-tab-content').forEach(c => c.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById(tabId).classList.add('active');
+        }
 
+        let litesDataCache = null;
+        async function loadGasLites() {
             try {
                 const accountId = currentAccount?.id || localStorage.getItem('gas_account_id');
-                if (!accountId) { container.innerHTML = '<p>No account selected</p>'; return; }
+                if (!accountId) return;
+
+                // Show loading in all tabs
+                ['lites-cards-list', 'lites-rooms-list', 'lites-booking-content'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.innerHTML = '<div class="loading"><div class="spinner"></div><p style="margin-top:1rem;">Loading...</p></div>';
+                });
 
                 const res = await fetch(`/api/db/gas-lites?account_id=${accountId}`);
                 const data = await res.json();
                 const lites = data.lites || [];
                 const accountCode = data.account_code || accountId;
-
-                // Update booking page link
-                const bookLink = document.getElementById('lites-book-link');
-                if (bookLink) {
-                    bookLink.href = `https://lite.gas.travel/book/${accountCode}`;
-                }
+                litesDataCache = { lites, accountCode };
 
                 if (lites.length === 0) {
-                    container.innerHTML = `<div class="empty-state">
-                        <h3>No Lite Pages Yet</h3>
-                        <p>Lite pages are auto-created for each room. Import properties first.</p>
-                    </div>`;
+                    const empty = '<div class="empty-state"><h3>No Lite Pages Yet</h3><p>Lite pages are auto-created for each room. Import properties first.</p></div>';
+                    document.getElementById('lites-cards-list').innerHTML = empty;
+                    document.getElementById('lites-rooms-list').innerHTML = empty;
+                    document.getElementById('lites-booking-content').innerHTML = empty;
                     return;
                 }
 
-                let html = `<p style="margin-bottom:1rem;color:#64748b;">
-                    ${lites.length} Lite page${lites.length !== 1 ? 's' : ''} &middot;
-                    Booking page: <a href="https://lite.gas.travel/book/${accountCode}" target="_blank" style="color:#3b82f6;">lite.gas.travel/book/${accountCode}</a>
-                </p>`;
-                html += '<table class="data-table"><thead><tr>';
-                html += '<th>Room</th><th>Property</th><th>Location</th><th>Views</th><th>Status</th><th>Link</th>';
-                html += '</tr></thead><tbody>';
-
+                // Tab 1: Playing Cards
+                let cardsHtml = `<p style="margin-bottom:1rem;color:#64748b;">${lites.length} playing card${lites.length !== 1 ? 's' : ''} — shareable QR code cards for each room</p>`;
+                cardsHtml += '<table class="data-table"><thead><tr><th>Room</th><th>Property</th><th>Views</th><th>Card</th><th>Print</th></tr></thead><tbody>';
                 lites.forEach(l => {
-                    const name = l.custom_title || (l.display_name && typeof l.display_name === 'object' ? (l.display_name.en || Object.values(l.display_name)[0]) : l.display_name) || l.room_name || 'Untitled';
+                    const name = l.custom_title || l.room_name || 'Untitled';
+                    const cardUrl = `https://lite.gas.travel/${l.slug}/card`;
+                    const printUrl = `https://lite.gas.travel/${l.slug}/print`;
+                    cardsHtml += `<tr>
+                        <td>${escapeHtml(name)}</td>
+                        <td>${escapeHtml(l.property_name || '-')}</td>
+                        <td>${l.views || 0}</td>
+                        <td><a href="${cardUrl}" target="_blank" style="color:#3b82f6;">Open Card</a></td>
+                        <td><a href="${printUrl}" target="_blank" style="color:#3b82f6;">Print</a></td>
+                    </tr>`;
+                });
+                cardsHtml += '</tbody></table>';
+                document.getElementById('lites-cards-list').innerHTML = cardsHtml;
+
+                // Tab 2: Room Pages
+                let roomsHtml = `<p style="margin-bottom:1rem;color:#64748b;">${lites.length} room page${lites.length !== 1 ? 's' : ''} — individual booking pages for each room</p>`;
+                roomsHtml += '<table class="data-table"><thead><tr><th>Room</th><th>Property</th><th>Location</th><th>Status</th><th>Link</th></tr></thead><tbody>';
+                lites.forEach(l => {
+                    const name = l.custom_title || l.room_name || 'Untitled';
                     const status = l.active ? '<span style="color:#16a34a;">Active</span>' : '<span style="color:#94a3b8;">Inactive</span>';
                     const liteUrl = `https://lite.gas.travel/${l.slug}`;
                     const location = [l.city, l.country].filter(Boolean).join(', ') || '-';
-                    html += `<tr>
+                    roomsHtml += `<tr>
                         <td>${escapeHtml(name)}</td>
                         <td>${escapeHtml(l.property_name || '-')}</td>
                         <td>${escapeHtml(location)}</td>
-                        <td>${l.views || 0}</td>
                         <td>${status}</td>
-                        <td><a href="${liteUrl}" target="_blank" style="color:#3b82f6;">/${l.slug}</a></td>
+                        <td><a href="${liteUrl}" target="_blank" style="color:#3b82f6;">Open Page</a></td>
                     </tr>`;
                 });
+                roomsHtml += '</tbody></table>';
+                document.getElementById('lites-rooms-list').innerHTML = roomsHtml;
 
-                html += '</tbody></table>';
-                container.innerHTML = html;
+                // Tab 3: Booking Page
+                const bookUrl = `https://lite.gas.travel/book/${accountCode}`;
+                const embedScript = `<script src="https://lite.gas.travel/embed.js" data-account="${accountCode}"><\/script>`;
+                const embedIframe = `<iframe src="${bookUrl}?embed=1" style="width:100%;min-height:800px;border:none;" allow="payment"></iframe>`;
+                let bookHtml = `
+                    <p style="margin-bottom:1rem;color:#64748b;">Your public booking page with all rooms, search filters, and map</p>
+                    <div style="margin-bottom:1.5rem;">
+                        <strong>Booking Page URL</strong>
+                        <div style="display:flex;align-items:center;gap:0.5rem;margin-top:0.4rem;">
+                            <a href="${bookUrl}" target="_blank" style="color:#3b82f6;">${bookUrl}</a>
+                            <button class="lites-copy-btn" onclick="navigator.clipboard.writeText('${bookUrl}');this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',1500);">Copy</button>
+                        </div>
+                    </div>
+                    <div style="margin-bottom:1.5rem;">
+                        <strong>Embed Script</strong> <span style="color:#64748b;font-size:0.8rem;">— add to any website, auto-resizes</span>
+                        <div class="lites-embed-code">${escapeHtml(embedScript)}</div>
+                        <button class="lites-copy-btn" style="margin-top:0.5rem;" onclick="navigator.clipboard.writeText('${embedScript.replace(/'/g, "\\'")}');this.textContent='Copied!';setTimeout(()=>this.textContent='Copy Code',1500);">Copy Code</button>
+                    </div>
+                    <div>
+                        <strong>Embed iframe</strong> <span style="color:#64748b;font-size:0.8rem;">— direct iframe embed</span>
+                        <div class="lites-embed-code">${escapeHtml(embedIframe)}</div>
+                        <button class="lites-copy-btn" style="margin-top:0.5rem;" onclick="navigator.clipboard.writeText(\`${embedIframe}\`);this.textContent='Copied!';setTimeout(()=>this.textContent='Copy Code',1500);">Copy Code</button>
+                    </div>`;
+                document.getElementById('lites-booking-content').innerHTML = bookHtml;
+
             } catch (err) {
                 console.error('Failed to load GAS Lites:', err);
-                container.innerHTML = '<p style="color:#ef4444;">Failed to load Lite pages</p>';
+                ['lites-cards-list', 'lites-rooms-list', 'lites-booking-content'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.innerHTML = '<p style="color:#ef4444;">Failed to load Lite pages</p>';
+                });
             }
         }
 
