@@ -5914,18 +5914,38 @@ async function applyV1RatesFallback({ gasRoomId, beds24RoomId, v1ApiKey, propKey
 
   // 3. Filter to rates for THIS room with future dates and valid prices
   const today = new Date().toISOString().split('T')[0];
-  const roomRates = rates.filter(r =>
+  let roomRates = rates.filter(r =>
     String(r.roomId) === String(beds24RoomId) &&
     r.lastNight >= today &&
     parseFloat(r.roomPrice) > 0
   );
+
+  // 3b. If no rates for this room, check if it inherits from a parent room
+  let parentRoomId = null;
+  if (roomRates.length === 0) {
+    const depCheck = await pool.query(
+      `SELECT raw_data->'dependencies'->>'includeBookingsRoomId1' as parent_room_id
+       FROM gas_sync_room_types WHERE external_id = $1`,
+      [String(beds24RoomId)]
+    );
+    parentRoomId = depCheck.rows[0]?.parent_room_id;
+
+    if (parentRoomId && parentRoomId !== '0' && parentRoomId !== 'null') {
+      roomRates = rates.filter(r =>
+        String(r.roomId) === String(parentRoomId) &&
+        r.lastNight >= today &&
+        parseFloat(r.roomPrice) > 0
+      );
+      console.log(`  [V1 Fallback] ${roomName}: No own rates, linked to parent ${parentRoomId} — ${roomRates.length} parent rate rules`);
+    }
+  }
 
   if (roomRates.length === 0) {
     console.log(`  [V1 Fallback] ${roomName}: No active rate rules for this room`);
     return { skipped: true, reason: 'no_matching_rates' };
   }
 
-  console.log(`  [V1 Fallback] ${roomName}: ${roomRates.length} active rate rules found`);
+  console.log(`  [V1 Fallback] ${roomName}: ${roomRates.length} active rate rules found${parentRoomId ? ' (from parent ' + parentRoomId + ')' : ''}`);
 
   let daysUpdated = 0;
 
