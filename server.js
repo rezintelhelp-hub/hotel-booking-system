@@ -2751,9 +2751,10 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
                 const maxStay = day.maximumNights || day.maxStay || day.maximumStay || day.maxNights || null;
                 
                 await pool.query(`
-                  INSERT INTO room_availability (room_id, date, cm_price, is_available, is_blocked, min_stay, source, updated_at)
-                  VALUES ($1, $2, $3, $4, $5, $6, 'calry', NOW())
+                  INSERT INTO room_availability (room_id, date, price, cm_price, is_available, is_blocked, min_stay, source, updated_at)
+                  VALUES ($1, $2, $3, $3, $4, $5, $6, 'calry', NOW())
                   ON CONFLICT (room_id, date) DO UPDATE SET
+                    price = COALESCE(EXCLUDED.price, room_availability.price),
                     cm_price = COALESCE(EXCLUDED.cm_price, room_availability.cm_price),
                     is_available = EXCLUDED.is_available,
                     is_blocked = NOT EXCLUDED.is_available,
@@ -2960,10 +2961,11 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
                   const minStay = ownMinStayMap[dateStr] || row.min_stay || 1;
                   
                   await pool.query(`
-                    INSERT INTO room_availability (room_id, date, cm_price, direct_price, min_stay, cm_min_stay, source, updated_at)
-                    VALUES ($1, $2, $3, $3, $4, $4, 'beds24-linked', NOW())
-                    ON CONFLICT (room_id, date) 
-                    DO UPDATE SET 
+                    INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, min_stay, cm_min_stay, source, updated_at)
+                    VALUES ($1, $2, $3, $3, $3, $4, $4, 'beds24-linked', NOW())
+                    ON CONFLICT (room_id, date)
+                    DO UPDATE SET
+                      price = $3,
                       cm_price = $3,
                       direct_price = $3,
                       min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $4 END,
@@ -2971,7 +2973,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
                       source = 'beds24-linked',
                       updated_at = NOW()
                   `, [room.gas_room_id, dateStr, linkedPrice, minStay]);
-                  
+
                   totalDaysUpdated++;
                 }
               }
@@ -2987,12 +2989,13 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
                 const numAvail = entry.numAvail || 0;
                 const price = entry.price1 || entry.price2 || null;
                 const minStay = entry.minStay || 1;
-                
+
                 await pool.query(`
-                  INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
-                  VALUES ($1, $2, $3, $3, $4, $5, $6, $6, 'beds24', NOW())
-                  ON CONFLICT (room_id, date) 
-                  DO UPDATE SET 
+                  INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
+                  VALUES ($1, $2, $3, $3, $3, $4, $5, $6, $6, 'beds24', NOW())
+                  ON CONFLICT (room_id, date)
+                  DO UPDATE SET
+                    price = COALESCE($3, room_availability.price),
                     cm_price = COALESCE($3, room_availability.cm_price),
                     is_available = $4,
                     is_blocked = $5,
@@ -3001,7 +3004,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
                     source = 'beds24',
                     updated_at = NOW()
                 `, [room.gas_room_id, dateStr, price, numAvail > 0, numAvail === 0, minStay]);
-                
+
                 totalDaysUpdated++;
               }
             }
@@ -3132,9 +3135,10 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
           if (isAvailable) availCount++; else blockedCount++;
           
           await pool.query(`
-            INSERT INTO room_availability (room_id, date, cm_price, is_available, is_blocked, min_stay, source, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, 'smoobu', NOW())
+            INSERT INTO room_availability (room_id, date, price, cm_price, is_available, is_blocked, min_stay, source, updated_at)
+            VALUES ($1, $2, $3, $3, $4, $5, $6, 'smoobu', NOW())
             ON CONFLICT (room_id, date) DO UPDATE SET
+              price = COALESCE(EXCLUDED.price, room_availability.price),
               cm_price = COALESCE(EXCLUDED.cm_price, room_availability.cm_price),
               is_available = EXCLUDED.is_available,
               is_blocked = NOT EXCLUDED.is_available,
@@ -3212,10 +3216,10 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
             for (const dp of pricingResult.data) {
               if (dp.date && dp.price > 0) {
                 await pool.query(`
-                  INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
-                  VALUES ($1, $2, $3, $4, true, false, $5, $6, 'hostfully', NOW())
+                  INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
+                  VALUES ($1, $2, $3, $3, $4, true, false, $5, $6, 'hostfully', NOW())
                   ON CONFLICT (room_id, date) DO UPDATE SET
-                    cm_price = EXCLUDED.cm_price, direct_price = EXCLUDED.direct_price,
+                    price = EXCLUDED.price, cm_price = EXCLUDED.cm_price, direct_price = EXCLUDED.direct_price,
                     min_stay = EXCLUDED.min_stay, cm_min_stay = EXCLUDED.cm_min_stay,
                     updated_at = NOW()
                 `, [room.gas_room_id, dp.date, dp.price, dp.price, dp.minimumStay, dp.minimumStay]);
@@ -6227,10 +6231,11 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
                 const maxStay = day.maximumNights || day.maxStay || day.maximumStay || null;
                 
                 await pool.query(`
-                  INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, max_stay, source)
-                  VALUES ($1, $2, $3, $3, $4, $5, $6, $7, 'calry')
-                  ON CONFLICT (room_id, date) 
-                  DO UPDATE SET 
+                  INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, is_available, is_blocked, min_stay, max_stay, source)
+                  VALUES ($1, $2, $3, $3, $3, $4, $5, $6, $7, 'calry')
+                  ON CONFLICT (room_id, date)
+                  DO UPDATE SET
+                    price = COALESCE($3, room_availability.price),
                     cm_price = COALESCE($3, room_availability.cm_price),
                     direct_price = COALESCE($3, room_availability.direct_price),
                     is_available = $4,
@@ -6339,10 +6344,11 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
             const maxStay = day.maxStay || null;
 
             await pool.query(`
-              INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, max_stay, source)
-              VALUES ($1, $2, $3, $3, $4, $5, $6, $6, $7, 'hostfully')
+              INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, max_stay, source)
+              VALUES ($1, $2, $3, $3, $3, $4, $5, $6, $6, $7, 'hostfully')
               ON CONFLICT (room_id, date)
               DO UPDATE SET
+                price = COALESCE($3, room_availability.price),
                 cm_price = COALESCE($3, room_availability.cm_price),
                 direct_price = COALESCE($3, room_availability.direct_price),
                 is_available = $4,
@@ -6481,10 +6487,11 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
             if (isAvailable) availCount++; else blockedCount++;
             
             await pool.query(`
-              INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, source)
-              VALUES ($1, $2, $3, $3, $4, $5, $6, 'smoobu')
-              ON CONFLICT (room_id, date) 
-              DO UPDATE SET 
+              INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, is_available, is_blocked, min_stay, source)
+              VALUES ($1, $2, $3, $3, $3, $4, $5, $6, 'smoobu')
+              ON CONFLICT (room_id, date)
+              DO UPDATE SET
+                price = COALESCE($3, room_availability.price),
                 cm_price = COALESCE($3, room_availability.cm_price),
                 direct_price = COALESCE($3, room_availability.direct_price),
                 is_available = $4,
@@ -6790,12 +6797,13 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
                 
                 if (price !== null) daysWithPrice++;
                 if (isBlocked) daysBlocked++;
-                
+
                 await pool.query(`
-                  INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source)
-                  VALUES ($1, $2, $3, $3, $4, $5, $6, $6, 'beds24')
-                  ON CONFLICT (room_id, date) 
-                  DO UPDATE SET 
+                  INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source)
+                  VALUES ($1, $2, $3, $3, $3, $4, $5, $6, $6, 'beds24')
+                  ON CONFLICT (room_id, date)
+                  DO UPDATE SET
+                    price = COALESCE($3, room_availability.price),
                     cm_price = COALESCE($3, room_availability.cm_price),
                     direct_price = COALESCE($3, room_availability.direct_price),
                     is_available = $4,
@@ -6805,7 +6813,7 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
                     source = 'beds24',
                     updated_at = NOW()
                 `, [room.gas_room_id, dateStr, price, isAvailable, isBlocked, minStay]);
-                
+
                 totalDaysUpdated++;
               }
             }
@@ -6854,15 +6862,16 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
               const priceInfo = findPriceForDate(dateStr);
               const price = priceInfo?.price || null;
               const minStay = priceInfo?.minStay || 1;
-              
+
               if (price !== null) daysWithPrice++;
               if (isBlocked) daysBlocked++;
-              
+
               await pool.query(`
-                INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source)
-                VALUES ($1, $2, $3, $3, $4, $5, $6, $6, 'beds24')
-                ON CONFLICT (room_id, date) 
-                DO UPDATE SET 
+                INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source)
+                VALUES ($1, $2, $3, $3, $3, $4, $5, $6, $6, 'beds24')
+                ON CONFLICT (room_id, date)
+                DO UPDATE SET
+                  price = COALESCE($3, room_availability.price),
                   cm_price = COALESCE($3, room_availability.cm_price),
                   direct_price = COALESCE($3, room_availability.direct_price),
                   is_available = $4,
@@ -7400,10 +7409,11 @@ app.post('/api/gas-sync/properties/:propertyId/sync-prices', async (req, res) =>
               const minStay = entry.minStay || 1;
               
               await pool.query(`
-                INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
-                VALUES ($1, $2, $3, $3, $4, $5, $6, $6, 'beds24-v2', NOW())
-                ON CONFLICT (room_id, date) 
-                DO UPDATE SET 
+                INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
+                VALUES ($1, $2, $3, $3, $3, $4, $5, $6, $6, 'beds24-v2', NOW())
+                ON CONFLICT (room_id, date)
+                DO UPDATE SET
+                  price = COALESCE($3, room_availability.price),
                   cm_price = COALESCE($3, room_availability.cm_price),
                   is_available = $4,
                   is_blocked = $5,
@@ -8860,10 +8870,11 @@ app.post('/api/gas-sync/tiered-availability-sync', async (req, res) => {
                 const minStay = entry.minStay || 1;
                 
                 await pool.query(`
-                  INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
-                  VALUES ($1, $2, $3, $3, $4, $5, $6, $6, 'beds24', NOW())
-                  ON CONFLICT (room_id, date) 
-                  DO UPDATE SET 
+                  INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
+                  VALUES ($1, $2, $3, $3, $3, $4, $5, $6, $6, 'beds24', NOW())
+                  ON CONFLICT (room_id, date)
+                  DO UPDATE SET
+                    price = COALESCE($3, room_availability.price),
                     cm_price = COALESCE($3, room_availability.cm_price),
                     is_available = $4,
                     is_blocked = $5,
@@ -8872,11 +8883,11 @@ app.post('/api/gas-sync/tiered-availability-sync', async (req, res) => {
                     source = 'beds24',
                     updated_at = NOW()
                 `, [room.gas_room_id, dateStr, price, numAvail > 0, numAvail === 0, minStay]);
-                
+
                 daysUpdated++;
               }
             }
-            
+
             // ===== PUSH PRICES TO LINKED ROOMS =====
             // If this room has prices (like BASE), find all rooms linked to it and copy prices
             const hasSourcePrices = calendarData.some(e => e.price1 || e.price2);
@@ -8945,10 +8956,11 @@ app.post('/api/gas-sync/tiered-availability-sync', async (req, res) => {
                       // Only update price if we have one - don't overwrite availability
                       if (linkedPrice) {
                         await pool.query(`
-                          INSERT INTO room_availability (room_id, date, cm_price, direct_price, min_stay, cm_min_stay, source, updated_at)
-                          VALUES ($1, $2, $3, $3, $4, $4, 'beds24-linked', NOW())
-                          ON CONFLICT (room_id, date) 
-                          DO UPDATE SET 
+                          INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, min_stay, cm_min_stay, source, updated_at)
+                          VALUES ($1, $2, $3, $3, $3, $4, $4, 'beds24-linked', NOW())
+                          ON CONFLICT (room_id, date)
+                          DO UPDATE SET
+                            price = $3,
                             cm_price = $3,
                             direct_price = $3,
                             min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $4 END,
@@ -9068,10 +9080,11 @@ app.post('/api/gas-sync/connections/:connectionId/sync-tier/:tier', async (req, 
             const dateStr = d.toISOString().split('T')[0];
             
             await pool.query(`
-              INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
-              VALUES ($1, $2, $3, $3, $4, $5, $6, $6, 'beds24', NOW())
-              ON CONFLICT (room_id, date) 
-              DO UPDATE SET 
+              INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
+              VALUES ($1, $2, $3, $3, $3, $4, $5, $6, $6, 'beds24', NOW())
+              ON CONFLICT (room_id, date)
+              DO UPDATE SET
+                price = COALESCE($3, room_availability.price),
                 cm_price = COALESCE($3, room_availability.cm_price),
                 is_available = $4,
                 is_blocked = $5,
@@ -9241,17 +9254,18 @@ app.post('/api/gas-sync/v1-pricing-sync', async (req, res) => {
             // Batch insert/update
             for (const [dateStr, data] of Object.entries(dates)) {
               await pool.query(`
-                INSERT INTO room_availability (room_id, date, cm_price, direct_price, min_stay, cm_min_stay, source, updated_at)
-                VALUES ($1, $2, $3, $3, $4, $4, 'beds24_v1', NOW())
-                ON CONFLICT (room_id, date) 
-                DO UPDATE SET 
+                INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, min_stay, cm_min_stay, source, updated_at)
+                VALUES ($1, $2, $3, $3, $3, $4, $4, 'beds24_v1', NOW())
+                ON CONFLICT (room_id, date)
+                DO UPDATE SET
+                  price = COALESCE($3, room_availability.price),
                   cm_price = COALESCE($3, room_availability.cm_price),
                   min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $4 END,
                   cm_min_stay = $4,
                   source = 'beds24_v1',
                   updated_at = NOW()
               `, [gasRoomId, dateStr, data.price, data.minNights]);
-              
+
               propDaysUpdated++;
             }
             
@@ -9402,17 +9416,18 @@ app.post('/api/gas-sync/properties/:propertyId/v1-pricing-sync', async (req, res
       
       for (const [dateStr, data] of Object.entries(dates)) {
         await pool.query(`
-          INSERT INTO room_availability (room_id, date, cm_price, direct_price, min_stay, cm_min_stay, source, updated_at)
-          VALUES ($1, $2, $3, $3, $4, $4, 'beds24_v1', NOW())
-          ON CONFLICT (room_id, date) 
-          DO UPDATE SET 
+          INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, min_stay, cm_min_stay, source, updated_at)
+          VALUES ($1, $2, $3, $3, $3, $4, $4, 'beds24_v1', NOW())
+          ON CONFLICT (room_id, date)
+          DO UPDATE SET
+            price = COALESCE($3, room_availability.price),
             cm_price = COALESCE($3, room_availability.cm_price),
             min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $4 END,
             cm_min_stay = $4,
             source = 'beds24_v1',
             updated_at = NOW()
         `, [room.gas_room_id, dateStr, data.price, data.minNights]);
-        
+
         daysUpdated++;
       }
       
@@ -31464,9 +31479,10 @@ app.post('/api/admin/calry/properties/:id/sync', async (req, res) => {
             const minStay = day.minimumNights || 1;
             
             await pool.query(`
-              INSERT INTO room_availability (room_id, date, cm_price, is_available, is_blocked, min_stay, source, updated_at)
-              VALUES ($1, $2, $3, $4, $5, $6, 'calry', NOW())
+              INSERT INTO room_availability (room_id, date, price, cm_price, is_available, is_blocked, min_stay, source, updated_at)
+              VALUES ($1, $2, $3, $3, $4, $5, $6, 'calry', NOW())
               ON CONFLICT (room_id, date) DO UPDATE SET
+                price = COALESCE(EXCLUDED.price, room_availability.price),
                 cm_price = COALESCE(EXCLUDED.cm_price, room_availability.cm_price),
                 is_available = EXCLUDED.is_available,
                 is_blocked = NOT EXCLUDED.is_available,
@@ -32496,9 +32512,10 @@ async function handlePricingWebhook(connectionId, data) {
   
   for (const day of Array.isArray(dates) ? dates : [dates]) {
     await pool.query(`
-      INSERT INTO room_availability (room_id, date, cm_price, source, updated_at)
-      VALUES ($1, $2, $3, 'calry', NOW())
+      INSERT INTO room_availability (room_id, date, price, cm_price, source, updated_at)
+      VALUES ($1, $2, $3, $3, 'calry', NOW())
       ON CONFLICT (room_id, date) DO UPDATE SET
+        price = EXCLUDED.price,
         cm_price = EXCLUDED.cm_price,
         source = 'calry',
         updated_at = NOW()
@@ -32787,9 +32804,10 @@ app.post('/api/calry/sync-pricing/:propertyId', async (req, res) => {
             const minStay = day.minStay || day.minimumStay || day.minNights || 1;
             
             await pool.query(`
-              INSERT INTO room_availability (room_id, date, cm_price, is_available, is_blocked, min_stay, source, updated_at)
-              VALUES ($1, $2, $3, $4, $5, $6, 'calry', NOW())
+              INSERT INTO room_availability (room_id, date, price, cm_price, is_available, is_blocked, min_stay, source, updated_at)
+              VALUES ($1, $2, $3, $3, $4, $5, $6, 'calry', NOW())
               ON CONFLICT (room_id, date) DO UPDATE SET
+                price = COALESCE(EXCLUDED.price, room_availability.price),
                 cm_price = COALESCE(EXCLUDED.cm_price, room_availability.cm_price),
                 is_available = EXCLUDED.is_available,
                 is_blocked = NOT EXCLUDED.is_available,
@@ -33785,10 +33803,10 @@ app.post('/api/hostfully/import-to-gas/:connectionId', async (req, res) => {
                     const isAvailable = dp.availableForCheckIn !== false;
                     const isBlocked = !isAvailable;
                     await pool.query(`
-                      INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
-                      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'hostfully', NOW())
-                      ON CONFLICT (room_id, date) DO UPDATE SET 
-                        cm_price = EXCLUDED.cm_price, direct_price = EXCLUDED.direct_price,
+                      INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
+                      VALUES ($1, $2, $3, $3, $4, $5, $6, $7, $8, 'hostfully', NOW())
+                      ON CONFLICT (room_id, date) DO UPDATE SET
+                        price = EXCLUDED.price, cm_price = EXCLUDED.cm_price, direct_price = EXCLUDED.direct_price,
                         is_available = EXCLUDED.is_available, is_blocked = EXCLUDED.is_blocked,
                         min_stay = EXCLUDED.min_stay, cm_min_stay = EXCLUDED.cm_min_stay,
                         source = EXCLUDED.source, updated_at = NOW()
@@ -33824,9 +33842,9 @@ app.post('/api/hostfully/import-to-gas/:connectionId', async (req, res) => {
                       `, [gasRoomId, day.date]);
                       // Also insert if no pricing row exists for this blocked date
                       await pool.query(`
-                        INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, source, updated_at)
-                        VALUES ($1, $2, 0, 0, false, true, 'hostfully', NOW())
-                        ON CONFLICT (room_id, date) DO UPDATE SET 
+                        INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, is_available, is_blocked, source, updated_at)
+                        VALUES ($1, $2, 0, 0, 0, false, true, 'hostfully', NOW())
+                        ON CONFLICT (room_id, date) DO UPDATE SET
                           is_available = false, is_blocked = true, source = 'hostfully', updated_at = NOW()
                       `, [gasRoomId, day.date]);
                       blockedCount++;
@@ -36501,14 +36519,15 @@ app.post('/api/admin/sync-hostaway-availability', async (req, res) => {
             const minStay = day.minimumStay || 1;
             
             await client.query(`
-              INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, source, updated_at)
-              VALUES ($1, $2, $3, $3, $4, $5, $6, 'hostaway', NOW())
-              ON CONFLICT (room_id, date) 
-              DO UPDATE SET 
-                cm_price = $3, 
+              INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, is_available, is_blocked, min_stay, source, updated_at)
+              VALUES ($1, $2, $3, $3, $3, $4, $5, $6, 'hostaway', NOW())
+              ON CONFLICT (room_id, date)
+              DO UPDATE SET
+                price = COALESCE($3, room_availability.price),
+                cm_price = $3,
                 direct_price = COALESCE(room_availability.direct_price, $3),
-                is_available = $4, 
-                is_blocked = $5, 
+                is_available = $4,
+                is_blocked = $5,
                 min_stay = $6,
                 source = 'hostaway',
                 updated_at = NOW()
@@ -37540,9 +37559,10 @@ app.post('/api/admin/sync-smoobu-availability', async (req, res) => {
             // Insert new availability
             for (const [date, info] of Object.entries(apartmentRates)) {
                 await dbClient.query(`
-                    INSERT INTO room_availability (room_id, date, is_available, cm_price, standard_price, min_stay, source)
-                    VALUES ($1, $2, $3, $4, $4, $5, 'smoobu')
+                    INSERT INTO room_availability (room_id, date, price, is_available, cm_price, standard_price, min_stay, source)
+                    VALUES ($1, $2, $4, $3, $4, $4, $5, 'smoobu')
                     ON CONFLICT (room_id, date) DO UPDATE SET
+                        price = EXCLUDED.price,
                         is_available = EXCLUDED.is_available,
                         cm_price = EXCLUDED.cm_price,
                         standard_price = EXCLUDED.standard_price,
@@ -41372,10 +41392,11 @@ app.post('/api/admin/sync-availability/:roomId', async (req, res) => {
         if (isBlocked) daysBlocked++;
         
         await client.query(`
-          INSERT INTO room_availability (room_id, date, cm_price, is_available, is_blocked, source)
-          VALUES ($1, $2, $3, $4, $5, 'beds24')
-          ON CONFLICT (room_id, date) 
-          DO UPDATE SET 
+          INSERT INTO room_availability (room_id, date, price, cm_price, is_available, is_blocked, source)
+          VALUES ($1, $2, $3, $3, $4, $5, 'beds24')
+          ON CONFLICT (room_id, date)
+          DO UPDATE SET
+            price = COALESCE($3, room_availability.price),
             cm_price = COALESCE($3, room_availability.cm_price),
             is_available = $4,
             is_blocked = $5,
@@ -41525,10 +41546,11 @@ app.post('/api/admin/sync-all-availability-quick', async (req, res) => {
             const isBlocked = !isAvailable && price === null;
             
             await client.query(`
-              INSERT INTO room_availability (room_id, date, cm_price, is_available, is_blocked, source)
-              VALUES ($1, $2, $3, $4, $5, 'beds24')
-              ON CONFLICT (room_id, date) 
-              DO UPDATE SET 
+              INSERT INTO room_availability (room_id, date, price, cm_price, is_available, is_blocked, source)
+              VALUES ($1, $2, $3, $3, $4, $5, 'beds24')
+              ON CONFLICT (room_id, date)
+              DO UPDATE SET
+                price = COALESCE($3, room_availability.price),
                 cm_price = COALESCE($3, room_availability.cm_price),
                 is_available = $4,
                 is_blocked = $5,
@@ -41686,10 +41708,11 @@ app.post('/api/admin/sync-all-availability-bulk', async (req, res) => {
             const isBlocked = !isAvailable && price === null;
             
             await client.query(`
-              INSERT INTO room_availability (room_id, date, cm_price, is_available, is_blocked, source)
-              VALUES ($1, $2, $3, $4, $5, 'beds24')
-              ON CONFLICT (room_id, date) 
-              DO UPDATE SET 
+              INSERT INTO room_availability (room_id, date, price, cm_price, is_available, is_blocked, source)
+              VALUES ($1, $2, $3, $3, $4, $5, 'beds24')
+              ON CONFLICT (room_id, date)
+              DO UPDATE SET
+                price = COALESCE($3, room_availability.price),
                 cm_price = COALESCE($3, room_availability.cm_price),
                 is_available = $4,
                 is_blocked = $5,
@@ -53368,9 +53391,10 @@ app.put('/api/elevate/:apiKey/room/:roomId/calendar', async (req, res) => {
       const minStay = day.min_stay || day.minStay || 1;
       
       const result = await pool.query(`
-        INSERT INTO room_availability (room_id, date, cm_price, is_available, is_blocked, min_stay, source, updated_at)
-        VALUES ($1, $2, $3, $4, $5, $6, 'elevate', NOW())
+        INSERT INTO room_availability (room_id, date, price, cm_price, is_available, is_blocked, min_stay, source, updated_at)
+        VALUES ($1, $2, $3, $3, $4, $5, $6, 'elevate', NOW())
         ON CONFLICT (room_id, date) DO UPDATE SET
+          price = COALESCE(EXCLUDED.price, room_availability.price),
           cm_price = COALESCE(EXCLUDED.cm_price, room_availability.cm_price),
           is_available = EXCLUDED.is_available,
           is_blocked = EXCLUDED.is_blocked,
@@ -53498,9 +53522,10 @@ app.put('/api/elevate/:apiKey/room/:roomId/pricing', async (req, res) => {
       if (!day.date || day.price === undefined) continue;
       
       await pool.query(`
-        INSERT INTO room_availability (room_id, date, cm_price, source, updated_at)
-        VALUES ($1, $2, $3, 'elevate', NOW())
+        INSERT INTO room_availability (room_id, date, price, cm_price, source, updated_at)
+        VALUES ($1, $2, $3, $3, 'elevate', NOW())
         ON CONFLICT (room_id, date) DO UPDATE SET
+          price = EXCLUDED.price,
           cm_price = EXCLUDED.cm_price,
           source = 'elevate',
           updated_at = NOW()
@@ -55312,9 +55337,10 @@ app.post('/webhooks/elevate/:accountId/:apiKey/pricing/update', async (req, res)
       if (!date || price === undefined) continue;
       
       await pool.query(`
-        INSERT INTO room_availability (room_id, date, cm_price, direct_price, source, updated_at)
-        VALUES ($1, $2, $3, $3, 'elevate', NOW())
+        INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, source, updated_at)
+        VALUES ($1, $2, $3, $3, $3, 'elevate', NOW())
         ON CONFLICT (room_id, date) DO UPDATE SET
+          price = EXCLUDED.price,
           cm_price = EXCLUDED.cm_price,
           direct_price = EXCLUDED.direct_price,
           source = 'elevate',
@@ -56015,10 +56041,11 @@ app.post('/api/admin/sync-beds24-full-pricing', async (req, res) => {
               const minStay = entry.minStay || 1;
               
               await pool.query(`
-                INSERT INTO room_availability (room_id, date, cm_price, direct_price, standard_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
-                VALUES ($1, $2, $3, $3, $3, $4, $5, $6, $6, 'beds24-full', NOW())
-                ON CONFLICT (room_id, date) 
-                DO UPDATE SET 
+                INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, standard_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
+                VALUES ($1, $2, $3, $3, $3, $3, $4, $5, $6, $6, 'beds24-full', NOW())
+                ON CONFLICT (room_id, date)
+                DO UPDATE SET
+                  price = COALESCE($3, room_availability.price),
                   cm_price = COALESCE($3, room_availability.cm_price),
                   direct_price = COALESCE($3, room_availability.direct_price),
                   standard_price = COALESCE($3, room_availability.standard_price),
@@ -56059,10 +56086,11 @@ app.post('/api/admin/sync-beds24-full-pricing', async (req, res) => {
                 
                 if (dateStr && price > 0) {
                   await pool.query(`
-                    INSERT INTO room_availability (room_id, date, cm_price, direct_price, standard_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
-                    VALUES ($1, $2, $3, $3, $3, $4, $5, $6, $6, 'beds24-v1-full', NOW())
-                    ON CONFLICT (room_id, date) 
-                    DO UPDATE SET 
+                    INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, standard_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
+                    VALUES ($1, $2, $3, $3, $3, $3, $4, $5, $6, $6, 'beds24-v1-full', NOW())
+                    ON CONFLICT (room_id, date)
+                    DO UPDATE SET
+                      price = COALESCE($3, room_availability.price),
                       cm_price = COALESCE($3, room_availability.cm_price),
                       direct_price = COALESCE($3, room_availability.direct_price),
                       standard_price = COALESCE($3, room_availability.standard_price),
@@ -68249,10 +68277,10 @@ async function syncAllChannelManagers() {
               
               for (const [date, info] of Object.entries(apartmentRates)) {
                 await pool.query(`
-                  INSERT INTO room_availability (room_id, date, is_available, cm_price, standard_price, min_stay, source)
-                  VALUES ($1, $2, $3, $4, $4, $5, 'smoobu')
+                  INSERT INTO room_availability (room_id, date, price, is_available, cm_price, standard_price, min_stay, source)
+                  VALUES ($1, $2, $4, $3, $4, $4, $5, 'smoobu')
                   ON CONFLICT (room_id, date) DO UPDATE SET
-                    is_available = EXCLUDED.is_available, cm_price = EXCLUDED.cm_price,
+                    price = EXCLUDED.price, is_available = EXCLUDED.is_available, cm_price = EXCLUDED.cm_price,
                     standard_price = EXCLUDED.standard_price, min_stay = EXCLUDED.min_stay,
                     source = EXCLUDED.source, updated_at = NOW()
                 `, [room.room_id, date, info.available > 0, info.price || null, info.min_length_of_stay || null]);
@@ -68347,9 +68375,10 @@ async function syncAllChannelManagers() {
                 const isBlocked = day.status === 'blocked';
                 
                 await pool.query(`
-                  INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, source)
-                  VALUES ($1, $2, $3, $3, $4, $5, $6, 'hostaway')
+                  INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, is_available, is_blocked, min_stay, source)
+                  VALUES ($1, $2, $3, $3, $3, $4, $5, $6, 'hostaway')
                   ON CONFLICT (room_id, date) DO UPDATE SET
+                    price = COALESCE($3, room_availability.price),
                     cm_price = COALESCE($3, room_availability.cm_price),
                     direct_price = COALESCE($3, room_availability.direct_price),
                     is_available = $4, is_blocked = $5, min_stay = $6,
@@ -69407,10 +69436,11 @@ app.post('/api/gas-sync/connections/:id/sync-prices', async (req, res) => {
             const minStay = entry.minStay || 1;
             
             await pool.query(`
-              INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
-              VALUES ($1, $2, $3, $3, $4, $5, $6, $6, 'beds24', NOW())
-              ON CONFLICT (room_id, date) 
-              DO UPDATE SET 
+              INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
+              VALUES ($1, $2, $3, $3, $3, $4, $5, $6, $6, 'beds24', NOW())
+              ON CONFLICT (room_id, date)
+              DO UPDATE SET
+                price = COALESCE($3, room_availability.price),
                 cm_price = COALESCE($3, room_availability.cm_price),
                 is_available = $4,
                 is_blocked = $5,
@@ -69726,9 +69756,10 @@ app.post('/api/gas-sync/connections/:id/apply-linked-pricing', async (req, res) 
         const minStay = priceRecord.min_stay || 1;
         
         await pool.query(`
-          INSERT INTO room_availability (room_id, date, cm_price, direct_price, standard_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
-          VALUES ($1, $2, $3, $3, $3, $4, $5, $6, $6, 'beds24-linked', NOW())
+          INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, standard_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
+          VALUES ($1, $2, $3, $3, $3, $3, $4, $5, $6, $6, 'beds24-linked', NOW())
           ON CONFLICT (room_id, date) DO UPDATE SET
+            price = $3,
             cm_price = $3,
             direct_price = $3,
             standard_price = $3,
@@ -71033,9 +71064,10 @@ app.post('/api/admin/debug/beds24-resync-room/:connectionId/:beds24RoomId', asyn
       }
       
       await pool.query(`
-        INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
-        VALUES ($1, $2, $3, $3, $4, $5, $6, $6, 'beds24-offers', NOW())
+        INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
+        VALUES ($1, $2, $3, $3, $3, $4, $5, $6, $6, 'beds24-offers', NOW())
         ON CONFLICT (room_id, date) DO UPDATE SET
+          price = COALESCE($3, room_availability.price),
           cm_price = COALESCE($3, room_availability.cm_price),
           direct_price = COALESCE($3, room_availability.direct_price),
           is_available = $4, is_blocked = $5,
@@ -71945,9 +71977,10 @@ app.post('/api/hostaway/sync-availability', async (req, res) => {
             const minStay = day.minimumStay || 1;
             
             await pool.query(`
-              INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source)
-              VALUES ($1, $2, $3, $3, $4, $5, $6, $6, 'hostaway')
+              INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source)
+              VALUES ($1, $2, $3, $3, $3, $4, $5, $6, $6, 'hostaway')
               ON CONFLICT (room_id, date) DO UPDATE SET
+                price = COALESCE($3, room_availability.price),
                 cm_price = COALESCE($3, room_availability.cm_price),
                 direct_price = COALESCE($3, room_availability.direct_price),
                 is_available = $4,
@@ -75988,10 +76021,11 @@ async function syncAllHostawayAvailability() {
                 const price = day.price || null;
                 
                 await pool.query(`
-                  INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, source, updated_at)
-                  VALUES ($1, $2, $3, $3, $4, $5, $6, 'hostaway_daily_sync', NOW())
+                  INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, is_available, is_blocked, min_stay, source, updated_at)
+                  VALUES ($1, $2, $3, $3, $3, $4, $5, $6, 'hostaway_daily_sync', NOW())
                   ON CONFLICT (room_id, date)
                   DO UPDATE SET
+                    price = COALESCE($3, room_availability.price),
                     cm_price = $3,
                     direct_price = COALESCE(room_availability.direct_price, $3),
                     is_available = $4,
@@ -76109,10 +76143,11 @@ async function syncAllHostfullyAvailability() {
               const maxStay = day.maxStay || null;
 
               await pool.query(`
-                INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, max_stay, source, updated_at)
-                VALUES ($1, $2, $3, $3, $4, $5, $6, $6, $7, 'hostfully_daily_sync', NOW())
+                INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, max_stay, source, updated_at)
+                VALUES ($1, $2, $3, $3, $3, $4, $5, $6, $6, $7, 'hostfully_daily_sync', NOW())
                 ON CONFLICT (room_id, date)
                 DO UPDATE SET
+                  price = COALESCE($3, room_availability.price),
                   cm_price = COALESCE($3, room_availability.cm_price),
                   direct_price = COALESCE($3, room_availability.direct_price),
                   is_available = $4,
@@ -76857,10 +76892,11 @@ async function runTieredSync() {
                     const minStay = ownMinStayMap[dateStr] || row.min_stay || 1;
                     
                     await pool.query(`
-                      INSERT INTO room_availability (room_id, date, cm_price, direct_price, min_stay, cm_min_stay, source, updated_at)
-                      VALUES ($1, $2, $3, $3, $4, $4, 'beds24-linked', NOW())
-                      ON CONFLICT (room_id, date) 
-                      DO UPDATE SET 
+                      INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, min_stay, cm_min_stay, source, updated_at)
+                      VALUES ($1, $2, $3, $3, $3, $4, $4, 'beds24-linked', NOW())
+                      ON CONFLICT (room_id, date)
+                      DO UPDATE SET
+                        price = $3,
                         cm_price = $3,
                         direct_price = $3,
                         min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $4 END,
@@ -76868,7 +76904,7 @@ async function runTieredSync() {
                         source = 'beds24-linked',
                         updated_at = NOW()
                     `, [room.gas_room_id, dateStr, linkedPrice, minStay]);
-                    
+
                     daysUpdated++;
                   }
                 } else {
@@ -76888,10 +76924,11 @@ async function runTieredSync() {
                   const minStay = entry.minStay || 1;
                   
                   await pool.query(`
-                    INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
-                    VALUES ($1, $2, $3, $3, $4, $5, $6, $6, 'beds24', NOW())
-                    ON CONFLICT (room_id, date) 
-                    DO UPDATE SET 
+                    INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
+                    VALUES ($1, $2, $3, $3, $3, $4, $5, $6, $6, 'beds24', NOW())
+                    ON CONFLICT (room_id, date)
+                    DO UPDATE SET
+                      price = COALESCE($3, room_availability.price),
                       cm_price = COALESCE($3, room_availability.cm_price),
                       is_available = $4,
                       is_blocked = $5,
