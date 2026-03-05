@@ -5882,7 +5882,7 @@ app.post('/api/gas-sync/connections/:id/reconnect', async (req, res) => {
 
 // V1 Fixed Price fallback — fills null prices using V1 getRates for rooms without PriceLabs/daily pricing
 async function applyV1RatesFallback({ gasRoomId, beds24RoomId, v1ApiKey, propKey, roomName }) {
-  // 1. Check if this room has any non-null prices in room_availability
+  // 1. Check existing row count for logging
   const priceCheck = await pool.query(
     `SELECT COUNT(*) as total, COUNT(cm_price) as with_price
      FROM room_availability
@@ -5892,13 +5892,9 @@ async function applyV1RatesFallback({ gasRoomId, beds24RoomId, v1ApiKey, propKey
 
   const { total, with_price } = priceCheck.rows[0];
 
-  // Skip if ALL rows already have prices (V2/PriceLabs worked)
-  if (parseInt(total) > 0 && parseInt(with_price) === parseInt(total)) {
-    return { skipped: true, reason: 'all_priced', total, with_price };
-  }
-
   // 2. Call V1 getRates — single call, returns ALL rate rules for the property
-  console.log(`  [V1 Fallback] ${roomName}: ${with_price}/${total} rows priced, fetching V1 getRates...`);
+  // No early skip — even if existing rows are priced, we may be missing dates entirely
+  console.log(`  [V1 Fallback] ${roomName}: ${with_price}/${total} existing rows priced, fetching V1 getRates...`);
 
   const ratesResponse = await axios.post('https://api.beds24.com/json/getRates', {
     authentication: { apiKey: v1ApiKey, propKey: propKey }
@@ -5972,7 +5968,15 @@ async function applyV1RatesFallback({ gasRoomId, beds24RoomId, v1ApiKey, propKey
     }
   }
 
-  // 5. INSERT all dates from rate rules — ON CONFLICT only overwrites null prices
+  const totalDatesFromRules = Object.keys(dateMap).length;
+
+  // 5. Skip if existing priced rows already cover the rate rule dates (PriceLabs rooms)
+  if (parseInt(with_price) >= totalDatesFromRules && parseInt(with_price) > 0) {
+    console.log(`  [V1 Fallback] ${roomName}: Skipped — ${with_price} priced rows already cover ${totalDatesFromRules} rate rule dates`);
+    return { skipped: true, reason: 'coverage_sufficient', total, with_price, totalDatesFromRules };
+  }
+
+  // 6. INSERT all dates from rate rules — ON CONFLICT only overwrites null prices
   let daysInserted = 0;
   let daysUpdated = 0;
 
