@@ -2377,7 +2377,10 @@ jQuery(document).ready(function($) {
                             var totalPrice = response.grand_total || 0;
                             var roomCurrency = response.currency || gasBooking.currency || '';
                             var pricingTier = gasBooking.pricingTier || 'standard';
-                            
+
+                            // Update data-price for sort to work
+                            $room.data('price', totalPrice);
+
                             // Check if room has offers (only show badge for standard tier)
                             var priceHtml = formatPriceShort(totalPrice, roomCurrency) + ' <span>total</span>';
                             if ($room.hasClass('has-offers') && pricingTier === 'standard') {
@@ -2386,6 +2389,12 @@ jQuery(document).ready(function($) {
                             
                             $room.find('.gas-room-price, .gas-room-row-price').html(priceHtml);
                             $room.find('.gas-view-btn, .gas-row-view-btn').css({'background': '', 'pointer-events': ''}).text(t('booking', 'view_book', 'View & Book'));
+                        } else if (response.min_stay_required) {
+                            // Min stay not met — show price but with warning, not "unavailable"
+                            $room.removeClass('unavailable checking available dates-blocked').addClass('min-stay-warning');
+                            var nightsWord = response.min_stay_required > 1 ? t('booking', 'nights', 'nights') : t('booking', 'night', 'night');
+                            $room.find('.gas-room-price, .gas-room-row-price').html('<span class="gas-min-stay-label" style="color:#b45309;font-weight:600;">Min ' + response.min_stay_required + ' ' + nightsWord + '</span>');
+                            $room.find('.gas-view-btn, .gas-row-view-btn').css({'background': '#f59e0b', 'pointer-events': ''}).text(t('booking', 'view_book', 'View & Book'));
                         } else {
                             $room.removeClass('available').addClass('unavailable dates-blocked');
                             $room.find('.gas-room-price, .gas-room-row-price').html('<span class="gas-not-available">' + t('booking', 'not_available_dates', 'Not available on selected dates') + '</span>');
