@@ -1264,9 +1264,9 @@ app.delete('/api/lites/:id', async (req, res) => {
 app.get('/api/availability/:roomId', async (req, res) => {
   const { from, to } = req.query;
   const result = await pool.query(`
-    SELECT date, is_available, is_blocked, 
+    SELECT date, is_available, is_blocked,
            COALESCE(direct_price, cm_price, standard_price) as price, min_stay
-    FROM room_availability WHERE room_id = $1 AND date >= $2 AND date <= $3 ORDER BY date
+    FROM room_availability WHERE room_id = $1 AND date >= $2 AND date < $3 ORDER BY date
   `, [req.params.roomId, from, to]);
   res.json({ success: true, availability: result.rows });
 });
@@ -2370,13 +2370,23 @@ function renderBookingPage({ account, rooms, embed = false }) {
         if (show) shown++;
       });
 
-      // Sort
-      if (sortBy && grid) {
+      // Sort (always respects availability grouping if checkAvailability has run)
+      if (grid) {
         var arr = Array.from(grid.children);
         arr.sort(function(a, b) {
+          // If availability has been checked, group by status first
+          if (a.dataset.availStatus || b.dataset.availStatus) {
+            var statusOrder = { available: 0, nodata: 1, unavailable: 2 };
+            var sa = statusOrder[a.dataset.availStatus] !== undefined ? statusOrder[a.dataset.availStatus] : 1;
+            var sb = statusOrder[b.dataset.availStatus] !== undefined ? statusOrder[b.dataset.availStatus] : 1;
+            if (sa !== sb) return sa - sb;
+          }
+          // Within same group (or no availability check), sort by price
           var pa = parseFloat(a.dataset.price) || 99999;
           var pb = parseFloat(b.dataset.price) || 99999;
-          return sortBy === 'price-asc' ? pa - pb : pb - pa;
+          if (sortBy === 'price-desc') return pb - pa;
+          if (sortBy === 'price-asc') return pa - pb;
+          return 0;
         });
         arr.forEach(function(el) { grid.appendChild(el); });
       }
@@ -2420,6 +2430,7 @@ function renderBookingPage({ account, rooms, embed = false }) {
           card.classList.add('unavailable');
           badge.className = 'avail-badge show-unavail';
           badge.textContent = 'Max ' + maxGuests + ' guests';
+          card.dataset.availStatus = 'unavailable';
           return;
         }
 
@@ -2430,23 +2441,28 @@ function renderBookingPage({ account, rooms, embed = false }) {
           var start = new Date(checkin);
           var end = new Date(checkout);
           var nights = Math.round((end - start) / 86400000);
-          var allAvailable = dates.length >= nights;
-          for (var i = 0; i < dates.length; i++) {
-            if (!dates[i].is_available || dates[i].is_blocked) { allAvailable = false; break; }
-          }
 
-          // Calculate total price for the stay
+          // Calculate total price and check availability
+          // Rule: if a night has a price > 0, it IS available (even if is_available flag is false)
+          // Only explicitly blocked nights (is_blocked = true) are unavailable
           var totalPrice = 0;
           var pricedNights = 0;
+          var blockedNights = 0;
           dates.forEach(function(d) {
-            if (d.price > 0) { totalPrice += parseFloat(d.price); pricedNights++; }
+            var price = parseFloat(d.price) || 0;
+            if (price > 0) { totalPrice += price; pricedNights++; }
+            if (d.is_blocked) { blockedNights++; }
           });
 
-          if (allAvailable && nights > 0) {
+          // Available if: no blocked nights AND we have data for all stay nights AND prices exist
+          var isAvailable = blockedNights === 0 && dates.length >= nights && pricedNights >= nights;
+
+          if (isAvailable && nights > 0) {
             card.classList.add('available');
             card.classList.remove('unavailable');
             badge.className = 'avail-badge show-avail';
             badge.textContent = 'Available';
+            card.dataset.availStatus = 'available';
             // Update price to show total
             if (totalPrice > 0 && priceDiv) {
               priceDiv.innerHTML = '${defaultCurrency}' + Math.round(totalPrice) + '<span class="per-night"> total (' + nights + ' nights)</span>';
@@ -2454,22 +2470,49 @@ function renderBookingPage({ account, rooms, embed = false }) {
             }
             // Update View & Book link with dates
             if (bookBtn && liteSlug) {
-              bookBtn.classList.remove('disabled');
-              bookBtn.style.pointerEvents = 'auto';
               bookBtn.href = '/' + liteSlug + '?checkin=' + checkin + '&checkout=' + checkout + '&guests=' + guests;
             }
+          } else if (dates.length === 0) {
+            // No availability data at all — not necessarily unavailable, just no data
+            card.classList.remove('available');
+            card.classList.remove('unavailable');
+            badge.className = 'avail-badge';
+            badge.textContent = '';
+            card.dataset.availStatus = 'nodata';
           } else {
             card.classList.remove('available');
             card.classList.add('unavailable');
             badge.className = 'avail-badge show-unavail';
-            badge.textContent = 'Unavailable';
+            badge.textContent = blockedNights > 0 ? 'Blocked' : 'Unavailable';
+            card.dataset.availStatus = 'unavailable';
           }
         } catch (err) {
           console.error('Availability check failed for room ' + roomId, err);
+          card.dataset.availStatus = 'nodata';
         }
       });
 
       await Promise.all(fetches);
+
+      // Re-sort: available+priced first (by price), available+no-price next, no-data, unavailable last
+      var grid = document.getElementById('roomGrid');
+      if (grid) {
+        var sortBy = document.getElementById('sortBy').value;
+        var arr = Array.from(grid.children);
+        arr.sort(function(a, b) {
+          var statusOrder = { available: 0, nodata: 1, unavailable: 2 };
+          var sa = statusOrder[a.dataset.availStatus] !== undefined ? statusOrder[a.dataset.availStatus] : 1;
+          var sb = statusOrder[b.dataset.availStatus] !== undefined ? statusOrder[b.dataset.availStatus] : 1;
+          if (sa !== sb) return sa - sb;
+          // Within same status group, sort by price
+          var pa = parseFloat(a.dataset.price) || 99999;
+          var pb = parseFloat(b.dataset.price) || 99999;
+          if (sortBy === 'price-desc') return pb - pa;
+          return pa - pb; // default and price-asc: low to high
+        });
+        arr.forEach(function(el) { grid.appendChild(el); });
+      }
+
       btn.disabled = false;
       text.style.display = 'inline';
       spinner.style.display = 'none';
