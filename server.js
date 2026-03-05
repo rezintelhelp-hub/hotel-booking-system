@@ -5977,7 +5977,8 @@ async function applyV1RatesFallback({ gasRoomId, beds24RoomId, v1ApiKey, propKey
 
       await pool.query(`
         UPDATE room_availability
-        SET cm_price = $2, direct_price = $2,
+        SET price = $2, cm_price = $2, direct_price = $2,
+            is_available = true,
             min_stay = CASE WHEN min_stay_override IS NOT NULL THEN min_stay ELSE $3 END,
             cm_min_stay = $3,
             source = 'beds24-v1-rates',
@@ -6020,11 +6021,12 @@ async function applyV1RatesFallback({ gasRoomId, beds24RoomId, v1ApiKey, propKey
     // Insert rows
     for (const [dateStr, data] of Object.entries(dateMap)) {
       await pool.query(`
-        INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
-        VALUES ($1, $2, $3, $3, false, false, $4, $4, 'beds24-v1-rates', NOW())
+        INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
+        VALUES ($1, $2, $3, $3, $3, true, false, $4, $4, 'beds24-v1-rates', NOW())
         ON CONFLICT (room_id, date)
         DO UPDATE SET
-          cm_price = $3, direct_price = $3,
+          price = $3, cm_price = $3, direct_price = $3,
+          is_available = true,
           min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $4 END,
           cm_min_stay = $4,
           source = 'beds24-v1-rates',
