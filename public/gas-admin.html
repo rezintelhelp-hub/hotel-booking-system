@@ -36609,7 +36609,7 @@ const promo = await fetch('/api/v1/offers/validate', {
 
         async function loadGasLites() {
             try {
-                const accountId = currentAccount?.id || localStorage.getItem('gas_account_id');
+                const accountId = selectedAccountId || (currentAccount && currentAccount.id);
                 if (!accountId) return;
 
                 ['lites-cards-list', 'lites-rooms-list', 'lites-booking-content'].forEach(id => {
