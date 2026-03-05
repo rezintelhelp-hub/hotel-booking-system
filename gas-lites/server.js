@@ -604,14 +604,16 @@ app.get('/book/:accountSlug', async (req, res) => {
     }
     const account = accountResult.rows[0];
 
-    // Fetch all active rooms for this account with property info, images, and lite slugs
+    // Fetch all active rooms for this account with property info, images, lite slugs, and today's price
     const roomsResult = await pool.query(`
       SELECT bu.id as room_id, bu.name as room_name, bu.display_name,
-             bu.short_description, bu.max_guests, bu.base_price, bu.room_type,
+             bu.short_description, bu.max_guests, bu.room_type,
+             bu.num_bedrooms, bu.num_bathrooms,
              p.id as property_id, p.name as property_name, p.city, p.country, p.currency,
              l.slug as lite_slug,
              (SELECT image_url FROM room_images WHERE room_id = bu.id ORDER BY is_primary DESC NULLS LAST, display_order ASC NULLS LAST LIMIT 1) as room_image,
-             (SELECT image_url FROM property_images WHERE property_id = p.id ORDER BY is_primary DESC NULLS LAST, display_order ASC NULLS LAST LIMIT 1) as property_image
+             (SELECT image_url FROM property_images WHERE property_id = p.id ORDER BY is_primary DESC NULLS LAST, display_order ASC NULLS LAST LIMIT 1) as property_image,
+             (SELECT price FROM room_availability WHERE room_id = bu.id AND date = CURRENT_DATE AND is_available = true AND price > 0 LIMIT 1) as today_price
       FROM bookable_units bu
       JOIN properties p ON bu.property_id = p.id
       LEFT JOIN gas_lites l ON l.room_id = bu.id AND l.active = true
@@ -2116,24 +2118,30 @@ function renderBookingPage({ account, rooms, embed = false }) {
     const image = r.room_image || r.property_image || '';
     const displayName = r.display_name ? (typeof r.display_name === 'object' ? (r.display_name.en || Object.values(r.display_name)[0]) : r.display_name) : r.room_name;
     const currency = getCurrencySymbol(r.currency);
-    const price = ''; // Price shown only after availability check with calendar data
+    const price = parseFloat(r.today_price || 0);
+    const priceHtml = price > 0 ? `${currency}${Math.round(price)}<span class="per-night"> / night</span>` : '<span class="price-on-request">Price on request</span>';
     const liteUrl = r.lite_slug ? `/${r.lite_slug}` : '';
+    const bedrooms = parseInt(r.num_bedrooms) || 0;
+    const bathrooms = parseFloat(r.num_bathrooms) || 0;
+    const bathroomsDisplay = bathrooms === Math.floor(bathrooms) ? Math.floor(bathrooms) : bathrooms.toFixed(1);
     return `
-      <div class="room-card" id="room-${r.room_id}" data-room-id="${r.room_id}" data-max-guests="${r.max_guests || 99}" data-lite-slug="${r.lite_slug || ''}">
+      <div class="room-card" id="room-${r.room_id}" data-room-id="${r.room_id}" data-max-guests="${r.max_guests || 99}" data-lite-slug="${r.lite_slug || ''}" data-price="${price}">
         <div class="room-image" style="background-image: url('${image}');">
-          ${!image ? '<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:3rem;color:#cbd5e1;">🏨</div>' : ''}
+          ${!image ? '<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:3rem;color:#cbd5e1;">🏠</div>' : ''}
           <div class="avail-badge" id="badge-${r.room_id}"></div>
         </div>
         <div class="room-info">
           <h3 class="room-name">${escapeForHTML(displayName)}</h3>
-          <p class="room-property">${escapeForHTML(r.property_name)}${r.city ? ' · ' + escapeForHTML(r.city) : ''}</p>
+          <p class="room-property">${escapeForHTML(r.property_name)}${r.city ? ', ' + escapeForHTML(r.city) : ''}</p>
           <div class="room-meta">
             ${r.max_guests ? `<span class="meta-pill">👥 ${r.max_guests} guests</span>` : ''}
+            ${bedrooms > 0 ? `<span class="meta-pill">🛏️ ${bedrooms} ${bedrooms > 1 ? 'bedrooms' : 'bedroom'}</span>` : ''}
+            ${bathrooms > 0 ? `<span class="meta-pill">🚿 ${bathroomsDisplay} ${bathrooms > 1 ? 'bathrooms' : 'bathroom'}</span>` : ''}
             ${r.room_type ? `<span class="meta-pill">${escapeForHTML(r.room_type)}</span>` : ''}
           </div>
           <div class="room-bottom">
-            <div class="room-price">${price ? `${price}<span class="per-night"> / night</span>` : ''}</div>
-            ${liteUrl ? `<a href="${liteUrl}" class="book-btn" id="bookbtn-${r.room_id}">Book Now</a>` : '<span class="book-btn disabled">Coming Soon</span>'}
+            <div class="room-price">${priceHtml}</div>
+            ${liteUrl ? `<a href="${liteUrl}" class="book-btn" id="bookbtn-${r.room_id}">View & Book</a>` : '<a href="#" class="book-btn disabled" id="bookbtn-${r.room_id}">View & Book</a>'}
           </div>
         </div>
       </div>`;
@@ -2173,14 +2181,15 @@ function renderBookingPage({ account, rooms, embed = false }) {
     .avail-badge { position: absolute; top: 0.75rem; right: 0.75rem; padding: 0.3rem 0.75rem; border-radius: 999px; font-size: 0.8rem; font-weight: 600; display: none; }
     .avail-badge.show-avail { display: block; background: #dcfce7; color: #166534; }
     .avail-badge.show-unavail { display: block; background: #fee2e2; color: #991b1b; }
-    .room-info { padding: 1.25rem; }
+    .room-info { padding: 1.25rem; display: flex; flex-direction: column; }
     .room-name { font-size: 1.1rem; font-weight: 600; margin-bottom: 0.25rem; }
     .room-property { font-size: 0.85rem; color: #64748b; margin-bottom: 0.75rem; }
     .room-meta { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1rem; }
     .meta-pill { background: #f1f5f9; color: #475569; padding: 0.2rem 0.6rem; border-radius: 999px; font-size: 0.78rem; font-weight: 500; }
-    .room-bottom { display: flex; justify-content: space-between; align-items: center; }
-    .room-price { font-size: 1.2rem; font-weight: 700; color: #0f172a; }
+    .room-bottom { display: flex; justify-content: space-between; align-items: center; margin-top: auto; padding-top: 1rem; border-top: 1px solid #f1f5f9; }
+    .room-price { font-size: 1.3rem; font-weight: 700; color: #0f172a; }
     .per-night { font-size: 0.8rem; font-weight: 400; color: #64748b; }
+    .price-on-request { font-size: 0.85rem; font-weight: 500; color: #64748b; }
     .book-btn { display: inline-block; padding: 0.5rem 1.25rem; background: ${accent}; color: white; text-decoration: none; border-radius: 8px; font-size: 0.9rem; font-weight: 600; transition: opacity 0.2s; }
     .book-btn:hover { opacity: 0.9; }
     .book-btn.disabled { background: #cbd5e1; cursor: not-allowed; pointer-events: none; }
@@ -2310,11 +2319,22 @@ function renderBookingPage({ account, rooms, embed = false }) {
             if (!d.is_available || d.is_blocked) { allAvailable = false; break; }
           }
 
+          // Calculate average nightly price from availability data
+          var priceDiv = card.querySelector('.room-price');
+          var avgPrice = 0;
+          var pricedNights = dates.filter(function(d) { return d.price > 0; });
+          if (pricedNights.length > 0) {
+            avgPrice = Math.round(pricedNights.reduce(function(sum, d) { return sum + parseFloat(d.price); }, 0) / pricedNights.length);
+          }
+
           if (allAvailable && nights > 0) {
             card.classList.add('available');
             card.classList.remove('unavailable');
             badge.className = 'avail-badge show-avail';
             badge.textContent = 'Available';
+            if (avgPrice > 0 && priceDiv) {
+              priceDiv.innerHTML = '${currency}' + avgPrice + '<span class="per-night"> / night</span>';
+            }
             if (bookBtn && liteSlug) {
               bookBtn.classList.remove('disabled');
               bookBtn.href = '/' + liteSlug + '?checkin=' + checkin + '&checkout=' + checkout + '&guests=' + guests;
