@@ -27099,27 +27099,24 @@ app.get('/api/db/gas-lites', async (req, res) => {
     const accountId = req.query.account_id;
     if (!accountId) return res.status(400).json({ error: 'account_id required' });
 
-    // Get account info for the booking page link
     const acctResult = await pool.query(
       'SELECT account_code FROM accounts WHERE id = $1', [accountId]
     );
     const accountCode = acctResult.rows[0]?.account_code || accountId;
 
+    // Return ALL rooms for the account with their lite slugs (if any)
     const result = await pool.query(`
-      SELECT gl.id, gl.slug, gl.room_id, gl.property_id, gl.active, gl.views,
-             gl.custom_title, gl.theme, gl.accent_color,
-             gl.show_pricing, gl.show_availability, gl.show_reviews, gl.show_qr,
-             gl.created_at,
-             bu.name as room_name, bu.display_name, bu.max_guests,
-             p.name as property_name, p.city, p.country
-      FROM gas_lites gl
-      LEFT JOIN bookable_units bu ON bu.id = gl.room_id
-      LEFT JOIN properties p ON p.id = gl.property_id
-      WHERE gl.account_id = $1
+      SELECT bu.id as room_id, bu.name as room_name, bu.display_name, bu.max_guests,
+             p.id as property_id, p.name as property_name, p.city, p.country,
+             gl.slug as lite_slug, gl.active as lite_active, gl.views as lite_views
+      FROM bookable_units bu
+      JOIN properties p ON bu.property_id = p.id
+      LEFT JOIN gas_lites gl ON gl.room_id = bu.id AND gl.active = true
+      WHERE p.account_id = $1 AND bu.status IN ('active', 'available')
       ORDER BY p.name, bu.name
     `, [accountId]);
 
-    res.json({ lites: result.rows, account_code: accountCode });
+    res.json({ rooms: result.rows, account_code: accountCode });
   } catch (error) {
     console.error('Error loading gas_lites:', error);
     res.status(500).json({ error: 'Failed to load lites' });

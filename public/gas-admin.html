@@ -1804,6 +1804,10 @@
                         <span class="nav-icon">📝</span>
                         <span>Generator</span>
                     </a>
+                    <a class="nav-item" data-view="gas-lites" href="#" onclick="navClick(this, 'gas-lites'); return false;">
+                        <span class="nav-icon">🏠</span>
+                        <span>GAS Lites</span>
+                    </a>
                     </div>
                 </div>
 
@@ -1850,10 +1854,6 @@
                     <a class="nav-item" data-view="app-seo" href="#" onclick="showView('app-seo'); return false;">
                         <span class="nav-icon">📋</span>
                         <span>SEO Analytics</span>
-                    </a>
-                    <a class="nav-item" data-view="gas-lites" href="#" onclick="navClick(this, 'gas-lites'); return false;">
-                        <span class="nav-icon">🏠</span>
-                        <span>GAS Lites</span>
                     </a>
                     </div>
                 </div>
@@ -36607,13 +36607,11 @@ const promo = await fetch('/api/v1/offers/validate', {
             document.getElementById(tabId).classList.add('active');
         }
 
-        let litesDataCache = null;
         async function loadGasLites() {
             try {
                 const accountId = currentAccount?.id || localStorage.getItem('gas_account_id');
                 if (!accountId) return;
 
-                // Show loading in all tabs
                 ['lites-cards-list', 'lites-rooms-list', 'lites-booking-content'].forEach(id => {
                     const el = document.getElementById(id);
                     if (el) el.innerHTML = '<div class="loading"><div class="spinner"></div><p style="margin-top:1rem;">Loading...</p></div>';
@@ -36621,50 +36619,55 @@ const promo = await fetch('/api/v1/offers/validate', {
 
                 const res = await fetch(`/api/db/gas-lites?account_id=${accountId}`);
                 const data = await res.json();
-                const lites = data.lites || [];
+                const rooms = data.rooms || [];
                 const accountCode = data.account_code || accountId;
-                litesDataCache = { lites, accountCode };
 
-                if (lites.length === 0) {
-                    const empty = '<div class="empty-state"><h3>No Lite Pages Yet</h3><p>Lite pages are auto-created for each room. Import properties first.</p></div>';
+                if (rooms.length === 0) {
+                    const empty = '<div class="empty-state"><h3>No Rooms Found</h3><p>Import properties and rooms first to create Lite pages.</p></div>';
                     document.getElementById('lites-cards-list').innerHTML = empty;
                     document.getElementById('lites-rooms-list').innerHTML = empty;
                     document.getElementById('lites-booking-content').innerHTML = empty;
                     return;
                 }
 
-                // Tab 1: Playing Cards
-                let cardsHtml = `<p style="margin-bottom:1rem;color:#64748b;">${lites.length} playing card${lites.length !== 1 ? 's' : ''} — shareable QR code cards for each room</p>`;
-                cardsHtml += '<table class="data-table"><thead><tr><th>Room</th><th>Property</th><th>Views</th><th>Card</th><th>Print</th></tr></thead><tbody>';
-                lites.forEach(l => {
-                    const name = l.custom_title || l.room_name || 'Untitled';
-                    const cardUrl = `https://lite.gas.travel/${l.slug}/card`;
-                    const printUrl = `https://lite.gas.travel/${l.slug}/print`;
-                    cardsHtml += `<tr>
-                        <td>${escapeHtml(name)}</td>
-                        <td>${escapeHtml(l.property_name || '-')}</td>
-                        <td>${l.views || 0}</td>
-                        <td><a href="${cardUrl}" target="_blank" style="color:#3b82f6;">Open Card</a></td>
-                        <td><a href="${printUrl}" target="_blank" style="color:#3b82f6;">Print</a></td>
-                    </tr>`;
+                // Tab 1: Playing Cards (need lite_slug for /card and /print URLs)
+                let cardsHtml = `<p style="margin-bottom:1rem;color:#64748b;">${rooms.length} room${rooms.length !== 1 ? 's' : ''} — shareable QR code cards</p>`;
+                cardsHtml += '<table class="data-table"><thead><tr><th>Room</th><th>Property</th><th>Card</th><th>Print</th></tr></thead><tbody>';
+                rooms.forEach(r => {
+                    const name = r.room_name || 'Untitled';
+                    if (r.lite_slug) {
+                        const cardUrl = `https://lite.gas.travel/${r.lite_slug}/card`;
+                        const printUrl = `https://lite.gas.travel/${r.lite_slug}/print`;
+                        cardsHtml += `<tr>
+                            <td>${escapeHtml(name)}</td>
+                            <td>${escapeHtml(r.property_name || '-')}</td>
+                            <td><a href="${cardUrl}" target="_blank" style="color:#3b82f6;">Open Card</a></td>
+                            <td><a href="${printUrl}" target="_blank" style="color:#3b82f6;">Print</a></td>
+                        </tr>`;
+                    } else {
+                        cardsHtml += `<tr>
+                            <td>${escapeHtml(name)}</td>
+                            <td>${escapeHtml(r.property_name || '-')}</td>
+                            <td colspan="2" style="color:#94a3b8;">No Lite card yet</td>
+                        </tr>`;
+                    }
                 });
                 cardsHtml += '</tbody></table>';
                 document.getElementById('lites-cards-list').innerHTML = cardsHtml;
 
-                // Tab 2: Room Pages
-                let roomsHtml = `<p style="margin-bottom:1rem;color:#64748b;">${lites.length} room page${lites.length !== 1 ? 's' : ''} — individual booking pages for each room</p>`;
-                roomsHtml += '<table class="data-table"><thead><tr><th>Room</th><th>Property</th><th>Location</th><th>Status</th><th>Link</th></tr></thead><tbody>';
-                lites.forEach(l => {
-                    const name = l.custom_title || l.room_name || 'Untitled';
-                    const status = l.active ? '<span style="color:#16a34a;">Active</span>' : '<span style="color:#94a3b8;">Inactive</span>';
-                    const liteUrl = `https://lite.gas.travel/${l.slug}`;
-                    const location = [l.city, l.country].filter(Boolean).join(', ') || '-';
+                // Tab 2: Room Pages (every room has a page at /{lite_slug} or /{room_id})
+                let roomsHtml = `<p style="margin-bottom:1rem;color:#64748b;">${rooms.length} room page${rooms.length !== 1 ? 's' : ''} — individual booking pages</p>`;
+                roomsHtml += '<table class="data-table"><thead><tr><th>Room</th><th>Property</th><th>Location</th><th>Link</th></tr></thead><tbody>';
+                rooms.forEach(r => {
+                    const name = r.room_name || 'Untitled';
+                    const slug = r.lite_slug || r.room_id;
+                    const pageUrl = `https://lite.gas.travel/${slug}`;
+                    const location = [r.city, r.country].filter(Boolean).join(', ') || '-';
                     roomsHtml += `<tr>
                         <td>${escapeHtml(name)}</td>
-                        <td>${escapeHtml(l.property_name || '-')}</td>
+                        <td>${escapeHtml(r.property_name || '-')}</td>
                         <td>${escapeHtml(location)}</td>
-                        <td>${status}</td>
-                        <td><a href="${liteUrl}" target="_blank" style="color:#3b82f6;">Open Page</a></td>
+                        <td><a href="${pageUrl}" target="_blank" style="color:#3b82f6;">Open Page</a></td>
                     </tr>`;
                 });
                 roomsHtml += '</tbody></table>';
@@ -36675,7 +36678,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const embedScript = `<script src="https://lite.gas.travel/embed.js" data-account="${accountCode}"><\/script>`;
                 const embedIframe = `<iframe src="${bookUrl}?embed=1" style="width:100%;min-height:800px;border:none;" allow="payment"></iframe>`;
                 let bookHtml = `
-                    <p style="margin-bottom:1rem;color:#64748b;">Your public booking page with all rooms, search filters, and map</p>
+                    <p style="margin-bottom:1rem;color:#64748b;">Your public booking page with all ${rooms.length} rooms, search filters, and map</p>
                     <div style="margin-bottom:1.5rem;">
                         <strong>Booking Page URL</strong>
                         <div style="display:flex;align-items:center;gap:0.5rem;margin-top:0.4rem;">
