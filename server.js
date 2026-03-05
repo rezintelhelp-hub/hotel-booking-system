@@ -3003,7 +3003,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
                     cm_min_stay = $6,
                     source = 'beds24',
                     updated_at = NOW()
-                `, [room.gas_room_id, dateStr, price, numAvail > 0, numAvail === 0, minStay]);
+                `, [room.gas_room_id, dateStr, price, numAvail > 0 && price !== null, numAvail === 0, minStay]);
 
                 totalDaysUpdated++;
               }
@@ -6755,8 +6755,9 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
                 const numAvail = entry.numAvail || 0;
                 const price = entry.price1 || entry.price2 || null;
                 const minStay = entry.minStay || 1;
-                
-                const isAvailable = numAvail > 0;
+
+                // Available only if units available AND has a price — no price = unbookable
+                const isAvailable = numAvail > 0 && price !== null;
                 const isBlocked = numAvail === 0;
                 
                 if (price !== null) daysWithPrice++;
@@ -7385,8 +7386,8 @@ app.post('/api/gas-sync/properties/:propertyId/sync-prices', async (req, res) =>
                   cm_min_stay = $6,
                   source = 'beds24-v2',
                   updated_at = NOW()
-              `, [room.gas_room_id, dateStr, price, numAvail > 0, numAvail === 0, minStay]);
-              
+              `, [room.gas_room_id, dateStr, price, numAvail > 0 && price !== null, numAvail === 0, minStay]);
+
               daysUpdated++;
             }
           }
@@ -8846,7 +8847,7 @@ app.post('/api/gas-sync/tiered-availability-sync', async (req, res) => {
                     cm_min_stay = $6,
                     source = 'beds24',
                     updated_at = NOW()
-                `, [room.gas_room_id, dateStr, price, numAvail > 0, numAvail === 0, minStay]);
+                `, [room.gas_room_id, dateStr, price, numAvail > 0 && price !== null, numAvail === 0, minStay]);
 
                 daysUpdated++;
               }
@@ -56019,7 +56020,7 @@ app.post('/api/admin/sync-beds24-full-pricing', async (req, res) => {
                   cm_min_stay = $6,
                   source = 'beds24-full',
                   updated_at = NOW()
-              `, [room.id, dateStr, price, numAvail > 0, numAvail === 0, minStay]);
+              `, [room.id, dateStr, price, numAvail > 0 && price !== null, numAvail === 0, minStay]);
               
               daysUpdated++;
             }
@@ -69412,8 +69413,8 @@ app.post('/api/gas-sync/connections/:id/sync-prices', async (req, res) => {
                 cm_min_stay = $6,
                 source = 'beds24',
                 updated_at = NOW()
-            `, [room.id, dateStr, price, numAvail > 0, numAvail === 0, minStay]);
-            
+            `, [room.id, dateStr, price, numAvail > 0 && price !== null, numAvail === 0, minStay]);
+
             daysUpdated++;
           }
         }
@@ -71037,7 +71038,7 @@ app.post('/api/admin/debug/beds24-resync-room/:connectionId/:beds24RoomId', asyn
           is_available = $4, is_blocked = $5,
           min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $6 END,
           cm_min_stay = $6, source = 'beds24-offers', updated_at = NOW()
-      `, [room.gas_room_id, dateStr, finalPrice, day.numAvail > 0, day.numAvail === 0, day.minStay]);
+      `, [room.gas_room_id, dateStr, finalPrice, day.numAvail > 0 && finalPrice !== null, day.numAvail === 0, day.minStay]);
       daysUpdated++;
     }
     
@@ -76900,8 +76901,8 @@ async function runTieredSync() {
                       cm_min_stay = $6,
                       source = 'beds24',
                       updated_at = NOW()
-                  `, [room.gas_room_id, dateStr, price, numAvail > 0, numAvail === 0, minStay]);
-                  
+                  `, [room.gas_room_id, dateStr, price, numAvail > 0 && price !== null, numAvail === 0, minStay]);
+
                   daysUpdated++;
                 }
               }

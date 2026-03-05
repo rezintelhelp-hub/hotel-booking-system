@@ -35315,7 +35315,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                             isBooked = true;
                             bookingId = dayData.booking_id || null;
                         } else if (dayData.is_blocked) {
-                            bgColor = '#fef3c7'; // yellow
+                            bgColor = '#fef3c7'; // yellow - blocked
+                            text = '';
+                            textColor = '#92400e';
+                        } else if (!dayData.cm_price && !dayData.direct_price) {
+                            bgColor = '#fef3c7'; // yellow - available but no price (unbookable)
                             text = '';
                             textColor = '#92400e';
                         }
