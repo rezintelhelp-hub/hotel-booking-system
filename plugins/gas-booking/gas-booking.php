@@ -5476,11 +5476,8 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                     <div class="gas-room-row-price">
                                         <?php if ($has_dates) : ?>
                                             <span class="gas-checking">⏳ <?php echo esc_html($checking_text); ?></span>
-                                        <?php elseif ($price > 0) : ?>
-                                            <?php echo esc_html($room_currency); ?><?php echo number_format($price, 0); ?>
-                                            <span><?php echo esc_html($per_night_text); ?></span>
                                         <?php else : ?>
-                                            <span>Price on request</span>
+                                            <span><?php echo esc_html($t_booking['select_dates'] ?? 'Select dates'); ?></span>
                                         <?php endif; ?>
                                     </div>
                                     <a href="<?php echo esc_url($room_url); ?>" class="gas-row-view-btn" <?php if ($has_dates) : ?>style="background: #6366f1; pointer-events: none;"<?php endif; ?>><?php echo $has_dates ? esc_html($checking_text) : esc_html($view_book_text); ?></a>
@@ -5533,8 +5530,8 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                              data-room-id="<?php echo esc_attr($room['id']); ?>"
                              data-property-id="<?php echo esc_attr($room['property_id'] ?? ''); ?>"
                              data-payment-account-id="<?php echo esc_attr($room['payment_account_id'] ?? ''); ?>"
-                             data-max-guests="<?php echo $max_guests; ?>" 
-                             data-price="<?php echo $price; ?>"
+                             data-max-guests="<?php echo $max_guests; ?>"
+                             data-price="0"
                              data-base-price-raw="<?php echo $price; ?>"
                              data-lat="<?php echo esc_attr($lat); ?>"
                              data-lng="<?php echo esc_attr($lng); ?>"
@@ -5567,11 +5564,8 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                     <div class="gas-room-price">
                                         <?php if ($has_dates) : ?>
                                             <span class="gas-checking">⏳ <?php echo esc_html($checking_text); ?></span>
-                                        <?php elseif ($price > 0) : ?>
-                                            <?php echo esc_html($room_currency); ?><?php echo number_format($price, 0); ?>
-                                            <span><?php echo esc_html($per_night_text); ?></span>
                                         <?php else : ?>
-                                            <span>Price on request</span>
+                                            <span><?php echo esc_html($t_booking['select_dates'] ?? 'Select dates'); ?></span>
                                         <?php endif; ?>
                                     </div>
                                     <a href="<?php echo esc_url($room_url); ?>" class="gas-view-btn" <?php if ($has_dates) : ?>style="background: #6366f1; pointer-events: none;"<?php endif; ?>><?php echo $has_dates ? esc_html($checking_text) : esc_html($view_book_text); ?></a>

@@ -869,14 +869,9 @@ jQuery(document).ready(function($) {
         }
         $('.gas-room-meta').html(metaHtml);
         
-        // Show "Select dates" prompt — actual price comes from calendar pricing only
-        var todaysRate = parseFloat(room.todays_rate) || parseFloat(room.price) || 0;
-        if (todaysRate > 0) {
-            $('.gas-price-amount').text(formatPriceShort(todaysRate, currency));
-        } else {
-            $('.gas-price-amount').text('—');
-            $('.gas-price-period').text(t('booking', 'select_dates', 'Select dates'));
-        }
+        // No price without dates — actual price comes from calendar pricing only
+        $('.gas-price-amount').text('—');
+        $('.gas-price-period').text(t('booking', 'select_dates', 'Select dates'));
         
         // Render gallery
         renderGallery(images);
@@ -2435,40 +2430,22 @@ jQuery(document).ready(function($) {
     function reorderRooms() {
         var $container = $('.gas-rooms-grid, .gas-rooms-row-layout');
         if (!$container.length) return;
-        
+
         // Unhide any available rooms that are behind Load More
         $container.find('.gas-room-card.gas-room-hidden.available, .gas-room-row.gas-room-hidden.available').each(function() {
             $(this).removeClass('gas-room-hidden').css('display', '');
-            // Load lazy background image
             var imageDiv = this.querySelector('.gas-room-image[data-bg]');
             if (imageDiv) {
                 imageDiv.style.background = "url('" + imageDiv.dataset.bg + "') center/cover";
                 imageDiv.removeAttribute('data-bg');
             }
         });
-        
-        var $available = $container.find('.gas-room-card.available, .gas-room-row.available');
-        var $unavailable = $container.find('.gas-room-card.unavailable:not(.gas-room-hidden), .gas-room-row.unavailable:not(.gas-room-hidden)');
-        var $hiddenUnavailable = $container.find('.gas-room-card.unavailable.gas-room-hidden, .gas-room-row.unavailable.gas-room-hidden');
-        
-        if ($unavailable.length > 0 && $available.length > 0) {
-            // Remove existing divider if any
-            $container.find('.gas-rooms-divider').remove();
-            
-            // Move available rooms first
-            $available.prependTo($container);
-            
-            // Add divider
-            $container.append('<div class="gas-rooms-divider">' + t('booking', 'rooms_not_available_divider', 'Rooms below are not available for selected dates') + '</div>');
-            
-            // Move visible unavailable rooms after divider
-            $unavailable.appendTo($container);
-            
-            // Keep hidden unavailable at the end
-            $hiddenUnavailable.appendTo($container);
-        }
-        
-        // Update Load More count to only reflect hidden unavailable rooms
+
+        // Use sortRooms with current dropdown value to reorder
+        var currentSort = $('.gas-sort-select').val() || 'default';
+        sortRooms(currentSort);
+
+        // Update Load More count
         var hiddenRemaining = $container.find('.gas-room-card.gas-room-hidden').length;
         var $loadMoreContainer = $('.gas-load-more-container');
         if (hiddenRemaining === 0) {
@@ -2603,47 +2580,49 @@ jQuery(document).ready(function($) {
     function sortRooms(sortBy) {
         var $container = $('.gas-rooms-grid, .gas-rooms-row-layout');
         if (!$container.length) return;
-        
+
         var $rooms = $container.find('.gas-room-card, .gas-room-row');
         var roomsArray = $rooms.toArray();
-        
-        // Sort function
+
         roomsArray.sort(function(a, b) {
             var $a = $(a);
             var $b = $(b);
-            
-            // Always put unavailable at bottom
-            var aUnavail = $a.hasClass('unavailable') ? 1 : 0;
-            var bUnavail = $b.hasClass('unavailable') ? 1 : 0;
-            if (aUnavail !== bUnavail) return aUnavail - bUnavail;
-            
-            // Then sort by selected criteria
+
+            // Group: available first, then min-stay, then unavailable
+            var aGroup = $a.hasClass('unavailable') ? 2 : ($a.hasClass('min-stay-warning') ? 1 : 0);
+            var bGroup = $b.hasClass('unavailable') ? 2 : ($b.hasClass('min-stay-warning') ? 1 : 0);
+            if (aGroup !== bGroup) return aGroup - bGroup;
+
+            // Within same group, sort by price
             var aPrice = parseFloat($a.data('price')) || 0;
             var bPrice = parseFloat($b.data('price')) || 0;
-            
+
+            // Rooms with no price (0) go after priced rooms
+            if (aPrice > 0 && bPrice === 0) return -1;
+            if (aPrice === 0 && bPrice > 0) return 1;
+            if (aPrice === 0 && bPrice === 0) return 0;
+
             switch (sortBy) {
                 case 'price-low':
                     return aPrice - bPrice;
                 case 'price-high':
                     return bPrice - aPrice;
-                case 'random':
-                    return Math.random() - 0.5;
                 default:
-                    return 0; // Keep original order
+                    return 0;
             }
         });
-        
+
         // Re-append in sorted order
         $container.find('.gas-rooms-divider').remove();
         roomsArray.forEach(function(room) {
             $container.append(room);
         });
-        
+
         // Add divider between available and unavailable
+        var $firstUnavail = $container.find('.gas-room-card.unavailable, .gas-room-row.unavailable, .gas-room-card.min-stay-warning, .gas-room-row.min-stay-warning').first();
         var $available = $container.find('.gas-room-card.available, .gas-room-row.available');
-        var $unavailable = $container.find('.gas-room-card.unavailable, .gas-room-row.unavailable');
-        if ($available.length > 0 && $unavailable.length > 0) {
-            $unavailable.first().before('<div class="gas-rooms-divider">' + t('booking', 'rooms_not_available_divider', 'Rooms below are not available for selected dates') + '</div>');
+        if ($available.length > 0 && $firstUnavail.length > 0) {
+            $firstUnavail.before('<div class="gas-rooms-divider">' + t('booking', 'rooms_not_available_divider', 'Rooms below are not available for selected dates') + '</div>');
         }
     }
     
