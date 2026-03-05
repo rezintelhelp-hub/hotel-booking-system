@@ -2146,7 +2146,7 @@ function renderBookingPage({ account, rooms, embed = false }) {
     const bathrooms = parseFloat(r.num_bathrooms) || 0;
     const bathroomsDisplay = bathrooms === Math.floor(bathrooms) ? Math.floor(bathrooms) : bathrooms.toFixed(1);
     return `
-      <div class="room-card" id="room-${r.room_id}" data-room-id="${r.room_id}" data-max-guests="${r.max_guests || 99}" data-lite-slug="${r.lite_slug || ''}" data-price="${price}">
+      <div class="room-card" id="room-${r.room_id}" data-room-id="${r.room_id}" data-max-guests="${r.max_guests || 99}" data-lite-slug="${r.lite_slug || ''}" data-price="${price}" data-bedrooms="${bedrooms}" data-room-type="${escapeForHTML(r.room_type || '')}">
         <div class="room-image" style="background-image: url('${image}');">
           ${!image ? '<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:3rem;color:#cbd5e1;">🏠</div>' : ''}
           <div class="avail-badge" id="badge-${r.room_id}"></div>
@@ -2162,7 +2162,7 @@ function renderBookingPage({ account, rooms, embed = false }) {
           </div>
           <div class="room-bottom">
             <div class="room-price">${priceHtml}</div>
-            ${liteUrl ? `<a href="${liteUrl}" class="book-btn" id="bookbtn-${r.room_id}">View & Book</a>` : `<span class="book-btn disabled" id="bookbtn-${r.room_id}">Enquire</span>`}
+            ${liteUrl ? `<a href="${liteUrl}" class="book-btn" id="bookbtn-${r.room_id}">View & Book</a>` : `<span class="book-btn disabled" id="bookbtn-${r.room_id}">View Availability</span>`}
           </div>
         </div>
       </div>`;
@@ -2194,6 +2194,12 @@ function renderBookingPage({ account, rooms, embed = false }) {
     .check-btn { padding: 0.6rem 1.5rem; background: ${accent}; color: white; border: none; border-radius: 8px; font-size: 0.95rem; font-weight: 600; cursor: pointer; white-space: nowrap; font-family: inherit; transition: opacity 0.2s; }
     .check-btn:hover { opacity: 0.9; }
     .check-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .filter-bar { background: #f8fafc; border-bottom: 1px solid #e2e8f0; padding: 0.75rem 1.5rem; }
+    .filter-inner { max-width: 1200px; margin: 0 auto; display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
+    .filter-inner select { padding: 0.45rem 0.75rem; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.85rem; font-family: inherit; background: white; color: #475569; cursor: pointer; }
+    .filter-inner select:focus { outline: none; border-color: ${accent}; }
+    .filter-count { font-size: 0.8rem; color: #94a3b8; margin-left: auto; }
+    .room-card.filter-hidden { display: none; }
     .container { max-width: 1200px; margin: 0 auto; padding: 1.5rem; }
     .room-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.5rem; }
     .room-card { background: white; border-radius: 12px; overflow: hidden; border: 2px solid transparent; box-shadow: 0 1px 3px rgba(0,0,0,0.06); transition: all 0.3s; }
@@ -2259,13 +2265,40 @@ function renderBookingPage({ account, rooms, embed = false }) {
     </div>
   </div>
 
+  <div class="filter-bar">
+    <div class="filter-inner">
+      <select id="filterType" onchange="applyFilters()">
+        <option value="">All Types</option>
+        <option value="villa">Villa</option>
+        <option value="apartment">Apartment</option>
+        <option value="studio">Studio</option>
+        <option value="house">House</option>
+      </select>
+      <select id="filterBedrooms" onchange="applyFilters()">
+        <option value="">Any Bedrooms</option>
+        <option value="1">1 Bedroom</option>
+        <option value="2">2 Bedrooms</option>
+        <option value="3">3 Bedrooms</option>
+        <option value="4">4+ Bedrooms</option>
+      </select>
+      <select id="filterPrice" onchange="applyFilters()">
+        <option value="">Any Price</option>
+        <option value="0-200">Under ${defaultCurrency}200</option>
+        <option value="200-500">${defaultCurrency}200 – ${defaultCurrency}500</option>
+        <option value="500-1000">${defaultCurrency}500 – ${defaultCurrency}1,000</option>
+        <option value="1000-99999">${defaultCurrency}1,000+</option>
+      </select>
+      <span id="filterCount" class="filter-count"></span>
+    </div>
+  </div>
+
   <div class="container">
-    ${mapPins.length > 1 ? '<div id="property-map"></div>' : ''}
-    ${rooms.length > 0 ? `<div class="room-grid">${roomCardsHtml}</div>` : `
+    ${rooms.length > 0 ? `<div class="room-grid" id="roomGrid">${roomCardsHtml}</div>` : `
       <div class="empty-state">
         <h2>No rooms available</h2>
         <p>This property hasn't listed any rooms yet.</p>
       </div>`}
+    ${mapPins.length > 1 ? '<div id="property-map"></div>' : ''}
   </div>
 
   <script>
@@ -2292,6 +2325,37 @@ function renderBookingPage({ account, rooms, embed = false }) {
       altFormat: 'd M Y',
       minDate: new Date().fp_incr(1)
     });
+
+    function applyFilters() {
+      var type = document.getElementById('filterType').value.toLowerCase();
+      var beds = document.getElementById('filterBedrooms').value;
+      var price = document.getElementById('filterPrice').value;
+      var cards = document.querySelectorAll('.room-card');
+      var shown = 0;
+      cards.forEach(function(card) {
+        var show = true;
+        if (type && (card.dataset.roomType || '').toLowerCase().indexOf(type) === -1) show = false;
+        if (beds) {
+          var b = parseInt(card.dataset.bedrooms) || 0;
+          if (beds === '4') { if (b < 4) show = false; }
+          else { if (b !== parseInt(beds)) show = false; }
+        }
+        if (price) {
+          var p = parseFloat(card.dataset.price) || 0;
+          var range = price.split('-');
+          var min = parseFloat(range[0]), max = parseFloat(range[1]);
+          if (p <= 0 || p < min || p > max) show = false;
+        }
+        card.classList.toggle('filter-hidden', !show);
+        if (show) shown++;
+      });
+      var countEl = document.getElementById('filterCount');
+      if (type || beds || price) {
+        countEl.textContent = shown + ' of ' + cards.length + ' rooms';
+      } else {
+        countEl.textContent = '';
+      }
+    }
 
     async function checkAvailability() {
       const checkin = document.getElementById('checkin').value;
