@@ -2147,12 +2147,12 @@ function renderBookingPage({ account, rooms, embed = false }) {
     const currency = getCurrencySymbol(r.currency);
     const price = parseFloat(r.today_price || 0);
     const priceHtml = price > 0 ? `${currency}${Math.round(price)}<span class="per-night"> / night</span>` : '<span class="price-on-request">Price on request</span>';
-    const liteUrl = r.lite_slug ? `/${r.lite_slug}` : '';
+    const liteUrl = r.lite_slug ? `/${r.lite_slug}` : `/${r.room_id}`;
     const bedrooms = parseInt(r.num_bedrooms) || 0;
     const bathrooms = parseFloat(r.num_bathrooms) || 0;
     const bathroomsDisplay = bathrooms === Math.floor(bathrooms) ? Math.floor(bathrooms) : bathrooms.toFixed(1);
     return `
-      <div class="room-card" id="room-${r.room_id}" data-room-id="${r.room_id}" data-max-guests="${r.max_guests || 99}" data-lite-slug="${r.lite_slug || ''}" data-price="${price}" data-bedrooms="${bedrooms}" data-city="${escapeForHTML(r.city || '')}" data-property="${escapeForHTML(r.property_name || '')}" data-property-id="${r.property_id}">
+      <div class="room-card" id="room-${r.room_id}" data-room-id="${r.room_id}" data-max-guests="${r.max_guests || 99}" data-lite-url="${liteUrl}" data-price="${price}" data-bedrooms="${bedrooms}" data-city="${escapeForHTML(r.city || '')}" data-property="${escapeForHTML(r.property_name || '')}" data-property-id="${r.property_id}">
         <div class="room-image" style="background-image: url('${image}');">
           ${!image ? '<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:3rem;color:#cbd5e1;">🏠</div>' : ''}
           <div class="avail-badge" id="badge-${r.room_id}"></div>
@@ -2167,7 +2167,7 @@ function renderBookingPage({ account, rooms, embed = false }) {
           </div>
           <div class="room-bottom">
             <div class="room-price" id="price-${r.room_id}">${priceHtml}</div>
-            ${liteUrl ? `<a href="${liteUrl}" class="book-btn" id="bookbtn-${r.room_id}">View & Book</a>` : `<span class="book-btn disabled" id="bookbtn-${r.room_id}">View Availability</span>`}
+            <a href="${liteUrl}" class="book-btn" id="bookbtn-${r.room_id}">View & Book</a>
           </div>
         </div>
       </div>`;
@@ -2420,7 +2420,7 @@ function renderBookingPage({ account, rooms, embed = false }) {
       var fetches = Array.from(cards).map(async function(card) {
         var roomId = card.dataset.roomId;
         var maxGuests = parseInt(card.dataset.maxGuests) || 99;
-        var liteSlug = card.dataset.liteSlug;
+        var liteUrl = card.dataset.liteUrl;
         var badge = document.getElementById('badge-' + roomId);
         var bookBtn = document.getElementById('bookbtn-' + roomId);
         var priceDiv = document.getElementById('price-' + roomId);
@@ -2469,8 +2469,8 @@ function renderBookingPage({ account, rooms, embed = false }) {
               card.dataset.price = Math.round(totalPrice / nights);
             }
             // Update View & Book link with dates
-            if (bookBtn && liteSlug) {
-              bookBtn.href = '/' + liteSlug + '?checkin=' + checkin + '&checkout=' + checkout + '&guests=' + guests;
+            if (bookBtn && liteUrl) {
+              bookBtn.href = liteUrl + '?checkin=' + checkin + '&checkout=' + checkout + '&guests=' + guests;
             }
           } else if (dates.length === 0) {
             // No availability data at all — not necessarily unavailable, just no data
