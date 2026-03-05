@@ -1808,6 +1808,16 @@
                 </div>
 
                 <div class="nav-section collapsed">
+                    <div class="nav-label" onclick="toggleNavSection(this)">GAS Lites</div>
+                    <div class="nav-section-items">
+                    <a class="nav-item" data-view="gas-lites" href="#" onclick="navClick(this, 'gas-lites'); return false;">
+                        <span class="nav-icon">🏠</span>
+                        <span>Lite Pages</span>
+                    </a>
+                    </div>
+                </div>
+
+                <div class="nav-section collapsed">
                     <div class="nav-label" onclick="toggleNavSection(this)">GAS Network</div>
                     <div class="nav-section-items">
                     <a class="nav-item" data-view="network-contacts" href="#" onclick="navClick(this, 'network-contacts'); return false;">
@@ -4661,6 +4671,32 @@
                         <div class="empty-icon"></div>
                         <h3>Select a Property</h3>
                         <p>Choose a property above to manage its marketing features and tags</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- GAS Lites View -->
+            <div id="gas-lites" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>GAS Lites</h2>
+                            <p>Free property micro-sites with instant booking</p>
+                        </div>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <a id="lites-book-link" href="#" target="_blank" class="btn btn-secondary">
+                                <span>🔗</span>
+                                <span>View Booking Page</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div id="lites-list">
+                        <div class="loading">
+                            <div class="spinner"></div>
+                            <p style="margin-top: 1rem;">Loading Lite pages...</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -21800,6 +21836,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (viewName === 'turbine-connections') loadTurbineConnections();
             if (viewName === 'turbine-campaigns') loadTurbineCampaigns();
             if (viewName === 'turbine-generator') { loadTurbineConnections(); loadTurbinePosts(); }
+            if (viewName === 'gas-lites') loadGasLites();
             if (viewName === 'network-contacts') loadNetworkContacts();
             if (viewName === 'network-tags') loadNetworkTags();
             if (viewName === 'network-segments') loadNetworkSegments();
@@ -36541,6 +36578,66 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         })();
         
+        // ==================== GAS LITES ====================
+        async function loadGasLites() {
+            const container = document.getElementById('lites-list');
+            if (!container) return;
+            container.innerHTML = '<div class="loading"><div class="spinner"></div><p style="margin-top:1rem;">Loading Lite pages...</p></div>';
+
+            try {
+                const accountId = currentAccount?.id || localStorage.getItem('gas_account_id');
+                if (!accountId) { container.innerHTML = '<p>No account selected</p>'; return; }
+
+                const res = await fetch(`/api/db/gas-lites?account_id=${accountId}`);
+                const data = await res.json();
+                const lites = data.lites || [];
+                const accountCode = data.account_code || accountId;
+
+                // Update booking page link
+                const bookLink = document.getElementById('lites-book-link');
+                if (bookLink) {
+                    bookLink.href = `https://lite.gas.travel/book/${accountCode}`;
+                }
+
+                if (lites.length === 0) {
+                    container.innerHTML = `<div class="empty-state">
+                        <h3>No Lite Pages Yet</h3>
+                        <p>Lite pages are auto-created for each room. Import properties first.</p>
+                    </div>`;
+                    return;
+                }
+
+                let html = `<p style="margin-bottom:1rem;color:#64748b;">
+                    ${lites.length} Lite page${lites.length !== 1 ? 's' : ''} &middot;
+                    Booking page: <a href="https://lite.gas.travel/book/${accountCode}" target="_blank" style="color:#3b82f6;">lite.gas.travel/book/${accountCode}</a>
+                </p>`;
+                html += '<table class="data-table"><thead><tr>';
+                html += '<th>Room</th><th>Property</th><th>Location</th><th>Views</th><th>Status</th><th>Link</th>';
+                html += '</tr></thead><tbody>';
+
+                lites.forEach(l => {
+                    const name = l.custom_title || (l.display_name && typeof l.display_name === 'object' ? (l.display_name.en || Object.values(l.display_name)[0]) : l.display_name) || l.room_name || 'Untitled';
+                    const status = l.active ? '<span style="color:#16a34a;">Active</span>' : '<span style="color:#94a3b8;">Inactive</span>';
+                    const liteUrl = `https://lite.gas.travel/${l.slug}`;
+                    const location = [l.city, l.country].filter(Boolean).join(', ') || '-';
+                    html += `<tr>
+                        <td>${escapeHtml(name)}</td>
+                        <td>${escapeHtml(l.property_name || '-')}</td>
+                        <td>${escapeHtml(location)}</td>
+                        <td>${l.views || 0}</td>
+                        <td>${status}</td>
+                        <td><a href="${liteUrl}" target="_blank" style="color:#3b82f6;">/${l.slug}</a></td>
+                    </tr>`;
+                });
+
+                html += '</tbody></table>';
+                container.innerHTML = html;
+            } catch (err) {
+                console.error('Failed to load GAS Lites:', err);
+                container.innerHTML = '<p style="color:#ef4444;">Failed to load Lite pages</p>';
+            }
+        }
+
         // Load connected accounts
         async function loadTurbineConnections() {
             const container = document.getElementById('turbine-connections-list');
