@@ -2130,13 +2130,9 @@ function renderBookingPage({ account, rooms, embed = false }) {
     if (!r.latitude || !r.longitude) return;
     const pid = r.property_id;
     if (!propertyMap[pid]) {
-      propertyMap[pid] = { id: pid, name: r.property_name, city: r.city || '', lat: parseFloat(r.latitude), lng: parseFloat(r.longitude), rooms: [], minPrice: null };
+      propertyMap[pid] = { id: pid, name: r.property_name, city: r.city || '', lat: parseFloat(r.latitude), lng: parseFloat(r.longitude), rooms: [] };
     }
     propertyMap[pid].rooms.push({ id: r.room_id, name: r.room_name || r.display_name });
-    const price = parseFloat(r.today_price || 0);
-    if (price > 0 && (propertyMap[pid].minPrice === null || price < propertyMap[pid].minPrice)) {
-      propertyMap[pid].minPrice = price;
-    }
   });
   const mapPins = Object.values(propertyMap).filter(p => p.lat && p.lng);
   const mapDataJson = JSON.stringify(mapPins);
@@ -2144,15 +2140,12 @@ function renderBookingPage({ account, rooms, embed = false }) {
   const roomCardsHtml = rooms.map((r, i) => {
     const image = r.room_image || r.property_image || '';
     const displayName = r.display_name ? (typeof r.display_name === 'object' ? (r.display_name.en || Object.values(r.display_name)[0]) : r.display_name) : r.room_name;
-    const currency = getCurrencySymbol(r.currency);
-    const price = parseFloat(r.today_price || 0);
-    const priceHtml = price > 0 ? `${currency}${Math.round(price)}<span class="per-night"> / night</span>` : '<span class="price-on-request">Price on request</span>';
     const liteUrl = r.lite_slug ? `/${r.lite_slug}` : `/${r.room_id}`;
     const bedrooms = parseInt(r.num_bedrooms) || 0;
     const bathrooms = parseFloat(r.num_bathrooms) || 0;
     const bathroomsDisplay = bathrooms === Math.floor(bathrooms) ? Math.floor(bathrooms) : bathrooms.toFixed(1);
     return `
-      <div class="room-card" id="room-${r.room_id}" data-room-id="${r.room_id}" data-max-guests="${r.max_guests || 99}" data-lite-url="${liteUrl}" data-price="${price}" data-bedrooms="${bedrooms}" data-city="${escapeForHTML(r.city || '')}" data-property="${escapeForHTML(r.property_name || '')}" data-property-id="${r.property_id}">
+      <div class="room-card" id="room-${r.room_id}" data-room-id="${r.room_id}" data-max-guests="${r.max_guests || 99}" data-lite-url="${liteUrl}" data-price="0" data-bedrooms="${bedrooms}" data-city="${escapeForHTML(r.city || '')}" data-property="${escapeForHTML(r.property_name || '')}" data-property-id="${r.property_id}">
         <div class="room-image" style="background-image: url('${image}');">
           ${!image ? '<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:3rem;color:#cbd5e1;">🏠</div>' : ''}
           <div class="avail-badge" id="badge-${r.room_id}"></div>
@@ -2166,7 +2159,7 @@ function renderBookingPage({ account, rooms, embed = false }) {
             ${bathrooms > 0 ? `<span class="meta-pill">🚿 ${bathroomsDisplay}</span>` : ''}
           </div>
           <div class="room-bottom">
-            <div class="room-price" id="price-${r.room_id}">${priceHtml}</div>
+            <div class="room-price" id="price-${r.room_id}"><span class="price-on-request">Select dates</span></div>
             <a href="${liteUrl}" class="book-btn" id="bookbtn-${r.room_id}">View & Book</a>
           </div>
         </div>
@@ -2551,8 +2544,7 @@ ${mapPins.length > 0 && !embed ? `
       var currency = '${defaultCurrency}';
       var markers = {};
       pins.forEach(function(p) {
-        var priceText = p.minPrice ? currency + Math.round(p.minPrice) + '/night' : '';
-        var label = '<strong>' + p.name + '</strong>' + (p.city ? '<br>' + p.city : '') + (priceText ? '<br>' + priceText : '');
+        var label = '<strong>' + p.name + '</strong>' + (p.city ? '<br>' + p.city : '');
         if (p.rooms.length > 1) label += '<br>' + p.rooms.length + ' rooms';
         var marker = L.marker([p.lat, p.lng]).addTo(map);
         marker.bindPopup(label);
@@ -2690,54 +2682,16 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
     minStay: a.min_stay
   })));
 
-  // Build Open Graph meta data
-  const ogLocation = [lite.city, lite.country].filter(Boolean).join(', ');
-  const ogPriceText = price ? `${currency}${price}/night` : '';
-  const ogOfferText = activeOffer 
-    ? (activeOffer.discount_type === 'percent' || activeOffer.discount_type === 'percentage'
-      ? `${activeOffer.discount_value}% OFF` 
-      : activeOffer.discount_type === 'fixed' 
-        ? `${currency}${activeOffer.discount_value} OFF`
-        : 'Special Price')
-    : '';
-  const ogDescParts = [
-    activeOffer ? `🔥 ${ogOfferText}${originalPrice ? ` — was ${currency}${originalPrice}, now ${ogPriceText}` : ''}` : '',
-    ogPriceText && !activeOffer ? `From ${ogPriceText}` : '',
-    ogLocation ? `📍 ${ogLocation}` : '',
-    lite.max_guests ? `👥 Up to ${lite.max_guests} guests` : '',
-    lite.bedroom_count ? `🛏️ ${lite.bedroom_count} bed${lite.bedroom_count > 1 ? 's' : ''}` : '',
-    String(description).substring(0, 100).replace(/"/g, '&quot;')
-  ].filter(Boolean).join(' • ');
-  const ogDesc = ogDescParts.substring(0, 200);
-  const ogTitle = activeOffer 
-    ? `${ogOfferText} — ${String(title).replace(/"/g, '&quot;')}`
-    : String(title).replace(/"/g, '&quot;');
-
   return `<!DOCTYPE html>
 <html lang="${lang}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${String(title).replace(/</g, '&lt;').replace(/>/g, '&gt;')}${activeOffer ? ' — ' + (activeOffer.discount_type === 'percent' || activeOffer.discount_type === 'percentage' ? activeOffer.discount_value + '% OFF' : activeOffer.discount_type === 'fixed' ? currency + activeOffer.discount_value + ' OFF' : 'Special Price') : ''} | Book Direct</title>
-  <meta name="description" content="${ogDesc}">
-  
-  <!-- Open Graph -->
-  <meta property="og:type" content="product">
-  <meta property="og:site_name" content="GAS - Global Accommodation System">
-  <meta property="og:title" content="${ogTitle}">
-  <meta property="og:description" content="${ogDesc}">
+  <title>${String(title).replace(/</g, '&lt;').replace(/>/g, '&gt;')} | Book Direct</title>
+  <meta name="description" content="${String(description).substring(0,160).replace(/"/g, '&quot;')}">
+  <meta property="og:title" content="${String(title).replace(/"/g, '&quot;')}">
   <meta property="og:image" content="${images[0]?.url || ''}">
-  <meta property="og:image:width" content="1200">
-  <meta property="og:image:height" content="630">
   <meta property="og:url" content="${liteUrl}">
-  ${price ? `<meta property="product:price:amount" content="${price}">
-  <meta property="product:price:currency" content="${lite.currency || 'USD'}">` : ''}
-  
-  <!-- Twitter Card -->
-  <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="${ogTitle}">
-  <meta name="twitter:description" content="${ogDesc}">
-  <meta name="twitter:image" content="${images[0]?.url || ''}">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
@@ -3298,8 +3252,7 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
             </div>
             
             <div class="price-display">
-              ${originalPrice && originalPrice !== price ? `<span style="text-decoration: line-through; color: #94a3b8; font-size: 1rem; margin-right: 8px;">${currency}${Math.round(originalPrice).toLocaleString()}</span>` : ''}
-              ${price ? `<span class="price-amount" ${originalPrice ? 'style="color: #10b981;"' : ''}>${currency}${Math.round(price).toLocaleString()}</span><span class="price-period"> / ${t('night', lang)}</span>` : `<span class="price-amount">${t('select_dates', lang)}</span>`}
+              <span class="price-amount">${t('select_dates', lang)}</span>
             </div>
             <div class="date-inputs">
               <div class="date-field"><label>${t('check_in', lang)}</label><input type="text" id="checkin" placeholder="${t('select_dates', lang)}" readonly></div>
@@ -3624,10 +3577,27 @@ function renderFullPage({ lite, images, amenities, reviews, availability, todayP
       
       // Voucher apply button
       document.getElementById('applyVoucher').addEventListener('click', applyVoucherCode);
-      
+
       // Book button
       document.getElementById('bookBtn').addEventListener('click', () => goToStep(1));
-      
+
+      // Auto-populate dates from URL params and fetch pricing
+      (function() {
+        var params = new URLSearchParams(window.location.search);
+        var ci = params.get('checkin');
+        var co = params.get('checkout');
+        var g = params.get('guests');
+        if (ci) checkinPicker.setDate(ci, true);
+        if (co) {
+          var minD = new Date(ci || Date.now());
+          minD.setDate(minD.getDate() + 1);
+          checkoutPicker.set('minDate', minD);
+          checkoutPicker.setDate(co, true);
+        }
+        if (g) document.getElementById('adults').value = g;
+        if (ci && co) setTimeout(fetchPricing, 200);
+      })();
+
       // Load Stripe info
       loadStripeInfo();
     });
