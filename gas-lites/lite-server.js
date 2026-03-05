@@ -2113,6 +2113,7 @@ function renderBookingPage({ account, rooms, embed = false }) {
   const logoHtml = account.logo_url
     ? `<img src="${account.logo_url}" alt="${escapeForHTML(businessName)}" style="height: 48px; margin-right: 1rem;">`
     : '';
+  const defaultCurrency = getCurrencySymbol(rooms.length > 0 ? rooms[0].currency : 'USD');
 
   const roomCardsHtml = rooms.map((r, i) => {
     const image = r.room_image || r.property_image || '';
@@ -2333,7 +2334,7 @@ function renderBookingPage({ account, rooms, embed = false }) {
             badge.className = 'avail-badge show-avail';
             badge.textContent = 'Available';
             if (avgPrice > 0 && priceDiv) {
-              priceDiv.innerHTML = '${currency}' + avgPrice + '<span class="per-night"> / night</span>';
+              priceDiv.innerHTML = '${defaultCurrency}' + avgPrice + '<span class="per-night"> / night</span>';
             }
             if (bookBtn && liteSlug) {
               bookBtn.classList.remove('disabled');
