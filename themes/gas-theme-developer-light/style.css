@@ -107,7 +107,7 @@ img {
 }
 
 .developer-section {
-    padding: 80px 0;
+    padding: var(--developer-section-spacing, 20px) 0;
 }
 
 .developer-section-alt {
@@ -695,12 +695,12 @@ img {
    Featured Properties
    ========================================================================== */
 .developer-featured {
-    padding: 100px 0;
+    padding: var(--developer-section-spacing, 20px) 0;
 }
 
 .developer-section-header {
     text-align: center;
-    margin-bottom: 60px;
+    margin-bottom: var(--developer-section-spacing, 20px);
 }
 
 .developer-section-header h2 {
@@ -718,7 +718,7 @@ img {
    Intro Section
    ========================================================================== */
 .developer-intro {
-    padding: 60px 0;
+    padding: var(--developer-section-spacing, 20px) 0;
     text-align: center;
 }
 
@@ -936,7 +936,7 @@ img {
    Reviews Section (Widget)
    ========================================================================== */
 .developer-reviews {
-    padding: 80px 0;
+    padding: var(--developer-section-spacing, 20px) 0;
 }
 
 .developer-reviews-widget {
@@ -1030,10 +1030,10 @@ img {
    USP / What We Offer Section
    ========================================================================== */
 .developer-usp {
-    padding: 80px 24px 0;
+    padding: var(--developer-section-spacing, 20px) 24px 0;
     text-align: center;
     position: relative;
-    margin-bottom: 80px;
+    margin-bottom: var(--developer-section-spacing, 20px);
 }
 
 .developer-usp-grid {
@@ -1097,7 +1097,7 @@ img {
    Services Section
    ========================================================================== */
 .developer-services {
-    padding: 80px 24px;
+    padding: var(--developer-section-spacing, 20px) 24px;
     background-size: cover;
     background-position: center;
 }
@@ -1178,7 +1178,7 @@ img {
    ========================================================================== */
 .developer-cta {
     text-align: center;
-    padding: 100px 24px;
+    padding: var(--developer-section-spacing, 20px) 24px;
     background: linear-gradient(135deg, var(--developer-primary) 0%, var(--developer-primary-dark) 100%);
     color: white;
 }
@@ -1236,14 +1236,14 @@ img {
 .developer-footer {
     background: var(--developer-secondary);
     color: white;
-    padding: 80px 0 0;
+    padding: var(--developer-section-spacing, 20px) 0 0;
 }
 
 .developer-footer-grid {
     display: grid;
     grid-template-columns: 2fr 1fr 1fr 1fr;
-    gap: 60px;
-    padding-bottom: 60px;
+    gap: var(--developer-section-spacing, 20px);
+    padding-bottom: var(--developer-section-spacing, 20px);
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
@@ -1343,7 +1343,7 @@ img {
 }
 
 .developer-page-content {
-    padding: 60px 0;
+    padding: var(--developer-section-spacing, 20px) 0;
 }
 
 /* No header variant - content starts after sticky header */

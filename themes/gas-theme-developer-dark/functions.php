@@ -2424,7 +2424,8 @@ function developer_get_api_settings() {
         'btn_secondary_bg' => $website_styles['btn-secondary-bg'] ?? null,
         'btn_secondary_text' => $website_styles['btn-secondary-text'] ?? null,
         'btn_radius' => $website_styles['btn-radius'] ?? null,
-        
+        'section_spacing' => $website_styles['section-spacing'] ?? null,
+
         // About Page (standalone page, not homepage section) - MULTILINGUAL
         'page_about_title' => developer_get_ml_value($website_page_about, 'title', $lang),
         'page_about_subtitle' => developer_get_ml_value($website_page_about, 'subtitle', $lang),
@@ -2793,6 +2794,7 @@ function developer_developer_custom_css() {
     $body_text_size = $api['body_size'] ?? get_theme_mod('developer_body_text_size', '16');
     $btn_radius = $api['btn_radius'] ?? get_theme_mod('developer_btn_radius', '8');
     $link_color = $api['link_color'] ?? get_theme_mod('developer_link_color', '#2563eb');
+    $section_spacing = !empty($api['section_spacing']) ? intval($api['section_spacing']) : 20;
     $custom_css = get_theme_mod('developer_custom_css', '');
     
     // Header - API overrides theme_mod
@@ -2893,6 +2895,7 @@ function developer_developer_custom_css() {
             --developer-btn-secondary-text: ' . esc_attr($btn_secondary_text) . ';
             --developer-btn-radius: ' . esc_attr($btn_radius) . 'px;
             --developer-link-color: ' . esc_attr($link_color) . ';
+            --developer-section-spacing: ' . esc_attr($section_spacing) . 'px;
         }
         
         /* Global Button Styles */

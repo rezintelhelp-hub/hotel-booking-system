@@ -10281,6 +10281,17 @@
                 </div>
 
                 <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header"><h3>Layout</h3></div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label class="form-label">Section Spacing: <span id="wb-styles-section-spacing-value">20</span>px</label>
+                            <input type="range" id="wb-styles-section-spacing" min="10" max="80" value="20" step="10" style="width: 100%;" oninput="document.getElementById('wb-styles-section-spacing-value').textContent = this.value">
+                            <small class="form-hint">Vertical padding between page sections (default: 20px)</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top: 1rem;">
                     <div class="card-header"><h3>Custom CSS</h3></div>
                     <div class="card-body">
                         <div class="form-group">
