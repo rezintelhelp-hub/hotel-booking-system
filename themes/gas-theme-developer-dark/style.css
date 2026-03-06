@@ -1,0 +1,1873 @@
+/*
+Theme Name: GAS Developer Light
+Theme URI: https://gas.travel
+Author: GAS Booking
+Author URI: https://gas.travel
+Description: A modern vacation rental theme designed for GAS Booking. Features hero search, property listings, and seamless booking integration. Auto-detects GAS Blog, Attractions, About, and Contact plugins.
+Version: 1.6.58
+License: GNU General Public License v2 or later
+License URI: http://www.gnu.org/licenses/gpl-2.0.html
+Text Domain: gas-developer-light
+Tags: vacation-rental, hotel, booking, one-column, custom-colors, custom-logo, featured-images, full-width-template
+Requires at least: 5.9
+Tested up to: 6.4
+Requires PHP: 7.4
+*/
+
+/* ==========================================================================
+   CSS Variables
+   ========================================================================== */
+:root {
+    --developer-primary: #2563eb;
+    --developer-primary-dark: #1d4ed8;
+    --developer-secondary: #0f172a;
+    --developer-accent: #f59e0b;
+    --developer-text: #1e293b;
+    --developer-text-light: #64748b;
+    --developer-bg: #ffffff;
+    --developer-bg-alt: #f8fafc;
+    --developer-border: #e2e8f0;
+    --developer-success: #10b981;
+    --developer-error: #ef4444;
+    --developer-radius: 8px;
+    --developer-radius-lg: 16px;
+    --developer-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    --developer-shadow-lg: 0 10px 40px rgba(0,0,0,0.1);
+    --developer-transition: all 0.3s ease;
+    --developer-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --developer-font-display: 'Playfair Display', Georgia, serif;
+}
+
+/* ==========================================================================
+   Reset & Base
+   ========================================================================== */
+*, *::before, *::after {
+    box-sizing: border-box;
+}
+
+html {
+    scroll-behavior: smooth;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    font-family: var(--developer-font);
+    font-size: 16px;
+    line-height: 1.6;
+    color: var(--developer-text);
+    background: var(--developer-bg);
+    -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: var(--developer-font-display);
+    font-weight: 700;
+    line-height: 1.2;
+    margin: 0 0 1rem;
+    color: var(--developer-secondary);
+}
+
+h1 { font-size: clamp(2rem, 5vw, 3.5rem); }
+h2 { font-size: clamp(1.75rem, 4vw, 2.5rem); }
+h3 { font-size: clamp(1.25rem, 3vw, 1.75rem); }
+
+p {
+    margin: 0 0 1rem;
+}
+
+a {
+    color: var(--developer-primary);
+    text-decoration: none;
+    transition: var(--developer-transition);
+}
+
+a:hover {
+    color: var(--developer-primary-dark);
+}
+
+img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+}
+
+/* ==========================================================================
+   Layout
+   ========================================================================== */
+.developer-container {
+    width: 100%;
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 0 24px;
+}
+
+.developer-container-wide {
+    max-width: 1440px;
+}
+
+.developer-section {
+    padding: 80px 0;
+}
+
+.developer-section-alt {
+    background: var(--developer-bg-alt);
+}
+
+/* ==========================================================================
+   Header
+   ========================================================================== */
+.developer-header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    border-bottom: none;
+    transition: var(--developer-transition);
+}
+
+/* Adjust header position when WordPress admin bar is showing */
+.admin-bar .developer-header {
+    top: 32px;
+}
+
+@media screen and (max-width: 782px) {
+    .admin-bar .developer-header {
+        top: 46px;
+    }
+}
+
+.developer-header.scrolled {
+    box-shadow: var(--developer-shadow-lg);
+}
+
+.developer-header-static {
+    position: relative;
+}
+
+/* Header Background Variants */
+.developer-header-white {
+    background: rgba(255, 255, 255, 0.95);
+}
+
+.developer-header-light {
+    background: rgba(248, 250, 252, 0.95);
+}
+
+.developer-header-dark {
+    background: rgba(15, 23, 42, 0.95);
+    border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+.developer-header-dark .developer-logo,
+.developer-header-dark .developer-nav a {
+    color: white;
+}
+
+.developer-header-dark .developer-menu-toggle span {
+    background: white;
+}
+
+.developer-header-transparent {
+    background: linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.1) 50%, transparent 100%);
+    border-bottom: none;
+}
+
+.developer-header-transparent .developer-logo,
+.developer-header-transparent .developer-nav a {
+    color: white;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+
+.developer-header-transparent .developer-menu-toggle span {
+    background: white;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+.developer-header-transparent.scrolled {
+    background: rgba(255, 255, 255, 0.98);
+    box-shadow: 0 2px 20px rgba(0,0,0,0.1);
+}
+
+.developer-header-transparent.scrolled .developer-logo,
+.developer-header-transparent.scrolled .developer-nav a {
+    color: var(--developer-text);
+    text-shadow: none;
+}
+
+.developer-header-transparent.scrolled .developer-menu-toggle span {
+    background: var(--developer-secondary);
+    box-shadow: none;
+}
+
+.developer-header-primary {
+    background: var(--developer-primary);
+    border-bottom: none;
+}
+
+.developer-header-primary .developer-logo,
+.developer-header-primary .developer-nav a {
+    color: white;
+}
+
+.developer-header-primary .developer-nav-cta {
+    background: white !important;
+    color: var(--developer-primary) !important;
+}
+
+.developer-header-primary .developer-menu-toggle span {
+    background: white;
+}
+
+.developer-header-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 80px;
+}
+
+/* Logo Right Layout */
+.developer-header-inner.developer-header-reversed {
+    flex-direction: row-reverse;
+}
+
+/* Logo Center Layout */
+.developer-header-inner.developer-header-center {
+    justify-content: center;
+    gap: 40px;
+}
+
+.developer-header-center .developer-nav-left,
+.developer-header-center .developer-nav-right {
+    flex: 1;
+}
+
+.developer-header-center .developer-nav-left {
+    justify-content: flex-end;
+}
+
+.developer-header-center .developer-nav-right {
+    justify-content: flex-start;
+}
+
+.developer-header-center .developer-logo {
+    flex: 0 0 auto;
+}
+
+/* Stacked Layout */
+.developer-header-inner.developer-header-stacked {
+    flex-direction: column;
+    height: auto;
+    padding: 20px 0;
+    gap: 16px;
+}
+
+.developer-header-stacked .developer-nav-stacked {
+    justify-content: center;
+}
+
+.developer-logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-family: var(--developer-font-display);
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--developer-secondary);
+}
+
+.developer-logo img {
+    height: 40px;
+    width: auto;
+}
+
+.developer-nav {
+    display: flex;
+    align-items: center;
+    gap: 32px;
+}
+
+.developer-nav a {
+    color: var(--developer-text);
+    font-weight: 500;
+    font-size: 15px;
+    padding: 8px 0;
+    position: relative;
+}
+
+.developer-nav a::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 0;
+    height: 2px;
+    background: var(--developer-primary);
+    transition: var(--developer-transition);
+}
+
+.developer-nav a:hover::after,
+.developer-nav a.active::after {
+    width: 100%;
+}
+
+.developer-nav-cta {
+    background: var(--developer-primary) !important;
+    color: white !important;
+    padding: 12px 24px !important;
+    border-radius: var(--developer-radius);
+}
+
+.developer-nav-cta::after {
+    display: none !important;
+}
+
+.developer-nav-cta:hover {
+    background: var(--developer-primary-dark) !important;
+}
+
+/* Dropdown Navigation */
+.developer-nav-dropdown {
+    position: relative;
+}
+
+.developer-nav-parent {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.developer-nav-arrow {
+    transition: var(--developer-transition);
+}
+
+.developer-nav-dropdown:hover .developer-nav-arrow {
+    transform: rotate(180deg);
+}
+
+.developer-nav-submenu {
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    min-width: 200px;
+    background: var(--developer-bg);
+    border-radius: var(--developer-radius);
+    box-shadow: var(--developer-shadow-lg);
+    padding: 8px 0;
+    opacity: 0;
+    visibility: hidden;
+    transition: var(--developer-transition);
+    z-index: 1000;
+    margin-top: 8px;
+}
+
+.developer-nav-dropdown:hover .developer-nav-submenu {
+    opacity: 1;
+    visibility: visible;
+    margin-top: 0;
+}
+
+.developer-nav-submenu::before {
+    content: '';
+    position: absolute;
+    top: -8px;
+    left: 0;
+    right: 0;
+    height: 8px;
+}
+
+.developer-nav-submenu a {
+    display: block;
+    padding: 10px 20px !important;
+    color: var(--developer-text);
+    font-size: 14px;
+    white-space: nowrap;
+}
+
+.developer-nav-submenu a:hover {
+    background: var(--developer-bg-alt);
+    color: var(--developer-primary);
+}
+
+.developer-nav-submenu a::after {
+    display: none !important;
+}
+
+/* Mobile Menu */
+.developer-mobile-menu {
+    display: none;
+}
+
+.developer-menu-toggle {
+    display: none;
+    background: none;
+    border: none;
+    padding: 8px;
+    cursor: pointer;
+}
+
+.developer-menu-toggle span {
+    display: block;
+    width: 24px;
+    height: 2px;
+    background: var(--developer-secondary);
+    margin: 6px 0;
+    transition: var(--developer-transition);
+}
+
+@media (max-width: 968px) {
+    /* Hide original navs on mobile */
+    .developer-nav,
+    .developer-nav-left,
+    .developer-nav-right,
+    .developer-nav-stacked {
+        display: none !important;
+    }
+    
+    /* Mobile menu container */
+    .developer-mobile-menu {
+        position: fixed;
+        top: 80px;
+        left: 0;
+        right: 0;
+        background: white;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 24px;
+        gap: 16px;
+        border-bottom: 1px solid var(--developer-border);
+        transform: translateY(-100%);
+        opacity: 0;
+        visibility: hidden;
+        transition: var(--developer-transition);
+        z-index: 999;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    
+    .developer-mobile-menu.active {
+        transform: translateY(0);
+        opacity: 1;
+        visibility: visible;
+    }
+    
+    .developer-mobile-menu a {
+        display: block;
+        padding: 12px 24px;
+        color: var(--developer-text);
+        text-decoration: none;
+        font-size: 16px;
+        width: 100%;
+        text-align: center;
+    }
+    
+    .developer-mobile-menu a:hover {
+        background: var(--developer-light);
+    }
+    
+    .developer-mobile-menu a.developer-nav-cta {
+        background: var(--developer-primary);
+        color: white;
+        border-radius: var(--developer-radius);
+        margin-top: 8px;
+    }
+    
+    /* Mobile dropdown styles */
+    .developer-mobile-menu .developer-nav-dropdown {
+        width: 100%;
+        text-align: center;
+    }
+    
+    .developer-mobile-menu .developer-nav-parent {
+        justify-content: center;
+    }
+    
+    .developer-mobile-menu .developer-nav-submenu {
+        position: static;
+        transform: none;
+        opacity: 1;
+        visibility: visible;
+        box-shadow: none;
+        background: var(--developer-bg-alt);
+        margin: 0;
+        padding: 8px 0;
+        display: none;
+        border-radius: 0;
+    }
+    
+    .developer-mobile-menu .developer-nav-dropdown.open .developer-nav-submenu {
+        display: block;
+    }
+    
+    .developer-mobile-menu .developer-nav-dropdown.open .developer-nav-arrow {
+        transform: rotate(180deg);
+    }
+    
+    .developer-mobile-menu .developer-nav-submenu a {
+        font-size: 14px;
+        padding: 10px 24px !important;
+    }
+
+    .developer-mobile-menu .developer-lang-switcher {
+        width: 100%;
+        margin: 0;
+        position: relative;
+    }
+
+    .developer-mobile-menu .developer-lang-current {
+        width: 100%;
+        justify-content: center;
+        padding: 12px 24px;
+        border: none;
+        font-size: 16px;
+    }
+
+    .developer-mobile-menu .developer-lang-dropdown {
+        position: static;
+        opacity: 1;
+        visibility: visible;
+        transform: none;
+        box-shadow: none;
+        background: var(--developer-bg-alt, #1e293b);
+        margin: 0;
+        display: none;
+        border-radius: 0;
+        min-width: auto;
+    }
+
+    .developer-mobile-menu .developer-lang-switcher.open .developer-lang-dropdown {
+        display: block;
+    }
+
+    .developer-mobile-menu .developer-lang-option {
+        justify-content: center;
+        padding: 10px 24px;
+    }
+
+    .developer-menu-toggle {
+        display: block;
+    }
+}
+
+/* ==========================================================================
+   Hero Section
+   ========================================================================== */
+.developer-hero {
+    position: relative;
+    min-height: 90vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 120px 24px 80px;
+    background: linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%);
+    overflow: hidden;
+}
+
+.developer-hero-bg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-size: cover;
+    background-position: center;
+    z-index: 0;
+}
+
+/* Video background */
+.developer-hero-video {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    z-index: 0;
+}
+
+/* Hide video on mobile, show fallback image */
+@media (max-width: 768px) {
+    .developer-hero-video {
+        display: none;
+    }
+    .developer-hero-bg-fallback {
+        display: block !important;
+    }
+}
+
+/* When video is present, hide fallback on desktop */
+.developer-hero-video ~ .developer-hero-bg-fallback {
+    display: none;
+}
+
+.developer-hero-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.5) 0%, rgba(30, 58, 95, 0.4) 100%);
+}
+
+.developer-hero-content {
+    position: relative;
+    z-index: 2;
+    text-align: center;
+    max-width: 900px;
+}
+
+.developer-hero-badge {
+    display: inline-block;
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    padding: 8px 20px;
+    border-radius: 50px;
+    font-size: 14px;
+    font-weight: 500;
+    margin-bottom: 24px;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.developer-hero h1 {
+    color: white;
+    margin-bottom: 20px;
+    text-shadow: 0 2px 20px rgba(0, 0, 0, 0.3);
+}
+
+.developer-hero-subtitle {
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 1.25rem;
+    margin-bottom: 40px;
+    max-width: 600px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+/* Hero Search Widget Wrapper */
+.developer-search-wrapper {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 8px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.developer-search-wrapper .gas-search-widget {
+    background: transparent !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+}
+
+/* Text below search widget */
+.developer-search-below-text {
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 15px;
+    margin-top: 20px;
+    margin-bottom: 0;
+}
+
+.developer-hero-features {
+    display: flex;
+    justify-content: center;
+    gap: 40px;
+    margin-top: 48px;
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 14px;
+}
+
+.developer-hero-feature {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.developer-hero-feature svg {
+    width: 20px;
+    height: 20px;
+    color: var(--developer-accent);
+}
+
+/* ==========================================================================
+   Featured Properties
+   ========================================================================== */
+.developer-featured {
+    padding: 100px 0;
+}
+
+.developer-section-header {
+    text-align: center;
+    margin-bottom: 60px;
+}
+
+.developer-section-header h2 {
+    margin-bottom: 16px;
+}
+
+.developer-section-header p {
+    color: var(--developer-text-light);
+    font-size: 1.125rem;
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+/* ==========================================================================
+   Intro Section
+   ========================================================================== */
+.developer-intro {
+    padding: 60px 0;
+    text-align: center;
+}
+
+.developer-intro-content {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.developer-intro h2 {
+    margin-bottom: 20px;
+}
+
+.developer-intro p {
+    font-size: 1.125rem;
+    line-height: 1.8;
+    margin-bottom: 24px;
+}
+
+.developer-intro .developer-btn {
+    margin-top: 10px;
+}
+
+/* Property Cards - Override GAS styles */
+.developer-featured .gas-rooms-grid {
+    gap: 32px;
+}
+
+.developer-featured .gas-room-card {
+    border-radius: var(--developer-radius-lg);
+    overflow: hidden;
+    box-shadow: var(--developer-shadow);
+    transition: var(--developer-transition);
+    border: none;
+}
+
+.developer-featured .gas-room-card:hover {
+    transform: translateY(-8px);
+    box-shadow: var(--developer-shadow-lg);
+}
+
+.developer-featured .gas-room-image {
+    height: 240px;
+}
+
+/* Mobile room cards - full width and centered */
+@media (max-width: 768px) {
+    .developer-featured .gas-rooms-grid,
+    .gas-rooms-grid {
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 20px !important;
+        padding: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+    }
+    
+    .developer-featured .gas-room-card,
+    .gas-rooms-grid .gas-room-card,
+    .gas-room-card {
+        width: 95% !important;
+        max-width: 95% !important;
+        margin: 0 auto !important;
+        box-sizing: border-box !important;
+    }
+    
+    /* Also fix row layout */
+    .gas-rooms-row-layout {
+        padding: 0 !important;
+        width: 100% !important;
+    }
+    
+    .gas-room-row {
+        width: 95% !important;
+        max-width: 95% !important;
+        margin: 0 auto !important;
+    }
+    
+    .developer-featured .gas-room-image {
+        height: 200px;
+    }
+    
+    /* Ensure container has mobile padding */
+    .developer-featured .developer-container,
+    .developer-section .developer-container {
+        padding-left: 20px !important;
+        padding-right: 20px !important;
+        max-width: 100% !important;
+    }
+}
+
+/* ==========================================================================
+   About Section
+   ========================================================================== */
+.developer-about {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 80px;
+    align-items: center;
+}
+
+.developer-about-image {
+    border-radius: var(--developer-radius-lg);
+    overflow: hidden;
+    box-shadow: var(--developer-shadow-lg);
+}
+
+.developer-about-image img {
+    width: 100%;
+    height: 500px;
+    object-fit: cover;
+}
+
+.developer-about-content h2 {
+    margin-bottom: 24px;
+}
+
+.developer-about-content p {
+    color: var(--developer-text-light);
+    margin-bottom: 24px;
+    font-size: 1.1rem;
+}
+
+.developer-features-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 32px;
+}
+
+.developer-feature-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-weight: 500;
+}
+
+.developer-feature-item svg {
+    width: 24px;
+    height: 24px;
+    color: var(--developer-success);
+    flex-shrink: 0;
+}
+
+@media (max-width: 968px) {
+    .developer-about {
+        grid-template-columns: 1fr;
+        gap: 40px;
+    }
+    
+    .developer-about-image img {
+        height: 350px;
+    }
+}
+
+/* ==========================================================================
+   Attractions / Location Section
+   ========================================================================== */
+.developer-attractions-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 24px;
+}
+
+.developer-attraction-card {
+    position: relative;
+    border-radius: var(--developer-radius-lg);
+    overflow: hidden;
+    aspect-ratio: 1;
+    cursor: pointer;
+}
+
+.developer-attraction-card img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: var(--developer-transition);
+}
+
+.developer-attraction-card:hover img {
+    transform: scale(1.1);
+}
+
+.developer-attraction-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 24px;
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+    color: white;
+}
+
+.developer-attraction-overlay h4 {
+    color: white;
+    margin: 0;
+    font-size: 1.1rem;
+}
+
+@media (max-width: 968px) {
+    .developer-attractions-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 480px) {
+    .developer-attractions-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ==========================================================================
+   Reviews Section (Widget)
+   ========================================================================== */
+.developer-reviews {
+    padding: 80px 0;
+}
+
+.developer-reviews-widget {
+    margin-top: 40px;
+}
+
+/* Style overrides for common review widgets */
+.developer-reviews-widget iframe {
+    max-width: 100%;
+    border: none;
+}
+
+.developer-reviews-widget [data-rw-list] {
+    margin: 0 auto;
+}
+
+/* ==========================================================================
+   Testimonials
+   ========================================================================== */
+.developer-testimonials {
+    background: var(--developer-secondary);
+    color: white;
+}
+
+.developer-testimonials .developer-section-header h2,
+.developer-testimonials .developer-section-header p {
+    color: white;
+}
+
+.developer-testimonials-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 32px;
+}
+
+.developer-testimonial-card {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: var(--developer-radius-lg);
+    padding: 32px;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.developer-testimonial-stars {
+    color: var(--developer-accent);
+    margin-bottom: 16px;
+    font-size: 18px;
+}
+
+.developer-testimonial-text {
+    font-size: 1rem;
+    line-height: 1.7;
+    margin-bottom: 24px;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.developer-testimonial-author {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.developer-testimonial-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: var(--developer-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 18px;
+}
+
+.developer-testimonial-name {
+    font-weight: 600;
+}
+
+.developer-testimonial-location {
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+@media (max-width: 968px) {
+    .developer-testimonials-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ==========================================================================
+   USP / What We Offer Section
+   ========================================================================== */
+.developer-usp {
+    padding: 80px 24px 0;
+    text-align: center;
+    position: relative;
+    margin-bottom: 80px;
+}
+
+.developer-usp-grid {
+    display: grid;
+    gap: 32px;
+    margin-top: 48px;
+    position: relative;
+    z-index: 2;
+    transform: translateY(80px);
+}
+
+.developer-usp-card {
+    background: white;
+    border-radius: 16px;
+    padding: 40px 32px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+    transition: var(--developer-transition);
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.developer-usp-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+}
+
+.developer-usp-icon {
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.developer-usp-icon img {
+    max-width: 120px;
+    max-height: 100px;
+    object-fit: contain;
+    border-radius: 8px;
+}
+
+.developer-usp-card p {
+    font-size: 1rem;
+    line-height: 1.6;
+    margin: 0;
+}
+
+@media (max-width: 768px) {
+    .developer-usp-grid {
+        grid-template-columns: 1fr !important;
+        transform: translateY(40px);
+    }
+    
+    .developer-usp {
+        margin-bottom: 40px;
+    }
+}
+
+/* ==========================================================================
+   Services Section
+   ========================================================================== */
+.developer-services {
+    padding: 80px 24px;
+    background-size: cover;
+    background-position: center;
+}
+
+.developer-services-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 24px;
+}
+
+.developer-services-title-cell {
+    display: flex;
+    align-items: center;
+    padding: 32px 28px;
+}
+
+.developer-services-title-cell h2 {
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1.2;
+    margin: 0;
+}
+
+.developer-services-card {
+    border-radius: 12px;
+    padding: 32px 28px;
+    transition: background 0.3s ease, transform 0.3s ease;
+    cursor: default;
+}
+
+.developer-services-card:hover {
+    background: var(--card-hover-bg) !important;
+    transform: translateY(-2px);
+}
+
+.developer-services-icon {
+    font-size: 2.5rem;
+    display: block;
+    margin-bottom: 16px;
+    line-height: 1;
+}
+
+.developer-services-icon-img {
+    width: 48px;
+    height: 48px;
+    object-fit: contain;
+    margin-bottom: 16px;
+}
+
+.developer-services-card h3 {
+    font-size: 1rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    margin: 0 0 12px 0;
+}
+
+.developer-services-card p {
+    font-size: 0.9rem;
+    line-height: 1.5;
+    margin: 0;
+}
+
+@media (max-width: 968px) {
+    .developer-services-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 600px) {
+    .developer-services-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ==========================================================================
+   CTA Section
+   ========================================================================== */
+.developer-cta {
+    text-align: center;
+    padding: 100px 24px;
+    background: linear-gradient(135deg, var(--developer-primary) 0%, var(--developer-primary-dark) 100%);
+    color: white;
+}
+
+.developer-cta h2 {
+    color: white;
+    margin-bottom: 16px;
+}
+
+.developer-cta p {
+    font-size: 1.25rem;
+    opacity: 0.9;
+    margin-bottom: 32px;
+    max-width: 600px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.developer-btn {
+    display: inline-block;
+    padding: 16px 32px;
+    border-radius: var(--developer-radius);
+    font-weight: 600;
+    font-size: 16px;
+    transition: var(--developer-transition);
+    cursor: pointer;
+    border: none;
+}
+
+.developer-btn-primary {
+    background: white;
+    color: var(--developer-primary);
+}
+
+.developer-btn-primary:hover {
+    background: var(--developer-bg-alt);
+    transform: translateY(-2px);
+}
+
+.developer-btn-secondary {
+    background: transparent;
+    color: white;
+    border: 2px solid white;
+    margin-left: 16px;
+}
+
+.developer-btn-secondary:hover {
+    background: white;
+    color: var(--developer-primary);
+}
+
+/* ==========================================================================
+   Footer
+   ========================================================================== */
+.developer-footer {
+    background: var(--developer-secondary);
+    color: white;
+    padding: 80px 0 0;
+}
+
+.developer-footer-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr 1fr;
+    gap: 60px;
+    padding-bottom: 60px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.developer-footer-brand p {
+    color: rgba(255, 255, 255, 0.7);
+    margin: 16px 0 24px;
+    max-width: 300px;
+}
+
+.developer-footer-social {
+    display: flex;
+    gap: 12px;
+}
+
+.developer-footer-social a {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    transition: var(--developer-transition);
+}
+
+.developer-footer-social a:hover {
+    background: var(--developer-primary);
+}
+
+.developer-footer h4 {
+    color: white;
+    font-size: 16px;
+    margin-bottom: 20px;
+    font-family: var(--developer-font);
+}
+
+.developer-footer-links {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.developer-footer-links li {
+    margin-bottom: 12px;
+}
+
+.developer-footer-links a {
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 15px;
+}
+
+.developer-footer-links a:hover {
+    color: white;
+}
+
+.developer-footer-bottom {
+    padding: 24px 0;
+    text-align: center;
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 14px;
+}
+
+@media (max-width: 968px) {
+    .developer-footer-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 40px;
+    }
+}
+
+@media (max-width: 480px) {
+    .developer-footer-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ==========================================================================
+   Page Templates
+   ========================================================================== */
+.developer-page-header {
+    background: var(--developer-secondary);
+    padding: 160px 24px 80px;
+    text-align: center;
+    color: white;
+}
+
+.developer-page-header h1 {
+    color: white;
+    margin-bottom: 16px;
+}
+
+.developer-page-header p {
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 1.25rem;
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.developer-page-content {
+    padding: 60px 0;
+}
+
+/* No header variant - content starts after sticky header */
+.developer-page-no-header {
+    padding-top: 20px;
+}
+
+/* Book Now Page - Clean layout, minimal spacing */
+.developer-book-now-page {
+    padding-top: 0 !important;
+    margin-top: 0 !important;
+}
+
+/* CRITICAL: Override inline style padding-top: 120px on gas-rooms-page-wrapper */
+.page-template-template-book-now .gas-rooms-page-wrapper {
+    padding-top: 20px !important;
+}
+
+/* Override any GAS plugin padding/margin on book-now page */
+.page-template-template-book-now .gas-rooms-page-wrapper,
+.page-template-template-book-now .gas-rooms-container,
+.page-template-template-book-now .gas-search-filters,
+.page-template-template-book-now .gas-search-widget,
+.page-template-template-book-now .gas-search-wrapper,
+.page-template-template-book-now .gas-rooms-search,
+.page-template-template-book-now .gas-booking-search,
+.page-template-template-book-now [class*="gas-search"],
+.page-template-template-book-now [class*="gas-rooms"] {
+    margin-top: 0 !important;
+}
+
+/* Target first child elements that might have margin */
+.page-template-template-book-now .developer-book-now-page > *:first-child {
+    margin-top: 0 !important;
+    padding-top: 20px !important;
+}
+
+.page-template-template-book-now .developer-page-header {
+    display: none;
+}
+
+/* Room Detail Page - No header needed */
+.page-template-template-room .developer-page-header {
+    display: none;
+}
+
+.page-template-template-room .developer-page-content {
+    padding-top: 100px;
+}
+
+/* Properties pages - cleaner look */
+.gas-room-detail-wrapper {
+    padding-top: 20px;
+}
+
+/* Hide page header when GAS room detail is present */
+body:has(.gas-room-detail) .developer-page-header,
+body:has(.gas-room-gallery) .developer-page-header {
+    display: none;
+}
+
+body:has(.gas-room-detail) .developer-page-content,
+body:has(.gas-room-gallery) .developer-page-content {
+    padding-top: 100px;
+}
+
+/* Hide page header when GAS rooms list is present */
+body:has(.gas-rooms-page-wrapper) .developer-page-header {
+    display: none;
+}
+
+body:has(.gas-rooms-page-wrapper) .developer-page-content {
+    padding-top: 20px;
+}
+
+/* Room Detail Page */
+.page-template-template-room .developer-page-content {
+    padding: 120px 0 60px;
+}
+
+/* ==========================================================================
+   Contact Page
+   ========================================================================== */
+.developer-contact-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 60px;
+}
+
+.developer-contact-info h3 {
+    margin-bottom: 24px;
+}
+
+.developer-contact-item {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.developer-contact-icon {
+    width: 48px;
+    height: 48px;
+    background: var(--developer-bg-alt);
+    border-radius: var(--developer-radius);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.developer-contact-icon svg {
+    width: 24px;
+    height: 24px;
+    color: var(--developer-primary);
+}
+
+.developer-contact-form input,
+.developer-contact-form textarea {
+    width: 100%;
+    padding: 14px 18px;
+    border: 1px solid var(--developer-border);
+    border-radius: var(--developer-radius);
+    font-size: 16px;
+    font-family: var(--developer-font);
+    margin-bottom: 16px;
+    transition: var(--developer-transition);
+}
+
+.developer-contact-form input:focus,
+.developer-contact-form textarea:focus {
+    outline: none;
+    border-color: var(--developer-primary);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.developer-contact-form textarea {
+    min-height: 150px;
+    resize: vertical;
+}
+
+.developer-contact-form button {
+    width: 100%;
+    padding: 16px;
+    background: var(--developer-primary);
+    color: white;
+    border: none;
+    border-radius: var(--developer-radius);
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--developer-transition);
+}
+
+.developer-contact-form button:hover {
+    background: var(--developer-primary-dark);
+}
+
+@media (max-width: 768px) {
+    .developer-contact-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ==========================================================================
+   Blog
+   ========================================================================== */
+.developer-blog-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 32px;
+}
+
+.developer-blog-card {
+    background: white;
+    border-radius: var(--developer-radius-lg);
+    overflow: hidden;
+    box-shadow: var(--developer-shadow);
+    transition: var(--developer-transition);
+}
+
+.developer-blog-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--developer-shadow-lg);
+}
+
+.developer-blog-image {
+    height: 200px;
+    overflow: hidden;
+}
+
+.developer-blog-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: var(--developer-transition);
+}
+
+.developer-blog-card:hover .developer-blog-image img {
+    transform: scale(1.05);
+}
+
+.developer-blog-content {
+    padding: 24px;
+}
+
+.developer-blog-meta {
+    font-size: 14px;
+    color: var(--developer-text-light);
+    margin-bottom: 12px;
+}
+
+.developer-blog-content h3 {
+    font-size: 1.25rem;
+    margin-bottom: 12px;
+}
+
+.developer-blog-content h3 a {
+    color: var(--developer-secondary);
+}
+
+.developer-blog-content h3 a:hover {
+    color: var(--developer-primary);
+}
+
+.developer-blog-excerpt {
+    color: var(--developer-text-light);
+    font-size: 15px;
+}
+
+@media (max-width: 968px) {
+    .developer-blog-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ==========================================================================
+   Utilities
+   ========================================================================== */
+.text-center { text-align: center; }
+.text-left { text-align: left; }
+.text-right { text-align: right; }
+
+.mt-0 { margin-top: 0; }
+.mt-1 { margin-top: 8px; }
+.mt-2 { margin-top: 16px; }
+.mt-3 { margin-top: 24px; }
+.mt-4 { margin-top: 32px; }
+.mt-5 { margin-top: 48px; }
+
+.mb-0 { margin-bottom: 0; }
+.mb-1 { margin-bottom: 8px; }
+.mb-2 { margin-bottom: 16px; }
+.mb-3 { margin-bottom: 24px; }
+.mb-4 { margin-bottom: 32px; }
+.mb-5 { margin-bottom: 48px; }
+
+.hidden { display: none; }
+
+@media (max-width: 768px) {
+    .hide-mobile { display: none; }
+    
+    /* Mobile Header Fixes */
+    .developer-header-inner {
+        height: auto;
+        min-height: 60px;
+        padding: 10px 0;
+    }
+    
+    .developer-logo {
+        font-size: 1rem;
+        max-width: 60%;
+        line-height: 1.2;
+    }
+    
+    .developer-logo img {
+        height: 32px;
+    }
+    
+    .developer-menu-toggle {
+        flex-shrink: 0;
+    }
+}
+
+@media (max-width: 480px) {
+    .developer-logo {
+        font-size: 0.9rem;
+        max-width: 70%;
+    }
+    
+    .developer-logo img {
+        height: 28px;
+    }
+}
+
+@media (min-width: 769px) {
+    .hide-desktop { display: none; }
+}
+
+/* ==========================================================================
+   Single & Double Property Layout Fixes
+   ========================================================================== */
+
+/* When there's only 1 property - center it and make it larger */
+.gas-rooms-grid:has(.gas-room-card:only-child) {
+    display: flex !important;
+    justify-content: center;
+}
+
+.gas-rooms-grid .gas-room-card:only-child {
+    max-width: 500px;
+    width: 100%;
+}
+
+/* When there are exactly 2 properties - center them */
+.gas-rooms-grid:has(.gas-room-card:first-child:nth-last-child(2)) {
+    display: flex !important;
+    justify-content: center;
+    gap: 32px;
+    flex-wrap: wrap;
+}
+
+.gas-rooms-grid:has(.gas-room-card:first-child:nth-last-child(2)) .gas-room-card {
+    max-width: 450px;
+    flex: 1 1 400px;
+}
+
+/* Featured section - single property layout */
+.developer-featured .gas-rooms-grid:has(.gas-room-card:only-child) {
+    display: flex !important;
+    justify-content: center;
+}
+
+.developer-featured .gas-rooms-grid .gas-room-card:only-child {
+    max-width: 600px;
+}
+
+/* Featured section - two properties */
+.developer-featured .gas-rooms-grid:has(.gas-room-card:first-child:nth-last-child(2)) {
+    display: flex !important;
+    justify-content: center;
+    gap: 40px;
+}
+
+.developer-featured .gas-rooms-grid:has(.gas-room-card:first-child:nth-last-child(2)) .gas-room-card {
+    max-width: 500px;
+    flex: 1 1 400px;
+}
+
+/* Book Now page - single property full width with map */
+.developer-book-now-page .gas-rooms-grid:has(.gas-room-card:only-child) {
+    display: block;
+}
+
+.developer-book-now-page .gas-rooms-grid .gas-room-card:only-child {
+    max-width: 100%;
+}
+
+/* Fallback for browsers without :has() support */
+@supports not selector(:has(*)) {
+    .gas-rooms-grid[data-count="1"] {
+        display: flex !important;
+        justify-content: center;
+    }
+    
+    .gas-rooms-grid[data-count="1"] .gas-room-card {
+        max-width: 500px;
+    }
+    
+    .gas-rooms-grid[data-count="2"] {
+        display: flex !important;
+        justify-content: center;
+        gap: 32px;
+        flex-wrap: wrap;
+    }
+    
+    .gas-rooms-grid[data-count="2"] .gas-room-card {
+        max-width: 450px;
+        flex: 1 1 400px;
+    }
+}
+
+/* ==========================================================================
+   Hero Slider Styles
+   ========================================================================== */
+
+.developer-hero-slider {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+.developer-hero-slide {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-size: cover;
+    background-position: center;
+    opacity: 0;
+    transition: opacity 1s ease-in-out;
+}
+
+.developer-hero-slide.active {
+    opacity: 1;
+}
+
+/* Fade transition */
+.developer-hero[data-slider-transition='fade'] .developer-hero-slide {
+    transition: opacity 1s ease-in-out;
+}
+
+/* Slide transition */
+.developer-hero[data-slider-transition='slide'] .developer-hero-slide {
+    transform: translateX(100%);
+    opacity: 1;
+    transition: transform 0.8s ease-in-out;
+}
+
+.developer-hero[data-slider-transition='slide'] .developer-hero-slide.active {
+    transform: translateX(0);
+}
+
+.developer-hero[data-slider-transition='slide'] .developer-hero-slide.prev {
+    transform: translateX(-100%);
+}
+
+
+/* ==========================================================================
+   Language Switcher Styles
+   ========================================================================== */
+
+.developer-lang-switcher {
+    position: relative;
+    margin-left: 1rem;
+}
+
+.developer-lang-current {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.4rem 0.6rem;
+    background: transparent;
+    border: 1px solid rgba(0,0,0,0.1);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-family: inherit;
+    color: inherit;
+    transition: all 0.2s ease;
+}
+
+.developer-lang-current:hover {
+    background: rgba(0,0,0,0.05);
+}
+
+.developer-lang-current svg {
+    width: 10px;
+    height: 6px;
+    transition: transform 0.2s ease;
+}
+
+.developer-lang-switcher:hover .developer-lang-current svg,
+.developer-lang-switcher.open .developer-lang-current svg {
+    transform: rotate(180deg);
+}
+
+.developer-lang-dropdown {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 0.5rem;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    min-width: 150px;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-10px);
+    transition: all 0.2s ease;
+    z-index: 1000;
+    overflow: hidden;
+}
+
+.developer-lang-switcher:hover .developer-lang-dropdown,
+.developer-lang-switcher.open .developer-lang-dropdown {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}
+
+.developer-lang-option {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1rem;
+    color: #374151;
+    text-decoration: none;
+    font-size: 0.9rem;
+    transition: background 0.15s ease;
+}
+
+.developer-lang-option:hover {
+    background: #f3f4f6;
+}
+
+.developer-lang-option.active {
+    background: #eff6ff;
+    color: #2563eb;
+    font-weight: 500;
+}
+
+/* Mobile adjustments */
+@media (max-width: 768px) {
+    .developer-lang-switcher {
+        margin-left: 0;
+        margin-right: auto;
+    }
+    
+    .developer-lang-dropdown {
+        left: 0;
+        right: auto;
+    }
+}

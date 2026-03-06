@@ -65,6 +65,16 @@
             });
         });
         
+        // Handle language switcher toggle on mobile
+        mobileMenu.querySelectorAll('.developer-lang-current').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                const switcher = this.closest('.developer-lang-switcher');
+                if (switcher) switcher.classList.toggle('open');
+            });
+        });
+
         // Close menu when clicking a non-dropdown link
         mobileMenu.querySelectorAll('a:not(.developer-nav-parent)').forEach(link => {
             link.addEventListener('click', function() {
