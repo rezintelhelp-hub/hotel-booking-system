@@ -30992,7 +30992,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 <div class="image-card" draggable="true" data-id="${img.id}" data-image-id="${img.id}" data-type="${img.type}" data-entity="${img.entityId}" data-order="${idx}"
                                      ondragstart="handleImageDragStart(event)" ondragend="handleImageDragEnd(event)" 
                                      ondragover="handleImageDragOver(event)" ondragleave="handleImageDragLeave(event)" ondrop="handleImageDrop(event)">
-                                    <img src="${img.thumbnail_url || img.image_url}" alt="${img.alt_text || ''}" loading="lazy">
+                                    <img src="${img.thumbnail_url || img.image_url || img.url}" alt="${img.alt_text || ''}" loading="lazy">
                                     <div class="image-card-info">
                                         <div class="image-tags">
                                             ${img.is_primary ? '<span class="image-tag" style="background: gold; color: #000;">⭐ Primary</span>' : ''}
@@ -31004,8 +31004,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                                             <button class="btn btn-small" onclick="moveImage('${img.type}', ${img.entityId}, ${img.id}, -1)" ${isFirst ? 'disabled style="opacity:0.3"' : ''} title="Move Left">◀️</button>
                                             <button class="btn btn-small" onclick="moveImage('${img.type}', ${img.entityId}, ${img.id}, 1)" ${isLast ? 'disabled style="opacity:0.3"' : ''} title="Move Right">▶️</button>
                                             ${!img.is_primary ? `<button class="btn btn-small" onclick="setPrimaryImage('${img.type}', ${img.entityId}, ${img.id})" title="Set as Primary">⭐</button>` : ''}
-                                            <button class="btn btn-small" onclick="openCopyMoveModal('copy', '${img.type}', ${img.entityId}, ${img.id}, '${(img.image_url||'').replace(/'/g, "\\'")}', '${(img.thumbnail_url||'').replace(/'/g, "\\'")}')" title="Copy to...">📋</button>
-                                            <button class="btn btn-small" onclick="openCopyMoveModal('move', '${img.type}', ${img.entityId}, ${img.id}, '${(img.image_url||'').replace(/'/g, "\\'")}', '${(img.thumbnail_url||'').replace(/'/g, "\\'")}')" title="Move to...">✂️</button>
+                                            <button class="btn btn-small" onclick="openCopyMoveModal('copy', '${img.type}', ${img.entityId}, ${img.id}, '${(img.image_url||img.url||'').replace(/'/g, "\\'")}', '${(img.thumbnail_url||img.image_url||img.url||'').replace(/'/g, "\\'")}')" title="Copy to...">📋</button>
+                                            <button class="btn btn-small" onclick="openCopyMoveModal('move', '${img.type}', ${img.entityId}, ${img.id}, '${(img.image_url||img.url||'').replace(/'/g, "\\'")}', '${(img.thumbnail_url||img.image_url||img.url||'').replace(/'/g, "\\'")}')" title="Move to...">✂️</button>
                                             <button class="btn btn-secondary btn-small" onclick="deleteImage('${img.type}', ${img.id})" style="color: #ef4444;" title="Delete">🗑️</button>
                                         </div>
                                     </div>
