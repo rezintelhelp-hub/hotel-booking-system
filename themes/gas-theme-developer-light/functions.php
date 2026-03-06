@@ -2207,6 +2207,7 @@ function developer_get_current_language() {
     }
     
     // Default to site's primary language from account settings
+    static $resolving = false;
     $primary = 'en';
     $client_id = get_option('gas_client_id', '');
     if ($client_id) {
@@ -2215,12 +2216,18 @@ function developer_get_current_language() {
         $site_config = get_transient($cache_key);
         if ($site_config && isset($site_config['languages']['primary'])) {
             $primary = $site_config['languages']['primary'];
-        } else {
-            // Fall back to API settings (always available)
-            $api = function_exists('developer_get_api_settings') ? developer_get_api_settings() : array();
-            if (!empty($api['primary_language'])) {
-                $primary = $api['primary_language'];
+        } elseif (!$resolving) {
+            // Fetch from API directly (avoid recursion with developer_get_api_settings)
+            $resolving = true;
+            $api_url = get_option('gas_api_url', 'https://admin.gas.travel');
+            $resp = wp_remote_get("{$api_url}/api/public/client/{$client_id}/site-config", array('timeout' => 5, 'sslverify' => true));
+            if (!is_wp_error($resp)) {
+                $data = json_decode(wp_remote_retrieve_body($resp), true);
+                if (!empty($data['config']['languages']['primary'])) {
+                    $primary = $data['config']['languages']['primary'];
+                }
             }
+            $resolving = false;
         }
     }
     return $primary;
