@@ -5200,6 +5200,15 @@
                 </div>
             </div>
 
+            <style>
+                .wb-split-container { display: flex; gap: 0; }
+                .wb-editor-panel { flex: 3; overflow-y: auto; min-width: 0; transition: flex 0.3s; }
+                .wb-preview-panel { flex: 2; border-left: 2px solid #e2e8f0; position: sticky; top: 0; height: calc(100vh - 60px); display: flex; flex-direction: column; transition: flex 0.3s, width 0.3s; overflow: hidden; }
+                .wb-preview-panel.collapsed { flex: 0; width: 0; border: none; padding: 0; }
+                .wb-preview-panel iframe { flex: 1; border: none; width: 100%; }
+                .wb-preview-header { display: flex; align-items: center; justify-content: space-between; padding: 0.5rem 0.75rem; background: #f8fafc; border-bottom: 1px solid #e2e8f0; font-size: 0.8rem; color: #64748b; flex-shrink: 0; }
+            </style>
+
             <!-- Website Editor - Tabbed Interface -->
             <div id="website-editor" class="view">
                 <div class="header">
@@ -5213,6 +5222,7 @@
                                 <span></span>
                                 <span>Back to Sites</span>
                             </button>
+                            <button id="editor-preview-toggle" class="btn btn-secondary" onclick="toggleEditorPreview()" style="display: none;">Preview</button>
                             <a id="editor-preview-btn" href="#" target="_blank" class="btn btn-secondary" style="display: none;">
                                 <span></span>
                                 <span>View Live Site</span>
@@ -5221,6 +5231,9 @@
                     </div>
                 </div>
                 
+                <div class="wb-split-container">
+                <div class="wb-editor-panel">
+
                 <!-- Editor Tabs -->
                 <div class="editor-tabs" style="display: flex; gap: 0; margin-bottom: 1.5rem; border-bottom: 2px solid #e2e8f0; overflow-x: auto;">
                     <button class="editor-tab active" data-tab="header" onclick="switchEditorTab('header')" style="padding: 1rem 1.5rem; border: none; background: none; cursor: pointer; font-weight: 600; color: #64748b; border-bottom: 3px solid transparent; margin-bottom: -2px; white-space: nowrap; transition: all 0.2s;">
@@ -7920,6 +7933,18 @@
                         </div>
                     </div>
                 </div>
+                </div><!-- end wb-editor-panel -->
+                <div id="wb-preview-panel" class="wb-preview-panel collapsed">
+                    <div class="wb-preview-header">
+                        <span>Live Preview</span>
+                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            <button onclick="refreshEditorPreview()" class="btn btn-secondary btn-small" style="padding: 2px 8px;" title="Refresh">↻</button>
+                            <button onclick="toggleEditorPreview()" class="btn btn-secondary btn-small" style="padding: 2px 8px;" title="Close">✕</button>
+                        </div>
+                    </div>
+                    <iframe id="wb-preview-iframe" src="about:blank"></iframe>
+                </div>
+                </div><!-- end wb-split-container -->
             </div>
 
             <!-- Website Builder: Header & Logo -->
@@ -20851,6 +20876,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                     previewBtn.href = website.site_url;
                     previewBtn.style.display = 'inline-flex';
                 }
+                const previewToggle = document.getElementById('editor-preview-toggle');
+                if (previewToggle && website.site_url) {
+                    previewToggle.style.display = 'inline-flex';
+                }
                 
                 // Initialize the editor content
                 initializeWebsiteEditor();
@@ -23266,6 +23295,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                     if (section.startsWith('page-')) {
                         await triggerWordPressPageSync();
                     }
+
+                    // Auto-refresh live preview after save
+                    if (!document.getElementById('wb-preview-panel')?.classList.contains('collapsed')) {
+                        setTimeout(() => refreshEditorPreview(), 2000);
+                    }
                 } else {
                     showNotification('Error: ' + (data.error || 'Failed to save'), 'error');
                 }
@@ -23280,6 +23314,27 @@ const promo = await fetch('/api/v1/offers/validate', {
                     saveBtn.style.opacity = '1';
                 }
             }
+        }
+
+        // ============================================================
+        // Live Preview Panel
+        // ============================================================
+        function toggleEditorPreview() {
+            const panel = document.getElementById('wb-preview-panel');
+            const btn = document.getElementById('editor-preview-toggle');
+            if (!panel) return;
+            const isCollapsed = panel.classList.toggle('collapsed');
+            if (btn) btn.textContent = isCollapsed ? 'Preview' : 'Hide Preview';
+            if (!isCollapsed) refreshEditorPreview();
+        }
+
+        function refreshEditorPreview() {
+            const iframe = document.getElementById('wb-preview-iframe');
+            const previewBtn = document.getElementById('editor-preview-btn');
+            if (!iframe || !previewBtn) return;
+            const url = previewBtn.href;
+            if (!url || url === '#') return;
+            iframe.src = url + (url.includes('?') ? '&' : '?') + '_t=' + Date.now();
         }
 
         // ============================================================
