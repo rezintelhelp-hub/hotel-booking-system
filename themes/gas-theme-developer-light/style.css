@@ -1033,7 +1033,8 @@ img {
     padding: var(--developer-section-spacing, 20px) 24px 0;
     text-align: center;
     position: relative;
-    margin-bottom: var(--developer-section-spacing, 20px);
+    /* 80px compensates for .developer-usp-grid translateY(80px) overflow */
+    margin-bottom: calc(80px + var(--developer-section-spacing, 20px));
 }
 
 .developer-usp-grid {
