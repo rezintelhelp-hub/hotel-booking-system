@@ -43169,27 +43169,38 @@ app.delete('/api/admin/properties/images/:imageId', async (req, res) => {
   const client = await pool.connect();
   try {
     const { imageId } = req.params;
-    
-    // Get image details
-    const image = await client.query(
-      'SELECT * FROM property_images WHERE id = $1',
+
+    // Try property_images first
+    let image = await client.query(
+      'SELECT *, \'property_images\' as source_table FROM property_images WHERE id = $1',
       [imageId]
     );
-    
+
+    // If not found, try gas_sync_images (GET endpoint falls back to this table)
+    if (image.rows.length === 0) {
+      image = await client.query(
+        'SELECT *, \'gas_sync_images\' as source_table FROM gas_sync_images WHERE id = $1',
+        [imageId]
+      );
+    }
+
     if (image.rows.length === 0) {
       return res.json({ success: false, error: 'Image not found' });
     }
-    
+
     await client.query('BEGIN');
-    
-    // Delete from R2
-    await deleteImageFromR2(image.rows[0].image_key);
-    
-    // Delete from database
-    await client.query('DELETE FROM property_images WHERE id = $1', [imageId]);
-    
+
+    const sourceTable = image.rows[0].source_table;
+
+    // Only try R2 delete for property_images (sync images are external URLs)
+    if (sourceTable === 'property_images' && image.rows[0].image_key) {
+      await deleteImageFromR2(image.rows[0].image_key);
+    }
+
+    await client.query(`DELETE FROM ${sourceTable} WHERE id = $1`, [imageId]);
+
     await client.query('COMMIT');
-    
+
     res.json({ success: true, message: 'Image deleted' });
   } catch (error) {
     await client.query('ROLLBACK');
@@ -43237,6 +43248,56 @@ app.delete('/api/admin/rooms/images/:imageId', async (req, res) => {
     await client.query('COMMIT');
     
     res.json({ success: true, message: 'Image deleted' });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    res.json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+// Bulk delete empty/broken image records across all tables for an account
+app.delete('/api/admin/accounts/:accountId/empty-images', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const accountId = parseInt(req.params.accountId);
+
+    await client.query('BEGIN');
+
+    // Delete property_images with empty/null URLs
+    const propResult = await client.query(`
+      DELETE FROM property_images
+      WHERE property_id IN (SELECT id FROM properties WHERE account_id = $1)
+        AND (url IS NULL OR url = '' OR image_url IS NULL OR image_url = '')
+        AND (url IS NULL OR url = '') AND (image_url IS NULL OR image_url = '')
+    `, [accountId]);
+
+    // Delete room_images with empty/null URLs
+    const roomResult = await client.query(`
+      DELETE FROM room_images
+      WHERE room_id IN (SELECT id FROM bookable_units WHERE property_id IN (SELECT id FROM properties WHERE account_id = $1))
+        AND (url IS NULL OR url = '' OR image_url IS NULL OR image_url = '')
+        AND (url IS NULL OR url = '') AND (image_url IS NULL OR image_url = '')
+    `, [accountId]);
+
+    // Delete gas_sync_images with empty/null URLs
+    const syncResult = await client.query(`
+      DELETE FROM gas_sync_images
+      WHERE sync_property_id IN (SELECT id FROM gas_sync_properties WHERE account_id = $1)
+        AND (original_url IS NULL OR original_url = '')
+    `, [accountId]);
+
+    await client.query('COMMIT');
+
+    res.json({
+      success: true,
+      deleted: {
+        property_images: propResult.rowCount,
+        room_images: roomResult.rowCount,
+        gas_sync_images: syncResult.rowCount,
+        total: propResult.rowCount + roomResult.rowCount + syncResult.rowCount
+      }
+    });
   } catch (error) {
     await client.query('ROLLBACK');
     res.json({ success: false, error: error.message });

@@ -2654,6 +2654,9 @@
                                 <option value="">All Rooms</option>
                             </select>
                         </div>
+                        <div style="display: flex; align-items: flex-end;">
+                            <button class="btn btn-secondary" onclick="deleteAllEmptyImages()" style="color: #ef4444; white-space: nowrap;" title="Delete all image records with empty or broken URLs">🗑️ Delete Empty Images</button>
+                        </div>
                     </div>
                 </div>
 
@@ -31319,6 +31322,32 @@ const promo = await fetch('/api/v1/offers/validate', {
             } catch (error) {
                 console.error('Error deleting image:', error);
                 alert('Error deleting image');
+            }
+        }
+
+        async function deleteAllEmptyImages() {
+            if (!currentAccountId) {
+                alert('No account selected');
+                return;
+            }
+            if (!confirm('Delete ALL image records with empty/broken URLs across all properties and rooms for this account? This cannot be undone.')) return;
+
+            try {
+                const response = await fetch(`/api/admin/accounts/${currentAccountId}/empty-images`, {
+                    method: 'DELETE',
+                    headers: authHeaders()
+                });
+                const result = await response.json();
+                if (result.success) {
+                    const d = result.deleted;
+                    alert(`Deleted ${d.total} empty image records:\n• ${d.property_images} property images\n• ${d.room_images} room images\n• ${d.gas_sync_images} sync images`);
+                    await loadImagesForProperty();
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error deleting empty images:', error);
+                alert('Error deleting empty images');
             }
         }
 
