@@ -22058,7 +22058,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 SUPPORTED_LANGUAGES.forEach((lang, i) => {
                     tabsHtml += `<button type="button" class="translation-tab ${i === 0 ? 'active' : ''}" data-lang="${lang.code}" onclick="switchTranslationTab('${group}', '${lang.code}')"><span class="flag">${lang.flag}</span>${lang.code.toUpperCase()}</button>`;
                 });
-                tabsHtml += `<button type="button" class="auto-translate-btn" onclick="autoTranslateField('${group}')" title="Auto-translate from English">✨</button>`;
+                tabsHtml += `<button type="button" class="auto-translate-btn" onclick="autoTranslateField('${group}')" title="Auto-translate from primary language">✨</button>`;
                 
                 // Build new inputs
                 let inputsHtml = '';
@@ -22084,8 +22084,8 @@ const promo = await fetch('/api/v1/offers/validate', {
             console.log(`🌐 Rebuilt ${document.querySelectorAll('[data-translation-group]').length} translation tab groups for languages:`, SUPPORTED_LANGUAGES.map(l => l.code));
         }
         
-        // Current active language for translation tabs
-        let currentTranslationLang = 'en';
+        // Current active language for translation tabs (updated on load)
+        let currentTranslationLang = 'en'; // overridden by getAccountPrimaryLanguage() when tabs rebuild
         
         // Switch translation tab for a specific field group
         function switchTranslationTab(fieldGroup, lang) {
@@ -22166,27 +22166,29 @@ const promo = await fetch('/api/v1/offers/validate', {
         async function autoTranslateField(fieldId) {
             const wrapper = document.querySelector(`[data-translation-group="${fieldId}"]`);
             if (!wrapper) return;
-            
-            const enInput = wrapper.querySelector(`.translation-input[data-lang="en"], .translation-textarea[data-lang="en"]`);
-            if (!enInput || !enInput.value.trim()) {
-                showNotification('Please enter English text first', 'warning');
+
+            const primaryLang = getAccountPrimaryLanguage();
+            const sourceInput = wrapper.querySelector(`.translation-input[data-lang="${primaryLang}"], .translation-textarea[data-lang="${primaryLang}"]`);
+            if (!sourceInput || !sourceInput.value.trim()) {
+                const langName = SUPPORTED_LANGUAGES.find(l => l.code === primaryLang)?.name || primaryLang.toUpperCase();
+                showNotification(`Please enter ${langName} text first (primary language)`, 'warning');
                 return;
             }
-            
-            const sourceText = enInput.value.trim();
+
+            const sourceText = sourceInput.value.trim();
             const btn = wrapper.querySelector('.auto-translate-btn');
             const originalText = btn.innerHTML;
             btn.disabled = true;
             btn.innerHTML = '⏳ Translating...';
-            
+
             try {
                 const response = await fetch('/api/admin/translate-text', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({
                         text: sourceText,
-                        source_lang: 'en',
-                        target_langs: getAccountLanguages().filter(l => l !== 'en')
+                        source_lang: primaryLang,
+                        target_langs: getAccountLanguages().filter(l => l !== primaryLang)
                     })
                 });
                 
@@ -22251,9 +22253,10 @@ const promo = await fetch('/api/v1/offers/validate', {
             
             // Handle both object format {en: "...", fr: "..."} and legacy string format
             if (typeof values === 'string') {
-                // Legacy: single value goes to English
-                const enInput = wrapper.querySelector(`.translation-input[data-lang="en"]`);
-                if (enInput) enInput.value = values;
+                // Legacy: single value goes to primary language
+                const primaryLang = getAccountPrimaryLanguage();
+                const primaryInput = wrapper.querySelector(`.translation-input[data-lang="${primaryLang}"]`);
+                if (primaryInput) primaryInput.value = values;
             } else if (typeof values === 'object') {
                 SUPPORTED_LANGUAGES.forEach(lang => {
                     const input = wrapper.querySelector(`.translation-input[data-lang="${lang.code}"]`);
