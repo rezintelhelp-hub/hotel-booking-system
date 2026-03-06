@@ -201,29 +201,41 @@ $hero_min_height = $page_hero_image ? '350px' : '250px';
                     }
                     </style>
                 
-                <?php elseif ($special_page === 'contact') : 
+                <?php elseif ($special_page === 'contact') :
                     $email = get_theme_mod('developer_email', '');
                     $phone = get_theme_mod('developer_phone', '');
                     $address = get_theme_mod('developer_address', '');
+                    $contact_lang = function_exists('developer_get_current_language') ? developer_get_current_language() : 'en';
+                    $contact_t = [
+                        'en' => ['send_heading' => 'Send Us a Message', 'name' => 'Name', 'email' => 'Email', 'message' => 'Message', 'send' => 'Send Message', 'touch' => 'Get in Touch', 'phone' => 'Phone', 'email_label' => 'Email', 'address' => 'Address'],
+                        'de' => ['send_heading' => 'Nachricht senden', 'name' => 'Ihr Name', 'email' => 'Ihre E-Mail', 'message' => 'Nachricht', 'send' => 'Nachricht senden', 'touch' => 'Kontakt', 'phone' => 'Telefon', 'email_label' => 'E-Mail', 'address' => 'Adresse'],
+                        'fr' => ['send_heading' => 'Envoyez-nous un message', 'name' => 'Nom', 'email' => 'E-mail', 'message' => 'Message', 'send' => 'Envoyer', 'touch' => 'Contactez-nous', 'phone' => 'Téléphone', 'email_label' => 'E-mail', 'address' => 'Adresse'],
+                        'es' => ['send_heading' => 'Envíenos un mensaje', 'name' => 'Nombre', 'email' => 'Correo electrónico', 'message' => 'Mensaje', 'send' => 'Enviar mensaje', 'touch' => 'Contacto', 'phone' => 'Teléfono', 'email_label' => 'Correo electrónico', 'address' => 'Dirección'],
+                        'nl' => ['send_heading' => 'Stuur ons een bericht', 'name' => 'Naam', 'email' => 'E-mail', 'message' => 'Bericht', 'send' => 'Versturen', 'touch' => 'Contact', 'phone' => 'Telefoon', 'email_label' => 'E-mail', 'address' => 'Adres'],
+                        'it' => ['send_heading' => 'Inviaci un messaggio', 'name' => 'Nome', 'email' => 'E-mail', 'message' => 'Messaggio', 'send' => 'Invia messaggio', 'touch' => 'Contattaci', 'phone' => 'Telefono', 'email_label' => 'E-mail', 'address' => 'Indirizzo'],
+                        'pt' => ['send_heading' => 'Envie-nos uma mensagem', 'name' => 'Nome', 'email' => 'E-mail', 'message' => 'Mensagem', 'send' => 'Enviar mensagem', 'touch' => 'Contacto', 'phone' => 'Telefone', 'email_label' => 'E-mail', 'address' => 'Morada'],
+                        'ja' => ['send_heading' => 'メッセージを送る', 'name' => 'お名前', 'email' => 'メールアドレス', 'message' => 'メッセージ', 'send' => '送信', 'touch' => 'お問い合わせ', 'phone' => '電話', 'email_label' => 'メール', 'address' => '住所'],
+                    ];
+                    $ct = $contact_t[$contact_lang] ?? $contact_t['en'];
                 ?>
                     <div class="gas-contact-page">
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 50px;">
                             <div>
-                                <h2 style="font-size: 1.5rem; font-weight: 700; color: <?php echo esc_attr($page_title_color); ?>; margin: 0 0 24px;">Send Us a Message</h2>
+                                <h2 style="font-size: 1.5rem; font-weight: 700; color: <?php echo esc_attr($page_title_color); ?>; margin: 0 0 24px;"><?php echo esc_html($ct['send_heading']); ?></h2>
                                 <form style="display: flex; flex-direction: column; gap: 20px;">
                                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-                                        <div><label style="display: block; font-weight: 600; margin-bottom: 6px;">Name *</label><input type="text" required style="width: 100%; padding: 14px; border: 2px solid #e5e7eb; border-radius: 10px;"></div>
-                                        <div><label style="display: block; font-weight: 600; margin-bottom: 6px;">Email *</label><input type="email" required style="width: 100%; padding: 14px; border: 2px solid #e5e7eb; border-radius: 10px;"></div>
+                                        <div><label style="display: block; font-weight: 600; margin-bottom: 6px;"><?php echo esc_html($ct['name']); ?> *</label><input type="text" required style="width: 100%; padding: 14px; border: 2px solid #e5e7eb; border-radius: 10px;"></div>
+                                        <div><label style="display: block; font-weight: 600; margin-bottom: 6px;"><?php echo esc_html($ct['email']); ?> *</label><input type="email" required style="width: 100%; padding: 14px; border: 2px solid #e5e7eb; border-radius: 10px;"></div>
                                     </div>
-                                    <div><label style="display: block; font-weight: 600; margin-bottom: 6px;">Message *</label><textarea rows="5" required style="width: 100%; padding: 14px; border: 2px solid #e5e7eb; border-radius: 10px;"></textarea></div>
-                                    <button type="submit" style="background: <?php echo esc_attr($primary_color); ?>; color: white; border: none; padding: 16px 32px; border-radius: 10px; font-weight: 600; cursor: pointer;">Send Message</button>
+                                    <div><label style="display: block; font-weight: 600; margin-bottom: 6px;"><?php echo esc_html($ct['message']); ?> *</label><textarea rows="5" required style="width: 100%; padding: 14px; border: 2px solid #e5e7eb; border-radius: 10px;"></textarea></div>
+                                    <button type="submit" style="background: <?php echo esc_attr($primary_color); ?>; color: white; border: none; padding: 16px 32px; border-radius: 10px; font-weight: 600; cursor: pointer;"><?php echo esc_html($ct['send']); ?></button>
                                 </form>
                             </div>
                             <div>
-                                <h2 style="font-size: 1.5rem; font-weight: 700; color: <?php echo esc_attr($page_title_color); ?>; margin: 0 0 24px;">Get in Touch</h2>
-                                <?php if ($phone) : ?><div style="display: flex; gap: 16px; margin-bottom: 20px;"><div style="width: 50px; height: 50px; background: <?php echo esc_attr($primary_color); ?>15; border-radius: 12px; display: flex; align-items: center; justify-content: center;">📞</div><div><strong>Phone</strong><br><a href="tel:<?php echo preg_replace('/[^0-9+]/', '', $phone); ?>" style="color: <?php echo esc_attr($primary_color); ?>;"><?php echo esc_html($phone); ?></a></div></div><?php endif; ?>
-                                <?php if ($email) : ?><div style="display: flex; gap: 16px; margin-bottom: 20px;"><div style="width: 50px; height: 50px; background: <?php echo esc_attr($primary_color); ?>15; border-radius: 12px; display: flex; align-items: center; justify-content: center;">✉️</div><div><strong>Email</strong><br><a href="mailto:<?php echo esc_attr($email); ?>" style="color: <?php echo esc_attr($primary_color); ?>;"><?php echo esc_html($email); ?></a></div></div><?php endif; ?>
-                                <?php if ($address) : ?><div style="display: flex; gap: 16px;"><div style="width: 50px; height: 50px; background: <?php echo esc_attr($primary_color); ?>15; border-radius: 12px; display: flex; align-items: center; justify-content: center;">📍</div><div><strong>Address</strong><br><?php echo nl2br(esc_html($address)); ?></div></div><?php endif; ?>
+                                <h2 style="font-size: 1.5rem; font-weight: 700; color: <?php echo esc_attr($page_title_color); ?>; margin: 0 0 24px;"><?php echo esc_html($ct['touch']); ?></h2>
+                                <?php if ($phone) : ?><div style="display: flex; gap: 16px; margin-bottom: 20px;"><div style="width: 50px; height: 50px; background: <?php echo esc_attr($primary_color); ?>15; border-radius: 12px; display: flex; align-items: center; justify-content: center;">📞</div><div><strong><?php echo esc_html($ct['phone']); ?></strong><br><a href="tel:<?php echo preg_replace('/[^0-9+]/', '', $phone); ?>" style="color: <?php echo esc_attr($primary_color); ?>;"><?php echo esc_html($phone); ?></a></div></div><?php endif; ?>
+                                <?php if ($email) : ?><div style="display: flex; gap: 16px; margin-bottom: 20px;"><div style="width: 50px; height: 50px; background: <?php echo esc_attr($primary_color); ?>15; border-radius: 12px; display: flex; align-items: center; justify-content: center;">✉️</div><div><strong><?php echo esc_html($ct['email_label']); ?></strong><br><a href="mailto:<?php echo esc_attr($email); ?>" style="color: <?php echo esc_attr($primary_color); ?>;"><?php echo esc_html($email); ?></a></div></div><?php endif; ?>
+                                <?php if ($address) : ?><div style="display: flex; gap: 16px;"><div style="width: 50px; height: 50px; background: <?php echo esc_attr($primary_color); ?>15; border-radius: 12px; display: flex; align-items: center; justify-content: center;">📍</div><div><strong><?php echo esc_html($ct['address']); ?></strong><br><?php echo nl2br(esc_html($address)); ?></div></div><?php endif; ?>
                             </div>
                         </div>
                     </div>
