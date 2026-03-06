@@ -2654,8 +2654,8 @@
                                 <option value="">All Rooms</option>
                             </select>
                         </div>
-                        <div style="display: flex; align-items: flex-end;">
-                            <button class="btn btn-secondary" onclick="deleteAllEmptyImages()" style="color: #ef4444; white-space: nowrap;" title="Delete all image records with empty or broken URLs">🗑️ Delete Empty Images</button>
+                        <div style="display: flex; align-items: flex-end; gap: 0.5rem;">
+                            <button class="btn btn-secondary btn-small" onclick="deleteAllEmptyImages()" style="color: #ef4444; white-space: nowrap; padding: 0.5rem 0.75rem;" title="Delete all image records with empty or broken URLs">🗑️ Empty</button>
                         </div>
                     </div>
                 </div>
@@ -31326,21 +31326,31 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
 
         async function deleteAllEmptyImages() {
-            if (!currentAccountId) {
+            const accountId = selectedAccountId || currentAccount?.id;
+            if (!accountId) {
                 alert('No account selected');
                 return;
             }
-            if (!confirm('Delete ALL image records with empty/broken URLs across all properties and rooms for this account? This cannot be undone.')) return;
+            const checkBroken = confirm('Also check for broken URLs (images that return 404)?\n\nClick OK to check broken URLs too (slower — tests each URL).\nClick Cancel to only delete records with empty/null URLs (fast).');
+            if (!confirm('Delete empty/broken image records across all properties and rooms for this account? This cannot be undone.')) return;
 
             try {
-                const response = await fetch(`/api/admin/accounts/${currentAccountId}/empty-images`, {
+                const url = `/api/admin/accounts/${accountId}/empty-images` + (checkBroken ? '?checkBroken=true' : '');
+                const response = await fetch(url, {
                     method: 'DELETE',
                     headers: authHeaders()
                 });
                 const result = await response.json();
                 if (result.success) {
                     const d = result.deleted;
-                    alert(`Deleted ${d.total} empty image records:\n• ${d.property_images} property images\n• ${d.room_images} room images\n• ${d.gas_sync_images} sync images`);
+                    let msg = `Deleted ${d.total} image records:`;
+                    msg += `\n• ${d.property_images} property images (empty URL)`;
+                    msg += `\n• ${d.room_images} room images (empty URL)`;
+                    msg += `\n• ${d.gas_sync_images} sync images (empty URL)`;
+                    if (d.broken_url_images > 0) {
+                        msg += `\n• ${d.broken_url_images} sync images (broken/404 URL)`;
+                    }
+                    alert(msg);
                     await loadImagesForProperty();
                 } else {
                     alert('Error: ' + result.error);

@@ -43261,31 +43261,73 @@ app.delete('/api/admin/accounts/:accountId/empty-images', async (req, res) => {
   const client = await pool.connect();
   try {
     const accountId = parseInt(req.params.accountId);
+    const { checkBroken } = req.query; // ?checkBroken=true to also test URLs for 404s
 
     await client.query('BEGIN');
 
-    // Delete property_images with empty/null URLs
+    // Delete property_images with empty/null URLs (both url and image_url must be empty)
     const propResult = await client.query(`
       DELETE FROM property_images
       WHERE property_id IN (SELECT id FROM properties WHERE account_id = $1)
-        AND (url IS NULL OR url = '' OR image_url IS NULL OR image_url = '')
-        AND (url IS NULL OR url = '') AND (image_url IS NULL OR image_url = '')
+        AND (url IS NULL OR url = '')
+        AND (image_url IS NULL OR image_url = '')
     `, [accountId]);
 
     // Delete room_images with empty/null URLs
     const roomResult = await client.query(`
       DELETE FROM room_images
       WHERE room_id IN (SELECT id FROM bookable_units WHERE property_id IN (SELECT id FROM properties WHERE account_id = $1))
-        AND (url IS NULL OR url = '' OR image_url IS NULL OR image_url = '')
-        AND (url IS NULL OR url = '') AND (image_url IS NULL OR image_url = '')
+        AND (image_url IS NULL OR image_url = '')
     `, [accountId]);
 
     // Delete gas_sync_images with empty/null URLs
+    // gas_sync_properties links to account via connection_id → gas_sync_connections.account_id
     const syncResult = await client.query(`
       DELETE FROM gas_sync_images
-      WHERE sync_property_id IN (SELECT id FROM gas_sync_properties WHERE account_id = $1)
-        AND (original_url IS NULL OR original_url = '')
+      WHERE sync_property_id IN (
+        SELECT gsp.id FROM gas_sync_properties gsp
+        JOIN gas_sync_connections gsc ON gsp.connection_id = gsc.id
+        WHERE gsc.account_id = $1
+      )
+      AND (original_url IS NULL OR original_url = '')
     `, [accountId]);
+
+    // If checkBroken flag, also test URLs that exist but return 404
+    let brokenCount = 0;
+    if (checkBroken === 'true') {
+      // Get all gas_sync_images with URLs for this account
+      const allSyncImages = await client.query(`
+        SELECT gsi.id, gsi.original_url FROM gas_sync_images gsi
+        WHERE gsi.sync_property_id IN (
+          SELECT gsp.id FROM gas_sync_properties gsp
+          JOIN gas_sync_connections gsc ON gsp.connection_id = gsc.id
+          WHERE gsc.account_id = $1
+        )
+        AND gsi.original_url IS NOT NULL AND gsi.original_url != ''
+      `, [accountId]);
+
+      // Check URLs in batches — HEAD request with timeout
+      const brokenIds = [];
+      for (const img of allSyncImages.rows) {
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 5000);
+          const resp = await fetch(img.original_url, { method: 'HEAD', signal: controller.signal });
+          clearTimeout(timeout);
+          if (resp.status === 404 || resp.status === 410) {
+            brokenIds.push(img.id);
+          }
+        } catch (e) {
+          // Network error or timeout — treat as broken
+          brokenIds.push(img.id);
+        }
+      }
+
+      if (brokenIds.length > 0) {
+        await client.query(`DELETE FROM gas_sync_images WHERE id = ANY($1)`, [brokenIds]);
+        brokenCount = brokenIds.length;
+      }
+    }
 
     await client.query('COMMIT');
 
@@ -43295,7 +43337,8 @@ app.delete('/api/admin/accounts/:accountId/empty-images', async (req, res) => {
         property_images: propResult.rowCount,
         room_images: roomResult.rowCount,
         gas_sync_images: syncResult.rowCount,
-        total: propResult.rowCount + roomResult.rowCount + syncResult.rowCount
+        broken_url_images: brokenCount,
+        total: propResult.rowCount + roomResult.rowCount + syncResult.rowCount + brokenCount
       }
     });
   } catch (error) {
