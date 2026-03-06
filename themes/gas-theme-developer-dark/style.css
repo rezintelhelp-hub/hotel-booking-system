@@ -1040,7 +1040,7 @@ img {
 .developer-usp-grid {
     display: grid;
     gap: 32px;
-    margin-top: 48px;
+    margin-top: 20px;
     position: relative;
     z-index: 2;
     transform: translateY(80px);
