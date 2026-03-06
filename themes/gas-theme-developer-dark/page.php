@@ -205,8 +205,7 @@ $hero_min_height = $page_hero_image ? '350px' : '250px';
                     $email = get_theme_mod('developer_email', '');
                     $phone = get_theme_mod('developer_phone', '');
                     $address = get_theme_mod('developer_address', '');
-                    $api_settings = function_exists('developer_get_api_settings') ? developer_get_api_settings() : array();
-                    $contact_lang = !empty($api_settings['primary_language']) ? $api_settings['primary_language'] : (function_exists('developer_get_current_language') ? developer_get_current_language() : 'en');
+                    $contact_lang = function_exists('developer_get_current_language') ? developer_get_current_language() : 'en';
                     $contact_t = [
                         'en' => ['send_heading' => 'Send Us a Message', 'name' => 'Name', 'email' => 'Email', 'message' => 'Message', 'send' => 'Send Message', 'touch' => 'Get in Touch', 'phone' => 'Phone', 'email_label' => 'Email', 'address' => 'Address'],
                         'de' => ['send_heading' => 'Nachricht senden', 'name' => 'Ihr Name', 'email' => 'Ihre E-Mail', 'message' => 'Nachricht', 'send' => 'Nachricht senden', 'touch' => 'Kontakt', 'phone' => 'Telefon', 'email_label' => 'E-Mail', 'address' => 'Adresse'],

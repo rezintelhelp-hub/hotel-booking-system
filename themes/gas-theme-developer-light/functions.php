@@ -2372,7 +2372,10 @@ function developer_get_api_settings() {
     }
     
     $config = $data['config'] ?? array();
-    
+
+    // Populate site-config transient so developer_get_current_language() can read languages.primary
+    set_transient('gas_site_config_' . $client_id, $config, 30);
+
     // Read from website settings (where GAS Admin saves to)
     $website = $config['website'] ?? array();
     $website_header = $website['header'] ?? array();
