@@ -5203,8 +5203,8 @@
             <style>
                 .wb-split-container { display: flex; gap: 0; }
                 .wb-editor-panel { flex: 3; overflow-y: auto; min-width: 0; transition: flex 0.3s; }
-                .wb-preview-panel { flex: 2; border-left: 2px solid #e2e8f0; position: sticky; top: 0; height: calc(100vh - 60px); display: flex; flex-direction: column; transition: flex 0.3s, width 0.3s; overflow: hidden; }
-                .wb-preview-panel.collapsed { flex: 0; width: 0; border: none; padding: 0; }
+                .wb-preview-panel { flex: 2; min-width: 0; border-left: 2px solid #e2e8f0; position: sticky; top: 0; height: calc(100vh - 60px); display: flex; flex-direction: column; transition: flex 0.3s, width 0.3s, min-width 0.3s; overflow: hidden; }
+                .wb-preview-panel.collapsed { flex: 0 0 0px !important; min-width: 0 !important; width: 0 !important; border: none; padding: 0; overflow: hidden; }
                 .wb-split-container.desktop-preview .wb-editor-panel { flex: 2; }
                 .wb-split-container.desktop-preview .wb-preview-panel { flex: 3; }
                 .wb-preview-panel iframe { flex: 1; border: none; width: 100%; }

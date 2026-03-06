@@ -7,7 +7,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_DEVELOPER_VERSION', '1.0.0');
+define('GAS_DEVELOPER_VERSION', '1.0.1');
 
 /**
  * Theme Activation - Auto Setup Pages & Menu

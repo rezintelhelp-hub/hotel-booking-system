@@ -4540,11 +4540,13 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         sort($all_properties);
         
         // Determine layout based on room count
+        // On the homepage (featured section), always use grid layout
         $room_count = count($rooms);
         $use_row_layout = false;
-        if ($layout_mode === 'row') {
+        $is_homepage = is_front_page();
+        if ($layout_mode === 'row' && !$is_homepage) {
             $use_row_layout = true;
-        } elseif ($layout_mode === 'auto' && $room_count <= 2) {
+        } elseif ($layout_mode === 'auto' && $room_count <= 2 && !$is_homepage) {
             $use_row_layout = true;
         }
         
@@ -5476,7 +5478,10 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                     <div class="gas-room-row-price">
                                         <?php if ($has_dates) : ?>
                                             <span class="gas-checking">⏳ <?php echo esc_html($checking_text); ?></span>
-                                        <?php else : ?>
+                                        <?php elseif ($is_homepage && $price > 0) : ?>
+                                            <span class="gas-price-amount"><?php echo esc_html($room_currency . number_format($price, 0)); ?></span>
+                                            <span class="gas-price-period"><?php echo esc_html($per_night_text); ?></span>
+                                        <?php elseif (!$is_homepage) : ?>
                                             <span><?php echo esc_html($t_booking['select_dates'] ?? 'Select dates'); ?></span>
                                         <?php endif; ?>
                                     </div>
@@ -5564,7 +5569,10 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                     <div class="gas-room-price">
                                         <?php if ($has_dates) : ?>
                                             <span class="gas-checking">⏳ <?php echo esc_html($checking_text); ?></span>
-                                        <?php else : ?>
+                                        <?php elseif ($is_homepage && $price > 0) : ?>
+                                            <span class="gas-price-amount"><?php echo esc_html($room_currency . number_format($price, 0)); ?></span>
+                                            <span class="gas-price-period"><?php echo esc_html($per_night_text); ?></span>
+                                        <?php elseif (!$is_homepage) : ?>
                                             <span><?php echo esc_html($t_booking['select_dates'] ?? 'Select dates'); ?></span>
                                         <?php endif; ?>
                                     </div>
