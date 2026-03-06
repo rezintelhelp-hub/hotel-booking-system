@@ -2644,7 +2644,7 @@
                     <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
                         <div style="flex: 1; min-width: 200px;">
                             <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Property</label>
-                            <select id="images-property-select" class="form-input" onchange="loadImagesForProperty()">
+                            <select id="images-property-select" class="form-input" onchange="onImagesPropertyChange()">
                                 <option value="">Select Property...</option>
                             </select>
                         </div>
@@ -2655,6 +2655,7 @@
                             </select>
                         </div>
                         <div style="display: flex; align-items: flex-end; gap: 0.5rem;">
+                            <button class="btn btn-secondary btn-small" onclick="copyAllPropertyImagesToRoom()" style="white-space: nowrap; padding: 0.5rem 0.75rem;" title="Copy all property images to the selected room">📋 Copy All to Room</button>
                             <button class="btn btn-secondary btn-small" onclick="deleteAllEmptyImages()" style="color: #ef4444; white-space: nowrap; padding: 0.5rem 0.75rem;" title="Delete all image records with empty or broken URLs">🗑️ Empty</button>
                         </div>
                     </div>
@@ -30758,6 +30759,52 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
         
+        async function onImagesPropertyChange() {
+            // Always reset and reload rooms when property changes
+            const roomSelect = document.getElementById('images-room-select');
+            if (roomSelect) roomSelect.innerHTML = '<option value="">All Rooms</option>';
+            await loadImagesRooms();
+            await loadImagesForProperty();
+        }
+
+        async function copyAllPropertyImagesToRoom() {
+            const roomId = document.getElementById('images-room-select')?.value;
+            if (!roomId) {
+                alert('Select a room from the Room/Unit dropdown first.');
+                return;
+            }
+            // Get all property images from the current allImages array
+            const propImages = (allImages || []).filter(img => img.type === 'property');
+            if (propImages.length === 0) {
+                alert('No property images to copy.');
+                return;
+            }
+            const roomSelect = document.getElementById('images-room-select');
+            const roomName = roomSelect.options[roomSelect.selectedIndex]?.text || 'Room';
+            if (!confirm(`Copy ${propImages.length} property image${propImages.length !== 1 ? 's' : ''} to ${roomName}?`)) return;
+
+            try {
+                const images = propImages.map(img => ({
+                    url: img.image_url || img.url,
+                    thumbnail_url: img.thumbnail_url || img.image_url || img.url
+                }));
+                const resp = await fetch(`/api/admin/rooms/${roomId}/assign-images`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ images })
+                });
+                const result = await resp.json();
+                if (result.success) {
+                    alert(`Done: ${result.added} copied, ${result.skipped} already existed.`);
+                    await loadImagesForProperty();
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                alert('Error copying images: ' + error.message);
+            }
+        }
+
         async function loadImagesRooms() {
             const propertyId = document.getElementById('images-property-select')?.value;
             const roomSelect = document.getElementById('images-room-select');
