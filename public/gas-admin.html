@@ -52570,6 +52570,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (document.getElementById('card-guarantee-success-msg')) document.getElementById('card-guarantee-success-msg').value = 'Thank you! Your card is secured. Please now confirm your booking below.';
             if (document.getElementById('cg-provider-enigma')) document.getElementById('cg-provider-enigma').checked = true;
             toggleCgProvider();
+            await loadLanguageSettings();
             renderCgLangTabs();
             document.getElementById('stripe-publishable-key').value = '';
             document.getElementById('stripe-secret-key').value = '';
