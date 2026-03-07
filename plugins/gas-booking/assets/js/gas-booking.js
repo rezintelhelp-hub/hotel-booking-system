@@ -111,7 +111,16 @@ jQuery(document).ready(function($) {
             pay_now: 'Pay Now',
             card_number: 'Card Number',
             expiry_date: 'Expiry Date',
-            cardholder_name: 'Cardholder Name'
+            cardholder_name: 'Cardholder Name',
+            card_guarantee: 'Card Guarantee',
+            card_guarantee_desc: 'Your card will be securely stored as a booking guarantee',
+            securing_card: 'Securing card...',
+            card_secured: 'Thank you! Your card is secured. Please now confirm your booking below.',
+            card_guarantee_note: 'No charge — your card will be securely held as a guarantee only.',
+            bank_transfer_details: 'Bank Transfer Details',
+            loading_card_form: 'Loading secure card form...',
+            card_form_not_loaded: 'Card form not loaded. Please re-select Card Guarantee.',
+            confirm_booking: 'Confirm Booking'
         },
         filters: {
             load_more: 'Load More Properties',
@@ -3565,7 +3574,7 @@ jQuery(document).ready(function($) {
                             });
                         }
                     } else if (window.gasCardGuaranteeProvider === 'stripe') {
-                        alert('Stripe card form not loaded. Please re-select Card Guarantee.');
+                        alert(t('payment', 'card_form_not_loaded', 'Card form not loaded. Please re-select Card Guarantee.'));
                         $btn.prop('disabled', false);
                         $btn.find('.gas-btn-text').show();
                         $btn.find('.gas-btn-loading').hide();
@@ -3729,7 +3738,7 @@ jQuery(document).ready(function($) {
                             // Show bank details on confirmation only for pay_at_property with bank transfer
                             if (window.groupCheckoutData.paymentMethod === 'pay_at_property' && window.gasBankDetails && window.gasBankDetails.accounts && window.gasBankDetails.accounts.length > 0) {
                                 var bankHtml = '<div style="background: linear-gradient(135deg, #fffbeb, #fef3c7); border: 1px solid #fde68a; border-radius: 12px; padding: 16px; margin-top: 16px; text-align: left;">';
-                                bankHtml += '<h4 style="margin: 0 0 12px 0; color: #92400e; font-size: 14px;">🏦 Bank Transfer Details</h4>';
+                                bankHtml += '<h4 style="margin: 0 0 12px 0; color: #92400e; font-size: 14px;">' + t('payment', 'bank_transfer_details', 'Bank Transfer Details') + '</h4>';
                                 window.gasBankDetails.accounts.forEach(function(account) {
                                     bankHtml += '<div style="background: white; border-radius: 8px; padding: 12px; margin-bottom: 8px; border: 1px solid #fde68a;">';
                                     if (account.bank_name) bankHtml += '<div style="font-weight: 600; color: #92400e; margin-bottom: 6px;">' + account.bank_name + '</div>';
@@ -4113,7 +4122,7 @@ jQuery(document).ready(function($) {
                             $('#gas-card-errors').text('');
                         } else {
                             $('#gas-card-errors').text('');
-                            $('#gas-card-element').html('<div style="text-align:center;padding:12px;color:#64748b;">Loading secure card form...</div>');
+                            $('#gas-card-element').html('<div style="text-align:center;padding:12px;color:#64748b;">' + t('payment', 'loading_card_form', 'Loading secure card form...') + '</div>');
                             $.ajax({
                                 url: window.groupCheckoutData.apiUrl + '/api/public/create-setup-intent',
                                 method: 'POST',
@@ -4144,7 +4153,7 @@ jQuery(document).ready(function($) {
                     // Hide deposit info for card guarantee — no charge at booking
                     $('.gas-payment-summary').hide();
                     $('.gas-card-guarantee-note').remove();
-                    $('.gas-payment-summary').after('<p class="gas-card-guarantee-note" style="text-align:center;color:#64748b;font-size:0.85rem;margin-top:12px;">No charge — your card will be securely held as a guarantee only.</p>');
+                    $('.gas-payment-summary').after('<p class="gas-card-guarantee-note" style="text-align:center;color:#64748b;font-size:0.85rem;margin-top:12px;">' + t('payment', 'card_guarantee_note', 'No charge — your card will be securely held as a guarantee only.') + '</p>');
                 } else if (method === 'pay_at_property') {
                     $('.gas-stripe-form').slideUp(200);
                     $('.gas-card-guarantee-form').slideUp(200);
@@ -4941,7 +4950,7 @@ jQuery(document).ready(function($) {
                         $('#gas-card-errors').text('');
                     } else {
                         $('#gas-card-errors').text('');
-                        $('#gas-card-element').html('<div style="text-align:center;padding:12px;color:#64748b;">Loading secure card form...</div>');
+                        $('#gas-card-element').html('<div style="text-align:center;padding:12px;color:#64748b;">' + t('payment', 'loading_card_form', 'Loading secure card form...') + '</div>');
                         $.ajax({
                             url: checkoutData.apiUrl + '/api/public/create-setup-intent',
                             method: 'POST',
@@ -4972,7 +4981,7 @@ jQuery(document).ready(function($) {
                 // Hide deposit info for card guarantee — no charge at booking
                 $('.gas-payment-summary').hide();
                 $('.gas-card-guarantee-note').remove();
-                $('.gas-payment-summary').after('<p class="gas-card-guarantee-note" style="text-align:center;color:#64748b;font-size:0.85rem;margin-top:12px;">No charge — your card will be securely held as a guarantee only.</p>');
+                $('.gas-payment-summary').after('<p class="gas-card-guarantee-note" style="text-align:center;color:#64748b;font-size:0.85rem;margin-top:12px;">' + t('payment', 'card_guarantee_note', 'No charge — your card will be securely held as a guarantee only.') + '</p>');
             } else if (paymentMethod === 'pay_at_property') {
                 $('.gas-stripe-form').slideUp(200);
                 $('.gas-card-guarantee-form').slideUp(200);
@@ -5065,12 +5074,12 @@ jQuery(document).ready(function($) {
             // If card guarantee with Stripe, process SetupIntent
             if (paymentMethod === 'card_guarantee' && window.gasCardGuaranteeProvider === 'stripe') {
                 if (!checkoutData.stripe || !checkoutData.cardElement) {
-                    alert('Stripe card form not loaded. Please re-select Card Guarantee.');
+                    alert(t('payment', 'card_form_not_loaded', 'Card form not loaded. Please re-select Card Guarantee.'));
                     return;
                 }
                 $btn.prop('disabled', true);
                 $btn.find('.gas-btn-text').hide();
-                $btn.find('.gas-btn-loading').text('Securing card...').show();
+                $btn.find('.gas-btn-loading').text(t('payment', 'securing_card', 'Securing card...')).show();
                 var $form = $('#gas-guest-form');
                 var doConfirmSingle = function(clientSecret) {
                     checkoutData.stripe.confirmCardSetup(clientSecret, {
@@ -5355,7 +5364,7 @@ jQuery(document).ready(function($) {
                         // Show bank details on confirmation
                         if (paymentMethod === 'pay_at_property' && window.gasBankDetails && window.gasBankDetails.accounts && window.gasBankDetails.accounts.length > 0) {
                             var bankHtml = '<div style="background: linear-gradient(135deg, #fffbeb, #fef3c7); border: 1px solid #fde68a; border-radius: 12px; padding: 16px; margin-top: 16px; text-align: left;">';
-                            bankHtml += '<h4 style="margin: 0 0 12px 0; color: #92400e; font-size: 14px;">🏦 Bank Transfer Details</h4>';
+                            bankHtml += '<h4 style="margin: 0 0 12px 0; color: #92400e; font-size: 14px;">' + t('payment', 'bank_transfer_details', 'Bank Transfer Details') + '</h4>';
                             window.gasBankDetails.accounts.forEach(function(account) {
                                 bankHtml += '<div style="background: white; border-radius: 8px; padding: 12px; margin-bottom: 8px; border: 1px solid #fde68a;">';
                                 if (account.bank_name) bankHtml += '<div style="font-weight: 600; color: #92400e; margin-bottom: 6px;">' + account.bank_name + '</div>';
@@ -5474,7 +5483,7 @@ jQuery(document).ready(function($) {
             window.groupCheckoutData.enigmaReferenceId = refId;
             window.groupCheckoutData.enigmaCardCaptured = true;
         }
-        var successMsg = window.gasEnigmaSuccessMessage || 'Thank you! Your card is secured. Please now confirm your booking below.';
+        var successMsg = window.gasEnigmaSuccessMessage || t('payment', 'card_secured', 'Thank you! Your card is secured. Please now confirm your booking below.');
         $('#gas-enigma-iframe-container').html(
             '<div style="text-align:center; padding:30px;">' +
             '<div style="font-size:2.5rem; margin-bottom:10px;">&#x2705;</div>' +

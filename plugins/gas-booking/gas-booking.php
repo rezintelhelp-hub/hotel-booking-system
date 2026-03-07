@@ -6566,8 +6566,8 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                     <div class="gas-payment-option-content">
                                         <div class="gas-payment-icon">&#x1F6E1;</div>
                                         <div class="gas-payment-details">
-                                            <strong class="gas-card-guarantee-label">Card Guarantee</strong>
-                                            <span class="gas-card-guarantee-desc">Your card is stored securely - no charge at booking</span>
+                                            <strong class="gas-card-guarantee-label"><?php echo esc_html($t_payment['card_guarantee'] ?? 'Card Guarantee'); ?></strong>
+                                            <span class="gas-card-guarantee-desc"><?php echo esc_html($t_payment['card_guarantee_desc'] ?? 'Your card will be securely stored as a booking guarantee'); ?></span>
                                         </div>
                                     </div>
                                 </label>
@@ -6595,7 +6595,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                 <div style="border: 2px solid #fde68a; border-radius: 12px; padding: 0; background: #fffdf5; overflow: hidden;">
                                     <div style="display: flex; align-items: center; gap: 8px; padding: 14px 16px; background: linear-gradient(135deg, #fefce8 0%, #fef3c7 100%); border-bottom: 1px solid #fde68a;">
                                         <span>&#x1F3E6;</span>
-                                        <span style="font-size: 14px; font-weight: 600; color: #92400e;">Bank Transfer Details</span>
+                                        <span style="font-size: 14px; font-weight: 600; color: #92400e;"><?php echo esc_html($t_payment['bank_transfer_details'] ?? 'Bank Transfer Details'); ?></span>
                                     </div>
                                     <div id="gas-bank-details-content" style="padding: 16px;">
                                         <div class="gas-bank-loading" style="text-align: center; padding: 20px; color: #64748b;">Loading bank details...</div>
@@ -6713,16 +6713,16 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                             <span class="gas-conf-total"></span>
                                         </div>
                                         <div class="gas-price-row gas-price-paid" style="display:none;">
-                                            <span>Deposit Paid</span>
+                                            <span><?php echo esc_html($t_payment['deposit_amount'] ?? 'Deposit Paid'); ?></span>
                                             <span class="gas-conf-deposit"></span>
                                         </div>
                                         <div class="gas-price-row gas-price-balance" style="display:none;">
-                                            <span>Balance Due at Check-in</span>
+                                            <span><?php echo esc_html($t_payment['balance_due'] ?? 'Balance Due at Check-in'); ?></span>
                                             <span class="gas-conf-balance"></span>
                                         </div>
                                         <div class="gas-price-row gas-price-property" style="display:none;">
-                                            <span>Payment</span>
-                                            <span>Pay at Property</span>
+                                            <span><?php echo esc_html($t_payment['payment'] ?? 'Payment'); ?></span>
+                                            <span><?php echo esc_html($t_payment['pay_at_property'] ?? 'Pay at Property'); ?></span>
                                         </div>
                                     </div>
                                     

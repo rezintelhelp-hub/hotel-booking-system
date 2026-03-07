@@ -59610,7 +59610,16 @@ const GAS_TRANSLATIONS = {
         "payment_processing": "Processing payment...",
         "deposit_amount": "Deposit Amount",
         "balance_due": "Balance due at check-in",
-        "deposit_info": "A deposit will be charged now. The remaining balance is due at check-in."
+        "deposit_info": "A deposit will be charged now. The remaining balance is due at check-in.",
+        "card_guarantee": "Card Guarantee",
+        "card_guarantee_desc": "Your card will be securely stored as a booking guarantee",
+        "securing_card": "Securing card...",
+        "card_secured": "Thank you! Your card is secured. Please now confirm your booking below.",
+        "card_guarantee_note": "No charge — your card will be securely held as a guarantee only.",
+        "bank_transfer_details": "Bank Transfer Details",
+        "loading_card_form": "Loading secure card form...",
+        "card_form_not_loaded": "Card form not loaded. Please re-select Card Guarantee.",
+        "confirm_booking": "Confirm Booking"
       },
       "property": {
         "property": "Property",
@@ -59915,7 +59924,16 @@ const GAS_TRANSLATIONS = {
         "payment_processing": "Traitement du paiement...",
         "deposit_amount": "Montant de l'acompte",
         "balance_due": "Solde dû à l'arrivée",
-        "deposit_info": "Un acompte sera prélevé maintenant. Le solde est dû à l'arrivée."
+        "deposit_info": "Un acompte sera prélevé maintenant. Le solde est dû à l'arrivée.",
+        "card_guarantee": "Garantie par carte",
+        "card_guarantee_desc": "Votre carte sera conservée en garantie de réservation",
+        "securing_card": "Sécurisation de la carte...",
+        "card_secured": "Merci ! Votre carte est sécurisée. Veuillez confirmer votre réservation ci-dessous.",
+        "card_guarantee_note": "Aucun prélèvement — votre carte sera conservée en garantie uniquement.",
+        "bank_transfer_details": "Coordonnées bancaires",
+        "loading_card_form": "Chargement du formulaire sécurisé...",
+        "card_form_not_loaded": "Formulaire non chargé. Veuillez resélectionner Garantie par carte.",
+        "confirm_booking": "Confirmer la réservation"
       },
       "property": {
         "property": "Propriété",
@@ -60217,7 +60235,16 @@ const GAS_TRANSLATIONS = {
         "payment_processing": "Procesando pago...",
         "deposit_amount": "Importe del depósito",
         "balance_due": "Saldo pendiente a la llegada",
-        "deposit_info": "Se cobrará un depósito ahora. El saldo restante se paga a la llegada."
+        "deposit_info": "Se cobrará un depósito ahora. El saldo restante se paga a la llegada.",
+        "card_guarantee": "Garantía con tarjeta",
+        "card_guarantee_desc": "Su tarjeta se guardará de forma segura como garantía de reserva",
+        "securing_card": "Asegurando tarjeta...",
+        "card_secured": "¡Gracias! Su tarjeta está asegurada. Por favor confirme su reserva a continuación.",
+        "card_guarantee_note": "Sin cargo — su tarjeta se guardará únicamente como garantía.",
+        "bank_transfer_details": "Datos de transferencia bancaria",
+        "loading_card_form": "Cargando formulario seguro...",
+        "card_form_not_loaded": "Formulario no cargado. Por favor reseleccione Garantía con tarjeta.",
+        "confirm_booking": "Confirmar reserva"
       },
       "property": {
         "property": "Propiedad",
@@ -60521,7 +60548,16 @@ const GAS_TRANSLATIONS = {
         "payment_processing": "Betaling wordt verwerkt...",
         "deposit_amount": "Aanbetaling",
         "balance_due": "Restbedrag bij inchecken",
-        "deposit_info": "Nu wordt een aanbetaling afgeschreven. Het resterende bedrag is bij inchecken verschuldigd."
+        "deposit_info": "Nu wordt een aanbetaling afgeschreven. Het resterende bedrag is bij inchecken verschuldigd.",
+        "card_guarantee": "Kaartgarantie",
+        "card_guarantee_desc": "Uw kaart wordt veilig bewaard als boekingsgarantie",
+        "securing_card": "Kaart beveiligen...",
+        "card_secured": "Bedankt! Uw kaart is beveiligd. Bevestig uw boeking hieronder.",
+        "card_guarantee_note": "Geen kosten — uw kaart wordt alleen als garantie bewaard.",
+        "bank_transfer_details": "Bankgegevens",
+        "loading_card_form": "Beveiligd kaartformulier laden...",
+        "card_form_not_loaded": "Kaartformulier niet geladen. Selecteer opnieuw Kaartgarantie.",
+        "confirm_booking": "Boeking bevestigen"
       },
       "property": {
         "property": "Accommodatie",
@@ -60823,7 +60859,16 @@ const GAS_TRANSLATIONS = {
         "payment_processing": "Zahlung wird verarbeitet...",
         "deposit_amount": "Anzahlungsbetrag",
         "balance_due": "Restbetrag bei Anreise fällig",
-        "deposit_info": "Jetzt wird eine Anzahlung berechnet. Der Restbetrag ist bei Anreise fällig."
+        "deposit_info": "Jetzt wird eine Anzahlung berechnet. Der Restbetrag ist bei Anreise fällig.",
+        "card_guarantee": "Kartengarantie",
+        "card_guarantee_desc": "Ihre Karte wird sicher als Buchungsgarantie hinterlegt",
+        "securing_card": "Karte wird gesichert...",
+        "card_secured": "Vielen Dank! Ihre Karte ist gesichert. Bitte bestätigen Sie Ihre Buchung unten.",
+        "card_guarantee_note": "Keine Belastung — Ihre Karte wird nur als Garantie hinterlegt.",
+        "bank_transfer_details": "Bankverbindung",
+        "loading_card_form": "Sicheres Kartenformular wird geladen...",
+        "card_form_not_loaded": "Kartenformular nicht geladen. Bitte wählen Sie Kartengarantie erneut.",
+        "confirm_booking": "Buchung bestätigen"
       },
       "property": {
         "property": "Unterkunft",
@@ -61128,7 +61173,16 @@ const GAS_TRANSLATIONS = {
         "payment_processing": "お支払い処理中...",
         "deposit_amount": "デポジット金額",
         "balance_due": "チェックイン時に残額をお支払い",
-        "deposit_info": "デポジットが今課金されます。残額はチェックイン時にお支払いください。"
+        "deposit_info": "デポジットが今課金されます。残額はチェックイン時にお支払いください。",
+        "card_guarantee": "カード保証",
+        "card_guarantee_desc": "お客様のカードは予約保証として安全に保管されます",
+        "securing_card": "カードを保護中...",
+        "card_secured": "ありがとうございます！カードが保護されました。下記で予約を確定してください。",
+        "card_guarantee_note": "課金なし — カードは保証としてのみ保管されます。",
+        "bank_transfer_details": "振込先情報",
+        "loading_card_form": "セキュアカードフォームを読み込み中...",
+        "card_form_not_loaded": "カードフォームが読み込まれていません。カード保証を再選択してください。",
+        "confirm_booking": "予約を確定"
       },
       "property": {
         "property": "施設",
