@@ -16848,6 +16848,8 @@ app.post('/api/public/create-group-booking', async (req, res) => {
             total_amount,
             payment_method,
             enigma_reference_id,
+            stripe_setup_intent_id,
+            stripe_payment_method_id,
             source_site_url,
             currency: reqCurrency
         } = req.body;
@@ -17311,7 +17313,24 @@ app.post('/api/public/create-group-booking', async (req, res) => {
                 console.log('Could not update payment status:', statusError.message);
             }
         }
-        
+
+        // Store Stripe SetupIntent data for card guarantee bookings
+        if (stripe_setup_intent_id && createdBookings.length > 0) {
+            try {
+                await client.query('SAVEPOINT setup_intent_status');
+                for (const b of createdBookings) {
+                    await client.query(`
+                        UPDATE bookings SET stripe_setup_intent_id = $1, stripe_payment_method_id = $2, payment_method = 'card_guarantee'
+                        WHERE id = $3
+                    `, [stripe_setup_intent_id, stripe_payment_method_id || null, b.id]);
+                }
+                await client.query('RELEASE SAVEPOINT setup_intent_status');
+            } catch (siError) {
+                await client.query('ROLLBACK TO SAVEPOINT setup_intent_status');
+                console.log('Could not store setup intent:', siError.message);
+            }
+        }
+
         console.log(`DEBUG: About to COMMIT transaction with ${createdBookings.length} bookings`);
         console.log(`DEBUG: Booking IDs to commit: ${createdBookings.map(b => b.id).join(', ')}`);
         
@@ -17611,6 +17630,105 @@ app.post('/api/public/create-payment-intent', async (req, res) => {
         
     } catch (error) {
         console.error('Error creating payment intent:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// =====================================================
+// STRIPE SETUP INTENT (Card Guarantee via Stripe)
+// Creates a SetupIntent to authorize a card without charging
+// =====================================================
+app.post('/api/public/create-setup-intent', async (req, res) => {
+    try {
+        const { property_id, booking_data } = req.body;
+
+        if (!property_id) {
+            return res.status(400).json({ success: false, error: 'property_id is required' });
+        }
+
+        // Check payment_configurations table first (property-level)
+        let paymentConfig = await pool.query(`
+            SELECT pc.*
+            FROM payment_configurations pc
+            WHERE pc.property_id = $1 AND pc.provider = 'stripe' AND pc.is_enabled = true
+            LIMIT 1
+        `, [property_id]);
+
+        // Fall back to account-level config
+        if (paymentConfig.rows.length === 0) {
+            paymentConfig = await pool.query(`
+                SELECT pc.*
+                FROM payment_configurations pc
+                JOIN properties p ON pc.account_id = p.account_id
+                WHERE p.id = $1 AND pc.property_id IS NULL AND pc.provider = 'stripe' AND pc.is_enabled = true
+                LIMIT 1
+            `, [property_id]);
+        }
+
+        let setupIntent;
+
+        if (paymentConfig.rows.length > 0 && paymentConfig.rows[0].credentials?.secret_key) {
+            const config = paymentConfig.rows[0];
+            const configStripe = new Stripe(config.credentials.secret_key);
+
+            setupIntent = await configStripe.setupIntents.create({
+                payment_method_types: ['card'],
+                metadata: {
+                    property_id: String(property_id),
+                    guest_email: booking_data?.email || '',
+                    check_in: booking_data?.check_in || '',
+                    check_out: booking_data?.check_out || ''
+                }
+            });
+
+            return res.json({
+                success: true,
+                client_secret: setupIntent.client_secret,
+                setup_intent_id: setupIntent.id,
+                publishable_key: config.credentials.publishable_key
+            });
+        }
+
+        // Fall back to legacy property stripe fields
+        const result = await pool.query(`
+            SELECT p.stripe_secret_key, p.stripe_publishable_key, p.stripe_enabled,
+                   a.stripe_account_id,
+                   a.stripe_publishable_key as account_stripe_publishable_key,
+                   a.stripe_secret_key as account_stripe_secret_key
+            FROM properties p
+            JOIN accounts a ON p.account_id = a.id
+            WHERE p.id = $1
+        `, [property_id]);
+
+        if (result.rows.length === 0) {
+            return res.status(400).json({ success: false, error: 'Property not found' });
+        }
+
+        const prop = result.rows[0];
+        const metadata = {
+            property_id: String(property_id),
+            guest_email: booking_data?.email || '',
+            check_in: booking_data?.check_in || '',
+            check_out: booking_data?.check_out || ''
+        };
+
+        if (prop.stripe_enabled && prop.stripe_secret_key) {
+            const propertyStripe = new Stripe(prop.stripe_secret_key);
+            setupIntent = await propertyStripe.setupIntents.create({ payment_method_types: ['card'], metadata });
+            return res.json({ success: true, client_secret: setupIntent.client_secret, setup_intent_id: setupIntent.id, publishable_key: prop.stripe_publishable_key });
+        } else if (prop.stripe_account_id) {
+            setupIntent = await stripe.setupIntents.create({ payment_method_types: ['card'], metadata }, { stripeAccount: prop.stripe_account_id });
+            return res.json({ success: true, client_secret: setupIntent.client_secret, setup_intent_id: setupIntent.id });
+        } else if (prop.account_stripe_secret_key) {
+            const accountStripe = new Stripe(prop.account_stripe_secret_key);
+            setupIntent = await accountStripe.setupIntents.create({ payment_method_types: ['card'], metadata });
+            return res.json({ success: true, client_secret: setupIntent.client_secret, setup_intent_id: setupIntent.id, publishable_key: prop.account_stripe_publishable_key });
+        } else {
+            return res.status(400).json({ success: false, error: 'Property not configured for Stripe payments.' });
+        }
+
+    } catch (error) {
+        console.error('Error creating setup intent:', error);
         res.status(500).json({ success: false, error: error.message });
     }
 });
@@ -18392,6 +18510,8 @@ app.get('/api/setup-database', async (req, res) => {
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS enigma_card_exp_month INTEGER`);
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS enigma_card_exp_year INTEGER`);
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS enigma_reference_id VARCHAR(100)`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS stripe_setup_intent_id VARCHAR(200)`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS stripe_payment_method_id VARCHAR(200)`);
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS source_site_url VARCHAR(500)`);
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS guest_address VARCHAR(500)`);
     // Discount tracking for partner-applied discounts
@@ -28146,7 +28266,7 @@ app.post('/api/db/rooms', async (req, res) => {
 });
 
 app.post('/api/db/book', async (req, res) => {
-  const { property_id, room_id, check_in, check_out, num_adults, num_children, guest_first_name, guest_last_name, guest_email, guest_phone, total_price, guest_address, guest_city, guest_country, guest_postcode, notes, special_requests, marketing, marketing_opt_in, payment_method, enigma_reference_id, source_site_url } = req.body;
+  const { property_id, room_id, check_in, check_out, num_adults, num_children, guest_first_name, guest_last_name, guest_email, guest_phone, total_price, guest_address, guest_city, guest_country, guest_postcode, notes, special_requests, marketing, marketing_opt_in, payment_method, enigma_reference_id, stripe_setup_intent_id, stripe_payment_method_id, source_site_url } = req.body;
   const guestSpecialRequests = special_requests || notes || null;
   const guestMarketingOptIn = marketing_opt_in || marketing || false;
   
@@ -58419,7 +58539,8 @@ app.post('/api/public/book', async (req, res) => {
       guest_address, guest_city, guest_country, guest_postcode,
       voucher_code, notes, marketing, total_price,
       stripe_payment_intent_id, deposit_amount, balance_amount, payment_method,
-      enigma_reference_id, source_site_url
+      enigma_reference_id, stripe_setup_intent_id, stripe_payment_method_id,
+      source_site_url
     } = req.body;
     
     // Validate required fields
@@ -58610,7 +58731,16 @@ app.post('/api/public/book', async (req, res) => {
         // Don't fail the booking - card storage is secondary
       }
     }
-    
+
+    // If Stripe SetupIntent card guarantee was used, store the IDs
+    if (stripe_setup_intent_id && payment_method === 'card_guarantee') {
+      await pool.query(`
+        UPDATE bookings SET stripe_setup_intent_id = $1, stripe_payment_method_id = $2
+        WHERE id = $3
+      `, [stripe_setup_intent_id, stripe_payment_method_id || null, newBooking.id]);
+      console.log(`[Stripe] SetupIntent stored for booking ${newBooking.id}: ${stripe_setup_intent_id}`);
+    }
+
     // Block availability for these dates
     console.log(`Blocking dates for unit ${unit_id} from ${check_in} to ${check_out}`);
     
@@ -79614,6 +79744,7 @@ app.get('/api/public/property/:id/card-guarantee-info', async (req, res) => {
     res.json({
       success: true,
       card_guarantee_enabled: !!cardGuaranteeInMethods,
+      provider: cgSettings.provider || 'enigma',
       label: cgSettings.label || 'Card Guarantee',
       description: cgSettings.description || 'Your card is held securely as a booking guarantee. No charge unless you cancel or no-show.',
       success_message: cgSettings.success_message || 'Thank you! Your card is secured. Please now confirm your booking below.'

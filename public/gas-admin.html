@@ -18796,7 +18796,27 @@ const promo = await fetch('/api/v1/offers/validate', {
                             <p style="margin: 0;">4. For no-shows or cancellations, you can charge the stored card</p>
                         </div>
                     </div>
-                    
+
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label class="form-label">Card Guarantee Provider</label>
+                        <div style="display: flex; gap: 0.75rem;">
+                            <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem; background: white; border-radius: 8px; border: 2px solid transparent; cursor: pointer; flex: 1;" id="cg-provider-enigma-label">
+                                <input type="radio" name="cg-provider" value="enigma" id="cg-provider-enigma" checked onchange="toggleCgProvider()">
+                                <div>
+                                    <strong style="font-size: 0.85rem;">Enigma Vault</strong>
+                                    <p style="font-size: 0.7rem; color: #64748b; margin: 0.15rem 0 0 0;">Third-party PCI card vault</p>
+                                </div>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem; background: white; border-radius: 8px; border: 2px solid transparent; cursor: pointer; flex: 1;" id="cg-provider-stripe-label">
+                                <input type="radio" name="cg-provider" value="stripe" id="cg-provider-stripe" onchange="toggleCgProvider()">
+                                <div>
+                                    <strong style="font-size: 0.85rem;">Stripe</strong>
+                                    <p style="font-size: 0.7rem; color: #64748b; margin: 0.15rem 0 0 0;">Uses your existing Stripe keys</p>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
                     <div class="form-group" style="margin-bottom: 1rem;">
                         <label class="form-label">Guest-facing Label</label>
                         <input type="text" class="form-input" id="card-guarantee-label" placeholder="e.g. Card Guarantee (no charge at booking)" value="Card Guarantee">
@@ -52491,6 +52511,8 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (document.getElementById('card-guarantee-noshow-type')) document.getElementById('card-guarantee-noshow-type').value = 'first_night';
             if (document.getElementById('card-guarantee-noshow-amount')) document.getElementById('card-guarantee-noshow-amount').value = 100;
             if (document.getElementById('card-guarantee-success-msg')) document.getElementById('card-guarantee-success-msg').value = 'Thank you! Your card is secured. Please now confirm your booking below.';
+            if (document.getElementById('cg-provider-enigma')) document.getElementById('cg-provider-enigma').checked = true;
+            toggleCgProvider();
             document.getElementById('stripe-publishable-key').value = '';
             document.getElementById('stripe-secret-key').value = '';
             document.getElementById('stripe-test-mode').checked = false;
@@ -52604,7 +52626,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                     if (cgSettings.success_message && document.getElementById('card-guarantee-success-msg')) {
                         document.getElementById('card-guarantee-success-msg').value = cgSettings.success_message;
                     }
-                    
+                    if (cgSettings.provider === 'stripe' && document.getElementById('cg-provider-stripe')) {
+                        document.getElementById('cg-provider-stripe').checked = true;
+                    }
+                    toggleCgProvider();
+
                     // Load bank details
                     const bankDetails = typeof settings.bank_details === 'string' ? JSON.parse(settings.bank_details) : (settings.bank_details || {});
                     if (bankDetails.accounts && bankDetails.accounts.length > 0) {
@@ -52692,7 +52718,21 @@ const promo = await fetch('/api/v1/offers/validate', {
             
             if (payPropertyChecked) togglePayPropertyMode();
         }
-        
+
+        function toggleCgProvider() {
+            const isEnigma = document.getElementById('cg-provider-enigma')?.checked;
+            const enigmaLabel = document.getElementById('cg-provider-enigma-label');
+            const stripeLabel = document.getElementById('cg-provider-stripe-label');
+            if (enigmaLabel) {
+                enigmaLabel.style.borderColor = isEnigma ? '#8b5cf6' : 'transparent';
+                enigmaLabel.style.background = isEnigma ? '#faf5ff' : 'white';
+            }
+            if (stripeLabel) {
+                stripeLabel.style.borderColor = !isEnigma ? '#4f46e5' : 'transparent';
+                stripeLabel.style.background = !isEnigma ? '#eef2ff' : 'white';
+            }
+        }
+
         function togglePayPropertyMode() {
             var mode = document.querySelector('input[name="pay-property-mode"]:checked')?.value || 'no_payment';
             var bankSection = document.getElementById('bank-details-subsection');
@@ -52866,6 +52906,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 cardGuaranteeSettings.noshow_charge_type = document.getElementById('card-guarantee-noshow-type')?.value || 'first_night';
                 cardGuaranteeSettings.noshow_charge_amount = parseFloat(document.getElementById('card-guarantee-noshow-amount')?.value) || 100;
                 cardGuaranteeSettings.success_message = document.getElementById('card-guarantee-success-msg')?.value || 'Thank you! Your card is secured. Please now confirm your booking below.';
+                cardGuaranteeSettings.provider = document.querySelector('input[name="cg-provider"]:checked')?.value || 'enigma';
             }
             
             // Build bank details object

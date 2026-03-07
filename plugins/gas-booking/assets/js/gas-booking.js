@@ -3312,6 +3312,7 @@ jQuery(document).ready(function($) {
                     success: function(response) {
                         if (response.success && response.card_guarantee_enabled) {
                             window.groupCheckoutData.cardGuaranteeEnabled = true;
+                            window.gasCardGuaranteeProvider = response.provider || 'enigma';
                             var $cgOption = $('.gas-payment-card-guarantee-option');
                             $cgOption.show().find('input').prop('disabled', false);
                             if (response.label) $cgOption.find('.gas-card-guarantee-label').text(response.label);
@@ -3505,14 +3506,67 @@ jQuery(document).ready(function($) {
                         }
                     });
                 } else if (paymentMethod === 'card_guarantee') {
-                    if (!window.gasEnigmaCardCaptured) {
-                        alert('Please complete the secure card form before confirming your booking.');
-                        $btn.prop('disabled', false);
-                        $btn.find('.gas-btn-text').show();
-                        $btn.find('.gas-btn-loading').hide();
-                        return;
+                    if (window.gasCardGuaranteeProvider === 'stripe' && curGroup.stripe && curGroup.cardElement) {
+                        // Stripe SetupIntent card guarantee
+                        $.ajax({
+                            url: window.groupCheckoutData.apiUrl + '/api/public/create-setup-intent',
+                            method: 'POST',
+                            contentType: 'application/json',
+                            data: JSON.stringify({
+                                property_id: curGroup.propertyId,
+                                booking_data: {
+                                    email: $form.find('[name="email"]').val(),
+                                    check_in: window.groupCheckoutData.checkin,
+                                    check_out: window.groupCheckoutData.checkout
+                                }
+                            }),
+                            success: function(response) {
+                                if (response.success && response.client_secret) {
+                                    curGroup.stripe.confirmCardSetup(response.client_secret, {
+                                        payment_method: {
+                                            card: curGroup.cardElement,
+                                            billing_details: {
+                                                name: $form.find('[name="first_name"]').val() + ' ' + $form.find('[name="last_name"]').val(),
+                                                email: $form.find('[name="email"]').val()
+                                            }
+                                        }
+                                    }).then(function(result) {
+                                        if (result.error) {
+                                            $('#gas-card-errors').text(result.error.message);
+                                            $btn.prop('disabled', false);
+                                            $btn.find('.gas-btn-text').show();
+                                            $btn.find('.gas-btn-loading').hide();
+                                        } else {
+                                            window.gasStripeSetupIntentId = result.setupIntent.id;
+                                            window.gasStripePaymentMethodId = result.setupIntent.payment_method;
+                                            submitGroupBooking($btn, $form, null);
+                                        }
+                                    });
+                                } else {
+                                    alert('Failed to initialize card guarantee: ' + (response.error || 'Please try again'));
+                                    $btn.prop('disabled', false);
+                                    $btn.find('.gas-btn-text').show();
+                                    $btn.find('.gas-btn-loading').hide();
+                                }
+                            },
+                            error: function() {
+                                alert('Card guarantee service unavailable. Please try again.');
+                                $btn.prop('disabled', false);
+                                $btn.find('.gas-btn-text').show();
+                                $btn.find('.gas-btn-loading').hide();
+                            }
+                        });
+                    } else {
+                        // Enigma card guarantee
+                        if (!window.gasEnigmaCardCaptured) {
+                            alert('Please complete the secure card form before confirming your booking.');
+                            $btn.prop('disabled', false);
+                            $btn.find('.gas-btn-text').show();
+                            $btn.find('.gas-btn-loading').hide();
+                            return;
+                        }
+                        submitGroupBooking($btn, $form, null);
                     }
-                    submitGroupBooking($btn, $form, null);
                 } else {
                     // Pay at property - submit directly
                     submitGroupBooking($btn, $form, null);
@@ -3557,12 +3611,14 @@ jQuery(document).ready(function($) {
                     deposit_amount: submitGroup.depositAmount || null,
                     upsells: submitGroup.selectedUpsells || [],
                     enigma_reference_id: window.gasEnigmaReferenceId || null,
+                    stripe_setup_intent_id: window.gasStripeSetupIntentId || null,
+                    stripe_payment_method_id: window.gasStripePaymentMethodId || null,
                     source_site_url: window.location.origin + window.location.pathname,
                     total_amount: submitGroup.subtotal + (submitGroup.taxTotal || 0)
                 };
-                
+
                 console.log('GAS: Submitting group booking', postData);
-                
+
                 $.ajax({
                     url: window.groupCheckoutData.apiUrl + '/api/public/create-group-booking',
                     method: 'POST',
@@ -3780,6 +3836,7 @@ jQuery(document).ready(function($) {
                     success: function(response) {
                         if (response.success && response.card_guarantee_enabled) {
                             window.groupCheckoutData.cardGuaranteeEnabled = true;
+                            window.gasCardGuaranteeProvider = response.provider || 'enigma';
                             var $cgOption = $('.gas-payment-card-guarantee-option');
                             $cgOption.show();
                             $cgOption.find('input').prop('disabled', false);
@@ -4031,10 +4088,15 @@ jQuery(document).ready(function($) {
                     $('.gas-card-guarantee-form').slideUp(200);
                     $('.gas-bank-transfer-panel').slideUp(200);
                 } else if (method === 'card_guarantee') {
-                    $('.gas-stripe-form').slideUp(200);
-                    $('.gas-card-guarantee-form').slideDown(200);
                     $('.gas-bank-transfer-panel').slideUp(200);
-                    window.gasLoadEnigmaForm(getCurrentGroup().propertyId);
+                    if (window.gasCardGuaranteeProvider === 'stripe') {
+                        $('.gas-card-guarantee-form').slideUp(200);
+                        $('.gas-stripe-form').slideDown(200);
+                    } else {
+                        $('.gas-stripe-form').slideUp(200);
+                        $('.gas-card-guarantee-form').slideDown(200);
+                        window.gasLoadEnigmaForm(getCurrentGroup().propertyId);
+                    }
                 } else if (method === 'pay_at_property') {
                     $('.gas-stripe-form').slideUp(200);
                     $('.gas-card-guarantee-form').slideUp(200);
@@ -4092,6 +4154,7 @@ jQuery(document).ready(function($) {
                 method: 'GET',
                 success: function(response) {
                     if (response.success && response.card_guarantee_enabled) {
+                        window.gasCardGuaranteeProvider = response.provider || 'enigma';
                         var $cgOption = $('.gas-payment-card-guarantee-option');
                         $cgOption.show();
                         $cgOption.find('input').prop('disabled', false);
@@ -4819,10 +4882,15 @@ jQuery(document).ready(function($) {
                     $('.gas-balance-row').hide();
                 }
             } else if (paymentMethod === 'card_guarantee') {
-                $('.gas-stripe-form').slideUp(200);
-                $('.gas-card-guarantee-form').slideDown(200);
                 $('.gas-bank-transfer-panel').slideUp(200);
-                window.gasLoadEnigmaForm(checkoutData.propertyId);
+                if (window.gasCardGuaranteeProvider === 'stripe') {
+                    $('.gas-card-guarantee-form').slideUp(200);
+                    $('.gas-stripe-form').slideDown(200);
+                } else {
+                    $('.gas-stripe-form').slideUp(200);
+                    $('.gas-card-guarantee-form').slideDown(200);
+                    window.gasLoadEnigmaForm(checkoutData.propertyId);
+                }
             } else if (paymentMethod === 'pay_at_property') {
                 $('.gas-stripe-form').slideUp(200);
                 $('.gas-card-guarantee-form').slideUp(200);
@@ -4911,14 +4979,71 @@ jQuery(document).ready(function($) {
                 return;
             }
             
-            // If card guarantee, validate card was captured
+            // If card guarantee with Stripe, process SetupIntent
+            if (paymentMethod === 'card_guarantee' && window.gasCardGuaranteeProvider === 'stripe' && checkoutData.stripe && checkoutData.cardElement) {
+                $btn.prop('disabled', true);
+                $btn.find('.gas-btn-text').hide();
+                $btn.find('.gas-btn-loading').text('Securing card...').show();
+                var $form = $('#gas-guest-form');
+                $.ajax({
+                    url: checkoutData.apiUrl + '/api/public/create-setup-intent',
+                    method: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({
+                        property_id: checkoutData.propertyId,
+                        booking_data: {
+                            email: $form.find('[name="email"]').val(),
+                            check_in: checkoutData.checkin,
+                            check_out: checkoutData.checkout
+                        }
+                    }),
+                    success: function(response) {
+                        if (response.success && response.client_secret) {
+                            checkoutData.stripe.confirmCardSetup(response.client_secret, {
+                                payment_method: {
+                                    card: checkoutData.cardElement,
+                                    billing_details: {
+                                        name: $form.find('[name="first_name"]').val() + ' ' + $form.find('[name="last_name"]').val(),
+                                        email: $form.find('[name="email"]').val()
+                                    }
+                                }
+                            }).then(function(result) {
+                                if (result.error) {
+                                    $('#gas-card-errors').text(result.error.message);
+                                    $btn.prop('disabled', false);
+                                    $btn.find('.gas-btn-text').show();
+                                    $btn.find('.gas-btn-loading').hide();
+                                } else {
+                                    window.gasStripeSetupIntentId = result.setupIntent.id;
+                                    window.gasStripePaymentMethodId = result.setupIntent.payment_method;
+                                    submitBooking($btn, null);
+                                }
+                            });
+                        } else {
+                            alert('Failed to initialize card guarantee: ' + (response.error || 'Please try again'));
+                            $btn.prop('disabled', false);
+                            $btn.find('.gas-btn-text').show();
+                            $btn.find('.gas-btn-loading').hide();
+                        }
+                    },
+                    error: function() {
+                        alert('Card guarantee service unavailable. Please try again.');
+                        $btn.prop('disabled', false);
+                        $btn.find('.gas-btn-text').show();
+                        $btn.find('.gas-btn-loading').hide();
+                    }
+                });
+                return;
+            }
+
+            // If card guarantee with Enigma, validate card was captured
             if (paymentMethod === 'card_guarantee') {
                 if (!window.gasEnigmaCardCaptured) {
                     alert('Please complete the secure card form before confirming your booking.');
                     return;
                 }
             }
-            
+
             // Otherwise, proceed with pay at property / card guarantee
             submitBooking($btn, null);
         });
@@ -5049,6 +5174,8 @@ jQuery(document).ready(function($) {
                 voucher_code: checkoutData.voucherCode,
                 stripe_payment_intent_id: paymentIntentId,
                 enigma_reference_id: window.gasEnigmaReferenceId || null,
+                stripe_setup_intent_id: window.gasStripeSetupIntentId || null,
+                stripe_payment_method_id: window.gasStripePaymentMethodId || null,
                 source_site_url: window.location.origin + window.location.pathname,
                 deposit_amount: paymentMethod === 'card' ? checkoutData.depositAmount : null,
                 balance_amount: paymentMethod === 'card' ? checkoutData.balanceAmount : null,
