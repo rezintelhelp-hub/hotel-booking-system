@@ -1562,16 +1562,197 @@
             color: #ffffff;
         }
         .client-mode .client-body {
-            display: grid;
-            grid-template-columns: 1fr minmax(auto, 960px) 1fr;
+            display: flex;
             flex: 1;
-            padding: 2rem 2.5rem;
+            overflow: hidden;
         }
         .client-mode .client-body > .main-content-inner {
-            grid-column: 2;
+            flex: 1;
+            overflow-y: auto;
+            padding: 2rem 2.5rem;
         }
         .client-mode .view {
             max-width: 960px;
+            margin: 0 auto;
+        }
+
+        /* Client mode hides floating chat widget — panel replaces it */
+        .client-mode #ai-chat-button { display: none !important; }
+        .client-mode #ai-chat-widget { display: none !important; }
+
+        /* =============================================
+           CLIENT AI PANEL — matches register.html
+           ============================================= */
+        .client-ai-panel {
+            width: 380px;
+            background: #fafbff;
+            border-left: 1px solid #f1f5f9;
+            display: none;
+            flex-direction: column;
+            flex-shrink: 0;
+        }
+        .client-mode .client-ai-panel {
+            display: flex;
+        }
+        .client-ai-header {
+            padding: 1.5rem 1.5rem 1rem;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .client-ai-identity {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+        }
+        .client-ai-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            background: #0f172a;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+        .client-ai-name {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #0f172a;
+        }
+        .client-ai-status {
+            font-size: 0.7rem;
+            color: #10b981;
+        }
+        .client-ai-context {
+            margin-top: 0.6rem;
+            font-size: 0.75rem;
+            color: #64748b;
+            padding: 0.35rem 0.6rem;
+            background: #f1f5f9;
+            border-radius: 6px;
+            display: inline-block;
+        }
+        .client-ai-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1.25rem 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        .client-ai-message {
+            max-width: 100%;
+            animation: clientMsgFadeIn 0.3s ease forwards;
+        }
+        @keyframes clientMsgFadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .client-ai-bubble {
+            background: #f0f4ff;
+            padding: 0.85rem 1rem;
+            border-radius: 12px 12px 12px 4px;
+            font-size: 0.88rem;
+            line-height: 1.55;
+            color: #334155;
+        }
+        .client-ai-bubble.user {
+            background: #0f172a;
+            color: #ffffff;
+            border-radius: 12px 12px 4px 12px;
+        }
+        .client-ai-bubble strong { color: #0f172a; }
+        .client-ai-bubble.user strong { color: #ffffff; }
+        .client-ai-typing {
+            display: flex;
+            gap: 4px;
+            padding: 0.85rem 1rem;
+            background: #f0f4ff;
+            border-radius: 12px 12px 12px 4px;
+            width: fit-content;
+        }
+        .client-ai-typing span {
+            width: 6px; height: 6px; border-radius: 50%;
+            background: #64748b;
+            animation: clientTypingDot 1.4s infinite;
+        }
+        .client-ai-typing span:nth-child(2) { animation-delay: 0.2s; }
+        .client-ai-typing span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes clientTypingDot {
+            0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
+            30% { opacity: 1; transform: translateY(-3px); }
+        }
+        .client-ai-suggestions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+            margin-top: 0.75rem;
+        }
+        .client-ai-suggestions button {
+            font-size: 0.78rem;
+            padding: 0.4rem 0.75rem;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 20px;
+            background: #ffffff;
+            color: #334155;
+            cursor: pointer;
+            font-family: inherit;
+            transition: all 0.2s;
+        }
+        .client-ai-suggestions button:hover {
+            border-color: #2563eb;
+            background: #eff6ff;
+            color: #2563eb;
+        }
+        .client-ai-input-area {
+            padding: 1rem 1.5rem;
+            border-top: 1px solid #f1f5f9;
+        }
+        .client-ai-input-wrap {
+            display: flex;
+            gap: 0.5rem;
+        }
+        .client-ai-input {
+            flex: 1;
+            padding: 0.65rem 0.85rem;
+            font-family: 'Inter', 'DM Sans', sans-serif;
+            font-size: 0.85rem;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 8px;
+            outline: none;
+            color: #0f172a;
+            background: #ffffff;
+            transition: border-color 0.2s;
+        }
+        .client-ai-input:focus { border-color: #2563eb; }
+        .client-ai-send {
+            width: 36px; height: 36px;
+            border-radius: 8px;
+            background: #0f172a;
+            color: white;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+            flex-shrink: 0;
+        }
+        .client-ai-send:hover { background: #2563eb; }
+
+        @media (max-width: 1100px) {
+            .client-ai-panel { width: 320px; }
+        }
+        @media (max-width: 900px) {
+            .client-mode .client-body { flex-direction: column; }
+            .client-ai-panel {
+                width: 100%;
+                max-height: 320px;
+                border-left: none;
+                border-top: 1px solid #f1f5f9;
+            }
         }
 
         /* Client mode hides default header since client-header replaces it */
@@ -2178,11 +2359,35 @@
                 </div>
             </div>
 
-            <!-- Client Mode Body Wrapper (wraps views in centered column) -->
+            <!-- Client Mode Body Wrapper -->
             <div class="client-body" id="clientBody" style="display: none;">
-                <div></div>
                 <div class="main-content-inner" id="clientContentInner"></div>
-                <div></div>
+
+                <!-- AI Assistant Panel (register.html style) -->
+                <div class="client-ai-panel" id="clientAiPanel">
+                    <div class="client-ai-header">
+                        <div class="client-ai-identity">
+                            <div class="client-ai-avatar">GAS</div>
+                            <div>
+                                <div class="client-ai-name">GAS Setup Assistant</div>
+                                <div class="client-ai-status">● Online</div>
+                            </div>
+                        </div>
+                        <div class="client-ai-context" id="clientAiContext">Viewing: Dashboard</div>
+                    </div>
+
+                    <div class="client-ai-messages" id="clientAiMessages"></div>
+
+                    <div class="client-ai-input-area">
+                        <div class="client-ai-suggestions" id="clientAiSuggestions"></div>
+                        <div class="client-ai-input-wrap" style="margin-top: 0.6rem;">
+                            <input type="text" class="client-ai-input" id="clientAiInput" placeholder="Ask me anything..." onkeydown="if(event.key==='Enter')sendClientAiMessage()">
+                            <button class="client-ai-send" onclick="sendClientAiMessage()">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- Dashboard View -->
@@ -20797,9 +21002,11 @@ const promo = await fetch('/api/v1/offers/validate', {
             const contentInner = document.getElementById('clientContentInner');
             const mainEl = document.querySelector('.main');
             if (clientBody && contentInner && mainEl) {
-                clientBody.style.display = 'grid';
+                clientBody.style.display = 'flex';
                 const views = mainEl.querySelectorAll(':scope > .view');
                 views.forEach(v => contentInner.appendChild(v));
+                // Show initial AI panel greeting
+                updateClientAiPanel('dashboard');
             }
 
             console.log('Role-based access applied for:', currentAccount.role, '- filtering to account:', selectedAccountId);
@@ -22308,6 +22515,11 @@ const promo = await fetch('/api/v1/offers/validate', {
 
             // Render in-view navigation (tabs, back link, dropdown)
             renderViewNav(viewName);
+
+            // Update client AI panel context if in client mode
+            if (document.querySelector('.dashboard.client-mode')) {
+                updateClientAiPanel(viewName);
+            }
         }
 
         // =========================================================
@@ -57950,6 +58162,162 @@ const promo = await fetch('/api/v1/offers/validate', {
             sendAIChatMessage();
         }
         
+        // =====================================================
+        // CLIENT AI PANEL (register.html style, always visible)
+        // =====================================================
+        var clientAiMessages = [];
+        var clientAiLoading = false;
+        var clientAiCurrentView = 'Dashboard';
+
+        // Contextual prompts per view
+        const clientAiViewPrompts = {
+            'dashboard':           { greeting: "Welcome! I'm your GAS Setup Assistant. What would you like to do today?", suggestions: ['Set up my property', 'Connect a channel manager', 'Create my website'] },
+            'properties':          { greeting: "Would you like help adding your first property?", suggestions: ['Add a property', 'Edit property details', 'Change currency'] },
+            'rooms':               { greeting: "Need help setting up your rooms and units?", suggestions: ['Add a room type', 'Set room pricing', 'Upload room images'] },
+            'images':              { greeting: "Ready to upload images for your property?", suggestions: ['Upload images', 'Reorder gallery', 'Image guidelines'] },
+            'amenities':           { greeting: "Let's set up your amenities to help guests choose.", suggestions: ['Add amenities', 'Common amenities list', 'Custom amenities'] },
+            'availability':        { greeting: "Want me to help you manage your availability calendar?", suggestions: ['Block dates', 'Set rates', 'Bulk update'] },
+            'bookings':            { greeting: "Want me to walk you through managing your bookings?", suggestions: ['View recent bookings', 'Handle a cancellation', 'Export bookings'] },
+            'offers':              { greeting: "I can help you create special offers and discounts.", suggestions: ['Create an offer', 'Seasonal pricing', 'Promo codes'] },
+            'vouchers':            { greeting: "Need help setting up voucher codes?", suggestions: ['Create a voucher', 'Voucher types', 'Track redemptions'] },
+            'upsells':             { greeting: "Boost revenue with upsells — want me to help?", suggestions: ['Add an upsell', 'Popular upsells', 'Pricing tips'] },
+            'taxes':               { greeting: "Let me help you configure your tax settings.", suggestions: ['Add a tax', 'Tax types explained', 'Per-room vs per-booking'] },
+            'payments':            { greeting: "Need help with payment settings?", suggestions: ['Payment methods', 'Deposit settings', 'Currency setup'] },
+            'deposit-rules':       { greeting: "I can walk you through setting up deposit rules.", suggestions: ['Create a rule', 'Flexible vs strict', 'Refund policies'] },
+            'vendors':             { greeting: "Manage your service vendors from here.", suggestions: ['Add a vendor', 'Assign to properties', 'Vendor categories'] },
+            'vendor-requests':     { greeting: "Track service requests to your vendors.", suggestions: ['New request', 'View pending', 'Request history'] },
+            'marketing':           { greeting: "Let's set up your marketing features.", suggestions: ['Feature tags', 'Highlight amenities', 'SEO tips'] },
+            'gas-sync-connections': { greeting: "Ready to connect your channel manager?", suggestions: ['Connect Beds24', 'Sync my data', 'Troubleshoot sync'] },
+            'turbine-connections': { greeting: "Let's get your Turbine connections set up.", suggestions: ['Add connection', 'How Turbines work', 'Campaign setup'] },
+            'turbine-campaigns':   { greeting: "Want help creating a Turbine campaign?", suggestions: ['New campaign', 'Campaign types', 'View results'] },
+            'turbine-generator':   { greeting: "Generate content with Turbine AI.", suggestions: ['Generate a post', 'Content settings', 'Publishing'] },
+            'gas-lites':           { greeting: "GAS Lites — lightweight booking widgets.", suggestions: ['Create a Lite', 'Embed on website', 'Customise style'] },
+            'app-blog':            { greeting: "Want me to help you create blog content?", suggestions: ['Write a blog post', 'Blog categories', 'Publishing tips'] },
+            'app-attractions':     { greeting: "Add local attractions to engage your guests.", suggestions: ['Add attraction', 'Categories', 'Auto-generate'] },
+            'app-reviews':         { greeting: "Showcase your best guest reviews.", suggestions: ['Import reviews', 'Display settings', 'Review sources'] },
+            'deploy-sites':        { greeting: "Ready to create your booking website?", suggestions: ['Create a site', 'Custom domain', 'Site settings'] },
+            'plugin-licenses':     { greeting: "Manage your WordPress plugin licenses.", suggestions: ['View licenses', 'Activate plugin', 'License issues'] },
+            'my-account':          { greeting: "Manage your account settings here.", suggestions: ['Update profile', 'Change password', 'Billing info'] }
+        };
+
+        function getViewLabel(viewName) {
+            const labels = {
+                'dashboard': 'Dashboard', 'properties': 'Properties', 'rooms': 'Rooms',
+                'images': 'Images', 'amenities': 'Amenities', 'availability': 'Availability',
+                'bookings': 'Bookings', 'offers': 'Offers', 'vouchers': 'Vouchers',
+                'upsells': 'Upsells', 'taxes': 'Taxes', 'payments': 'Payments',
+                'deposit-rules': 'Deposit Rules', 'vendors': 'Vendors',
+                'vendor-requests': 'Service Requests', 'marketing': 'Marketing',
+                'gas-sync-connections': 'Channel Manager', 'turbine-connections': 'Turbines',
+                'turbine-campaigns': 'Campaigns', 'turbine-generator': 'Generator',
+                'gas-lites': 'GAS Lites', 'app-blog': 'Blog', 'app-attractions': 'Attractions',
+                'app-reviews': 'Reviews', 'deploy-sites': 'Create Sites',
+                'plugin-licenses': 'Licenses', 'my-account': 'My Account'
+            };
+            return labels[viewName] || viewName;
+        }
+
+        function updateClientAiPanel(viewName) {
+            const panel = document.getElementById('clientAiPanel');
+            if (!panel) return;
+
+            const contextEl = document.getElementById('clientAiContext');
+            if (contextEl) contextEl.textContent = 'Viewing: ' + getViewLabel(viewName);
+
+            // Only show contextual greeting on view change
+            if (viewName !== clientAiCurrentView) {
+                clientAiCurrentView = viewName;
+                const prompt = clientAiViewPrompts[viewName] || clientAiViewPrompts['dashboard'];
+
+                // Add contextual greeting
+                clientAiMessages.push({ role: 'assistant', content: prompt.greeting });
+                renderClientAiMessages();
+
+                // Update suggestion buttons
+                const suggestionsEl = document.getElementById('clientAiSuggestions');
+                if (suggestionsEl) {
+                    suggestionsEl.innerHTML = prompt.suggestions.map(s =>
+                        `<button onclick="askClientAiQuestion('${s.replace(/'/g, "\\'")}')">${s}</button>`
+                    ).join('');
+                }
+            }
+        }
+
+        function renderClientAiMessages() {
+            const container = document.getElementById('clientAiMessages');
+            if (!container) return;
+
+            container.innerHTML = clientAiMessages.map(msg => `
+                <div class="client-ai-message">
+                    <div class="client-ai-bubble ${msg.role === 'user' ? 'user' : ''}">${msg.content.replace(/\n/g, '<br>')}</div>
+                </div>
+            `).join('');
+
+            if (clientAiLoading) {
+                container.innerHTML += `
+                    <div class="client-ai-message">
+                        <div class="client-ai-typing"><span></span><span></span><span></span></div>
+                    </div>
+                `;
+            }
+
+            container.scrollTop = container.scrollHeight;
+        }
+
+        async function sendClientAiMessage() {
+            const input = document.getElementById('clientAiInput');
+            const message = input.value.trim();
+            if (!message || clientAiLoading) return;
+
+            input.value = '';
+            clientAiMessages.push({ role: 'user', content: message });
+            clientAiLoading = true;
+            renderClientAiMessages();
+
+            try {
+                const userDetails = currentAccount ? {
+                    account_id: currentAccount.id,
+                    email: currentAccount.email,
+                    name: currentAccount.name || currentAccount.company_name,
+                    role: currentAccount.role
+                } : null;
+
+                const historyForAPI = clientAiMessages.slice(-10).map(msg => ({
+                    role: msg.role, content: msg.content
+                }));
+
+                const response = await fetch('/api/ai-chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message,
+                        context: getViewLabel(clientAiCurrentView),
+                        history: historyForAPI,
+                        user: userDetails
+                    })
+                });
+
+                const data = await response.json();
+                clientAiLoading = false;
+
+                if (data.success) {
+                    clientAiMessages.push({ role: 'assistant', content: data.response });
+                } else {
+                    throw new Error(data.error || 'Failed');
+                }
+            } catch (error) {
+                console.error('Client AI chat error:', error);
+                clientAiLoading = false;
+                clientAiMessages.push({ role: 'assistant', content: "I'm having trouble connecting right now. You can reach our team at hello@gas.travel for help!" });
+            }
+            renderClientAiMessages();
+        }
+
+        function askClientAiQuestion(question) {
+            document.getElementById('clientAiInput').value = question;
+            sendClientAiMessage();
+        }
+
         // Draggable chat widget
         (function() {
             let isDragging = false;
