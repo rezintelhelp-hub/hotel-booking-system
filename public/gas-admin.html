@@ -1489,6 +1489,94 @@
             color: var(--text-primary);
         }
 
+        /* =============================================
+           CLIENT MODE — sidebar hidden, two-column layout
+           Matches register.html / login.html styling
+           ============================================= */
+        .client-mode .sidebar {
+            display: none;
+        }
+        .client-mode.dashboard {
+            grid-template-columns: 1fr;
+        }
+        .client-mode .main {
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            padding: 0;
+            background: #f8fafc;
+        }
+        .client-mode .client-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1.25rem 2.5rem;
+            background: #0f172a;
+            color: #ffffff;
+        }
+        .client-mode .client-header-logo {
+            font-family: 'DM Sans', 'Inter', sans-serif;
+            font-size: 1.25rem;
+            font-weight: 700;
+            letter-spacing: 2px;
+            color: #ffffff;
+        }
+        .client-mode .client-header-right {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+        }
+        .client-mode .client-header-user {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            font-size: 0.85rem;
+            color: rgba(255,255,255,0.7);
+        }
+        .client-mode .client-header-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            background: rgba(255,255,255,0.15);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #ffffff;
+        }
+        .client-mode .client-header-logout {
+            background: rgba(255,255,255,0.1);
+            border: none;
+            color: rgba(255,255,255,0.7);
+            padding: 0.45rem 1rem;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            cursor: pointer;
+            font-family: inherit;
+            transition: all 0.2s;
+        }
+        .client-mode .client-header-logout:hover {
+            background: rgba(255,255,255,0.2);
+            color: #ffffff;
+        }
+        .client-mode .client-body {
+            display: grid;
+            grid-template-columns: 1fr minmax(auto, 960px) 1fr;
+            flex: 1;
+            padding: 2rem 2.5rem;
+        }
+        .client-mode .client-body > .main-content-inner {
+            grid-column: 2;
+        }
+        .client-mode .view {
+            max-width: 960px;
+        }
+
+        /* Client mode hides default header since client-header replaces it */
+        .client-header { display: none; }
+
         /* Website status badges */
         .website-status {
             display: inline-block;
@@ -2078,6 +2166,25 @@
 
         <!-- Main Content -->
         <main class="main">
+            <!-- Client Mode Header (hidden by default, shown for non-master users) -->
+            <div class="client-header" id="clientHeader">
+                <span class="client-header-logo">GAS</span>
+                <div class="client-header-right">
+                    <div class="client-header-user">
+                        <div class="client-header-avatar" id="clientAvatar">?</div>
+                        <span id="clientUserName">User</span>
+                    </div>
+                    <button class="client-header-logout" onclick="handleLogout()">Sign Out</button>
+                </div>
+            </div>
+
+            <!-- Client Mode Body Wrapper (wraps views in centered column) -->
+            <div class="client-body" id="clientBody" style="display: none;">
+                <div></div>
+                <div class="main-content-inner" id="clientContentInner"></div>
+                <div></div>
+            </div>
+
             <!-- Dashboard View -->
             <div id="dashboard" class="view active">
                 <div class="header">
@@ -20674,6 +20781,26 @@ const promo = await fetch('/api/v1/offers/validate', {
             document.querySelectorAll('.category-card[data-tile]').forEach(card => {
                 card.style.display = clientTiles.includes(card.dataset.tile) ? '' : 'none';
             });
+
+            // Activate client mode — hide sidebar, show client header
+            const dashboardEl = document.querySelector('.dashboard');
+            if (dashboardEl) dashboardEl.classList.add('client-mode');
+
+            // Populate client header
+            const clientAvatar = document.getElementById('clientAvatar');
+            const clientName = document.getElementById('clientUserName');
+            if (clientAvatar) clientAvatar.textContent = currentAccount.name.charAt(0).toUpperCase();
+            if (clientName) clientName.textContent = currentAccount.name;
+
+            // Move all views into the centered client body wrapper
+            const clientBody = document.getElementById('clientBody');
+            const contentInner = document.getElementById('clientContentInner');
+            const mainEl = document.querySelector('.main');
+            if (clientBody && contentInner && mainEl) {
+                clientBody.style.display = 'grid';
+                const views = mainEl.querySelectorAll(':scope > .view');
+                views.forEach(v => contentInner.appendChild(v));
+            }
 
             console.log('Role-based access applied for:', currentAccount.role, '- filtering to account:', selectedAccountId);
         }
