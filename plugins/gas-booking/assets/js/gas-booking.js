@@ -2370,7 +2370,7 @@ jQuery(document).ready(function($) {
                         
                         if (response.success && response.available) {
                             $room.removeClass('unavailable checking').addClass('available');
-                            var totalPrice = response.grand_total || 0;
+                            var totalPrice = response.accommodation_total || 0;
                             var roomCurrency = response.currency || gasBooking.currency || '';
                             var pricingTier = gasBooking.pricingTier || 'standard';
 
