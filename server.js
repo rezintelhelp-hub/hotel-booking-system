@@ -13155,30 +13155,71 @@ app.get('/api/stripe/callback', async (req, res) => {
 app.get('/api/accounts/:accountId/stripe-status', async (req, res) => {
     try {
         const { accountId } = req.params;
-        
+
+        // Check account-level keys
         const result = await pool.query(`
             SELECT stripe_account_id, stripe_account_status, stripe_onboarding_complete,
                    stripe_publishable_key, stripe_secret_key, stripe_name
             FROM accounts WHERE id = $1
         `, [accountId]);
-        
+
         if (result.rows.length === 0) {
             return res.status(404).json({ success: false, error: 'Account not found' });
         }
-        
+
         const account = result.rows[0];
-        const hasKeys = !!account.stripe_secret_key;
-        
+        let source = null;
+        let publishableKey = null;
+        let connected = false;
+
+        // Level 1: Account-level keys
+        if (account.stripe_secret_key || account.stripe_account_id) {
+            source = 'account';
+            publishableKey = account.stripe_publishable_key || null;
+            connected = true;
+        }
+
+        // Level 2: Payment configurations table
+        if (!connected) {
+            const pcResult = await pool.query(`
+                SELECT credentials FROM payment_configurations
+                WHERE account_id = $1 AND provider = 'stripe' AND is_enabled = true
+                ORDER BY property_id NULLS FIRST LIMIT 1
+            `, [accountId]);
+            if (pcResult.rows.length > 0) {
+                source = 'payment_config';
+                publishableKey = pcResult.rows[0].credentials?.publishable_key || null;
+                connected = true;
+            }
+        }
+
+        // Level 3: Legacy property-level keys
+        if (!connected) {
+            const propResult = await pool.query(`
+                SELECT stripe_publishable_key, stripe_secret_key, name
+                FROM properties
+                WHERE account_id = $1 AND stripe_secret_key IS NOT NULL
+                LIMIT 1
+            `, [accountId]);
+            if (propResult.rows.length > 0) {
+                source = 'property';
+                publishableKey = propResult.rows[0].stripe_publishable_key || null;
+                connected = true;
+            }
+        }
+
         res.json({
             success: true,
-            connected: !!account.stripe_account_id || hasKeys,
+            connected,
+            source,
             stripe_account_id: account.stripe_account_id,
             stripe_name: account.stripe_name,
             status: account.stripe_account_status,
             onboarding_complete: account.stripe_onboarding_complete,
-            has_keys: hasKeys
+            has_keys: connected,
+            publishable_key: publishableKey
         });
-        
+
     } catch (error) {
         console.error('Error getting Stripe status:', error);
         res.status(500).json({ success: false, error: error.message });

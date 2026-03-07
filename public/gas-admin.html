@@ -43438,10 +43438,12 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const statusRes = await fetch(`/api/accounts/${accountId}/stripe-status`, { headers: authHeaders() });
                 const statusData = await statusRes.json();
 
-                if (statusData.success && (statusData.connected || statusData.has_keys)) {
-                    badge.innerHTML = '<span style="background: #d1fae5; color: #059669; padding: 0.25rem 0.75rem; border-radius: 99px; font-size: 0.8rem; font-weight: 600;">Connected</span>';
+                if (statusData.success && statusData.connected) {
+                    const sourceLabels = { account: 'Account keys', payment_config: 'Payment config', property: 'Property keys' };
+                    const sourceLabel = sourceLabels[statusData.source] || '';
+                    badge.innerHTML = `<span style="background: #d1fae5; color: #059669; padding: 0.25rem 0.75rem; border-radius: 99px; font-size: 0.8rem; font-weight: 600;">Connected</span> <span style="font-size: 0.75rem; color: #64748b; margin-left: 0.25rem;">${sourceLabel}</span>`;
                     document.getElementById('payments-stripe-pub-key').value = statusData.publishable_key || '';
-                    document.getElementById('payments-stripe-sec-key').placeholder = 'sk_live_****' + (statusData.has_keys ? ' (saved)' : '');
+                    document.getElementById('payments-stripe-sec-key').placeholder = statusData.has_keys ? 'sk_live_**** (saved)' : 'sk_live_...';
                 } else {
                     badge.innerHTML = '<span style="background: #fee2e2; color: #dc2626; padding: 0.25rem 0.75rem; border-radius: 99px; font-size: 0.8rem; font-weight: 600;">Not Connected</span>';
                 }
