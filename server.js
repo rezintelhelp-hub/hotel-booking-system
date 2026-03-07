@@ -13386,7 +13386,10 @@ app.post('/api/properties/:propertyId/deposit-rules', async (req, res) => {
             is_active
         } = req.body;
         const rule_name = mlStr(rawRuleName);
-        
+        const ruleNameObj = (typeof rawRuleName === 'object' && rawRuleName !== null) ? rawRuleName : (rawRuleName ? { en: rawRuleName } : null);
+        const ruleNameJson = ruleNameObj ? JSON.stringify(ruleNameObj) : null;
+        await pool.query('ALTER TABLE deposit_rules ADD COLUMN IF NOT EXISTS rule_name_ml JSONB').catch(() => {});
+
         // Get account_id from property
         const property = await pool.query('SELECT account_id FROM properties WHERE id = $1', [propertyId]);
         if (property.rows.length === 0) {
@@ -13396,14 +13399,14 @@ app.post('/api/properties/:propertyId/deposit-rules', async (req, res) => {
         
         const result = await pool.query(`
             INSERT INTO deposit_rules (
-                property_id, account_id, rule_name, deposit_type, deposit_percentage,
+                property_id, account_id, rule_name, rule_name_ml, deposit_type, deposit_percentage,
                 deposit_fixed_amount, balance_due_type, balance_due_days,
                 auto_charge_balance, auto_charge_days_before, refund_policy,
                 valid_from, valid_until, min_nights, max_nights, is_active
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+            ) VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
             RETURNING *
         `, [
-            propertyId, accountId, rule_name || 'Default',
+            propertyId, accountId, rule_name || 'Default', ruleNameJson,
             deposit_type || 'percentage', deposit_percentage || 30,
             deposit_fixed_amount, balance_due_type || 'days_before',
             balance_due_days || 14, auto_charge_balance || false,
@@ -13440,28 +13443,32 @@ app.put('/api/deposit-rules/:ruleId', async (req, res) => {
             is_active
         } = req.body;
         const rule_name = mlStr(rawRuleName);
-        
+        const ruleNameObj = (typeof rawRuleName === 'object' && rawRuleName !== null) ? rawRuleName : (rawRuleName ? { en: rawRuleName } : null);
+        const ruleNameJson = ruleNameObj ? JSON.stringify(ruleNameObj) : null;
+        await pool.query('ALTER TABLE deposit_rules ADD COLUMN IF NOT EXISTS rule_name_ml JSONB').catch(() => {});
+
         const result = await pool.query(`
             UPDATE deposit_rules SET
                 rule_name = COALESCE($1, rule_name),
-                deposit_type = COALESCE($2, deposit_type),
-                deposit_percentage = COALESCE($3, deposit_percentage),
-                deposit_fixed_amount = $4,
-                balance_due_type = COALESCE($5, balance_due_type),
-                balance_due_days = COALESCE($6, balance_due_days),
-                auto_charge_balance = COALESCE($7, auto_charge_balance),
-                auto_charge_days_before = COALESCE($8, auto_charge_days_before),
-                refund_policy = COALESCE($9, refund_policy),
-                valid_from = $10,
-                valid_until = $11,
-                min_nights = $12,
-                max_nights = $13,
-                is_active = COALESCE($14, is_active),
+                rule_name_ml = COALESCE($2::jsonb, rule_name_ml),
+                deposit_type = COALESCE($3, deposit_type),
+                deposit_percentage = COALESCE($4, deposit_percentage),
+                deposit_fixed_amount = $5,
+                balance_due_type = COALESCE($6, balance_due_type),
+                balance_due_days = COALESCE($7, balance_due_days),
+                auto_charge_balance = COALESCE($8, auto_charge_balance),
+                auto_charge_days_before = COALESCE($9, auto_charge_days_before),
+                refund_policy = COALESCE($10, refund_policy),
+                valid_from = $11,
+                valid_until = $12,
+                min_nights = $13,
+                max_nights = $14,
+                is_active = COALESCE($15, is_active),
                 updated_at = NOW()
-            WHERE id = $15
+            WHERE id = $16
             RETURNING *
         `, [
-            rule_name, deposit_type, deposit_percentage, deposit_fixed_amount,
+            rule_name, ruleNameJson, deposit_type, deposit_percentage, deposit_fixed_amount,
             balance_due_type, balance_due_days, auto_charge_balance,
             auto_charge_days_before, refund_policy, valid_from, valid_until,
             min_nights, max_nights, is_active, ruleId

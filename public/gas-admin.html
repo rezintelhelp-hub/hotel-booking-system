@@ -44299,7 +44299,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     document.getElementById('deposit-rule-property-id').value = rule.property_id;
                     
                     // Parse multilingual name
-                    depositRuleMultilingualData.name = parseMultilingualField(rule.rule_name);
+                    depositRuleMultilingualData.name = parseMultilingualField(rule.rule_name_ml || rule.rule_name);
                     currentDepositRuleLang = getAccountPrimaryLanguage();
                     document.getElementById('deposit-rule-name').value = depositRuleMultilingualData.name[currentDepositRuleLang] || depositRuleMultilingualData.name.en || '';
                     renderDepositRuleLangTabs();
