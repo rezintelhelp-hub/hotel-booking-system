@@ -3556,6 +3556,13 @@ jQuery(document).ready(function($) {
                                 $btn.find('.gas-btn-loading').hide();
                             }
                         });
+                    } else if (window.gasCardGuaranteeProvider === 'stripe') {
+                        // Stripe selected but not initialized
+                        alert('Stripe is not configured for this property. Card guarantee cannot be processed.');
+                        $btn.prop('disabled', false);
+                        $btn.find('.gas-btn-text').show();
+                        $btn.find('.gas-btn-loading').hide();
+                        return;
                     } else {
                         // Enigma card guarantee
                         if (!window.gasEnigmaCardCaptured) {
@@ -4089,9 +4096,15 @@ jQuery(document).ready(function($) {
                     $('.gas-bank-transfer-panel').slideUp(200);
                 } else if (method === 'card_guarantee') {
                     $('.gas-bank-transfer-panel').slideUp(200);
-                    if (window.gasCardGuaranteeProvider === 'stripe') {
+                    var cg = getCurrentGroup();
+                    if (window.gasCardGuaranteeProvider === 'stripe' && cg.stripe && cg.cardElement) {
                         $('.gas-card-guarantee-form').slideUp(200);
                         $('.gas-stripe-form').slideDown(200);
+                        $('#gas-card-errors').text('');
+                    } else if (window.gasCardGuaranteeProvider === 'stripe') {
+                        $('.gas-card-guarantee-form').slideUp(200);
+                        $('.gas-stripe-form').slideDown(200);
+                        $('#gas-card-errors').text('Stripe is not configured for this property. Please contact the property owner.');
                     } else {
                         $('.gas-stripe-form').slideUp(200);
                         $('.gas-card-guarantee-form').slideDown(200);
@@ -4883,9 +4896,14 @@ jQuery(document).ready(function($) {
                 }
             } else if (paymentMethod === 'card_guarantee') {
                 $('.gas-bank-transfer-panel').slideUp(200);
-                if (window.gasCardGuaranteeProvider === 'stripe') {
+                if (window.gasCardGuaranteeProvider === 'stripe' && checkoutData.stripe && checkoutData.cardElement) {
                     $('.gas-card-guarantee-form').slideUp(200);
                     $('.gas-stripe-form').slideDown(200);
+                    $('#gas-card-errors').text('');
+                } else if (window.gasCardGuaranteeProvider === 'stripe') {
+                    $('.gas-card-guarantee-form').slideUp(200);
+                    $('.gas-stripe-form').slideDown(200);
+                    $('#gas-card-errors').text('Stripe is not configured for this property. Please contact the property owner.');
                 } else {
                     $('.gas-stripe-form').slideUp(200);
                     $('.gas-card-guarantee-form').slideDown(200);
@@ -5033,6 +5051,12 @@ jQuery(document).ready(function($) {
                         $btn.find('.gas-btn-loading').hide();
                     }
                 });
+                return;
+            }
+
+            // If card guarantee with Stripe but Stripe not initialized, block
+            if (paymentMethod === 'card_guarantee' && window.gasCardGuaranteeProvider === 'stripe') {
+                alert('Stripe is not configured for this property. Card guarantee cannot be processed.');
                 return;
             }
 
