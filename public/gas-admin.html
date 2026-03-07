@@ -16771,7 +16771,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     
                     <div class="form-group" style="margin-bottom: 1.25rem;">
                         <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">
-                            Upsell Name <span style="color: #ef4444;">*</span> <span style="font-size: 0.75rem; color: #8b5cf6; font-weight: normal;">🌐</span>
+                            Upsell Name <span style="color: #ef4444;">*</span>
                         </label>
                         <div class="lang-tabs" id="upsell-name-tabs" style="margin-bottom: 0.5rem;"></div>
                         <input type="text" id="upsell-name" class="form-input" placeholder="e.g., Champagne on arrival" required
@@ -16780,7 +16780,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     
                     <div class="form-group" style="margin-bottom: 1.25rem;">
                         <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">
-                            Description <span style="font-size: 0.75rem; color: #8b5cf6; font-weight: normal;">🌐</span>
+                            Description
                         </label>
                         <div class="lang-tabs" id="upsell-description-tabs" style="margin-bottom: 0.5rem;"></div>
                         <textarea id="upsell-description" class="form-input" rows="2" placeholder="Bottle of premium champagne waiting in your room"
@@ -18853,14 +18853,14 @@ const promo = await fetch('/api/v1/offers/validate', {
                     </div>
 
                     <div class="form-group" style="margin-bottom: 1rem;">
-                        <label class="form-label">Guest-facing Label <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                        <label class="form-label">Guest-facing Label</label>
                         <div class="lang-tabs" id="cg-label-tabs" style="margin-bottom: 0.5rem;"></div>
                         <input type="text" class="form-input" id="card-guarantee-label" placeholder="e.g. Card Guarantee (no charge at booking)" value="Card Guarantee">
                         <p style="font-size: 0.75rem; color: #64748b; margin-top: 0.25rem;">This text appears in the booking plugin payment options</p>
                     </div>
                     
                     <div class="form-group" style="margin-bottom: 1rem;">
-                        <label class="form-label">Guest-facing Description <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                        <label class="form-label">Guest-facing Description</label>
                         <div class="lang-tabs" id="cg-description-tabs" style="margin-bottom: 0.5rem;"></div>
                         <textarea class="form-input" id="card-guarantee-description" rows="2" placeholder="e.g. Your card will be securely stored as a guarantee. No charge will be made unless you cancel or no-show.">Your card will be securely stored as a booking guarantee. No charge will be made at the time of booking.</textarea>
                     </div>
@@ -18880,7 +18880,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                         <p style="font-size: 0.75rem; color: #64748b; margin-top: 0.25rem;">Amount to charge the guest's card in case of no-show or late cancellation</p>
                         
                         <div class="form-group" style="margin-top: 1rem;">
-                            <label>Post-capture Message <span style="font-size: 0.75rem; color: #8b5cf6;">🌐</span></label>
+                            <label>Post-capture Message</label>
                             <div class="lang-tabs" id="cg-success-msg-tabs" style="margin-bottom: 0.5rem;"></div>
                             <textarea class="form-input" id="card-guarantee-success-msg" rows="2" placeholder="e.g. Thank you! Your card is secured. Please confirm your booking below.">Thank you! Your card is secured. Please now confirm your booking below.</textarea>
                             <p style="font-size: 0.75rem; color: #64748b; margin-top: 0.25rem;">Shown to the guest after their card is successfully captured</p>
@@ -42264,27 +42264,81 @@ const promo = await fetch('/api/v1/offers/validate', {
         function renderUpsellLangTabs() {
             const langs = getAccountLanguages();
             const primaryLang = getAccountPrimaryLanguage();
-            
+
             const sortedLangs = [...langs].sort((a, b) => {
                 if (a === primaryLang) return -1;
                 if (b === primaryLang) return 1;
                 return 0;
             });
-            
+
+            if (sortedLangs.length <= 1) return; // No tabs needed for single language
+
             ['upsell-name-tabs', 'upsell-description-tabs'].forEach(tabsId => {
                 const container = document.getElementById(tabsId);
                 if (!container) return;
-                
+
                 const field = tabsId === 'upsell-name-tabs' ? 'name' : 'description';
-                
-                container.innerHTML = sortedLangs.map(lang => {
+
+                let html = sortedLangs.map(lang => {
                     const info = LANG_INFO[lang] || { flag: '🏳️', name: lang.toUpperCase() };
                     const isActive = lang === currentUpsellLang;
                     const isPrimary = lang === primaryLang;
                     const hasContent = !!upsellMultilingualData[field][lang];
                     return `<button type="button" class="lang-tab${isActive ? ' active' : ''}${isPrimary ? ' primary' : ''}${hasContent ? ' has-content' : ''}" data-lang="${lang}" onclick="switchUpsellLang('${field}', '${lang}', this)">${info.flag} ${info.name}${hasContent ? ' ✓' : ''}</button>`;
                 }).join('');
+                html += `<button type="button" class="auto-translate-btn" onclick="autoTranslateUpsellField('${field}')" title="Auto-translate from primary language" style="margin-left: auto; background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%); color: white; border: none; border-radius: 6px; padding: 4px 10px; font-size: 0.75rem; cursor: pointer;">✨</button>`;
+                container.innerHTML = html;
+                container.style.display = 'flex';
+                container.style.alignItems = 'center';
+                container.style.gap = '4px';
             });
+        }
+
+        // Auto-translate a upsell field from primary language to other languages
+        async function autoTranslateUpsellField(field) {
+            const primaryLang = getAccountPrimaryLanguage();
+            upsellMultilingualData.name[currentUpsellLang] = document.getElementById('upsell-name').value;
+            upsellMultilingualData.description[currentUpsellLang] = document.getElementById('upsell-description').value;
+
+            const sourceText = (upsellMultilingualData[field][primaryLang] || '').trim();
+            if (!sourceText) {
+                showNotification(`Enter ${primaryLang.toUpperCase()} text first (primary language)`, 'warning');
+                return;
+            }
+
+            const targetLangs = getAccountLanguages().filter(l => l !== primaryLang);
+            if (targetLangs.length === 0) return;
+
+            const tabId = field === 'name' ? 'upsell-name-tabs' : 'upsell-description-tabs';
+            const btn = document.querySelector(`#${tabId} .auto-translate-btn`);
+            if (btn) { btn.disabled = true; btn.innerHTML = '⏳'; }
+
+            try {
+                const response = await fetch('/api/admin/translate-text', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ text: sourceText, source_lang: primaryLang, target_langs: targetLangs })
+                });
+                const data = await response.json();
+                if (data.success && data.translations) {
+                    Object.entries(data.translations).forEach(([lang, text]) => {
+                        upsellMultilingualData[field][lang] = text;
+                    });
+                    const inputId = field === 'name' ? 'upsell-name' : 'upsell-description';
+                    if (currentUpsellLang !== primaryLang && data.translations[currentUpsellLang]) {
+                        document.getElementById(inputId).value = data.translations[currentUpsellLang];
+                    }
+                    renderUpsellLangTabs();
+                    showNotification('Translation complete!', 'success');
+                } else {
+                    showNotification('Translation failed: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (e) {
+                console.error('Upsell translation error:', e);
+                showNotification('Translation error', 'error');
+            } finally {
+                if (btn) { btn.disabled = false; btn.innerHTML = '✨'; }
+            }
         }
         
         // Switch upsell language tab
@@ -42314,6 +42368,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                 return 0;
             });
 
+            if (sortedLangs.length <= 1) return; // No tabs needed for single language
+
             const tabMap = {
                 'cg-label-tabs': 'label',
                 'cg-description-tabs': 'description',
@@ -42324,14 +42380,69 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const container = document.getElementById(tabsId);
                 if (!container) return;
 
-                container.innerHTML = sortedLangs.map(lang => {
+                let html = sortedLangs.map(lang => {
                     const info = LANG_INFO[lang] || { flag: '🏳️', name: lang.toUpperCase() };
                     const isActive = lang === currentCgLang;
                     const isPrimary = lang === primaryLang;
                     const hasContent = !!cgMultilingualData[field][lang];
                     return `<button type="button" class="lang-tab${isActive ? ' active' : ''}${isPrimary ? ' primary' : ''}${hasContent ? ' has-content' : ''}" data-lang="${lang}" onclick="switchCgLang('${field}', '${lang}', this)">${info.flag} ${info.name}${hasContent ? ' ✓' : ''}</button>`;
                 }).join('');
+                html += `<button type="button" class="auto-translate-btn" onclick="autoTranslateCgField('${field}')" title="Auto-translate from primary language" style="margin-left: auto; background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%); color: white; border: none; border-radius: 6px; padding: 4px 10px; font-size: 0.75rem; cursor: pointer;">✨</button>`;
+                container.innerHTML = html;
+                container.style.display = 'flex';
+                container.style.alignItems = 'center';
+                container.style.gap = '4px';
             });
+        }
+
+        // Auto-translate a CG field from primary language to other languages
+        async function autoTranslateCgField(field) {
+            const primaryLang = getAccountPrimaryLanguage();
+            // Save current input values first
+            cgMultilingualData.label[currentCgLang] = document.getElementById('card-guarantee-label').value;
+            cgMultilingualData.description[currentCgLang] = document.getElementById('card-guarantee-description').value;
+            cgMultilingualData.success_message[currentCgLang] = document.getElementById('card-guarantee-success-msg').value;
+
+            const sourceText = (cgMultilingualData[field][primaryLang] || '').trim();
+            if (!sourceText) {
+                showNotification(`Enter ${primaryLang.toUpperCase()} text first (primary language)`, 'warning');
+                return;
+            }
+
+            const targetLangs = getAccountLanguages().filter(l => l !== primaryLang);
+            if (targetLangs.length === 0) return;
+
+            const tabMap = { label: 'cg-label-tabs', description: 'cg-description-tabs', success_message: 'cg-success-msg-tabs' };
+            const btn = document.querySelector(`#${tabMap[field]} .auto-translate-btn`);
+            if (btn) { btn.disabled = true; btn.innerHTML = '⏳'; }
+
+            try {
+                const response = await fetch('/api/admin/translate-text', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ text: sourceText, source_lang: primaryLang, target_langs: targetLangs })
+                });
+                const data = await response.json();
+                if (data.success && data.translations) {
+                    Object.entries(data.translations).forEach(([lang, text]) => {
+                        cgMultilingualData[field][lang] = text;
+                    });
+                    // Update input if viewing a translated language
+                    const inputMap = { label: 'card-guarantee-label', description: 'card-guarantee-description', success_message: 'card-guarantee-success-msg' };
+                    if (currentCgLang !== primaryLang && data.translations[currentCgLang]) {
+                        document.getElementById(inputMap[field]).value = data.translations[currentCgLang];
+                    }
+                    renderCgLangTabs();
+                    showNotification('Translation complete!', 'success');
+                } else {
+                    showNotification('Translation failed: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (e) {
+                console.error('CG translation error:', e);
+                showNotification('Translation error', 'error');
+            } finally {
+                if (btn) { btn.disabled = false; btn.innerHTML = '✨'; }
+            }
         }
 
         // Switch card guarantee language tab
@@ -52720,7 +52831,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (document.getElementById('card-guarantee-success-msg')) document.getElementById('card-guarantee-success-msg').value = 'Thank you! Your card is secured. Please now confirm your booking below.';
             if (document.getElementById('cg-provider-enigma')) document.getElementById('cg-provider-enigma').checked = true;
             toggleCgProvider();
-            await loadLanguageSettings();
+            await loadLanguageSettings(true);
             renderCgLangTabs();
             document.getElementById('stripe-publishable-key').value = '';
             document.getElementById('stripe-secret-key').value = '';
