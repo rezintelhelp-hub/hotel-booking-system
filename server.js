@@ -58513,7 +58513,10 @@ app.post('/api/public/calculate-price', async (req, res) => {
       }
       
       taxTotal += taxAmount;
-      taxBreakdown.push({ name: tax.name, name_ml: tax.name_ml, amount: taxAmount });
+      // Resolve multilingual tax name
+      const lang = req.body.lang || 'en';
+      const resolvedName = (tax.name_ml && (tax.name_ml[lang] || tax.name_ml.en)) || tax.name;
+      taxBreakdown.push({ name: resolvedName, amount: taxAmount });
     });
     
     // Get tourist tax from property settings (wrapped in try-catch in case columns don't exist)
@@ -59191,13 +59194,16 @@ app.post('/api/public/validate-voucher', async (req, res) => {
         return res.json({ success: true, valid: false, error: `Minimum ${v.min_nights} nights required` });
       }
       
+      // Resolve multilingual name
+      const lang = req.body.lang || 'en';
+      const resolvedName = (v.name_ml && (v.name_ml[lang] || v.name_ml.en)) || v.name;
+
       res.json({
         success: true,
         valid: true,
         voucher: {
           code: v.code,
-          name: v.name,
-          name_ml: v.name_ml,
+          name: resolvedName,
           discount_type: v.discount_type,
           discount_value: v.discount_value
         }
@@ -59346,7 +59352,8 @@ app.get('/api/public/quote/:unitId', async (req, res) => {
     }
     
     // Fall back to local calculation from GAS database
-    const localQuote = await calculateLocalQuote(pool, unit, checkin, checkout, numberOfGuests, nights);
+    const lang = req.query.lang || 'en';
+    const localQuote = await calculateLocalQuote(pool, unit, checkin, checkout, numberOfGuests, nights, lang);
     
     return res.json({
       success: true,
@@ -59455,7 +59462,7 @@ function buildHostawayBreakdown(raw, nights, currency) {
 /**
  * Calculate price locally from GAS database when no CM quote available
  */
-async function calculateLocalQuote(pool, unit, checkin, checkout, guests, nights) {
+async function calculateLocalQuote(pool, unit, checkin, checkout, guests, nights, lang = 'en') {
   const currency = unit.currency || '';
 
   // Get nightly rates from availability table
@@ -59537,10 +59544,11 @@ async function calculateLocalQuote(pool, unit, checkin, checkout, guests, nights
     }
     
     if (taxAmount > 0) {
-      taxes.push({ type: 'tax', name: tax.name, name_ml: tax.name_ml, amount: Math.round(taxAmount * 100) / 100 });
+      const resolvedName = (tax.name_ml && (tax.name_ml[lang] || tax.name_ml.en)) || tax.name;
+      taxes.push({ type: 'tax', name: resolvedName, amount: Math.round(taxAmount * 100) / 100 });
     }
   }
-  
+
   const damageDeposit = parseFloat(unit.security_deposit || 0);
   const feeTotal = fees.reduce((sum, f) => sum + f.amount, 0);
   const taxTotal = taxes.reduce((sum, t) => sum + t.amount, 0);
@@ -62119,6 +62127,13 @@ app.get('/api/public/client/:clientId/upsells', async (req, res) => {
       ORDER BY u.category NULLS LAST, u.name
     `, [clientId, propId || null, unit_id || null]);
     
+    // Resolve multilingual fields
+    const lang = req.query.lang || 'en';
+    upsells.rows.forEach(u => {
+      if (u.name_ml) { u.name = u.name_ml[lang] || u.name_ml.en || u.name || ''; }
+      if (u.description_ml) { u.description = u.description_ml[lang] || u.description_ml.en || u.description || ''; }
+    });
+
     // Group by category
     const grouped = {};
     upsells.rows.forEach(upsell => {
@@ -62126,9 +62141,9 @@ app.get('/api/public/client/:clientId/upsells', async (req, res) => {
       if (!grouped[cat]) grouped[cat] = [];
       grouped[cat].push(upsell);
     });
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       upsells: upsells.rows,
       upsells_by_category: grouped,
       meta: {
@@ -62175,15 +62190,22 @@ app.get('/api/public/client/:clientId/vouchers', async (req, res) => {
       ORDER BY v.discount_value DESC
     `, [clientId]);
     
+    // Resolve multilingual fields
+    const lang = req.query.lang || 'en';
+    vouchers.rows.forEach(v => {
+      if (v.name_ml) { v.name = v.name_ml[lang] || v.name_ml.en || v.name || ''; }
+      if (v.description_ml) { v.description = v.description_ml[lang] || v.description_ml.en || v.description || ''; }
+    });
+
     // Format dates for display
     const formattedVouchers = vouchers.rows.map(v => ({
       ...v,
       valid_from: v.valid_from ? v.valid_from.toISOString().split('T')[0] : null,
       valid_until: v.valid_until ? v.valid_until.toISOString().split('T')[0] : null
     }));
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       vouchers: formattedVouchers,
       meta: {
         total: formattedVouchers.length

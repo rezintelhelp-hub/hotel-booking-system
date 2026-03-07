@@ -1678,7 +1678,8 @@ jQuery(document).ready(function($) {
                 upsells: selectedUpsells,
                 voucher_code: voucherCode,
                 rate_type: selectedRate,
-                pricing_tier: gasBooking.pricingTier || 'standard'
+                pricing_tier: gasBooking.pricingTier || 'standard',
+                lang: currentLanguage
             }),
             success: function(response) {
                 var currency = $roomWidget.data('currency') || gasBooking.currency || '';
@@ -1976,7 +1977,7 @@ jQuery(document).ready(function($) {
         if (!gasBooking.clientId) return;
         
         $.ajax({
-            url: gasBooking.apiUrl + '/api/public/client/' + gasBooking.clientId + '/upsells?unit_id=' + unitId,
+            url: gasBooking.apiUrl + '/api/public/client/' + gasBooking.clientId + '/upsells?unit_id=' + unitId + '&lang=' + currentLanguage,
             method: 'GET',
             dataType: 'json',
             success: function(response) {
@@ -2036,8 +2037,8 @@ jQuery(document).ready(function($) {
         return '<div class="gas-upsell-item" data-upsell-id="' + upsell.id + '">' +
             '<div class="gas-upsell-checkbox"></div>' +
             '<div class="gas-upsell-info">' +
-                '<div class="gas-upsell-name">' + (extractText(upsell.name_ml) || upsell.name) + '</div>' +
-                ((upsell.description_ml || upsell.description) ? '<div class="gas-upsell-description">' + (extractText(upsell.description_ml) || upsell.description) + '</div>' : '') +
+                '<div class="gas-upsell-name">' + upsell.name + '</div>' +
+                (upsell.description ? '<div class="gas-upsell-description">' + upsell.description + '</div>' : '') +
             '</div>' +
             '<div class="gas-upsell-price">' + priceText + '<small>' + priceLabel + '</small></div>' +
         '</div>';
@@ -2080,7 +2081,8 @@ jQuery(document).ready(function($) {
                 code: code,
                 unit_id: $roomWidget.data('unit-id'),
                 check_in: $('.gas-checkin').val(),
-                check_out: $('.gas-checkout').val()
+                check_out: $('.gas-checkout').val(),
+                lang: currentLanguage
             }),
             success: function(response) {
                 $btn.prop('disabled', false).text(t('common', 'apply', 'Apply'));
@@ -2092,7 +2094,7 @@ jQuery(document).ready(function($) {
                     // Show applied state
                     $('.gas-voucher-input').hide();
                     $('.gas-voucher-toggle').hide();
-                    $('.gas-voucher-name').text('✓ ' + (extractText(response.voucher.name_ml) || response.voucher.name) + ' (' + code + ')');
+                    $('.gas-voucher-name').text('✓ ' + response.voucher.name + ' (' + code + ')');
                     $('.gas-voucher-applied').show();
                     
                     // Recalculate price
@@ -2372,7 +2374,8 @@ jQuery(document).ready(function($) {
                         check_in: checkin,
                         check_out: checkout,
                         guests: parseInt($('.gas-guests').val()) || 2,
-                        pricing_tier: gasBooking.pricingTier || 'standard'
+                        pricing_tier: gasBooking.pricingTier || 'standard',
+                        lang: currentLanguage
                     }),
                     success: function(response) {
                         console.log('Price for room ' + unitId + ':', response);
@@ -3027,7 +3030,8 @@ jQuery(document).ready(function($) {
                         check_in: firstItem.checkin,
                         check_out: firstItem.checkout,
                         guests: firstItem.guests,
-                        pricing_tier: gasBooking.pricingTier || 'standard'
+                        pricing_tier: gasBooking.pricingTier || 'standard',
+                        lang: currentLanguage
                     }),
                     success: function(response) {
                         console.log('GAS: Price response for group', gIndex, response);
@@ -3038,7 +3042,7 @@ jQuery(document).ready(function($) {
                                 var taxAmt = 0;
                                 var taxLabel = '';
 
-                                var taxName = extractText(tax.name_ml) || tax.name;
+                                var taxName = tax.name;
                                 if (tax.type === 'fixed' || tax.amount) {
                                     taxAmt = (parseFloat(tax.amount) || parseFloat(tax.rate) || 0) * group.items.length;
                                     taxLabel = taxName;
@@ -3789,7 +3793,7 @@ jQuery(document).ready(function($) {
             if (!hasMultiplePaymentGroups && clientId && upsellGroup.items[0] && upsellGroup.items[0].roomId) {
                 $('.gas-upsells-loading').show();
                 $.ajax({
-                    url: apiUrl + '/api/public/client/' + clientId + '/upsells?unit_id=' + upsellGroup.items[0].roomId,
+                    url: apiUrl + '/api/public/client/' + clientId + '/upsells?unit_id=' + upsellGroup.items[0].roomId + '&lang=' + currentLanguage,
                     method: 'GET',
                     success: function(response) {
                         $('.gas-upsells-loading').hide();
@@ -3825,9 +3829,9 @@ jQuery(document).ready(function($) {
                                 html += '<div class="gas-upsell-icon">' + icon + '</div>';
 
                                 html += '<div class="gas-upsell-info">';
-                                html += '<div class="gas-upsell-name">' + (extractText(upsell.name_ml) || upsell.name) + '</div>';
-                                if (upsell.description_ml || upsell.description) {
-                                    html += '<div class="gas-upsell-desc">' + (extractText(upsell.description_ml) || upsell.description) + '</div>';
+                                html += '<div class="gas-upsell-name">' + upsell.name + '</div>';
+                                if (upsell.description) {
+                                    html += '<div class="gas-upsell-desc">' + upsell.description + '</div>';
                                 }
                                 html += '<div class="gas-upsell-price">' + formatPrice(upsell.price, ug.currency) + '<small>' + priceLabel + '</small></div>';
                                 html += '</div>';
@@ -4429,7 +4433,8 @@ jQuery(document).ready(function($) {
                     check_out: checkoutData.checkout,
                     guests: checkoutData.guests,
                     adults: checkoutData.adults,
-                    children: checkoutData.children
+                    children: checkoutData.children,
+                    lang: currentLanguage
                 }),
                 success: function(response) {
                     if (response.success) {
@@ -4459,7 +4464,7 @@ jQuery(document).ready(function($) {
             // Load upsells
             if (checkoutData.clientId) {
                 $.ajax({
-                    url: checkoutData.apiUrl + '/api/public/client/' + checkoutData.clientId + '/upsells?unit_id=' + checkoutData.unitId,
+                    url: checkoutData.apiUrl + '/api/public/client/' + checkoutData.clientId + '/upsells?unit_id=' + checkoutData.unitId + '&lang=' + currentLanguage,
                     method: 'GET',
                     success: function(response) {
                         $('.gas-upsells-loading').hide();
@@ -4524,7 +4529,7 @@ jQuery(document).ready(function($) {
                 if (q.breakdown && q.breakdown.taxes) {
                     q.breakdown.taxes.forEach(function(tax) {
                         feeTaxHtml += '<div class="gas-tax-item" style="display: flex; justify-content: space-between; padding: 0.25rem 0; font-size: 0.9em; color: #64748b;">';
-                        feeTaxHtml += '<span>' + (extractText(tax.name_ml) || tax.name) + '</span>';
+                        feeTaxHtml += '<span>' + tax.name + '</span>';
                         feeTaxHtml += '<span>' + formatPrice(tax.amount, qCurrency) + '</span>';
                         feeTaxHtml += '</div>';
                     });
@@ -4561,7 +4566,7 @@ jQuery(document).ready(function($) {
                     checkoutData.selectedUpsells.forEach(function(upsell) {
                         var itemTotal = calculateUpsellItemTotal(upsell);
                         extrasHtml += '<div class="gas-extra-item">';
-                        extrasHtml += '<span>' + (extractText(upsell.name_ml) || upsell.name) + '</span>';
+                        extrasHtml += '<span>' + upsell.name + '</span>';
                         extrasHtml += '<span>' + formatPrice(itemTotal, qCurrency) + '</span>';
                         extrasHtml += '</div>';
                     });
@@ -4651,7 +4656,7 @@ jQuery(document).ready(function($) {
                 checkoutData.selectedUpsells.forEach(function(upsell) {
                     var itemTotal = calculateUpsellItemTotal(upsell);
                     extrasHtml += '<div class="gas-extra-item">';
-                    extrasHtml += '<span>' + (extractText(upsell.name_ml) || upsell.name) + '</span>';
+                    extrasHtml += '<span>' + upsell.name + '</span>';
                     extrasHtml += '<span>' + formatPrice(itemTotal, currency) + '</span>';
                     extrasHtml += '</div>';
                 });
@@ -4674,7 +4679,7 @@ jQuery(document).ready(function($) {
                 taxes.forEach(function(tax) {
                     var taxAmt = parseFloat(tax.amount) || 0;
                     taxesHtml += '<div class="gas-tax-item">';
-                    taxesHtml += '<span>' + (extractText(tax.name_ml) || tax.name) + '</span>';
+                    taxesHtml += '<span>' + tax.name + '</span>';
                     taxesHtml += '<span>' + formatPrice(taxAmt, currency) + '</span>';
                     taxesHtml += '</div>';
                     taxTotal += taxAmt;
@@ -4759,7 +4764,7 @@ jQuery(document).ready(function($) {
                 
                 // Image if available
                 if (upsell.image_url) {
-                    html += '<div class="gas-upsell-image"><img src="' + upsell.image_url + '" alt="' + (extractText(upsell.name_ml) || upsell.name) + '" /></div>';
+                    html += '<div class="gas-upsell-image"><img src="' + upsell.image_url + '" alt="' + upsell.name + '" /></div>';
                 } else {
                     // Default icon based on name
                     var icon = '✨';
@@ -4778,9 +4783,9 @@ jQuery(document).ready(function($) {
                 }
 
                 html += '<div class="gas-upsell-info">';
-                html += '<div class="gas-upsell-name">' + (extractText(upsell.name_ml) || upsell.name) + '</div>';
-                if (upsell.description_ml || upsell.description) {
-                    html += '<div class="gas-upsell-desc">' + (extractText(upsell.description_ml) || upsell.description) + '</div>';
+                html += '<div class="gas-upsell-name">' + upsell.name + '</div>';
+                if (upsell.description) {
+                    html += '<div class="gas-upsell-desc">' + upsell.description + '</div>';
                 }
                 html += '<div class="gas-upsell-price">' + formatPriceShort(upsell.price, currency) + '<small>' + priceLabel + '</small></div>';
                 html += '</div>';
@@ -5017,7 +5022,8 @@ jQuery(document).ready(function($) {
                     code: code,
                     unit_id: checkoutData.unitId,
                     check_in: checkoutData.checkin,
-                    check_out: checkoutData.checkout
+                    check_out: checkoutData.checkout,
+                    lang: currentLanguage
                 }),
                 success: function(response) {
                     $btn.prop('disabled', false).text(t('common', 'apply', 'Apply'));
@@ -5025,7 +5031,7 @@ jQuery(document).ready(function($) {
                     if (response.success && response.valid) {
                         checkoutData.voucherCode = code;
                         checkoutData.voucher = response.voucher;
-                        $('.gas-voucher-result').html('<span class="gas-voucher-success">✓ ' + (extractText(response.voucher.name_ml) || response.voucher.name) + ' applied!</span>');
+                        $('.gas-voucher-result').html('<span class="gas-voucher-success">✓ ' + response.voucher.name + ' applied!</span>');
                         
                         // Show voucher discount in summary
                         var discount = 0;
@@ -5327,7 +5333,7 @@ jQuery(document).ready(function($) {
                             var extrasHtml = '<div class="gas-conf-extras-title">Extras</div>';
                             checkoutData.selectedUpsells.forEach(function(upsell) {
                                 extrasHtml += '<div class="gas-conf-extra-box">';
-                                extrasHtml += '<span class="extra-name">' + escapeHtml(extractText(upsell.name_ml) || upsell.name) + '</span>';
+                                extrasHtml += '<span class="extra-name">' + escapeHtml(upsell.name) + '</span>';
                                 extrasHtml += '<span class="extra-price">' + formatPrice(upsell.price, currency) + '</span>';
                                 extrasHtml += '</div>';
                             });
