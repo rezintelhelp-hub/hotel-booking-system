@@ -4100,6 +4100,8 @@ jQuery(document).ready(function($) {
                     $('.gas-stripe-form').slideDown(200);
                     $('.gas-card-guarantee-form').slideUp(200);
                     $('.gas-bank-transfer-panel').slideUp(200);
+                    $('.gas-payment-summary').show();
+                    $('.gas-card-guarantee-note').remove();
                 } else if (method === 'card_guarantee') {
                     $('.gas-bank-transfer-panel').slideUp(200);
                     if (window.gasCardGuaranteeProvider === 'stripe') {
@@ -4138,6 +4140,10 @@ jQuery(document).ready(function($) {
                         $('.gas-card-guarantee-form').slideDown(200);
                         window.gasLoadEnigmaForm(getCurrentGroup().propertyId);
                     }
+                    // Hide deposit info for card guarantee — no charge at booking
+                    $('.gas-payment-summary').hide();
+                    $('.gas-card-guarantee-note').remove();
+                    $('.gas-payment-summary').after('<p class="gas-card-guarantee-note" style="text-align:center;color:#64748b;font-size:0.85rem;margin-top:12px;">No charge — your card will be securely held as a guarantee only.</p>');
                 } else if (method === 'pay_at_property') {
                     $('.gas-stripe-form').slideUp(200);
                     $('.gas-card-guarantee-form').slideUp(200);
@@ -4152,9 +4158,10 @@ jQuery(document).ready(function($) {
                     $('.gas-stripe-form').slideUp(200);
                     $('.gas-card-guarantee-form').slideUp(200);
                     $('.gas-bank-transfer-panel').slideUp(200);
+                    $('.gas-card-guarantee-note').remove();
                 }
             });
-            
+
             console.log('GAS: Group checkout ready with ' + cart.length + ' rooms');
             return; // Skip single-room checkout code
         }
@@ -4889,7 +4896,9 @@ jQuery(document).ready(function($) {
             var paymentMethod = $(this).find('input').val();
             if (paymentMethod === 'card' && checkoutData.stripeEnabled) {
                 $('.gas-stripe-form').slideDown(200);
-                
+                $('.gas-payment-summary').show();
+                $('.gas-card-guarantee-note').remove();
+
                 // Calculate deposit amount
                 var total = checkoutData.grandTotal || 0;
                 var depositAmount = total;
@@ -4959,6 +4968,10 @@ jQuery(document).ready(function($) {
                     $('.gas-card-guarantee-form').slideDown(200);
                     window.gasLoadEnigmaForm(checkoutData.propertyId);
                 }
+                // Hide deposit info for card guarantee — no charge at booking
+                $('.gas-payment-summary').hide();
+                $('.gas-card-guarantee-note').remove();
+                $('.gas-payment-summary').after('<p class="gas-card-guarantee-note" style="text-align:center;color:#64748b;font-size:0.85rem;margin-top:12px;">No charge — your card will be securely held as a guarantee only.</p>');
             } else if (paymentMethod === 'pay_at_property') {
                 $('.gas-stripe-form').slideUp(200);
                 $('.gas-card-guarantee-form').slideUp(200);
@@ -4973,9 +4986,10 @@ jQuery(document).ready(function($) {
                 $('.gas-stripe-form').slideUp(200);
                 $('.gas-card-guarantee-form').slideUp(200);
                 $('.gas-bank-transfer-panel').slideUp(200);
+                $('.gas-card-guarantee-note').remove();
             }
         });
-        
+
         // Voucher apply
         $(document).on('click', '.gas-btn-apply', function() {
             var code = $('.gas-voucher-input').val().trim().toUpperCase();
