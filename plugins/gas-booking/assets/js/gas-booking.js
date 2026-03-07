@@ -1887,8 +1887,8 @@ jQuery(document).ready(function($) {
             $('.gas-voucher-row').hide();
         }
         
-        // Use accommodationTotal for widget display - tax is added at checkout
-        var widgetTotal = accommodationTotal + upsellsTotal - voucherDiscount;
+        // Use accommodationTotal only for widget display - extras/tax added at checkout
+        var widgetTotal = accommodationTotal - voucherDiscount;
         $('.gas-total-price').text(formatPrice(widgetTotal, currency));
         $('.gas-price-breakdown').show();
         
