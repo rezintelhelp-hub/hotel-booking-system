@@ -42284,7 +42284,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     const hasContent = !!upsellMultilingualData[field][lang];
                     return `<button type="button" class="lang-tab${isActive ? ' active' : ''}${isPrimary ? ' primary' : ''}${hasContent ? ' has-content' : ''}" data-lang="${lang}" onclick="switchUpsellLang('${field}', '${lang}', this)">${info.flag} ${info.name}${hasContent ? ' ✓' : ''}</button>`;
                 }).join('');
-                html += `<button type="button" class="auto-translate-btn" onclick="autoTranslateUpsellField('${field}')" title="Auto-translate from primary language" style="margin-left: auto; background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%); color: white; border: none; border-radius: 6px; padding: 4px 10px; font-size: 0.75rem; cursor: pointer;">✨</button>`;
+                html += `<button type="button" class="auto-translate-btn" onclick="autoTranslateUpsellField('${field}')" title="Auto-translate from primary language" style="margin-left: auto; background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%); color: white; border: none; border-radius: 6px; padding: 4px 10px; font-size: 0.75rem; cursor: pointer;">🌐</button>`;
                 container.innerHTML = html;
                 container.style.display = 'flex';
                 container.style.alignItems = 'center';
@@ -42335,7 +42335,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 console.error('Upsell translation error:', e);
                 showNotification('Translation error', 'error');
             } finally {
-                if (btn) { btn.disabled = false; btn.innerHTML = '✨'; }
+                if (btn) { btn.disabled = false; btn.innerHTML = '🌐'; }
             }
         }
         
@@ -42383,7 +42383,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     const hasContent = !!cgMultilingualData[field][lang];
                     return `<button type="button" class="lang-tab${isActive ? ' active' : ''}${isPrimary ? ' primary' : ''}${hasContent ? ' has-content' : ''}" data-lang="${lang}" onclick="switchCgLang('${field}', '${lang}', this)">${info.flag} ${info.name}${hasContent ? ' ✓' : ''}</button>`;
                 }).join('');
-                html += `<button type="button" class="auto-translate-btn" onclick="autoTranslateCgField('${field}')" title="Auto-translate from primary language" style="margin-left: auto; background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%); color: white; border: none; border-radius: 6px; padding: 4px 10px; font-size: 0.75rem; cursor: pointer;">✨</button>`;
+                html += `<button type="button" class="auto-translate-btn" onclick="autoTranslateCgField('${field}')" title="Auto-translate from primary language" style="margin-left: auto; background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%); color: white; border: none; border-radius: 6px; padding: 4px 10px; font-size: 0.75rem; cursor: pointer;">🌐</button>`;
                 container.innerHTML = html;
                 container.style.display = 'flex';
                 container.style.alignItems = 'center';
@@ -42437,7 +42437,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 console.error('CG translation error:', e);
                 showNotification('Translation error', 'error');
             } finally {
-                if (btn) { btn.disabled = false; btn.innerHTML = '✨'; }
+                if (btn) { btn.disabled = false; btn.innerHTML = '🌐'; }
             }
         }
 
@@ -42459,7 +42459,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             renderCgLangTabs();
         }
 
-        function openAddUpsellModal() {
+        async function openAddUpsellModal() {
             document.getElementById('upsell-form').reset();
             document.getElementById('upsell-id').value = '';
             document.getElementById('upsell-modal-title').innerHTML = ' Add Upsell';
@@ -42467,9 +42467,10 @@ const promo = await fetch('/api/v1/offers/validate', {
             document.getElementById('upsell-multi-room').checked = false;
             document.getElementById('upsell-rooms-checkboxes').style.display = 'none';
             document.getElementById('upsell-room').style.display = 'block';
-            
+
             // Reset multilingual data
             upsellMultilingualData = { name: {}, description: {} };
+            await loadLanguageSettings();
             currentUpsellLang = getAccountPrimaryLanguage();
             renderUpsellLangTabs();
             
@@ -42594,13 +42595,15 @@ const promo = await fetch('/api/v1/offers/validate', {
         async function editUpsell(id) {
             const upsell = upsellsData.find(u => u.id === id);
             if (!upsell) return;
-            
+
+            await loadLanguageSettings();
+
             document.getElementById('upsell-id').value = upsell.id;
-            
+
             // Parse multilingual fields
             upsellMultilingualData.name = parseMultilingualField(upsell.name);
             upsellMultilingualData.description = parseMultilingualField(upsell.description);
-            
+
             currentUpsellLang = getAccountPrimaryLanguage();
             document.getElementById('upsell-name').value = upsellMultilingualData.name[currentUpsellLang] || upsellMultilingualData.name.en || '';
             document.getElementById('upsell-description').value = upsellMultilingualData.description[currentUpsellLang] || upsellMultilingualData.description.en || '';
