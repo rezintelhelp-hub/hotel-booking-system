@@ -18818,12 +18818,14 @@ const promo = await fetch('/api/v1/offers/validate', {
 
                     <div class="form-group" style="margin-bottom: 1rem;">
                         <label class="form-label">Guest-facing Label</label>
+                        <div class="lang-tabs" id="cg-label-tabs" style="margin-bottom: 0.5rem;"></div>
                         <input type="text" class="form-input" id="card-guarantee-label" placeholder="e.g. Card Guarantee (no charge at booking)" value="Card Guarantee">
                         <p style="font-size: 0.75rem; color: #64748b; margin-top: 0.25rem;">This text appears in the booking plugin payment options</p>
                     </div>
                     
                     <div class="form-group" style="margin-bottom: 1rem;">
                         <label class="form-label">Guest-facing Description</label>
+                        <div class="lang-tabs" id="cg-description-tabs" style="margin-bottom: 0.5rem;"></div>
                         <textarea class="form-input" id="card-guarantee-description" rows="2" placeholder="e.g. Your card will be securely stored as a guarantee. No charge will be made unless you cancel or no-show.">Your card will be securely stored as a booking guarantee. No charge will be made at the time of booking.</textarea>
                     </div>
                     
@@ -18843,6 +18845,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                         
                         <div class="form-group" style="margin-top: 1rem;">
                             <label>Post-capture Message</label>
+                            <div class="lang-tabs" id="cg-success-msg-tabs" style="margin-bottom: 0.5rem;"></div>
                             <textarea class="form-input" id="card-guarantee-success-msg" rows="2" placeholder="e.g. Thank you! Your card is secured. Please confirm your booking below.">Thank you! Your card is secured. Please now confirm your booking below.</textarea>
                             <p style="font-size: 0.75rem; color: #64748b; margin-top: 0.25rem;">Shown to the guest after their card is successfully captured</p>
                         </div>
@@ -42208,7 +42211,11 @@ const promo = await fetch('/api/v1/offers/validate', {
             description: {}
         };
         let currentUpsellLang = 'en';
-        
+
+        // Card Guarantee multilingual data storage
+        let cgMultilingualData = { label: {}, description: {}, success_message: {} };
+        let currentCgLang = 'en';
+
         // Render upsell language tabs
         function renderUpsellLangTabs() {
             const langs = getAccountLanguages();
@@ -42251,7 +42258,56 @@ const promo = await fetch('/api/v1/offers/validate', {
             
             renderUpsellLangTabs();
         }
-        
+
+        // Render card guarantee language tabs
+        function renderCgLangTabs() {
+            const langs = getAccountLanguages();
+            const primaryLang = getAccountPrimaryLanguage();
+
+            const sortedLangs = [...langs].sort((a, b) => {
+                if (a === primaryLang) return -1;
+                if (b === primaryLang) return 1;
+                return 0;
+            });
+
+            const tabMap = {
+                'cg-label-tabs': 'label',
+                'cg-description-tabs': 'description',
+                'cg-success-msg-tabs': 'success_message'
+            };
+
+            Object.entries(tabMap).forEach(([tabsId, field]) => {
+                const container = document.getElementById(tabsId);
+                if (!container) return;
+
+                container.innerHTML = sortedLangs.map(lang => {
+                    const info = LANG_INFO[lang] || { flag: '🏳️', name: lang.toUpperCase() };
+                    const isActive = lang === currentCgLang;
+                    const isPrimary = lang === primaryLang;
+                    const hasContent = !!cgMultilingualData[field][lang];
+                    return `<button type="button" class="lang-tab${isActive ? ' active' : ''}${isPrimary ? ' primary' : ''}${hasContent ? ' has-content' : ''}" data-lang="${lang}" onclick="switchCgLang('${field}', '${lang}', this)">${info.flag} ${info.name}${hasContent ? ' ✓' : ''}</button>`;
+                }).join('');
+            });
+        }
+
+        // Switch card guarantee language tab
+        function switchCgLang(field, lang, btn) {
+            cgMultilingualData.label[currentCgLang] = document.getElementById('card-guarantee-label').value;
+            cgMultilingualData.description[currentCgLang] = document.getElementById('card-guarantee-description').value;
+            cgMultilingualData.success_message[currentCgLang] = document.getElementById('card-guarantee-success-msg').value;
+
+            document.querySelectorAll('#cg-label-tabs .lang-tab, #cg-description-tabs .lang-tab, #cg-success-msg-tabs .lang-tab').forEach(t => {
+                t.classList.toggle('active', t.dataset.lang === lang);
+            });
+
+            currentCgLang = lang;
+            document.getElementById('card-guarantee-label').value = cgMultilingualData.label[lang] || '';
+            document.getElementById('card-guarantee-description').value = cgMultilingualData.description[lang] || '';
+            document.getElementById('card-guarantee-success-msg').value = cgMultilingualData.success_message[lang] || '';
+
+            renderCgLangTabs();
+        }
+
         function openAddUpsellModal() {
             document.getElementById('upsell-form').reset();
             document.getElementById('upsell-id').value = '';
@@ -52505,6 +52561,8 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (noPayRadio) noPayRadio.checked = true;
             const cgCheckbox = document.getElementById('payment-provider-card-guarantee');
             if (cgCheckbox) cgCheckbox.checked = false;
+            cgMultilingualData = { label: {}, description: {}, success_message: {} };
+            currentCgLang = getAccountPrimaryLanguage();
             if (document.getElementById('card-guarantee-label')) document.getElementById('card-guarantee-label').value = 'Card Guarantee';
             if (document.getElementById('card-guarantee-description')) document.getElementById('card-guarantee-description').value = 'Your card will be securely stored as a booking guarantee. No charge will be made at the time of booking.';
             if (document.getElementById('card-guarantee-noshow-type')) document.getElementById('card-guarantee-noshow-type').value = 'first_night';
@@ -52512,6 +52570,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (document.getElementById('card-guarantee-success-msg')) document.getElementById('card-guarantee-success-msg').value = 'Thank you! Your card is secured. Please now confirm your booking below.';
             if (document.getElementById('cg-provider-enigma')) document.getElementById('cg-provider-enigma').checked = true;
             toggleCgProvider();
+            renderCgLangTabs();
             document.getElementById('stripe-publishable-key').value = '';
             document.getElementById('stripe-secret-key').value = '';
             document.getElementById('stripe-test-mode').checked = false;
@@ -52610,13 +52669,26 @@ const promo = await fetch('/api/v1/offers/validate', {
                         if (cgCb) cgCb.checked = true;
                     }
                     
-                    // Load card guarantee settings
+                    // Load card guarantee settings (multilingual)
                     const cgSettings = settings.card_guarantee || {};
-                    if (cgSettings.label && document.getElementById('card-guarantee-label')) {
-                        document.getElementById('card-guarantee-label').value = cgSettings.label;
+                    function parseCgField(value, fallback) {
+                        if (!value) return { en: fallback };
+                        if (typeof value === 'string') return { en: value };
+                        if (typeof value === 'object' && value !== null) return value;
+                        return { en: fallback };
                     }
-                    if (cgSettings.description && document.getElementById('card-guarantee-description')) {
-                        document.getElementById('card-guarantee-description').value = cgSettings.description;
+                    cgMultilingualData.label = parseCgField(cgSettings.label, 'Card Guarantee');
+                    cgMultilingualData.description = parseCgField(cgSettings.description, 'Your card will be securely stored as a booking guarantee. No charge will be made at the time of booking.');
+                    cgMultilingualData.success_message = parseCgField(cgSettings.success_message, 'Thank you! Your card is secured. Please now confirm your booking below.');
+                    currentCgLang = getAccountPrimaryLanguage();
+                    if (document.getElementById('card-guarantee-label')) {
+                        document.getElementById('card-guarantee-label').value = cgMultilingualData.label[currentCgLang] || cgMultilingualData.label.en || '';
+                    }
+                    if (document.getElementById('card-guarantee-description')) {
+                        document.getElementById('card-guarantee-description').value = cgMultilingualData.description[currentCgLang] || cgMultilingualData.description.en || '';
+                    }
+                    if (document.getElementById('card-guarantee-success-msg')) {
+                        document.getElementById('card-guarantee-success-msg').value = cgMultilingualData.success_message[currentCgLang] || cgMultilingualData.success_message.en || '';
                     }
                     if (cgSettings.noshow_charge_type && document.getElementById('card-guarantee-noshow-type')) {
                         document.getElementById('card-guarantee-noshow-type').value = cgSettings.noshow_charge_type;
@@ -52624,13 +52696,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                     if (cgSettings.noshow_charge_amount && document.getElementById('card-guarantee-noshow-amount')) {
                         document.getElementById('card-guarantee-noshow-amount').value = cgSettings.noshow_charge_amount;
                     }
-                    if (cgSettings.success_message && document.getElementById('card-guarantee-success-msg')) {
-                        document.getElementById('card-guarantee-success-msg').value = cgSettings.success_message;
-                    }
                     if (cgSettings.provider === 'stripe' && document.getElementById('cg-provider-stripe')) {
                         document.getElementById('cg-provider-stripe').checked = true;
                     }
                     toggleCgProvider();
+                    renderCgLangTabs();
 
                     // Load bank details
                     const bankDetails = typeof settings.bank_details === 'string' ? JSON.parse(settings.bank_details) : (settings.bank_details || {});
@@ -52914,11 +52984,16 @@ const promo = await fetch('/api/v1/offers/validate', {
             const cardGuaranteeSettings = {};
             if (document.getElementById('payment-provider-card-guarantee')?.checked) {
                 cardGuaranteeSettings.enabled = true;
-                cardGuaranteeSettings.label = document.getElementById('card-guarantee-label')?.value || 'Card Guarantee';
-                cardGuaranteeSettings.description = document.getElementById('card-guarantee-description')?.value || '';
+                // Save current lang values first
+                cgMultilingualData.label[currentCgLang] = document.getElementById('card-guarantee-label')?.value || '';
+                cgMultilingualData.description[currentCgLang] = document.getElementById('card-guarantee-description')?.value || '';
+                cgMultilingualData.success_message[currentCgLang] = document.getElementById('card-guarantee-success-msg')?.value || '';
+                // Store as multilingual objects (only non-empty languages)
+                cardGuaranteeSettings.label = Object.fromEntries(Object.entries(cgMultilingualData.label).filter(([k,v]) => v));
+                cardGuaranteeSettings.description = Object.fromEntries(Object.entries(cgMultilingualData.description).filter(([k,v]) => v));
+                cardGuaranteeSettings.success_message = Object.fromEntries(Object.entries(cgMultilingualData.success_message).filter(([k,v]) => v));
                 cardGuaranteeSettings.noshow_charge_type = document.getElementById('card-guarantee-noshow-type')?.value || 'first_night';
                 cardGuaranteeSettings.noshow_charge_amount = parseFloat(document.getElementById('card-guarantee-noshow-amount')?.value) || 100;
-                cardGuaranteeSettings.success_message = document.getElementById('card-guarantee-success-msg')?.value || 'Thank you! Your card is secured. Please now confirm your booking below.';
                 cardGuaranteeSettings.provider = document.querySelector('input[name="cg-provider"]:checked')?.value || 'enigma';
             }
             

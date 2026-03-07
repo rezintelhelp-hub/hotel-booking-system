@@ -3317,7 +3317,7 @@ jQuery(document).ready(function($) {
 
                 // Card guarantee check
                 $.ajax({
-                    url: apiUrl + '/api/public/property/' + cg.propertyId + '/card-guarantee-info',
+                    url: apiUrl + '/api/public/property/' + cg.propertyId + '/card-guarantee-info?lang=' + currentLanguage,
                     method: 'GET',
                     success: function(response) {
                         if (response.success && response.card_guarantee_enabled) {
@@ -3854,7 +3854,7 @@ jQuery(document).ready(function($) {
             if (!hasMultiplePaymentGroups && stripeGroup.propertyId) {
                 // Check card guarantee availability
                 $.ajax({
-                    url: apiUrl + '/api/public/property/' + stripeGroup.propertyId + '/card-guarantee-info',
+                    url: apiUrl + '/api/public/property/' + stripeGroup.propertyId + '/card-guarantee-info?lang=' + currentLanguage,
                     method: 'GET',
                     success: function(response) {
                         if (response.success && response.card_guarantee_enabled) {
@@ -4208,7 +4208,7 @@ jQuery(document).ready(function($) {
             loadStripeInfo();
             // Check card guarantee
             $.ajax({
-                url: checkoutData.apiUrl + '/api/public/property/' + checkoutData.propertyId + '/card-guarantee-info',
+                url: checkoutData.apiUrl + '/api/public/property/' + checkoutData.propertyId + '/card-guarantee-info?lang=' + currentLanguage,
                 method: 'GET',
                 success: function(response) {
                     if (response.success && response.card_guarantee_enabled) {

@@ -79790,18 +79790,26 @@ app.get('/api/public/property/:id/card-guarantee-info', async (req, res) => {
       ? JSON.parse(settings.bank_details)
       : (settings.bank_details || {});
     const cgSettings = bankDetails.card_guarantee || {};
-    
+
     // Card guarantee is enabled if it's in accepted_methods
     // Enigma credentials checked at charge time, not at display time
     const cardGuaranteeInMethods = Array.isArray(methods) && methods.includes('card_guarantee');
-    
+
+    // Resolve multilingual fields
+    const lang = req.query.lang || 'en';
+    function resolveText(value, fallback) {
+      if (!value) return fallback;
+      if (typeof value === 'string') return value;
+      return value[lang] || value.en || Object.values(value)[0] || fallback;
+    }
+
     res.json({
       success: true,
       card_guarantee_enabled: !!cardGuaranteeInMethods,
       provider: cgSettings.provider || 'enigma',
-      label: cgSettings.label || 'Card Guarantee',
-      description: cgSettings.description || 'Your card is held securely as a booking guarantee. No charge unless you cancel or no-show.',
-      success_message: cgSettings.success_message || 'Thank you! Your card is secured. Please now confirm your booking below.'
+      label: resolveText(cgSettings.label, 'Card Guarantee'),
+      description: resolveText(cgSettings.description, 'Your card is held securely as a booking guarantee. No charge unless you cancel or no-show.'),
+      success_message: resolveText(cgSettings.success_message, 'Thank you! Your card is secured. Please now confirm your booking below.')
     });
     
   } catch (error) {
