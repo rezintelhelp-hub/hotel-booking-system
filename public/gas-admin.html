@@ -25205,7 +25205,9 @@ const promo = await fetch('/api/v1/offers/validate', {
         
         async function loadMyAccount() {
             try {
-                const response = await fetch('/api/accounts/me', { headers: authHeaders() });
+                const isViewingOther = selectedAccountId && currentAccount && String(selectedAccountId) !== String(currentAccount.id);
+                const url = isViewingOther ? `/api/accounts/${selectedAccountId}` : '/api/accounts/me';
+                const response = await fetch(url, { headers: authHeaders() });
                 const data = await response.json();
                 
                 if (data.success && data.account) {
@@ -25683,16 +25685,22 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
             
             try {
-                // Get current account ID
-                const meResponse = await fetch('/api/accounts/me', { headers: authHeaders() });
-                const meData = await meResponse.json();
-                
-                if (!meData.success) {
-                    showNotification('Could not verify account', 'error');
-                    return;
+                // Get target account ID (viewed client or self)
+                const isViewingOther = selectedAccountId && currentAccount && String(selectedAccountId) !== String(currentAccount.id);
+                let targetAccountId;
+                if (isViewingOther) {
+                    targetAccountId = selectedAccountId;
+                } else {
+                    const meResponse = await fetch('/api/accounts/me', { headers: authHeaders() });
+                    const meData = await meResponse.json();
+                    if (!meData.success) {
+                        showNotification('Could not verify account', 'error');
+                        return;
+                    }
+                    targetAccountId = meData.account.id;
                 }
-                
-                const response = await fetch(`/api/accounts/${meData.account.id}`, {
+
+                const response = await fetch(`/api/accounts/${targetAccountId}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({ name, email, phone, business_name })
