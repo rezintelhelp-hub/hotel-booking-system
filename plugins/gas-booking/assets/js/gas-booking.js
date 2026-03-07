@@ -3508,57 +3508,63 @@ jQuery(document).ready(function($) {
                 } else if (paymentMethod === 'card_guarantee') {
                     if (window.gasCardGuaranteeProvider === 'stripe' && curGroup.stripe && curGroup.cardElement) {
                         // Stripe SetupIntent card guarantee
-                        $.ajax({
-                            url: window.groupCheckoutData.apiUrl + '/api/public/create-setup-intent',
-                            method: 'POST',
-                            contentType: 'application/json',
-                            data: JSON.stringify({
-                                property_id: curGroup.propertyId,
-                                booking_data: {
-                                    email: $form.find('[name="email"]').val(),
-                                    check_in: window.groupCheckoutData.checkin,
-                                    check_out: window.groupCheckoutData.checkout
+                        var doConfirm = function(clientSecret) {
+                            curGroup.stripe.confirmCardSetup(clientSecret, {
+                                payment_method: {
+                                    card: curGroup.cardElement,
+                                    billing_details: {
+                                        name: $form.find('[name="first_name"]').val() + ' ' + $form.find('[name="last_name"]').val(),
+                                        email: $form.find('[name="email"]').val()
+                                    }
                                 }
-                            }),
-                            success: function(response) {
-                                if (response.success && response.client_secret) {
-                                    curGroup.stripe.confirmCardSetup(response.client_secret, {
-                                        payment_method: {
-                                            card: curGroup.cardElement,
-                                            billing_details: {
-                                                name: $form.find('[name="first_name"]').val() + ' ' + $form.find('[name="last_name"]').val(),
-                                                email: $form.find('[name="email"]').val()
-                                            }
-                                        }
-                                    }).then(function(result) {
-                                        if (result.error) {
-                                            $('#gas-card-errors').text(result.error.message);
-                                            $btn.prop('disabled', false);
-                                            $btn.find('.gas-btn-text').show();
-                                            $btn.find('.gas-btn-loading').hide();
-                                        } else {
-                                            window.gasStripeSetupIntentId = result.setupIntent.id;
-                                            window.gasStripePaymentMethodId = result.setupIntent.payment_method;
-                                            submitGroupBooking($btn, $form, null);
-                                        }
-                                    });
+                            }).then(function(result) {
+                                if (result.error) {
+                                    $('#gas-card-errors').text(result.error.message);
+                                    $btn.prop('disabled', false);
+                                    $btn.find('.gas-btn-text').show();
+                                    $btn.find('.gas-btn-loading').hide();
                                 } else {
-                                    alert('Failed to initialize card guarantee: ' + (response.error || 'Please try again'));
+                                    window.gasStripeSetupIntentId = result.setupIntent.id;
+                                    window.gasStripePaymentMethodId = result.setupIntent.payment_method;
+                                    submitGroupBooking($btn, $form, null);
+                                }
+                            });
+                        };
+                        if (curGroup.cardGuaranteeClientSecret) {
+                            doConfirm(curGroup.cardGuaranteeClientSecret);
+                        } else {
+                            $.ajax({
+                                url: window.groupCheckoutData.apiUrl + '/api/public/create-setup-intent',
+                                method: 'POST',
+                                contentType: 'application/json',
+                                data: JSON.stringify({
+                                    property_id: curGroup.propertyId,
+                                    booking_data: {
+                                        email: $form.find('[name="email"]').val(),
+                                        check_in: window.groupCheckoutData.checkin,
+                                        check_out: window.groupCheckoutData.checkout
+                                    }
+                                }),
+                                success: function(response) {
+                                    if (response.success && response.client_secret) {
+                                        doConfirm(response.client_secret);
+                                    } else {
+                                        alert('Failed to initialize card guarantee: ' + (response.error || 'Please try again'));
+                                        $btn.prop('disabled', false);
+                                        $btn.find('.gas-btn-text').show();
+                                        $btn.find('.gas-btn-loading').hide();
+                                    }
+                                },
+                                error: function() {
+                                    alert('Card guarantee service unavailable. Please try again.');
                                     $btn.prop('disabled', false);
                                     $btn.find('.gas-btn-text').show();
                                     $btn.find('.gas-btn-loading').hide();
                                 }
-                            },
-                            error: function() {
-                                alert('Card guarantee service unavailable. Please try again.');
-                                $btn.prop('disabled', false);
-                                $btn.find('.gas-btn-text').show();
-                                $btn.find('.gas-btn-loading').hide();
-                            }
-                        });
+                            });
+                        }
                     } else if (window.gasCardGuaranteeProvider === 'stripe') {
-                        // Stripe selected but not initialized
-                        alert('Stripe is not configured for this property. Card guarantee cannot be processed.');
+                        alert('Stripe card form not loaded. Please re-select Card Guarantee.');
                         $btn.prop('disabled', false);
                         $btn.find('.gas-btn-text').show();
                         $btn.find('.gas-btn-loading').hide();
@@ -4096,15 +4102,37 @@ jQuery(document).ready(function($) {
                     $('.gas-bank-transfer-panel').slideUp(200);
                 } else if (method === 'card_guarantee') {
                     $('.gas-bank-transfer-panel').slideUp(200);
-                    var cg = getCurrentGroup();
-                    if (window.gasCardGuaranteeProvider === 'stripe' && cg.stripe && cg.cardElement) {
+                    if (window.gasCardGuaranteeProvider === 'stripe') {
                         $('.gas-card-guarantee-form').slideUp(200);
                         $('.gas-stripe-form').slideDown(200);
-                        $('#gas-card-errors').text('');
-                    } else if (window.gasCardGuaranteeProvider === 'stripe') {
-                        $('.gas-card-guarantee-form').slideUp(200);
-                        $('.gas-stripe-form').slideDown(200);
-                        $('#gas-card-errors').text('Stripe is not configured for this property. Please contact the property owner.');
+                        var cgGroup = getCurrentGroup();
+                        if (cgGroup.stripe && cgGroup.cardElement) {
+                            $('#gas-card-errors').text('');
+                        } else {
+                            $('#gas-card-errors').text('');
+                            $('#gas-card-element').html('<div style="text-align:center;padding:12px;color:#64748b;">Loading secure card form...</div>');
+                            $.ajax({
+                                url: window.groupCheckoutData.apiUrl + '/api/public/create-setup-intent',
+                                method: 'POST',
+                                contentType: 'application/json',
+                                data: JSON.stringify({ property_id: cgGroup.propertyId, booking_data: {} }),
+                                success: function(siResp) {
+                                    if (siResp.success && siResp.client_secret && siResp.publishable_key) {
+                                        cgGroup.cardGuaranteeClientSecret = siResp.client_secret;
+                                        cgGroup.cardGuaranteeSetupIntentId = siResp.setup_intent_id;
+                                        cgGroup.stripe = Stripe(siResp.publishable_key);
+                                        var els = cgGroup.stripe.elements();
+                                        cgGroup.cardElement = els.create('card', { style: { base: { fontSize: '16px', color: '#374151', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', '::placeholder': { color: '#9ca3af' } }, invalid: { color: '#ef4444' } } });
+                                        cgGroup.cardElement.mount('#gas-card-element');
+                                    } else {
+                                        $('#gas-card-errors').text(siResp.error || 'Stripe keys not configured for this property.');
+                                    }
+                                },
+                                error: function() {
+                                    $('#gas-card-errors').text('Card guarantee service unavailable. Please try again.');
+                                }
+                            });
+                        }
                     } else {
                         $('.gas-stripe-form').slideUp(200);
                         $('.gas-card-guarantee-form').slideDown(200);
@@ -4896,14 +4924,36 @@ jQuery(document).ready(function($) {
                 }
             } else if (paymentMethod === 'card_guarantee') {
                 $('.gas-bank-transfer-panel').slideUp(200);
-                if (window.gasCardGuaranteeProvider === 'stripe' && checkoutData.stripe && checkoutData.cardElement) {
+                if (window.gasCardGuaranteeProvider === 'stripe') {
                     $('.gas-card-guarantee-form').slideUp(200);
                     $('.gas-stripe-form').slideDown(200);
-                    $('#gas-card-errors').text('');
-                } else if (window.gasCardGuaranteeProvider === 'stripe') {
-                    $('.gas-card-guarantee-form').slideUp(200);
-                    $('.gas-stripe-form').slideDown(200);
-                    $('#gas-card-errors').text('Stripe is not configured for this property. Please contact the property owner.');
+                    if (checkoutData.stripe && checkoutData.cardElement) {
+                        $('#gas-card-errors').text('');
+                    } else {
+                        $('#gas-card-errors').text('');
+                        $('#gas-card-element').html('<div style="text-align:center;padding:12px;color:#64748b;">Loading secure card form...</div>');
+                        $.ajax({
+                            url: checkoutData.apiUrl + '/api/public/create-setup-intent',
+                            method: 'POST',
+                            contentType: 'application/json',
+                            data: JSON.stringify({ property_id: checkoutData.propertyId, booking_data: {} }),
+                            success: function(siResp) {
+                                if (siResp.success && siResp.client_secret && siResp.publishable_key) {
+                                    checkoutData.cardGuaranteeClientSecret = siResp.client_secret;
+                                    checkoutData.cardGuaranteeSetupIntentId = siResp.setup_intent_id;
+                                    checkoutData.stripe = Stripe(siResp.publishable_key);
+                                    var els = checkoutData.stripe.elements();
+                                    checkoutData.cardElement = els.create('card', { style: { base: { fontSize: '16px', color: '#374151', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', '::placeholder': { color: '#9ca3af' } }, invalid: { color: '#ef4444' } } });
+                                    checkoutData.cardElement.mount('#gas-card-element');
+                                } else {
+                                    $('#gas-card-errors').text(siResp.error || 'Stripe keys not configured for this property.');
+                                }
+                            },
+                            error: function() {
+                                $('#gas-card-errors').text('Card guarantee service unavailable. Please try again.');
+                            }
+                        });
+                    }
                 } else {
                     $('.gas-stripe-form').slideUp(200);
                     $('.gas-card-guarantee-form').slideDown(200);
@@ -4998,65 +5048,70 @@ jQuery(document).ready(function($) {
             }
             
             // If card guarantee with Stripe, process SetupIntent
-            if (paymentMethod === 'card_guarantee' && window.gasCardGuaranteeProvider === 'stripe' && checkoutData.stripe && checkoutData.cardElement) {
+            if (paymentMethod === 'card_guarantee' && window.gasCardGuaranteeProvider === 'stripe') {
+                if (!checkoutData.stripe || !checkoutData.cardElement) {
+                    alert('Stripe card form not loaded. Please re-select Card Guarantee.');
+                    return;
+                }
                 $btn.prop('disabled', true);
                 $btn.find('.gas-btn-text').hide();
                 $btn.find('.gas-btn-loading').text('Securing card...').show();
                 var $form = $('#gas-guest-form');
-                $.ajax({
-                    url: checkoutData.apiUrl + '/api/public/create-setup-intent',
-                    method: 'POST',
-                    contentType: 'application/json',
-                    data: JSON.stringify({
-                        property_id: checkoutData.propertyId,
-                        booking_data: {
-                            email: $form.find('[name="email"]').val(),
-                            check_in: checkoutData.checkin,
-                            check_out: checkoutData.checkout
+                var doConfirmSingle = function(clientSecret) {
+                    checkoutData.stripe.confirmCardSetup(clientSecret, {
+                        payment_method: {
+                            card: checkoutData.cardElement,
+                            billing_details: {
+                                name: $form.find('[name="first_name"]').val() + ' ' + $form.find('[name="last_name"]').val(),
+                                email: $form.find('[name="email"]').val()
+                            }
                         }
-                    }),
-                    success: function(response) {
-                        if (response.success && response.client_secret) {
-                            checkoutData.stripe.confirmCardSetup(response.client_secret, {
-                                payment_method: {
-                                    card: checkoutData.cardElement,
-                                    billing_details: {
-                                        name: $form.find('[name="first_name"]').val() + ' ' + $form.find('[name="last_name"]').val(),
-                                        email: $form.find('[name="email"]').val()
-                                    }
-                                }
-                            }).then(function(result) {
-                                if (result.error) {
-                                    $('#gas-card-errors').text(result.error.message);
-                                    $btn.prop('disabled', false);
-                                    $btn.find('.gas-btn-text').show();
-                                    $btn.find('.gas-btn-loading').hide();
-                                } else {
-                                    window.gasStripeSetupIntentId = result.setupIntent.id;
-                                    window.gasStripePaymentMethodId = result.setupIntent.payment_method;
-                                    submitBooking($btn, null);
-                                }
-                            });
+                    }).then(function(result) {
+                        if (result.error) {
+                            $('#gas-card-errors').text(result.error.message);
+                            $btn.prop('disabled', false);
+                            $btn.find('.gas-btn-text').show();
+                            $btn.find('.gas-btn-loading').hide();
                         } else {
-                            alert('Failed to initialize card guarantee: ' + (response.error || 'Please try again'));
+                            window.gasStripeSetupIntentId = result.setupIntent.id;
+                            window.gasStripePaymentMethodId = result.setupIntent.payment_method;
+                            submitBooking($btn, null);
+                        }
+                    });
+                };
+                if (checkoutData.cardGuaranteeClientSecret) {
+                    doConfirmSingle(checkoutData.cardGuaranteeClientSecret);
+                } else {
+                    $.ajax({
+                        url: checkoutData.apiUrl + '/api/public/create-setup-intent',
+                        method: 'POST',
+                        contentType: 'application/json',
+                        data: JSON.stringify({
+                            property_id: checkoutData.propertyId,
+                            booking_data: {
+                                email: $form.find('[name="email"]').val(),
+                                check_in: checkoutData.checkin,
+                                check_out: checkoutData.checkout
+                            }
+                        }),
+                        success: function(response) {
+                            if (response.success && response.client_secret) {
+                                doConfirmSingle(response.client_secret);
+                            } else {
+                                alert('Failed to initialize card guarantee: ' + (response.error || 'Please try again'));
+                                $btn.prop('disabled', false);
+                                $btn.find('.gas-btn-text').show();
+                                $btn.find('.gas-btn-loading').hide();
+                            }
+                        },
+                        error: function() {
+                            alert('Card guarantee service unavailable. Please try again.');
                             $btn.prop('disabled', false);
                             $btn.find('.gas-btn-text').show();
                             $btn.find('.gas-btn-loading').hide();
                         }
-                    },
-                    error: function() {
-                        alert('Card guarantee service unavailable. Please try again.');
-                        $btn.prop('disabled', false);
-                        $btn.find('.gas-btn-text').show();
-                        $btn.find('.gas-btn-loading').hide();
-                    }
-                });
-                return;
-            }
-
-            // If card guarantee with Stripe but Stripe not initialized, block
-            if (paymentMethod === 'card_guarantee' && window.gasCardGuaranteeProvider === 'stripe') {
-                alert('Stripe is not configured for this property. Card guarantee cannot be processed.');
+                    });
+                }
                 return;
             }
 
