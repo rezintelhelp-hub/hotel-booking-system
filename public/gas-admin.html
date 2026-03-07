@@ -42064,8 +42064,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                     document.getElementById('voucher-code').value = voucher.code || '';
                     
                     // Parse multilingual fields
-                    voucherMultilingualData.name = parseMultilingualField(voucher.name);
-                    voucherMultilingualData.description = parseMultilingualField(voucher.description);
+                    voucherMultilingualData.name = parseMultilingualField(voucher.name_ml || voucher.name);
+                    voucherMultilingualData.description = parseMultilingualField(voucher.description_ml || voucher.description);
                     
                     currentVoucherLang = getAccountPrimaryLanguage();
                     document.getElementById('voucher-name').value = voucherMultilingualData.name[currentVoucherLang] || voucherMultilingualData.name.en || '';
@@ -42708,8 +42708,8 @@ const promo = await fetch('/api/v1/offers/validate', {
             document.getElementById('upsell-id').value = upsell.id;
 
             // Parse multilingual fields
-            upsellMultilingualData.name = parseMultilingualField(upsell.name);
-            upsellMultilingualData.description = parseMultilingualField(upsell.description);
+            upsellMultilingualData.name = parseMultilingualField(upsell.name_ml || upsell.name);
+            upsellMultilingualData.description = parseMultilingualField(upsell.description_ml || upsell.description);
 
             currentUpsellLang = getAccountPrimaryLanguage();
             document.getElementById('upsell-name').value = upsellMultilingualData.name[currentUpsellLang] || upsellMultilingualData.name.en || '';
