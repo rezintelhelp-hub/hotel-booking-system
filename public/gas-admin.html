@@ -40234,9 +40234,9 @@ const promo = await fetch('/api/v1/offers/validate', {
             ['offer-name-tabs', 'offer-description-tabs'].forEach(tabsId => {
                 const container = document.getElementById(tabsId);
                 if (!container) return;
-                
+
                 const field = tabsId === 'offer-name-tabs' ? 'name' : 'description';
-                
+
                 container.innerHTML = sortedLangs.map(lang => {
                     const info = LANG_INFO[lang] || { flag: '🏳️', name: lang.toUpperCase() };
                     const isActive = lang === currentOfferLang;
@@ -40266,8 +40266,8 @@ const promo = await fetch('/api/v1/offers/validate', {
             // Update has-content indicators
             renderOfferLangTabs();
         }
-        
-        function openAddOfferModal() {
+
+        async function openAddOfferModal() {
             document.getElementById('offer-form').reset();
             document.getElementById('offer-id').value = '';
             document.getElementById('offer-modal-title').innerHTML = ' Create New Offer';
@@ -40276,9 +40276,10 @@ const promo = await fetch('/api/v1/offers/validate', {
             document.getElementById('offer-price-per-night').value = '';
             togglePricePerNightField();
             updateOfferToggleVisual(document.getElementById('offer-active'));
-            
+
             // Reset multilingual data
             offerMultilingualData = { name: {}, description: {} };
+            await loadLanguageSettings();
             currentOfferLang = getAccountPrimaryLanguage();
             renderOfferLangTabs();
             
@@ -40484,24 +40485,26 @@ const promo = await fetch('/api/v1/offers/validate', {
         
         async function editOffer(id) {
             try {
+                await loadLanguageSettings();
+
                 const response = await fetch(`/api/admin/offers/${id}`);
                 const data = await response.json();
-                
+
                 if (data.success && data.data) {
                     const offer = data.data;
                     document.getElementById('offer-id').value = offer.id;
-                    
+
                     // Parse multilingual name and description
                     offerMultilingualData.name = parseMultilingualField(offer.name);
                     offerMultilingualData.description = parseMultilingualField(offer.description);
-                    
+
                     // Set current language to primary
                     currentOfferLang = getAccountPrimaryLanguage();
-                    
+
                     // Display primary language values
                     document.getElementById('offer-name').value = offerMultilingualData.name[currentOfferLang] || offerMultilingualData.name.en || '';
                     document.getElementById('offer-description').value = offerMultilingualData.description[currentOfferLang] || offerMultilingualData.description.en || '';
-                    
+
                     // Render language tabs
                     renderOfferLangTabs();
                     
