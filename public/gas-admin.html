@@ -40237,16 +40237,21 @@ const promo = await fetch('/api/v1/offers/validate', {
 
                 const field = tabsId === 'offer-name-tabs' ? 'name' : 'description';
 
-                container.innerHTML = sortedLangs.map(lang => {
+                let html = sortedLangs.map(lang => {
                     const info = LANG_INFO[lang] || { flag: '🏳️', name: lang.toUpperCase() };
                     const isActive = lang === currentOfferLang;
                     const isPrimary = lang === primaryLang;
                     const hasContent = !!offerMultilingualData[field][lang];
                     return `<button type="button" class="lang-tab${isActive ? ' active' : ''}${isPrimary ? ' primary' : ''}${hasContent ? ' has-content' : ''}" data-lang="${lang}" onclick="switchOfferLang('${field}', '${lang}', this)">${info.flag} ${info.name}${hasContent ? ' ✓' : ''}</button>`;
                 }).join('');
+                html += `<button type="button" class="auto-translate-btn" onclick="autoTranslateOfferField('${field}')" title="Auto-translate from primary language" style="margin-left: auto; background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%); color: white; border: none; border-radius: 6px; padding: 4px 10px; font-size: 0.75rem; cursor: pointer;">🌐</button>`;
+                container.innerHTML = html;
+                container.style.display = 'flex';
+                container.style.alignItems = 'center';
+                container.style.gap = '4px';
             });
         }
-        
+
         // Switch offer language tab
         function switchOfferLang(field, lang, btn) {
             // Save current values
@@ -40265,6 +40270,53 @@ const promo = await fetch('/api/v1/offers/validate', {
             
             // Update has-content indicators
             renderOfferLangTabs();
+        }
+
+        // Auto-translate an offer field from primary language to other languages
+        async function autoTranslateOfferField(field) {
+            const primaryLang = getAccountPrimaryLanguage();
+            offerMultilingualData.name[currentOfferLang] = document.getElementById('offer-name').value;
+            offerMultilingualData.description[currentOfferLang] = document.getElementById('offer-description').value;
+
+            const sourceText = (offerMultilingualData[field][primaryLang] || '').trim();
+            if (!sourceText) {
+                showNotification(`Enter ${primaryLang.toUpperCase()} text first (primary language)`, 'warning');
+                return;
+            }
+
+            const targetLangs = getAccountLanguages().filter(l => l !== primaryLang);
+            if (targetLangs.length === 0) return;
+
+            const tabId = field === 'name' ? 'offer-name-tabs' : 'offer-description-tabs';
+            const btn = document.querySelector(`#${tabId} .auto-translate-btn`);
+            if (btn) { btn.disabled = true; btn.innerHTML = '⏳'; }
+
+            try {
+                const response = await fetch('/api/admin/translate-text', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ text: sourceText, source_lang: primaryLang, target_langs: targetLangs })
+                });
+                const data = await response.json();
+                if (data.success && data.translations) {
+                    Object.entries(data.translations).forEach(([lang, text]) => {
+                        offerMultilingualData[field][lang] = text;
+                    });
+                    const inputId = field === 'name' ? 'offer-name' : 'offer-description';
+                    if (currentOfferLang !== primaryLang && data.translations[currentOfferLang]) {
+                        document.getElementById(inputId).value = data.translations[currentOfferLang];
+                    }
+                    renderOfferLangTabs();
+                    showNotification('Translation complete!', 'success');
+                } else {
+                    showNotification('Translation failed: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (e) {
+                console.error('Offer translation error:', e);
+                showNotification('Translation error', 'error');
+            } finally {
+                if (btn) { btn.disabled = false; btn.innerHTML = '🌐'; }
+            }
         }
 
         async function openAddOfferModal() {
@@ -41823,16 +41875,21 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 const field = tabsId === 'voucher-name-tabs' ? 'name' : 'description';
                 
-                container.innerHTML = sortedLangs.map(lang => {
+                let html = sortedLangs.map(lang => {
                     const info = LANG_INFO[lang] || { flag: '🏳️', name: lang.toUpperCase() };
                     const isActive = lang === currentVoucherLang;
                     const isPrimary = lang === primaryLang;
                     const hasContent = !!voucherMultilingualData[field][lang];
                     return `<button type="button" class="lang-tab${isActive ? ' active' : ''}${isPrimary ? ' primary' : ''}${hasContent ? ' has-content' : ''}" data-lang="${lang}" onclick="switchVoucherLang('${field}', '${lang}', this)">${info.flag} ${info.name}${hasContent ? ' ✓' : ''}</button>`;
                 }).join('');
+                html += `<button type="button" class="auto-translate-btn" onclick="autoTranslateVoucherField('${field}')" title="Auto-translate from primary language" style="margin-left: auto; background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%); color: white; border: none; border-radius: 6px; padding: 4px 10px; font-size: 0.75rem; cursor: pointer;">🌐</button>`;
+                container.innerHTML = html;
+                container.style.display = 'flex';
+                container.style.alignItems = 'center';
+                container.style.gap = '4px';
             });
         }
-        
+
         // Switch voucher language tab
         function switchVoucherLang(field, lang, btn) {
             voucherMultilingualData.name[currentVoucherLang] = document.getElementById('voucher-name').value;
@@ -41848,7 +41905,54 @@ const promo = await fetch('/api/v1/offers/validate', {
             
             renderVoucherLangTabs();
         }
-        
+
+        // Auto-translate a voucher field from primary language to other languages
+        async function autoTranslateVoucherField(field) {
+            const primaryLang = getAccountPrimaryLanguage();
+            voucherMultilingualData.name[currentVoucherLang] = document.getElementById('voucher-name').value;
+            voucherMultilingualData.description[currentVoucherLang] = document.getElementById('voucher-description').value;
+
+            const sourceText = (voucherMultilingualData[field][primaryLang] || '').trim();
+            if (!sourceText) {
+                showNotification(`Enter ${primaryLang.toUpperCase()} text first (primary language)`, 'warning');
+                return;
+            }
+
+            const targetLangs = getAccountLanguages().filter(l => l !== primaryLang);
+            if (targetLangs.length === 0) return;
+
+            const tabId = field === 'name' ? 'voucher-name-tabs' : 'voucher-description-tabs';
+            const btn = document.querySelector(`#${tabId} .auto-translate-btn`);
+            if (btn) { btn.disabled = true; btn.innerHTML = '⏳'; }
+
+            try {
+                const response = await fetch('/api/admin/translate-text', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ text: sourceText, source_lang: primaryLang, target_langs: targetLangs })
+                });
+                const data = await response.json();
+                if (data.success && data.translations) {
+                    Object.entries(data.translations).forEach(([lang, text]) => {
+                        voucherMultilingualData[field][lang] = text;
+                    });
+                    const inputId = field === 'name' ? 'voucher-name' : 'voucher-description';
+                    if (currentVoucherLang !== primaryLang && data.translations[currentVoucherLang]) {
+                        document.getElementById(inputId).value = data.translations[currentVoucherLang];
+                    }
+                    renderVoucherLangTabs();
+                    showNotification('Translation complete!', 'success');
+                } else {
+                    showNotification('Translation failed: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (e) {
+                console.error('Voucher translation error:', e);
+                showNotification('Translation error', 'error');
+            } finally {
+                if (btn) { btn.disabled = false; btn.innerHTML = '🌐'; }
+            }
+        }
+
         function openAddVoucherModal() {
             document.getElementById('voucher-form').reset();
             document.getElementById('voucher-id').value = '';
@@ -43964,15 +44068,20 @@ const promo = await fetch('/api/v1/offers/validate', {
             const container = document.getElementById('deposit-rule-name-tabs');
             if (!container) return;
             
-            container.innerHTML = sortedLangs.map(lang => {
+            let html = sortedLangs.map(lang => {
                 const info = LANG_INFO[lang] || { flag: '🏳️', name: lang.toUpperCase() };
                 const isActive = lang === currentDepositRuleLang;
                 const isPrimary = lang === primaryLang;
                 const hasContent = !!depositRuleMultilingualData.name[lang];
                 return `<button type="button" class="lang-tab${isActive ? ' active' : ''}${isPrimary ? ' primary' : ''}${hasContent ? ' has-content' : ''}" data-lang="${lang}" onclick="switchDepositRuleLang('${lang}', this)">${info.flag} ${info.name}${hasContent ? ' ✓' : ''}</button>`;
             }).join('');
+            html += `<button type="button" class="auto-translate-btn" onclick="autoTranslateDepositRuleField()" title="Auto-translate from primary language" style="margin-left: auto; background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%); color: white; border: none; border-radius: 6px; padding: 4px 10px; font-size: 0.75rem; cursor: pointer;">🌐</button>`;
+            container.innerHTML = html;
+            container.style.display = 'flex';
+            container.style.alignItems = 'center';
+            container.style.gap = '4px';
         }
-        
+
         // Switch deposit rule language tab
         function switchDepositRuleLang(lang, btn) {
             depositRuleMultilingualData.name[currentDepositRuleLang] = document.getElementById('deposit-rule-name').value;
@@ -43986,7 +44095,51 @@ const promo = await fetch('/api/v1/offers/validate', {
             
             renderDepositRuleLangTabs();
         }
-        
+
+        // Auto-translate deposit rule name from primary language to other languages
+        async function autoTranslateDepositRuleField() {
+            const primaryLang = getAccountPrimaryLanguage();
+            depositRuleMultilingualData.name[currentDepositRuleLang] = document.getElementById('deposit-rule-name').value;
+
+            const sourceText = (depositRuleMultilingualData.name[primaryLang] || '').trim();
+            if (!sourceText) {
+                showNotification(`Enter ${primaryLang.toUpperCase()} text first (primary language)`, 'warning');
+                return;
+            }
+
+            const targetLangs = getAccountLanguages().filter(l => l !== primaryLang);
+            if (targetLangs.length === 0) return;
+
+            const btn = document.querySelector('#deposit-rule-name-tabs .auto-translate-btn');
+            if (btn) { btn.disabled = true; btn.innerHTML = '⏳'; }
+
+            try {
+                const response = await fetch('/api/admin/translate-text', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ text: sourceText, source_lang: primaryLang, target_langs: targetLangs })
+                });
+                const data = await response.json();
+                if (data.success && data.translations) {
+                    Object.entries(data.translations).forEach(([lang, text]) => {
+                        depositRuleMultilingualData.name[lang] = text;
+                    });
+                    if (currentDepositRuleLang !== primaryLang && data.translations[currentDepositRuleLang]) {
+                        document.getElementById('deposit-rule-name').value = data.translations[currentDepositRuleLang];
+                    }
+                    renderDepositRuleLangTabs();
+                    showNotification('Translation complete!', 'success');
+                } else {
+                    showNotification('Translation failed: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (e) {
+                console.error('Deposit rule translation error:', e);
+                showNotification('Translation error', 'error');
+            } finally {
+                if (btn) { btn.disabled = false; btn.innerHTML = '🌐'; }
+            }
+        }
+
         function openAddDepositRuleModal() {
             const selectValue = document.getElementById('deposit-rules-property-select').value;
             if (!selectValue) {
@@ -44417,15 +44570,20 @@ const promo = await fetch('/api/v1/offers/validate', {
             const container = document.getElementById('tax-name-tabs');
             if (!container) return;
             
-            container.innerHTML = sortedLangs.map(lang => {
+            let html = sortedLangs.map(lang => {
                 const info = LANG_INFO[lang] || { flag: '🏳️', name: lang.toUpperCase() };
                 const isActive = lang === currentTaxLang;
                 const isPrimary = lang === primaryLang;
                 const hasContent = !!taxMultilingualData.name[lang];
                 return `<button type="button" class="lang-tab${isActive ? ' active' : ''}${isPrimary ? ' primary' : ''}${hasContent ? ' has-content' : ''}" data-lang="${lang}" onclick="switchTaxLang('${lang}', this)">${info.flag} ${info.name}${hasContent ? ' ✓' : ''}</button>`;
             }).join('');
+            html += `<button type="button" class="auto-translate-btn" onclick="autoTranslateTaxField()" title="Auto-translate from primary language" style="margin-left: auto; background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%); color: white; border: none; border-radius: 6px; padding: 4px 10px; font-size: 0.75rem; cursor: pointer;">🌐</button>`;
+            container.innerHTML = html;
+            container.style.display = 'flex';
+            container.style.alignItems = 'center';
+            container.style.gap = '4px';
         }
-        
+
         // Switch tax language tab
         function switchTaxLang(lang, btn) {
             taxMultilingualData.name[currentTaxLang] = document.getElementById('tax-name').value;
@@ -44439,7 +44597,51 @@ const promo = await fetch('/api/v1/offers/validate', {
             
             renderTaxLangTabs();
         }
-        
+
+        // Auto-translate tax name from primary language to other languages
+        async function autoTranslateTaxField() {
+            const primaryLang = getAccountPrimaryLanguage();
+            taxMultilingualData.name[currentTaxLang] = document.getElementById('tax-name').value;
+
+            const sourceText = (taxMultilingualData.name[primaryLang] || '').trim();
+            if (!sourceText) {
+                showNotification(`Enter ${primaryLang.toUpperCase()} text first (primary language)`, 'warning');
+                return;
+            }
+
+            const targetLangs = getAccountLanguages().filter(l => l !== primaryLang);
+            if (targetLangs.length === 0) return;
+
+            const btn = document.querySelector('#tax-name-tabs .auto-translate-btn');
+            if (btn) { btn.disabled = true; btn.innerHTML = '⏳'; }
+
+            try {
+                const response = await fetch('/api/admin/translate-text', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ text: sourceText, source_lang: primaryLang, target_langs: targetLangs })
+                });
+                const data = await response.json();
+                if (data.success && data.translations) {
+                    Object.entries(data.translations).forEach(([lang, text]) => {
+                        taxMultilingualData.name[lang] = text;
+                    });
+                    if (currentTaxLang !== primaryLang && data.translations[currentTaxLang]) {
+                        document.getElementById('tax-name').value = data.translations[currentTaxLang];
+                    }
+                    renderTaxLangTabs();
+                    showNotification('Translation complete!', 'success');
+                } else {
+                    showNotification('Translation failed: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (e) {
+                console.error('Tax translation error:', e);
+                showNotification('Translation error', 'error');
+            } finally {
+                if (btn) { btn.disabled = false; btn.innerHTML = '🌐'; }
+            }
+        }
+
         async function openAddTaxModal() {
             document.getElementById('tax-form').reset();
             document.getElementById('tax-id').value = '';
