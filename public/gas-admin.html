@@ -22187,13 +22187,30 @@ const promo = await fetch('/api/v1/offers/validate', {
         function renderViewNav(viewName) {
             // Map: which tile group does this view belong to?
             const tileGroups = {
+                'my-account': {
+                    label: 'My Account',
+                    tabs: [
+                        { view: 'my-account', label: 'Account' },
+                        { view: 'account-settings', label: 'Settings' }
+                    ]
+                },
+                'channel-manager': {
+                    label: 'Channel Manager',
+                    tabs: [
+                        { view: 'gas-sync-connections', label: 'Connections' },
+                        { view: 'gas-sync-dashboard', label: 'Sync Dashboard' },
+                        { view: 'gas-sync-properties', label: 'Synced Properties' },
+                        { view: 'gas-sync-logs', label: 'Sync Logs' }
+                    ]
+                },
                 'property-management': {
                     label: 'Property Management',
                     tabs: [
                         { view: 'properties', label: 'Properties' },
                         { view: 'rooms', label: 'Rooms' },
                         { view: 'images', label: 'Images' },
-                        { view: 'amenities', label: 'Amenities' }
+                        { view: 'amenities', label: 'Amenities' },
+                        { view: 'availability', label: 'Availability' }
                     ]
                 },
                 'bookings-revenue': {
@@ -22203,6 +22220,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                         { view: 'offers', label: 'Offers' },
                         { view: 'vouchers', label: 'Vouchers' },
                         { view: 'upsells', label: 'Upsells' },
+                        { view: 'vendors', label: 'Vendors' },
+                        { view: 'vendor-requests', label: 'Service Requests' },
                         { view: 'taxes', label: 'Taxes' },
                         { view: 'payments', label: 'Payments' },
                         { view: 'deposit-rules', label: 'Deposits' }
@@ -22212,7 +22231,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                     label: 'Availability & Pricing',
                     tabs: [
                         { view: 'availability', label: 'Calendar' },
-                        { view: 'rateplans', label: 'Rate Plans' },
                         { view: 'fees', label: 'Fees' },
                         { view: 'integrations', label: 'Channels' }
                     ]
@@ -22222,14 +22240,17 @@ const promo = await fetch('/api/v1/offers/validate', {
                     tabs: [
                         { view: 'marketing', label: 'Features' },
                         { view: 'upsells', label: 'Upsells' },
-                        { view: 'deploy-sites', label: 'Website' },
-                        { view: 'app-blog', label: 'Content' }
+                        { view: 'deploy-sites', label: 'Website' }
                     ]
                 },
                 'connectivity': {
                     label: 'Connectivity',
                     tabs: [
-                        { view: 'integrations', label: 'All Channels' }
+                        { view: 'integrations', label: 'All Channels' },
+                        { view: 'gas-sync-connections', label: 'Connections' },
+                        { view: 'gas-sync-dashboard', label: 'Sync Dashboard' },
+                        { view: 'gas-sync-properties', label: 'Synced Properties' },
+                        { view: 'gas-sync-logs', label: 'Sync Logs' }
                     ]
                 },
                 'generators': {
@@ -22238,13 +22259,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                         { view: 'app-blog', label: 'Blog' },
                         { view: 'app-attractions', label: 'Attractions' },
                         { view: 'app-reviews', label: 'Reviews' },
+                        { view: 'app-properties', label: 'Properties' },
+                        { view: 'app-seo', label: 'SEO Analytics' },
                         { view: 'api-docs', label: 'API Docs' }
-                    ]
-                },
-                'channel-manager': {
-                    label: 'Channel Manager',
-                    tabs: [
-                        { view: 'gas-sync-connections', label: 'Connections' }
                     ]
                 },
                 'turbines': {
@@ -22252,20 +22269,17 @@ const promo = await fetch('/api/v1/offers/validate', {
                     tabs: [
                         { view: 'turbine-connections', label: 'Connections' },
                         { view: 'turbine-campaigns', label: 'Campaigns' },
-                        { view: 'turbine-generator', label: 'Generator' }
+                        { view: 'turbine-generator', label: 'Generator' },
+                        { view: 'gas-lites', label: 'GAS Lites' }
                     ]
                 },
                 'create-websites': {
                     label: 'Create Websites',
                     tabs: [
                         { view: 'deploy-sites', label: 'Create Sites' },
-                        { view: 'plugin-licenses', label: 'Licenses' }
-                    ]
-                },
-                'my-account': {
-                    label: 'My Account',
-                    tabs: [
-                        { view: 'my-account', label: 'Account' }
+                        { view: 'plugin-licenses', label: 'Licenses' },
+                        { view: 'my-custom-site', label: 'My Custom Site' },
+                        { view: 'custom-sites', label: 'Manage Custom Sites' }
                     ]
                 }
             };
