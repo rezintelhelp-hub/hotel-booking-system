@@ -4423,6 +4423,7 @@ jQuery(document).ready(function($) {
             });
             
             // Load pricing
+            console.log('GAS DEBUG currentLanguage:', currentLanguage);
             $.ajax({
                 url: checkoutData.apiUrl + '/api/public/calculate-price',
                 method: 'POST',
@@ -4438,8 +4439,12 @@ jQuery(document).ready(function($) {
                 }),
                 success: function(response) {
                     if (response.success) {
+                        if (response.taxes && response.taxes.length > 0) {
+                            console.log('GAS DEBUG tax[0] raw:', JSON.stringify(response.taxes[0], null, 2));
+                            console.log('GAS DEBUG tax[0].name:', response.taxes[0].name, 'name_ml:', response.taxes[0].name_ml);
+                        }
                         checkoutData.pricing = response;
-                        
+
                         // Also try to get channel manager quote for full breakdown
                         $.ajax({
                             url: checkoutData.apiUrl + '/api/public/quote/' + checkoutData.unitId + '?checkin=' + checkoutData.checkin + '&checkout=' + checkoutData.checkout + '&guests=' + (checkoutData.guests || 1),
@@ -4469,6 +4474,8 @@ jQuery(document).ready(function($) {
                     success: function(response) {
                         $('.gas-upsells-loading').hide();
                         if (response.success && response.upsells && response.upsells.length > 0) {
+                            console.log('GAS DEBUG upsell[0] raw:', JSON.stringify(response.upsells[0], null, 2));
+                            console.log('GAS DEBUG upsell[0].name:', response.upsells[0].name, 'name_ml:', response.upsells[0].name_ml);
                             renderCheckoutUpsells(response.upsells);
                         } else {
                             $('.gas-no-upsells').show();
