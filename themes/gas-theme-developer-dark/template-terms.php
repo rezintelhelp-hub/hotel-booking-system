@@ -63,54 +63,82 @@ $ml = function_exists('developer_get_ml_value') ? 'developer_get_ml_value' : nul
 // Build displayable sections array
 $all_sections = [];
 
+// Helper: normalize newlines (handles literal \n from JSON double-encoding) then wpautop+esc_html
+function gas_format_text($text) {
+    $text = str_replace(array("\\n", "\r\n", "\r"), array("\n", "\n", "\n"), $text);
+    return wpautop(esc_html(trim($text)));
+}
+
 if ($terms_source === 'gas-account') {
-    // Auto-generate from property_terms data
+    // Translations for auto-generated terms sections
+    $tt_all = [
+        'en' => ['checkin_checkout' => 'Check-in & Check-out', 'checkin' => 'Check-in', 'checkout' => 'Check-out', 'from' => 'from', 'until' => 'until', 'by' => 'by', 'late_fee' => 'late check-out fee', 'self_checkin' => 'Self check-in available.', 'cancellation' => 'Cancellation Policy', 'house_rules' => 'House Rules', 'no_smoking' => 'No smoking.', 'designated_smoking' => 'Smoking in designated areas only.', 'no_pets' => 'No pets allowed.', 'pets_request' => 'Pets on request.', 'pets_allowed' => 'Pets allowed.', 'quiet_hours' => 'Quiet hours', 'terms' => 'Terms & Conditions', 'liability' => 'Liability & Damages', 'directions' => 'Directions', 'area_info' => 'Area Information'],
+        'de' => ['checkin_checkout' => 'An- & Abreise', 'checkin' => 'Check-in', 'checkout' => 'Check-out', 'from' => 'ab', 'until' => 'bis', 'by' => 'bis', 'late_fee' => 'Gebühr für späten Check-out', 'self_checkin' => 'Selbst-Check-in verfügbar.', 'cancellation' => 'Stornierungsbedingungen', 'house_rules' => 'Hausregeln', 'no_smoking' => 'Rauchen nicht gestattet.', 'designated_smoking' => 'Rauchen nur in ausgewiesenen Bereichen.', 'no_pets' => 'Keine Haustiere erlaubt.', 'pets_request' => 'Haustiere auf Anfrage.', 'pets_allowed' => 'Haustiere erlaubt.', 'quiet_hours' => 'Ruhezeiten', 'terms' => 'Allgemeine Geschäftsbedingungen', 'liability' => 'Haftung & Schäden', 'directions' => 'Anfahrt', 'area_info' => 'Umgebungsinformationen'],
+        'fr' => ['checkin_checkout' => 'Arrivée & Départ', 'checkin' => 'Arrivée', 'checkout' => 'Départ', 'from' => 'à partir de', 'until' => "jusqu'à", 'by' => 'avant', 'late_fee' => 'frais de départ tardif', 'self_checkin' => 'Arrivée autonome disponible.', 'cancellation' => "Conditions d'annulation", 'house_rules' => 'Règlement intérieur', 'no_smoking' => 'Non-fumeur.', 'designated_smoking' => 'Fumeur dans les zones désignées uniquement.', 'no_pets' => 'Animaux non admis.', 'pets_request' => 'Animaux sur demande.', 'pets_allowed' => 'Animaux admis.', 'quiet_hours' => 'Heures de silence', 'terms' => 'Conditions générales', 'liability' => 'Responsabilité & Dommages', 'directions' => 'Itinéraire', 'area_info' => 'Informations sur la région'],
+        'es' => ['checkin_checkout' => 'Entrada y Salida', 'checkin' => 'Entrada', 'checkout' => 'Salida', 'from' => 'desde', 'until' => 'hasta', 'by' => 'antes de', 'late_fee' => 'cargo por salida tardía', 'self_checkin' => 'Auto check-in disponible.', 'cancellation' => 'Política de cancelación', 'house_rules' => 'Normas de la casa', 'no_smoking' => 'No fumar.', 'designated_smoking' => 'Fumar solo en áreas designadas.', 'no_pets' => 'No se admiten mascotas.', 'pets_request' => 'Mascotas bajo petición.', 'pets_allowed' => 'Se admiten mascotas.', 'quiet_hours' => 'Horas de silencio', 'terms' => 'Términos y condiciones', 'liability' => 'Responsabilidad y daños', 'directions' => 'Cómo llegar', 'area_info' => 'Información de la zona'],
+        'nl' => ['checkin_checkout' => 'In- & Uitchecken', 'checkin' => 'Inchecken', 'checkout' => 'Uitchecken', 'from' => 'vanaf', 'until' => 'tot', 'by' => 'voor', 'late_fee' => 'toeslag voor laat uitchecken', 'self_checkin' => 'Zelf inchecken beschikbaar.', 'cancellation' => 'Annuleringsvoorwaarden', 'house_rules' => 'Huisregels', 'no_smoking' => 'Niet roken.', 'designated_smoking' => 'Roken alleen in aangewezen ruimtes.', 'no_pets' => 'Geen huisdieren toegestaan.', 'pets_request' => 'Huisdieren op aanvraag.', 'pets_allowed' => 'Huisdieren toegestaan.', 'quiet_hours' => 'Stiltetijden', 'terms' => 'Algemene voorwaarden', 'liability' => 'Aansprakelijkheid & Schade', 'directions' => 'Routebeschrijving', 'area_info' => 'Omgevingsinformatie'],
+        'it' => ['checkin_checkout' => 'Check-in e Check-out', 'checkin' => 'Check-in', 'checkout' => 'Check-out', 'from' => 'dalle', 'until' => 'alle', 'by' => 'entro le', 'late_fee' => 'supplemento check-out tardivo', 'self_checkin' => 'Self check-in disponibile.', 'cancellation' => 'Politica di cancellazione', 'house_rules' => 'Regole della casa', 'no_smoking' => 'Vietato fumare.', 'designated_smoking' => 'Si fuma solo nelle aree designate.', 'no_pets' => 'Animali non ammessi.', 'pets_request' => 'Animali su richiesta.', 'pets_allowed' => 'Animali ammessi.', 'quiet_hours' => 'Ore di silenzio', 'terms' => 'Termini e condizioni', 'liability' => 'Responsabilità e danni', 'directions' => 'Indicazioni', 'area_info' => 'Informazioni sulla zona'],
+        'pt' => ['checkin_checkout' => 'Check-in e Check-out', 'checkin' => 'Check-in', 'checkout' => 'Check-out', 'from' => 'a partir das', 'until' => 'até às', 'by' => 'até às', 'late_fee' => 'taxa de check-out tardio', 'self_checkin' => 'Self check-in disponível.', 'cancellation' => 'Política de cancelamento', 'house_rules' => 'Regras da casa', 'no_smoking' => 'Proibido fumar.', 'designated_smoking' => 'Fumar apenas em áreas designadas.', 'no_pets' => 'Animais não permitidos.', 'pets_request' => 'Animais sob consulta.', 'pets_allowed' => 'Animais permitidos.', 'quiet_hours' => 'Horas de silêncio', 'terms' => 'Termos e condições', 'liability' => 'Responsabilidade e danos', 'directions' => 'Direções', 'area_info' => 'Informações da área'],
+        'ja' => ['checkin_checkout' => 'チェックイン・チェックアウト', 'checkin' => 'チェックイン', 'checkout' => 'チェックアウト', 'from' => '', 'until' => 'まで', 'by' => 'まで', 'late_fee' => 'レイトチェックアウト料金', 'self_checkin' => 'セルフチェックイン可能。', 'cancellation' => 'キャンセルポリシー', 'house_rules' => 'ハウスルール', 'no_smoking' => '禁煙。', 'designated_smoking' => '指定エリアのみ喫煙可。', 'no_pets' => 'ペット不可。', 'pets_request' => 'ペットは要相談。', 'pets_allowed' => 'ペット可。', 'quiet_hours' => '静粛時間', 'terms' => '利用規約', 'liability' => '責任と損害', 'directions' => 'アクセス', 'area_info' => '周辺情報'],
+    ];
+    $tt = $tt_all[$lang] ?? $tt_all['en'];
+
+    // Auto-generate from property_terms data — pre-render as HTML
     $pt = $site_config['pages']['terms']['property_terms']
        ?? $site_config['website']['page-terms']['property_terms'] ?? [];
 
+    // Check-in & Check-out
     if (!empty($pt['checkin_from']) || !empty($pt['checkout_by'])) {
         $ci = '';
-        if (!empty($pt['checkin_from'])) $ci .= "Check-in: from " . $pt['checkin_from'];
-        if (!empty($pt['checkin_until'])) $ci .= " until " . $pt['checkin_until'];
-        if (!empty($pt['checkout_by'])) $ci .= "\nCheck-out: by " . $pt['checkout_by'];
-        if (!empty($pt['late_checkout_fee'])) $ci .= " (late check-out fee: " . $pt['late_checkout_fee'] . ")";
-        if (!empty($pt['self_checkin'])) $ci .= "\nSelf check-in available.";
-        if (!empty($pt['check_in_instructions'])) $ci .= "\n\n" . $pt['check_in_instructions'];
-        if (!empty($pt['check_out_instructions'])) $ci .= "\n\n" . $pt['check_out_instructions'];
-        $all_sections[] = ['title' => 'Check-in & Check-out', 'content' => trim($ci)];
+        if (!empty($pt['checkin_from'])) {
+            $ci .= '<p><strong>' . esc_html($tt['checkin']) . ':</strong> ' . esc_html($tt['from']) . ' ' . esc_html($pt['checkin_from']);
+            if (!empty($pt['checkin_until'])) $ci .= ' ' . esc_html($tt['until']) . ' ' . esc_html($pt['checkin_until']);
+            $ci .= '</p>';
+        }
+        if (!empty($pt['checkout_by'])) {
+            $ci .= '<p><strong>' . esc_html($tt['checkout']) . ':</strong> ' . esc_html($tt['by']) . ' ' . esc_html($pt['checkout_by']);
+            if (!empty($pt['late_checkout_fee'])) $ci .= ' (' . esc_html($tt['late_fee']) . ': ' . esc_html($pt['late_checkout_fee']) . ')';
+            $ci .= '</p>';
+        }
+        if (!empty($pt['self_checkin'])) $ci .= '<p>' . esc_html($tt['self_checkin']) . '</p>';
+        if (!empty($pt['check_in_instructions'])) $ci .= gas_format_text($pt['check_in_instructions']);
+        if (!empty($pt['check_out_instructions'])) $ci .= gas_format_text($pt['check_out_instructions']);
+        $all_sections[] = ['title' => $tt['checkin_checkout'], 'content' => $ci, 'html' => true];
     }
 
+    // Cancellation Policy
     if (!empty($pt['cancellation_policy'])) {
-        $all_sections[] = ['title' => 'Cancellation Policy', 'content' => $pt['cancellation_policy']];
+        $all_sections[] = ['title' => $tt['cancellation'], 'content' => gas_format_text($pt['cancellation_policy']), 'html' => true];
     }
 
-    // House rules (smoking, pets, quiet hours, additional rules)
+    // House Rules (each rule as its own paragraph)
     $hr = '';
     if (!empty($pt['smoking_policy']) && $pt['smoking_policy'] !== 'yes') {
-        $hr .= $pt['smoking_policy'] === 'no' ? "No smoking.\n" : "Smoking in designated areas only.\n";
+        $hr .= $pt['smoking_policy'] === 'no' ? '<p>' . esc_html($tt['no_smoking']) . '</p>' : '<p>' . esc_html($tt['designated_smoking']) . '</p>';
     }
     if (!empty($pt['pet_policy'])) {
-        $hr .= $pt['pet_policy'] === 'no' ? "No pets allowed.\n" : ($pt['pet_policy'] === 'request' ? "Pets on request.\n" : "Pets allowed.\n");
+        $ptext = $pt['pet_policy'] === 'no' ? $tt['no_pets'] : ($pt['pet_policy'] === 'request' ? $tt['pets_request'] : $tt['pets_allowed']);
+        $hr .= '<p>' . esc_html($ptext) . '</p>';
     }
     if (!empty($pt['quiet_hours_from']) && !empty($pt['quiet_hours_until'])) {
-        $hr .= "Quiet hours: " . $pt['quiet_hours_from'] . " - " . $pt['quiet_hours_until'] . "\n";
+        $hr .= '<p>' . esc_html($tt['quiet_hours']) . ': ' . esc_html($pt['quiet_hours_from']) . ' &ndash; ' . esc_html($pt['quiet_hours_until']) . '</p>';
     }
-    if (!empty($pt['additional_rules'])) $hr .= "\n" . $pt['additional_rules'];
-    if (!empty(trim($hr))) {
-        $all_sections[] = ['title' => 'House Rules', 'content' => trim($hr)];
+    if (!empty($pt['additional_rules'])) $hr .= gas_format_text($pt['additional_rules']);
+    if (!empty($hr)) {
+        $all_sections[] = ['title' => $tt['house_rules'], 'content' => $hr, 'html' => true];
     }
 
     if (!empty($pt['terms_conditions'])) {
-        $all_sections[] = ['title' => 'Terms & Conditions', 'content' => $pt['terms_conditions']];
+        $all_sections[] = ['title' => $tt['terms'], 'content' => gas_format_text($pt['terms_conditions']), 'html' => true];
     }
     if (!empty($pt['damage_policy'])) {
-        $all_sections[] = ['title' => 'Liability & Damages', 'content' => $pt['damage_policy']];
+        $all_sections[] = ['title' => $tt['liability'], 'content' => gas_format_text($pt['damage_policy']), 'html' => true];
     }
     if (!empty($pt['directions'])) {
-        $all_sections[] = ['title' => 'Directions', 'content' => $pt['directions']];
+        $all_sections[] = ['title' => $tt['directions'], 'content' => gas_format_text($pt['directions']), 'html' => true];
     }
     if (!empty($pt['area_info'])) {
-        $all_sections[] = ['title' => 'Area Information', 'content' => $pt['area_info']];
+        $all_sections[] = ['title' => $tt['area_info'], 'content' => gas_format_text($pt['area_info']), 'html' => true];
     }
 
     $use_api = true;
@@ -268,7 +296,11 @@ if ($additional_enabled !== false && $additional_enabled !== 'false') {
                 <div class="developer-terms-content">
                     <h2><?php echo esc_html($section['title']); ?></h2>
                     <div class="developer-terms-text">
-                        <?php echo wpautop(esc_html($section['content'])); ?>
+                        <?php if (!empty($section['html'])) {
+                            echo $section['content'];
+                        } else {
+                            echo gas_format_text($section['content']);
+                        } ?>
                     </div>
                 </div>
             </div>
