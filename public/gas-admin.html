@@ -4212,48 +4212,86 @@
                 <div class="header">
                     <div class="header-top">
                         <div>
-                            <h2> Payments</h2>
-                            <p>View payment status and transactions for all bookings</p>
+                            <h2>Payments</h2>
+                            <p>Central payment setup and transaction history</p>
                         </div>
                     </div>
                 </div>
 
-                <!-- Stripe Connection Status -->
-                <div id="stripe-connection-status" class="card" style="margin-bottom: 1rem; background: linear-gradient(135deg, #f0f9ff 0%, #e0e7ff 100%); border: 1px solid #c7d2fe;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
-                        <div>
-                            <h3 style="color: #4338ca; margin-bottom: 0.5rem;"> Stripe Connection</h3>
-                            <p id="stripe-status-text" style="color: #5b21b6; font-size: 0.9rem;">Checking connection status...</p>
+                <!-- SECTION 1: Payment Setup -->
+                <div class="card" style="margin-bottom: 1.5rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;" onclick="document.getElementById('payment-setup-body').style.display = document.getElementById('payment-setup-body').style.display === 'none' ? 'block' : 'none'; this.querySelector('.collapse-icon').textContent = document.getElementById('payment-setup-body').style.display === 'none' ? '+' : '-';">
+                        <h3 style="margin: 0;">Payment Setup</h3>
+                        <span class="collapse-icon" style="font-size: 1.25rem; font-weight: 600; color: #64748b;">-</span>
+                    </div>
+                    <div id="payment-setup-body" style="margin-top: 1.25rem;">
+                        <!-- Stripe Keys -->
+                        <div style="background: linear-gradient(135deg, #f0f9ff 0%, #e0e7ff 100%); border: 1px solid #c7d2fe; border-radius: 12px; padding: 1.25rem; margin-bottom: 1.25rem;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                                <h4 style="margin: 0; color: #4338ca;">Stripe Connection</h4>
+                                <div id="payments-stripe-status-badge"></div>
+                            </div>
+                            <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 0.75rem;">
+                                <div style="flex: 1; min-width: 250px;">
+                                    <label style="font-size: 0.8rem; font-weight: 500; margin-bottom: 0.25rem; display: block;">Publishable Key</label>
+                                    <input type="text" id="payments-stripe-pub-key" class="form-input" placeholder="pk_live_..." style="font-family: monospace; font-size: 0.85rem;">
+                                </div>
+                                <div style="flex: 1; min-width: 250px;">
+                                    <label style="font-size: 0.8rem; font-weight: 500; margin-bottom: 0.25rem; display: block;">Secret Key</label>
+                                    <input type="password" id="payments-stripe-sec-key" class="form-input" placeholder="sk_live_..." style="font-family: monospace; font-size: 0.85rem;">
+                                </div>
+                            </div>
+                            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                <button class="btn" onclick="savePaymentKeys()" style="background: #635bff; font-size: 0.85rem;">Save Keys</button>
+                                <button class="btn btn-secondary" onclick="testPaymentKeys()" style="font-size: 0.85rem;">Test Connection</button>
+                            </div>
                         </div>
-                        <div id="stripe-connect-btn-area">
-                            <!-- Will be populated by JS -->
+
+                        <!-- Payment Methods Summary -->
+                        <div style="margin-bottom: 0;">
+                            <h4 style="margin-bottom: 0.75rem; color: #374151;">Payment Methods by Property</h4>
+                            <div id="payments-methods-summary" style="font-size: 0.9rem; color: #64748b;">
+                                Loading...
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Payment Filters -->
+                <!-- SECTION 2: Payment History -->
+
+                <!-- Filters -->
                 <div class="card" style="margin-bottom: 1rem;">
                     <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
-                        <div style="flex: 1; min-width: 200px;">
+                        <div style="flex: 1; min-width: 180px;">
                             <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Property</label>
-                            <select id="payments-property-select" class="form-input" onchange="loadPaymentsForProperty()">
+                            <select id="payments-property-select" class="form-input" onchange="loadPaymentsData()">
                                 <option value="">All Properties</option>
                             </select>
                         </div>
-                        <div style="flex: 1; min-width: 200px;">
+                        <div style="flex: 1; min-width: 150px;">
                             <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Payment Status</label>
-                            <select id="payments-status-select" class="form-input" onchange="loadPaymentsForProperty()">
+                            <select id="payments-status-select" class="form-input" onchange="loadPaymentsData()">
                                 <option value="">All Statuses</option>
-                                <option value="pending"> Pending</option>
-                                <option value="deposit_paid"> Deposit Paid</option>
-                                <option value="fully_paid"> Fully Paid</option>
-                                <option value="refunded"> Refunded</option>
-                                <option value="failed"> Failed</option>
+                                <option value="pending">Pending</option>
+                                <option value="deposit_paid">Deposit Paid</option>
+                                <option value="fully_paid">Fully Paid</option>
+                                <option value="guaranteed">Guaranteed</option>
+                                <option value="refunded">Refunded</option>
+                                <option value="failed">Failed</option>
                             </select>
                         </div>
-                        <div style="flex: 1; min-width: 200px;">
+                        <div style="flex: 1; min-width: 150px;">
+                            <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Payment Method</label>
+                            <select id="payments-method-select" class="form-input" onchange="loadPaymentsData()">
+                                <option value="">All Methods</option>
+                                <option value="card">Stripe</option>
+                                <option value="card_guarantee">Card Guarantee</option>
+                                <option value="property">Pay at Property</option>
+                            </select>
+                        </div>
+                        <div style="flex: 1; min-width: 150px;">
                             <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Date Range</label>
-                            <select id="payments-date-range" class="form-input" onchange="loadPaymentsForProperty()">
+                            <select id="payments-date-range" class="form-input" onchange="loadPaymentsData()">
                                 <option value="30">Last 30 days</option>
                                 <option value="90">Last 90 days</option>
                                 <option value="365">Last year</option>
@@ -4263,7 +4301,7 @@
                     </div>
                 </div>
 
-                <!-- Payment Stats -->
+                <!-- Stats -->
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
                     <div class="card" style="padding: 1.25rem; text-align: center;">
                         <div style="font-size: 0.8rem; color: #64748b; margin-bottom: 0.5rem;">Pending Payments</div>
@@ -4283,13 +4321,11 @@
                     </div>
                 </div>
 
-                <!-- Bookings with Payment Status -->
+                <!-- Bookings Table -->
                 <div class="card">
-                    <h3 style="margin-bottom: 1rem;">Bookings & Payment Status</h3>
+                    <h3 style="margin-bottom: 1rem;">Payment History</h3>
                     <div id="payments-bookings-list">
-                        <p style="color: #64748b; text-align: center; padding: 2rem;">
-                            Loading bookings...
-                        </p>
+                        <p style="color: #64748b; text-align: center; padding: 2rem;">Loading bookings...</p>
                     </div>
                 </div>
             </div>
@@ -43332,7 +43368,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 const statusText = document.getElementById('stripe-status-text');
                 const btnArea = document.getElementById('stripe-connect-btn-area');
-                
+                if (!statusText || !btnArea) return;
+
                 if (!accountId) {
                     statusText.innerHTML = `<span style="color: #6b7280;">Select a property to view Stripe connection status</span>`;
                     btnArea.innerHTML = '';
@@ -43386,111 +43423,200 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
         
-        async function loadPaymentsForProperty() {
-            const propertyId = document.getElementById('payments-property-select').value;
-            const status = document.getElementById('payments-status-select').value;
-            const dateRange = document.getElementById('payments-date-range').value;
-            
-            // Update Stripe status based on selected property
-            checkStripeConnectionStatus(propertyId || null);
-            
+        // Central Payments view — load payment setup section
+        async function loadPaymentSetup() {
+            const accountId = selectedAccountId || (currentAccount && currentAccount.id);
+            const badge = document.getElementById('payments-stripe-status-badge');
+            const summaryEl = document.getElementById('payments-methods-summary');
+            if (!accountId) {
+                if (badge) badge.innerHTML = '<span style="color: #6b7280;">No account selected</span>';
+                if (summaryEl) summaryEl.innerHTML = '<span>No account selected</span>';
+                return;
+            }
+
             try {
-                // Build query params
-                let url = '/api/bookings?include_payments=true';
-                if (propertyId) url += `&property_id=${propertyId}`;
-                if (status) url += `&payment_status=${status}`;
-                if (dateRange !== 'all') {
-                    const daysAgo = new Date();
-                    daysAgo.setDate(daysAgo.getDate() - parseInt(dateRange));
-                    url += `&from_date=${daysAgo.toISOString().split('T')[0]}`;
+                const statusRes = await fetch(`/api/accounts/${accountId}/stripe-status`, { headers: authHeaders() });
+                const statusData = await statusRes.json();
+
+                if (statusData.success && (statusData.connected || statusData.has_keys)) {
+                    badge.innerHTML = '<span style="background: #d1fae5; color: #059669; padding: 0.25rem 0.75rem; border-radius: 99px; font-size: 0.8rem; font-weight: 600;">Connected</span>';
+                    document.getElementById('payments-stripe-pub-key').value = statusData.publishable_key || '';
+                    document.getElementById('payments-stripe-sec-key').placeholder = 'sk_live_****' + (statusData.has_keys ? ' (saved)' : '');
+                } else {
+                    badge.innerHTML = '<span style="background: #fee2e2; color: #dc2626; padding: 0.25rem 0.75rem; border-radius: 99px; font-size: 0.8rem; font-weight: 600;">Not Connected</span>';
                 }
-                
-                const response = await fetch(url);
+            } catch (e) {
+                console.error('Error loading Stripe status:', e);
+                badge.innerHTML = '<span style="color: #6b7280;">Unable to check</span>';
+            }
+
+            // Load payment methods summary per property
+            try {
+                const queryString = buildQueryString();
+                const propsRes = await fetch(`/api/db/properties${queryString}`);
+                const propsData = await propsRes.json();
+
+                if (propsData.success && propsData.data && propsData.data.length > 0) {
+                    const rows = await Promise.all(propsData.data.map(async (prop) => {
+                        try {
+                            const pRes = await fetch(`/api/property/${prop.id}/payment-settings`);
+                            const pData = await pRes.json();
+                            const methods = [];
+                            if (pData.success) {
+                                const accepted = pData.accepted_methods || [];
+                                if (accepted.includes('card') || pData.stripe_connected) methods.push('<span style="color: #635bff;">Stripe</span>');
+                                if (accepted.includes('card_guarantee')) methods.push('<span style="color: #f59e0b;">Card Guarantee</span>');
+                                if (accepted.includes('pay_at_property')) methods.push('<span style="color: #10b981;">Pay at Property</span>');
+                            }
+                            return `<div style="display: flex; justify-content: space-between; padding: 0.4rem 0; border-bottom: 1px solid var(--border);">
+                                <span style="font-weight: 500;">${prop.name}</span>
+                                <span>${methods.length > 0 ? methods.join(' &middot; ') : '<span style="color: #94a3b8;">None configured</span>'}</span>
+                            </div>`;
+                        } catch { return ''; }
+                    }));
+                    summaryEl.innerHTML = rows.join('');
+                } else {
+                    summaryEl.innerHTML = '<span>No properties found</span>';
+                }
+            } catch (e) {
+                console.error('Error loading payment methods summary:', e);
+                summaryEl.innerHTML = '<span style="color: #ef4444;">Error loading</span>';
+            }
+        }
+
+        async function savePaymentKeys() {
+            const accountId = selectedAccountId || (currentAccount && currentAccount.id);
+            if (!accountId) { showNotification('No account selected', 'error'); return; }
+
+            const pubKey = document.getElementById('payments-stripe-pub-key').value.trim();
+            const secKey = document.getElementById('payments-stripe-sec-key').value.trim();
+            if (!pubKey) { showNotification('Publishable key is required', 'error'); return; }
+
+            try {
+                const response = await fetch(`/api/accounts/${accountId}/stripe-keys`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ stripe_publishable_key: pubKey, stripe_secret_key: secKey || undefined })
+                });
                 const data = await response.json();
-                
+                if (data.success) {
+                    showNotification('Stripe keys saved', 'success');
+                    loadPaymentSetup();
+                } else {
+                    showNotification('Error: ' + (data.error || 'Failed'), 'error');
+                }
+            } catch (e) {
+                showNotification('Error saving keys', 'error');
+            }
+        }
+
+        async function testPaymentKeys() {
+            const accountId = selectedAccountId || (currentAccount && currentAccount.id);
+            if (!accountId) return;
+            try {
+                const res = await fetch(`/api/accounts/${accountId}/stripe-status`, { headers: authHeaders() });
+                const data = await res.json();
+                if (data.success && (data.connected || data.has_keys)) {
+                    showNotification('Stripe connection is working', 'success');
+                } else {
+                    showNotification('Stripe is not connected — save valid keys first', 'warning');
+                }
+            } catch (e) {
+                showNotification('Connection test failed', 'error');
+            }
+        }
+
+        // Central Payments view — load bookings + stats
+        async function loadPaymentsData() {
+            const propertyId = document.getElementById('payments-property-select')?.value;
+            const status = document.getElementById('payments-status-select')?.value;
+            const method = document.getElementById('payments-method-select')?.value;
+            const dateRange = document.getElementById('payments-date-range')?.value;
+
+            // Build filter params
+            let filterParams = [];
+            if (propertyId) filterParams.push(`property_id=${propertyId}`);
+            if (selectedAccountId) filterParams.push(`account_id=${selectedAccountId}`);
+            if (status === 'guaranteed') {
+                filterParams.push('payment_method=card_guarantee');
+            } else if (status) {
+                filterParams.push(`payment_status=${status}`);
+            }
+            if (method) filterParams.push(`payment_method=${method}`);
+            if (dateRange && dateRange !== 'all') {
+                const d = new Date();
+                d.setDate(d.getDate() - parseInt(dateRange));
+                filterParams.push(`from_date=${d.toISOString().split('T')[0]}`);
+            }
+            const qs = filterParams.join('&');
+
+            try {
+                const [bookingsRes, statsRes] = await Promise.all([
+                    fetch(`/api/admin/bookings?${qs}`).then(r => r.json()),
+                    fetch(`/api/admin/payment-stats?${qs}`).then(r => r.json())
+                ]);
+
+                // Update stats
+                if (statsRes.success) {
+                    document.getElementById('pending-payments-count').textContent = statsRes.pending_count;
+                    document.getElementById('deposits-received-amount').textContent = statsRes.deposits_received.toFixed(2);
+                    document.getElementById('balance-due-amount').textContent = statsRes.balance_due.toFixed(2);
+                    document.getElementById('total-collected-amount').textContent = statsRes.total_collected.toFixed(2);
+                }
+
+                // Render table
                 const listEl = document.getElementById('payments-bookings-list');
-                
-                if (data.success && data.bookings && data.bookings.length > 0) {
-                    // Calculate stats
-                    let pendingCount = 0;
-                    let depositsReceived = 0;
-                    let balanceDue = 0;
-                    let totalCollected = 0;
-                    
-                    data.bookings.forEach(b => {
-                        const total = parseFloat(b.total_amount) || 0;
-                        const deposit = parseFloat(b.deposit_amount) || 0;
-                        const balance = parseFloat(b.balance_amount) || 0;
-                        
-                        if (b.payment_status === 'pending' || !b.payment_status) pendingCount++;
-                        if (b.deposit_paid_at) depositsReceived += deposit;
-                        if (!b.balance_paid_at && b.deposit_paid_at) balanceDue += (total - deposit);
-                        if (b.balance_paid_at) totalCollected += total;
-                        else if (b.deposit_paid_at) totalCollected += deposit;
-                    });
-                    
-                    document.getElementById('pending-payments-count').textContent = pendingCount;
-                    document.getElementById('deposits-received-amount').textContent = '' + depositsReceived.toFixed(2);
-                    document.getElementById('balance-due-amount').textContent = '' + balanceDue.toFixed(2);
-                    document.getElementById('total-collected-amount').textContent = '' + totalCollected.toFixed(2);
-                    
-                    // Render bookings
+                const bookings = bookingsRes.data || bookingsRes.bookings || [];
+
+                if (bookings.length > 0) {
                     listEl.innerHTML = `
-                        <table style="width: 100%; border-collapse: collapse;">
+                        <div style="overflow-x: auto;">
+                        <table style="width: 100%; border-collapse: collapse; min-width: 700px;">
                             <thead>
                                 <tr style="border-bottom: 2px solid var(--border);">
+                                    <th style="text-align: left; padding: 0.75rem; white-space: nowrap;">#</th>
                                     <th style="text-align: left; padding: 0.75rem;">Guest</th>
                                     <th style="text-align: left; padding: 0.75rem;">Property / Room</th>
                                     <th style="text-align: left; padding: 0.75rem;">Dates</th>
-                                    <th style="text-align: right; padding: 0.75rem;">Total</th>
-                                    <th style="text-align: right; padding: 0.75rem;">Deposit</th>
+                                    <th style="text-align: right; padding: 0.75rem;">Amount</th>
+                                    <th style="text-align: center; padding: 0.75rem;">Method</th>
                                     <th style="text-align: center; padding: 0.75rem;">Status</th>
                                     <th style="text-align: center; padding: 0.75rem;">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                ${data.bookings.map(b => {
-                                    const statusBadge = getPaymentStatusBadge(b.payment_status);
+                                ${bookings.map(b => {
                                     const total = parseFloat(b.total_amount) || 0;
-                                    const deposit = parseFloat(b.deposit_amount) || 0;
+                                    const methodBadge = getPaymentMethodBadge(b.payment_method);
+                                    const statusBadge = getPaymentStatusBadge(b.payment_status, b.payment_method);
                                     return `
                                         <tr style="border-bottom: 1px solid var(--border);">
+                                            <td style="padding: 0.75rem; font-family: monospace; font-size: 0.85rem; color: #64748b;">${b.id}</td>
                                             <td style="padding: 0.75rem;">
                                                 <strong>${b.guest_first_name || ''} ${b.guest_last_name || ''}</strong><br>
                                                 <small style="color: #64748b;">${b.guest_email || ''}</small>
                                             </td>
                                             <td style="padding: 0.75rem;">
                                                 ${b.property_name || 'N/A'}<br>
-                                                <small style="color: #64748b;">${b.room_name || ''}</small>
+                                                <small style="color: #64748b;">${b.unit_name || ''}</small>
                                             </td>
-                                            <td style="padding: 0.75rem;">
-                                                ${formatDate(b.check_in)} - ${formatDate(b.check_out)}
+                                            <td style="padding: 0.75rem; white-space: nowrap;">
+                                                ${formatDate(b.arrival_date || b.check_in)} - ${formatDate(b.departure_date || b.check_out)}
                                             </td>
-                                            <td style="padding: 0.75rem; text-align: right;">
+                                            <td style="padding: 0.75rem; text-align: right; white-space: nowrap;">
                                                 ${total.toFixed(2)}
                                             </td>
-                                            <td style="padding: 0.75rem; text-align: right;">
-                                                ${deposit.toFixed(2)}
-                                                ${b.deposit_paid_at ? '<br><small style="color: #059669;"> Paid</small>' : ''}
-                                            </td>
+                                            <td style="padding: 0.75rem; text-align: center;">${methodBadge}</td>
+                                            <td style="padding: 0.75rem; text-align: center;">${statusBadge}</td>
                                             <td style="padding: 0.75rem; text-align: center;">
-                                                ${statusBadge}
-                                            </td>
-                                            <td style="padding: 0.75rem; text-align: center;">
-                                                <button class="btn btn-small" onclick="viewPaymentDetails(${b.id})" style="font-size: 0.8rem; padding: 0.25rem 0.5rem;">
-                                                    View
-                                                </button>
-                                                ${!b.deposit_paid_at ? `
-                                                    <button class="btn btn-small" onclick="sendPaymentLink(${b.id})" style="font-size: 0.8rem; padding: 0.25rem 0.5rem; background: #059669;">
-                                                        Send Link
-                                                    </button>
-                                                ` : ''}
+                                                <button class="btn btn-small" onclick="viewPaymentDetails(${b.id})" style="font-size: 0.8rem; padding: 0.25rem 0.5rem;">View</button>
                                             </td>
                                         </tr>
                                     `;
                                 }).join('')}
                             </tbody>
                         </table>
+                        </div>
                     `;
                 } else {
                     listEl.innerHTML = '<p style="color: #64748b; text-align: center; padding: 2rem;">No bookings found</p>';
@@ -43500,16 +43626,29 @@ const promo = await fetch('/api/v1/offers/validate', {
                 document.getElementById('payments-bookings-list').innerHTML = '<p style="color: #ef4444; text-align: center; padding: 2rem;">Error loading bookings</p>';
             }
         }
-        
-        function getPaymentStatusBadge(status) {
+
+        function getPaymentMethodBadge(method) {
             const badges = {
-                'pending': '<span class="badge badge-warning"> Pending</span>',
-                'deposit_paid': '<span class="badge badge-info"> Deposit Paid</span>',
-                'fully_paid': '<span class="badge badge-success"> Fully Paid</span>',
-                'refunded': '<span class="badge badge-secondary"> Refunded</span>',
-                'failed': '<span class="badge badge-error"> Failed</span>'
+                'card': '<span style="background: #ede9fe; color: #635bff; padding: 0.15rem 0.5rem; border-radius: 99px; font-size: 0.75rem; font-weight: 600;">Stripe</span>',
+                'card_guarantee': '<span style="background: #fef3c7; color: #b45309; padding: 0.15rem 0.5rem; border-radius: 99px; font-size: 0.75rem; font-weight: 600;">Card Guarantee</span>',
+                'property': '<span style="background: #d1fae5; color: #059669; padding: 0.15rem 0.5rem; border-radius: 99px; font-size: 0.75rem; font-weight: 600;">Pay at Property</span>'
             };
-            return badges[status] || '<span class="badge"> Pending</span>';
+            return badges[method] || '<span style="background: #f1f5f9; color: #64748b; padding: 0.15rem 0.5rem; border-radius: 99px; font-size: 0.75rem; font-weight: 600;">N/A</span>';
+        }
+
+        function getPaymentStatusBadge(status, paymentMethod) {
+            if (paymentMethod === 'card_guarantee' && (!status || status === 'pending')) {
+                return '<span class="badge" style="background: #fef3c7; color: #b45309;">Guaranteed</span>';
+            }
+            const badges = {
+                'pending': '<span class="badge badge-warning">Pending</span>',
+                'deposit_paid': '<span class="badge badge-info">Deposit Paid</span>',
+                'fully_paid': '<span class="badge badge-success">Fully Paid</span>',
+                'guaranteed': '<span class="badge" style="background: #fef3c7; color: #b45309;">Guaranteed</span>',
+                'refunded': '<span class="badge badge-secondary">Refunded</span>',
+                'failed': '<span class="badge badge-error">Failed</span>'
+            };
+            return badges[status] || '<span class="badge">Pending</span>';
         }
         
         function formatDate(dateStr) {
@@ -43999,7 +44138,8 @@ const promo = await fetch('/api/v1/offers/validate', {
         // Initialize payments view
         function initPaymentsView() {
             populatePropertySelect('payments-property-select');
-            loadPaymentsForProperty();
+            loadPaymentSetup();
+            loadPaymentsData();
         }
         
         // Initialize deposit rules view

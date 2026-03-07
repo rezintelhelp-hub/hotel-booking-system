@@ -39165,12 +39165,84 @@ app.get('/api/admin/bookings', async (req, res) => {
       params.push(status);
       paramIndex++;
     }
-    
+
+    if (req.query.payment_status) {
+      if (req.query.payment_status === 'pending') {
+        query += ` AND (b.payment_status IS NULL OR b.payment_status = 'pending')`;
+      } else {
+        query += ` AND b.payment_status = $${paramIndex}`;
+        params.push(req.query.payment_status);
+        paramIndex++;
+      }
+    }
+
+    if (req.query.payment_method) {
+      query += ` AND b.payment_method = $${paramIndex}`;
+      params.push(req.query.payment_method);
+      paramIndex++;
+    }
+
+    if (req.query.from_date) {
+      query += ` AND b.created_at >= $${paramIndex}`;
+      params.push(req.query.from_date);
+      paramIndex++;
+    }
+
     query += ` ORDER BY b.arrival_date DESC`;
-    
+
     const result = await pool.query(query, params);
     res.json({ success: true, data: result.rows });
   } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Payment stats aggregation
+app.get('/api/admin/payment-stats', async (req, res) => {
+  try {
+    const { account_id, property_id, from_date } = req.query;
+    let where = '1=1';
+    const params = [];
+    let paramIndex = 1;
+
+    if (property_id) {
+      where += ` AND b.property_id = $${paramIndex}`;
+      params.push(property_id);
+      paramIndex++;
+    } else if (account_id) {
+      where += ` AND p.account_id = $${paramIndex}`;
+      params.push(account_id);
+      paramIndex++;
+    }
+
+    if (from_date) {
+      where += ` AND b.created_at >= $${paramIndex}`;
+      params.push(from_date);
+      paramIndex++;
+    }
+
+    const result = await pool.query(`
+      SELECT
+        COUNT(*) FILTER (WHERE b.payment_status IS NULL OR b.payment_status = 'pending') as pending_count,
+        COALESCE(SUM(b.deposit_amount) FILTER (WHERE b.deposit_paid_at IS NOT NULL), 0) as deposits_received,
+        COALESCE(SUM(COALESCE(b.total_amount, 0) - COALESCE(b.deposit_amount, 0)) FILTER (WHERE b.deposit_paid_at IS NOT NULL AND b.balance_paid_at IS NULL), 0) as balance_due,
+        COALESCE(SUM(b.total_amount) FILTER (WHERE b.balance_paid_at IS NOT NULL), 0) +
+          COALESCE(SUM(b.deposit_amount) FILTER (WHERE b.deposit_paid_at IS NOT NULL AND b.balance_paid_at IS NULL), 0) as total_collected
+      FROM bookings b
+      LEFT JOIN properties p ON b.property_id = p.id
+      WHERE ${where}
+    `, params);
+
+    const stats = result.rows[0];
+    res.json({
+      success: true,
+      pending_count: parseInt(stats.pending_count) || 0,
+      deposits_received: parseFloat(stats.deposits_received) || 0,
+      balance_due: parseFloat(stats.balance_due) || 0,
+      total_collected: parseFloat(stats.total_collected) || 0
+    });
+  } catch (error) {
+    console.error('Payment stats error:', error);
     res.json({ success: false, error: error.message });
   }
 });
