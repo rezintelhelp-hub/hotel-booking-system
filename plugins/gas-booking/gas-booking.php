@@ -3327,7 +3327,7 @@ class GAS_Booking {
         wp_enqueue_script('stripe-js', 'https://js.stripe.com/v3/', array(), null, true);
         
         wp_enqueue_style('gas-booking', GAS_BOOKING_PLUGIN_URL . 'assets/css/gas-booking.css', array('flatpickr', 'leaflet'), GAS_BOOKING_VERSION);
-        wp_enqueue_script('gas-booking', GAS_BOOKING_PLUGIN_URL . 'assets/js/gas-booking.js', array('jquery', 'flatpickr', 'leaflet', 'stripe-js'), GAS_BOOKING_VERSION, true);
+        wp_enqueue_script('gas-booking', GAS_BOOKING_PLUGIN_URL . 'assets/js/gas-booking.js', array('jquery', 'flatpickr', 'leaflet', 'stripe-js'), time(), true);
         
         wp_localize_script('gas-booking', 'gasBooking', array(
             'ajaxUrl' => admin_url('admin-ajax.php'),
