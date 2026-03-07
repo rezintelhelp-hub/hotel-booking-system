@@ -998,6 +998,12 @@ class GAS_Booking {
             return sanitize_text_field($_COOKIE['gas_lang']);
         }
         
+        // Check WordPress locale
+        $wp_lang = substr(get_locale(), 0, 2);
+        if ($wp_lang && $wp_lang !== 'en' && in_array($wp_lang, array('en', 'fr', 'es', 'de', 'nl', 'it', 'pt', 'ru', 'zh', 'ja'))) {
+            return $wp_lang;
+        }
+
         // Check browser language
         if (isset($_SERVER['HTTP_ACCEPT_LANGUAGE'])) {
             $browser_lang = substr($_SERVER['HTTP_ACCEPT_LANGUAGE'], 0, 2);
