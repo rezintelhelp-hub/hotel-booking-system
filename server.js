@@ -39108,16 +39108,19 @@ app.get('/api/admin/taxes', async (req, res) => {
 
 app.post('/api/admin/taxes', async (req, res) => {
   try {
+    await pool.query('ALTER TABLE taxes ADD COLUMN IF NOT EXISTS name_ml JSONB').catch(() => {});
     const { name: rawName, country, amount_type, currency, amount, charge_per, max_nights, min_age, star_tier, season_start, season_end, property_id, room_id, active, account_id } = req.body;
     const name = mlStr(rawName);
-    
+    const nameObj = (typeof rawName === 'object' && rawName !== null) ? rawName : (rawName ? { en: rawName } : null);
+    const nameJson = nameObj ? JSON.stringify(nameObj) : null;
+
     // user_id = creator (account_id)
     // Visibility is handled by GET which checks property ownership
     const result = await pool.query(`
-      INSERT INTO taxes (name, country, amount_type, currency, amount, charge_per, max_nights, min_age, star_tier, season_start, season_end, property_id, room_id, active, user_id)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+      INSERT INTO taxes (name, name_ml, country, amount_type, currency, amount, charge_per, max_nights, min_age, star_tier, season_start, season_end, property_id, room_id, active, user_id)
+      VALUES ($1, $2::jsonb, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
       RETURNING *
-    `, [name, country, amount_type || 'fixed', currency || 'EUR', amount, charge_per || 'per_person_per_night', max_nights, min_age, star_tier, season_start, season_end, property_id, room_id, active !== false, account_id]);
+    `, [name, nameJson, country, amount_type || 'fixed', currency || 'EUR', amount, charge_per || 'per_person_per_night', max_nights, min_age, star_tier, season_start, season_end, property_id, room_id, active !== false, account_id]);
     
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
@@ -39127,29 +39130,33 @@ app.post('/api/admin/taxes', async (req, res) => {
 
 app.put('/api/admin/taxes/:id', async (req, res) => {
   try {
+    await pool.query('ALTER TABLE taxes ADD COLUMN IF NOT EXISTS name_ml JSONB').catch(() => {});
     const { name: rawName, country, amount_type, currency, amount, charge_per, max_nights, min_age, star_tier, season_start, season_end, property_id, room_id, active } = req.body;
     const name = mlStr(rawName);
-    
+    const nameObj = (typeof rawName === 'object' && rawName !== null) ? rawName : (rawName ? { en: rawName } : null);
+    const nameJson = nameObj ? JSON.stringify(nameObj) : null;
+
     const result = await pool.query(`
       UPDATE taxes SET
         name = COALESCE($1, name),
-        country = $2,
-        amount_type = COALESCE($3, amount_type),
-        currency = COALESCE($4, currency),
-        amount = COALESCE($5, amount),
-        charge_per = COALESCE($6, charge_per),
-        max_nights = $7,
-        min_age = $8,
-        star_tier = $9,
-        season_start = $10,
-        season_end = $11,
-        property_id = $12,
-        room_id = $13,
-        active = COALESCE($14, active),
+        name_ml = COALESCE($2::jsonb, name_ml),
+        country = $3,
+        amount_type = COALESCE($4, amount_type),
+        currency = COALESCE($5, currency),
+        amount = COALESCE($6, amount),
+        charge_per = COALESCE($7, charge_per),
+        max_nights = $8,
+        min_age = $9,
+        star_tier = $10,
+        season_start = $11,
+        season_end = $12,
+        property_id = $13,
+        room_id = $14,
+        active = COALESCE($15, active),
         updated_at = NOW()
-      WHERE id = $15
+      WHERE id = $16
       RETURNING *
-    `, [name, country, amount_type, currency, amount, charge_per, max_nights, min_age, star_tier, season_start, season_end, property_id, room_id, active, req.params.id]);
+    `, [name, nameJson, country, amount_type, currency, amount, charge_per, max_nights, min_age, star_tier, season_start, season_end, property_id, room_id, active, req.params.id]);
     
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
@@ -58506,7 +58513,7 @@ app.post('/api/public/calculate-price', async (req, res) => {
       }
       
       taxTotal += taxAmount;
-      taxBreakdown.push({ name: tax.name, amount: taxAmount });
+      taxBreakdown.push({ name: tax.name, name_ml: tax.name_ml, amount: taxAmount });
     });
     
     // Get tourist tax from property settings (wrapped in try-catch in case columns don't exist)
@@ -59190,6 +59197,7 @@ app.post('/api/public/validate-voucher', async (req, res) => {
         voucher: {
           code: v.code,
           name: v.name,
+          name_ml: v.name_ml,
           discount_type: v.discount_type,
           discount_value: v.discount_value
         }
@@ -59507,7 +59515,7 @@ async function calculateLocalQuote(pool, unit, checkin, checkout, guests, nights
   
   // Get taxes from GAS taxes table - property-level (room_id IS NULL) or this specific room
   const taxesResult = await pool.query(`
-    SELECT name, amount_type, amount, charge_per, max_nights
+    SELECT name, name_ml, amount_type, amount, charge_per, max_nights
     FROM taxes
     WHERE active = true
       AND ((property_id = $1 AND room_id IS NULL) OR room_id = $2)
@@ -59529,7 +59537,7 @@ async function calculateLocalQuote(pool, unit, checkin, checkout, guests, nights
     }
     
     if (taxAmount > 0) {
-      taxes.push({ type: 'tax', name: tax.name, amount: Math.round(taxAmount * 100) / 100 });
+      taxes.push({ type: 'tax', name: tax.name, name_ml: tax.name_ml, amount: Math.round(taxAmount * 100) / 100 });
     }
   }
   
@@ -62085,7 +62093,9 @@ app.get('/api/public/client/:clientId/upsells', async (req, res) => {
       SELECT 
         u.id,
         u.name,
+        u.name_ml,
         u.description,
+        u.description_ml,
         u.price,
         u.charge_type,
         u.max_quantity,
@@ -62143,7 +62153,9 @@ app.get('/api/public/client/:clientId/vouchers', async (req, res) => {
         v.id,
         v.code,
         v.name,
+        v.name_ml,
         v.description,
+        v.description_ml,
         v.discount_type,
         v.discount_value,
         v.min_nights,
