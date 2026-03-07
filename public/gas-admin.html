@@ -42187,7 +42187,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                             <strong>${mlDisplay(upsell.name)}</strong>${partnerBadge}${categoryLabel}
                             ${upsell.description ? `<br><small style="color: #64748b;">${mlDisplay(upsell.description)}</small>` : ''}
                         </td>
-                        <td style="padding: 0.75rem; font-weight: 600; color: #059669;">$${parseFloat(upsell.price).toFixed(2)}</td>
+                        <td style="padding: 0.75rem; font-weight: 600; color: #059669;">${parseFloat(upsell.price).toFixed(2)}</td>
                         <td style="padding: 0.75rem; color: #64748b; font-size: 0.9rem;">${chargeTypeLabels[upsell.charge_type] || upsell.charge_type}</td>
                         <td style="padding: 0.75rem; text-align: center;">
                             <span class="badge ${upsell.active ? 'badge-success' : 'badge-secondary'}">${upsell.active ? 'Active' : 'Inactive'}</span>
