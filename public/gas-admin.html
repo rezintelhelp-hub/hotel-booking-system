@@ -44760,7 +44760,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             document.getElementById('tax-id').value = tax.id;
             
             // Parse multilingual name
-            taxMultilingualData.name = parseMultilingualField(tax.name);
+            taxMultilingualData.name = parseMultilingualField(tax.name_ml || tax.name);
             currentTaxLang = getAccountPrimaryLanguage();
             document.getElementById('tax-name').value = taxMultilingualData.name[currentTaxLang] || taxMultilingualData.name.en || '';
             renderTaxLangTabs();
