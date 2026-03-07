@@ -4659,6 +4659,7 @@ jQuery(document).ready(function($) {
             
             // Update selected extras in left sidebar
             if (checkoutData.selectedUpsells && checkoutData.selectedUpsells.length > 0) {
+                console.log('GAS DEBUG RENDER currentLanguage:', currentLanguage, 'upsell[0].name:', checkoutData.selectedUpsells[0].name, 'upsell[0].name_ml:', JSON.stringify(checkoutData.selectedUpsells[0].name_ml));
                 var extrasHtml = '';
                 checkoutData.selectedUpsells.forEach(function(upsell) {
                     var itemTotal = calculateUpsellItemTotal(upsell);
