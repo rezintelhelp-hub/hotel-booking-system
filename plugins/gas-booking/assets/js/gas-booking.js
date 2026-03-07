@@ -1698,8 +1698,9 @@ jQuery(document).ready(function($) {
                         occupancyLabel = response.occupancy_label || 'Guest adjustment';
                     }
                     
-                    // Update the top price display with calculated per-night rate
-                    var calculatedPerNight = nights > 0 ? Math.round(accommodationTotal / nights) : 0;
+                    // Update the top price display with base per-night rate (no adjustments)
+                    var baseTotal = accommodationTotal - (occupancyAdjustment || 0);
+                    var calculatedPerNight = nights > 0 ? Math.round(baseTotal / nights) : 0;
                     $('.gas-price-amount').text(formatPriceShort(calculatedPerNight, currency));
                     
                     // Show occupancy adjustment note if applicable
