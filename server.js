@@ -58516,7 +58516,7 @@ app.post('/api/public/calculate-price', async (req, res) => {
       // Resolve multilingual tax name
       const lang = req.body.lang || 'en';
       const resolvedName = (tax.name_ml && (tax.name_ml[lang] || tax.name_ml.en)) || tax.name;
-      taxBreakdown.push({ name: resolvedName, amount: taxAmount });
+      taxBreakdown.push({ name: resolvedName, name_ml: tax.name_ml, amount: taxAmount });
     });
     
     // Get tourist tax from property settings (wrapped in try-catch in case columns don't exist)
@@ -59545,7 +59545,7 @@ async function calculateLocalQuote(pool, unit, checkin, checkout, guests, nights
     
     if (taxAmount > 0) {
       const resolvedName = (tax.name_ml && (tax.name_ml[lang] || tax.name_ml.en)) || tax.name;
-      taxes.push({ type: 'tax', name: resolvedName, amount: Math.round(taxAmount * 100) / 100 });
+      taxes.push({ type: 'tax', name: resolvedName, name_ml: tax.name_ml, amount: Math.round(taxAmount * 100) / 100 });
     }
   }
 

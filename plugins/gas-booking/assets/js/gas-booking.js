@@ -4656,7 +4656,7 @@ jQuery(document).ready(function($) {
                 checkoutData.selectedUpsells.forEach(function(upsell) {
                     var itemTotal = calculateUpsellItemTotal(upsell);
                     extrasHtml += '<div class="gas-extra-item">';
-                    extrasHtml += '<span>' + upsell.name + '</span>';
+                    extrasHtml += '<span>' + (extractText(upsell.name_ml) || upsell.name) + '</span>';
                     extrasHtml += '<span>' + formatPrice(itemTotal, currency) + '</span>';
                     extrasHtml += '</div>';
                 });
@@ -4679,7 +4679,7 @@ jQuery(document).ready(function($) {
                 taxes.forEach(function(tax) {
                     var taxAmt = parseFloat(tax.amount) || 0;
                     taxesHtml += '<div class="gas-tax-item">';
-                    taxesHtml += '<span>' + tax.name + '</span>';
+                    taxesHtml += '<span>' + (extractText(tax.name_ml) || tax.name) + '</span>';
                     taxesHtml += '<span>' + formatPrice(taxAmt, currency) + '</span>';
                     taxesHtml += '</div>';
                     taxTotal += taxAmt;
