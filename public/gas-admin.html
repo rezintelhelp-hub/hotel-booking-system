@@ -2166,6 +2166,7 @@
                             <span onclick="event.stopPropagation(); showView('rooms')">Rooms</span>
                             <span onclick="event.stopPropagation(); showView('images')">Images</span>
                             <span onclick="event.stopPropagation(); showView('amenities')">Amenities</span>
+                            <span onclick="event.stopPropagation(); showView('availability')">Availability</span>
                         </div>
                     </div>
 
@@ -2184,7 +2185,12 @@
                             <span onclick="event.stopPropagation(); showView('bookings')">Bookings</span>
                             <span onclick="event.stopPropagation(); showView('offers')">Offers</span>
                             <span onclick="event.stopPropagation(); showView('vouchers')">Vouchers</span>
+                            <span onclick="event.stopPropagation(); showView('upsells')">Upsells</span>
                             <span onclick="event.stopPropagation(); showView('taxes')">Taxes</span>
+                            <span onclick="event.stopPropagation(); showView('deposit-rules')">Deposits</span>
+                            <span onclick="event.stopPropagation(); showView('payments')">Payments</span>
+                            <span onclick="event.stopPropagation(); showView('vendors')">Vendors</span>
+                            <span onclick="event.stopPropagation(); showView('vendor-requests')">Service Requests</span>
                         </div>
                     </div>
 
@@ -2206,19 +2212,16 @@
                         </div>
                     </div>
 
-                    <div class="category-card" data-tile="marketing-website" onclick="showView('marketing')">
+                    <div class="category-card" data-tile="marketing" onclick="showView('marketing')">
                         <div class="category-icon" style="background: linear-gradient(135deg, #ec4899 0%, #db2777 100%);">
                             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
                                 <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
                             </svg>
                         </div>
-                        <h3>Marketing & Website</h3>
-                        <p>Features, upsells, website builder and content</p>
+                        <h3>Marketing</h3>
+                        <p>Manage marketing tags and features</p>
                         <div class="category-links">
                             <span onclick="event.stopPropagation(); showView('marketing')">Features</span>
-                            <span onclick="event.stopPropagation(); showView('upsells')">Upsells</span>
-                            <span onclick="event.stopPropagation(); showView('wordpress')">Website</span>
-                            <span onclick="event.stopPropagation(); showView('content')">Content</span>
                         </div>
                     </div>
 
@@ -2252,6 +2255,8 @@
                             <span onclick="event.stopPropagation(); showView('turbine-connections')">Connections</span>
                             <span onclick="event.stopPropagation(); showView('turbine-campaigns')">Campaigns</span>
                             <span onclick="event.stopPropagation(); showView('turbine-generator')">Generator</span>
+                            <span onclick="event.stopPropagation(); showView('gas-lites')">GAS Lites</span>
+                            <span onclick="event.stopPropagation(); showView('app-properties')">Properties</span>
                         </div>
                     </div>
 
@@ -2265,12 +2270,11 @@
                             </svg>
                         </div>
                         <h3>Generators</h3>
-                        <p>Blog, attractions, reviews and API documentation</p>
+                        <p>Blog, attractions and reviews</p>
                         <div class="category-links">
                             <span onclick="event.stopPropagation(); showView('app-blog')">Blog</span>
                             <span onclick="event.stopPropagation(); showView('app-attractions')">Attractions</span>
                             <span onclick="event.stopPropagation(); showView('app-reviews')">Reviews</span>
-                            <span onclick="event.stopPropagation(); showView('api-docs')">API Docs</span>
                         </div>
                     </div>
 
@@ -20665,7 +20669,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             // Dashboard tile visibility - hide master-only tiles for non-master users
             const clientTiles = [
                 'my-account', 'channel-manager', 'property-management',
-                'bookings-revenue', 'marketing-website', 'turbines',
+                'bookings-revenue', 'marketing', 'turbines',
                 'generators', 'create-websites'
             ];
             document.querySelectorAll('.category-card[data-tile]').forEach(card => {
@@ -22190,8 +22194,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 'my-account': {
                     label: 'My Account',
                     tabs: [
-                        { view: 'my-account', label: 'Account' },
-                        { view: 'account-settings', label: 'Settings' }
+                        { view: 'my-account', label: 'Account' }
                     ]
                 },
                 'channel-manager': {
@@ -22199,8 +22202,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     tabs: [
                         { view: 'gas-sync-connections', label: 'Connections' },
                         { view: 'gas-sync-dashboard', label: 'Sync Dashboard' },
-                        { view: 'gas-sync-properties', label: 'Synced Properties' },
-                        { view: 'gas-sync-logs', label: 'Sync Logs' }
+                        { view: 'gas-sync-properties', label: 'Synced Properties' }
                     ]
                 },
                 'property-management': {
@@ -22220,11 +22222,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                         { view: 'offers', label: 'Offers' },
                         { view: 'vouchers', label: 'Vouchers' },
                         { view: 'upsells', label: 'Upsells' },
-                        { view: 'vendors', label: 'Vendors' },
-                        { view: 'vendor-requests', label: 'Service Requests' },
                         { view: 'taxes', label: 'Taxes' },
+                        { view: 'deposit-rules', label: 'Deposits' },
                         { view: 'payments', label: 'Payments' },
-                        { view: 'deposit-rules', label: 'Deposits' }
+                        { view: 'vendors', label: 'Vendors' },
+                        { view: 'vendor-requests', label: 'Service Requests' }
                     ]
                 },
                 'availability-pricing': {
@@ -22235,33 +22237,16 @@ const promo = await fetch('/api/v1/offers/validate', {
                         { view: 'integrations', label: 'Channels' }
                     ]
                 },
-                'marketing-website': {
-                    label: 'Marketing & Website',
+                'marketing': {
+                    label: 'Marketing',
                     tabs: [
-                        { view: 'marketing', label: 'Features' },
-                        { view: 'upsells', label: 'Upsells' },
-                        { view: 'deploy-sites', label: 'Website' }
+                        { view: 'marketing', label: 'Features' }
                     ]
                 },
                 'connectivity': {
                     label: 'Connectivity',
                     tabs: [
-                        { view: 'integrations', label: 'All Channels' },
-                        { view: 'gas-sync-connections', label: 'Connections' },
-                        { view: 'gas-sync-dashboard', label: 'Sync Dashboard' },
-                        { view: 'gas-sync-properties', label: 'Synced Properties' },
-                        { view: 'gas-sync-logs', label: 'Sync Logs' }
-                    ]
-                },
-                'generators': {
-                    label: 'Generators',
-                    tabs: [
-                        { view: 'app-blog', label: 'Blog' },
-                        { view: 'app-attractions', label: 'Attractions' },
-                        { view: 'app-reviews', label: 'Reviews' },
-                        { view: 'app-properties', label: 'Properties' },
-                        { view: 'app-seo', label: 'SEO Analytics' },
-                        { view: 'api-docs', label: 'API Docs' }
+                        { view: 'integrations', label: 'All Channels' }
                     ]
                 },
                 'turbines': {
@@ -22270,16 +22255,23 @@ const promo = await fetch('/api/v1/offers/validate', {
                         { view: 'turbine-connections', label: 'Connections' },
                         { view: 'turbine-campaigns', label: 'Campaigns' },
                         { view: 'turbine-generator', label: 'Generator' },
-                        { view: 'gas-lites', label: 'GAS Lites' }
+                        { view: 'gas-lites', label: 'GAS Lites' },
+                        { view: 'app-properties', label: 'Properties' }
+                    ]
+                },
+                'generators': {
+                    label: 'Generators',
+                    tabs: [
+                        { view: 'app-blog', label: 'Blog' },
+                        { view: 'app-attractions', label: 'Attractions' },
+                        { view: 'app-reviews', label: 'Reviews' }
                     ]
                 },
                 'create-websites': {
                     label: 'Create Websites',
                     tabs: [
                         { view: 'deploy-sites', label: 'Create Sites' },
-                        { view: 'plugin-licenses', label: 'Licenses' },
-                        { view: 'my-custom-site', label: 'My Custom Site' },
-                        { view: 'custom-sites', label: 'Manage Custom Sites' }
+                        { view: 'plugin-licenses', label: 'Licenses' }
                     ]
                 }
             };
