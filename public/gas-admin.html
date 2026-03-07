@@ -18608,7 +18608,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                             <input type="checkbox" name="payment-provider" value="stripe" id="payment-provider-stripe" style="width: 18px; height: 18px;" onchange="togglePaymentSections()">
                             <img src="https://upload.wikimedia.org/wikipedia/commons/b/ba/Stripe_Logo%2C_revised_2016.svg" alt="Stripe" style="height: 24px;">
                             <span style="flex: 1; font-weight: 500;">Credit/Debit Card (Stripe)</span>
-                            <span style="font-size: 0.75rem; background: #10b981; color: white; padding: 0.15rem 0.5rem; border-radius: 10px;">Online</span>
+                            <span id="stripe-connection-badge" style="font-size: 0.75rem; background: #94a3b8; color: white; padding: 0.15rem 0.5rem; border-radius: 10px;">Not Connected</span>
                         </label>
                         
                         <!-- Pay at Property -->
@@ -52517,6 +52517,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             document.getElementById('stripe-secret-key').value = '';
             document.getElementById('stripe-test-mode').checked = false;
             document.getElementById('stripe-keys-status').style.display = 'none';
+            updateStripeBadge(false);
             document.getElementById('setup-link-result').style.display = 'none';
             document.getElementById('payment-deposit-type').value = 'percentage';
             document.getElementById('payment-deposit-amount').value = 25;
@@ -52560,8 +52561,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                     if (config.credentials?.publishable_key) {
                         document.getElementById('stripe-publishable-key').value = config.credentials.publishable_key;
                         document.getElementById('stripe-secret-key').placeholder = '';
+                        updateStripeBadge(true, config.test_mode);
                     }
-                    
+
                     if (config.test_mode) {
                         document.getElementById('stripe-test-mode').checked = true;
                     }
@@ -52730,6 +52732,18 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (stripeLabel) {
                 stripeLabel.style.borderColor = !isEnigma ? '#4f46e5' : 'transparent';
                 stripeLabel.style.background = !isEnigma ? '#eef2ff' : 'white';
+            }
+        }
+
+        function updateStripeBadge(connected, testMode) {
+            var badge = document.getElementById('stripe-connection-badge');
+            if (!badge) return;
+            if (connected) {
+                badge.textContent = testMode ? 'Test Mode' : 'Online';
+                badge.style.background = testMode ? '#f59e0b' : '#10b981';
+            } else {
+                badge.textContent = 'Not Connected';
+                badge.style.background = '#94a3b8';
             }
         }
 
@@ -53030,6 +53044,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     if (testData.success && testData.test_result?.success) {
                         statusEl.innerHTML = '<span style="color: var(--success);"> Connection successful! Keys are valid.</span>';
                         statusEl.style.background = '#d1fae5';
+                        updateStripeBadge(true, document.getElementById('stripe-test-mode')?.checked);
                     } else {
                         statusEl.innerHTML = `<span style="color: #ef4444;"> ${testData.test_result?.message || testData.error}</span>`;
                         statusEl.style.background = '#fee2e2';
