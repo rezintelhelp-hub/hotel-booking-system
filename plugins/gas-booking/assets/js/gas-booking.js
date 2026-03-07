@@ -56,7 +56,7 @@ jQuery(document).ready(function($) {
             check_availability: 'Check Availability',
             select_dates_to_check: 'Select dates to check availability',
             add_to_cart: 'Add to Cart',
-            total_price: 'Total Price',
+            total_price: 'Total Room Charge',
             checking_availability: 'Checking availability...',
             not_available: 'Not available',
             not_available_dates: 'Not available on selected dates',
@@ -3725,8 +3725,8 @@ jQuery(document).ready(function($) {
                             var guestEmail = window.groupCheckoutData.guestEmail || $form.find('[name="email"]').val() || '';
                             $('.gas-confirmation-email-text').html('📧 ' + t('booking', 'confirmation_sent', 'Confirmation sent to') + ': <strong>' + guestEmail + '</strong>');
                             
-                            // Show bank details on confirmation if pay at property with bank transfer
-                            if (window.gasBankDetails && window.gasBankDetails.accounts && window.gasBankDetails.accounts.length > 0) {
+                            // Show bank details on confirmation only for pay_at_property with bank transfer
+                            if (window.groupCheckoutData.paymentMethod === 'pay_at_property' && window.gasBankDetails && window.gasBankDetails.accounts && window.gasBankDetails.accounts.length > 0) {
                                 var bankHtml = '<div style="background: linear-gradient(135deg, #fffbeb, #fef3c7); border: 1px solid #fde68a; border-radius: 12px; padding: 16px; margin-top: 16px; text-align: left;">';
                                 bankHtml += '<h4 style="margin: 0 0 12px 0; color: #92400e; font-size: 14px;">🏦 Bank Transfer Details</h4>';
                                 window.gasBankDetails.accounts.forEach(function(account) {
@@ -5352,7 +5352,7 @@ jQuery(document).ready(function($) {
                         }
                         
                         // Show bank details on confirmation
-                        if (window.gasBankDetails && window.gasBankDetails.accounts && window.gasBankDetails.accounts.length > 0 && paymentMethod !== 'card') {
+                        if (paymentMethod === 'pay_at_property' && window.gasBankDetails && window.gasBankDetails.accounts && window.gasBankDetails.accounts.length > 0) {
                             var bankHtml = '<div style="background: linear-gradient(135deg, #fffbeb, #fef3c7); border: 1px solid #fde68a; border-radius: 12px; padding: 16px; margin-top: 16px; text-align: left;">';
                             bankHtml += '<h4 style="margin: 0 0 12px 0; color: #92400e; font-size: 14px;">🏦 Bank Transfer Details</h4>';
                             window.gasBankDetails.accounts.forEach(function(account) {

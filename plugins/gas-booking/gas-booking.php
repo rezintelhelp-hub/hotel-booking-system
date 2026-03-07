@@ -1137,7 +1137,7 @@ class GAS_Booking {
                 'all' => 'All',
                 'from' => 'From',
                 'per' => 'per',
-                'total' => 'Total',
+                'total' => 'Total Room Charge',
                 'available' => 'Available',
                 'unavailable' => 'Unavailable'
             ),
@@ -6129,7 +6129,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                                         <span class="gas-offer-amount"></span>
                                     </div>
                                     <div class="gas-price-row gas-total-row">
-                                        <span><?php echo esc_html($t_booking['total'] ?? 'Total'); ?></span>
+                                        <span><?php echo esc_html($t_booking['total'] ?? 'Total Room Charge'); ?></span>
                                         <span class="gas-total-price"></span>
                                     </div>
                                 </div>
