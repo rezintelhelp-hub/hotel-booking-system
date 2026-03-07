@@ -42271,8 +42271,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                 return 0;
             });
 
-            if (sortedLangs.length <= 1) return; // No tabs needed for single language
-
             ['upsell-name-tabs', 'upsell-description-tabs'].forEach(tabsId => {
                 const container = document.getElementById(tabsId);
                 if (!container) return;
@@ -42367,8 +42365,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                 if (b === primaryLang) return 1;
                 return 0;
             });
-
-            if (sortedLangs.length <= 1) return; // No tabs needed for single language
 
             const tabMap = {
                 'cg-label-tabs': 'label',
@@ -52823,7 +52819,6 @@ const promo = await fetch('/api/v1/offers/validate', {
             const cgCheckbox = document.getElementById('payment-provider-card-guarantee');
             if (cgCheckbox) cgCheckbox.checked = false;
             cgMultilingualData = { label: {}, description: {}, success_message: {} };
-            currentCgLang = getAccountPrimaryLanguage();
             if (document.getElementById('card-guarantee-label')) document.getElementById('card-guarantee-label').value = 'Card Guarantee';
             if (document.getElementById('card-guarantee-description')) document.getElementById('card-guarantee-description').value = 'Your card will be securely stored as a booking guarantee. No charge will be made at the time of booking.';
             if (document.getElementById('card-guarantee-noshow-type')) document.getElementById('card-guarantee-noshow-type').value = 'first_night';
@@ -52832,6 +52827,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (document.getElementById('cg-provider-enigma')) document.getElementById('cg-provider-enigma').checked = true;
             toggleCgProvider();
             await loadLanguageSettings(true);
+            currentCgLang = getAccountPrimaryLanguage();
             renderCgLangTabs();
             document.getElementById('stripe-publishable-key').value = '';
             document.getElementById('stripe-secret-key').value = '';
