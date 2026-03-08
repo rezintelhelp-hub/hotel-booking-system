@@ -13180,14 +13180,12 @@ app.post('/api/accounts/:id/airwallex-charge', async (req, res) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${awAuth.token}` },
         body: JSON.stringify({
-          mode: 'PAYMENT',
+          mode: 'SETUP',
           billing_customer_id: billingCustomerId,
           currency: (account.billing_currency || 'EUR').toUpperCase(),
           customer_data: {
             id: billingCustomerId
           },
-          legal_entity_id: process.env.AIRWALLEX_LEGAL_ENTITY_ID,
-          linked_payment_account_id: process.env.AIRWALLEX_LINKED_PAYMENT_ACCOUNT_ID,
           request_id: 'gas-setup-' + id + '-' + Date.now(),
           success_url: 'https://admin.gas.travel',
           back_url: 'https://admin.gas.travel'
