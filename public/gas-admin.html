@@ -4697,15 +4697,15 @@
                                     <span style="font-size: 0.75rem; background: #94a3b8; color: white; padding: 0.15rem 0.5rem; border-radius: 10px;">Coming Soon</span>
                                 </label>
 
-                                <!-- Airwallex (Coming Soon) -->
-                                <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer; padding: 0.75rem; background: white; border-radius: 8px; border: 2px solid transparent; opacity: 0.5;" id="pv-provider-airwallex-label">
-                                    <input type="checkbox" value="airwallex" id="pv-payment-provider-airwallex" style="width: 18px; height: 18px;" disabled>
+                                <!-- Airwallex -->
+                                <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer; padding: 0.75rem; background: white; border-radius: 8px; border: 2px solid transparent; transition: all 0.2s;" id="pv-provider-airwallex-label">
+                                    <input type="checkbox" value="airwallex" id="pv-payment-provider-airwallex" style="width: 18px; height: 18px;" onchange="togglePvPaymentSections()">
                                     <span style="font-size: 1.25rem;">🌐</span>
                                     <div style="flex: 1;">
                                         <span style="font-weight: 500;">Airwallex</span>
                                         <p style="font-size: 0.75rem; color: #64748b; margin: 0.15rem 0 0 0;">Global payments with multi-currency support</p>
                                     </div>
-                                    <span style="font-size: 0.75rem; background: #94a3b8; color: white; padding: 0.15rem 0.5rem; border-radius: 10px;">Coming Soon</span>
+                                    <span id="pv-airwallex-connection-badge" style="font-size: 0.75rem; background: #94a3b8; color: white; padding: 0.15rem 0.5rem; border-radius: 10px;">Not Connected</span>
                                 </label>
 
                                 <!-- Card Guarantee (Enigma Vault) -->
@@ -4764,6 +4764,27 @@
                                     <button type="button" class="btn btn-small" onclick="navigator.clipboard.writeText(document.getElementById('pv-setup-link-url').value)" style="font-size: 0.75rem;">Copy</button>
                                 </div>
                                 <p style="font-size: 0.75rem; color: #92400e; margin: 0.5rem 0 0 0;">Link expires in 72 hours</p>
+                            </div>
+                        </div>
+
+                        <!-- Airwallex API Credentials Section -->
+                        <div id="pv-airwallex-keys-section" style="display: none; background: var(--bg-secondary); border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                                <h4 style="margin: 0; font-size: 0.95rem;">Airwallex API Credentials</h4>
+                                <a href="https://www.airwallex.com/docs" target="_blank" style="font-size: 0.8rem; color: var(--accent);">Get keys from Airwallex Dashboard</a>
+                            </div>
+                            <div id="pv-airwallex-keys-status" style="margin-bottom: 1rem; padding: 0.75rem; border-radius: 8px; display: none;"></div>
+                            <div class="form-group" style="margin-bottom: 1rem;">
+                                <label class="form-label">Client ID</label>
+                                <input type="text" class="form-input" id="payments-airwallex-client-id" placeholder="Your Airwallex Client ID" style="font-family: monospace; font-size: 0.85rem;">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 1rem;">
+                                <label class="form-label">API Key</label>
+                                <input type="password" class="form-input" id="payments-airwallex-api-key" placeholder="Your Airwallex API Key" style="font-family: monospace; font-size: 0.85rem;">
+                            </div>
+                            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                <button class="btn" onclick="saveAirwallexKeys()" style="background: #6366f1; font-size: 0.85rem;">Save Keys</button>
+                                <button class="btn btn-secondary" onclick="testAirwallexKeys()" style="font-size: 0.85rem;">Test Connection</button>
                             </div>
                         </div>
 
@@ -44616,6 +44637,33 @@ const promo = await fetch('/api/v1/offers/validate', {
                 if (keyDisplay) keyDisplay.style.display = 'none';
             }
 
+            // Load Airwallex status
+            try {
+                const awBadge = document.getElementById('pv-airwallex-connection-badge');
+                const configRes = await fetch(`/api/accounts/${accountId}/payment-configurations`, { headers: authHeaders() });
+                const configData = await configRes.json();
+                const awConfig = configData.success && configData.configurations
+                    ? configData.configurations.find(c => c.provider === 'airwallex')
+                    : null;
+
+                if (awConfig && awConfig.credentials) {
+                    if (awBadge) { awBadge.textContent = 'Connected'; awBadge.style.background = '#10b981'; }
+                    const awCheckbox = document.getElementById('pv-payment-provider-airwallex');
+                    if (awCheckbox && !awCheckbox.checked) {
+                        awCheckbox.checked = true;
+                        togglePvPaymentSections();
+                    }
+                    const clientIdInput = document.getElementById('payments-airwallex-client-id');
+                    const apiKeyInput = document.getElementById('payments-airwallex-api-key');
+                    if (clientIdInput) clientIdInput.value = awConfig.credentials.client_id || '';
+                    if (apiKeyInput) apiKeyInput.placeholder = awConfig.credentials.api_key ? '•••••••• (saved)' : 'Your Airwallex API Key';
+                } else {
+                    if (awBadge) { awBadge.textContent = 'Not Connected'; awBadge.style.background = '#94a3b8'; }
+                }
+            } catch (e) {
+                console.error('Error loading Airwallex status:', e);
+            }
+
             // Load payment methods summary per property
             try {
                 const queryString = buildQueryString();
@@ -44655,17 +44703,20 @@ const promo = await fetch('/api/v1/offers/validate', {
             const stripeChecked = document.getElementById('pv-payment-provider-stripe')?.checked;
             const payPropertyChecked = document.getElementById('pv-payment-provider-pay-property')?.checked;
             const cardGuaranteeChecked = document.getElementById('pv-payment-provider-card-guarantee')?.checked;
+            const airwallexChecked = document.getElementById('pv-payment-provider-airwallex')?.checked;
 
             const stripeSection = document.getElementById('pv-stripe-keys-section');
             const setupLinkSection = document.getElementById('pv-stripe-setup-link-section');
             const payPropertyText = document.getElementById('pv-pay-property-text-section');
             const bankSection = document.getElementById('pv-bank-transfer-section');
             const cgSection = document.getElementById('pv-card-guarantee-section');
+            const airwallexSection = document.getElementById('pv-airwallex-keys-section');
 
             if (stripeSection) stripeSection.style.display = stripeChecked ? 'block' : 'none';
             if (setupLinkSection) setupLinkSection.style.display = stripeChecked ? 'block' : 'none';
             if (payPropertyText) payPropertyText.style.display = payPropertyChecked ? 'block' : 'none';
             if (bankSection) bankSection.style.display = payPropertyChecked ? 'block' : 'none';
+            if (airwallexSection) airwallexSection.style.display = airwallexChecked ? 'block' : 'none';
             if (cgSection) cgSection.style.display = cardGuaranteeChecked ? 'block' : 'none';
         }
 
@@ -44723,6 +44774,71 @@ const promo = await fetch('/api/v1/offers/validate', {
                     showNotification('Stripe connection is working', 'success');
                 } else {
                     showNotification('Stripe is not connected — save valid keys first', 'warning');
+                }
+            } catch (e) {
+                showNotification('Connection test failed', 'error');
+            }
+        }
+
+        async function saveAirwallexKeys() {
+            const accountId = selectedAccountId || (currentAccount && currentAccount.id);
+            if (!accountId) { showNotification('No account selected', 'error'); return; }
+
+            const clientId = document.getElementById('payments-airwallex-client-id').value.trim();
+            const apiKey = document.getElementById('payments-airwallex-api-key').value.trim();
+            if (!clientId || !apiKey) { showNotification('Both Client ID and API Key are required', 'error'); return; }
+
+            try {
+                const response = await fetch('/api/payment-configurations', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({
+                        account_id: accountId,
+                        provider: 'airwallex',
+                        credentials: { client_id: clientId, api_key: apiKey },
+                        is_enabled: true
+                    })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    showNotification('Airwallex credentials saved', 'success');
+                    loadPaymentSetup();
+                } else {
+                    showNotification('Error: ' + (data.error || 'Failed'), 'error');
+                }
+            } catch (e) {
+                showNotification('Error saving Airwallex credentials', 'error');
+            }
+        }
+
+        async function testAirwallexKeys() {
+            const accountId = selectedAccountId || (currentAccount && currentAccount.id);
+            if (!accountId) return;
+
+            try {
+                // Find the Airwallex config for this account
+                const configRes = await fetch(`/api/accounts/${accountId}/payment-configurations`, { headers: authHeaders() });
+                const configData = await configRes.json();
+                const awConfig = configData.success && configData.configurations
+                    ? configData.configurations.find(c => c.provider === 'airwallex')
+                    : null;
+
+                if (!awConfig) {
+                    showNotification('Save Airwallex credentials first', 'warning');
+                    return;
+                }
+
+                const res = await fetch(`/api/payment-configurations/${awConfig.id}/test`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() }
+                });
+                const data = await res.json();
+                if (data.success && data.test_result?.success) {
+                    showNotification('Airwallex connection successful', 'success');
+                    const badge = document.getElementById('pv-airwallex-connection-badge');
+                    if (badge) { badge.textContent = 'Connected'; badge.style.background = '#10b981'; }
+                } else {
+                    showNotification('Airwallex test failed: ' + (data.test_result?.message || data.error || 'Unknown error'), 'error');
                 }
             } catch (e) {
                 showNotification('Connection test failed', 'error');

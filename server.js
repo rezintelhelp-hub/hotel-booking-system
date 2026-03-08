@@ -27781,7 +27781,27 @@ app.post('/api/payment-configurations', async (req, res) => {
         return res.json({ success: false, error: 'Invalid Stripe credentials: ' + stripeError.message });
       }
     }
-    
+
+    // Validate credentials for Airwallex
+    if (provider === 'airwallex' && credentials?.client_id && credentials?.api_key) {
+      try {
+        const awResponse = await fetch('https://api.airwallex.com/api/v1/authentication/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': credentials.api_key,
+            'x-client-id': credentials.client_id
+          }
+        });
+        const awData = await awResponse.json();
+        if (!awResponse.ok || !awData.token) {
+          return res.json({ success: false, error: 'Invalid Airwallex credentials: ' + (awData.message || 'Authentication failed') });
+        }
+      } catch (awError) {
+        return res.json({ success: false, error: 'Invalid Airwallex credentials: ' + awError.message });
+      }
+    }
+
     // If setting as default, unset other defaults for this scope
     if (is_default) {
       if (property_id) {
@@ -27943,7 +27963,28 @@ app.post('/api/payment-configurations/:id/test', async (req, res) => {
     } else if (config.provider === 'paypal') {
       testResult = { success: false, message: 'PayPal testing not yet implemented' };
     } else if (config.provider === 'airwallex') {
-      testResult = { success: false, message: 'Airwallex testing not yet implemented' };
+      try {
+        const awResponse = await fetch('https://api.airwallex.com/api/v1/authentication/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': config.credentials.api_key,
+            'x-client-id': config.credentials.client_id
+          }
+        });
+        const awData = await awResponse.json();
+        if (awResponse.ok && awData.token) {
+          testResult = {
+            success: true,
+            message: 'Connection successful',
+            details: { expires_at: awData.expires_at }
+          };
+        } else {
+          testResult = { success: false, message: awData.message || 'Authentication failed' };
+        }
+      } catch (awError) {
+        testResult = { success: false, message: awError.message };
+      }
     }
     
     // Save test result
