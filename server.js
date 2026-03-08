@@ -13898,8 +13898,6 @@ app.get('/api/setup-accounts-billing', async (req, res) => {
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS beds24_billing_enabled BOOLEAN DEFAULT true`).catch(() => {});
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS website_billing_enabled BOOLEAN DEFAULT true`).catch(() => {});
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS billing_currency VARCHAR(3) DEFAULT 'EUR'`).catch(() => {});
-    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS airwallex_customer_id VARCHAR(255)`).catch(() => {});
-    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS airwallex_payment_method_id VARCHAR(255)`).catch(() => {});
     console.log('✅ billing columns added to accounts');
 
     // Custom invoice line items table
@@ -77297,7 +77295,11 @@ app.listen(PORT, '0.0.0.0', async () => {
     
     // Ensure faq_schema column exists on client_pages
     await pool.query(`ALTER TABLE client_pages ADD COLUMN IF NOT EXISTS faq_schema JSONB`);
-    
+
+    // Airwallex billing columns
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS airwallex_customer_id VARCHAR(255)`);
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS airwallex_payment_method_id VARCHAR(255)`);
+
     console.log('✅ Database migrations complete');
   } catch (migrationError) {
     console.log('⚠️ Migration error (may already exist):', migrationError.message);
