@@ -13066,6 +13066,8 @@ app.post('/api/accounts/:id/airwallex-customer', async (req, res) => {
       headers: { 'Content-Type': 'application/json', 'x-api-key': awApiKey, 'x-client-id': awClientId }
     });
     const awAuth = await awAuthRes.json();
+    console.log('Airwallex auth status:', awAuthRes.status);
+    console.log('Airwallex auth token:', awAuth.token ? 'present' : 'missing');
     if (!awAuthRes.ok || !awAuth.token) {
       return res.json({ success: false, error: 'Airwallex authentication failed: ' + (awAuth.message || 'Unknown error') });
     }
