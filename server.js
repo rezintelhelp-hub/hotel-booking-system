@@ -13188,15 +13188,6 @@ app.post('/api/accounts/:id/airwallex-charge', async (req, res) => {
           },
           legal_entity_id: process.env.AIRWALLEX_LEGAL_ENTITY_ID,
           linked_payment_account_id: process.env.AIRWALLEX_LINKED_PAYMENT_ACCOUNT_ID,
-          line_items: [{
-            price: {
-              unit_amount: 100,
-              currency: (account.billing_currency || 'EUR').toUpperCase(),
-              pricing_model: 'FLAT'
-            },
-            quantity: 1,
-            description: 'GAS Platform - First Payment Setup'
-          }],
           request_id: 'gas-setup-' + id + '-' + Date.now(),
           success_url: 'https://admin.gas.travel',
           back_url: 'https://admin.gas.travel'
