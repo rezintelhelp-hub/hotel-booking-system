@@ -13150,9 +13150,28 @@ app.post('/api/accounts/:id/airwallex-charge', async (req, res) => {
 });
 
 // Airwallex webhook receiver
-app.post('/api/webhooks/airwallex', async (req, res) => {
+// Raw body capture middleware for signature verification
+app.post('/api/webhooks/airwallex', express.raw({ type: 'application/json' }), async (req, res) => {
   try {
-    const event = req.body;
+    // Verify webhook signature
+    const webhookSecret = process.env.AIRWALLEX_WEBHOOK_SECRET;
+    if (webhookSecret) {
+      const signature = req.headers['x-signature'];
+      const timestamp = req.headers['x-timestamp'];
+      if (!signature || !timestamp) {
+        console.error('❌ Airwallex webhook: missing x-signature or x-timestamp headers');
+        return res.status(401).json({ error: 'Missing signature headers' });
+      }
+      const rawBody = Buffer.isBuffer(req.body) ? req.body.toString('utf8') : (typeof req.body === 'string' ? req.body : JSON.stringify(req.body));
+      const crypto = require('crypto');
+      const expectedSignature = crypto.createHmac('sha256', webhookSecret).update(timestamp + rawBody).digest('hex');
+      if (signature !== expectedSignature) {
+        console.error('❌ Airwallex webhook: invalid signature');
+        return res.status(401).json({ error: 'Invalid signature' });
+      }
+    }
+
+    const event = Buffer.isBuffer(req.body) ? JSON.parse(req.body.toString('utf8')) : req.body;
     const eventType = event.name || event.type;
     console.log(`📩 Airwallex webhook: ${eventType}`);
 
