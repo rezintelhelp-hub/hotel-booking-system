@@ -29036,11 +29036,21 @@ const promo = await fetch('/api/v1/offers/validate', {
                     const awDisplay = document.getElementById('airwallex-customer-id-display');
                     const awBtn = document.getElementById('airwallex-link-btn');
                     const awChargeBtn = document.getElementById('airwallex-charge-btn');
-                    if (account.airwallex_customer_id) {
+                    const awLinked = account.airwallex_customer_id || account.airwallex_payments_customer_id;
+                    if (awLinked) {
                         if (awBadge) { awBadge.textContent = 'Linked'; awBadge.style.background = '#10b981'; }
-                        if (awDisplay) awDisplay.textContent = account.airwallex_customer_id;
+                        const ids = [account.airwallex_customer_id, account.airwallex_payments_customer_id].filter(Boolean).join(' / ');
+                        if (awDisplay) awDisplay.textContent = ids;
                         if (awBtn) awBtn.style.display = 'none';
-                        if (awChargeBtn) awChargeBtn.style.display = '';
+                        if (awChargeBtn) {
+                            awChargeBtn.style.display = '';
+                            awChargeBtn.dataset.paymentMethodId = account.airwallex_payment_method_id || '';
+                            if (account.airwallex_payment_method_id) {
+                                awChargeBtn.textContent = '💳 Charge via Airwallex';
+                            } else {
+                                awChargeBtn.textContent = '🔗 Setup Airwallex Payment';
+                            }
+                        }
                     } else {
                         if (awBadge) { awBadge.textContent = 'Not Linked'; awBadge.style.background = '#94a3b8'; }
                         if (awDisplay) awDisplay.textContent = '';
@@ -29237,25 +29247,53 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (!accountId) { showNotification('No account selected', 'error'); return; }
 
             const btn = document.getElementById('airwallex-charge-btn');
-            if (btn) { btn.disabled = true; btn.textContent = 'Opening...'; }
+            const hasPaymentMethod = btn && btn.dataset.paymentMethodId;
 
-            try {
-                const res = await fetch(`/api/accounts/${accountId}/airwallex-charge`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', ...authHeaders() }
-                });
-                const data = await res.json();
+            if (hasPaymentMethod) {
+                // Charge mode — get invoice total first
+                try {
+                    const previewRes = await fetch(`/api/accounts/${accountId}/invoice/preview`, { headers: authHeaders() });
+                    const preview = await previewRes.json();
+                    const total = preview.total || 0;
+                    const currency = preview.currency || 'EUR';
+                    if (!confirm(`Charge ${currency} ${total.toFixed(2)} to this account via Airwallex?`)) return;
 
-                if (data.success && data.url) {
-                    window.open(data.url, '_blank');
-                    showNotification('Airwallex checkout opened in new tab', 'success');
-                } else {
-                    showNotification('Failed: ' + (data.error || 'Unknown error'), 'error');
+                    if (btn) { btn.disabled = true; btn.textContent = 'Charging...'; }
+                    const res = await fetch(`/api/accounts/${accountId}/airwallex-charge`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                        body: JSON.stringify({ charge: true, amount: total, currency: currency })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        showNotification('Airwallex charge initiated: ' + (data.payment_intent_id || 'OK'), 'success');
+                    } else {
+                        showNotification('Charge failed: ' + (data.error || 'Unknown error'), 'error');
+                    }
+                } catch (e) {
+                    showNotification('Error charging via Airwallex', 'error');
                 }
-            } catch (e) {
-                showNotification('Error opening Airwallex checkout', 'error');
+                if (btn) { btn.disabled = false; btn.textContent = '💳 Charge via Airwallex'; }
+            } else {
+                // Setup mode — open hosted checkout
+                if (btn) { btn.disabled = true; btn.textContent = 'Opening...'; }
+                try {
+                    const res = await fetch(`/api/accounts/${accountId}/airwallex-charge`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() }
+                    });
+                    const data = await res.json();
+                    if (data.success && data.url) {
+                        window.open(data.url, '_blank');
+                        showNotification('Airwallex checkout opened in new tab', 'success');
+                    } else {
+                        showNotification('Failed: ' + (data.error || 'Unknown error'), 'error');
+                    }
+                } catch (e) {
+                    showNotification('Error opening Airwallex checkout', 'error');
+                }
+                if (btn) { btn.disabled = false; btn.textContent = '🔗 Setup Airwallex Payment'; }
             }
-            if (btn) { btn.disabled = false; btn.textContent = '🌐 Charge via Airwallex'; }
         }
 
         async function saveAccount(event) {

@@ -13103,11 +13103,11 @@ app.post('/api/accounts/:id/airwallex-charge', async (req, res) => {
   try {
     const { id } = req.params;
 
-    const acct = await pool.query('SELECT id, name, email, airwallex_customer_id, billing_currency FROM accounts WHERE id = $1', [id]);
+    const acct = await pool.query('SELECT id, name, email, airwallex_customer_id, airwallex_payments_customer_id, airwallex_payment_method_id, billing_currency FROM accounts WHERE id = $1', [id]);
     if (acct.rows.length === 0) return res.json({ success: false, error: 'Account not found' });
 
     const account = acct.rows[0];
-    if (!account.airwallex_customer_id) {
+    if (!account.airwallex_customer_id && !account.airwallex_payments_customer_id) {
       return res.json({ success: false, error: 'Account not linked to Airwallex. Link first.' });
     }
 
@@ -13129,30 +13129,84 @@ app.post('/api/accounts/:id/airwallex-charge', async (req, res) => {
       return res.json({ success: false, error: 'Airwallex authentication failed: ' + (awAuth.message || 'Unknown error') });
     }
 
-    // Create hosted billing checkout in SETUP mode
-    const checkoutRes = await fetch(`${airwallexBase}/api/v1/billing_checkouts/create`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${awAuth.token}` },
-      body: JSON.stringify({
-        mode: 'SETUP',
-        billing_customer_id: account.airwallex_customer_id,
-        currency: (account.billing_currency || 'EUR').toUpperCase(),
-        customer_data: {
-          id: account.airwallex_customer_id
-        },
-        request_id: 'gas-setup-' + id + '-' + Date.now(),
-        success_url: 'https://admin.gas.travel',
-        back_url: 'https://admin.gas.travel'
-      })
-    });
-    const checkoutData = await checkoutRes.json();
+    if (req.body.charge === true && account.airwallex_payment_method_id) {
+      // Charge mode — create and confirm payment intent with stored payment method
+      const amount = req.body.amount;
+      const currency = (req.body.currency || account.billing_currency || 'EUR').toUpperCase();
+      if (!amount || amount <= 0) {
+        return res.json({ success: false, error: 'Invalid amount' });
+      }
 
-    if (!checkoutRes.ok || !checkoutData.url) {
-      return res.json({ success: false, error: 'Checkout creation failed: ' + (checkoutData.message || JSON.stringify(checkoutData)) });
+      const intentRes = await fetch(`${airwallexBase}/api/v1/pa/payment_intents/create`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${awAuth.token}` },
+        body: JSON.stringify({
+          amount: amount,
+          currency: currency.toLowerCase(),
+          merchant_order_id: 'gas-' + id + '-' + new Date().toISOString().slice(0, 7),
+          request_id: 'gas-charge-' + id + '-' + Date.now(),
+          payment_method_request: {
+            id: account.airwallex_payment_method_id,
+            type: 'card'
+          },
+          customer_id: account.airwallex_payments_customer_id || account.airwallex_customer_id,
+          capture_method: 'automatic',
+          return_url: 'https://admin.gas.travel'
+        })
+      });
+      const intentData = await intentRes.json();
+
+      if (!intentRes.ok || !intentData.id) {
+        return res.json({ success: false, error: 'Payment intent failed: ' + (intentData.message || JSON.stringify(intentData)) });
+      }
+
+      // Confirm the payment intent
+      const confirmRes = await fetch(`${airwallexBase}/api/v1/pa/payment_intents/${intentData.id}/confirm`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${awAuth.token}` },
+        body: JSON.stringify({
+          request_id: 'gas-confirm-' + id + '-' + Date.now(),
+          payment_method: {
+            id: account.airwallex_payment_method_id,
+            type: 'card'
+          }
+        })
+      });
+      const confirmData = await confirmRes.json();
+
+      if (!confirmRes.ok) {
+        return res.json({ success: false, error: 'Payment confirmation failed: ' + (confirmData.message || JSON.stringify(confirmData)) });
+      }
+
+      console.log(`✅ Airwallex charge initiated for account ${id}: ${intentData.id} — ${currency} ${amount}`);
+      res.json({ success: true, payment_intent_id: intentData.id, status: confirmData.status });
+    } else {
+      // Setup mode — create hosted billing checkout
+      const billingCustomerId = account.airwallex_customer_id;
+      const checkoutRes = await fetch(`${airwallexBase}/api/v1/billing_checkouts/create`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${awAuth.token}` },
+        body: JSON.stringify({
+          mode: 'SETUP',
+          billing_customer_id: billingCustomerId,
+          currency: (account.billing_currency || 'EUR').toUpperCase(),
+          customer_data: {
+            id: billingCustomerId
+          },
+          request_id: 'gas-setup-' + id + '-' + Date.now(),
+          success_url: 'https://admin.gas.travel',
+          back_url: 'https://admin.gas.travel'
+        })
+      });
+      const checkoutData = await checkoutRes.json();
+
+      if (!checkoutRes.ok || !checkoutData.url) {
+        return res.json({ success: false, error: 'Checkout creation failed: ' + (checkoutData.message || JSON.stringify(checkoutData)) });
+      }
+
+      console.log(`✅ Airwallex billing checkout created for account ${id}: ${checkoutData.url}`);
+      res.json({ success: true, url: checkoutData.url });
     }
-
-    console.log(`✅ Airwallex billing checkout created for account ${id}: ${checkoutData.url}`);
-    res.json({ success: true, url: checkoutData.url });
   } catch (error) {
     res.json({ success: false, error: error.message });
   }
