@@ -13007,7 +13007,7 @@ app.put('/api/accounts/:id', async (req, res) => {
           });
           const awAuth = await awAuthRes.json();
           if (awAuthRes.ok && awAuth.token) {
-            const awCustRes = await fetch(`${airwallexBase}/api/v1/billing/customers`, {
+            const awCustRes = await fetch(`${airwallexBase}/api/v1/billing_customers/create`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${awAuth.token}` },
               body: JSON.stringify({ email: updatedAccount.email, name: updatedAccount.name, request_id: 'gas-' + id })
@@ -13072,7 +13072,7 @@ app.post('/api/accounts/:id/airwallex-customer', async (req, res) => {
       return res.json({ success: false, error: 'Airwallex authentication failed: ' + (awAuth.message || 'Unknown error') });
     }
 
-    const awCustRes = await fetch(`${airwallexBase}/api/v1/billing/customers`, {
+    const awCustRes = await fetch(`${airwallexBase}/api/v1/billing_customers/create`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${awAuth.token}` },
       body: JSON.stringify({ email: account.email, name: account.name, request_id: 'gas-' + id })
