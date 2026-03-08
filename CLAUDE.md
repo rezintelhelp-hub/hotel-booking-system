@@ -170,5 +170,25 @@ GAS (Global Accommodation System) is a full-stack hotel booking and property man
 
 ---
 
+## PRE-COMMIT CHECKLIST
+
+Before every commit, Claude Code must ask Steve:
+
+1. "This feature affects users — do you want me to add
+   a KB article to knowledge-base/ now?"
+
+2. "This adds a /api/partner/ endpoint — do you want me
+   to add it to Swagger now?"
+
+3. Plugin version bumped if gas-booking.php or
+   gas-booking.js was changed — do this automatically
+   without asking.
+
+4. Never regenerate whole files — surgical edits only.
+
+5. Always show plan before making changes.
+
+---
+
 *Last updated: March 2026*
 *Maintained by Steve Driver*
