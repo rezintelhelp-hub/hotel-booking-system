@@ -18753,7 +18753,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                             <button type="button" class="btn" style="font-size: 0.8rem; padding: 0.5rem 1rem; background: #166534;" onclick="previewInvoice()">📄 Preview Invoice</button>
                             <button type="button" class="btn" style="font-size: 0.8rem; padding: 0.5rem 1rem; background: #6366f1;" onclick="generateInvoice()">🧾 Generate & Save</button>
                             <button type="button" class="btn btn-secondary" style="font-size: 0.8rem; padding: 0.5rem 1rem;" onclick="viewInvoiceHistory()">📋 History</button>
-                            <button type="button" id="airwallex-charge-btn" class="btn" style="display: none; font-size: 0.8rem; padding: 0.5rem 1rem; background: #5b21b6;" onclick="chargeViaAirwallex()">🌐 Charge via Airwallex</button>
+                            <button type="button" id="airwallex-charge-btn" class="btn" style="display: none; font-size: 0.8rem; padding: 0.5rem 1rem; background: #5b21b6;" onclick="chargeViaAirwallex()">🌐 Setup Airwallex Payment</button>
                         </div>
                     </div>
 
@@ -29236,48 +29236,26 @@ const promo = await fetch('/api/v1/offers/validate', {
             const accountId = document.getElementById('edit-account-id').value;
             if (!accountId) { showNotification('No account selected', 'error'); return; }
 
+            const btn = document.getElementById('airwallex-charge-btn');
+            if (btn) { btn.disabled = true; btn.textContent = 'Opening...'; }
+
             try {
-                // Get invoice preview to know the total
-                const previewRes = await fetch(`/api/accounts/${accountId}/invoice-preview`, { headers: authHeaders() });
-                const preview = await previewRes.json();
-                if (!preview.success) {
-                    showNotification('Error loading invoice preview: ' + (preview.error || 'Unknown'), 'error');
-                    return;
-                }
-
-                const total = preview.grand_total;
-                const currency = preview.billing?.currency || 'EUR';
-                const accountName = preview.account?.name || 'this account';
-                const symbol = { EUR: '€', GBP: '£', USD: '$', CAD: 'C$' }[currency] || currency + ' ';
-
-                if (!total || total <= 0) {
-                    showNotification('Nothing to charge — invoice total is ' + symbol + '0.00', 'warning');
-                    return;
-                }
-
-                if (!confirm(`Charge ${symbol}${total.toFixed(2)} to ${accountName} via Airwallex?`)) return;
-
-                const btn = document.getElementById('airwallex-charge-btn');
-                if (btn) { btn.disabled = true; btn.textContent = 'Charging...'; }
-
-                const chargeRes = await fetch(`/api/accounts/${accountId}/airwallex-charge`, {
+                const res = await fetch(`/api/accounts/${accountId}/airwallex-charge`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                    body: JSON.stringify({ amount: total, currency: currency })
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() }
                 });
-                const chargeData = await chargeRes.json();
+                const data = await res.json();
 
-                if (chargeData.success) {
-                    showNotification(`Airwallex payment intent created: ${chargeData.payment_intent_id} (${chargeData.status})`, 'success');
+                if (data.success && data.url) {
+                    window.open(data.url, '_blank');
+                    showNotification('Airwallex checkout opened in new tab', 'success');
                 } else {
-                    showNotification('Charge failed: ' + (chargeData.error || 'Unknown error'), 'error');
+                    showNotification('Failed: ' + (data.error || 'Unknown error'), 'error');
                 }
-                if (btn) { btn.disabled = false; btn.textContent = '🌐 Charge via Airwallex'; }
             } catch (e) {
-                showNotification('Error charging via Airwallex', 'error');
-                const btn = document.getElementById('airwallex-charge-btn');
-                if (btn) { btn.disabled = false; btn.textContent = '🌐 Charge via Airwallex'; }
+                showNotification('Error opening Airwallex checkout', 'error');
             }
+            if (btn) { btn.disabled = false; btn.textContent = '🌐 Charge via Airwallex'; }
         }
 
         async function saveAccount(event) {
