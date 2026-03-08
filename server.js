@@ -13103,7 +13103,7 @@ app.post('/api/accounts/:id/airwallex-charge', async (req, res) => {
   try {
     const { id } = req.params;
 
-    const acct = await pool.query('SELECT id, name, email, airwallex_customer_id, airwallex_payments_customer_id, airwallex_payment_method_id, billing_currency FROM accounts WHERE id = $1', [id]);
+    const acct = await pool.query('SELECT id, name, email, airwallex_customer_id, airwallex_payments_customer_id, airwallex_payment_consent_id, billing_currency FROM accounts WHERE id = $1', [id]);
     if (acct.rows.length === 0) return res.json({ success: false, error: 'Account not found' });
 
     const account = acct.rows[0];
@@ -13129,7 +13129,7 @@ app.post('/api/accounts/:id/airwallex-charge', async (req, res) => {
       return res.json({ success: false, error: 'Airwallex authentication failed: ' + (awAuth.message || 'Unknown error') });
     }
 
-    if (req.body.charge === true && account.airwallex_payment_method_id) {
+    if (req.body.charge === true && account.airwallex_payment_consent_id) {
       // Charge mode — create and confirm payment intent with stored payment method
       const amount = req.body.amount;
       const currency = (req.body.currency || account.billing_currency || 'EUR').toUpperCase();
@@ -13145,10 +13145,6 @@ app.post('/api/accounts/:id/airwallex-charge', async (req, res) => {
           currency: currency.toLowerCase(),
           merchant_order_id: 'gas-' + id + '-' + new Date().toISOString().slice(0, 7),
           request_id: 'gas-charge-' + id + '-' + Date.now(),
-          payment_method_request: {
-            id: account.airwallex_payment_method_id,
-            type: 'card'
-          },
           customer_id: account.airwallex_payments_customer_id || account.airwallex_customer_id,
           capture_method: 'automatic',
           return_url: 'https://admin.gas.travel'
@@ -13166,10 +13162,7 @@ app.post('/api/accounts/:id/airwallex-charge', async (req, res) => {
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${awAuth.token}` },
         body: JSON.stringify({
           request_id: 'gas-confirm-' + id + '-' + Date.now(),
-          payment_method: {
-            id: account.airwallex_payment_method_id,
-            type: 'card'
-          }
+          payment_consent_id: account.airwallex_payment_consent_id
         })
       });
       const confirmData = await confirmRes.json();
@@ -13274,14 +13267,14 @@ app.post('/api/webhooks/airwallex', express.raw({ type: 'application/json' }), a
       console.log('payment_consent.verified payload:', JSON.stringify(event.data));
       const data = (event.data && event.data.object) || {};
       const customerId = data.customer_id;
-      const paymentMethodId = data.payment_method && data.payment_method.id;
-      if (customerId && paymentMethodId) {
+      const consentId = data.id;
+      if (customerId && consentId) {
         const result = await pool.query(
-          'UPDATE accounts SET airwallex_payment_method_id = $1 WHERE airwallex_customer_id = $2 OR airwallex_payments_customer_id = $2 RETURNING id, name',
-          [paymentMethodId, customerId]
+          'UPDATE accounts SET airwallex_payment_consent_id = $1 WHERE airwallex_customer_id = $2 OR airwallex_payments_customer_id = $2 RETURNING id, name',
+          [consentId, customerId]
         );
         if (result.rows.length > 0) {
-          console.log(`✅ Airwallex payment method saved for account ${result.rows[0].id} (${result.rows[0].name}): ${paymentMethodId}`);
+          console.log(`✅ Airwallex payment consent saved for account ${result.rows[0].id} (${result.rows[0].name}): ${consentId}`);
         } else {
           console.log(`⚠️ Airwallex webhook: no account found for customer_id ${customerId}`);
         }
@@ -77522,7 +77515,7 @@ app.listen(PORT, '0.0.0.0', async () => {
 
     // Airwallex billing columns
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS airwallex_customer_id VARCHAR(255)`);
-    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS airwallex_payment_method_id VARCHAR(255)`);
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS airwallex_payment_consent_id VARCHAR(255)`);
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS airwallex_payments_customer_id VARCHAR(255)`);
 
     console.log('✅ Database migrations complete');

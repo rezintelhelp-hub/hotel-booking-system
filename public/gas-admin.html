@@ -29044,8 +29044,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                         if (awBtn) awBtn.style.display = 'none';
                         if (awChargeBtn) {
                             awChargeBtn.style.display = '';
-                            awChargeBtn.dataset.paymentMethodId = account.airwallex_payment_method_id || '';
-                            if (account.airwallex_payment_method_id) {
+                            awChargeBtn.dataset.paymentMethodId = account.airwallex_payment_consent_id || '';
+                            if (account.airwallex_payment_consent_id) {
                                 awChargeBtn.textContent = '💳 Charge via Airwallex';
                             } else {
                                 awChargeBtn.textContent = '🔗 Setup Airwallex Payment';
