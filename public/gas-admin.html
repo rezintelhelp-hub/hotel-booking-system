@@ -4661,6 +4661,7 @@
                                     <span style="flex: 1; font-weight: 500;">Credit/Debit Card (Stripe)</span>
                                     <span id="pv-stripe-connection-badge" style="font-size: 0.75rem; background: #94a3b8; color: white; padding: 0.15rem 0.5rem; border-radius: 10px;">Not Connected</span>
                                 </label>
+                                <div id="pv-stripe-key-display" style="display: none; margin: -0.25rem 0 0.5rem 2.75rem; font-size: 0.8rem; color: #64748b; font-family: monospace;"></div>
 
                                 <!-- Pay at Property -->
                                 <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer; padding: 0.75rem; background: white; border-radius: 8px; border: 2px solid transparent; transition: all 0.2s;" id="pv-provider-pay-property-label">
@@ -44494,10 +44495,12 @@ const promo = await fetch('/api/v1/offers/validate', {
         // Central Payments view — load payment setup section
         async function loadPaymentSetup() {
             const accountId = selectedAccountId || (currentAccount && currentAccount.id);
-            const badge = document.getElementById('payments-stripe-status-badge');
+            const badge = document.getElementById('pv-stripe-connection-badge');
+            const keyDisplay = document.getElementById('pv-stripe-key-display');
             const summaryEl = document.getElementById('payments-methods-summary');
             if (!accountId) {
-                if (badge) badge.innerHTML = '<span style="color: #6b7280;">No account selected</span>';
+                if (badge) { badge.textContent = 'Not Connected'; badge.style.background = '#94a3b8'; }
+                if (keyDisplay) keyDisplay.style.display = 'none';
                 if (summaryEl) summaryEl.innerHTML = '<span>No account selected</span>';
                 return;
             }
@@ -44507,17 +44510,37 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const statusData = await statusRes.json();
 
                 if (statusData.success && statusData.connected) {
-                    const sourceLabels = { account: 'Account keys', payment_config: 'Payment config', property: 'Property keys' };
-                    const sourceLabel = sourceLabels[statusData.source] || '';
-                    badge.innerHTML = `<span style="background: #d1fae5; color: #059669; padding: 0.25rem 0.75rem; border-radius: 99px; font-size: 0.8rem; font-weight: 600;">Connected</span> <span style="font-size: 0.75rem; color: #64748b; margin-left: 0.25rem;">${sourceLabel}</span>`;
+                    // Update badge
+                    badge.textContent = 'Connected';
+                    badge.style.background = '#10b981';
+
+                    // Auto-check Stripe checkbox and show its config section
+                    const stripeCheckbox = document.getElementById('pv-payment-provider-stripe');
+                    if (stripeCheckbox && !stripeCheckbox.checked) {
+                        stripeCheckbox.checked = true;
+                        togglePvPaymentSections();
+                    }
+
+                    // Populate keys section
                     document.getElementById('payments-stripe-pub-key').value = statusData.publishable_key || '';
                     document.getElementById('payments-stripe-sec-key').placeholder = statusData.has_keys ? 'sk_live_**** (saved)' : 'sk_live_...';
+
+                    // Show masked publishable key (visible without opening keys section)
+                    if (statusData.publishable_key && keyDisplay) {
+                        const k = statusData.publishable_key;
+                        const masked = k.length > 16 ? k.slice(0, 12) + '...' + k.slice(-4) : k;
+                        keyDisplay.textContent = masked;
+                        keyDisplay.style.display = 'block';
+                    }
                 } else {
-                    badge.innerHTML = '<span style="background: #fee2e2; color: #dc2626; padding: 0.25rem 0.75rem; border-radius: 99px; font-size: 0.8rem; font-weight: 600;">Not Connected</span>';
+                    badge.textContent = 'Not Connected';
+                    badge.style.background = '#94a3b8';
+                    if (keyDisplay) keyDisplay.style.display = 'none';
                 }
             } catch (e) {
                 console.error('Error loading Stripe status:', e);
-                badge.innerHTML = '<span style="color: #6b7280;">Unable to check</span>';
+                if (badge) { badge.textContent = 'Unable to check'; badge.style.background = '#94a3b8'; }
+                if (keyDisplay) keyDisplay.style.display = 'none';
             }
 
             // Load payment methods summary per property
