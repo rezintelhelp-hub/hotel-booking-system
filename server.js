@@ -2987,7 +2987,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
               for (let d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
                 const dateStr = d.toISOString().split('T')[0];
                 const numAvail = entry.numAvail || 0;
-                const price = entry.price1 || entry.price2 || null;
+                const price = (entry.price1 !== undefined && entry.price1 !== null) ? entry.price1 : (entry.price2 !== undefined && entry.price2 !== null) ? entry.price2 : null;
                 const minStay = entry.minStay || 1;
 
                 await pool.query(`
@@ -2995,8 +2995,8 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
                   VALUES ($1, $2, $3, $3, $3, $4, $5, $6, $6, 'beds24', NOW())
                   ON CONFLICT (room_id, date)
                   DO UPDATE SET
-                    price = COALESCE($3, room_availability.price),
-                    cm_price = COALESCE($3, room_availability.cm_price),
+                    price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.price END,
+                    cm_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.cm_price END,
                     is_available = $4,
                     is_blocked = $5,
                     min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $6 END,
