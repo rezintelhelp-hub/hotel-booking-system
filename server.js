@@ -13209,9 +13209,9 @@ app.post('/api/webhooks/airwallex', express.raw({ type: 'application/json' }), a
 
     if (eventType === 'payment_consent.verified') {
       console.log('payment_consent.verified payload:', JSON.stringify(event.data));
-      const data = event.data || {};
+      const data = (event.data && event.data.object) || {};
       const customerId = data.customer_id;
-      const paymentMethodId = data.payment_method_id;
+      const paymentMethodId = data.payment_method && data.payment_method.id;
       if (customerId && paymentMethodId) {
         const result = await pool.query(
           'UPDATE accounts SET airwallex_payment_method_id = $1 WHERE airwallex_customer_id = $2 RETURNING id, name',
