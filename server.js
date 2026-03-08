@@ -58597,7 +58597,9 @@ app.post('/api/public/book', async (req, res) => {
       enigma_reference_id, stripe_setup_intent_id, stripe_payment_method_id,
       source_site_url
     } = req.body;
-    
+
+    console.log('REQ BODY KEYS:', Object.keys(req.body));
+
     // Validate required fields
     if (!unit_id || !check_in || !check_out || !guest_first_name || !guest_last_name || !guest_email) {
       return res.json({ success: false, error: 'Missing required fields' });
