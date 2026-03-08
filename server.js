@@ -12993,6 +12993,38 @@ app.put('/api/accounts/:id', async (req, res) => {
       return res.json({ success: false, error: 'Account not found' });
     }
     
+    // Auto-create Airwallex customer when account becomes active
+    const updatedAccount = result.rows[0];
+    if (status === 'active' && !updatedAccount.airwallex_customer_id) {
+      try {
+        const awClientId = process.env.AIRWALLEX_CLIENT_ID;
+        const awApiKey = process.env.AIRWALLEX_API_KEY;
+        if (awClientId && awApiKey) {
+          const awAuthRes = await fetch('https://api.airwallex.com/api/v1/authentication/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-api-key': awApiKey, 'x-client-id': awClientId }
+          });
+          const awAuth = await awAuthRes.json();
+          if (awAuthRes.ok && awAuth.token) {
+            const awCustRes = await fetch('https://api.airwallex.com/api/v1/billing/customers', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${awAuth.token}` },
+              body: JSON.stringify({ email: updatedAccount.email, name: updatedAccount.name, request_id: 'gas-' + id })
+            });
+            const awCust = await awCustRes.json();
+            if (awCustRes.ok && awCust.id) {
+              await pool.query('UPDATE accounts SET airwallex_customer_id = $1 WHERE id = $2', [awCust.id, id]);
+              console.log(`✅ Airwallex customer created for account ${id}: ${awCust.id}`);
+            } else {
+              console.error(`Airwallex customer creation failed for account ${id}:`, awCust);
+            }
+          }
+        }
+      } catch (awError) {
+        console.error(`Airwallex auto-link error for account ${id}:`, awError.message);
+      }
+    }
+
     // Save payment methods in settings if provided
     if (payment_methods) {
       await pool.query(`
@@ -13003,6 +13035,52 @@ app.put('/api/accounts/:id', async (req, res) => {
     }
 
     res.json({ success: true, account: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Manual trigger: create Airwallex customer for an account
+app.post('/api/accounts/:id/airwallex-customer', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const acct = await pool.query('SELECT id, name, email, airwallex_customer_id FROM accounts WHERE id = $1', [id]);
+    if (acct.rows.length === 0) return res.json({ success: false, error: 'Account not found' });
+
+    const account = acct.rows[0];
+    if (account.airwallex_customer_id) {
+      return res.json({ success: true, airwallex_customer_id: account.airwallex_customer_id, message: 'Already linked' });
+    }
+
+    const awClientId = process.env.AIRWALLEX_CLIENT_ID;
+    const awApiKey = process.env.AIRWALLEX_API_KEY;
+    if (!awClientId || !awApiKey) {
+      return res.json({ success: false, error: 'Airwallex credentials not configured in environment variables' });
+    }
+
+    const awAuthRes = await fetch('https://api.airwallex.com/api/v1/authentication/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': awApiKey, 'x-client-id': awClientId }
+    });
+    const awAuth = await awAuthRes.json();
+    if (!awAuthRes.ok || !awAuth.token) {
+      return res.json({ success: false, error: 'Airwallex authentication failed: ' + (awAuth.message || 'Unknown error') });
+    }
+
+    const awCustRes = await fetch('https://api.airwallex.com/api/v1/billing/customers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${awAuth.token}` },
+      body: JSON.stringify({ email: account.email, name: account.name, request_id: 'gas-' + id })
+    });
+    const awCust = await awCustRes.json();
+    if (!awCustRes.ok || !awCust.id) {
+      return res.json({ success: false, error: 'Airwallex customer creation failed: ' + (awCust.message || JSON.stringify(awCust)) });
+    }
+
+    await pool.query('UPDATE accounts SET airwallex_customer_id = $1 WHERE id = $2', [awCust.id, id]);
+    console.log(`✅ Airwallex customer created for account ${id}: ${awCust.id}`);
+
+    res.json({ success: true, airwallex_customer_id: awCust.id });
   } catch (error) {
     res.json({ success: false, error: error.message });
   }
@@ -13817,6 +13895,8 @@ app.get('/api/setup-accounts-billing', async (req, res) => {
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS beds24_billing_enabled BOOLEAN DEFAULT true`).catch(() => {});
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS website_billing_enabled BOOLEAN DEFAULT true`).catch(() => {});
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS billing_currency VARCHAR(3) DEFAULT 'EUR'`).catch(() => {});
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS airwallex_customer_id VARCHAR(255)`).catch(() => {});
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS airwallex_payment_method_id VARCHAR(255)`).catch(() => {});
     console.log('✅ billing columns added to accounts');
 
     // Custom invoice line items table

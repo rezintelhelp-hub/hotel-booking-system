@@ -18576,6 +18576,21 @@ const promo = await fetch('/api/v1/offers/validate', {
                         </div>
                     </div>
 
+                    <!-- ============ AIRWALLEX LINK ============ -->
+                    <div style="background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); padding: 1rem; border-radius: 12px; margin-bottom: 1rem; border: 1px solid #7dd3fc;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <span style="font-size: 1rem;">🌐</span>
+                                <span style="font-weight: 600; font-size: 0.85rem; color: #0369a1;">Airwallex</span>
+                                <span id="airwallex-link-badge" style="font-size: 0.7rem; background: #94a3b8; color: white; padding: 0.1rem 0.5rem; border-radius: 10px;">Not Linked</span>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <span id="airwallex-customer-id-display" style="font-size: 0.75rem; color: #64748b; font-family: monospace;"></span>
+                                <button type="button" id="airwallex-link-btn" class="btn btn-secondary" onclick="linkAccountToAirwallex()" style="font-size: 0.75rem; padding: 0.3rem 0.75rem;">Link to Airwallex</button>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- ============ SECTION 1: GAS SERVICES ============ -->
                     <div id="account-billing-section" style="background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); padding: 1rem; border-radius: 12px; margin-bottom: 1rem; border: 1px solid #93c5fd;">
                         <h4 style="margin: 0 0 0.75rem 0; font-size: 0.85rem; color: #1e40af; font-weight: 600;">💰 1. GAS Services</h4>
@@ -29014,7 +29029,21 @@ const promo = await fetch('/api/v1/offers/validate', {
                     document.getElementById('account-vat-rate').value = account.vat_rate || 0;
                     document.getElementById('account-vat-rate').disabled = !account.vat_enabled;
                     document.getElementById('account-beds24-billing').checked = account.beds24_billing_enabled !== false;
-                    
+
+                    // Airwallex link status
+                    const awBadge = document.getElementById('airwallex-link-badge');
+                    const awDisplay = document.getElementById('airwallex-customer-id-display');
+                    const awBtn = document.getElementById('airwallex-link-btn');
+                    if (account.airwallex_customer_id) {
+                        if (awBadge) { awBadge.textContent = 'Linked'; awBadge.style.background = '#10b981'; }
+                        if (awDisplay) awDisplay.textContent = account.airwallex_customer_id;
+                        if (awBtn) awBtn.style.display = 'none';
+                    } else {
+                        if (awBadge) { awBadge.textContent = 'Not Linked'; awBadge.style.background = '#94a3b8'; }
+                        if (awDisplay) awDisplay.textContent = '';
+                        if (awBtn) awBtn.style.display = '';
+                    }
+
                     // Show/hide Beds24 costs section based on connection status
                     const beds24CostsSection = document.getElementById('account-beds24-costs-section');
                     if (beds24CostsSection) {
@@ -29171,6 +29200,34 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
         
+        async function linkAccountToAirwallex() {
+            const accountId = document.getElementById('edit-account-id').value;
+            if (!accountId) { showNotification('No account selected', 'error'); return; }
+            const btn = document.getElementById('airwallex-link-btn');
+            if (btn) { btn.disabled = true; btn.textContent = 'Linking...'; }
+            try {
+                const res = await fetch(`/api/accounts/${accountId}/airwallex-customer`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() }
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showNotification('Airwallex customer linked: ' + data.airwallex_customer_id, 'success');
+                    const badge = document.getElementById('airwallex-link-badge');
+                    const display = document.getElementById('airwallex-customer-id-display');
+                    if (badge) { badge.textContent = 'Linked'; badge.style.background = '#10b981'; }
+                    if (display) display.textContent = data.airwallex_customer_id;
+                    if (btn) btn.style.display = 'none';
+                } else {
+                    showNotification('Error: ' + (data.error || 'Failed'), 'error');
+                    if (btn) { btn.disabled = false; btn.textContent = 'Link to Airwallex'; }
+                }
+            } catch (e) {
+                showNotification('Error linking to Airwallex', 'error');
+                if (btn) { btn.disabled = false; btn.textContent = 'Link to Airwallex'; }
+            }
+        }
+
         async function saveAccount(event) {
             event.preventDefault();
             
