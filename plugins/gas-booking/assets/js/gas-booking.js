@@ -5298,7 +5298,20 @@ jQuery(document).ready(function($) {
                 source_site_url: window.location.origin + window.location.pathname,
                 deposit_amount: paymentMethod === 'card' ? checkoutData.depositAmount : null,
                 balance_amount: paymentMethod === 'card' ? checkoutData.balanceAmount : null,
-                price_breakdown: checkoutData.gasBreakdown || null,
+                price_breakdown: (function() {
+                    var bd = checkoutData.gasBreakdown;
+                    if (!bd) return null;
+                    var upsellsBreakdown = [];
+                    var upsellsTotal = 0;
+                    (checkoutData.selectedUpsells || []).forEach(function(u) {
+                        var total = calculateUpsellItemTotal(u);
+                        upsellsTotal += total;
+                        upsellsBreakdown.push({ name: u.name, quantity: u.quantity || 1, total: total });
+                    });
+                    bd.upsells_breakdown = upsellsBreakdown;
+                    bd.upsells_total = upsellsTotal;
+                    return bd;
+                })(),
                 damage_deposit: checkoutData.damageDeposit || null,
                 cm_quote_source: checkoutData.cmQuoteSource || null
             };
