@@ -58892,6 +58892,7 @@ app.post('/api/public/book', async (req, res) => {
           price: parseFloat(total_price) || 0,
           deposit: deposit_amount ? parseFloat(deposit_amount) : 0,
           invoiceItems: (function() {
+            console.log('INVOICE DEBUG:', { subtotal: price_breakdown?.subtotal, upsells_total: price_breakdown?.upsells_total, accommodation_total: price_breakdown?.accommodation_total, upsells_breakdown: price_breakdown?.upsells_breakdown });
             if (!price_breakdown) {
               return [{ description: 'Accommodation', status: '', qty: 1, amount: parseFloat(total_price) || 0, vatRate: 0 }];
             }
