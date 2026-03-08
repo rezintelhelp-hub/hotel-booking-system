@@ -3,7 +3,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.2.5
+ * Version: 3.2.6
  * Author: GAS
  * License: GPL v2 or later
  * Text Domain: gas-booking
@@ -11,7 +11,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.2.5');
+define('GAS_BOOKING_VERSION', '3.2.6');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -4419,10 +4419,11 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         
         // Fetch rooms from API
         $api_url = get_option('gas_api_url', 'https://admin.gas.travel');
-        $endpoint = "{$api_url}/api/public/client/{$client_id}/rooms";
-        
+        $lang = $this->get_current_language();
+        $endpoint = "{$api_url}/api/public/client/{$client_id}/rooms?lang={$lang}";
+
         if (!empty($atts['property_id'])) {
-            $endpoint .= "?property_id=" . intval($atts['property_id']);
+            $endpoint .= "&property_id=" . intval($atts['property_id']);
         }
         
         $response = wp_remote_get($endpoint, array(
