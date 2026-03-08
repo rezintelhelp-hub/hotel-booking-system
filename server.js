@@ -13149,11 +13149,60 @@ app.post('/api/accounts/:id/airwallex-charge', async (req, res) => {
   }
 });
 
+// Airwallex webhook receiver
+app.post('/api/webhooks/airwallex', async (req, res) => {
+  try {
+    const event = req.body;
+    const eventType = event.name || event.type;
+    console.log(`📩 Airwallex webhook: ${eventType}`);
+
+    if (eventType === 'payment_consent.verified') {
+      const data = event.data || {};
+      const customerId = data.customer_id;
+      const paymentMethodId = data.payment_method_id;
+      if (customerId && paymentMethodId) {
+        const result = await pool.query(
+          'UPDATE accounts SET airwallex_payment_method_id = $1 WHERE airwallex_customer_id = $2 RETURNING id, name',
+          [paymentMethodId, customerId]
+        );
+        if (result.rows.length > 0) {
+          console.log(`✅ Airwallex payment method saved for account ${result.rows[0].id} (${result.rows[0].name}): ${paymentMethodId}`);
+        } else {
+          console.log(`⚠️ Airwallex webhook: no account found for customer_id ${customerId}`);
+        }
+      }
+    } else if (eventType === 'payment_intent.succeeded') {
+      const data = event.data || {};
+      const merchantOrderId = data.merchant_order_id;
+      if (merchantOrderId) {
+        // merchant_order_id format: gas-{accountId}-{YYYY-MM}
+        const match = merchantOrderId.match(/^gas-(\d+)-/);
+        if (match) {
+          const accountId = match[1];
+          await pool.query(
+            "UPDATE invoices SET status = 'paid', paid_at = NOW() WHERE account_id = $1 AND status != 'paid' ORDER BY created_at DESC LIMIT 1",
+            [accountId]
+          );
+          console.log(`✅ Airwallex payment succeeded for account ${accountId}, merchant_order_id: ${merchantOrderId}`);
+        }
+      }
+    } else if (eventType === 'payment_intent.failed') {
+      const data = event.data || {};
+      console.error(`❌ Airwallex payment failed: merchant_order_id=${data.merchant_order_id}, reason=${data.failure_reason || data.status || 'unknown'}`);
+    }
+
+    res.status(200).json({ received: true });
+  } catch (error) {
+    console.error('Airwallex webhook error:', error.message);
+    res.status(200).json({ received: true });
+  }
+});
+
 // Delete account and all related data
 app.delete('/api/accounts/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     console.log(`Deleting account ${id} and all related data...`);
     
     // Get all properties for this account
