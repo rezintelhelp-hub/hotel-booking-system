@@ -29252,10 +29252,10 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (hasPaymentMethod) {
                 // Charge mode — get invoice total first
                 try {
-                    const previewRes = await fetch(`/api/accounts/${accountId}/invoice/preview`, { headers: authHeaders() });
+                    const previewRes = await fetch(`/api/accounts/${accountId}/invoice-preview`, { headers: authHeaders() });
                     const preview = await previewRes.json();
-                    const total = preview.total || 0;
-                    const currency = preview.currency || 'EUR';
+                    const total = preview.converted ? preview.converted.grand_total : preview.grand_total;
+                    const currency = (preview.billing && preview.billing.currency) || 'EUR';
                     if (!confirm(`Charge ${currency} ${total.toFixed(2)} to this account via Airwallex?`)) return;
 
                     if (btn) { btn.disabled = true; btn.textContent = 'Charging...'; }
