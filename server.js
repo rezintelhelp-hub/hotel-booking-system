@@ -13094,7 +13094,7 @@ app.post('/api/accounts/:id/airwallex-charge', async (req, res) => {
   try {
     const { id } = req.params;
 
-    const acct = await pool.query('SELECT id, name, email, airwallex_customer_id FROM accounts WHERE id = $1', [id]);
+    const acct = await pool.query('SELECT id, name, email, airwallex_customer_id, billing_currency FROM accounts WHERE id = $1', [id]);
     if (acct.rows.length === 0) return res.json({ success: false, error: 'Account not found' });
 
     const account = acct.rows[0];
@@ -13126,6 +13126,7 @@ app.post('/api/accounts/:id/airwallex-charge', async (req, res) => {
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${awAuth.token}` },
       body: JSON.stringify({
         mode: 'SETUP',
+        currency: (account.billing_currency || 'EUR').toUpperCase(),
         customer_data: {
           id: account.airwallex_customer_id,
           email: account.email
