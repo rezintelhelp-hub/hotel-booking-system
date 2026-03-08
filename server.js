@@ -55503,213 +55503,7 @@ app.put('/api/partner/:apiKey/room/:roomId/images/reorder', async (req, res) => 
   }
 });
 
-// Get images for a room
-app.get('/api/partner/:apiKey/room/:roomId/images', async (req, res) => {
-  console.log('=== ELEVATE: GET ROOM IMAGES ===');
-  
-  try {
-    const auth = await validatePartnerKey(req.params.apiKey);
-    if (!auth.valid) {
-      return res.status(401).json({ success: false, error: 'Invalid API key' });
-    }
-    
-    const { roomId } = req.params;
-    
-    // Find room
-    const roomCheck = await pool.query(`
-      SELECT bu.id, bu.property_id
-      FROM bookable_units bu
-      JOIN properties p ON p.id = bu.property_id
-      JOIN accounts a ON a.id = p.account_id
-      WHERE (a.parent_id = $1 OR a.id = $1) 
-      AND (bu.id::text = $2 OR bu.cm_room_id = $2)
-    `, [PARTNER_MASTER_ACCOUNT_ID, roomId]);
-    
-    if (roomCheck.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Room not found' });
-    }
-    
-    const gasRoomId = roomCheck.rows[0].id;
-    const propertyId = roomCheck.rows[0].property_id;
-    
-    // Get images
-    try {
-      const images = await pool.query(`
-        SELECT id, COALESCE(image_url, url) as url, caption, COALESCE(display_order, sort_order, 0) as sort_order, is_primary, external_id
-        FROM property_images
-        WHERE property_id = $1 AND room_id = $2 AND (is_active IS NULL OR is_active = true)
-        ORDER BY COALESCE(display_order, sort_order, 0), id
-      `, [propertyId, gasRoomId]);
-      
-      res.json({ 
-        success: true, 
-        room_id: gasRoomId,
-        images: images.rows 
-      });
-    } catch (tableError) {
-      res.json({ 
-        success: true, 
-        room_id: gasRoomId,
-        images: [],
-        note: 'Images table not configured'
-      });
-    }
-    
-  } catch (error) {
-    console.error('Elevate get room images error:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
 
-// Add images to a room
-app.post('/api/partner/:apiKey/room/:roomId/images', async (req, res) => {
-  console.log('=== ELEVATE: ADD ROOM IMAGES ===');
-  console.log('Room ID param:', req.params.roomId);
-  
-  try {
-    const auth = await validatePartnerKey(req.params.apiKey);
-    if (!auth.valid) {
-      return res.status(401).json({ success: false, error: 'Invalid API key' });
-    }
-    
-    const { roomId } = req.params;
-    const { images } = req.body;
-    
-    if (!Array.isArray(images)) {
-      return res.status(400).json({ success: false, error: 'images must be an array' });
-    }
-    
-    // Find room by GAS ID or external_id (cm_room_id)
-    const roomCheck = await pool.query(`
-      SELECT bu.id, bu.property_id, bu.name, bu.cm_room_id
-      FROM bookable_units bu
-      JOIN properties p ON p.id = bu.property_id
-      JOIN accounts a ON a.id = p.account_id
-      WHERE (a.parent_id = $1 OR a.id = $1) 
-      AND (bu.id::text = $2 OR bu.cm_room_id = $2)
-    `, [PARTNER_MASTER_ACCOUNT_ID, roomId]);
-    
-    console.log('Room lookup result:', roomCheck.rows);
-    
-    if (roomCheck.rows.length === 0) {
-      return res.status(404).json({ 
-        success: false, 
-        error: 'Room not found',
-        hint: 'Use the GAS room ID (from property creation response) or your external_id',
-        searched_for: roomId
-      });
-    }
-    
-    const gasRoomId = roomCheck.rows[0].id;
-    const propertyId = roomCheck.rows[0].property_id;
-    
-    // Ensure property_images table exists
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS property_images (
-        id SERIAL PRIMARY KEY,
-        property_id INTEGER REFERENCES properties(id) ON DELETE CASCADE,
-        room_id INTEGER REFERENCES bookable_units(id) ON DELETE CASCADE,
-        url TEXT NOT NULL,
-        caption VARCHAR(500),
-        sort_order INTEGER DEFAULT 0,
-        is_primary BOOLEAN DEFAULT false,
-        external_id VARCHAR(255),
-        created_at TIMESTAMP DEFAULT NOW()
-      )
-    `);
-    
-    const addedImages = [];
-    
-    for (const img of images) {
-      if (!img.url) continue;
-      
-      // Check if image with this external_id already exists
-      if (img.external_id) {
-        const existing = await pool.query(
-          'SELECT id FROM property_images WHERE property_id = $1 AND room_id = $2 AND external_id = $3',
-          [propertyId, gasRoomId, img.external_id]
-        );
-        if (existing.rows.length > 0) {
-          await pool.query(`
-            UPDATE property_images SET image_url = $1, url = $1, caption = $2, sort_order = $3, display_order = $3, is_primary = $4
-            WHERE id = $5
-          `, [img.url, img.caption || null, img.sort_order || 0, img.is_primary || false, existing.rows[0].id]);
-          addedImages.push({ id: existing.rows[0].id, url: img.url, updated: true });
-          continue;
-        }
-      }
-      
-      // Generate image_key from external_id or create unique one
-      const imageKey = img.external_id || `elevate_room_${gasRoomId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
-      const result = await pool.query(`
-        INSERT INTO property_images (property_id, room_id, image_key, image_url, url, caption, sort_order, display_order, is_primary, external_id, is_active)
-        VALUES ($1, $2, $3, $4, $4, $5, $6, $6, $7, $8, true)
-        RETURNING id
-      `, [propertyId, gasRoomId, imageKey, img.url, img.caption || null, img.sort_order || 0, img.is_primary || false, img.external_id || null]);
-      
-      addedImages.push({ id: result.rows[0].id, url: img.url });
-    }
-    
-    res.json({ 
-      success: true, 
-      room_id: gasRoomId,
-      images_added: addedImages.length,
-      images: addedImages
-    });
-    
-  } catch (error) {
-    console.error('Elevate add room images error:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// Delete room image
-app.delete('/api/partner/:apiKey/room/:roomId/images/:imageId', async (req, res) => {
-  console.log('=== ELEVATE: DELETE ROOM IMAGE ===');
-  
-  try {
-    const auth = await validatePartnerKey(req.params.apiKey);
-    if (!auth.valid) {
-      return res.status(401).json({ success: false, error: 'Invalid API key' });
-    }
-    
-    const { roomId, imageId } = req.params;
-    
-    // Find room
-    const roomCheck = await pool.query(`
-      SELECT bu.id, bu.property_id
-      FROM bookable_units bu
-      JOIN properties p ON p.id = bu.property_id
-      JOIN accounts a ON a.id = p.account_id
-      WHERE (a.parent_id = $1 OR a.id = $1) 
-      AND (bu.id::text = $2 OR bu.cm_room_id = $2)
-    `, [PARTNER_MASTER_ACCOUNT_ID, roomId]);
-    
-    if (roomCheck.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Room not found' });
-    }
-    
-    const gasRoomId = roomCheck.rows[0].id;
-    const propertyId = roomCheck.rows[0].property_id;
-    
-    // Delete image
-    const result = await pool.query(
-      'DELETE FROM property_images WHERE property_id = $1 AND room_id = $2 AND (id::text = $3 OR external_id = $3) RETURNING id',
-      [propertyId, gasRoomId, imageId]
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Image not found' });
-    }
-    
-    res.json({ success: true, deleted_image_id: result.rows[0].id });
-    
-  } catch (error) {
-    console.error('Elevate delete room image error:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
 
 // =========================================================
 // ELEVATE LEGACY WEBHOOKS (for backwards compatibility)
@@ -76786,10 +76580,13 @@ app.get('/api/partner/websites/:websiteId/pages', async (req, res) => {
     }
 
     const result = await pool.query(
-      `SELECT id, page_slug, parent_slug, page_title, menu_visible, menu_order, enabled, created_at, updated_at
-       FROM page_sections
-       WHERE website_id = $1 AND account_id = $2
-       ORDER BY menu_order, page_title`,
+      `SELECT ps.id, ps.page_slug, ps.parent_slug, ps.page_title, ps.menu_visible, ps.menu_order, ps.enabled,
+              COALESCE(wp.is_published, false) as is_published,
+              ps.created_at, ps.updated_at
+       FROM page_sections ps
+       LEFT JOIN website_pages wp ON wp.website_id = ps.website_id AND wp.slug = ps.page_slug
+       WHERE ps.website_id = $1 AND ps.account_id = $2
+       ORDER BY ps.menu_order, ps.page_title`,
       [websiteId, auth.partnerId]
     );
 
@@ -76968,6 +76765,44 @@ app.delete('/api/partner/websites/:websiteId/pages/:slug', async (req, res) => {
     }
 
     res.json({ success: true, deleted: result.rows[0] });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/partner/websites/:websiteId/pages/:slug/publish — publish or unpublish a page
+app.put('/api/partner/websites/:websiteId/pages/:slug/publish', async (req, res) => {
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) return res.status(401).json({ success: false, error: auth.error });
+
+    const { websiteId, slug } = req.params;
+    const { published } = req.body;
+    if (published === undefined) return res.status(400).json({ success: false, error: 'published field is required' });
+
+    const ws = await pool.query('SELECT id FROM deployed_sites WHERE id = $1 AND account_id = $2', [websiteId, auth.partnerId]);
+    if (ws.rows.length === 0) return res.status(404).json({ success: false, error: 'Website not found' });
+
+    // Verify page exists in page_sections
+    const page = await pool.query(
+      'SELECT id, page_slug, page_title FROM page_sections WHERE website_id = $1 AND page_slug = $2 AND account_id = $3',
+      [websiteId, slug, auth.partnerId]
+    );
+    if (page.rows.length === 0) return res.status(404).json({ success: false, error: 'Page not found' });
+
+    // Ensure unique constraint exists for upsert
+    await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS idx_website_pages_website_slug ON website_pages(website_id, slug)');
+
+    // Upsert into website_pages
+    const result = await pool.query(
+      `INSERT INTO website_pages (website_id, slug, title, page_type, is_published, updated_at)
+       VALUES ($1, $2, $3, 'custom', $4, NOW())
+       ON CONFLICT (website_id, slug) DO UPDATE SET is_published = $4, updated_at = NOW()
+       RETURNING id, slug, title, is_published, updated_at`,
+      [websiteId, slug, page.rows[0].page_title, published]
+    );
+
+    res.json({ success: true, page: result.rows[0] });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }

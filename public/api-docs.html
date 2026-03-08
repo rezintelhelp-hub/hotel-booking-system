@@ -529,7 +529,9 @@
             { "name": "Analytics", "description": "Tenant and website analytics" },
             { "name": "Lifecycle", "description": "Reservations, deletions, and lifecycle management" },
             { "name": "Upsells", "description": "Create and manage upsells (add-on services) for properties" },
-            { "name": "Taxes", "description": "Create and manage tourist/city taxes for properties" }
+            { "name": "Taxes", "description": "Create and manage tourist/city taxes for properties" },
+            { "name": "Pages", "description": "Create and manage custom website pages" },
+            { "name": "Page Sections", "description": "Add, update, reorder, and delete sections within pages" }
         ],
         "paths": {
             // ===== TENANTS =====
@@ -625,15 +627,25 @@
                 }
             },
             
-            "/api/partner/_KEY_/tenant/{tenantId}/properties": {
+            // ===== CLIENTS =====
+            "/api/partner/_KEY_/clients": {
                 "get": {
                     "tags": ["Tenants"],
-                    "summary": "List Tenant Properties",
-                    "description": "Returns all properties belonging to a tenant account, with room counts. Use property IDs to fetch terms, rooms, images, etc.",
+                    "summary": "List Clients",
+                    "description": "Returns all client accounts under this partner, with property counts.",
+                    "parameters": [],
+                    "responses": { "200": { "description": "List of clients", "content": { "application/json": { "example": { "success": true, "clients": [{ "account_id": 456, "name": "Beach Hotel", "email": "owner@beach.com", "business_name": "Beach Hotel Ltd", "currency": "USD", "status": "active", "property_count": 3 }], "total": 1 } } } } }
+                }
+            },
+            "/api/partner/_KEY_/clients/{clientId}": {
+                "get": {
+                    "tags": ["Tenants"],
+                    "summary": "Get Client Details",
+                    "description": "Returns a single client account with all their properties and rooms. clientId can be account ID, public_id, or partner external_id.",
                     "parameters": [
-                        { "name": "tenantId", "in": "path", "required": true, "schema": { "type": "string" }, "description": "Tenant account ID" }
+                        { "name": "clientId", "in": "path", "required": true, "schema": { "type": "string" }, "description": "Account ID, public_id, or partner external_id" }
                     ],
-                    "responses": { "200": { "description": "List of properties", "content": { "application/json": { "example": { "success": true, "properties": [{ "id": 532, "name": "Mountain Lodge", "account_id": 42, "address": "Hauptgasse 33, Olten", "currency": "CHF", "room_count_live": 5 }] } } } } }
+                    "responses": { "200": { "description": "Client with properties and rooms", "content": { "application/json": { "example": { "success": true, "client": { "account_id": 456, "name": "Beach Hotel", "email": "owner@beach.com", "currency": "USD", "status": "active" }, "properties": [{ "id": 789, "name": "Beachside Inn", "city": "Miami", "rooms": [{ "id": 1026, "name": "Ocean Suite", "max_guests": 4, "base_price": 150.00 }] }] } } } } }
                 }
             },
 
@@ -1084,11 +1096,23 @@
                 "get": {
                     "tags": ["Room Details"],
                     "summary": "Get Room Amenities",
-                    
+
                     "parameters": [
                         { "name": "roomId", "in": "path", "required": true, "schema": { "type": "string" } }
                     ],
                     "responses": { "200": { "description": "List of amenities for this room" } }
+                },
+                "post": {
+                    "tags": ["Room Details"],
+                    "summary": "Add Room Amenities",
+                    "description": "Append amenities to a room without replacing existing ones. Unlike PUT which sets the full list, POST merges new amenities into the existing set.",
+                    "parameters": [
+                        { "name": "roomId", "in": "path", "required": true, "schema": { "type": "string" } }
+                    ],
+                    "requestBody": {
+                        "content": { "application/json": { "example": { "amenities": ["wifi", "pool", "pet friendly"] } } }
+                    },
+                    "responses": { "200": { "description": "Amenities added", "content": { "application/json": { "example": { "success": true, "room_id": 1026, "added": 3, "total": 8, "amenities": ["wifi", "pool", "pet friendly", "tv", "kitchen", "air_conditioning", "balcony", "free_parking"] } } } } }
                 }
             },
             "/api/partner/_KEY_/room/{roomId}/bedrooms": {
@@ -1373,6 +1397,16 @@
                     "summary": "Get Website Rooms",
                     "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
                     "responses": { "200": { "description": "List of assigned rooms" } }
+                },
+                "patch": {
+                    "tags": ["Websites"],
+                    "summary": "Update Room Assignments",
+                    "description": "Partially update room assignments — activate, deactivate, reorder, or feature individual rooms without replacing the full list.",
+                    "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "requestBody": {
+                        "content": { "application/json": { "example": { "changes": [{ "unit_id": 1026, "active": true, "display_order": 1, "is_featured": true }, { "unit_id": 1027, "active": false }] } } }
+                    },
+                    "responses": { "200": { "description": "Rooms updated", "content": { "application/json": { "example": { "success": true, "message": "Updated 2 rooms", "activated": 1, "deactivated": 1, "active_rooms": [{ "unit_id": 1026, "name": "Deluxe Suite" }] } } } } }
                 }
             },
             "/api/partner/websites/{websiteId}/deploy": {
@@ -2007,6 +2041,166 @@
                         { "name": "taxId", "in": "path", "required": true, "schema": { "type": "string" }, "description": "GAS tax ID or external_id" }
                     ],
                     "responses": { "200": { "description": "Tax deleted" } }
+                }
+            },
+
+            // ===== PAGES =====
+            "/api/partner/websites/{websiteId}/pages": {
+                "get": {
+                    "tags": ["Pages"],
+                    "summary": "List Pages",
+                    "description": "Returns all pages for a website, including publish status.",
+                    "parameters": [
+                        { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } }
+                    ],
+                    "responses": { "200": { "description": "List of pages", "content": { "application/json": { "example": { "success": true, "pages": [{ "id": 1, "page_slug": "home", "page_title": "Home", "menu_visible": "main_menu", "menu_order": 1, "enabled": true, "is_published": true }] } } } } }
+                },
+                "post": {
+                    "tags": ["Pages"],
+                    "summary": "Create Page",
+                    "description": "Create a new page. page_slug and page_title are required.",
+                    "parameters": [
+                        { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } }
+                    ],
+                    "requestBody": {
+                        "required": true,
+                        "content": { "application/json": { "example": { "page_slug": "about", "page_title": "About Us", "menu_visible": "main_menu", "menu_order": 2, "sections": [], "enabled": true } } }
+                    },
+                    "responses": { "200": { "description": "Page created", "content": { "application/json": { "example": { "success": true, "page": { "id": 2, "page_slug": "about", "page_title": "About Us", "menu_visible": "main_menu", "menu_order": 2, "enabled": true } } } } } }
+                }
+            },
+            "/api/partner/websites/{websiteId}/pages/{slug}": {
+                "get": {
+                    "tags": ["Pages"],
+                    "summary": "Get Page",
+                    "description": "Get a single page with all its sections.",
+                    "parameters": [
+                        { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } },
+                        { "name": "slug", "in": "path", "required": true, "schema": { "type": "string" }, "description": "Page slug" }
+                    ],
+                    "responses": { "200": { "description": "Page with sections" } }
+                },
+                "put": {
+                    "tags": ["Pages"],
+                    "summary": "Update Page",
+                    "description": "Update page settings. Only provided fields are changed.",
+                    "parameters": [
+                        { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } },
+                        { "name": "slug", "in": "path", "required": true, "schema": { "type": "string" } }
+                    ],
+                    "requestBody": {
+                        "content": { "application/json": { "example": { "page_title": "Updated Title", "menu_visible": "main_menu", "menu_order": 3, "enabled": true } } }
+                    },
+                    "responses": { "200": { "description": "Page updated" } }
+                },
+                "delete": {
+                    "tags": ["Pages"],
+                    "summary": "Delete Page",
+                    "description": "Permanently delete a page and all its sections.",
+                    "parameters": [
+                        { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } },
+                        { "name": "slug", "in": "path", "required": true, "schema": { "type": "string" } }
+                    ],
+                    "responses": { "200": { "description": "Page deleted", "content": { "application/json": { "example": { "success": true, "deleted": { "id": 2, "page_slug": "about" } } } } } }
+                }
+            },
+            "/api/partner/websites/{websiteId}/pages/{slug}/publish": {
+                "put": {
+                    "tags": ["Pages"],
+                    "summary": "Publish / Unpublish Page",
+                    "description": "Set a page live or back to draft. Uses website_pages.is_published to control whole-page visibility.",
+                    "parameters": [
+                        { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } },
+                        { "name": "slug", "in": "path", "required": true, "schema": { "type": "string" } }
+                    ],
+                    "requestBody": {
+                        "required": true,
+                        "content": { "application/json": { "example": { "published": true } } }
+                    },
+                    "responses": { "200": { "description": "Publish status updated", "content": { "application/json": { "example": { "success": true, "page": { "id": 1, "slug": "about", "title": "About Us", "is_published": true, "updated_at": "2026-03-08T10:00:00Z" } } } } } }
+                }
+            },
+
+            // ===== PAGE SECTIONS =====
+            "/api/partner/section-types": {
+                "get": {
+                    "tags": ["Page Sections"],
+                    "summary": "List Section Types",
+                    "description": "Returns all available section types with their field definitions. Use these types when adding sections to a page.",
+                    "responses": { "200": { "description": "List of section types", "content": { "application/json": { "example": { "success": true, "section_types": [{ "type": "hero", "label": "Hero Banner", "fields": ["heading", "subheading", "image", "cta_text", "cta_link"] }, { "type": "text", "label": "Text Block", "fields": ["heading", "body"] }] } } } } }
+                }
+            },
+            "/api/partner/websites/{websiteId}/pages/{slug}/sections": {
+                "put": {
+                    "tags": ["Page Sections"],
+                    "summary": "Replace All Sections",
+                    "description": "Replace all sections on a page. Existing sections are removed and replaced with the provided array.",
+                    "parameters": [
+                        { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } },
+                        { "name": "slug", "in": "path", "required": true, "schema": { "type": "string" } }
+                    ],
+                    "requestBody": {
+                        "required": true,
+                        "content": { "application/json": { "example": { "sections": [{ "id": "sec_1", "type": "hero", "heading": "Welcome", "image": "https://example.com/hero.jpg" }, { "id": "sec_2", "type": "text", "heading": "About", "body": "Our story..." }] } } }
+                    },
+                    "responses": { "200": { "description": "Sections replaced", "content": { "application/json": { "example": { "success": true, "sections": [], "updated_at": "2026-03-08T10:00:00Z" } } } } }
+                },
+                "post": {
+                    "tags": ["Page Sections"],
+                    "summary": "Add Section",
+                    "description": "Append a new section to the page. An ID is auto-generated if not provided.",
+                    "parameters": [
+                        { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } },
+                        { "name": "slug", "in": "path", "required": true, "schema": { "type": "string" } }
+                    ],
+                    "requestBody": {
+                        "required": true,
+                        "content": { "application/json": { "example": { "type": "text", "heading": "New Section", "body": "Content here..." } } }
+                    },
+                    "responses": { "200": { "description": "Section added", "content": { "application/json": { "example": { "success": true, "section": { "id": "sec_abc123", "type": "text" }, "updated_at": "2026-03-08T10:00:00Z" } } } } }
+                }
+            },
+            "/api/partner/websites/{websiteId}/pages/{slug}/sections/reorder": {
+                "put": {
+                    "tags": ["Page Sections"],
+                    "summary": "Reorder Sections",
+                    "description": "Reorder sections by providing an array of section IDs in the desired order.",
+                    "parameters": [
+                        { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } },
+                        { "name": "slug", "in": "path", "required": true, "schema": { "type": "string" } }
+                    ],
+                    "requestBody": {
+                        "required": true,
+                        "content": { "application/json": { "example": { "order": ["sec_2", "sec_1", "sec_3"] } } }
+                    },
+                    "responses": { "200": { "description": "Sections reordered" } }
+                }
+            },
+            "/api/partner/websites/{websiteId}/pages/{slug}/sections/{sectionId}": {
+                "put": {
+                    "tags": ["Page Sections"],
+                    "summary": "Update Section",
+                    "description": "Update a specific section by ID. Only provided fields are merged into the existing section.",
+                    "parameters": [
+                        { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } },
+                        { "name": "slug", "in": "path", "required": true, "schema": { "type": "string" } },
+                        { "name": "sectionId", "in": "path", "required": true, "schema": { "type": "string" } }
+                    ],
+                    "requestBody": {
+                        "content": { "application/json": { "example": { "heading": "Updated Heading", "body": "New content..." } } }
+                    },
+                    "responses": { "200": { "description": "Section updated" } }
+                },
+                "delete": {
+                    "tags": ["Page Sections"],
+                    "summary": "Delete Section",
+                    "description": "Remove a section from the page by its ID.",
+                    "parameters": [
+                        { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } },
+                        { "name": "slug", "in": "path", "required": true, "schema": { "type": "string" } },
+                        { "name": "sectionId", "in": "path", "required": true, "schema": { "type": "string" } }
+                    ],
+                    "responses": { "200": { "description": "Section deleted" } }
                 }
             }
         }
