@@ -58896,7 +58896,7 @@ app.post('/api/public/book', async (req, res) => {
               return [{ description: 'Accommodation', status: '', qty: 1, amount: parseFloat(total_price) || 0, vatRate: 0 }];
             }
             const items = [];
-            items.push({ description: 'Accommodation', status: '', qty: 1, amount: parseFloat(price_breakdown.subtotal || price_breakdown.accommodation_total || total_price) || 0, vatRate: 0 });
+            items.push({ description: 'Accommodation', status: '', qty: 1, amount: (parseFloat(price_breakdown.subtotal || price_breakdown.accommodation_total || total_price) || 0) - (parseFloat(price_breakdown.upsells_total) || 0), vatRate: 0 });
             if (price_breakdown.upsells_breakdown) {
               for (const u of price_breakdown.upsells_breakdown) {
                 items.push({ description: u.name || 'Extra', status: '', qty: u.quantity || 1, amount: parseFloat(u.total) || 0, vatRate: 0 });
