@@ -6199,8 +6199,8 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
                   VALUES ($1, $2, $3, $3, $3, $4, $5, $6, $7, 'calry')
                   ON CONFLICT (room_id, date)
                   DO UPDATE SET
-                    price = COALESCE($3, room_availability.price),
-                    cm_price = COALESCE($3, room_availability.cm_price),
+                    price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.price END,
+                    cm_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.cm_price END,
                     direct_price = COALESCE($3, room_availability.direct_price),
                     is_available = $4,
                     is_blocked = $5,
@@ -6312,8 +6312,8 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
               VALUES ($1, $2, $3, $3, $3, $4, $5, $6, $6, $7, 'hostfully')
               ON CONFLICT (room_id, date)
               DO UPDATE SET
-                price = COALESCE($3, room_availability.price),
-                cm_price = COALESCE($3, room_availability.cm_price),
+                price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.price END,
+                cm_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.cm_price END,
                 direct_price = COALESCE($3, room_availability.direct_price),
                 is_available = $4,
                 is_blocked = $5,
@@ -6455,8 +6455,8 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
               VALUES ($1, $2, $3, $3, $3, $4, $5, $6, 'smoobu')
               ON CONFLICT (room_id, date)
               DO UPDATE SET
-                price = COALESCE($3, room_availability.price),
-                cm_price = COALESCE($3, room_availability.cm_price),
+                price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.price END,
+                cm_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.cm_price END,
                 direct_price = COALESCE($3, room_availability.direct_price),
                 is_available = $4,
                 is_blocked = $5,
@@ -6768,8 +6768,8 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
                   VALUES ($1, $2, $3, $3, $3, $4, $5, $6, $6, 'beds24')
                   ON CONFLICT (room_id, date)
                   DO UPDATE SET
-                    price = COALESCE($3, room_availability.price),
-                    cm_price = COALESCE($3, room_availability.cm_price),
+                    price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.price END,
+                    cm_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.cm_price END,
                     direct_price = COALESCE($3, room_availability.direct_price),
                     is_available = $4,
                     is_blocked = $5,
@@ -6836,8 +6836,8 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
                 VALUES ($1, $2, $3, $3, $3, $4, $5, $6, $6, 'beds24')
                 ON CONFLICT (room_id, date)
                 DO UPDATE SET
-                  price = COALESCE($3, room_availability.price),
-                  cm_price = COALESCE($3, room_availability.cm_price),
+                  price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.price END,
+                  cm_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.cm_price END,
                   direct_price = COALESCE($3, room_availability.direct_price),
                   is_available = $4,
                   is_blocked = $5,
@@ -7378,8 +7378,8 @@ app.post('/api/gas-sync/properties/:propertyId/sync-prices', async (req, res) =>
                 VALUES ($1, $2, $3, $3, $3, $4, $5, $6, $6, 'beds24-v2', NOW())
                 ON CONFLICT (room_id, date)
                 DO UPDATE SET
-                  price = COALESCE($3, room_availability.price),
-                  cm_price = COALESCE($3, room_availability.cm_price),
+                  price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.price END,
+                  cm_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.cm_price END,
                   is_available = $4,
                   is_blocked = $5,
                   min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $6 END,
@@ -8897,8 +8897,8 @@ app.post('/api/gas-sync/tiered-availability-sync', async (req, res) => {
                   VALUES ($1, $2, $3, $3, $3, $4, $5, $6, $6, 'beds24', NOW())
                   ON CONFLICT (room_id, date)
                   DO UPDATE SET
-                    price = COALESCE($3, room_availability.price),
-                    cm_price = COALESCE($3, room_availability.cm_price),
+                    price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.price END,
+                    cm_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.cm_price END,
                     is_available = $4,
                     is_blocked = $5,
                     min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $6 END,
@@ -9107,8 +9107,8 @@ app.post('/api/gas-sync/connections/:connectionId/sync-tier/:tier', async (req, 
               VALUES ($1, $2, $3, $3, $3, $4, $5, $6, $6, 'beds24', NOW())
               ON CONFLICT (room_id, date)
               DO UPDATE SET
-                price = COALESCE($3, room_availability.price),
-                cm_price = COALESCE($3, room_availability.cm_price),
+                price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.price END,
+                cm_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.cm_price END,
                 is_available = $4,
                 is_blocked = $5,
                 min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $6 END,
@@ -9281,8 +9281,8 @@ app.post('/api/gas-sync/v1-pricing-sync', async (req, res) => {
                 VALUES ($1, $2, $3, $3, $3, $4, $4, 'beds24_v1', NOW())
                 ON CONFLICT (room_id, date)
                 DO UPDATE SET
-                  price = COALESCE($3, room_availability.price),
-                  cm_price = COALESCE($3, room_availability.cm_price),
+                  price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.price END,
+                  cm_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.cm_price END,
                   min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $4 END,
                   cm_min_stay = $4,
                   source = 'beds24_v1',
@@ -9443,8 +9443,8 @@ app.post('/api/gas-sync/properties/:propertyId/v1-pricing-sync', async (req, res
           VALUES ($1, $2, $3, $3, $3, $4, $4, 'beds24_v1', NOW())
           ON CONFLICT (room_id, date)
           DO UPDATE SET
-            price = COALESCE($3, room_availability.price),
-            cm_price = COALESCE($3, room_availability.cm_price),
+            price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.price END,
+            cm_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.cm_price END,
             min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $4 END,
             cm_min_stay = $4,
             source = 'beds24_v1',
@@ -36789,7 +36789,7 @@ app.post('/api/admin/sync-hostaway-availability', async (req, res) => {
               VALUES ($1, $2, $3, $3, $3, $4, $5, $6, 'hostaway', NOW())
               ON CONFLICT (room_id, date)
               DO UPDATE SET
-                price = COALESCE($3, room_availability.price),
+                price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.price END,
                 cm_price = $3,
                 direct_price = COALESCE(room_availability.direct_price, $3),
                 is_available = $4,
@@ -41741,8 +41741,8 @@ app.post('/api/admin/sync-availability/:roomId', async (req, res) => {
           VALUES ($1, $2, $3, $3, $4, $5, 'beds24')
           ON CONFLICT (room_id, date)
           DO UPDATE SET
-            price = COALESCE($3, room_availability.price),
-            cm_price = COALESCE($3, room_availability.cm_price),
+            price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.price END,
+            cm_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.cm_price END,
             is_available = $4,
             is_blocked = $5,
             source = 'beds24',
@@ -41895,8 +41895,8 @@ app.post('/api/admin/sync-all-availability-quick', async (req, res) => {
               VALUES ($1, $2, $3, $3, $4, $5, 'beds24')
               ON CONFLICT (room_id, date)
               DO UPDATE SET
-                price = COALESCE($3, room_availability.price),
-                cm_price = COALESCE($3, room_availability.cm_price),
+                price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.price END,
+                cm_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.cm_price END,
                 is_available = $4,
                 is_blocked = $5,
                 source = 'beds24',
@@ -42057,8 +42057,8 @@ app.post('/api/admin/sync-all-availability-bulk', async (req, res) => {
               VALUES ($1, $2, $3, $3, $4, $5, 'beds24')
               ON CONFLICT (room_id, date)
               DO UPDATE SET
-                price = COALESCE($3, room_availability.price),
-                cm_price = COALESCE($3, room_availability.cm_price),
+                price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.price END,
+                cm_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.cm_price END,
                 is_available = $4,
                 is_blocked = $5,
                 source = 'beds24',
@@ -56374,8 +56374,8 @@ app.post('/api/admin/sync-beds24-full-pricing', async (req, res) => {
                 VALUES ($1, $2, $3, $3, $3, $3, $4, $5, $6, $6, 'beds24-full', NOW())
                 ON CONFLICT (room_id, date)
                 DO UPDATE SET
-                  price = COALESCE($3, room_availability.price),
-                  cm_price = COALESCE($3, room_availability.cm_price),
+                  price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.price END,
+                  cm_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.cm_price END,
                   direct_price = COALESCE($3, room_availability.direct_price),
                   standard_price = COALESCE($3, room_availability.standard_price),
                   is_available = $4,
@@ -56419,8 +56419,8 @@ app.post('/api/admin/sync-beds24-full-pricing', async (req, res) => {
                     VALUES ($1, $2, $3, $3, $3, $3, $4, $5, $6, $6, 'beds24-v1-full', NOW())
                     ON CONFLICT (room_id, date)
                     DO UPDATE SET
-                      price = COALESCE($3, room_availability.price),
-                      cm_price = COALESCE($3, room_availability.cm_price),
+                      price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.price END,
+                      cm_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.cm_price END,
                       direct_price = COALESCE($3, room_availability.direct_price),
                       standard_price = COALESCE($3, room_availability.standard_price),
                       is_available = $4,
@@ -68813,8 +68813,8 @@ async function syncAllChannelManagers() {
                   INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, is_available, is_blocked, min_stay, source)
                   VALUES ($1, $2, $3, $3, $3, $4, $5, $6, 'hostaway')
                   ON CONFLICT (room_id, date) DO UPDATE SET
-                    price = COALESCE($3, room_availability.price),
-                    cm_price = COALESCE($3, room_availability.cm_price),
+                    price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.price END,
+                    cm_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.cm_price END,
                     direct_price = COALESCE($3, room_availability.direct_price),
                     is_available = $4, is_blocked = $5, min_stay = $6,
                     source = 'hostaway', updated_at = NOW()
@@ -69875,8 +69875,8 @@ app.post('/api/gas-sync/connections/:id/sync-prices', async (req, res) => {
               VALUES ($1, $2, $3, $3, $3, $4, $5, $6, $6, 'beds24', NOW())
               ON CONFLICT (room_id, date)
               DO UPDATE SET
-                price = COALESCE($3, room_availability.price),
-                cm_price = COALESCE($3, room_availability.cm_price),
+                price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.price END,
+                cm_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.cm_price END,
                 is_available = $4,
                 is_blocked = $5,
                 min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $6 END,
@@ -71502,8 +71502,8 @@ app.post('/api/admin/debug/beds24-resync-room/:connectionId/:beds24RoomId', asyn
         INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
         VALUES ($1, $2, $3, $3, $3, $4, $5, $6, $6, 'beds24-offers', NOW())
         ON CONFLICT (room_id, date) DO UPDATE SET
-          price = COALESCE($3, room_availability.price),
-          cm_price = COALESCE($3, room_availability.cm_price),
+          price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.price END,
+          cm_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.cm_price END,
           direct_price = COALESCE($3, room_availability.direct_price),
           is_available = $4, is_blocked = $5,
           min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $6 END,
@@ -72415,8 +72415,8 @@ app.post('/api/hostaway/sync-availability', async (req, res) => {
               INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source)
               VALUES ($1, $2, $3, $3, $3, $4, $5, $6, $6, 'hostaway')
               ON CONFLICT (room_id, date) DO UPDATE SET
-                price = COALESCE($3, room_availability.price),
-                cm_price = COALESCE($3, room_availability.cm_price),
+                price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.price END,
+                cm_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.cm_price END,
                 direct_price = COALESCE($3, room_availability.direct_price),
                 is_available = $4,
                 is_blocked = $5,
@@ -76460,7 +76460,7 @@ async function syncAllHostawayAvailability() {
                   VALUES ($1, $2, $3, $3, $3, $4, $5, $6, 'hostaway_daily_sync', NOW())
                   ON CONFLICT (room_id, date)
                   DO UPDATE SET
-                    price = COALESCE($3, room_availability.price),
+                    price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.price END,
                     cm_price = $3,
                     direct_price = COALESCE(room_availability.direct_price, $3),
                     is_available = $4,
@@ -76582,8 +76582,8 @@ async function syncAllHostfullyAvailability() {
                 VALUES ($1, $2, $3, $3, $3, $4, $5, $6, $6, $7, 'hostfully_daily_sync', NOW())
                 ON CONFLICT (room_id, date)
                 DO UPDATE SET
-                  price = COALESCE($3, room_availability.price),
-                  cm_price = COALESCE($3, room_availability.cm_price),
+                  price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.price END,
+                  cm_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.cm_price END,
                   direct_price = COALESCE($3, room_availability.direct_price),
                   is_available = $4,
                   is_blocked = $5,
@@ -77404,8 +77404,8 @@ async function runTieredSync() {
                     VALUES ($1, $2, $3, $3, $3, $4, $5, $6, $6, 'beds24', NOW())
                     ON CONFLICT (room_id, date)
                     DO UPDATE SET
-                      price = COALESCE($3, room_availability.price),
-                      cm_price = COALESCE($3, room_availability.cm_price),
+                      price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.price END,
+                      cm_price = CASE WHEN $3 IS NOT NULL THEN $3 ELSE room_availability.cm_price END,
                       is_available = $4,
                       is_blocked = $5,
                       min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $6 END,
