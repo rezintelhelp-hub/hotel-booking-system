@@ -13129,8 +13129,7 @@ app.post('/api/accounts/:id/airwallex-charge', async (req, res) => {
         billing_customer_id: account.airwallex_customer_id,
         currency: (account.billing_currency || 'EUR').toUpperCase(),
         customer_data: {
-          id: account.airwallex_customer_id,
-          email: account.email
+          id: account.airwallex_customer_id
         },
         request_id: 'gas-setup-' + id + '-' + Date.now(),
         success_url: 'https://admin.gas.travel/setup-complete',
