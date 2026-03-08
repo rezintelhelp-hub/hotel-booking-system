@@ -2541,6 +2541,8 @@ function developer_get_api_settings() {
         'header_logo' => $website_header['logo-color'] ?? null,
         'header_logo_image' => $website_header['logo-image-url'] ?? null,
         'header_logo_light_image' => $website_header['logo-light-image-url'] ?? null,
+        'header_favicon' => $website_header['favicon-image-url'] ?? null,
+        'header_apple_icon' => $website_header['apple-icon-image-url'] ?? null,
         'header_logo_size' => $website_header['logo-size'] ?? null,
         'header_underline_color' => $website_header['underline-color'] ?? null,
         'header_border_color' => $website_header['border-color'] ?? null,
@@ -3136,6 +3138,19 @@ function developer_developer_custom_css() {
     </style>';
 }
 add_action('wp_head', 'developer_developer_custom_css', 100);
+
+function developer_favicon_meta_tags() {
+    $api_settings = function_exists('developer_get_api_settings') ? developer_get_api_settings() : array();
+    $favicon = $api_settings['header_favicon'] ?? '';
+    $apple_icon = $api_settings['header_apple_icon'] ?? '';
+    if ($favicon) {
+        echo '<link rel="icon" href="' . esc_url($favicon) . '" type="image/png">' . "\n";
+    }
+    if ($apple_icon) {
+        echo '<link rel="apple-touch-icon" href="' . esc_url($apple_icon) . '">' . "\n";
+    }
+}
+add_action('wp_head', 'developer_favicon_meta_tags', 5);
 
 /**
  * Adjust color brightness
