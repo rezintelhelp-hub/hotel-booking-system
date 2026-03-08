@@ -13208,6 +13208,7 @@ app.post('/api/webhooks/airwallex', express.raw({ type: 'application/json' }), a
     console.log(`📩 Airwallex webhook: ${eventType}`);
 
     if (eventType === 'payment_consent.verified') {
+      console.log('payment_consent.verified payload:', JSON.stringify(event.data));
       const data = event.data || {};
       const customerId = data.customer_id;
       const paymentMethodId = data.payment_method_id;
