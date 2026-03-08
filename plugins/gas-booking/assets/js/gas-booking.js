@@ -4444,6 +4444,7 @@ jQuery(document).ready(function($) {
                             console.log('GAS DEBUG tax[0].name:', response.taxes[0].name, 'name_ml:', response.taxes[0].name_ml);
                         }
                         checkoutData.pricing = response;
+                        checkoutData.gasBreakdown = response;
 
                         // Also try to get channel manager quote for full breakdown
                         $.ajax({
@@ -5297,7 +5298,7 @@ jQuery(document).ready(function($) {
                 source_site_url: window.location.origin + window.location.pathname,
                 deposit_amount: paymentMethod === 'card' ? checkoutData.depositAmount : null,
                 balance_amount: paymentMethod === 'card' ? checkoutData.balanceAmount : null,
-                price_breakdown: checkoutData.priceBreakdown || null,
+                price_breakdown: checkoutData.gasBreakdown || null,
                 damage_deposit: checkoutData.damageDeposit || null,
                 cm_quote_source: checkoutData.cmQuoteSource || null
             };
