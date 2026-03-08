@@ -12999,14 +12999,15 @@ app.put('/api/accounts/:id', async (req, res) => {
       try {
         const awClientId = process.env.AIRWALLEX_CLIENT_ID;
         const awApiKey = process.env.AIRWALLEX_API_KEY;
+        const airwallexBase = process.env.AIRWALLEX_ENV === 'production' ? 'https://api.airwallex.com' : 'https://api-demo.airwallex.com';
         if (awClientId && awApiKey) {
-          const awAuthRes = await fetch('https://api.airwallex.com/api/v1/authentication/login', {
+          const awAuthRes = await fetch(`${airwallexBase}/api/v1/authentication/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'x-api-key': awApiKey, 'x-client-id': awClientId }
           });
           const awAuth = await awAuthRes.json();
           if (awAuthRes.ok && awAuth.token) {
-            const awCustRes = await fetch('https://api.airwallex.com/api/v1/billing/customers', {
+            const awCustRes = await fetch(`${airwallexBase}/api/v1/billing/customers`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${awAuth.token}` },
               body: JSON.stringify({ email: updatedAccount.email, name: updatedAccount.name, request_id: 'gas-' + id })
@@ -13058,7 +13059,9 @@ app.post('/api/accounts/:id/airwallex-customer', async (req, res) => {
       return res.json({ success: false, error: 'Airwallex credentials not configured in environment variables' });
     }
 
-    const awAuthRes = await fetch('https://api.airwallex.com/api/v1/authentication/login', {
+    const airwallexBase = process.env.AIRWALLEX_ENV === 'production' ? 'https://api.airwallex.com' : 'https://api-demo.airwallex.com';
+
+    const awAuthRes = await fetch(`${airwallexBase}/api/v1/authentication/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': awApiKey, 'x-client-id': awClientId }
     });
@@ -13067,7 +13070,7 @@ app.post('/api/accounts/:id/airwallex-customer', async (req, res) => {
       return res.json({ success: false, error: 'Airwallex authentication failed: ' + (awAuth.message || 'Unknown error') });
     }
 
-    const awCustRes = await fetch('https://api.airwallex.com/api/v1/billing/customers', {
+    const awCustRes = await fetch(`${airwallexBase}/api/v1/billing/customers`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${awAuth.token}` },
       body: JSON.stringify({ email: account.email, name: account.name, request_id: 'gas-' + id })
