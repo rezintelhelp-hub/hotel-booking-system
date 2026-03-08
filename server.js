@@ -13132,7 +13132,7 @@ app.post('/api/accounts/:id/airwallex-charge', async (req, res) => {
           id: account.airwallex_customer_id
         },
         request_id: 'gas-setup-' + id + '-' + Date.now(),
-        success_url: 'https://admin.gas.travel/setup-complete',
+        success_url: 'https://admin.gas.travel',
         back_url: 'https://admin.gas.travel'
       })
     });
