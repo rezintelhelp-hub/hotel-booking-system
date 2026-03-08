@@ -3035,7 +3035,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
       return res.json({ success: true, daysUpdated: totalDaysUpdated });
     } else if (adapterCode === 'elevate') {
       // Elevate properties are synced via the Elevate partner API pushing data to us
-      // We don't pull from Elevate - they push pricing via PUT /api/elevate/:apiKey/room/:roomId/calendar
+      // We don't pull from Elevate - they push pricing via PUT /api/partner/:apiKey/room/:roomId/calendar
       return res.json({ 
         success: true, 
         message: 'Elevate properties receive pricing updates via push from Elevate partner API',
@@ -22063,12 +22063,12 @@ app.delete('/api/partner/v1/reservations/:bookingId', authenticatePartner, async
   }
 });
 
-// DELETE /api/elevate/:apiKey/room/:roomId - Delete a room
-app.delete('/api/elevate/:apiKey/room/:roomId', async (req, res) => {
+// DELETE /api/partner/:apiKey/room/:roomId - Delete a room
+app.delete('/api/partner/:apiKey/room/:roomId', async (req, res) => {
   console.log('=== ELEVATE: DELETE ROOM ===');
 
   try {
-    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    const auth = await validatePartnerKey(req.params.apiKey);
     if (!auth.valid) {
       return res.status(401).json({ success: false, error: 'Invalid API key' });
     }
@@ -22082,7 +22082,7 @@ app.delete('/api/elevate/:apiKey/room/:roomId', async (req, res) => {
       JOIN properties p ON bu.property_id = p.id
       JOIN accounts a ON p.account_id = a.id
       WHERE bu.id = $1 AND (a.parent_id = $2 OR a.id = $2)
-    `, [roomId, ELEVATE_MASTER_ACCOUNT_ID]);
+    `, [roomId, PARTNER_MASTER_ACCOUNT_ID]);
 
     if (room.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Room not found or not owned by your tenants' });
@@ -45666,30 +45666,30 @@ app.get('/api/webhooks/beds24', (req, res) => {
 // ELEVATE PMS PARTNER API
 // =========================================================
 // Elevate is a partner (account 92) who manages multiple client sub-accounts
-// All partner API calls use: /api/elevate/:apiKey/...
+// All partner API calls use: /api/partner/:apiKey/...
 
-const ELEVATE_MASTER_ACCOUNT_ID = 92;
+const PARTNER_MASTER_ACCOUNT_ID = 92;
 
 // Validate Elevate Partner API key (master account level)
-async function validateElevatePartnerKey(apiKey) {
+async function validatePartnerKey(apiKey) {
   // Check if this API key belongs to the Elevate master account
   const result = await pool.query(
     'SELECT id, api_key FROM accounts WHERE id = $1 AND api_key = $2 AND status = $3',
-    [ELEVATE_MASTER_ACCOUNT_ID, apiKey, 'active']
+    [PARTNER_MASTER_ACCOUNT_ID, apiKey, 'active']
   );
   
   if (result.rows.length > 0) {
-    return { valid: true, accountId: ELEVATE_MASTER_ACCOUNT_ID };
+    return { valid: true, accountId: PARTNER_MASTER_ACCOUNT_ID };
   }
   
   // Fallback format check
   if (apiKey && apiKey.startsWith('gas_') && apiKey.length > 20) {
     const accountCheck = await pool.query(
       'SELECT id FROM accounts WHERE id = $1 AND api_key = $2',
-      [ELEVATE_MASTER_ACCOUNT_ID, apiKey]
+      [PARTNER_MASTER_ACCOUNT_ID, apiKey]
     );
     if (accountCheck.rows.length > 0) {
-      return { valid: true, accountId: ELEVATE_MASTER_ACCOUNT_ID };
+      return { valid: true, accountId: PARTNER_MASTER_ACCOUNT_ID };
     }
   }
   
@@ -45872,7 +45872,7 @@ app.get('/api/partner/webhooks/diagnose', async (req, res) => {
       partner_name: auth.partnerName,
       webhook_url: auth.webhookUrl || 'NOT SET',
       webhook_secret: auth.webhookSecret ? 'SET' : 'NOT SET',
-      ELEVATE_MASTER_ACCOUNT_ID: 92,
+      PARTNER_MASTER_ACCOUNT_ID: 92,
       partner_matches_elevate_master: auth.partnerId === 92,
     };
     
@@ -45892,7 +45892,7 @@ app.get('/api/partner/webhooks/diagnose', async (req, res) => {
       property_count: parseInt(m.property_count)
     }));
     
-    // Also check if there are mappings under ELEVATE_MASTER_ACCOUNT_ID if different
+    // Also check if there are mappings under PARTNER_MASTER_ACCOUNT_ID if different
     if (auth.partnerId !== 92) {
       const elevateMappings = await pool.query(`
         SELECT ptm.*, a.name as account_name
@@ -45900,7 +45900,7 @@ app.get('/api/partner/webhooks/diagnose', async (req, res) => {
         JOIN accounts a ON a.id = ptm.gas_account_id
         WHERE ptm.partner_account_id = 92
       `);
-      diagnosis.WARNING = 'Partner account ID does NOT match ELEVATE_MASTER_ACCOUNT_ID (92). Tenants created via Partner API may use a different partner_account_id than properties pushed via Elevate API.';
+      diagnosis.WARNING = 'Partner account ID does NOT match PARTNER_MASTER_ACCOUNT_ID (92). Tenants created via Partner API may use a different partner_account_id than properties pushed via Elevate API.';
       diagnosis.elevate_master_mappings = elevateMappings.rows.map(m => ({
         tenant_id: m.external_tenant_id,
         gas_account_id: m.gas_account_id,
@@ -51750,7 +51750,7 @@ app.post('/api/partner/websites/:websiteId/upload', async (req, res) => {
 // =====================================================
 // TEMPORARY CLEANUP ENDPOINT - REMOVE AFTER USE
 // =====================================================
-app.get('/api/elevate/cleanup-test-data-xK9mP2nL', async (req, res) => {
+app.get('/api/partner/cleanup-test-data-xK9mP2nL', async (req, res) => {
   try {
     const results = [];
     const deleteAccount92Props = req.query.delete92 === 'true';
@@ -51989,11 +51989,11 @@ function generateApiKey() {
 // =========================================================
 
 // List all Elevate sub-accounts (clients)
-app.get('/api/elevate/:apiKey/clients', async (req, res) => {
+app.get('/api/partner/:apiKey/clients', async (req, res) => {
   console.log('=== ELEVATE: LIST CLIENTS ===');
   
   try {
-    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    const auth = await validatePartnerKey(req.params.apiKey);
     if (!auth.valid) {
       return res.status(401).json({ success: false, error: 'Invalid API key' });
     }
@@ -52020,7 +52020,7 @@ app.get('/api/elevate/:apiKey/clients', async (req, res) => {
       WHERE (a.parent_id = $1 OR a.id = $1)
       GROUP BY a.id
       ORDER BY a.created_at DESC
-    `, [ELEVATE_MASTER_ACCOUNT_ID]);
+    `, [PARTNER_MASTER_ACCOUNT_ID]);
     
     res.json({ 
       success: true, 
@@ -52035,11 +52035,11 @@ app.get('/api/elevate/:apiKey/clients', async (req, res) => {
 });
 
 // Get single client details
-app.get('/api/elevate/:apiKey/clients/:clientId', async (req, res) => {
+app.get('/api/partner/:apiKey/clients/:clientId', async (req, res) => {
   console.log('=== ELEVATE: GET CLIENT ===');
   
   try {
-    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    const auth = await validatePartnerKey(req.params.apiKey);
     if (!auth.valid) {
       return res.status(401).json({ success: false, error: 'Invalid API key' });
     }
@@ -52066,7 +52066,7 @@ app.get('/api/elevate/:apiKey/clients/:clientId', async (req, res) => {
       FROM accounts a
       WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (a.id::text = $2 OR a.partner_external_id = $2 OR a.public_id::text = $2)
-    `, [ELEVATE_MASTER_ACCOUNT_ID, clientId]);
+    `, [PARTNER_MASTER_ACCOUNT_ID, clientId]);
     
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Client not found' });
@@ -52115,12 +52115,12 @@ app.get('/api/elevate/:apiKey/clients/:clientId', async (req, res) => {
 // =========================================================
 
 // Create property (with client create or assign to existing)
-app.post('/api/elevate/:apiKey/property', async (req, res) => {
+app.post('/api/partner/:apiKey/property', async (req, res) => {
   console.log('=== ELEVATE: CREATE PROPERTY ===');
   console.log('Body:', JSON.stringify(req.body, null, 2));
   
   try {
-    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    const auth = await validatePartnerKey(req.params.apiKey);
     if (!auth.valid) {
       return res.status(401).json({ success: false, error: 'Invalid API key' });
     }
@@ -52156,7 +52156,7 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
       if (client.external_id) {
         const existing = await pool.query(
           "SELECT id FROM accounts WHERE parent_id = $1 AND settings->>'external_id' = $2",
-          [ELEVATE_MASTER_ACCOUNT_ID, client.external_id]
+          [PARTNER_MASTER_ACCOUNT_ID, client.external_id]
         );
         if (existing.rows.length > 0) {
           return res.status(400).json({ 
@@ -52170,7 +52170,7 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
       // Check if email already exists under Elevate accounts
       const emailCheck = await pool.query(
         'SELECT id FROM accounts WHERE parent_id = $1 AND email = $2',
-        [ELEVATE_MASTER_ACCOUNT_ID, client.email]
+        [PARTNER_MASTER_ACCOUNT_ID, client.email]
       );
       if (emailCheck.rows.length > 0) {
         return res.status(400).json({ 
@@ -52235,7 +52235,7 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
         )
         RETURNING id, public_id, api_key
       `, [
-        ELEVATE_MASTER_ACCOUNT_ID,
+        PARTNER_MASTER_ACCOUNT_ID,
         client.name,
         client.email,
         client.contact_name || null,
@@ -52276,7 +52276,7 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
         SELECT id, api_key, email, settings FROM accounts 
         WHERE parent_id = $1 
         AND (id::text = $2 OR settings->>'external_id' = $2)
-      `, [ELEVATE_MASTER_ACCOUNT_ID, String(identifier)]);
+      `, [PARTNER_MASTER_ACCOUNT_ID, String(identifier)]);
       
       if (existingClient.rows.length === 0) {
         return res.status(404).json({ 
@@ -52356,7 +52356,7 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
         FROM partner_tenant_mapping ptm
         JOIN accounts a ON a.id = ptm.gas_account_id
         WHERE ptm.partner_account_id = $1 AND ptm.external_tenant_id = $2
-      `, [ELEVATE_MASTER_ACCOUNT_ID, client.tenant_id]);
+      `, [PARTNER_MASTER_ACCOUNT_ID, client.tenant_id]);
       
       if (tenantMapping.rows.length === 0) {
         return res.status(404).json({ 
@@ -52663,11 +52663,11 @@ app.post('/api/elevate/:apiKey/property', async (req, res) => {
 });
 
 // Update property
-app.put('/api/elevate/:apiKey/property/:propertyId', async (req, res) => {
+app.put('/api/partner/:apiKey/property/:propertyId', async (req, res) => {
   console.log('=== ELEVATE: UPDATE PROPERTY ===');
   
   try {
-    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    const auth = await validatePartnerKey(req.params.apiKey);
     if (!auth.valid) {
       return res.status(401).json({ success: false, error: 'Invalid API key' });
     }
@@ -52689,7 +52689,7 @@ app.put('/api/elevate/:apiKey/property/:propertyId', async (req, res) => {
       JOIN accounts a ON a.id = p.account_id
       WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (p.id::text = $2 OR p.cm_property_id = $2)
-    `, [ELEVATE_MASTER_ACCOUNT_ID, propertyId]);
+    `, [PARTNER_MASTER_ACCOUNT_ID, propertyId]);
     
     if (propCheck.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Property not found' });
@@ -52747,11 +52747,11 @@ app.put('/api/elevate/:apiKey/property/:propertyId', async (req, res) => {
 });
 
 // Delete/deactivate property
-app.delete('/api/elevate/:apiKey/property/:propertyId', async (req, res) => {
+app.delete('/api/partner/:apiKey/property/:propertyId', async (req, res) => {
   console.log('=== ELEVATE: DELETE PROPERTY ===');
   
   try {
-    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    const auth = await validatePartnerKey(req.params.apiKey);
     if (!auth.valid) {
       return res.status(401).json({ success: false, error: 'Invalid API key' });
     }
@@ -52765,7 +52765,7 @@ app.delete('/api/elevate/:apiKey/property/:propertyId', async (req, res) => {
       JOIN accounts a ON a.id = p.account_id
       WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (p.id::text = $2 OR p.cm_property_id = $2)
-    `, [ELEVATE_MASTER_ACCOUNT_ID, propertyId]);
+    `, [PARTNER_MASTER_ACCOUNT_ID, propertyId]);
     
     if (propCheck.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Property not found' });
@@ -52836,11 +52836,11 @@ app.delete('/api/elevate/:apiKey/property/:propertyId', async (req, res) => {
 // =========================================================
 
 // Add room to property
-app.post('/api/elevate/:apiKey/property/:propertyId/room', async (req, res) => {
+app.post('/api/partner/:apiKey/property/:propertyId/room', async (req, res) => {
   console.log('=== ELEVATE: ADD ROOM ===');
   
   try {
-    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    const auth = await validatePartnerKey(req.params.apiKey);
     if (!auth.valid) {
       return res.status(401).json({ success: false, error: 'Invalid API key' });
     }
@@ -52855,7 +52855,7 @@ app.post('/api/elevate/:apiKey/property/:propertyId/room', async (req, res) => {
       JOIN accounts a ON a.id = p.account_id
       WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (p.id::text = $2 OR p.cm_property_id = $2)
-    `, [ELEVATE_MASTER_ACCOUNT_ID, propertyId]);
+    `, [PARTNER_MASTER_ACCOUNT_ID, propertyId]);
     
     if (propCheck.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Property not found' });
@@ -52908,11 +52908,11 @@ app.post('/api/elevate/:apiKey/property/:propertyId/room', async (req, res) => {
 });
 
 // Get rooms for a property
-app.get('/api/elevate/:apiKey/property/:propertyId/rooms', async (req, res) => {
+app.get('/api/partner/:apiKey/property/:propertyId/rooms', async (req, res) => {
   console.log('=== ELEVATE: GET PROPERTY ROOMS ===');
   
   try {
-    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    const auth = await validatePartnerKey(req.params.apiKey);
     if (!auth.valid) {
       return res.status(401).json({ success: false, error: 'Invalid API key' });
     }
@@ -52926,7 +52926,7 @@ app.get('/api/elevate/:apiKey/property/:propertyId/rooms', async (req, res) => {
       JOIN accounts a ON a.id = p.account_id
       WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (p.id::text = $2 OR p.cm_property_id = $2)
-    `, [ELEVATE_MASTER_ACCOUNT_ID, propertyId]);
+    `, [PARTNER_MASTER_ACCOUNT_ID, propertyId]);
     
     if (propCheck.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Property not found' });
@@ -52959,11 +52959,11 @@ app.get('/api/elevate/:apiKey/property/:propertyId/rooms', async (req, res) => {
 });
 
 // Update room
-app.put('/api/elevate/:apiKey/room/:roomId', async (req, res) => {
+app.put('/api/partner/:apiKey/room/:roomId', async (req, res) => {
   console.log('=== ELEVATE: UPDATE ROOM ===');
   
   try {
-    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    const auth = await validatePartnerKey(req.params.apiKey);
     if (!auth.valid) {
       return res.status(401).json({ success: false, error: 'Invalid API key' });
     }
@@ -52985,7 +52985,7 @@ app.put('/api/elevate/:apiKey/room/:roomId', async (req, res) => {
       JOIN accounts a ON a.id = p.account_id
       WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (bu.id::text = $2 OR bu.cm_room_id = $2)
-    `, [ELEVATE_MASTER_ACCOUNT_ID, roomId]);
+    `, [PARTNER_MASTER_ACCOUNT_ID, roomId]);
     
     if (roomCheck.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Room not found' });
@@ -53095,11 +53095,11 @@ app.put('/api/elevate/:apiKey/room/:roomId', async (req, res) => {
 // =========================================================
 
 // List all available amenities (for partner reference)
-app.get('/api/elevate/:apiKey/amenities', async (req, res) => {
+app.get('/api/partner/:apiKey/amenities', async (req, res) => {
   console.log('=== ELEVATE: LIST AVAILABLE AMENITIES ===');
   
   try {
-    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    const auth = await validatePartnerKey(req.params.apiKey);
     if (!auth.valid) {
       return res.status(401).json({ success: false, error: 'Invalid API key' });
     }
@@ -53153,11 +53153,11 @@ app.get('/api/elevate/:apiKey/amenities', async (req, res) => {
 });
 
 // Get amenities for a room
-app.get('/api/elevate/:apiKey/room/:roomId/amenities', async (req, res) => {
+app.get('/api/partner/:apiKey/room/:roomId/amenities', async (req, res) => {
   console.log('=== ELEVATE: GET ROOM AMENITIES ===');
   
   try {
-    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    const auth = await validatePartnerKey(req.params.apiKey);
     if (!auth.valid) {
       return res.status(401).json({ success: false, error: 'Invalid API key' });
     }
@@ -53172,7 +53172,7 @@ app.get('/api/elevate/:apiKey/room/:roomId/amenities', async (req, res) => {
       JOIN accounts a ON a.id = p.account_id
       WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (bu.id::text = $2 OR bu.cm_room_id = $2)
-    `, [ELEVATE_MASTER_ACCOUNT_ID, roomId]);
+    `, [PARTNER_MASTER_ACCOUNT_ID, roomId]);
     
     if (roomCheck.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Room not found' });
@@ -53206,11 +53206,11 @@ app.get('/api/elevate/:apiKey/room/:roomId/amenities', async (req, res) => {
 });
 
 // Set amenities for a room (replaces existing) - WITH INTELLIGENT MATCHING
-app.put('/api/elevate/:apiKey/room/:roomId/amenities', async (req, res) => {
+app.put('/api/partner/:apiKey/room/:roomId/amenities', async (req, res) => {
   console.log('=== ELEVATE: SET ROOM AMENITIES (with matching) ===');
   
   try {
-    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    const auth = await validatePartnerKey(req.params.apiKey);
     if (!auth.valid) {
       return res.status(401).json({ success: false, error: 'Invalid API key' });
     }
@@ -53230,7 +53230,7 @@ app.put('/api/elevate/:apiKey/room/:roomId/amenities', async (req, res) => {
       JOIN accounts a ON a.id = p.account_id
       WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (bu.id::text = $2 OR bu.cm_room_id = $2)
-    `, [ELEVATE_MASTER_ACCOUNT_ID, roomId]);
+    `, [PARTNER_MASTER_ACCOUNT_ID, roomId]);
     
     if (roomCheck.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Room not found' });
@@ -53333,11 +53333,11 @@ app.put('/api/elevate/:apiKey/room/:roomId/amenities', async (req, res) => {
 });
 
 // Add amenities to a room (without removing existing)
-app.post('/api/elevate/:apiKey/room/:roomId/amenities', async (req, res) => {
+app.post('/api/partner/:apiKey/room/:roomId/amenities', async (req, res) => {
   console.log('=== ELEVATE: ADD ROOM AMENITIES ===');
   
   try {
-    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    const auth = await validatePartnerKey(req.params.apiKey);
     if (!auth.valid) {
       return res.status(401).json({ success: false, error: 'Invalid API key' });
     }
@@ -53357,7 +53357,7 @@ app.post('/api/elevate/:apiKey/room/:roomId/amenities', async (req, res) => {
       JOIN accounts a ON a.id = p.account_id
       WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (bu.id::text = $2 OR bu.cm_room_id = $2)
-    `, [ELEVATE_MASTER_ACCOUNT_ID, roomId]);
+    `, [PARTNER_MASTER_ACCOUNT_ID, roomId]);
     
     if (roomCheck.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Room not found' });
@@ -53410,11 +53410,11 @@ app.post('/api/elevate/:apiKey/room/:roomId/amenities', async (req, res) => {
 // =========================================================
 
 // Set bedroom configuration for a room (replaces existing)
-app.put('/api/elevate/:apiKey/room/:roomId/bedrooms', async (req, res) => {
+app.put('/api/partner/:apiKey/room/:roomId/bedrooms', async (req, res) => {
   console.log('=== ELEVATE: SET ROOM BEDROOMS ===');
   
   try {
-    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    const auth = await validatePartnerKey(req.params.apiKey);
     if (!auth.valid) {
       return res.status(401).json({ success: false, error: 'Invalid API key' });
     }
@@ -53439,7 +53439,7 @@ app.put('/api/elevate/:apiKey/room/:roomId/bedrooms', async (req, res) => {
       JOIN accounts a ON a.id = p.account_id
       WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (bu.id::text = $2 OR bu.cm_room_id = $2)
-    `, [ELEVATE_MASTER_ACCOUNT_ID, roomId]);
+    `, [PARTNER_MASTER_ACCOUNT_ID, roomId]);
     
     if (roomCheck.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Room not found' });
@@ -53543,11 +53543,11 @@ app.put('/api/elevate/:apiKey/room/:roomId/bedrooms', async (req, res) => {
 });
 
 // Get bedroom configuration for a room
-app.get('/api/elevate/:apiKey/room/:roomId/bedrooms', async (req, res) => {
+app.get('/api/partner/:apiKey/room/:roomId/bedrooms', async (req, res) => {
   console.log('=== ELEVATE: GET ROOM BEDROOMS ===');
   
   try {
-    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    const auth = await validatePartnerKey(req.params.apiKey);
     if (!auth.valid) {
       return res.status(401).json({ success: false, error: 'Invalid API key' });
     }
@@ -53562,7 +53562,7 @@ app.get('/api/elevate/:apiKey/room/:roomId/bedrooms', async (req, res) => {
       JOIN accounts a ON a.id = p.account_id
       WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (bu.id::text = $2 OR bu.cm_room_id = $2)
-    `, [ELEVATE_MASTER_ACCOUNT_ID, roomId]);
+    `, [PARTNER_MASTER_ACCOUNT_ID, roomId]);
     
     if (roomCheck.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Room not found' });
@@ -53592,14 +53592,14 @@ app.get('/api/elevate/:apiKey/room/:roomId/bedrooms', async (req, res) => {
 });
 
 // Set bathroom configuration for a room (replaces existing)
-app.put('/api/elevate/:apiKey/room/:roomId/bathrooms', async (req, res) => {
+app.put('/api/partner/:apiKey/room/:roomId/bathrooms', async (req, res) => {
   console.log('=== ELEVATE: SET ROOM BATHROOMS ===');
   console.log('Content-Type:', req.headers['content-type']);
   console.log('Raw body type:', typeof req.body);
   console.log('Request body:', JSON.stringify(req.body, null, 2));
   
   try {
-    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    const auth = await validatePartnerKey(req.params.apiKey);
     if (!auth.valid) {
       return res.status(401).json({ success: false, error: 'Invalid API key' });
     }
@@ -53628,7 +53628,7 @@ app.put('/api/elevate/:apiKey/room/:roomId/bathrooms', async (req, res) => {
       JOIN accounts a ON a.id = p.account_id
       WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (bu.id::text = $2 OR bu.cm_room_id = $2)
-    `, [ELEVATE_MASTER_ACCOUNT_ID, roomId]);
+    `, [PARTNER_MASTER_ACCOUNT_ID, roomId]);
     
     if (roomCheck.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Room not found' });
@@ -53714,11 +53714,11 @@ app.put('/api/elevate/:apiKey/room/:roomId/bathrooms', async (req, res) => {
 });
 
 // Get bathroom configuration for a room
-app.get('/api/elevate/:apiKey/room/:roomId/bathrooms', async (req, res) => {
+app.get('/api/partner/:apiKey/room/:roomId/bathrooms', async (req, res) => {
   console.log('=== ELEVATE: GET ROOM BATHROOMS ===');
   
   try {
-    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    const auth = await validatePartnerKey(req.params.apiKey);
     if (!auth.valid) {
       return res.status(401).json({ success: false, error: 'Invalid API key' });
     }
@@ -53733,7 +53733,7 @@ app.get('/api/elevate/:apiKey/room/:roomId/bathrooms', async (req, res) => {
       JOIN accounts a ON a.id = p.account_id
       WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (bu.id::text = $2 OR bu.cm_room_id = $2)
-    `, [ELEVATE_MASTER_ACCOUNT_ID, roomId]);
+    `, [PARTNER_MASTER_ACCOUNT_ID, roomId]);
     
     if (roomCheck.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Room not found' });
@@ -53767,11 +53767,11 @@ app.get('/api/elevate/:apiKey/room/:roomId/bathrooms', async (req, res) => {
 // =========================================================
 
 // Set combined pricing and availability for a room
-app.put('/api/elevate/:apiKey/room/:roomId/calendar', async (req, res) => {
+app.put('/api/partner/:apiKey/room/:roomId/calendar', async (req, res) => {
   console.log('=== ELEVATE: SET ROOM CALENDAR ===');
   
   try {
-    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    const auth = await validatePartnerKey(req.params.apiKey);
     if (!auth.valid) {
       return res.status(401).json({ success: false, error: 'Invalid API key' });
     }
@@ -53791,7 +53791,7 @@ app.put('/api/elevate/:apiKey/room/:roomId/calendar', async (req, res) => {
       JOIN accounts a ON a.id = p.account_id
       WHERE (a.parent_id = $1 OR a.id = $1)
       AND (bu.id::text = $2 OR bu.cm_room_id = $2)
-    `, [ELEVATE_MASTER_ACCOUNT_ID, roomId]);
+    `, [PARTNER_MASTER_ACCOUNT_ID, roomId]);
 
     if (roomCheck.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Room not found' });
@@ -53867,11 +53867,11 @@ app.put('/api/elevate/:apiKey/room/:roomId/calendar', async (req, res) => {
 });
 
 // Get calendar/pricing for a room
-app.get('/api/elevate/:apiKey/room/:roomId/calendar', async (req, res) => {
+app.get('/api/partner/:apiKey/room/:roomId/calendar', async (req, res) => {
   console.log('=== ELEVATE: GET ROOM CALENDAR ===');
   
   try {
-    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    const auth = await validatePartnerKey(req.params.apiKey);
     if (!auth.valid) {
       return res.status(401).json({ success: false, error: 'Invalid API key' });
     }
@@ -53887,7 +53887,7 @@ app.get('/api/elevate/:apiKey/room/:roomId/calendar', async (req, res) => {
       JOIN accounts a ON a.id = p.account_id
       WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (bu.id::text = $2 OR bu.cm_room_id = $2)
-    `, [ELEVATE_MASTER_ACCOUNT_ID, roomId]);
+    `, [PARTNER_MASTER_ACCOUNT_ID, roomId]);
     
     if (roomCheck.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Room not found' });
@@ -53924,11 +53924,11 @@ app.get('/api/elevate/:apiKey/room/:roomId/calendar', async (req, res) => {
 });
 
 // Set pricing only
-app.put('/api/elevate/:apiKey/room/:roomId/pricing', async (req, res) => {
+app.put('/api/partner/:apiKey/room/:roomId/pricing', async (req, res) => {
   console.log('=== ELEVATE: SET ROOM PRICING ===');
   
   try {
-    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    const auth = await validatePartnerKey(req.params.apiKey);
     if (!auth.valid) {
       return res.status(401).json({ success: false, error: 'Invalid API key' });
     }
@@ -53948,7 +53948,7 @@ app.put('/api/elevate/:apiKey/room/:roomId/pricing', async (req, res) => {
       JOIN accounts a ON a.id = p.account_id
       WHERE (a.parent_id = $1 OR a.id = $1)
       AND (bu.id::text = $2 OR bu.cm_room_id = $2)
-    `, [ELEVATE_MASTER_ACCOUNT_ID, roomId]);
+    `, [PARTNER_MASTER_ACCOUNT_ID, roomId]);
 
     if (roomCheck.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Room not found' });
@@ -53988,11 +53988,11 @@ app.put('/api/elevate/:apiKey/room/:roomId/pricing', async (req, res) => {
 });
 
 // Set availability only
-app.put('/api/elevate/:apiKey/room/:roomId/availability', async (req, res) => {
+app.put('/api/partner/:apiKey/room/:roomId/availability', async (req, res) => {
   console.log('=== ELEVATE: SET ROOM AVAILABILITY ===');
   
   try {
-    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    const auth = await validatePartnerKey(req.params.apiKey);
     if (!auth.valid) {
       return res.status(401).json({ success: false, error: 'Invalid API key' });
     }
@@ -54012,7 +54012,7 @@ app.put('/api/elevate/:apiKey/room/:roomId/availability', async (req, res) => {
       JOIN accounts a ON a.id = p.account_id
       WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (bu.id::text = $2 OR bu.cm_room_id = $2)
-    `, [ELEVATE_MASTER_ACCOUNT_ID, roomId]);
+    `, [PARTNER_MASTER_ACCOUNT_ID, roomId]);
     
     if (roomCheck.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Room not found' });
@@ -54058,11 +54058,11 @@ app.put('/api/elevate/:apiKey/room/:roomId/availability', async (req, res) => {
 // =========================================================
 
 // Get property terms
-app.get('/api/elevate/:apiKey/property/:propertyId/terms', async (req, res) => {
+app.get('/api/partner/:apiKey/property/:propertyId/terms', async (req, res) => {
   console.log('=== ELEVATE: GET PROPERTY TERMS ===');
   
   try {
-    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    const auth = await validatePartnerKey(req.params.apiKey);
     if (!auth.valid) {
       return res.status(401).json({ success: false, error: 'Invalid API key' });
     }
@@ -54075,7 +54075,7 @@ app.get('/api/elevate/:apiKey/property/:propertyId/terms', async (req, res) => {
       JOIN accounts a ON a.id = p.account_id
       WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (p.id::text = $2 OR p.cm_property_id = $2)
-    `, [ELEVATE_MASTER_ACCOUNT_ID, propertyId]);
+    `, [PARTNER_MASTER_ACCOUNT_ID, propertyId]);
     
     if (propCheck.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Property not found' });
@@ -54114,11 +54114,11 @@ app.get('/api/elevate/:apiKey/property/:propertyId/terms', async (req, res) => {
 });
 
 // Set property terms
-app.put('/api/elevate/:apiKey/property/:propertyId/terms', async (req, res) => {
+app.put('/api/partner/:apiKey/property/:propertyId/terms', async (req, res) => {
   console.log('=== ELEVATE: SET PROPERTY TERMS ===');
   
   try {
-    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    const auth = await validatePartnerKey(req.params.apiKey);
     if (!auth.valid) {
       return res.status(401).json({ success: false, error: 'Invalid API key' });
     }
@@ -54132,7 +54132,7 @@ app.put('/api/elevate/:apiKey/property/:propertyId/terms', async (req, res) => {
       JOIN accounts a ON a.id = p.account_id
       WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (p.id::text = $2 OR p.cm_property_id = $2)
-    `, [ELEVATE_MASTER_ACCOUNT_ID, propertyId]);
+    `, [PARTNER_MASTER_ACCOUNT_ID, propertyId]);
     
     if (propCheck.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Property not found' });
@@ -54188,11 +54188,11 @@ app.put('/api/elevate/:apiKey/property/:propertyId/terms', async (req, res) => {
 // =========================================================
 
 // List offers for a property
-app.get('/api/elevate/:apiKey/property/:propertyId/offers', async (req, res) => {
+app.get('/api/partner/:apiKey/property/:propertyId/offers', async (req, res) => {
   console.log('=== ELEVATE: GET PROPERTY OFFERS ===');
   
   try {
-    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    const auth = await validatePartnerKey(req.params.apiKey);
     if (!auth.valid) {
       return res.status(401).json({ success: false, error: 'Invalid API key' });
     }
@@ -54204,7 +54204,7 @@ app.get('/api/elevate/:apiKey/property/:propertyId/offers', async (req, res) => 
       JOIN accounts a ON a.id = p.account_id
       WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (p.id::text = $2 OR p.cm_property_id = $2)
-    `, [ELEVATE_MASTER_ACCOUNT_ID, propertyId]);
+    `, [PARTNER_MASTER_ACCOUNT_ID, propertyId]);
     
     if (propCheck.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Property not found' });
@@ -54235,11 +54235,11 @@ app.get('/api/elevate/:apiKey/property/:propertyId/offers', async (req, res) => 
 });
 
 // Create offer for a property
-app.post('/api/elevate/:apiKey/property/:propertyId/offers', async (req, res) => {
+app.post('/api/partner/:apiKey/property/:propertyId/offers', async (req, res) => {
   console.log('=== ELEVATE: CREATE OFFER ===');
   
   try {
-    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    const auth = await validatePartnerKey(req.params.apiKey);
     if (!auth.valid) {
       return res.status(401).json({ success: false, error: 'Invalid API key' });
     }
@@ -54262,7 +54262,7 @@ app.post('/api/elevate/:apiKey/property/:propertyId/offers', async (req, res) =>
       JOIN accounts a ON a.id = p.account_id
       WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (p.id::text = $2 OR p.cm_property_id = $2)
-    `, [ELEVATE_MASTER_ACCOUNT_ID, propertyId]);
+    `, [PARTNER_MASTER_ACCOUNT_ID, propertyId]);
     
     if (propCheck.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Property not found' });
@@ -54319,11 +54319,11 @@ app.post('/api/elevate/:apiKey/property/:propertyId/offers', async (req, res) =>
 });
 
 // Update offer
-app.put('/api/elevate/:apiKey/offers/:offerId', async (req, res) => {
+app.put('/api/partner/:apiKey/offers/:offerId', async (req, res) => {
   console.log('=== ELEVATE: UPDATE OFFER ===');
   
   try {
-    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    const auth = await validatePartnerKey(req.params.apiKey);
     if (!auth.valid) {
       return res.status(401).json({ success: false, error: 'Invalid API key' });
     }
@@ -54337,7 +54337,7 @@ app.put('/api/elevate/:apiKey/offers/:offerId', async (req, res) => {
       JOIN accounts a ON a.id = p.account_id
       WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (o.id::text = $2 OR o.external_id = $2)
-    `, [ELEVATE_MASTER_ACCOUNT_ID, offerId]);
+    `, [PARTNER_MASTER_ACCOUNT_ID, offerId]);
     
     if (offerCheck.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Offer not found' });
@@ -54381,11 +54381,11 @@ app.put('/api/elevate/:apiKey/offers/:offerId', async (req, res) => {
 });
 
 // Delete offer
-app.delete('/api/elevate/:apiKey/offers/:offerId', async (req, res) => {
+app.delete('/api/partner/:apiKey/offers/:offerId', async (req, res) => {
   console.log('=== ELEVATE: DELETE OFFER ===');
   
   try {
-    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    const auth = await validatePartnerKey(req.params.apiKey);
     if (!auth.valid) {
       return res.status(401).json({ success: false, error: 'Invalid API key' });
     }
@@ -54399,7 +54399,7 @@ app.delete('/api/elevate/:apiKey/offers/:offerId', async (req, res) => {
       JOIN accounts a ON a.id = p.account_id
       WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (o.id::text = $2 OR o.external_id = $2)
-    `, [ELEVATE_MASTER_ACCOUNT_ID, offerId]);
+    `, [PARTNER_MASTER_ACCOUNT_ID, offerId]);
     
     if (offerCheck.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Offer not found' });
@@ -54423,11 +54423,11 @@ app.delete('/api/elevate/:apiKey/offers/:offerId', async (req, res) => {
 // =========================================================
 
 // Apply discount to a booking
-app.put('/api/elevate/:apiKey/booking/:bookingId/discount', async (req, res) => {
+app.put('/api/partner/:apiKey/booking/:bookingId/discount', async (req, res) => {
   console.log('=== ELEVATE: APPLY BOOKING DISCOUNT ===');
   
   try {
-    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    const auth = await validatePartnerKey(req.params.apiKey);
     if (!auth.valid) {
       return res.status(401).json({ success: false, error: 'Invalid API key' });
     }
@@ -54456,7 +54456,7 @@ app.put('/api/elevate/:apiKey/booking/:bookingId/discount', async (req, res) => 
       JOIN accounts a ON a.id = p.account_id
       WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (b.id::text = $2 OR b.beds24_booking_id = $2 OR b.group_booking_id = $2)
-    `, [ELEVATE_MASTER_ACCOUNT_ID, bookingId]);
+    `, [PARTNER_MASTER_ACCOUNT_ID, bookingId]);
     
     if (bookingCheck.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Booking not found' });
@@ -54521,11 +54521,11 @@ app.put('/api/elevate/:apiKey/booking/:bookingId/discount', async (req, res) => 
 });
 
 // Remove discount from a booking
-app.delete('/api/elevate/:apiKey/booking/:bookingId/discount', async (req, res) => {
+app.delete('/api/partner/:apiKey/booking/:bookingId/discount', async (req, res) => {
   console.log('=== ELEVATE: REMOVE BOOKING DISCOUNT ===');
   
   try {
-    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    const auth = await validatePartnerKey(req.params.apiKey);
     if (!auth.valid) {
       return res.status(401).json({ success: false, error: 'Invalid API key' });
     }
@@ -54540,7 +54540,7 @@ app.delete('/api/elevate/:apiKey/booking/:bookingId/discount', async (req, res) 
       JOIN accounts a ON a.id = p.account_id
       WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (b.id::text = $2 OR b.beds24_booking_id = $2 OR b.group_booking_id = $2)
-    `, [ELEVATE_MASTER_ACCOUNT_ID, bookingId]);
+    `, [PARTNER_MASTER_ACCOUNT_ID, bookingId]);
     
     if (bookingCheck.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Booking not found' });
@@ -54576,11 +54576,11 @@ app.delete('/api/elevate/:apiKey/booking/:bookingId/discount', async (req, res) 
 const VALID_UPSELL_CATEGORIES = ['airport_transport', 'private_chef', 'spa', 'activity', 'late_checkout', 'early_checkin', 'mid_stay_cleaning', 'office_equipment', 'baby', 'protection_program', 'motorcycle', 'car_rental', 'food_and_drink', 'experience', 'miscellaneous'];
 
 // List upsells for a property
-app.get('/api/elevate/:apiKey/property/:propertyId/upsells', async (req, res) => {
+app.get('/api/partner/:apiKey/property/:propertyId/upsells', async (req, res) => {
   console.log('=== ELEVATE: GET PROPERTY UPSELLS ===');
   
   try {
-    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    const auth = await validatePartnerKey(req.params.apiKey);
     if (!auth.valid) {
       return res.status(401).json({ success: false, error: 'Invalid API key' });
     }
@@ -54592,7 +54592,7 @@ app.get('/api/elevate/:apiKey/property/:propertyId/upsells', async (req, res) =>
       JOIN accounts a ON a.id = p.account_id
       WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (p.id::text = $2 OR p.cm_property_id = $2)
-    `, [ELEVATE_MASTER_ACCOUNT_ID, propertyId]);
+    `, [PARTNER_MASTER_ACCOUNT_ID, propertyId]);
     
     if (propCheck.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Property not found' });
@@ -54617,11 +54617,11 @@ app.get('/api/elevate/:apiKey/property/:propertyId/upsells', async (req, res) =>
 });
 
 // List available upsell categories
-app.get('/api/elevate/:apiKey/upsell-categories', async (req, res) => {
+app.get('/api/partner/:apiKey/upsell-categories', async (req, res) => {
   console.log('=== ELEVATE: LIST UPSELL CATEGORIES ===');
   
   try {
-    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    const auth = await validatePartnerKey(req.params.apiKey);
     if (!auth.valid) {
       return res.status(401).json({ success: false, error: 'Invalid API key' });
     }
@@ -54638,11 +54638,11 @@ app.get('/api/elevate/:apiKey/upsell-categories', async (req, res) => {
 });
 
 // Create upsell
-app.post('/api/elevate/:apiKey/property/:propertyId/upsells', async (req, res) => {
+app.post('/api/partner/:apiKey/property/:propertyId/upsells', async (req, res) => {
   console.log('=== ELEVATE: CREATE UPSELL ===');
   
   try {
-    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    const auth = await validatePartnerKey(req.params.apiKey);
     if (!auth.valid) {
       return res.status(401).json({ success: false, error: 'Invalid API key' });
     }
@@ -54664,7 +54664,7 @@ app.post('/api/elevate/:apiKey/property/:propertyId/upsells', async (req, res) =
       JOIN accounts a ON a.id = p.account_id
       WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (p.id::text = $2 OR p.cm_property_id = $2)
-    `, [ELEVATE_MASTER_ACCOUNT_ID, propertyId]);
+    `, [PARTNER_MASTER_ACCOUNT_ID, propertyId]);
     
     if (propCheck.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Property not found' });
@@ -54698,11 +54698,11 @@ app.post('/api/elevate/:apiKey/property/:propertyId/upsells', async (req, res) =
 });
 
 // Update upsell
-app.put('/api/elevate/:apiKey/upsells/:upsellId', async (req, res) => {
+app.put('/api/partner/:apiKey/upsells/:upsellId', async (req, res) => {
   console.log('=== ELEVATE: UPDATE UPSELL ===');
   
   try {
-    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    const auth = await validatePartnerKey(req.params.apiKey);
     if (!auth.valid) {
       return res.status(401).json({ success: false, error: 'Invalid API key' });
     }
@@ -54716,7 +54716,7 @@ app.put('/api/elevate/:apiKey/upsells/:upsellId', async (req, res) => {
       JOIN accounts a ON a.id = p.account_id
       WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (u.id::text = $2 OR u.external_id = $2)
-    `, [ELEVATE_MASTER_ACCOUNT_ID, upsellId]);
+    `, [PARTNER_MASTER_ACCOUNT_ID, upsellId]);
     
     if (upsellCheck.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Upsell not found' });
@@ -54761,11 +54761,11 @@ app.put('/api/elevate/:apiKey/upsells/:upsellId', async (req, res) => {
 });
 
 // Delete upsell
-app.delete('/api/elevate/:apiKey/upsells/:upsellId', async (req, res) => {
+app.delete('/api/partner/:apiKey/upsells/:upsellId', async (req, res) => {
   console.log('=== ELEVATE: DELETE UPSELL ===');
   
   try {
-    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    const auth = await validatePartnerKey(req.params.apiKey);
     if (!auth.valid) {
       return res.status(401).json({ success: false, error: 'Invalid API key' });
     }
@@ -54778,7 +54778,7 @@ app.delete('/api/elevate/:apiKey/upsells/:upsellId', async (req, res) => {
       JOIN accounts a ON a.id = p.account_id
       WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (u.id::text = $2 OR u.external_id = $2)
-    `, [ELEVATE_MASTER_ACCOUNT_ID, upsellId]);
+    `, [PARTNER_MASTER_ACCOUNT_ID, upsellId]);
     
     if (upsellCheck.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Upsell not found' });
@@ -54799,11 +54799,11 @@ app.delete('/api/elevate/:apiKey/upsells/:upsellId', async (req, res) => {
 // =========================================================
 
 // List taxes for a property
-app.get('/api/elevate/:apiKey/property/:propertyId/taxes', async (req, res) => {
+app.get('/api/partner/:apiKey/property/:propertyId/taxes', async (req, res) => {
   console.log('=== ELEVATE: GET PROPERTY TAXES ===');
   
   try {
-    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    const auth = await validatePartnerKey(req.params.apiKey);
     if (!auth.valid) {
       return res.status(401).json({ success: false, error: 'Invalid API key' });
     }
@@ -54815,7 +54815,7 @@ app.get('/api/elevate/:apiKey/property/:propertyId/taxes', async (req, res) => {
       JOIN accounts a ON a.id = p.account_id
       WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (p.id::text = $2 OR p.cm_property_id = $2)
-    `, [ELEVATE_MASTER_ACCOUNT_ID, propertyId]);
+    `, [PARTNER_MASTER_ACCOUNT_ID, propertyId]);
     
     if (propCheck.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Property not found' });
@@ -54841,11 +54841,11 @@ app.get('/api/elevate/:apiKey/property/:propertyId/taxes', async (req, res) => {
 });
 
 // Create tax
-app.post('/api/elevate/:apiKey/property/:propertyId/taxes', async (req, res) => {
+app.post('/api/partner/:apiKey/property/:propertyId/taxes', async (req, res) => {
   console.log('=== ELEVATE: CREATE TAX ===');
   
   try {
-    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    const auth = await validatePartnerKey(req.params.apiKey);
     if (!auth.valid) {
       return res.status(401).json({ success: false, error: 'Invalid API key' });
     }
@@ -54874,7 +54874,7 @@ app.post('/api/elevate/:apiKey/property/:propertyId/taxes', async (req, res) => 
       JOIN accounts a ON a.id = p.account_id
       WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (p.id::text = $2 OR p.cm_property_id = $2)
-    `, [ELEVATE_MASTER_ACCOUNT_ID, propertyId]);
+    `, [PARTNER_MASTER_ACCOUNT_ID, propertyId]);
     
     if (propCheck.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Property not found' });
@@ -54909,11 +54909,11 @@ app.post('/api/elevate/:apiKey/property/:propertyId/taxes', async (req, res) => 
 });
 
 // Update tax
-app.put('/api/elevate/:apiKey/taxes/:taxId', async (req, res) => {
+app.put('/api/partner/:apiKey/taxes/:taxId', async (req, res) => {
   console.log('=== ELEVATE: UPDATE TAX ===');
   
   try {
-    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    const auth = await validatePartnerKey(req.params.apiKey);
     if (!auth.valid) {
       return res.status(401).json({ success: false, error: 'Invalid API key' });
     }
@@ -54927,7 +54927,7 @@ app.put('/api/elevate/:apiKey/taxes/:taxId', async (req, res) => {
       JOIN accounts a ON a.id = p.account_id
       WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (t.id::text = $2 OR t.external_id = $2)
-    `, [ELEVATE_MASTER_ACCOUNT_ID, taxId]);
+    `, [PARTNER_MASTER_ACCOUNT_ID, taxId]);
     
     if (taxCheck.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Tax not found' });
@@ -54966,11 +54966,11 @@ app.put('/api/elevate/:apiKey/taxes/:taxId', async (req, res) => {
 });
 
 // Delete tax
-app.delete('/api/elevate/:apiKey/taxes/:taxId', async (req, res) => {
+app.delete('/api/partner/:apiKey/taxes/:taxId', async (req, res) => {
   console.log('=== ELEVATE: DELETE TAX ===');
   
   try {
-    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    const auth = await validatePartnerKey(req.params.apiKey);
     if (!auth.valid) {
       return res.status(401).json({ success: false, error: 'Invalid API key' });
     }
@@ -54983,7 +54983,7 @@ app.delete('/api/elevate/:apiKey/taxes/:taxId', async (req, res) => {
       JOIN accounts a ON a.id = p.account_id
       WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (t.id::text = $2 OR t.external_id = $2)
-    `, [ELEVATE_MASTER_ACCOUNT_ID, taxId]);
+    `, [PARTNER_MASTER_ACCOUNT_ID, taxId]);
     
     if (taxCheck.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Tax not found' });
@@ -55003,11 +55003,11 @@ app.delete('/api/elevate/:apiKey/taxes/:taxId', async (req, res) => {
 // =========================================================
 
 // Get images for a property
-app.get('/api/elevate/:apiKey/property/:propertyId/images', async (req, res) => {
+app.get('/api/partner/:apiKey/property/:propertyId/images', async (req, res) => {
   console.log('=== ELEVATE: GET PROPERTY IMAGES ===');
   
   try {
-    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    const auth = await validatePartnerKey(req.params.apiKey);
     if (!auth.valid) {
       return res.status(401).json({ success: false, error: 'Invalid API key' });
     }
@@ -55020,7 +55020,7 @@ app.get('/api/elevate/:apiKey/property/:propertyId/images', async (req, res) => 
       JOIN accounts a ON a.id = p.account_id
       WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (p.id::text = $2 OR p.cm_property_id = $2)
-    `, [ELEVATE_MASTER_ACCOUNT_ID, propertyId]);
+    `, [PARTNER_MASTER_ACCOUNT_ID, propertyId]);
     
     if (propCheck.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Property not found' });
@@ -55058,11 +55058,11 @@ app.get('/api/elevate/:apiKey/property/:propertyId/images', async (req, res) => 
 });
 
 // Add images to a property
-app.post('/api/elevate/:apiKey/property/:propertyId/images', async (req, res) => {
+app.post('/api/partner/:apiKey/property/:propertyId/images', async (req, res) => {
   console.log('=== ELEVATE: ADD PROPERTY IMAGES ===');
   
   try {
-    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    const auth = await validatePartnerKey(req.params.apiKey);
     if (!auth.valid) {
       return res.status(401).json({ success: false, error: 'Invalid API key' });
     }
@@ -55080,7 +55080,7 @@ app.post('/api/elevate/:apiKey/property/:propertyId/images', async (req, res) =>
       JOIN accounts a ON a.id = p.account_id
       WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (p.id::text = $2 OR p.cm_property_id = $2)
-    `, [ELEVATE_MASTER_ACCOUNT_ID, propertyId]);
+    `, [PARTNER_MASTER_ACCOUNT_ID, propertyId]);
     
     if (propCheck.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Property not found' });
@@ -55155,11 +55155,11 @@ app.post('/api/elevate/:apiKey/property/:propertyId/images', async (req, res) =>
 // =========================================================
 
 // Get room images
-app.get('/api/elevate/:apiKey/room/:roomId/images', async (req, res) => {
+app.get('/api/partner/:apiKey/room/:roomId/images', async (req, res) => {
   console.log('=== ELEVATE: GET ROOM IMAGES ===');
   
   try {
-    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    const auth = await validatePartnerKey(req.params.apiKey);
     if (!auth.valid) {
       return res.status(401).json({ success: false, error: 'Invalid API key' });
     }
@@ -55174,7 +55174,7 @@ app.get('/api/elevate/:apiKey/room/:roomId/images', async (req, res) => {
       JOIN accounts a ON a.id = p.account_id
       WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (bu.id::text = $2 OR bu.cm_room_id = $2)
-    `, [ELEVATE_MASTER_ACCOUNT_ID, roomId]);
+    `, [PARTNER_MASTER_ACCOUNT_ID, roomId]);
     
     if (roomCheck.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Room not found' });
@@ -55204,11 +55204,11 @@ app.get('/api/elevate/:apiKey/room/:roomId/images', async (req, res) => {
 });
 
 // Add/update room images
-app.post('/api/elevate/:apiKey/room/:roomId/images', async (req, res) => {
+app.post('/api/partner/:apiKey/room/:roomId/images', async (req, res) => {
   console.log('=== ELEVATE: ADD ROOM IMAGES ===');
   
   try {
-    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    const auth = await validatePartnerKey(req.params.apiKey);
     if (!auth.valid) {
       return res.status(401).json({ success: false, error: 'Invalid API key' });
     }
@@ -55228,7 +55228,7 @@ app.post('/api/elevate/:apiKey/room/:roomId/images', async (req, res) => {
       JOIN accounts a ON a.id = p.account_id
       WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (bu.id::text = $2 OR bu.cm_room_id = $2)
-    `, [ELEVATE_MASTER_ACCOUNT_ID, roomId]);
+    `, [PARTNER_MASTER_ACCOUNT_ID, roomId]);
     
     if (roomCheck.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Room not found' });
@@ -55302,11 +55302,11 @@ app.post('/api/elevate/:apiKey/room/:roomId/images', async (req, res) => {
 });
 
 // Delete room image
-app.delete('/api/elevate/:apiKey/room/:roomId/images/:imageId', async (req, res) => {
+app.delete('/api/partner/:apiKey/room/:roomId/images/:imageId', async (req, res) => {
   console.log('=== ELEVATE: DELETE ROOM IMAGE ===');
   
   try {
-    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    const auth = await validatePartnerKey(req.params.apiKey);
     if (!auth.valid) {
       return res.status(401).json({ success: false, error: 'Invalid API key' });
     }
@@ -55321,7 +55321,7 @@ app.delete('/api/elevate/:apiKey/room/:roomId/images/:imageId', async (req, res)
       JOIN accounts a ON a.id = p.account_id
       WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (bu.id::text = $2 OR bu.cm_room_id = $2)
-    `, [ELEVATE_MASTER_ACCOUNT_ID, roomId]);
+    `, [PARTNER_MASTER_ACCOUNT_ID, roomId]);
     
     if (roomCheck.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Room not found' });
@@ -55349,11 +55349,11 @@ app.delete('/api/elevate/:apiKey/room/:roomId/images/:imageId', async (req, res)
 });
 
 // Delete property image
-app.delete('/api/elevate/:apiKey/property/:propertyId/images/:imageId', async (req, res) => {
+app.delete('/api/partner/:apiKey/property/:propertyId/images/:imageId', async (req, res) => {
   console.log('=== ELEVATE: DELETE PROPERTY IMAGE ===');
   
   try {
-    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    const auth = await validatePartnerKey(req.params.apiKey);
     if (!auth.valid) {
       return res.status(401).json({ success: false, error: 'Invalid API key' });
     }
@@ -55366,7 +55366,7 @@ app.delete('/api/elevate/:apiKey/property/:propertyId/images/:imageId', async (r
       JOIN accounts a ON a.id = p.account_id
       WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (p.id::text = $2 OR p.cm_property_id = $2)
-    `, [ELEVATE_MASTER_ACCOUNT_ID, propertyId]);
+    `, [PARTNER_MASTER_ACCOUNT_ID, propertyId]);
     
     if (propCheck.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Property not found' });
@@ -55393,11 +55393,11 @@ app.delete('/api/elevate/:apiKey/property/:propertyId/images/:imageId', async (r
 });
 
 // Reorder property images
-app.put('/api/elevate/:apiKey/property/:propertyId/images/reorder', async (req, res) => {
+app.put('/api/partner/:apiKey/property/:propertyId/images/reorder', async (req, res) => {
   console.log('=== ELEVATE: REORDER PROPERTY IMAGES ===');
   
   try {
-    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    const auth = await validatePartnerKey(req.params.apiKey);
     if (!auth.valid) {
       return res.status(401).json({ success: false, error: 'Invalid API key' });
     }
@@ -55415,7 +55415,7 @@ app.put('/api/elevate/:apiKey/property/:propertyId/images/reorder', async (req, 
       JOIN accounts a ON a.id = p.account_id
       WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (p.id::text = $2 OR p.cm_property_id = $2)
-    `, [ELEVATE_MASTER_ACCOUNT_ID, propertyId]);
+    `, [PARTNER_MASTER_ACCOUNT_ID, propertyId]);
     
     if (propCheck.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Property not found' });
@@ -55444,11 +55444,11 @@ app.put('/api/elevate/:apiKey/property/:propertyId/images/reorder', async (req, 
 });
 
 // Reorder room images
-app.put('/api/elevate/:apiKey/room/:roomId/images/reorder', async (req, res) => {
+app.put('/api/partner/:apiKey/room/:roomId/images/reorder', async (req, res) => {
   console.log('=== ELEVATE: REORDER ROOM IMAGES ===');
   
   try {
-    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    const auth = await validatePartnerKey(req.params.apiKey);
     if (!auth.valid) {
       return res.status(401).json({ success: false, error: 'Invalid API key' });
     }
@@ -55467,7 +55467,7 @@ app.put('/api/elevate/:apiKey/room/:roomId/images/reorder', async (req, res) => 
       JOIN accounts a ON a.id = p.account_id
       WHERE (a.parent_id = $1 OR a.id = $1)
       AND (bu.id::text = $2 OR bu.cm_room_id = $2)
-    `, [ELEVATE_MASTER_ACCOUNT_ID, roomId]);
+    `, [PARTNER_MASTER_ACCOUNT_ID, roomId]);
     
     if (roomCheck.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Room not found' });
@@ -55496,11 +55496,11 @@ app.put('/api/elevate/:apiKey/room/:roomId/images/reorder', async (req, res) => 
 });
 
 // Get images for a room
-app.get('/api/elevate/:apiKey/room/:roomId/images', async (req, res) => {
+app.get('/api/partner/:apiKey/room/:roomId/images', async (req, res) => {
   console.log('=== ELEVATE: GET ROOM IMAGES ===');
   
   try {
-    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    const auth = await validatePartnerKey(req.params.apiKey);
     if (!auth.valid) {
       return res.status(401).json({ success: false, error: 'Invalid API key' });
     }
@@ -55515,7 +55515,7 @@ app.get('/api/elevate/:apiKey/room/:roomId/images', async (req, res) => {
       JOIN accounts a ON a.id = p.account_id
       WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (bu.id::text = $2 OR bu.cm_room_id = $2)
-    `, [ELEVATE_MASTER_ACCOUNT_ID, roomId]);
+    `, [PARTNER_MASTER_ACCOUNT_ID, roomId]);
     
     if (roomCheck.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Room not found' });
@@ -55554,12 +55554,12 @@ app.get('/api/elevate/:apiKey/room/:roomId/images', async (req, res) => {
 });
 
 // Add images to a room
-app.post('/api/elevate/:apiKey/room/:roomId/images', async (req, res) => {
+app.post('/api/partner/:apiKey/room/:roomId/images', async (req, res) => {
   console.log('=== ELEVATE: ADD ROOM IMAGES ===');
   console.log('Room ID param:', req.params.roomId);
   
   try {
-    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    const auth = await validatePartnerKey(req.params.apiKey);
     if (!auth.valid) {
       return res.status(401).json({ success: false, error: 'Invalid API key' });
     }
@@ -55579,7 +55579,7 @@ app.post('/api/elevate/:apiKey/room/:roomId/images', async (req, res) => {
       JOIN accounts a ON a.id = p.account_id
       WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (bu.id::text = $2 OR bu.cm_room_id = $2)
-    `, [ELEVATE_MASTER_ACCOUNT_ID, roomId]);
+    `, [PARTNER_MASTER_ACCOUNT_ID, roomId]);
     
     console.log('Room lookup result:', roomCheck.rows);
     
@@ -55657,11 +55657,11 @@ app.post('/api/elevate/:apiKey/room/:roomId/images', async (req, res) => {
 });
 
 // Delete room image
-app.delete('/api/elevate/:apiKey/room/:roomId/images/:imageId', async (req, res) => {
+app.delete('/api/partner/:apiKey/room/:roomId/images/:imageId', async (req, res) => {
   console.log('=== ELEVATE: DELETE ROOM IMAGE ===');
   
   try {
-    const auth = await validateElevatePartnerKey(req.params.apiKey);
+    const auth = await validatePartnerKey(req.params.apiKey);
     if (!auth.valid) {
       return res.status(401).json({ success: false, error: 'Invalid API key' });
     }
@@ -55676,7 +55676,7 @@ app.delete('/api/elevate/:apiKey/room/:roomId/images/:imageId', async (req, res)
       JOIN accounts a ON a.id = p.account_id
       WHERE (a.parent_id = $1 OR a.id = $1) 
       AND (bu.id::text = $2 OR bu.cm_room_id = $2)
-    `, [ELEVATE_MASTER_ACCOUNT_ID, roomId]);
+    `, [PARTNER_MASTER_ACCOUNT_ID, roomId]);
     
     if (roomCheck.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Room not found' });
