@@ -21196,6 +21196,14 @@ function hasPartnerPermission(req, permission) {
 }
 
 // =====================================================
+// BACKWARDS-COMPATIBLE ALIAS: /api/elevate/* → /api/partner/*
+// =====================================================
+app.use('/api/elevate', (req, res, next) => {
+    req.url = '/api/partner' + req.url;
+    next();
+});
+
+// =====================================================
 // PARTNER API FEATURE REQUESTS
 // =====================================================
 app.post('/api/partner/feature-request', async (req, res) => {
