@@ -1,0 +1,50 @@
+[
+  {
+    "title": "How to Set Up Taxes",
+    "category": "Bookings & Revenue",
+    "keywords": ["tax", "taxes", "occupancy tax", "city tax", "VAT", "tourist tax", "rate", "percentage", "per booking", "per night"],
+    "status": "published",
+    "summary": "How to add taxes that are automatically applied to bookings and shown at checkout.",
+    "content": "Taxes are automatically added to the booking total and shown to guests at checkout. Common examples include Occupancy Tax, City Tax, Tourist Tax and VAT.\n\nSTEP 1 — Add a tax\n1. In GAS Admin, go to Bookings & Revenue\n2. Click Taxes\n3. Click Add Tax\n4. Enter tax details:\n   - Tax name (e.g. 'Occupancy Tax', 'City Tax')\n   - Rate — percentage (e.g. 5 for 5%) or fixed amount per night\n   - Tax type — percentage of booking total, fixed per night, or fixed per booking\n   - Which properties it applies to\n5. Click Save\n\nSTEP 2 — Add translations (optional)\nIf your site is multilingual, click the language flag tabs to add the tax name in each language. This is what guests see at checkout.\n\nSTEP 3 — Verify on checkout\nMake a test booking and check the tax appears correctly in the price breakdown at checkout.\n\nImportant notes:\n- Taxes are shown separately in the price breakdown so guests can see exactly what they are paying\n- You can add multiple taxes — each appears as a separate line item\n- If your channel manager handles taxes, check you are not doubling up\n\nNeed help? Contact the GAS team at hello@gas.travel"
+  },
+  {
+    "title": "How to Create Upsells",
+    "category": "Bookings & Revenue",
+    "keywords": ["upsell", "add-on", "extras", "breakfast", "airport transfer", "early check-in", "late checkout", "additional services", "checkout extras"],
+    "status": "published",
+    "summary": "How to create upsell add-ons that guests can purchase at checkout to increase your revenue.",
+    "content": "Upsells are optional extras guests can add to their booking at checkout — things like breakfast, airport transfer, early check-in or late checkout. They are a great way to increase revenue per booking.\n\nSTEP 1 — Create an upsell\n1. In GAS Admin, go to Bookings & Revenue\n2. Click Upsells\n3. Click Add Upsell\n4. Enter upsell details:\n   - Name (e.g. 'Airport Transfer', 'Breakfast', 'Early Check-in')\n   - Description — tell guests what is included\n   - Price — fixed amount\n   - Price type — per booking or per night\n   - Icon — choose an emoji to represent the upsell\n   - Which properties/rooms it applies to\n5. Click Save\n\nSTEP 2 — Add translations (optional)\nIf your site is multilingual, click the language flag tabs to add the upsell name and description in each language. Guests will see the upsell in their own language at checkout.\n\nSTEP 3 — Verify at checkout\nMake a test booking and check your upsell appears on the Extras step at checkout.\n\nPopular upsell ideas:\n- 🚗 Airport transfer\n- 🍳 Breakfast included\n- ⏰ Early check-in\n- 🌙 Late checkout\n- 🍾 Welcome bottle of wine\n- 🧺 Weekly cleaning service\n- 🚲 Bicycle hire\n\nNeed help? Contact the GAS team at hello@gas.travel"
+  },
+  {
+    "title": "How to Set Up Deposit Rules",
+    "category": "Bookings & Revenue",
+    "keywords": ["deposit", "deposit rule", "partial payment", "booking deposit", "percentage deposit", "fixed deposit", "advance payment"],
+    "status": "published",
+    "summary": "How to require a deposit at booking so guests pay a portion upfront and the remainder later.",
+    "content": "Deposit rules let you collect a portion of the booking total upfront, with the remainder due before or on arrival. This protects you against cancellations while keeping bookings accessible.\n\nSTEP 1 — Create a deposit rule\n1. In GAS Admin, go to Bookings & Revenue\n2. Click Deposit Rules\n3. Click Add Deposit Rule\n4. Enter deposit details:\n   - Rule name (e.g. '30% Deposit Required')\n   - Deposit type — percentage of total or fixed amount\n   - Deposit value — e.g. 30 for 30% or a fixed amount\n   - Which properties it applies to\n5. Click Save\n\nSTEP 2 — Add translations (optional)\nClick the language flag tabs to add the rule name in each language.\n\nSTEP 3 — How it works for guests\n- Guest makes a booking and pays the deposit amount via Stripe at checkout\n- They receive a confirmation showing the deposit paid and balance due\n- Remaining balance is collected separately before or on arrival\n\nNote: Deposit rules require Stripe to be set up as your payment method. The deposit is collected online at booking — the balance can be collected via bank transfer or on arrival.\n\nNeed help? Contact the GAS team at hello@gas.travel"
+  },
+  {
+    "title": "How to Enable Multiple Languages",
+    "category": "Account",
+    "keywords": ["language", "multilingual", "french", "german", "spanish", "dutch", "japanese", "translate", "translation", "flags"],
+    "status": "published",
+    "summary": "How to enable multiple languages so your booking pages and website display in your guests' language.",
+    "content": "GAS supports multiple languages for your website and booking pages. Guests can switch language and see all content in their own language.\n\nSupported languages: English (EN), French (FR), German (DE), Spanish (ES), Dutch (NL), Japanese (JA)\n\nSTEP 1 — Enable languages\n1. In GAS Admin, go to My Account\n2. Find Language Settings\n3. Select which languages you want to enable\n4. Set your primary language — this is the default shown to all guests\n5. Save\n\nSTEP 2 — Add translations to your content\nOnce languages are enabled, language flag tabs appear on all translatable fields throughout GAS:\n- Room names and descriptions\n- Property descriptions\n- Upsell names and descriptions\n- Offer names\n- Voucher display names\n- Tax names\n- Deposit rule names\n\nTo add a translation:\n1. Open any edit form (e.g. edit a room)\n2. Click the flag tab for the language you want to translate into (e.g. 🇫🇷 FR)\n3. Type the translation in that language\n4. Click Save\n\nSTEP 3 — Auto-translate with AI\nFor quick translation, use the 🌐 button next to any language tab:\n1. Enter your content in the primary language first\n2. Click the 🌐 button\n3. GAS automatically translates into all your enabled languages\n4. Review and edit translations if needed\n5. Save\n\nSTEP 4 — Language switcher on your website\nA language switcher automatically appears on your website when multiple languages are enabled. Guests click their flag to switch language.\n\nNeed help? Contact the GAS team at hello@gas.travel"
+  },
+  {
+    "title": "How to Set Up Property Features",
+    "category": "Marketing",
+    "keywords": ["features", "marketing", "highlights", "selling points", "property features", "amenities", "USP"],
+    "status": "published",
+    "summary": "How to add property features and highlights that appear on your booking pages to attract guests.",
+    "content": "Property features are the key selling points shown prominently on your booking pages — things like 'Free WiFi', 'Stunning Mountain Views', 'Private Pool' or 'Pet Friendly'. They help guests quickly understand what makes your property special.\n\nSTEP 1 — Add features\n1. In GAS Admin, go to Marketing\n2. Click Features\n3. Click Add Feature\n4. Enter feature details:\n   - Feature name (e.g. 'Free WiFi', 'Private Parking', 'Pool')\n   - Icon — choose an emoji that represents it\n   - Description — optional short explanation\n5. Click Save\n\nSTEP 2 — Where features appear\nFeatures appear on:\n- Your property listing page\n- The booking widget\n- Search results\n\nSTEP 3 — Tips for good features\n- Keep names short and clear\n- Focus on what makes you different\n- Use 4-8 features for best impact — too many loses impact\n- Examples: Free Parking, Mountain View, Ski-in/Ski-out, Private Garden, Hot Tub, Pet Friendly, Airport Shuttle\n\nNeed help? Contact the GAS team at hello@gas.travel"
+  },
+  {
+    "title": "What is GAS Lites",
+    "category": "Turbines",
+    "keywords": ["lites", "GAS lites", "widget", "embed", "lightweight", "booking widget", "embed booking", "iframe"],
+    "status": "published",
+    "summary": "GAS Lites is a lightweight booking widget you can embed on any website to take bookings.",
+    "content": "GAS Lites is a lightweight, embeddable booking widget that lets guests check availability and book directly from any website — not just your GAS site.\n\nThis means if you already have your own website (built on WordPress, Squarespace, Wix or any platform), you can add a GAS booking widget to it without replacing your whole site.\n\nWhat GAS Lites does:\n- Shows your room availability\n- Lets guests select dates and number of guests\n- Shows pricing\n- Takes the guest through to checkout\n- Works on any website\n\nSTEP 1 — Access GAS Lites\n1. In GAS Admin, go to Turbines\n2. Click GAS Lites\n3. Here you can create and manage your Lites widgets\n\nSTEP 2 — Create a Lites widget\n1. Click Add Lites or Create New\n2. Select which property the widget is for\n3. Customise the appearance — colours, language\n4. Copy the embed code provided\n\nSTEP 3 — Embed on your website\n1. Copy the embed code from GAS Lites\n2. Paste it into your website where you want the booking widget to appear\n3. The widget loads automatically for visitors\n\nNote: GAS Lites works alongside your full GAS website — you can have both. Some clients use a GAS website as their main booking site AND embed a Lites widget on their existing business website.\n\nNeed help? Contact the GAS team at hello@gas.travel"
+  }
+]
