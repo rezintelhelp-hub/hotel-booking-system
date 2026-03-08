@@ -1501,6 +1501,17 @@
                 }
             },
             
+            "/api/partner/websites/{websiteId}/icons": {
+                "put": {
+                    "tags": ["Websites"],
+                    "summary": "Update Favicon & Icons",
+                    "description": "Set the favicon (browser tab icon) and Apple Touch Icon (iOS home screen icon). Both fields optional — only provided fields are changed. Send empty string to remove.\n\n- `favicon_url` — Favicon image URL (recommended: 32x32 or 64x64 PNG/ICO)\n- `apple_icon_url` — Apple Touch Icon URL (recommended: 180x180 PNG)\n\nIcons are stored in the header section and pushed to WordPress automatically.",
+                    "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "requestBody": { "content": { "application/json": { "examples": { "set_both": { "summary": "Set both icons", "value": { "favicon_url": "https://example.com/favicon.png", "apple_icon_url": "https://example.com/apple-touch-icon.png" } }, "favicon_only": { "summary": "Set favicon only", "value": { "favicon_url": "https://example.com/favicon.png" } } } } } },
+                    "responses": { "200": { "description": "Icons updated and pushed to WordPress" } }
+                }
+            },
+
             // ===== HERO CONTROLS =====
             "/api/partner/websites/{websiteId}/hero": {
                 "get": {

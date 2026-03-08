@@ -49278,6 +49278,92 @@ app.put('/api/partner/websites/:websiteId/header', async (req, res) => {
 });
 
 // =========================================================
+// PARTNER: FAVICON & ICONS
+// =========================================================
+
+app.put('/api/partner/websites/:websiteId/icons', async (req, res) => {
+  console.log('=== PARTNER API: UPDATE ICONS ===');
+
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+
+    const { websiteId } = req.params;
+    const { favicon_url, apple_icon_url } = req.body;
+
+    const deployedSiteId = await getPartnerDeployedSiteId(auth.partnerId, websiteId);
+    if (!deployedSiteId) {
+      return res.status(404).json({ success: false, error: 'Website not deployed or not found' });
+    }
+
+    const siteResult = await pool.query(
+      'SELECT id, account_id, site_url FROM deployed_sites WHERE id = $1',
+      [deployedSiteId]
+    );
+
+    if (siteResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Deployed site not found' });
+    }
+
+    const site = siteResult.rows[0];
+
+    // Get existing header settings (icons are stored in header section)
+    const headerResult = await pool.query(
+      `SELECT settings FROM website_settings WHERE deployed_site_id = $1 AND section = 'header'`,
+      [deployedSiteId]
+    );
+
+    const settings = headerResult.rows.length > 0 ? (headerResult.rows[0].settings || {}) : {};
+    const changes = {};
+
+    if (favicon_url !== undefined) { settings['favicon-image-url'] = favicon_url; changes['favicon-image-url'] = favicon_url; }
+    if (apple_icon_url !== undefined) { settings['apple-icon-image-url'] = apple_icon_url; changes['apple-icon-image-url'] = apple_icon_url; }
+
+    if (Object.keys(changes).length === 0) {
+      return res.status(400).json({ success: false, error: 'No fields provided. Use: favicon_url, apple_icon_url' });
+    }
+
+    // UPSERT header settings
+    if (headerResult.rows.length > 0) {
+      await pool.query(
+        `UPDATE website_settings SET settings = $1, updated_at = NOW(), sync_source = 'partner' WHERE deployed_site_id = $2 AND section = 'header'`,
+        [JSON.stringify(settings), deployedSiteId]
+      );
+    } else {
+      await pool.query(
+        `INSERT INTO website_settings (deployed_site_id, account_id, section, settings, sync_source, updated_at) VALUES ($1, $2, 'header', $3, 'partner', NOW())`,
+        [deployedSiteId, site.account_id, JSON.stringify(settings)]
+      );
+    }
+
+    // Push to WordPress
+    let wpPushResult = null;
+    if (site.site_url) {
+      wpPushResult = await pushSettingsToWordPress(site.site_url, 'header', changes);
+    }
+
+    console.log(`[Partner API] Icons updated for website ${websiteId}:`, Object.keys(changes));
+
+    res.json({
+      success: true,
+      website_id: parseInt(websiteId),
+      updated_fields: Object.keys(changes),
+      icons: {
+        favicon_url: settings['favicon-image-url'] || null,
+        apple_icon_url: settings['apple-icon-image-url'] || null
+      },
+      wordpress_push: wpPushResult
+    });
+
+  } catch (error) {
+    console.error('Partner API update icons error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// =========================================================
 // PARTNER: HERO SECTION CONTROLS (Badge, Search, Meta)
 // =========================================================
 
