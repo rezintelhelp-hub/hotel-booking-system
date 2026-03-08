@@ -13149,6 +13149,38 @@ app.post('/api/accounts/:id/airwallex-charge', async (req, res) => {
   }
 });
 
+// Temporary: list Airwallex payment methods for a customer
+app.get('/api/admin/airwallex-payment-methods/:customerId', async (req, res) => {
+  try {
+    const { customerId } = req.params;
+    const awClientId = process.env.AIRWALLEX_CLIENT_ID;
+    const awApiKey = process.env.AIRWALLEX_API_KEY;
+    if (!awClientId || !awApiKey) {
+      return res.json({ success: false, error: 'Airwallex credentials not configured' });
+    }
+
+    const airwallexBase = process.env.AIRWALLEX_ENV === 'production' ? 'https://api.airwallex.com' : 'https://api-demo.airwallex.com';
+
+    const awAuthRes = await fetch(`${airwallexBase}/api/v1/authentication/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': awApiKey, 'x-client-id': awClientId }
+    });
+    const awAuth = await awAuthRes.json();
+    if (!awAuthRes.ok || !awAuth.token) {
+      return res.json({ success: false, error: 'Auth failed: ' + (awAuth.message || 'Unknown') });
+    }
+
+    const pmRes = await fetch(`${airwallexBase}/api/v1/pa/payment_methods?customer_id=${customerId}`, {
+      headers: { 'Authorization': `Bearer ${awAuth.token}` }
+    });
+    const pmData = await pmRes.json();
+
+    res.json({ success: true, status: pmRes.status, payment_methods: pmData });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Airwallex webhook receiver
 // Raw body capture middleware for signature verification
 app.post('/api/webhooks/airwallex', express.raw({ type: 'application/json' }), async (req, res) => {
