@@ -1,0 +1,18 @@
+[
+  {
+    "title": "How to Add a Favicon and Apple Touch Icon",
+    "category": "Websites",
+    "keywords": ["favicon", "icon", "browser icon", "tab icon", "apple touch icon", "iOS icon", "home screen", "brand icon"],
+    "status": "published",
+    "summary": "How to upload a favicon (browser tab icon) and Apple Touch Icon (iOS home screen icon) for your GAS website.",
+    "content": "A favicon is the small icon that appears in the browser tab next to your site name. The Apple Touch Icon appears when guests save your site to their iPhone or iPad home screen.\n\nSTEP 1 — Go to your website settings\n1. In GAS Admin, go to Create Websites\n2. Find your site and click Edit or Settings\n3. Click the Header & Logo tab\n4. Scroll down to the Favicon and Icons section\n\nSTEP 2 — Upload your Favicon\n1. Click the upload button next to Favicon\n2. Select your favicon image file\n3. Recommended size: 32x32px or 64x64px\n4. Recommended format: PNG or ICO\n5. A preview will appear once uploaded\n6. Click Save\n\nSTEP 3 — Upload your Apple Touch Icon\n1. Click the upload button next to Apple Touch Icon\n2. Select your icon image file\n3. Recommended size: 180x180px\n4. Recommended format: PNG\n5. This icon appears when guests add your site to their iPhone or iPad home screen\n6. Click Save\n\nTips for a good favicon:\n- Use a simple version of your logo or just your initials\n- It must be recognisable at very small sizes\n- Square images work best\n- Transparent background PNG recommended\n\nOnce saved, your favicon appears in the browser tab within a few minutes. Clear your browser cache if you do not see it immediately (Ctrl+Shift+R).\n\nNeed help? Contact the GAS team at hello@gas.travel"
+  },
+  {
+    "title": "How to Customise Footer Section Headings",
+    "category": "Websites",
+    "keywords": ["footer", "quick links", "legal", "contact", "footer headings", "footer labels", "translate footer", "multilingual footer"],
+    "status": "published",
+    "summary": "How to customise and translate the footer section headings on your GAS website.",
+    "content": "By default your GAS website footer shows headings like 'Quick Links', 'Legal' and 'Contact'. You can customise these labels and translate them into any language your site supports.\n\nSTEP 1 — Go to your website footer settings\n1. In GAS Admin, go to Create Websites\n2. Find your site and click Edit or Settings\n3. Click the Footer tab\n4. Find the Footer Headings section\n\nSTEP 2 — Customise each heading\nYou will see editable fields for:\n- Quick Links heading (e.g. change to 'Navigation' or 'Pages')\n- Legal heading (e.g. change to 'Legal Info' or 'Policies')\n- Contact heading (e.g. change to 'Get in Touch' or 'Reach Us')\n\nSTEP 3 — Add translations\nEach field has language flag tabs for all your enabled languages:\n1. Click the 🇬🇧 EN tab and enter your English label\n2. Click the 🇩🇪 DE tab and enter your German label\n3. Repeat for each language your site uses\n4. Or click the 🌐 Auto-translate button to translate automatically\n5. Click Save\n\nYour website footer will immediately show the correct heading in each guest's language.\n\nNeed help? Contact the GAS team at hello@gas.travel"
+  }
+]
