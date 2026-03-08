@@ -13076,6 +13076,8 @@ app.post('/api/accounts/:id/airwallex-customer', async (req, res) => {
       body: JSON.stringify({ email: account.email, name: account.name, request_id: 'gas-' + id })
     });
     const awCust = await awCustRes.json();
+    console.log('Airwallex customer create status:', awCustRes.status);
+    console.log('Airwallex customer create response:', JSON.stringify(awCust));
     if (!awCustRes.ok || !awCust.id) {
       return res.json({ success: false, error: 'Airwallex customer creation failed: ' + (awCust.message || JSON.stringify(awCust)) });
     }
