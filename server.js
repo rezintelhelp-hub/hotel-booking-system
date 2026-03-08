@@ -13126,6 +13126,7 @@ app.post('/api/accounts/:id/airwallex-charge', async (req, res) => {
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${awAuth.token}` },
       body: JSON.stringify({
         mode: 'SETUP',
+        billing_customer_id: account.airwallex_customer_id,
         currency: (account.billing_currency || 'EUR').toUpperCase(),
         customer_data: {
           id: account.airwallex_customer_id,
