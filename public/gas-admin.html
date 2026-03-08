@@ -2615,8 +2615,12 @@
             <!-- Account Settings View -->
             <div id="account-settings" class="view">
                 <div class="header">
-                    <h2>⚙️ Settings</h2>
-                    <p>Configure your account preferences</p>
+                    <div class="header-top">
+                        <div>
+                            <h2>Settings</h2>
+                            <p>Configure your account preferences</p>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Language Settings -->
@@ -2694,7 +2698,7 @@
                 <div class="header">
                     <div class="header-top">
                         <div>
-                            <h2> Accounts</h2>
+                            <h2>Accounts</h2>
                             <p>Manage all accounts - Master Admin, Agency Admins, Sub Masters, and Admins</p>
                         </div>
                         <div style="display: flex; gap: 0.5rem;">
@@ -2771,7 +2775,7 @@
                 <div class="header">
                     <div class="header-top">
                         <div>
-                            <h2> Management Requests</h2>
+                            <h2>Management Requests</h2>
                             <p>Review and manage requests from property owners</p>
                         </div>
                     </div>
@@ -2822,7 +2826,7 @@
                 <div class="header">
                     <div class="header-top">
                         <div>
-                            <h2>🏨 Beds24 Monthly Costs</h2>
+                            <h2>Beds24 Monthly Costs</h2>
                             <p>Upload and allocate Beds24 AccountUsage reports to client accounts</p>
                         </div>
                     </div>
@@ -2938,7 +2942,7 @@
                         </div>
                         <div style="display: flex; gap: 0.5rem;">
                             <button class="btn btn-secondary bulk-stripe-btn" onclick="openBulkStripeModal()" title="Payment Setup">
-                                💳 Bulk Payment Setup
+                                Bulk Payment Setup
                             </button>
                             <a href="#" onclick="openWizard('beds24')" class="btn">
                                 <span>+</span>
@@ -5450,7 +5454,7 @@
                 <div class="header">
                     <div class="header-top">
                         <div>
-                            <h2>🔗 Social Media Connections</h2>
+                            <h2>Social Media Connections</h2>
                             <p>Connect your social media accounts to share offers with your audience</p>
                         </div>
                     </div>
@@ -5549,7 +5553,7 @@
                 <div class="header">
                     <div class="header-top">
                         <div>
-                            <h2>📝 Post Generator</h2>
+                            <h2>Post Generator</h2>
                             <p>Create and schedule social media posts for your offers</p>
                         </div>
                         <div style="display: flex; gap: 0.5rem;">
@@ -5613,11 +5617,12 @@
                 <div class="header">
                     <div class="header-top">
                         <div>
-                            <h2>📣 Campaigns</h2>
+                            <h2>Campaigns</h2>
                             <p>Create targeted promotions and send to your network</p>
                         </div>
                         <button class="btn" onclick="openCreateCampaignModal()">
-                            <span>+ New Campaign</span>
+                            <span>+</span>
+                            <span>New Campaign</span>
                         </button>
                     </div>
                 </div>
@@ -5674,15 +5679,16 @@
                 <div class="header">
                     <div class="header-top">
                         <div>
-                            <h2>👥 Contacts</h2>
+                            <h2>Contacts</h2>
                             <p>Manage your guest contacts and email list</p>
                         </div>
                         <div style="display: flex; gap: 0.5rem;">
                             <button class="btn btn-secondary" onclick="openImportContactsModal()">
-                                <span>📤 Import CSV</span>
+                                Import CSV
                             </button>
                             <button class="btn" onclick="openAddContactModal()">
-                                <span>+ Add Contact</span>
+                                <span>+</span>
+                                <span>Add Contact</span>
                             </button>
                         </div>
                     </div>
@@ -5739,11 +5745,12 @@
                 <div class="header">
                     <div class="header-top">
                         <div>
-                            <h2>🏷️ Tags</h2>
+                            <h2>Tags</h2>
                             <p>Manage interest and preference tags for your contacts</p>
                         </div>
                         <button class="btn" onclick="openAddTagModal()">
-                            <span>+ New Tag</span>
+                            <span>+</span>
+                            <span>New Tag</span>
                         </button>
                     </div>
                 </div>
@@ -5759,11 +5766,12 @@
                 <div class="header">
                     <div class="header-top">
                         <div>
-                            <h2>📊 Segments</h2>
+                            <h2>Segments</h2>
                             <p>Create saved audience filters for targeted campaigns</p>
                         </div>
                         <button class="btn" onclick="openCreateSegmentModal()">
-                            <span>+ New Segment</span>
+                            <span>+</span>
+                            <span>New Segment</span>
                         </button>
                     </div>
                 </div>
@@ -5786,7 +5794,7 @@
                 <div class="header">
                     <div class="header-top">
                         <div>
-                            <h2>📋 Agent Requests</h2>
+                            <h2>Agent Requests</h2>
                             <p>Travel agents requesting access to market your properties</p>
                         </div>
                     </div>
@@ -5812,7 +5820,7 @@
                 <div class="header">
                     <div class="header-top">
                         <div>
-                            <h2>✅ Approved Agents</h2>
+                            <h2>Approved Agents</h2>
                             <p>Travel agents authorized to book your properties</p>
                         </div>
                     </div>
@@ -5832,7 +5840,7 @@
                 <div class="header">
                     <div class="header-top">
                         <div>
-                            <h2>💰 Agent Pricing</h2>
+                            <h2>Agent Pricing</h2>
                             <p>Set the net rates agents pay you - they add their own markup</p>
                         </div>
                     </div>
@@ -5882,7 +5890,7 @@
                 <div class="header">
                     <div class="header-top">
                         <div>
-                            <h2>🌍 Agent Sites</h2>
+                            <h2>Agent Sites</h2>
                             <p>Travel agent websites with assigned properties</p>
                         </div>
                     </div>
@@ -5903,7 +5911,7 @@
                 <div class="header">
                     <div class="header-top">
                         <div>
-                            <h2>🏨 Property Marketplace</h2>
+                            <h2>Property Marketplace</h2>
                             <p>Browse properties available for agent booking</p>
                         </div>
                     </div>
@@ -10633,11 +10641,11 @@
                 <div class="header">
                     <div class="header-top">
                         <div>
-                            <h2>✨ My Custom Site</h2>
+                            <h2>My Custom Site</h2>
                             <p class="subtitle">Your custom bespoke website details and credentials</p>
                         </div>
-                        <button class="btn" onclick="loadMyCustomSite()" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
-                            🔄 Refresh
+                        <button class="btn btn-secondary" onclick="loadMyCustomSite()">
+                            Refresh
                         </button>
                     </div>
                 </div>
@@ -10655,13 +10663,13 @@
                 <div class="header">
                     <div class="header-top">
                         <div>
-                            <h2>✨ Custom Bespoke Sites</h2>
+                            <h2>Custom Bespoke Sites</h2>
                             <p class="subtitle">Manage custom site requests and provision premium websites</p>
                         </div>
                         <div style="display: flex; gap: 0.5rem; align-items: center;">
-                            <button class="btn btn-secondary" onclick="document.getElementById('gas-master-creds').style.display = document.getElementById('gas-master-creds').style.display === 'none' ? 'block' : 'none'" style="font-size: 0.8rem;">🔑 GAS Access</button>
-                            <button class="btn" onclick="refreshCustomSiteRequests()" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
-                                🔄 Refresh
+                            <button class="btn btn-secondary" onclick="document.getElementById('gas-master-creds').style.display = document.getElementById('gas-master-creds').style.display === 'none' ? 'block' : 'none'">GAS Access</button>
+                            <button class="btn btn-secondary" onclick="refreshCustomSiteRequests()">
+                                Refresh
                             </button>
                         </div>
                     </div>
@@ -10827,15 +10835,16 @@
                 <div class="header">
                     <div class="header-top">
                         <div>
-                            <h2>🔑 Plugin Licenses</h2>
+                            <h2>Plugin Licenses</h2>
                             <p class="subtitle">Manage plugin licenses and display settings</p>
                         </div>
                         <div style="display: flex; gap: 0.5rem;">
-                            <button class="btn" onclick="showCreateLicenseModal()" style="background: #10b981; color: white;">
-                                ➕ Create License
+                            <button class="btn" onclick="showCreateLicenseModal()">
+                                <span>+</span>
+                                <span>Create License</span>
                             </button>
-                            <button class="btn" onclick="loadPluginLicenses()" style="background: var(--primary);">
-                                🔄 Refresh
+                            <button class="btn btn-secondary" onclick="loadPluginLicenses()">
+                                Refresh
                             </button>
                         </div>
                     </div>
@@ -11039,7 +11048,7 @@
                 <div class="header">
                     <div class="header-top">
                         <div>
-                            <h2> Tasks & Roadmap</h2>
+                            <h2>Tasks & Roadmap</h2>
                             <p>Development priorities and progress</p>
                         </div>
                         <div style="display: flex; gap: 0.5rem;">
@@ -11498,8 +11507,12 @@
             <!-- My Account View -->
             <div id="my-account" class="view">
                 <div class="header">
-                    <h2> My Account</h2>
-                    <p>Manage your profile and account settings</p>
+                    <div class="header-top">
+                        <div>
+                            <h2>My Account</h2>
+                            <p>Manage your profile and account settings</p>
+                        </div>
+                    </div>
                 </div>
 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
@@ -11767,8 +11780,12 @@
             <!-- Settings View -->
             <div id="settings" class="view">
                 <div class="header">
-                    <h2>Settings</h2>
-                    <p>Configure your system</p>
+                    <div class="header-top">
+                        <div>
+                            <h2>Settings</h2>
+                            <p>Configure your system</p>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="card">
@@ -11792,14 +11809,17 @@
                 <div class="header">
                     <div class="header-top">
                         <div>
-                            <h2> Blog</h2>
+                            <h2>Blog</h2>
                             <p>Create and manage blog posts for your properties</p>
                         </div>
                         <div style="display: flex; gap: 0.5rem; align-items: center;">
-                            <button class="btn btn-secondary" onclick="openIcalFeedsModal()" style="background: #f3f4f6; color: #374151; border: 1px solid #d1d5db;">iCal</button>
-                            <button class="btn btn-secondary" onclick="openRssFeedsModal()" style="background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; font-weight: 600;">RSS</button>
-                            <button class="btn" onclick="openBlogIdeasWizard()" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);"> Get Ideas</button>
-                            <button class="btn" onclick="openBlogEditor()">+ New Post</button>
+                            <button class="btn btn-secondary" onclick="openIcalFeedsModal()">iCal</button>
+                            <button class="btn btn-secondary" onclick="openRssFeedsModal()">RSS</button>
+                            <button class="btn btn-secondary" onclick="openBlogIdeasWizard()">Get Ideas</button>
+                            <button class="btn" onclick="openBlogEditor()">
+                                <span>+</span>
+                                <span>New Post</span>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -12155,12 +12175,15 @@
                 <div class="header">
                     <div class="header-top">
                         <div>
-                            <h2> Attractions</h2>
+                            <h2>Attractions</h2>
                             <p>Local attractions and things to do near your properties</p>
                         </div>
                         <div style="display: flex; gap: 0.5rem;">
-                            <button class="btn" onclick="openAttractionIdeasWizard()" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);"> Suggest Places</button>
-                            <button class="btn" onclick="openAttractionModal()">+ Add Attraction</button>
+                            <button class="btn btn-secondary" onclick="openAttractionIdeasWizard()">Suggest Places</button>
+                            <button class="btn" onclick="openAttractionModal()">
+                                <span>+</span>
+                                <span>Add Attraction</span>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -12369,10 +12392,13 @@
                 <div class="header">
                     <div class="header-top">
                         <div>
-                            <h2>⭐ Reviews</h2>
+                            <h2>Reviews</h2>
                             <p>Manage guest reviews and testimonials</p>
                         </div>
-                        <button class="btn" onclick="openReviewModal()">+ Add Review</button>
+                        <button class="btn" onclick="openReviewModal()">
+                            <span>+</span>
+                            <span>Add Review</span>
+                        </button>
                     </div>
                 </div>
 
@@ -12698,7 +12724,7 @@
                 <div class="header">
                     <div class="header-top">
                         <div>
-                            <h2> Partner API Documentation</h2>
+                            <h2>Partner API Documentation</h2>
                             <p>GasSync & Website Builder API for channel managers and partners</p>
                         </div>
                     </div>
@@ -13164,8 +13190,12 @@ const promo = await fetch('/api/v1/offers/validate', {
             <!-- Service Credentials Vault View -->
             <div id="service-credentials" class="view">
                 <div class="header">
-                    <h2> Service Credentials Vault</h2>
-                    <p>Centralized storage for all external service logins, API keys, and important links</p>
+                    <div class="header-top">
+                        <div>
+                            <h2>Service Credentials Vault</h2>
+                            <p>Centralized storage for all external service logins, API keys, and important links</p>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Quick Links Card -->
@@ -13324,8 +13354,12 @@ const promo = await fetch('/api/v1/offers/validate', {
             <!-- Calry Admin View -->
             <div id="calry-admin" class="view">
                 <div class="header">
-                    <h2>🔗 Calry Admin</h2>
-                    <p>Manage Calry API credentials and PMS integrations (Lodgify, Smoobu, Guesty, etc.)</p>
+                    <div class="header-top">
+                        <div>
+                            <h2>Calry Admin</h2>
+                            <p>Manage Calry API credentials and PMS integrations (Lodgify, Smoobu, Guesty, etc.)</p>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Calry API Credentials Card -->
@@ -13409,8 +13443,12 @@ const promo = await fetch('/api/v1/offers/validate', {
             <!-- Hostfully Admin View -->
             <div id="hostfully-admin" class="view">
                 <div class="header">
-                    <h2>🏠 Hostfully Direct</h2>
-                    <p>Direct Hostfully V3 API integration — bypasses Calry for full property hierarchy support</p>
+                    <div class="header-top">
+                        <div>
+                            <h2>Hostfully Direct</h2>
+                            <p>Direct Hostfully V3 API integration — bypasses Calry for full property hierarchy support</p>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Connection Status Card -->
@@ -14557,8 +14595,12 @@ const promo = await fetch('/api/v1/offers/validate', {
             <!-- Knowledge Base Articles View -->
             <div id="kb-articles" class="view">
                 <div class="header">
-                    <h2> Knowledge Base</h2>
-                    <p>Manage AI assistant knowledge - articles the chatbot uses to answer questions</p>
+                    <div class="header-top">
+                        <div>
+                            <h2>Knowledge Base</h2>
+                            <p>Manage AI assistant knowledge - articles the chatbot uses to answer questions</p>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Quick Stats -->
@@ -14642,8 +14684,12 @@ const promo = await fetch('/api/v1/offers/validate', {
             <!-- Billing Overview View -->
             <div id="billing-overview" class="view">
                 <div class="header">
-                    <h2> Billing Overview</h2>
-                    <p>Revenue and subscription metrics</p>
+                    <div class="header-top">
+                        <div>
+                            <h2>Billing Overview</h2>
+                            <p>Revenue and subscription metrics</p>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- MRR Stats -->
@@ -15026,8 +15072,12 @@ const promo = await fetch('/api/v1/offers/validate', {
             <!-- My Billing (Client View) -->
             <div id="my-billing" class="view">
                 <div class="header">
-                    <h2> Plans & Extras</h2>
-                    <p>Subscribe to a plan or purchase extras</p>
+                    <div class="header-top">
+                        <div>
+                            <h2>Plans & Extras</h2>
+                            <p>Subscribe to a plan or purchase extras</p>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Subscription Plans -->
@@ -15062,7 +15112,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 <div class="header">
                     <div class="header-top">
                         <div>
-                            <h2> Channel Manager Sync Dashboard</h2>
+                            <h2>Channel Manager Sync Dashboard</h2>
                             <p>Overview of all channel manager integrations and sync status</p>
                         </div>
                     </div>
@@ -15135,12 +15185,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                 <div class="header">
                     <div class="header-top">
                         <div>
-                            <h2> Channel Manager Connections</h2>
+                            <h2>Channel Manager Connections</h2>
                             <p>Manage your channel manager integrations</p>
                         </div>
-                        <div class="header-actions">
-                            <button class="btn btn-primary" onclick="window.location.href='/connect-cm.html' + (selectedAccountId ? '?account_id=' + selectedAccountId : '')">
-                                <span></span> Add Connection
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button class="btn" onclick="window.location.href='/connect-cm.html' + (selectedAccountId ? '?account_id=' + selectedAccountId : '')">
+                                <span>+</span>
+                                <span>Add Connection</span>
                             </button>
                         </div>
                     </div>
@@ -15159,7 +15210,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                             <h2>Synced Properties</h2>
                             <p>Properties synchronized from channel managers</p>
                         </div>
-                        <div class="header-actions" style="display: flex; gap: 1rem; align-items: center;">
+                        <div style="display: flex; gap: 0.5rem; align-items: center;">
                             <input type="text" id="syncPropertiesSearch" class="form-input" placeholder="Search properties..." style="width: 250px;" oninput="filterSyncedProperties()">
                             <select id="syncPropertiesConnectionFilter" class="form-control" style="width: 200px;" onchange="loadSyncedProperties()">
                                 <option value="">All Connections</option>
@@ -15193,10 +15244,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                 <div class="header">
                     <div class="header-top">
                         <div>
-                            <h2> Sync Logs</h2>
+                            <h2>Sync Logs</h2>
                             <p>History of synchronization operations</p>
                         </div>
-                        <div class="header-actions">
+                        <div style="display: flex; gap: 0.5rem; align-items: center;">
                             <select id="syncLogsConnectionFilter" class="form-control" style="width: 200px;" onchange="loadSyncLogs()">
                                 <option value="">All Connections</option>
                             </select>
