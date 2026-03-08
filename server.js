@@ -13066,8 +13066,6 @@ app.post('/api/accounts/:id/airwallex-customer', async (req, res) => {
       headers: { 'Content-Type': 'application/json', 'x-api-key': awApiKey, 'x-client-id': awClientId }
     });
     const awAuth = await awAuthRes.json();
-    console.log('Airwallex auth status:', awAuthRes.status);
-    console.log('Airwallex auth token:', awAuth.token ? 'present' : 'missing');
     if (!awAuthRes.ok || !awAuth.token) {
       return res.json({ success: false, error: 'Airwallex authentication failed: ' + (awAuth.message || 'Unknown error') });
     }
@@ -13078,8 +13076,6 @@ app.post('/api/accounts/:id/airwallex-customer', async (req, res) => {
       body: JSON.stringify({ email: account.email, name: account.name, request_id: 'gas-' + id })
     });
     const awCust = await awCustRes.json();
-    console.log('Airwallex customer create status:', awCustRes.status);
-    console.log('Airwallex customer create response:', JSON.stringify(awCust));
     if (!awCustRes.ok || !awCust.id) {
       return res.json({ success: false, error: 'Airwallex customer creation failed: ' + (awCust.message || JSON.stringify(awCust)) });
     }
