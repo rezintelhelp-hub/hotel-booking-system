@@ -13014,7 +13014,11 @@ app.put('/api/accounts/:id', async (req, res) => {
             });
             const awCust = await awCustRes.json();
             if (awCustRes.ok && awCust.id) {
-              await pool.query('UPDATE accounts SET airwallex_customer_id = $1 WHERE id = $2', [awCust.id, id]);
+              if (awCust.id.startsWith('cus_')) {
+                await pool.query('UPDATE accounts SET airwallex_payments_customer_id = $1 WHERE id = $2', [awCust.id, id]);
+              } else {
+                await pool.query('UPDATE accounts SET airwallex_customer_id = $1 WHERE id = $2', [awCust.id, id]);
+              }
               console.log(`✅ Airwallex customer created for account ${id}: ${awCust.id}`);
             } else {
               console.error(`Airwallex customer creation failed for account ${id}:`, awCust);
@@ -13080,7 +13084,12 @@ app.post('/api/accounts/:id/airwallex-customer', async (req, res) => {
       return res.json({ success: false, error: 'Airwallex customer creation failed: ' + (awCust.message || JSON.stringify(awCust)) });
     }
 
-    await pool.query('UPDATE accounts SET airwallex_customer_id = $1 WHERE id = $2', [awCust.id, id]);
+    // Store in correct column based on ID prefix: bcus_ = billing customer, cus_ = payments customer
+    if (awCust.id.startsWith('cus_')) {
+      await pool.query('UPDATE accounts SET airwallex_payments_customer_id = $1 WHERE id = $2', [awCust.id, id]);
+    } else {
+      await pool.query('UPDATE accounts SET airwallex_customer_id = $1 WHERE id = $2', [awCust.id, id]);
+    }
     console.log(`✅ Airwallex customer created for account ${id}: ${awCust.id}`);
 
     res.json({ success: true, airwallex_customer_id: awCust.id });
@@ -13214,7 +13223,7 @@ app.post('/api/webhooks/airwallex', express.raw({ type: 'application/json' }), a
       const paymentMethodId = data.payment_method && data.payment_method.id;
       if (customerId && paymentMethodId) {
         const result = await pool.query(
-          'UPDATE accounts SET airwallex_payment_method_id = $1 WHERE airwallex_customer_id = $2 RETURNING id, name',
+          'UPDATE accounts SET airwallex_payment_method_id = $1 WHERE airwallex_customer_id = $2 OR airwallex_payments_customer_id = $2 RETURNING id, name',
           [paymentMethodId, customerId]
         );
         if (result.rows.length > 0) {
@@ -77460,6 +77469,7 @@ app.listen(PORT, '0.0.0.0', async () => {
     // Airwallex billing columns
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS airwallex_customer_id VARCHAR(255)`);
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS airwallex_payment_method_id VARCHAR(255)`);
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS airwallex_payments_customer_id VARCHAR(255)`);
 
     console.log('✅ Database migrations complete');
   } catch (migrationError) {
