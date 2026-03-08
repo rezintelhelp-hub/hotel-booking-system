@@ -58592,7 +58592,7 @@ app.post('/api/public/book', async (req, res) => {
       unit_id, check_in, check_out, guests,
       guest_first_name, guest_last_name, guest_email, guest_phone,
       guest_address, guest_city, guest_country, guest_postcode,
-      voucher_code, notes, marketing, total_price,
+      voucher_code, notes, marketing, total_price, upsells, price_breakdown,
       stripe_payment_intent_id, deposit_amount, balance_amount, payment_method,
       enigma_reference_id, stripe_setup_intent_id, stripe_payment_method_id,
       source_site_url
@@ -58891,13 +58891,24 @@ app.post('/api/public/book', async (req, res) => {
             : `Booked via GAS | Ref: GAS-${newBooking.id}`,
           price: parseFloat(total_price) || 0,
           deposit: deposit_amount ? parseFloat(deposit_amount) : 0,
-          invoiceItems: [{
-            description: 'Accommodation',
-            status: '',
-            qty: 1,
-            amount: parseFloat(total_price) || 0,
-            vatRate: 0
-          }],
+          invoiceItems: (function() {
+            if (!price_breakdown) {
+              return [{ description: 'Accommodation', status: '', qty: 1, amount: parseFloat(total_price) || 0, vatRate: 0 }];
+            }
+            const items = [];
+            items.push({ description: 'Accommodation', status: '', qty: 1, amount: parseFloat(price_breakdown.subtotal || price_breakdown.accommodation_total || total_price) || 0, vatRate: 0 });
+            if (price_breakdown.upsells_breakdown) {
+              for (const u of price_breakdown.upsells_breakdown) {
+                items.push({ description: u.name || 'Extra', status: '', qty: u.quantity || 1, amount: parseFloat(u.total) || 0, vatRate: 0 });
+              }
+            }
+            if (price_breakdown.taxes) {
+              for (const t of price_breakdown.taxes) {
+                items.push({ description: t.name || 'Tax', status: '', qty: 1, amount: parseFloat(t.amount) || 0, vatRate: 0 });
+              }
+            }
+            return items;
+          })(),
           payments: payments.length > 0 ? payments : undefined
         }];
         
