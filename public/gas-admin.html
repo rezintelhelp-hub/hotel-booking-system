@@ -4647,30 +4647,289 @@
                         <span class="collapse-icon" style="font-size: 1.25rem; font-weight: 600; color: #64748b;">-</span>
                     </div>
                     <div id="payment-setup-body" style="margin-top: 1.25rem;">
-                        <!-- Stripe Keys -->
-                        <div style="background: linear-gradient(135deg, #f0f9ff 0%, #e0e7ff 100%); border: 1px solid #c7d2fe; border-radius: 12px; padding: 1.25rem; margin-bottom: 1.25rem;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                                <h4 style="margin: 0; color: #4338ca;">Stripe Connection</h4>
-                                <div id="payments-stripe-status-badge"></div>
+
+                        <!-- Payment Method Selection -->
+                        <div style="background: linear-gradient(135deg, #f0f9ff 0%, #e0e7ff 100%); border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem; border: 1px solid #c7d2fe;">
+                            <h4 style="margin: 0 0 1rem 0; font-size: 0.95rem; color: #4338ca;">Payment Methods</h4>
+                            <p style="font-size: 0.8rem; color: #64748b; margin: -0.5rem 0 1rem 0;">Select one or more payment methods for your properties</p>
+
+                            <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                                <!-- Stripe -->
+                                <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer; padding: 0.75rem; background: white; border-radius: 8px; border: 2px solid transparent; transition: all 0.2s;" id="pv-provider-stripe-label">
+                                    <input type="checkbox" value="stripe" id="pv-payment-provider-stripe" style="width: 18px; height: 18px;" onchange="togglePvPaymentSections()">
+                                    <img src="https://upload.wikimedia.org/wikipedia/commons/b/ba/Stripe_Logo%2C_revised_2016.svg" alt="Stripe" style="height: 24px;">
+                                    <span style="flex: 1; font-weight: 500;">Credit/Debit Card (Stripe)</span>
+                                    <span id="pv-stripe-connection-badge" style="font-size: 0.75rem; background: #94a3b8; color: white; padding: 0.15rem 0.5rem; border-radius: 10px;">Not Connected</span>
+                                </label>
+
+                                <!-- Pay at Property -->
+                                <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer; padding: 0.75rem; background: white; border-radius: 8px; border: 2px solid transparent; transition: all 0.2s;" id="pv-provider-pay-property-label">
+                                    <input type="checkbox" value="pay_at_property" id="pv-payment-provider-pay-property" style="width: 18px; height: 18px;" onchange="togglePvPaymentSections()">
+                                    <span style="font-size: 1.25rem;">🏠</span>
+                                    <div style="flex: 1;">
+                                        <span style="font-weight: 500;">Pay at Property</span>
+                                        <p style="font-size: 0.75rem; color: #64748b; margin: 0.15rem 0 0 0;">Guest pays on arrival or by bank transfer before arrival</p>
+                                    </div>
+                                    <span style="font-size: 0.75rem; background: #f59e0b; color: white; padding: 0.15rem 0.5rem; border-radius: 10px;">Flexible</span>
+                                </label>
+
+                                <!-- Pay at Property — Custom Checkout Text -->
+                                <div id="pv-pay-property-text-section" style="display: none; margin: 0.5rem 0 0.75rem 2.5rem; padding: 1rem; background: #fffbeb; border: 1px solid #fcd34d; border-radius: 8px;">
+                                    <p style="color: #92400e; font-size: 0.8rem; font-weight: 600; margin: 0 0 0.75rem 0;">Customise checkout display text</p>
+                                    <label style="font-size: 0.8rem; color: #64748b; display: block; margin-bottom: 0.25rem;">Button Label</label>
+                                    <input type="text" id="pv-pay-property-label" placeholder="Pay at Property" style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.85rem; margin-bottom: 0.25rem;">
+                                    <p style="font-size: 0.7rem; color: #9ca3af; margin: 0 0 0.75rem 0;">e.g. "Reserve Now & Pay Before Arrival", "Pay on Arrival"</p>
+                                    <label style="font-size: 0.8rem; color: #64748b; display: block; margin-bottom: 0.25rem;">Description</label>
+                                    <input type="text" id="pv-pay-property-description" placeholder="Pay when you arrive - no payment needed now" style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.85rem; margin-bottom: 0.25rem;">
+                                    <p style="font-size: 0.7rem; color: #9ca3af; margin: 0;">Shown below the label on the checkout page</p>
+                                </div>
+
+                                <!-- PayPal (Coming Soon) -->
+                                <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer; padding: 0.75rem; background: white; border-radius: 8px; border: 2px solid transparent; opacity: 0.5;" id="pv-provider-paypal-label">
+                                    <input type="checkbox" value="paypal" id="pv-payment-provider-paypal" style="width: 18px; height: 18px;" disabled>
+                                    <img src="https://upload.wikimedia.org/wikipedia/commons/b/b5/PayPal.svg" alt="PayPal" style="height: 24px;">
+                                    <span style="flex: 1; font-weight: 500;">PayPal</span>
+                                    <span style="font-size: 0.75rem; background: #94a3b8; color: white; padding: 0.15rem 0.5rem; border-radius: 10px;">Coming Soon</span>
+                                </label>
+
+                                <!-- Airwallex (Coming Soon) -->
+                                <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer; padding: 0.75rem; background: white; border-radius: 8px; border: 2px solid transparent; opacity: 0.5;" id="pv-provider-airwallex-label">
+                                    <input type="checkbox" value="airwallex" id="pv-payment-provider-airwallex" style="width: 18px; height: 18px;" disabled>
+                                    <span style="font-size: 1.25rem;">🌐</span>
+                                    <div style="flex: 1;">
+                                        <span style="font-weight: 500;">Airwallex</span>
+                                        <p style="font-size: 0.75rem; color: #64748b; margin: 0.15rem 0 0 0;">Global payments with multi-currency support</p>
+                                    </div>
+                                    <span style="font-size: 0.75rem; background: #94a3b8; color: white; padding: 0.15rem 0.5rem; border-radius: 10px;">Coming Soon</span>
+                                </label>
+
+                                <!-- Card Guarantee (Enigma Vault) -->
+                                <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer; padding: 0.75rem; background: white; border-radius: 8px; border: 2px solid transparent; transition: all 0.2s;" id="pv-provider-card-guarantee-label">
+                                    <input type="checkbox" value="card_guarantee" id="pv-payment-provider-card-guarantee" style="width: 18px; height: 18px;" onchange="togglePvPaymentSections()">
+                                    <span style="font-size: 1.25rem;">&#x1F6E1;</span>
+                                    <div style="flex: 1;">
+                                        <span style="font-weight: 500;">Card Guarantee</span>
+                                        <p style="font-size: 0.75rem; color: #64748b; margin: 0.15rem 0 0 0;">Securely capture guest card as booking guarantee (no charge at booking)</p>
+                                    </div>
+                                    <span style="font-size: 0.75rem; background: #8b5cf6; color: white; padding: 0.15rem 0.5rem; border-radius: 10px;">PCI Secure</span>
+                                </label>
                             </div>
-                            <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 0.75rem;">
-                                <div style="flex: 1; min-width: 250px;">
-                                    <label style="font-size: 0.8rem; font-weight: 500; margin-bottom: 0.25rem; display: block;">Publishable Key</label>
-                                    <input type="text" id="payments-stripe-pub-key" class="form-input" placeholder="pk_live_..." style="font-family: monospace; font-size: 0.85rem;">
-                                </div>
-                                <div style="flex: 1; min-width: 250px;">
-                                    <label style="font-size: 0.8rem; font-weight: 500; margin-bottom: 0.25rem; display: block;">Secret Key</label>
-                                    <input type="password" id="payments-stripe-sec-key" class="form-input" placeholder="sk_live_..." style="font-family: monospace; font-size: 0.85rem;">
-                                </div>
+                        </div>
+
+                        <!-- Stripe API Keys Section -->
+                        <div id="pv-stripe-keys-section" style="display: none; background: var(--bg-secondary); border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                                <h4 style="margin: 0; font-size: 0.95rem;">Stripe API Keys</h4>
+                                <a href="https://dashboard.stripe.com/apikeys" target="_blank" style="font-size: 0.8rem; color: var(--accent);">Get keys from Stripe Dashboard</a>
+                            </div>
+                            <div id="pv-stripe-keys-status" style="margin-bottom: 1rem; padding: 0.75rem; border-radius: 8px; display: none;"></div>
+                            <div class="form-group" style="margin-bottom: 1rem;">
+                                <label class="form-label">Publishable Key</label>
+                                <input type="text" class="form-input" id="payments-stripe-pub-key" placeholder="pk_live_... or pk_test_..." style="font-family: monospace; font-size: 0.85rem;">
+                                <p style="font-size: 0.75rem; color: #64748b; margin-top: 0.25rem;">Starts with pk_live_ (production) or pk_test_ (testing)</p>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 1rem;">
+                                <label class="form-label">Secret Key</label>
+                                <input type="password" class="form-input" id="payments-stripe-sec-key" placeholder="sk_live_... or sk_test_..." style="font-family: monospace; font-size: 0.85rem;">
+                                <p style="font-size: 0.75rem; color: #64748b; margin-top: 0.25rem;">Starts with sk_live_ (production) or sk_test_ (testing)</p>
                             </div>
                             <div style="display: flex; gap: 0.5rem; align-items: center;">
                                 <button class="btn" onclick="savePaymentKeys()" style="background: #635bff; font-size: 0.85rem;">Save Keys</button>
                                 <button class="btn btn-secondary" onclick="testPaymentKeys()" style="font-size: 0.85rem;">Test Connection</button>
+                                <label style="display: flex; align-items: center; gap: 0.5rem; margin-left: auto; font-size: 0.85rem;">
+                                    <input type="checkbox" id="pv-stripe-test-mode" style="width: 16px; height: 16px;">
+                                    Test Mode
+                                </label>
                             </div>
                         </div>
 
-                        <!-- Payment Methods Summary -->
-                        <div style="margin-bottom: 0;">
+                        <!-- Generate Setup Link -->
+                        <div id="pv-stripe-setup-link-section" style="display: none; background: #fef3c7; border-radius: 12px; padding: 1rem; margin-bottom: 1.5rem; border: 1px solid #fcd34d;">
+                            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                <span style="font-size: 1.25rem;">🔗</span>
+                                <div style="flex: 1;">
+                                    <strong style="font-size: 0.9rem;">Need to send to property owner?</strong>
+                                    <p style="font-size: 0.8rem; color: #92400e; margin: 0.25rem 0 0 0;">Generate a secure link they can use to enter their own Stripe keys</p>
+                                </div>
+                                <button type="button" class="btn btn-secondary" onclick="generatePaymentSetupLink()" style="font-size: 0.8rem; white-space: nowrap;">Generate Link</button>
+                            </div>
+                            <div id="pv-setup-link-result" style="display: none; margin-top: 0.75rem; padding: 0.75rem; background: white; border-radius: 8px;">
+                                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                    <input type="text" id="pv-setup-link-url" class="form-input" readonly style="flex: 1; font-size: 0.8rem;">
+                                    <button type="button" class="btn btn-small" onclick="navigator.clipboard.writeText(document.getElementById('pv-setup-link-url').value)" style="font-size: 0.75rem;">Copy</button>
+                                </div>
+                                <p style="font-size: 0.75rem; color: #92400e; margin: 0.5rem 0 0 0;">Link expires in 72 hours</p>
+                            </div>
+                        </div>
+
+                        <!-- Pay at Property Settings -->
+                        <div id="pv-bank-transfer-section" style="display: none; background: var(--bg-secondary); border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem;">
+                            <h4 style="margin: 0 0 1rem 0; font-size: 0.95rem;">🏠 Pay at Property Settings</h4>
+                            <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1rem;">
+                                <label style="display: flex; align-items: flex-start; gap: 0.75rem; cursor: pointer; padding: 0.75rem; background: white; border-radius: 8px; border: 2px solid transparent; transition: all 0.2s;">
+                                    <input type="radio" name="pv-pay-property-mode" value="no_payment" id="pv-pay-mode-no-payment" style="width: 18px; height: 18px; margin-top: 2px;" onchange="togglePvPayPropertyMode()" checked>
+                                    <div>
+                                        <strong style="font-size: 0.9rem;">Book Only — No payment needed</strong>
+                                        <p style="font-size: 0.8rem; color: #64748b; margin: 0.25rem 0 0 0;">Guest books, pays on arrival. No bank details shown.</p>
+                                    </div>
+                                </label>
+                                <label style="display: flex; align-items: flex-start; gap: 0.75rem; cursor: pointer; padding: 0.75rem; background: white; border-radius: 8px; border: 2px solid transparent; transition: all 0.2s;">
+                                    <input type="radio" name="pv-pay-property-mode" value="bank_optional" id="pv-pay-mode-bank-optional" style="width: 18px; height: 18px; margin-top: 2px;" onchange="togglePvPayPropertyMode()">
+                                    <div>
+                                        <strong style="font-size: 0.9rem;">Bank Transfer Optional — Show bank details</strong>
+                                        <p style="font-size: 0.8rem; color: #64748b; margin: 0.25rem 0 0 0;">Booking confirmed. Guest can transfer in advance or pay at the property.</p>
+                                    </div>
+                                </label>
+                                <label style="display: flex; align-items: flex-start; gap: 0.75rem; cursor: pointer; padding: 0.75rem; background: white; border-radius: 8px; border: 2px solid transparent; transition: all 0.2s;">
+                                    <input type="radio" name="pv-pay-property-mode" value="bank_required" id="pv-pay-mode-bank-required" style="width: 18px; height: 18px; margin-top: 2px;" onchange="togglePvPayPropertyMode()">
+                                    <div>
+                                        <strong style="font-size: 0.9rem;">Bank Transfer Required — Booking as request</strong>
+                                        <p style="font-size: 0.8rem; color: #64748b; margin: 0.25rem 0 0 0;">Booking sent as request until payment received. Owner confirms manually.</p>
+                                    </div>
+                                </label>
+                            </div>
+                            <!-- Bank Details -->
+                            <div id="pv-bank-details-subsection" style="display: none;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                                    <h5 style="margin: 0; font-size: 0.9rem;">🏦 Bank Account Details</h5>
+                                    <button type="button" class="btn btn-small" onclick="addBankAccount()" style="font-size: 0.8rem;">+ Add Bank Account</button>
+                                </div>
+                                <p style="font-size: 0.8rem; color: #64748b; margin: 0 0 0.75rem 0;">These details will be shown to guests when bank transfer is available</p>
+                                <div id="pv-bank-accounts-container"></div>
+                                <div class="form-group" style="margin-top: 1rem; margin-bottom: 0.5rem;">
+                                    <label class="form-label">Custom Instructions (shown to guest)</label>
+                                    <textarea id="pv-bank-transfer-instructions" class="form-input" rows="3" placeholder="e.g., To complete your reservation, please make a bank transfer for the amount above. We will hold this reservation for a maximum of 48 hours."></textarea>
+                                </div>
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label class="form-label">Payment Deadline (hours)</label>
+                                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                        <input type="number" id="pv-bank-transfer-deadline-hours" class="form-input" value="48" min="0" style="max-width: 100px;">
+                                        <span style="font-size: 0.85rem; color: #64748b;">hours to complete transfer (0 = no deadline)</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Card Guarantee Section (Enigma Vault) -->
+                        <div id="pv-card-guarantee-section" style="display: none; background: linear-gradient(135deg, #faf5ff 0%, #f0e7ff 100%); border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem; border: 1px solid #c4b5fd;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                                <h4 style="margin: 0; font-size: 0.95rem; color: #6d28d9;">&#x1F6E1; Card Guarantee Settings</h4>
+                                <span style="font-size: 0.7rem; background: #8b5cf6; color: white; padding: 0.2rem 0.6rem; border-radius: 10px;">Powered by Enigma Vault</span>
+                            </div>
+                            <div style="background: white; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+                                <p style="font-size: 0.85rem; color: #4c1d95; margin: 0 0 0.75rem 0; font-weight: 500;">How it works:</p>
+                                <div style="font-size: 0.8rem; color: #64748b; line-height: 1.6;">
+                                    <p style="margin: 0 0 0.4rem 0;">1. Guest enters card details in a secure PCI-compliant form at booking</p>
+                                    <p style="margin: 0 0 0.4rem 0;">2. Card is tokenised and stored securely — no card data touches your server</p>
+                                    <p style="margin: 0 0 0.4rem 0;">3. Guest pays at property (cash, bank transfer, etc.) — no charge at booking</p>
+                                    <p style="margin: 0;">4. For no-shows or cancellations, you can charge the stored card</p>
+                                </div>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 1rem;">
+                                <label class="form-label">Card Guarantee Provider</label>
+                                <div style="display: flex; gap: 0.75rem;">
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem; background: white; border-radius: 8px; border: 2px solid transparent; cursor: pointer; flex: 1;" id="pv-cg-provider-enigma-label">
+                                        <input type="radio" name="pv-cg-provider" value="enigma" id="pv-cg-provider-enigma" checked onchange="togglePvCgProvider()">
+                                        <div>
+                                            <strong style="font-size: 0.85rem;">Enigma Vault</strong>
+                                            <p style="font-size: 0.7rem; color: #64748b; margin: 0.15rem 0 0 0;">Third-party PCI card vault</p>
+                                        </div>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem; background: white; border-radius: 8px; border: 2px solid transparent; cursor: pointer; flex: 1;" id="pv-cg-provider-stripe-label">
+                                        <input type="radio" name="pv-cg-provider" value="stripe" id="pv-cg-provider-stripe" onchange="togglePvCgProvider()">
+                                        <div>
+                                            <strong style="font-size: 0.85rem;">Stripe</strong>
+                                            <p style="font-size: 0.7rem; color: #64748b; margin: 0.15rem 0 0 0;">Uses your existing Stripe keys</p>
+                                        </div>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 1rem;">
+                                <label class="form-label">Guest-facing Label</label>
+                                <input type="text" class="form-input" id="pv-card-guarantee-label" placeholder="e.g. Card Guarantee (no charge at booking)" value="Card Guarantee">
+                                <p style="font-size: 0.75rem; color: #64748b; margin-top: 0.25rem;">This text appears in the booking plugin payment options</p>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 1rem;">
+                                <label class="form-label">Guest-facing Description</label>
+                                <textarea class="form-input" id="pv-card-guarantee-description" rows="2" placeholder="e.g. Your card will be securely stored as a guarantee. No charge will be made unless you cancel or no-show.">Your card will be securely stored as a booking guarantee. No charge will be made at the time of booking.</textarea>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label">No-show / Late Cancellation Charge</label>
+                                <div style="display: flex; gap: 0.75rem; align-items: center;">
+                                    <select id="pv-card-guarantee-noshow-type" class="form-input" style="max-width: 180px;">
+                                        <option value="first_night">First night</option>
+                                        <option value="percentage">Percentage</option>
+                                        <option value="fixed">Fixed amount</option>
+                                        <option value="full">Full booking</option>
+                                    </select>
+                                    <input type="number" id="pv-card-guarantee-noshow-amount" class="form-input" value="100" min="0" style="max-width: 100px;">
+                                    <span id="pv-card-guarantee-noshow-symbol" style="font-weight: 500;">%</span>
+                                </div>
+                                <p style="font-size: 0.75rem; color: #64748b; margin-top: 0.25rem;">Amount to charge the guest's card in case of no-show or late cancellation</p>
+                                <div class="form-group" style="margin-top: 1rem;">
+                                    <label class="form-label">Post-capture Message</label>
+                                    <textarea class="form-input" id="pv-card-guarantee-success-msg" rows="2" placeholder="e.g. Thank you! Your card is secured. Please confirm your booking below.">Thank you! Your card is secured. Please now confirm your booking below.</textarea>
+                                    <p style="font-size: 0.75rem; color: #64748b; margin-top: 0.25rem;">Shown to the guest after their card is successfully captured</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Deposit Settings -->
+                        <div style="background: var(--bg-secondary); border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem;">
+                            <h4 style="margin: 0 0 1rem 0; font-size: 0.95rem;">Deposit Settings</h4>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label>Deposit Type</label>
+                                    <select id="pv-payment-deposit-type" class="form-input">
+                                        <option value="percentage">Percentage of total</option>
+                                        <option value="fixed">Fixed amount</option>
+                                        <option value="full">Full payment required</option>
+                                        <option value="none">No deposit</option>
+                                    </select>
+                                </div>
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label>Deposit Amount</label>
+                                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                        <input type="number" id="pv-payment-deposit-amount" class="form-input" value="25" min="0" step="0.01">
+                                        <span id="pv-payment-deposit-symbol" style="font-weight: 500;">%</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-group" style="margin-top: 1rem; margin-bottom: 0;">
+                                <label>Balance Due (days before arrival)</label>
+                                <input type="number" id="pv-payment-balance-days" class="form-input" value="14" min="0" style="max-width: 150px;">
+                                <p style="font-size: 0.75rem; color: #64748b; margin-top: 0.25rem;">0 = balance due on arrival</p>
+                            </div>
+                        </div>
+
+                        <!-- Currency -->
+                        <div class="form-group" style="margin-bottom: 1.5rem;">
+                            <label>Currency</label>
+                            <select id="pv-payment-currency" class="form-input" style="max-width: 200px;">
+                                <option value="GBP">GBP</option>
+                                <option value="USD">USD ($)</option>
+                                <option value="EUR">EUR</option>
+                                <option value="CHF">CHF</option>
+                                <option value="PHP">PHP</option>
+                                <option value="AED">AED</option>
+                                <option value="JPY">JPY</option>
+                                <option value="THB">THB</option>
+                            </select>
+                        </div>
+
+                        <!-- Cancellation Policy -->
+                        <div class="form-group" style="margin-bottom: 1.5rem;">
+                            <label>Cancellation Policy (Optional)</label>
+                            <textarea id="pv-payment-cancellation" class="form-input" rows="3" placeholder="e.g., Free cancellation up to 48 hours before check-in. 50% refund for cancellations made 24-48 hours before. No refund for cancellations less than 24 hours before check-in."></textarea>
+                        </div>
+
+                        <!-- Save Button -->
+                        <div style="display: flex; gap: 0.5rem; justify-content: flex-end; padding-top: 1rem; border-top: 1px solid #e2e8f0;">
+                            <button type="button" class="btn" onclick="savePaymentSettings()">Save Payment Settings</button>
+                        </div>
+
+                        <!-- Payment Methods by Property Summary -->
+                        <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid #e2e8f0;">
                             <h4 style="margin-bottom: 0.75rem; color: #374151;">Payment Methods by Property</h4>
                             <div id="payments-methods-summary" style="font-size: 0.9rem; color: #64748b;">
                                 Loading...
@@ -4709,6 +4968,7 @@
                                 <option value="card">Stripe</option>
                                 <option value="card_guarantee">Card Guarantee</option>
                                 <option value="property">Pay at Property</option>
+                                <option value="airwallex">Airwallex</option>
                             </select>
                         </div>
                         <div style="flex: 1; min-width: 150px;">
@@ -44292,6 +44552,43 @@ const promo = await fetch('/api/v1/offers/validate', {
                 console.error('Error loading payment methods summary:', e);
                 summaryEl.innerHTML = '<span style="color: #ef4444;">Error loading</span>';
             }
+        }
+
+        // Toggle payment method sections in B&R Payments view
+        function togglePvPaymentSections() {
+            const stripeChecked = document.getElementById('pv-payment-provider-stripe')?.checked;
+            const payPropertyChecked = document.getElementById('pv-payment-provider-pay-property')?.checked;
+            const cardGuaranteeChecked = document.getElementById('pv-payment-provider-card-guarantee')?.checked;
+
+            const stripeSection = document.getElementById('pv-stripe-keys-section');
+            const setupLinkSection = document.getElementById('pv-stripe-setup-link-section');
+            const payPropertyText = document.getElementById('pv-pay-property-text-section');
+            const bankSection = document.getElementById('pv-bank-transfer-section');
+            const cgSection = document.getElementById('pv-card-guarantee-section');
+
+            if (stripeSection) stripeSection.style.display = stripeChecked ? 'block' : 'none';
+            if (setupLinkSection) setupLinkSection.style.display = stripeChecked ? 'block' : 'none';
+            if (payPropertyText) payPropertyText.style.display = payPropertyChecked ? 'block' : 'none';
+            if (bankSection) bankSection.style.display = payPropertyChecked ? 'block' : 'none';
+            if (cgSection) cgSection.style.display = cardGuaranteeChecked ? 'block' : 'none';
+        }
+
+        // Toggle bank details subsection based on pay-at-property mode
+        function togglePvPayPropertyMode() {
+            const mode = document.querySelector('input[name="pv-pay-property-mode"]:checked')?.value;
+            const bankDetails = document.getElementById('pv-bank-details-subsection');
+            if (bankDetails) {
+                bankDetails.style.display = (mode === 'bank_optional' || mode === 'bank_required') ? 'block' : 'none';
+            }
+        }
+
+        // Toggle card guarantee provider highlight
+        function togglePvCgProvider() {
+            const enigmaLabel = document.getElementById('pv-cg-provider-enigma-label');
+            const stripeLabel = document.getElementById('pv-cg-provider-stripe-label');
+            const enigmaChecked = document.getElementById('pv-cg-provider-enigma')?.checked;
+            if (enigmaLabel) enigmaLabel.style.borderColor = enigmaChecked ? '#8b5cf6' : 'transparent';
+            if (stripeLabel) stripeLabel.style.borderColor = enigmaChecked ? 'transparent' : '#8b5cf6';
         }
 
         async function savePaymentKeys() {
