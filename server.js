@@ -6753,7 +6753,7 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
                 const dateStr = d.toISOString().split('T')[0];
                 
                 const numAvail = entry.numAvail || 0;
-                const price = entry.price1 || entry.price2 || null;
+                const price = (entry.price1 !== undefined && entry.price1 !== null) ? entry.price1 : (entry.price2 !== undefined && entry.price2 !== null) ? entry.price2 : null;
                 const minStay = entry.minStay || 1;
 
                 // Available only if units available AND has a price — no price = unbookable
@@ -8889,7 +8889,7 @@ app.post('/api/gas-sync/tiered-availability-sync', async (req, res) => {
               for (let d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
                 const dateStr = d.toISOString().split('T')[0];
                 const numAvail = entry.numAvail || 0;
-                const price = entry.price1 || entry.price2 || null;
+                const price = (entry.price1 !== undefined && entry.price1 !== null) ? entry.price1 : (entry.price2 !== undefined && entry.price2 !== null) ? entry.price2 : null;
                 const minStay = entry.minStay || 1;
                 
                 await pool.query(`
@@ -8971,7 +8971,7 @@ app.post('/api/gas-sync/tiered-availability-sync', async (req, res) => {
                     
                     for (let d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
                       const dateStr = d.toISOString().split('T')[0];
-                      const basePrice = entry.price1 || entry.price2 || null;
+                      const basePrice = (entry.price1 !== undefined && entry.price1 !== null) ? entry.price1 : (entry.price2 !== undefined && entry.price2 !== null) ? entry.price2 : null;
                       const linkedPrice = basePrice ? (basePrice * multiplier) + offset : null;
                       // Use this room's OWN min_stay from Beds24, fall back to source room's if unavailable
                       const minStay = ownMinStayMap[dateStr] || entry.minStay || 1;
@@ -56366,7 +56366,7 @@ app.post('/api/admin/sync-beds24-full-pricing', async (req, res) => {
             for (let d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
               const dateStr = d.toISOString().split('T')[0];
               const numAvail = entry.numAvail || 0;
-              const price = entry.price1 || entry.price2 || null;
+              const price = (entry.price1 !== undefined && entry.price1 !== null) ? entry.price1 : (entry.price2 !== undefined && entry.price2 !== null) ? entry.price2 : null;
               const minStay = entry.minStay || 1;
               
               await pool.query(`
@@ -69867,7 +69867,7 @@ app.post('/api/gas-sync/connections/:id/sync-prices', async (req, res) => {
           for (let d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
             const dateStr = d.toISOString().split('T')[0];
             const numAvail = entry.numAvail || 0;
-            const price = entry.price1 || entry.price2 || null;
+            const price = (entry.price1 !== undefined && entry.price1 !== null) ? entry.price1 : (entry.price2 !== undefined && entry.price2 !== null) ? entry.price2 : null;
             const minStay = entry.minStay || 1;
             
             await pool.query(`
@@ -71450,7 +71450,7 @@ app.post('/api/admin/debug/beds24-resync-room/:connectionId/:beds24RoomId', asyn
           multiplier: entry.multiplier || 1,
           minStay: entry.minStay || 1,
           numAvail: entry.numAvail || 0,
-          ownPrice: entry.price1 || entry.price2 || null
+          ownPrice: (entry.price1 !== undefined && entry.price1 !== null) ? entry.price1 : (entry.price2 !== undefined && entry.price2 !== null) ? entry.price2 : null
         };
       }
     }
@@ -71474,7 +71474,7 @@ app.post('/api/admin/debug/beds24-resync-room/:connectionId/:beds24RoomId', asyn
         const from = new Date(entry.from);
         const to = new Date(entry.to);
         for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
-          baseDayMap[d.toISOString().split('T')[0]] = entry.price1 || entry.price2 || null;
+          baseDayMap[d.toISOString().split('T')[0]] = (entry.price1 !== undefined && entry.price1 !== null) ? entry.price1 : (entry.price2 !== undefined && entry.price2 !== null) ? entry.price2 : null;
         }
       }
     }
@@ -77396,7 +77396,7 @@ async function runTieredSync() {
                 for (let d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
                   const dateStr = d.toISOString().split('T')[0];
                   const numAvail = entry.numAvail || 0;
-                  const price = entry.price1 || entry.price2 || null;
+                  const price = (entry.price1 !== undefined && entry.price1 !== null) ? entry.price1 : (entry.price2 !== undefined && entry.price2 !== null) ? entry.price2 : null;
                   const minStay = entry.minStay || 1;
                   
                   await pool.query(`
