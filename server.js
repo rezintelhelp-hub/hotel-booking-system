@@ -13089,6 +13089,67 @@ app.post('/api/accounts/:id/airwallex-customer', async (req, res) => {
   }
 });
 
+// Charge account via Airwallex payment intent
+app.post('/api/accounts/:id/airwallex-charge', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { amount, currency } = req.body;
+
+    if (!amount || amount <= 0) {
+      return res.json({ success: false, error: 'Invalid amount' });
+    }
+
+    const acct = await pool.query('SELECT id, name, email, airwallex_customer_id FROM accounts WHERE id = $1', [id]);
+    if (acct.rows.length === 0) return res.json({ success: false, error: 'Account not found' });
+
+    const account = acct.rows[0];
+    if (!account.airwallex_customer_id) {
+      return res.json({ success: false, error: 'Account not linked to Airwallex. Link first.' });
+    }
+
+    const awClientId = process.env.AIRWALLEX_CLIENT_ID;
+    const awApiKey = process.env.AIRWALLEX_API_KEY;
+    if (!awClientId || !awApiKey) {
+      return res.json({ success: false, error: 'Airwallex credentials not configured in environment variables' });
+    }
+
+    const airwallexBase = process.env.AIRWALLEX_ENV === 'production' ? 'https://api.airwallex.com' : 'https://api-demo.airwallex.com';
+
+    // Authenticate
+    const awAuthRes = await fetch(`${airwallexBase}/api/v1/authentication/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': awApiKey, 'x-client-id': awClientId }
+    });
+    const awAuth = await awAuthRes.json();
+    if (!awAuthRes.ok || !awAuth.token) {
+      return res.json({ success: false, error: 'Airwallex authentication failed: ' + (awAuth.message || 'Unknown error') });
+    }
+
+    // Create payment intent
+    const piRes = await fetch(`${airwallexBase}/api/v1/pa/payment_intents/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${awAuth.token}` },
+      body: JSON.stringify({
+        amount: parseFloat(amount),
+        currency: (currency || 'EUR').toUpperCase(),
+        customer_id: account.airwallex_customer_id,
+        request_id: `gas-inv-${id}-${Date.now()}`,
+        merchant_order_id: `gas-${id}-${new Date().toISOString().slice(0, 7)}`
+      })
+    });
+    const piData = await piRes.json();
+
+    if (!piRes.ok || !piData.id) {
+      return res.json({ success: false, error: 'Payment intent creation failed: ' + (piData.message || JSON.stringify(piData)) });
+    }
+
+    console.log(`✅ Airwallex payment intent created for account ${id}: ${piData.id} (${piData.status})`);
+    res.json({ success: true, payment_intent_id: piData.id, status: piData.status, amount: piData.amount, currency: piData.currency });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Delete account and all related data
 app.delete('/api/accounts/:id', async (req, res) => {
   try {
