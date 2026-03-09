@@ -23405,7 +23405,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                     'cta': 'editor-cta-content',
                     'footer': 'editor-footer-content',
                     'currency': 'editor-currency-content',
-                    'styles': 'editor-styles-content',
                     'seo': 'editor-seo-content',
                     'page-rooms': 'editor-subpage-page-rooms',
                     'page-about': 'editor-subpage-page-about',
@@ -23424,7 +23423,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 // Get container for this section
                 const editorContainerId = editorPanelMap[section];
                 const editorContainer = editorContainerId ? document.getElementById(editorContainerId) : null;
-                
+
                 // Helper to get element - prefer editor container if visible
                 const getEl = (id) => {
                     if (editorContainer) {
@@ -24258,7 +24257,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                     'cta': 'editor-cta-content',
                     'footer': 'editor-footer-content',
                     'currency': 'editor-currency-content',
-                    'styles': 'editor-styles-content',
                     'seo': 'editor-seo-content',
                     'page-rooms': 'editor-subpage-page-rooms',
                     'page-about': 'editor-subpage-page-about',
