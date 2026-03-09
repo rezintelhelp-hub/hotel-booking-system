@@ -2955,6 +2955,7 @@ function developer_developer_custom_css() {
         
         .developer-page-header h1,
         .developer-page-hero h1,
+        .developer-hero h1,
         .gas-contact-header h1 {
             font-size: ' . esc_attr($page_title_size) . 'px;
         }
