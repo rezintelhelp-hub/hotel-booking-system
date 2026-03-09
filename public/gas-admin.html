@@ -24269,7 +24269,29 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 const editorContainerId = editorPanelMap[section];
                 let editorContainer = editorContainerId ? document.getElementById(editorContainerId) : null;
-                
+
+                // Styles: collect directly from DOM, bypass container logic entirely
+                if (section === 'styles') {
+                    document.querySelectorAll('[id^="wb-styles-"]').forEach(el => {
+                        const key = el.id.replace('wb-styles-', '');
+                        if (key.endsWith('-picker') || key.endsWith('-value') || key.endsWith('-preview')) return;
+                        if (el.type === 'file') return;
+                        if (el.type === 'checkbox') {
+                            settings[key] = el.checked;
+                        } else if (el.value !== undefined) {
+                            let value = el.value;
+                            if (key.includes('color') || key.includes('bg') || key.includes('text')) {
+                                if (value.startsWith('#')) {
+                                    value = '#' + value.slice(1).replace(/[^0-9A-Fa-f]/g, '').slice(0, 6);
+                                }
+                            }
+                            settings[key] = value;
+                        }
+                    });
+                    console.log('Saving styles (direct DOM):', { settingsCount: Object.keys(settings).length, settings });
+                }
+
+                if (section !== 'styles') {
                 // For sections that are cloned into editor panels, prefer collecting from the clone
                 // because that's where the user edits when in Homepage/Content tabs
                 const clonedPanelMap = {
@@ -24284,25 +24306,25 @@ const promo = await fetch('/api/v1/offers/validate', {
                     'page-terms': 'editor-footer-footer-terms',
                     'page-privacy': 'editor-footer-footer-privacy'
                 };
-                
+
                 const clonedContainerId = clonedPanelMap[section];
                 const clonedContainer = clonedContainerId ? document.getElementById(clonedContainerId) : null;
-                
+
                 // Collect from BOTH original and clone, with clone values taking priority
                 // This ensures we get all fields (some may only exist in original)
                 // For page-* sections, the editorContainer IS the container with the fields
                 let originalContainer = document.getElementById(`wb-${section}`);
-                
+
                 // For page-* sections, use the editorContainer as the source
                 if (!originalContainer && section.startsWith('page-') && editorContainer) {
                     originalContainer = editorContainer;
                 }
-                
+
                 // First collect from original
-                let elementsToCheck = originalContainer 
+                let elementsToCheck = originalContainer
                     ? originalContainer.querySelectorAll(`[id^="${prefix}"]`)
                     : document.querySelectorAll(`[id^="${prefix}"]`);
-                
+
                 elementsToCheck.forEach(el => {
                     const key = el.id.replace(prefix, '');
                     if (key.endsWith('-picker') || key.endsWith('-value') || key.endsWith('-preview')) {
@@ -24324,9 +24346,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                         settings[key] = value;
                     }
                 });
-                
+
                 // Debug: log what we collected for page-about
-                if (section.startsWith('page-') || section === 'styles') {
+                if (section.startsWith('page-')) {
                     console.log(`Saving ${section}:`, {
                         editorContainerId,
                         originalContainerFound: !!originalContainer,
@@ -24335,7 +24357,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                         settings
                     });
                 }
-                
+
                 // Then override with values from clone (user's edits)
                 // BUT don't override non-empty values with empty values (preserves uploaded images etc.)
                 if (clonedContainer) {
@@ -24357,6 +24379,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                         }
                     });
                 }
+                } // end if (section !== 'styles')
                 
                 // For hero section, also collect from editor-homepage-hero (contains menu-title fields)
                 if (section === 'hero') {
