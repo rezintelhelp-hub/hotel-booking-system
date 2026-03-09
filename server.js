@@ -23268,7 +23268,10 @@ async function pushSettingsToWordPress(siteUrl, section, settings) {
         'title-color': 'title_color',
         'text-color': 'text_color',
         'title-size': 'title_size',
-        'text-size': 'text_size'
+        'text-size': 'text_size',
+        'image-2-url': 'image_2',
+        'image-3-url': 'image_3',
+        'image-4-url': 'image_4'
       }
     };
     

@@ -1715,6 +1715,9 @@ class GAS_Booking {
                                 if (!empty($config['website']['about'])) {
                                     $about = $config['website']['about'];
                                     if (isset($about['image-url']) && !empty($about['image-url'])) { set_theme_mod('developer_about_image', $about['image-url']); }
+                                    if (isset($about['image-2-url']) && !empty($about['image-2-url'])) { set_theme_mod('developer_about_image_2', $about['image-2-url']); }
+                                    if (isset($about['image-3-url']) && !empty($about['image-3-url'])) { set_theme_mod('developer_about_image_3', $about['image-3-url']); }
+                                    if (isset($about['image-4-url']) && !empty($about['image-4-url'])) { set_theme_mod('developer_about_image_4', $about['image-4-url']); }
                                     if (isset($about['title'])) { set_theme_mod('developer_about_title', $about['title']); }
                                     if (isset($about['title-size'])) { set_theme_mod('developer_about_title_size', $about['title-size']); }
                                     if (isset($about['text'])) { set_theme_mod('developer_about_text', $about['text']); }

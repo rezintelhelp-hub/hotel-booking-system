@@ -10142,6 +10142,30 @@
                             <input type="hidden" id="wb-about-image-url">
                         </div>
                         <div class="form-group">
+                            <label class="form-label">About Image 2 (optional)</label>
+                            <div id="wb-about-image-2-preview" style="width: 100%; height: 120px; background: #f1f5f9; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; background-size: cover; background-position: center;">
+                                <span style="color: #94a3b8; font-size: 0.8rem;">Upload a second image for slider</span>
+                            </div>
+                            <input type="file" id="wb-about-image-2" accept="image/*" onchange="uploadAboutExtraImage(2, this)">
+                            <input type="hidden" id="wb-about-image-2-url">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">About Image 3 (optional)</label>
+                            <div id="wb-about-image-3-preview" style="width: 100%; height: 120px; background: #f1f5f9; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; background-size: cover; background-position: center;">
+                                <span style="color: #94a3b8; font-size: 0.8rem;">Upload a third image for slider</span>
+                            </div>
+                            <input type="file" id="wb-about-image-3" accept="image/*" onchange="uploadAboutExtraImage(3, this)">
+                            <input type="hidden" id="wb-about-image-3-url">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">About Image 4 (optional)</label>
+                            <div id="wb-about-image-4-preview" style="width: 100%; height: 120px; background: #f1f5f9; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; background-size: cover; background-position: center;">
+                                <span style="color: #94a3b8; font-size: 0.8rem;">Upload a fourth image for slider</span>
+                            </div>
+                            <input type="file" id="wb-about-image-4" accept="image/*" onchange="uploadAboutExtraImage(4, this)">
+                            <input type="hidden" id="wb-about-image-4-url">
+                        </div>
+                        <div class="form-group">
                             <label class="form-label">Title <span style="font-size: 0.75rem; color: #8b5cf6;">🌐 Multilingual</span></label>
                             <div class="translation-field-wrapper" data-translation-group="wb-about-title">
                                 <div class="translation-tabs">
@@ -23469,7 +23493,20 @@ const promo = await fetch('/api/v1/offers/validate', {
                             preview.innerHTML = `<img src="${data.settings.image}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 8px;">`;
                         }
                     }
-                    
+
+                    // Handle about extra image previews
+                    if (section === 'about') {
+                        for (let i = 2; i <= 4; i++) {
+                            const imgUrl = data.settings[`image-${i}-url`];
+                            if (imgUrl && imgUrl !== 'undefined' && imgUrl !== '') {
+                                const preview = getEl(`wb-about-image-${i}-preview`);
+                                if (preview) {
+                                    preview.innerHTML = `<img src="${imgUrl}" style="max-width:100%;max-height:120px;border-radius:4px;">`;
+                                }
+                            }
+                        }
+                    }
+
                     // Handle hero video URL - set toggle and preview
                     if (section === 'hero' && data.settings['video-url']) {
                         // Set radio to video
@@ -25989,7 +26026,38 @@ const promo = await fetch('/api/v1/offers/validate', {
                 }
             }
         }
-        
+
+        // Upload helper for extra about images (image-2, image-3, image-4)
+        async function uploadAboutExtraImage(slot, el) {
+            const file = el.files[0];
+            if (!file) return;
+            const preview = el.closest('.form-group').querySelector('[id^="wb-about-image-' + slot + '-preview"]')
+                            || document.getElementById('wb-about-image-' + slot + '-preview');
+            const urlField = document.getElementById('wb-about-image-' + slot + '-url');
+            if (!urlField) return;
+            if (preview) preview.innerHTML = '<span style="padding:8px;">Uploading...</span>';
+            try {
+                const formData = new FormData();
+                formData.append('image', file);
+                formData.append('section', 'about');
+                formData.append('deployed_site_id', selectedDeployedSiteId);
+                const response = await fetch('/api/admin/website-builder/upload-image', {
+                    method: 'POST',
+                    headers: { ...authHeaders() },
+                    body: formData
+                });
+                const data = await response.json();
+                if (data.url) {
+                    urlField.value = data.url;
+                    if (preview) preview.innerHTML = '<img src="' + data.url + '" style="max-width:100%;max-height:120px;border-radius:4px;">';
+                } else {
+                    if (preview) preview.innerHTML = '<span style="color:red;">Upload failed</span>';
+                }
+            } catch (error) {
+                if (preview) preview.innerHTML = '<span style="color:red;">Upload error</span>';
+            }
+        }
+
         // Hero video background functions
         function toggleHeroBackgroundType(type) {
             const imageSection = document.getElementById('hero-image-upload-section');

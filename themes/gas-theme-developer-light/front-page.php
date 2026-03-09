@@ -113,6 +113,10 @@ for ($i = 1; $i <= 6; $i++) {
 // About settings (with API override)
 $about_enabled = $api['about_enabled'] ?? get_theme_mod('developer_about_enabled', true);
 $about_image = $api['about_image'] ?? get_theme_mod('developer_about_image', '');
+$about_image_2 = $api['about_image_2'] ?? get_theme_mod('developer_about_image_2', '');
+$about_image_3 = $api['about_image_3'] ?? get_theme_mod('developer_about_image_3', '');
+$about_image_4 = $api['about_image_4'] ?? get_theme_mod('developer_about_image_4', '');
+$about_images = array_filter(array($about_image, $about_image_2, $about_image_3, $about_image_4));
 $about_title = $api['about_title'] ?? get_theme_mod('developer_about_title', 'Experience Luxury & Comfort');
 $about_title_size = get_theme_mod('developer_about_title_size', '36');
 $about_text = $api['about_text'] ?? get_theme_mod('developer_about_text', 'Our carefully curated collection of vacation rentals offers the perfect blend of luxury, comfort, and convenience. Whether you\'re planning a family reunion, a getaway with friends, or a romantic escape, we have the ideal property for you.');
@@ -342,7 +346,20 @@ $search_bg_rgba = "rgba($sr, $sg, $sb, " . ($search_opacity / 100) . ")";
     <div class="developer-container">
         <div class="developer-about <?php echo esc_attr('developer-about-' . $about_layout); ?>">
             <div class="developer-about-image">
-                <?php if ($about_image) : ?>
+                <?php if (count($about_images) > 1) : ?>
+                    <div class="developer-about-slides">
+                        <?php foreach (array_values($about_images) as $idx => $img) : ?>
+                            <div class="developer-about-slide<?php echo $idx === 0 ? ' active' : ''; ?>">
+                                <img src="<?php echo esc_url($img); ?>" alt="<?php echo esc_attr($about_title); ?>">
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                    <div class="developer-about-dots">
+                        <?php foreach (array_values($about_images) as $idx => $img) : ?>
+                            <button class="developer-about-dot<?php echo $idx === 0 ? ' active' : ''; ?>" type="button"></button>
+                        <?php endforeach; ?>
+                    </div>
+                <?php elseif ($about_image) : ?>
                     <img src="<?php echo esc_url($about_image); ?>" alt="<?php echo esc_attr($about_title); ?>">
                 <?php else : ?>
                     <div style="width: 100%; height: 500px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; color: white; font-size: 48px; border-radius: 16px;">🏠</div>
@@ -379,6 +396,25 @@ $search_bg_rgba = "rgba($sr, $sg, $sb, " . ($search_opacity / 100) . ")";
             </div>
         </div>
     </div>
+<?php if (count($about_images) > 1) : ?>
+<script>
+(function() {
+    var slides = document.querySelectorAll('.developer-about-slide');
+    var dots = document.querySelectorAll('.developer-about-dot');
+    if (!slides.length) return;
+    var current = 0;
+    function goTo(n) {
+        slides[current].classList.remove('active');
+        dots[current].classList.remove('active');
+        current = n;
+        slides[current].classList.add('active');
+        dots[current].classList.add('active');
+    }
+    dots.forEach(function(dot, i) { dot.addEventListener('click', function() { goTo(i); }); });
+    setInterval(function() { goTo((current + 1) % slides.length); }, 4000);
+})();
+</script>
+<?php endif; ?>
 </section>
 <?php endif; ?>
 
