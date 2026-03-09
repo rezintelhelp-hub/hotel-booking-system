@@ -21953,6 +21953,17 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (activePanel) {
                 activePanel.style.display = 'block';
             }
+
+            // Styles: move wb-styles into editor panel (no clone, no duplicate IDs)
+            const stylesTarget = document.getElementById('editor-styles-content');
+            if (tabName === 'styles' && stylesTarget && !stylesTarget.hasChildNodes()) {
+                const wbStyles = document.getElementById('wb-styles');
+                if (wbStyles) {
+                    stylesTarget.appendChild(wbStyles);
+                    wbStyles.style.display = 'block';
+                    wbStyles.classList.remove('view');
+                }
+            }
             
             // Load data for the selected tab
             const sectionMap = {
