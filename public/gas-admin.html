@@ -23725,21 +23725,17 @@ const promo = await fetch('/api/v1/offers/validate', {
                         initCurrencySettingsButton();
                     }
 
-                    // Sync styles clone: editor-styles-content is a clone of wb-styles
-                    // that gets created at init with HTML defaults. After loading saved
-                    // values into the original, copy them to the clone so save reads correct values.
+                    // Sync loaded styles back to wb-styles: getEl() writes to editor-styles-content
+                    // (the clone) but saveWebsiteSection reads from wb-styles (the original).
+                    // Mirror clone values back to original so save picks up correct loaded values.
                     if (section === 'styles') {
-                        const original = document.getElementById('wb-styles');
                         const clone = document.getElementById('editor-styles-content');
-                        if (original && clone) {
-                            original.querySelectorAll('[id^="wb-styles-"]').forEach(el => {
-                                const cloneEl = clone.querySelector('#' + el.id);
-                                if (cloneEl && el.type !== 'file') {
-                                    cloneEl.value = el.value;
-                                    if (el.type === 'range') {
-                                        const span = clone.querySelector('#' + el.id + '-value');
-                                        if (span) span.textContent = el.value;
-                                    }
+                        const original = document.getElementById('wb-styles');
+                        if (clone && original) {
+                            clone.querySelectorAll('[id^="wb-styles-"]').forEach(el => {
+                                const origEl = original.querySelector('#' + el.id);
+                                if (origEl && el.type !== 'file') {
+                                    origEl.value = el.value;
                                 }
                             });
                         }
