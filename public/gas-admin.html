@@ -23725,17 +23725,25 @@ const promo = await fetch('/api/v1/offers/validate', {
                         initCurrencySettingsButton();
                     }
 
-                    // Sync loaded styles back to wb-styles: getEl() writes to editor-styles-content
-                    // (the clone) but saveWebsiteSection reads from wb-styles (the original).
-                    // Mirror clone values back to original so save picks up correct loaded values.
+                    // Set loaded values directly on wb-styles container elements.
+                    // getElementById finds the clone (editor-styles-content) first due to DOM order,
+                    // so the main loop above sets the clone. Save reads from wb-styles (the original).
+                    // This pass ensures the original has the correct loaded values.
                     if (section === 'styles') {
-                        const clone = document.getElementById('editor-styles-content');
                         const original = document.getElementById('wb-styles');
-                        if (clone && original) {
-                            clone.querySelectorAll('[id^="wb-styles-"]').forEach(el => {
-                                const origEl = original.querySelector('#' + el.id);
-                                if (origEl && el.type !== 'file') {
-                                    origEl.value = el.value;
+                        if (original) {
+                            Object.entries(data.settings).forEach(([key, value]) => {
+                                const el = original.querySelector(`#wb-styles-${key}`);
+                                if (el && el.type !== 'file') {
+                                    el.value = value;
+                                    if (el.type === 'checkbox') el.checked = value;
+                                }
+                            });
+                            // Also sync color pickers in original
+                            Object.entries(data.settings).forEach(([key, value]) => {
+                                if (value && typeof value === 'string' && value.match(/^#[0-9A-Fa-f]{6}$/)) {
+                                    const picker = original.querySelector(`#wb-styles-${key}-picker`);
+                                    if (picker) picker.value = value;
                                 }
                             });
                         }
