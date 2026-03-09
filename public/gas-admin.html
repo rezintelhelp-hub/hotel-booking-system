@@ -24272,7 +24272,11 @@ const promo = await fetch('/api/v1/offers/validate', {
 
                 // Styles: collect directly from DOM, bypass container logic entirely
                 if (section === 'styles') {
-                    document.querySelectorAll('[id^="wb-styles-"]').forEach(el => {
+                    const stylesContainer = document.getElementById('wb-styles');
+                    const stylesEls = stylesContainer
+                        ? stylesContainer.querySelectorAll('[id^="wb-styles-"]')
+                        : document.querySelectorAll('[id^="wb-styles-"]');
+                    stylesEls.forEach(el => {
                         const key = el.id.replace('wb-styles-', '');
                         if (key.endsWith('-picker') || key.endsWith('-value') || key.endsWith('-preview')) return;
                         if (el.type === 'file') return;
