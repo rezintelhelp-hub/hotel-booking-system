@@ -25117,10 +25117,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                             el.checked = value;
                         } else if (el.type !== 'file') {
                             el.value = value;
+                            if (el.type === 'range') {
+                                document.querySelectorAll(`[id="${prefix}${key}-value"]`).forEach(span => span.textContent = value);
+                            }
                         }
                     }
                 });
-                
+
                 // Update image preview if image-url exists
                 if (data.settings['image-url']) {
                     const preview = document.getElementById(`wb-${section}-image-preview`);
