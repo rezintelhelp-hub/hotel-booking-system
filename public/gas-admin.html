@@ -25156,11 +25156,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const rangeKeys = ['search-opacity', 'search-radius', 'search-padding', 'search-max-width', 'search-scale',
                                    'overlay', 'height', 'font-size', 'title-size', 'text-size', 'max-width', 'btn-radius', 'body-size', 'count', 'section-spacing'];
                 rangeKeys.forEach(key => {
-                    const valueEl = document.getElementById(`wb-${section}-${key}-value`);
-                    const rangeEl = document.getElementById(`wb-${section}-${key}`);
                     if (data.settings[key] !== undefined && data.settings[key] !== null) {
-                        if (valueEl) valueEl.textContent = data.settings[key];
-                        if (rangeEl && rangeEl.type === 'range') rangeEl.value = data.settings[key];
+                        document.querySelectorAll(`[id="wb-${section}-${key}-value"]`).forEach(el => el.textContent = data.settings[key]);
+                        document.querySelectorAll(`[id="wb-${section}-${key}"]`).forEach(el => {
+                            if (el.type === 'range') el.value = data.settings[key];
+                        });
                     }
                 });
             }
