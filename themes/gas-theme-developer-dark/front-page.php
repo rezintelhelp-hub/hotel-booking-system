@@ -100,13 +100,15 @@ $usp_bg = $api['usp_bg'] ?? '#f1f0eb';
 $usp_title_color = $api['usp_title_color'] ?? '#1e293b';
 $usp_text_color = $api['usp_text_color'] ?? '#64748b';
 $usp_card_bg = $api['usp_card_bg'] ?? '#ffffff';
+$usp_card_title_size = $api['usp_card_title_size'] ?? '18';
 $usp_items = array();
 for ($i = 1; $i <= 6; $i++) {
     $icon = $api["usp_item_{$i}_icon"] ?? '';
     $image = $api["usp_item_{$i}_image"] ?? '';
+    $title = $api["usp_item_{$i}_title"] ?? '';
     $text = $api["usp_item_{$i}_text"] ?? '';
-    if ($text || $icon || $image) {
-        $usp_items[] = array('icon' => $icon, 'image' => $image, 'text' => $text);
+    if ($text || $title || $icon || $image) {
+        $usp_items[] = array('icon' => $icon, 'image' => $image, 'title' => $title, 'text' => $text);
     }
 }
 
@@ -309,7 +311,7 @@ $search_bg_rgba = "rgba($sr, $sg, $sb, " . ($search_opacity / 100) . ")";
 
 <?php if ($usp_enabled && count($usp_items) > 0) : ?>
 <!-- USP / What We Offer Section -->
-<section class="developer-section developer-usp" style="background: <?php echo esc_attr($usp_bg); ?>;">
+<section class="developer-section developer-usp" style="background: <?php echo esc_attr($usp_bg); ?>; --usp-card-title-size: <?php echo esc_attr($usp_card_title_size); ?>px;">
     <div class="developer-container">
         <?php if ($usp_title) : ?>
             <h2 class="developer-section-title" style="color: <?php echo esc_attr($usp_title_color); ?>;"><?php echo esc_html($usp_title); ?></h2>
@@ -317,7 +319,7 @@ $search_bg_rgba = "rgba($sr, $sg, $sb, " . ($search_opacity / 100) . ")";
         <?php if ($usp_subtitle) : ?>
             <p class="developer-section-subtitle" style="color: <?php echo esc_attr($usp_text_color); ?>;"><?php echo esc_html($usp_subtitle); ?></p>
         <?php endif; ?>
-        
+
         <div class="developer-usp-grid" style="grid-template-columns: repeat(<?php echo min(count($usp_items), 3); ?>, 1fr);">
             <?php foreach ($usp_items as $item) : ?>
                 <div class="developer-usp-card" style="background: <?php echo esc_attr($usp_card_bg); ?>;">
@@ -330,8 +332,11 @@ $search_bg_rgba = "rgba($sr, $sg, $sb, " . ($search_opacity / 100) . ")";
                             <span style="font-size: 3rem;"><?php echo $item['icon']; ?></span>
                         </div>
                     <?php endif; ?>
+                    <?php if (!empty($item['title'])) : ?>
+                        <p class="usp-card-title" style="color: <?php echo esc_attr($usp_title_color); ?>;"><?php echo esc_html($item['title']); ?></p>
+                    <?php endif; ?>
                     <?php if (!empty($item['text'])) : ?>
-                        <p style="color: <?php echo esc_attr($usp_text_color); ?>;"><?php echo nl2br(esc_html($item['text'])); ?></p>
+                        <p class="usp-card-desc" style="color: <?php echo esc_attr($usp_text_color); ?>;"><?php echo nl2br(esc_html($item['text'])); ?></p>
                     <?php endif; ?>
                 </div>
             <?php endforeach; ?>

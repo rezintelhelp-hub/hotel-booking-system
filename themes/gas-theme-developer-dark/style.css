@@ -1092,6 +1092,17 @@ img {
     margin: 0;
 }
 
+.usp-card-title {
+    font-size: var(--usp-card-title-size, 18px);
+    font-weight: 700;
+    margin-bottom: 8px;
+}
+
+.usp-card-desc {
+    font-size: 1rem;
+    line-height: 1.6;
+}
+
 @media (max-width: 768px) {
     .developer-usp-grid {
         grid-template-columns: 1fr !important;
