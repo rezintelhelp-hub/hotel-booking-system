@@ -25082,18 +25082,18 @@ const promo = await fetch('/api/v1/offers/validate', {
             // Try to load from per-website endpoint first, fallback to account-based
             let data = null;
             
-            if (websiteId) {
+            if (selectedDeployedSiteId) {
                 try {
-                    const response = await fetch(`/api/websites/${websiteId}/builder/${section}`);
+                    const response = await fetch(`/api/deployed-sites/${selectedDeployedSiteId}/settings/${section}`);
                     data = await response.json();
-                    console.log(`Loaded section ${section} for website ${websiteId}:`, data);
+                    console.log(`Loaded section ${section} for deployed site ${selectedDeployedSiteId}:`, data);
                 } catch (error) {
-                    console.log(`Per-website load failed for ${section}, trying account-based...`);
+                    console.log(`Deployed site load failed for ${section}, trying account-based...`);
                 }
             }
-            
-            // Fallback to account-based if no website data
-            if ((!data || !data.settings) && accountId) {
+
+            // Only use account-based fallback if no deployed site is selected at all
+            if (!selectedDeployedSiteId && accountId) {
                 try {
                     const response = await fetch(`/api/admin/website-builder/${section}?account_id=${accountId}`);
                     data = await response.json();
@@ -25154,11 +25154,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 // Update range slider value displays
                 const rangeKeys = ['search-opacity', 'search-radius', 'search-padding', 'search-max-width', 'search-scale',
-                                   'overlay', 'height', 'font-size', 'title-size', 'text-size', 'max-width', 'btn-radius', 'body-size', 'count'];
+                                   'overlay', 'height', 'font-size', 'title-size', 'text-size', 'max-width', 'btn-radius', 'body-size', 'count', 'section-spacing'];
                 rangeKeys.forEach(key => {
                     const valueEl = document.getElementById(`wb-${section}-${key}-value`);
-                    if (valueEl && data.settings[key]) {
-                        valueEl.textContent = data.settings[key];
+                    const rangeEl = document.getElementById(`wb-${section}-${key}`);
+                    if (data.settings[key] !== undefined && data.settings[key] !== null) {
+                        if (valueEl) valueEl.textContent = data.settings[key];
+                        if (rangeEl && rangeEl.type === 'range') rangeEl.value = data.settings[key];
                     }
                 });
             }
