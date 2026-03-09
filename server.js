@@ -23213,6 +23213,7 @@ async function pushSettingsToWordPress(siteUrl, section, settings) {
       'slider-transition': 'slider_transition',
       // Global Typography & Styles
       'heading-font': 'heading_font',
+      'subheading-font': 'subheading_font',
       'body-font': 'body_font',
       'title-size': 'title_size',
       'body-size': 'body_size',

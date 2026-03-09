@@ -256,8 +256,9 @@ function developer_developer_scripts() {
     
     // Get selected fonts - API overrides theme_mod
     $heading_font = $api['heading_font'] ?? get_theme_mod('developer_heading_font', 'playfair');
+    $subheading_font = $api['subheading_font'] ?? get_theme_mod('developer_subheading_font', 'inter');
     $body_font = $api['body_font'] ?? get_theme_mod('developer_body_font', 'inter');
-    
+
     // Font name mappings for Google Fonts
     $font_names = array(
         'playfair'    => 'Playfair+Display:wght@600;700',
@@ -280,7 +281,10 @@ function developer_developer_scripts() {
     if (isset($font_names[$heading_font])) {
         $fonts[] = $font_names[$heading_font];
     }
-    if (isset($font_names[$body_font]) && $body_font !== $heading_font) {
+    if (isset($font_names[$subheading_font]) && $subheading_font !== $heading_font) {
+        $fonts[] = $font_names[$subheading_font];
+    }
+    if (isset($font_names[$body_font]) && $body_font !== $heading_font && $body_font !== $subheading_font) {
         $fonts[] = $font_names[$body_font];
     }
     
@@ -2415,6 +2419,7 @@ function developer_get_api_settings() {
         
         // Global Typography & Styles (from Styles section)
         'heading_font' => $website_styles['heading-font'] ?? null,
+        'subheading_font' => $website_styles['subheading-font'] ?? null,
         'body_font' => $website_styles['body-font'] ?? null,
         'title_size' => $website_styles['title-size'] ?? null,
         'body_size' => $website_styles['body-size'] ?? null,
@@ -2893,6 +2898,7 @@ function developer_developer_custom_css() {
     );
     
     $heading_family = isset($font_families[$heading_font]) ? $font_families[$heading_font] : $font_families['playfair'];
+    $subheading_family = isset($font_families[$subheading_font]) ? $font_families[$subheading_font] : $font_families['inter'];
     $body_family = isset($font_families[$body_font]) ? $font_families[$body_font] : $font_families['inter'];
     $header_family = isset($font_families[$header_font]) ? $font_families[$header_font] : $font_families['inter'];
     
@@ -2903,6 +2909,7 @@ function developer_developer_custom_css() {
             --developer-secondary: ' . esc_attr($secondary) . ';
             --developer-accent: ' . esc_attr($accent) . ';
             --developer-font-display: ' . $heading_family . ';
+            --developer-subheading-font: ' . $subheading_family . ';
             --developer-font: ' . $body_family . ';
             --developer-btn-primary-bg: ' . esc_attr($btn_primary_bg) . ';
             --developer-btn-primary-text: ' . esc_attr($btn_primary_text) . ';
@@ -2961,7 +2968,17 @@ function developer_developer_custom_css() {
         .gas-contact-header h1 {
             font-size: ' . esc_attr($page_title_size) . 'px;
         }
-        
+
+        .developer-section h2,
+        .developer-hero h2,
+        .developer-usp h2,
+        .developer-featured h2,
+        .developer-about h2,
+        .developer-services h2,
+        .developer-cta h2 {
+            font-family: var(--developer-subheading-font);
+        }
+
         a {
             color: ' . esc_attr($link_color) . ';
         }
