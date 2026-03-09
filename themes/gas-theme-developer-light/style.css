@@ -1110,7 +1110,20 @@ img {
     padding: var(--developer-section-spacing, 20px) 24px;
     background-size: cover;
     background-position: center;
+    position: relative;
 }
+
+.developer-services::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-color: var(--services-overlay-bg, #ffffff);
+    opacity: var(--services-overlay-opacity, 0.5);
+    pointer-events: none;
+    z-index: 0;
+}
+
+.developer-services > * { position: relative; z-index: 1; }
 
 .developer-services-grid {
     display: grid;

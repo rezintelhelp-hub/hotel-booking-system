@@ -6377,6 +6377,16 @@
                                         <input type="file" id="wb-services-bg-image" accept="image/*" onchange="previewWebsiteImage('services-bg')" style="font-size: 0.75rem;">
                                         <input type="hidden" id="wb-services-bg-image-url">
                                         <small class="form-hint">Optional wallpaper behind the services grid</small>
+                                        <div style="margin-top: 12px;">
+                                            <label class="form-label">Image Overlay Opacity: <span id="wb-services-overlay-opacity-value">0.5</span></label>
+                                            <input type="range" id="wb-services-overlay-opacity" min="0" max="1" step="0.05" value="0.5" style="width: 100%;" oninput="document.getElementById('wb-services-overlay-opacity-value').textContent = this.value">
+                                            <small class="form-hint">0 = full image visible, 1 = image hidden behind overlay</small>
+                                        </div>
+                                        <div style="margin-top: 8px; display: flex; align-items: center; gap: 8px;">
+                                            <label class="form-label" style="margin-bottom: 0;">Overlay Colour</label>
+                                            <input type="color" id="wb-services-overlay-bg-picker" value="#ffffff" style="width: 40px; height: 32px; border: none; cursor: pointer;" onchange="document.getElementById('wb-services-overlay-bg').value = this.value">
+                                            <input type="text" class="form-input" id="wb-services-overlay-bg" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-services-overlay-bg-picker')">
+                                        </div>
                                     </div>
                                 </div>
                             </div>

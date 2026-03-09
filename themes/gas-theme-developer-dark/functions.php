@@ -2637,6 +2637,8 @@ function developer_get_api_settings() {
         'services_card_hover_bg' => $website_services['card-hover-bg'] ?? '#d4cfc7',
         'services_card_text_color' => $website_services['card-text-color'] ?? '#1e293b',
         'services_bg_image' => $website_services['bg-image-url'] ?? '',
+        'services_overlay_opacity' => $website_services['overlay-opacity'] ?? '0.5',
+        'services_overlay_bg' => $website_services['overlay-bg'] ?? '#ffffff',
         'services_item_1_icon' => $website_services['item-1-icon'] ?? '',
         'services_item_1_image' => $website_services['item-1-image-url'] ?? '',
         'services_item_1_title' => developer_get_ml_value($website_services, 'item_1_title', $lang),

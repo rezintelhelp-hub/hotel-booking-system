@@ -441,9 +441,13 @@ for ($i = 1; $i <= 8; $i++) {
 
 <?php if ($services_enabled && count($services_items) > 0) : ?>
 <!-- Services Section -->
-<section class="developer-section developer-services" style="background-color: <?php echo esc_attr($services_bg); ?>; <?php 
+<?php
+    $services_overlay_opacity = $api['services_overlay_opacity'] ?? '0.5';
+    $services_overlay_bg = $api['services_overlay_bg'] ?? $services_bg;
+?>
+<section class="developer-section developer-services" style="background-color: <?php echo esc_attr($services_bg); ?>; --services-overlay-opacity: <?php echo esc_attr($services_overlay_opacity); ?>; --services-overlay-bg: <?php echo esc_attr($services_overlay_bg); ?>; <?php
     $services_bg_image = $api['services_bg_image'] ?? '';
-    if ($services_bg_image) echo 'background-image: url(' . esc_url($services_bg_image) . '); background-size: cover; background-position: center;'; 
+    if ($services_bg_image) echo 'background-image: url(' . esc_url($services_bg_image) . '); background-size: cover; background-position: center;';
 ?>">
     <div class="developer-container">
         <div class="developer-services-grid">
