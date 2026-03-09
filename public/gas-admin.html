@@ -10134,36 +10134,37 @@
                     <div class="card-header"><h3>Content <span style="font-size: 0.75rem; color: #8b5cf6; font-weight: normal;">🌐 Multilingual</span></h3></div>
                     <div class="card-body">
                         <div class="form-group">
-                            <label class="form-label">Image</label>
-                            <div id="wb-about-image-preview" style="width: 100%; height: 200px; background: #f1f5f9; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; background-size: cover; background-position: center;">
-                                <span style="color: #94a3b8;">Click below to upload an image</span>
+                            <label class="form-label">About Images (add 2-4 for auto-rotating slider)</label>
+                            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem;">
+                                <div style="border: 2px dashed #e2e8f0; border-radius: 8px; padding: 0.5rem;">
+                                    <div id="wb-about-image-preview" style="width: 100%; height: 120px; background: #f1f5f9; border-radius: 6px; display: flex; align-items: center; justify-content: center; margin-bottom: 8px; background-size: cover; background-position: center;">
+                                        <span style="color: #94a3b8; font-size: 0.8rem;">Image 1 (required)</span>
+                                    </div>
+                                    <input type="file" id="wb-about-image" accept="image/*" onchange="previewWebsiteImage('about')" style="font-size: 0.8rem; width: 100%;">
+                                    <input type="hidden" id="wb-about-image-url">
+                                </div>
+                                <div style="border: 2px dashed #e2e8f0; border-radius: 8px; padding: 0.5rem;">
+                                    <div id="wb-about-image-2-preview" style="width: 100%; height: 120px; background: #f1f5f9; border-radius: 6px; display: flex; align-items: center; justify-content: center; margin-bottom: 8px; background-size: cover; background-position: center;">
+                                        <span style="color: #94a3b8; font-size: 0.8rem;">Image 2 (optional)</span>
+                                    </div>
+                                    <input type="file" id="wb-about-image-2" accept="image/*" onchange="uploadAboutExtraImage(2, this)" style="font-size: 0.8rem; width: 100%;">
+                                    <input type="hidden" id="wb-about-image-2-url">
+                                </div>
+                                <div style="border: 2px dashed #e2e8f0; border-radius: 8px; padding: 0.5rem;">
+                                    <div id="wb-about-image-3-preview" style="width: 100%; height: 120px; background: #f1f5f9; border-radius: 6px; display: flex; align-items: center; justify-content: center; margin-bottom: 8px; background-size: cover; background-position: center;">
+                                        <span style="color: #94a3b8; font-size: 0.8rem;">Image 3 (optional)</span>
+                                    </div>
+                                    <input type="file" id="wb-about-image-3" accept="image/*" onchange="uploadAboutExtraImage(3, this)" style="font-size: 0.8rem; width: 100%;">
+                                    <input type="hidden" id="wb-about-image-3-url">
+                                </div>
+                                <div style="border: 2px dashed #e2e8f0; border-radius: 8px; padding: 0.5rem;">
+                                    <div id="wb-about-image-4-preview" style="width: 100%; height: 120px; background: #f1f5f9; border-radius: 6px; display: flex; align-items: center; justify-content: center; margin-bottom: 8px; background-size: cover; background-position: center;">
+                                        <span style="color: #94a3b8; font-size: 0.8rem;">Image 4 (optional)</span>
+                                    </div>
+                                    <input type="file" id="wb-about-image-4" accept="image/*" onchange="uploadAboutExtraImage(4, this)" style="font-size: 0.8rem; width: 100%;">
+                                    <input type="hidden" id="wb-about-image-4-url">
+                                </div>
                             </div>
-                            <input type="file" id="wb-about-image" accept="image/*" onchange="previewWebsiteImage('about')">
-                            <input type="hidden" id="wb-about-image-url">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">About Image 2 (optional)</label>
-                            <div id="wb-about-image-2-preview" style="width: 100%; height: 120px; background: #f1f5f9; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; background-size: cover; background-position: center;">
-                                <span style="color: #94a3b8; font-size: 0.8rem;">Upload a second image for slider</span>
-                            </div>
-                            <input type="file" id="wb-about-image-2" accept="image/*" onchange="uploadAboutExtraImage(2, this)">
-                            <input type="hidden" id="wb-about-image-2-url">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">About Image 3 (optional)</label>
-                            <div id="wb-about-image-3-preview" style="width: 100%; height: 120px; background: #f1f5f9; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; background-size: cover; background-position: center;">
-                                <span style="color: #94a3b8; font-size: 0.8rem;">Upload a third image for slider</span>
-                            </div>
-                            <input type="file" id="wb-about-image-3" accept="image/*" onchange="uploadAboutExtraImage(3, this)">
-                            <input type="hidden" id="wb-about-image-3-url">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">About Image 4 (optional)</label>
-                            <div id="wb-about-image-4-preview" style="width: 100%; height: 120px; background: #f1f5f9; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; background-size: cover; background-position: center;">
-                                <span style="color: #94a3b8; font-size: 0.8rem;">Upload a fourth image for slider</span>
-                            </div>
-                            <input type="file" id="wb-about-image-4" accept="image/*" onchange="uploadAboutExtraImage(4, this)">
-                            <input type="hidden" id="wb-about-image-4-url">
                         </div>
                         <div class="form-group">
                             <label class="form-label">Title <span style="font-size: 0.75rem; color: #8b5cf6;">🌐 Multilingual</span></label>
