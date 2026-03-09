@@ -151,6 +151,38 @@ GAS (Global Accommodation System) is a full-stack hotel booking and property man
 
 ---
 
+## SESSION LOG — 9 March 2026
+
+### Styles & Fonts load/save fix
+- **Root cause**: wb-styles was cloned into editor-styles-content at init, creating duplicate IDs. `getElementById` found the clone first, so load wrote to clone while save read from original (HTML defaults).
+- **Fix**: Removed styles from all clone/editor mappings. wb-styles is now **moved** (not cloned) into the editor panel on tab click. Save scopes collection directly to the `wb-styles` container. Load writes directly to `wb-styles` elements.
+- Range sliders replaced with `<select>` dropdowns (title-size, body-size, btn-radius).
+- Duplicate Save button removed from wb-styles — only the editor panel Save button remains.
+
+### H2 Subheading Font & Size controls — added
+- Admin UI: `wb-styles-subheading-font` and `wb-styles-subheading-size` selects added to Styles & Fonts.
+- server.js: `subheading-font` / `subheading-size` added to `keyMapping`.
+- functions.php (both themes): reads `$subheading_font` / `$subheading_size`, enqueues Google Font (if different from heading), outputs `--developer-subheading-font` CSS variable, applies font-family + font-size to all `.developer-* h2` selectors.
+- gas-api.php: `subheading_font` / `subheading_size` added to `$styles_map`.
+- **Known issue**: H2 font family not yet confirmed pushing to WordPress — needs end-to-end test.
+
+### hotelbalduin.de custom domain — live
+- SSL cert issued via certbot on VPS.
+- Nginx server block created (based on villa-talang.com pattern).
+- WordPress domain mapping updated for blog_id 113 (wp_blogs, siteurl, home).
+
+### About Image Slider — rebuilt
+- Replaced single hero-style image with a multi-image slider (up to 6 images).
+- Admin UI: 6 image upload slots in About section.
+- functions.php: renders `<div class="about-slider">` with dot navigation + JS auto-rotation.
+
+### USP Card Title/Description split
+- Each USP card now has a separate title field (previously description only).
+- Admin UI: title input per card, `wb-usp-card-title-size` slider.
+- Both themes: front-page.php renders `.usp-card-title` + `.usp-card-desc`, `--usp-card-title-size` CSS variable.
+
+---
+
 ## SWAGGER / API DOCS
 
 - URL: https://admin.gas.travel/api/docs
