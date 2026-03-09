@@ -2420,6 +2420,7 @@ function developer_get_api_settings() {
         // Global Typography & Styles (from Styles section)
         'heading_font' => $website_styles['heading-font'] ?? null,
         'subheading_font' => $website_styles['subheading-font'] ?? null,
+        'subheading_size' => $website_styles['subheading-size'] ?? null,
         'body_font' => $website_styles['body-font'] ?? null,
         'title_size' => $website_styles['title-size'] ?? null,
         'body_size' => $website_styles['body-size'] ?? null,
@@ -2810,6 +2811,7 @@ function developer_developer_custom_css() {
     $btn_secondary_bg = $api['btn_secondary_bg'] ?? get_theme_mod('developer_btn_secondary_bg', '#ffffff');
     $btn_secondary_text = $api['btn_secondary_text'] ?? get_theme_mod('developer_btn_secondary_text', '#2563eb');
     $page_title_size = $api['title_size'] ?? get_theme_mod('developer_page_title_size', '42');
+    $subheading_size = $api['subheading_size'] ?? get_theme_mod('developer_subheading_size', '32');
     $body_text_size = $api['body_size'] ?? get_theme_mod('developer_body_text_size', '16');
     $btn_radius = $api['btn_radius'] ?? get_theme_mod('developer_btn_radius', '8');
     $link_color = $api['link_color'] ?? get_theme_mod('developer_link_color', '#2563eb');
@@ -2875,6 +2877,7 @@ function developer_developer_custom_css() {
 
     // Global typography sizes from API
     $page_title_size = $api['title_size'] ?? get_theme_mod('developer_page_title_size', '42');
+    $subheading_size = $api['subheading_size'] ?? get_theme_mod('developer_subheading_size', '32');
     $body_text_size = $api['body_size'] ?? get_theme_mod('developer_body_text_size', '16');
     
     // Hero
@@ -2977,6 +2980,7 @@ function developer_developer_custom_css() {
         .developer-services h2,
         .developer-cta h2 {
             font-family: var(--developer-subheading-font);
+            font-size: ' . esc_attr($subheading_size) . 'px;
         }
 
         a {

@@ -23214,6 +23214,7 @@ async function pushSettingsToWordPress(siteUrl, section, settings) {
       // Global Typography & Styles
       'heading-font': 'heading_font',
       'subheading-font': 'subheading_font',
+      'subheading-size': 'subheading_size',
       'body-font': 'body_font',
       'title-size': 'title_size',
       'body-size': 'body_size',
