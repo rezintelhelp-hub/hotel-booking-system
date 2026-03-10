@@ -48593,7 +48593,7 @@ const promo = await fetch('/api/v1/offers/validate', {
         
         // Helper to populate multilingual field from _ml object or legacy string
         function populateMultilingualField(fieldId, mlObject, legacyValue) {
-            const langs = ['en', 'fr', 'es', 'nl'];
+            const langs = getAccountLanguages();
 
             if (mlObject && typeof mlObject === 'object') {
                 langs.forEach(lang => {
@@ -48618,7 +48618,7 @@ const promo = await fetch('/api/v1/offers/validate', {
 
         // Helper to collect multilingual field values
         function collectMultilingualField(fieldId) {
-            const langs = ['en', 'fr', 'es', 'nl'];
+            const langs = getAccountLanguages();
             const result = {};
             let hasValue = false;
 
@@ -53056,6 +53056,7 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
         
         async function generateAiBlog() {
+            await loadLanguageSettings();
             const keyword = document.getElementById('ai-blog-keyword').value;
             const language = document.getElementById('ai-blog-language').value;
             const propertyIdEl = document.getElementById('ai-blog-property-id');
