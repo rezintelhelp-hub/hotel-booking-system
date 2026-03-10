@@ -10066,22 +10066,35 @@
                             </div>
                             
                             <div class="form-group" style="margin-top: 1rem;">
-                                <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
-                                    <input type="checkbox" id="wb-reviews-use-app" onchange="toggleReviewsAppFields()"> Use Reviews App (Repuso)
-                                </label>
-                                <small class="form-hint">Connect to TripAdvisor, Booking.com, Google reviews automatically</small>
+                                <label class="form-label">Reviews Source</label>
+                                <select class="form-select" id="wb-reviews-use-app" onchange="toggleReviewsAppFields()">
+                                    <option value="">Manual Reviews Only</option>
+                                    <option value="gas_reviews">GAS Reviews App</option>
+                                    <option value="repuso">Repuso Widget</option>
+                                    <option value="hostaway">Hostaway Reviews</option>
+                                </select>
+                                <small class="form-hint">Choose where your reviews come from</small>
                             </div>
-                            
-                            <!-- Reviews App Fields (shown when Use App is checked) -->
+
+                            <!-- Repuso Fields (shown when repuso is selected) -->
                             <div id="wb-reviews-app-fields" style="display: none; margin-top: 1rem; padding: 1rem; background: #f0fdf4; border-radius: 8px; border: 1px solid #bbf7d0;">
                                 <div class="form-group" style="margin-bottom: 1rem;">
-                                    <label class="form-label">Reviews App Code</label>
+                                    <label class="form-label">Repuso Widget Code</label>
                                     <input type="text" class="form-input" id="wb-reviews-app-code" placeholder="e.g. 48621" style="max-width: 200px;">
                                     <small class="form-hint">Your unique Repuso widget ID</small>
                                 </div>
                                 <p style="font-size: 0.85rem; color: #166534; margin: 0;">
                                      Don't have an account? <a href="https://repuso.com" target="_blank" style="color: #15803d; font-weight: 500;">Sign up for Repuso</a> to aggregate reviews from multiple platforms.
                                 </p>
+                            </div>
+
+                            <!-- Hostaway Fields (shown when hostaway is selected) -->
+                            <div id="wb-reviews-hostaway-fields" style="display: none; margin-top: 1rem; padding: 1rem; background: #f0f9ff; border-radius: 8px; border: 1px solid #bae6fd;">
+                                <div class="form-group">
+                                    <label class="form-label">Hostaway Property ID</label>
+                                    <input type="text" class="form-input" id="wb-reviews-hostaway-id" placeholder="e.g. 12345" style="max-width: 200px;">
+                                    <small class="form-hint">Your Hostaway listing ID</small>
+                                </div>
                             </div>
                             
                             <div style="margin-top: 1rem;">
@@ -21738,16 +21751,14 @@ const promo = await fetch('/api/v1/offers/validate', {
 
         // Toggle Reviews App fields visibility
         function toggleReviewsAppFields() {
-            const useApp = document.getElementById('wb-reviews-use-app')?.checked;
-            const appFields = document.getElementById('wb-reviews-app-fields');
+            const source = document.getElementById('wb-reviews-use-app')?.value || '';
+            const repusoFields = document.getElementById('wb-reviews-app-fields');
+            const hostawayFields = document.getElementById('wb-reviews-hostaway-fields');
             const manualSection = document.getElementById('wb-reviews-manual-section');
-            
-            if (appFields) {
-                appFields.style.display = useApp ? 'block' : 'none';
-            }
-            if (manualSection) {
-                manualSection.style.display = useApp ? 'none' : 'block';
-            }
+
+            if (repusoFields) repusoFields.style.display = source === 'repuso' ? 'block' : 'none';
+            if (hostawayFields) hostawayFields.style.display = source === 'hostaway' ? 'block' : 'none';
+            if (manualSection) manualSection.style.display = source === '' ? 'block' : 'none';
         }
         
         // Helper to add auth header to fetch requests
