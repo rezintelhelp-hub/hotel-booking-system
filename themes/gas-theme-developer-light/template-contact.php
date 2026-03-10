@@ -86,7 +86,7 @@ $button_color = $api['page_contact_button_color'] ?? $accent;
     display: grid;
     grid-template-columns: <?php echo $grid_cols; ?>;
     gap: 2rem;
-    align-items: start;
+    align-items: stretch;
 }
 
 /* Shared card style */
