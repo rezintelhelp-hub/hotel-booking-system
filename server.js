@@ -73342,6 +73342,39 @@ app.get('/api/public/hostaway-reviews', async (req, res) => {
   }
 });
 
+// GET public Repuso reviews by widget ID (proxies thereviewsplace.com API, no auth required)
+app.get('/api/public/repuso-reviews', async (req, res) => {
+  try {
+    const { widget_id, limit } = req.query;
+
+    if (!widget_id) {
+      return res.json({ success: false, error: 'widget_id is required' });
+    }
+
+    const reviewLimit = Math.min(parseInt(limit) || 12, 30);
+
+    const response = await axios.get(`https://api.thereviewsplace.com/v1/widgets/posts/${encodeURIComponent(widget_id)}`, {
+      timeout: 10000
+    });
+
+    const items = response.data?.items || [];
+    const reviews = items.slice(0, reviewLimit).map(item => ({
+      id: item.id,
+      reviewer_name: item.from_name || 'Guest',
+      rating: item.rating_value || 5,
+      rating_scale: item.rating_scale || 5,
+      text: item.text || '',
+      date: item.posted_on || null,
+      source: item.label || ''
+    }));
+
+    res.json({ success: true, reviews });
+  } catch (error) {
+    console.error('Public repuso reviews error:', error.message);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // =====================================================
 // BEDS24 REVIEWS SYNC
 // =====================================================

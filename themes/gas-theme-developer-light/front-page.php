@@ -527,83 +527,154 @@ if ($reviews_enabled && $reviews_use_app === 'gas_reviews' && shortcode_exists('
 </section>
 
 <?php elseif ($reviews_enabled && $reviews_use_app === 'repuso' && $reviews_app_code) : ?>
-<!-- Reviews Section (Repuso Widget) -->
+<!-- Reviews Section (Repuso Slider) -->
+<?php
+$gas_api_url = get_option('gas_api_url', 'https://admin.gas.travel');
+$repuso_response = wp_remote_get($gas_api_url . '/api/public/repuso-reviews?widget_id=' . urlencode($reviews_app_code) . '&limit=12', array('timeout' => 10, 'sslverify' => false));
+$repuso_reviews = array();
+if (!is_wp_error($repuso_response)) {
+    $repuso_body = json_decode(wp_remote_retrieve_body($repuso_response), true);
+    if (!empty($repuso_body['reviews'])) $repuso_reviews = $repuso_body['reviews'];
+}
+?>
+<style>
+.gas-review-nav { position: absolute; top: 50%; transform: translateY(-50%); width: 44px; height: 44px; border-radius: 50%; background: <?php echo esc_attr($reviews_star_color); ?>; border: 2px solid <?php echo esc_attr($reviews_star_color); ?>; cursor: pointer; font-size: 20px; color: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.15); z-index: 10; transition: all 0.3s ease; }
+.gas-review-nav:hover { background: <?php echo esc_attr($reviews_card_bg); ?>; color: <?php echo esc_attr($reviews_star_color); ?>; }
+.gas-review-nav.prev { left: 0; }
+.gas-review-nav.next { right: 0; }
+</style>
 <section class="developer-section developer-reviews" style="background: <?php echo esc_attr($reviews_bg); ?>; color: <?php echo esc_attr($reviews_text_color); ?>;">
     <div class="developer-container">
         <div class="developer-section-header">
             <h2 style="color: <?php echo esc_attr($reviews_text_color); ?>;"><?php echo esc_html($reviews_title); ?></h2>
             <p style="color: <?php echo esc_attr($reviews_text_color); ?>; opacity: 0.8;"><?php echo esc_html($reviews_subtitle); ?></p>
         </div>
-        <div class="developer-reviews-widget">
-            <div id="repuso-widget-<?php echo esc_attr($reviews_app_code); ?>"></div>
-            <script src="https://repuso.com/widgets/widget.js?code=<?php echo esc_attr($reviews_app_code); ?>" async></script>
+        <?php if (!empty($repuso_reviews)) : ?>
+        <div style="position: relative; overflow: hidden; padding: 0 60px;">
+            <div id="gas-repuso-slider" style="display: flex; transition: transform 0.5s ease;">
+                <?php foreach ($repuso_reviews as $rev) :
+                    $r_rating = floatval($rev['rating'] ?? 5);
+                    $r_scale = floatval($rev['rating_scale'] ?? 5);
+                    $r_stars_count = ($r_scale > 5) ? round($r_rating / 2) : round($r_rating);
+                    $r_stars = str_repeat('★', min($r_stars_count, 5));
+                    $r_name = $rev['reviewer_name'] ?? 'Guest';
+                    $r_text = $rev['text'] ?? '';
+                    if (strlen($r_text) > 160) $r_text = substr($r_text, 0, 160) . '...';
+                    $r_source = $rev['source'] ?? '';
+                ?>
+                <div style="flex: 0 0 25%; min-width: 260px; padding: 0 8px; box-sizing: border-box;">
+                    <div style="background: <?php echo esc_attr($reviews_card_bg); ?>; border-radius: 12px; padding: 20px; height: 260px; display: flex; flex-direction: column; border: 1px solid rgba(255,255,255,0.08);">
+                        <div style="color: <?php echo esc_attr($reviews_star_color); ?>; font-size: 18px; letter-spacing: 1px; margin-bottom: 10px;"><?php echo $r_stars; ?></div>
+                        <p style="color: <?php echo esc_attr($reviews_text_color); ?>; font-size: 14px; line-height: 1.5; flex: 1; margin: 0 0 12px 0; overflow: hidden; opacity: 0.9;">"<?php echo esc_html($r_text); ?>"</p>
+                        <div style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 12px; margin-top: auto;">
+                            <div style="font-weight: 600; color: <?php echo esc_attr($reviews_text_color); ?>; font-size: 14px;"><?php echo esc_html($r_name); ?></div>
+                            <?php if ($r_source) : ?><div style="font-size: 12px; color: <?php echo esc_attr($reviews_text_color); ?>; opacity: 0.6; margin-top: 2px;"><?php echo esc_html($r_source); ?></div><?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+                <?php endforeach; ?>
+            </div>
+            <button class="gas-review-nav prev" onclick="slideRepuso(-1)">‹</button>
+            <button class="gas-review-nav next" onclick="slideRepuso(1)">›</button>
+        </div>
+        <script>
+        (function() {
+            var slider = document.getElementById('gas-repuso-slider');
+            var pos = 0;
+            var total = <?php echo count($repuso_reviews); ?>;
+            var visible = window.innerWidth < 768 ? 1 : window.innerWidth < 1024 ? 2 : window.innerWidth < 1280 ? 3 : 4;
+            var max = Math.max(0, total - visible);
+            window.slideRepuso = function(dir) {
+                pos = Math.max(0, Math.min(max, pos + dir));
+                slider.style.transform = 'translateX(-' + (pos * (100 / total)) + '%)';
+            };
+            setInterval(function() { pos = pos >= max ? 0 : pos + 1; slider.style.transform = 'translateX(-' + (pos * (100 / total)) + '%)'; }, 5000);
+        })();
+        </script>
+        <?php else : ?>
+        <p style="text-align: center; opacity: 0.7;">No reviews available yet.</p>
+        <?php endif; ?>
+        <div style="text-align: center; margin-top: 2rem;">
+            <a href="/reviews/" style="display: inline-block; padding: 12px 32px; background: <?php echo esc_attr($reviews_star_color); ?>; color: #fff; text-decoration: none; border-radius: 6px; font-weight: 500; border: 2px solid <?php echo esc_attr($reviews_star_color); ?>; transition: all 0.3s ease;">View All Reviews</a>
         </div>
     </div>
 </section>
 
 <?php elseif ($reviews_enabled && $reviews_use_app === 'hostaway' && $reviews_hostaway_id) : ?>
-<!-- Reviews Section (Hostaway) -->
+<!-- Reviews Section (Hostaway Slider) -->
+<?php
+$gas_api_url = isset($gas_api_url) ? $gas_api_url : get_option('gas_api_url', 'https://admin.gas.travel');
+$hostaway_response = wp_remote_get($gas_api_url . '/api/public/hostaway-reviews?property_id=' . urlencode($reviews_hostaway_id) . '&limit=12', array('timeout' => 10, 'sslverify' => false));
+$hostaway_reviews = array();
+if (!is_wp_error($hostaway_response)) {
+    $hostaway_body = json_decode(wp_remote_retrieve_body($hostaway_response), true);
+    if (!empty($hostaway_body['reviews'])) $hostaway_reviews = $hostaway_body['reviews'];
+}
+?>
+<?php if (!isset($gas_review_nav_css_output)) : $gas_review_nav_css_output = true; ?>
+<style>
+.gas-review-nav { position: absolute; top: 50%; transform: translateY(-50%); width: 44px; height: 44px; border-radius: 50%; background: <?php echo esc_attr($reviews_star_color); ?>; border: 2px solid <?php echo esc_attr($reviews_star_color); ?>; cursor: pointer; font-size: 20px; color: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.15); z-index: 10; transition: all 0.3s ease; }
+.gas-review-nav:hover { background: <?php echo esc_attr($reviews_card_bg); ?>; color: <?php echo esc_attr($reviews_star_color); ?>; }
+.gas-review-nav.prev { left: 0; }
+.gas-review-nav.next { right: 0; }
+</style>
+<?php endif; ?>
 <section class="developer-section developer-reviews" style="background: <?php echo esc_attr($reviews_bg); ?>; color: <?php echo esc_attr($reviews_text_color); ?>;">
     <div class="developer-container">
         <div class="developer-section-header">
             <h2 style="color: <?php echo esc_attr($reviews_text_color); ?>;"><?php echo esc_html($reviews_title); ?></h2>
             <p style="color: <?php echo esc_attr($reviews_text_color); ?>; opacity: 0.8;"><?php echo esc_html($reviews_subtitle); ?></p>
         </div>
-        <div class="developer-reviews-widget">
-            <div id="gas-hostaway-reviews"
-                 data-property-id="<?php echo esc_attr($reviews_hostaway_id); ?>"
-                 data-api-url="<?php echo esc_attr(get_option('gas_api_url', 'https://admin.gas.travel')); ?>"
-                 data-card-bg="<?php echo esc_attr($reviews_card_bg); ?>"
-                 data-text-color="<?php echo esc_attr($reviews_text_color); ?>"
-                 data-star-color="<?php echo esc_attr($reviews_star_color); ?>"
-                 style="min-height: 100px;">
-                <p style="text-align: center; opacity: 0.7;">Loading reviews...</p>
+        <?php if (!empty($hostaway_reviews)) : ?>
+        <div style="position: relative; overflow: hidden; padding: 0 60px;">
+            <div id="gas-hostaway-slider" style="display: flex; transition: transform 0.5s ease;">
+                <?php foreach ($hostaway_reviews as $rev) :
+                    $h_rating = round(floatval($rev['rating'] ?? 5));
+                    $h_stars = str_repeat('★', min($h_rating, 5));
+                    $h_name = $rev['reviewer_name'] ?? 'Guest';
+                    $h_text = $rev['text'] ?? '';
+                    if (strlen($h_text) > 160) $h_text = substr($h_text, 0, 160) . '...';
+                    $h_source = $rev['source'] ?? '';
+                    $h_date = !empty($rev['date']) ? date('M Y', strtotime($rev['date'])) : '';
+                    $h_meta = $h_date . ($h_source ? ' · ' . $h_source : '');
+                ?>
+                <div style="flex: 0 0 25%; min-width: 260px; padding: 0 8px; box-sizing: border-box;">
+                    <div style="background: <?php echo esc_attr($reviews_card_bg); ?>; border-radius: 12px; padding: 20px; height: 260px; display: flex; flex-direction: column; border: 1px solid rgba(255,255,255,0.08);">
+                        <div style="color: <?php echo esc_attr($reviews_star_color); ?>; font-size: 18px; letter-spacing: 1px; margin-bottom: 10px;"><?php echo $h_stars; ?></div>
+                        <p style="color: <?php echo esc_attr($reviews_text_color); ?>; font-size: 14px; line-height: 1.5; flex: 1; margin: 0 0 12px 0; overflow: hidden; opacity: 0.9;">"<?php echo esc_html($h_text); ?>"</p>
+                        <div style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 12px; margin-top: auto;">
+                            <div style="font-weight: 600; color: <?php echo esc_attr($reviews_text_color); ?>; font-size: 14px;"><?php echo esc_html($h_name); ?></div>
+                            <?php if ($h_meta) : ?><div style="font-size: 12px; color: <?php echo esc_attr($reviews_text_color); ?>; opacity: 0.6; margin-top: 2px;"><?php echo esc_html($h_meta); ?></div><?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+                <?php endforeach; ?>
             </div>
+            <button class="gas-review-nav prev" onclick="slideHostaway(-1)">‹</button>
+            <button class="gas-review-nav next" onclick="slideHostaway(1)">›</button>
+        </div>
+        <script>
+        (function() {
+            var slider = document.getElementById('gas-hostaway-slider');
+            var pos = 0;
+            var total = <?php echo count($hostaway_reviews); ?>;
+            var visible = window.innerWidth < 768 ? 1 : window.innerWidth < 1024 ? 2 : window.innerWidth < 1280 ? 3 : 4;
+            var max = Math.max(0, total - visible);
+            window.slideHostaway = function(dir) {
+                pos = Math.max(0, Math.min(max, pos + dir));
+                slider.style.transform = 'translateX(-' + (pos * (100 / total)) + '%)';
+            };
+            setInterval(function() { pos = pos >= max ? 0 : pos + 1; slider.style.transform = 'translateX(-' + (pos * (100 / total)) + '%)'; }, 5000);
+        })();
+        </script>
+        <?php else : ?>
+        <p style="text-align: center; opacity: 0.7;">No reviews available yet.</p>
+        <?php endif; ?>
+        <div style="text-align: center; margin-top: 2rem;">
+            <a href="/reviews/" style="display: inline-block; padding: 12px 32px; background: <?php echo esc_attr($reviews_star_color); ?>; color: #fff; text-decoration: none; border-radius: 6px; font-weight: 500; border: 2px solid <?php echo esc_attr($reviews_star_color); ?>; transition: all 0.3s ease;">View All Reviews</a>
         </div>
     </div>
 </section>
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    var el = document.getElementById('gas-hostaway-reviews');
-    if (!el) return;
-    var propertyId = el.dataset.propertyId;
-    var apiUrl = el.dataset.apiUrl || 'https://admin.gas.travel';
-    var cardBg = el.dataset.cardBg || '#1e293b';
-    var textColor = el.dataset.textColor || '#ffffff';
-    var starColor = el.dataset.starColor || '#fbbf24';
-    if (!propertyId) { el.innerHTML = ''; return; }
-
-    fetch(apiUrl + '/api/public/hostaway-reviews?property_id=' + encodeURIComponent(propertyId))
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-            if (!data.success || !data.reviews || data.reviews.length === 0) {
-                el.innerHTML = '<p style="text-align:center;opacity:0.7;">No reviews yet.</p>';
-                return;
-            }
-            var html = '<div class="developer-testimonials-grid">';
-            data.reviews.forEach(function(rev) {
-                var stars = '';
-                var rating = Math.round(parseFloat(rev.rating) || 5);
-                for (var i = 0; i < 5; i++) {
-                    stars += '<span style="color:' + starColor + ';font-size:1.1rem;">' + (i < rating ? '&#9733;' : '&#9734;') + '</span>';
-                }
-                var date = rev.date ? new Date(rev.date).toLocaleDateString('en-GB', {year:'numeric',month:'short'}) : '';
-                var source = rev.source ? ' · ' + rev.source : '';
-                html += '<div class="developer-testimonial-card" style="background:' + cardBg + ';color:' + textColor + ';border-radius:16px;padding:2rem;">';
-                html += '<div style="margin-bottom:0.75rem;">' + stars + '</div>';
-                html += '<p style="color:' + textColor + ';opacity:0.9;margin-bottom:1rem;line-height:1.6;">' + (rev.text || '').replace(/</g, '&lt;') + '</p>';
-                html += '<div style="font-weight:600;color:' + textColor + ';">' + (rev.reviewer_name || 'Guest').replace(/</g, '&lt;') + '</div>';
-                html += '<div style="font-size:0.85rem;opacity:0.6;">' + date + source + '</div>';
-                html += '</div>';
-            });
-            html += '</div>';
-            el.innerHTML = html;
-        })
-        .catch(function() {
-            el.innerHTML = '<p style="text-align:center;opacity:0.7;">Could not load reviews.</p>';
-        });
-});
-</script>
 
 <?php elseif ($reviews_enabled && $has_manual_reviews) : ?>
 <!-- Manual Reviews Section -->
