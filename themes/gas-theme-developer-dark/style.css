@@ -690,8 +690,17 @@ img {
         align-items: stretch;
     }
     .gas-search-field {
-        width: 100%;
+        width: 100% !important;
         min-width: unset;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+    }
+    .gas-search-field input,
+    .gas-search-field select,
+    .gas-search-field .flatpickr-mobile {
+        width: 100% !important;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
     }
     .developer-search-wrapper {
         transform: none !important;
