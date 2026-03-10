@@ -595,7 +595,12 @@ if (!is_wp_error($repuso_response)) {
         <p style="text-align: center; opacity: 0.7;">No reviews available yet.</p>
         <?php endif; ?>
         <div style="text-align: center; margin-top: 2rem;">
-            <a href="/reviews/" style="display: inline-block; padding: 12px 32px; background: <?php echo esc_attr($reviews_star_color); ?>; color: #fff; text-decoration: none; border-radius: 6px; font-weight: 500; border: 2px solid <?php echo esc_attr($reviews_star_color); ?>; transition: all 0.3s ease;">View All Reviews</a>
+            <?php
+            $btn_color = $api['reviews_btn_color'] ?? $reviews_star_color;
+            $btn_text_color = $api['reviews_btn_text_color'] ?? '#ffffff';
+            $btn_text = $api['reviews_btn_text'] ?? 'View All Reviews';
+            ?>
+            <a href="/reviews/" style="display: inline-block; padding: 12px 32px; background: <?php echo esc_attr($btn_color); ?>; color: <?php echo esc_attr($btn_text_color); ?>; text-decoration: none; border-radius: 6px; font-weight: 500; border: 2px solid <?php echo esc_attr($btn_color); ?>; transition: all 0.3s ease;"><?php echo esc_html($btn_text); ?></a>
         </div>
     </div>
 </section>
@@ -671,7 +676,12 @@ if (!is_wp_error($hostaway_response)) {
         <p style="text-align: center; opacity: 0.7;">No reviews available yet.</p>
         <?php endif; ?>
         <div style="text-align: center; margin-top: 2rem;">
-            <a href="/reviews/" style="display: inline-block; padding: 12px 32px; background: <?php echo esc_attr($reviews_star_color); ?>; color: #fff; text-decoration: none; border-radius: 6px; font-weight: 500; border: 2px solid <?php echo esc_attr($reviews_star_color); ?>; transition: all 0.3s ease;">View All Reviews</a>
+            <?php
+            $btn_color = $api['reviews_btn_color'] ?? $reviews_star_color;
+            $btn_text_color = $api['reviews_btn_text_color'] ?? '#ffffff';
+            $btn_text = $api['reviews_btn_text'] ?? 'View All Reviews';
+            ?>
+            <a href="/reviews/" style="display: inline-block; padding: 12px 32px; background: <?php echo esc_attr($btn_color); ?>; color: <?php echo esc_attr($btn_text_color); ?>; text-decoration: none; border-radius: 6px; font-weight: 500; border: 2px solid <?php echo esc_attr($btn_color); ?>; transition: all 0.3s ease;"><?php echo esc_html($btn_text); ?></a>
         </div>
     </div>
 </section>

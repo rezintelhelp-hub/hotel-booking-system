@@ -55,6 +55,11 @@ function developer_theme_activation() {
             'content'  => '',
             'template' => 'template-privacy.php',
         ),
+        'reviews' => array(
+            'title'    => 'Reviews',
+            'content'  => '',
+            'template' => 'template-reviews.php',
+        ),
         'blog' => array(
             'title'    => 'Blog',
             'content'  => '',
@@ -2714,6 +2719,9 @@ function developer_get_api_settings() {
         'reviews_text_color' => $website_reviews['text-color'] ?? '#ffffff',
         'reviews_card_bg' => $website_reviews['card-bg'] ?? '#1e293b',
         'reviews_star_color' => $website_reviews['star-color'] ?? '#fbbf24',
+        'reviews_btn_color' => $website_reviews['btn-color'] ?? ($website_reviews['star-color'] ?? '#fbbf24'),
+        'reviews_btn_text_color' => $website_reviews['btn-text-color'] ?? '#ffffff',
+        'reviews_btn_text' => developer_get_ml_value($website_reviews, 'btn-text', $lang) ?: 'View All Reviews',
         'review1_name' => $website_reviews['review1-name'] ?? '',
         'review1_source' => $website_reviews['review1-source'] ?? '',
         'review1_text' => $website_reviews['review1-text'] ?? '',
