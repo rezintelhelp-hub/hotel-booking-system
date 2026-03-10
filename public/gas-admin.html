@@ -12194,6 +12194,7 @@
                 <div id="blog-tab-content">
                     <!-- Ideas Tab (default) -->
                     <div id="blog-tab-ideas" class="blog-tab-panel">
+                        <div id="blog-ideas-subtabs" style="display: flex; gap: 0; margin-bottom: 1rem; border-bottom: 1px solid #e5e7eb; overflow-x: auto; flex-wrap: nowrap;"></div>
                         <div id="blog-ideas-list">
                             <div class="card" style="text-align: center; padding: 3rem; color: #64748b;">
                                 <div style="font-size: 4rem; margin-bottom: 1rem;"></div>
@@ -12221,8 +12222,19 @@
                     
                     <!-- Settings Tab -->
                     <div id="blog-tab-settings" class="blog-tab-panel" style="display: none;">
+                        <!-- Blog Tabs Management -->
+                        <div class="card" style="margin-bottom: 1.5rem;">
+                            <h3 style="margin-bottom: 0.5rem;">Blog Idea Tabs</h3>
+                            <p style="color: #64748b; margin-bottom: 1rem; font-size: 0.9rem;">Feed-based tabs appear automatically when you add iCal or RSS feeds. You can also create custom tabs below.</p>
+                            <div id="blog-tabs-management-list" style="display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1rem;"></div>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <input type="text" id="blog-custom-tab-input" class="form-input" placeholder="New custom tab name..." style="flex: 1;">
+                                <button class="btn" onclick="addBlogCustomTab()" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); white-space: nowrap;">+ Add Tab</button>
+                            </div>
+                        </div>
+
                         <div class="card">
-                            <h3 style="margin-bottom: 1.5rem;">🎨 Display Settings</h3>
+                            <h3 style="margin-bottom: 1.5rem;">Display Settings</h3>
                             <p style="color: #64748b; margin-bottom: 1.5rem;">Customize how your blog appears on your website. These colors are used by the GAS Blog WordPress plugin.</p>
                             
                             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;">
@@ -49459,6 +49471,9 @@ const promo = await fetch('/api/v1/offers/validate', {
         let currentBlogTab = 'ideas';
         let selectedBlogCategory = '';
         let selectedBlogSubcategory = '';
+        let blogFeeds = [];
+        let blogCustomTabs = [];
+        let activeBlogIdeaTab = 'all';
         
         function switchBlogTab(tab) {
             currentBlogTab = tab;
@@ -49485,6 +49500,9 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (tab === 'settings') {
                 loadAppSettings('blog');
                 setupColorSync('blog');
+                // Also load feeds for tabs management card
+                const clientId = getClientId();
+                loadBlogIdeaTabs(clientId).then(() => renderBlogTabsManagement());
             } else {
                 loadBlogByTab();
             }
@@ -49635,12 +49653,18 @@ const promo = await fetch('/api/v1/offers/validate', {
                     toggleReviewsAppSource();
                 }
 
+                // Load blog-specific: custom tabs
+                if (app === 'blog') {
+                    blogCustomTabs = data.custom_tabs || [];
+                    renderBlogTabsManagement();
+                }
+
                 // Load fonts
                 const headingFont = document.getElementById(`${app}-font-heading`);
                 const bodyFont = document.getElementById(`${app}-font-body`);
                 if (headingFont) headingFont.value = fonts.heading || 'inherit';
                 if (bodyFont) bodyFont.value = fonts.body || 'inherit';
-                
+
                 updateAppPreview(app);
             } catch (error) {
                 console.error('Error loading app settings:', error);
@@ -49689,6 +49713,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const accountId = selectedAccountId || currentAccount?.id;
                 const payload = { colors: settings, fonts: fonts, account_id: accountId };
                 if (app === 'reviews') Object.assign(payload, reviewsConfig);
+                if (app === 'blog') payload.custom_tabs = blogCustomTabs;
                 const response = await fetch(`/api/app-settings/${app}?account_id=${accountId}`, {
                     method: 'PUT',
                     headers: { ...authHeaders(), 'Content-Type': 'application/json' },
@@ -50379,20 +50404,165 @@ const promo = await fetch('/api/v1/offers/validate', {
                 if (clientId) params.push(`client_id=${clientId}`);
                 if (propertyId) params.push(`property_id=${propertyId}`);
                 params.push('content_type=blog');
-                // Include both 'active' and 'idea' status
                 params.push('status=active,idea');
-                
+
+                // Add feed_id filter if a specific feed tab is active
+                if (activeBlogIdeaTab && activeBlogIdeaTab !== 'all' && activeBlogIdeaTab.startsWith('feed-')) {
+                    const feedId = activeBlogIdeaTab.replace('feed-', '');
+                    params.push(`feed_id=${feedId}`);
+                }
+
                 const url = '/api/admin/content-ideas?' + params.join('&');
                 const response = await fetch(url, { headers: authHeaders() });
                 const data = await response.json();
-                
+
                 blogIdeas = data.ideas || [];
+                await loadBlogIdeaTabs(clientId);
                 renderBlogIdeas();
             } catch (error) {
                 console.error('Error loading blog ideas:', error);
             }
         }
-        
+
+        async function loadBlogIdeaTabs(clientId) {
+            const container = document.getElementById('blog-ideas-subtabs');
+            if (!container) return;
+
+            try {
+                // Load feeds
+                const accountId = clientId || getClientId();
+                const feedRes = await fetch(`/api/blog/feeds?account_id=${accountId}`, { headers: authHeaders() });
+                const feedData = await feedRes.json();
+                blogFeeds = feedData.feeds || [];
+
+                // Load custom tabs from app settings
+                try {
+                    const settingsRes = await fetch(`/api/app-settings/blog?account_id=${accountId}`, { headers: authHeaders() });
+                    const settingsData = await settingsRes.json();
+                    blogCustomTabs = settingsData.custom_tabs || [];
+                } catch (e) {
+                    blogCustomTabs = [];
+                }
+            } catch (error) {
+                console.error('Error loading blog idea tabs:', error);
+                blogFeeds = [];
+                blogCustomTabs = [];
+            }
+
+            renderBlogIdeaSubtabs();
+        }
+
+        function renderBlogIdeaSubtabs() {
+            const container = document.getElementById('blog-ideas-subtabs');
+            if (!container) return;
+
+            // Only show sub-tab bar if there are feeds or custom tabs
+            if (blogFeeds.length === 0 && blogCustomTabs.length === 0) {
+                container.style.display = 'none';
+                return;
+            }
+            container.style.display = 'flex';
+
+            const tabStyle = (isActive) => `padding: 0.5rem 1rem; border: none; background: none; font-size: 0.85rem; font-weight: ${isActive ? '600' : '500'}; color: ${isActive ? '#8b5cf6' : '#6b7280'}; border-bottom: 2px solid ${isActive ? '#8b5cf6' : 'transparent'}; margin-bottom: -1px; cursor: pointer; white-space: nowrap;`;
+
+            let html = `<button onclick="switchBlogIdeaTab('all')" style="${tabStyle(activeBlogIdeaTab === 'all')}">All</button>`;
+
+            blogFeeds.forEach(feed => {
+                const tabKey = 'feed-' + feed.id;
+                const icon = feed.type === 'ical' ? '📅' : '📰';
+                html += `<button onclick="switchBlogIdeaTab('${tabKey}')" style="${tabStyle(activeBlogIdeaTab === tabKey)}">${icon} ${escapeHtml(feed.name)}</button>`;
+            });
+
+            blogCustomTabs.forEach(tab => {
+                const tabKey = 'custom-' + tab;
+                html += `<button onclick="switchBlogIdeaTab('${tabKey}')" style="${tabStyle(activeBlogIdeaTab === tabKey)}">${escapeHtml(tab)}</button>`;
+            });
+
+            container.innerHTML = html;
+        }
+
+        function switchBlogIdeaTab(tabKey) {
+            activeBlogIdeaTab = tabKey;
+            renderBlogIdeaSubtabs();
+
+            const propertyId = document.getElementById('blog-property-select')?.value || '';
+            const clientId = getClientId();
+
+            // For custom tabs, show all ideas (custom tabs don't have feed_id linkage yet)
+            if (tabKey.startsWith('custom-') || tabKey === 'all') {
+                // Reload without feed filter
+                const params = [];
+                if (clientId) params.push(`client_id=${clientId}`);
+                if (propertyId) params.push(`property_id=${propertyId}`);
+                params.push('content_type=blog');
+                params.push('status=active,idea');
+
+                fetch('/api/admin/content-ideas?' + params.join('&'), { headers: authHeaders() })
+                    .then(r => r.json())
+                    .then(data => {
+                        blogIdeas = data.ideas || [];
+                        renderBlogIdeas();
+                    });
+            } else {
+                // Feed tab — reload with feed_id filter
+                loadBlogIdeas(propertyId, clientId);
+            }
+        }
+
+        function renderBlogTabsManagement() {
+            const container = document.getElementById('blog-tabs-management-list');
+            if (!container) return;
+
+            let html = '';
+
+            // Feed-derived tabs (read-only)
+            blogFeeds.forEach(feed => {
+                const icon = feed.type === 'ical' ? '📅' : '📰';
+                html += `<div style="display: flex; align-items: center; justify-content: space-between; padding: 0.5rem 0.75rem; background: var(--bg-secondary); border-radius: 8px;">
+                    <span style="font-size: 0.9rem;">${icon} ${escapeHtml(feed.name)} <span style="color: #9ca3af; font-size: 0.75rem;">(${feed.type} feed)</span></span>
+                    <span style="color: #9ca3af; font-size: 0.75rem;">Auto</span>
+                </div>`;
+            });
+
+            // Custom tabs (editable)
+            blogCustomTabs.forEach((tab, i) => {
+                html += `<div style="display: flex; align-items: center; justify-content: space-between; padding: 0.5rem 0.75rem; background: var(--bg-secondary); border-radius: 8px;">
+                    <span style="font-size: 0.9rem;">${escapeHtml(tab)}</span>
+                    <button onclick="removeBlogCustomTab(${i})" style="background: none; border: none; color: #ef4444; cursor: pointer; font-size: 0.85rem; padding: 0.25rem 0.5rem;">Remove</button>
+                </div>`;
+            });
+
+            if (blogFeeds.length === 0 && blogCustomTabs.length === 0) {
+                html = '<p style="color: #9ca3af; font-size: 0.85rem; text-align: center; padding: 0.5rem;">No tabs yet. Add feeds or create custom tabs.</p>';
+            }
+
+            container.innerHTML = html;
+        }
+
+        async function addBlogCustomTab() {
+            const input = document.getElementById('blog-custom-tab-input');
+            const name = input?.value?.trim();
+            if (!name) {
+                showNotification('Please enter a tab name', 'error');
+                return;
+            }
+            if (blogCustomTabs.includes(name)) {
+                showNotification('Tab already exists', 'error');
+                return;
+            }
+            blogCustomTabs.push(name);
+            input.value = '';
+            renderBlogTabsManagement();
+            // Auto-save
+            await saveAppSettings('blog');
+        }
+
+        async function removeBlogCustomTab(index) {
+            blogCustomTabs.splice(index, 1);
+            renderBlogTabsManagement();
+            await saveAppSettings('blog');
+        }
+
         function renderBlogIdeas() {
             const container = document.getElementById('blog-ideas-list');
             if (!container) return;
@@ -52825,7 +52995,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                     
                     const hasTranslationLangs = getAccountLanguages().filter(l => l !== 'en').length > 0;
                     showNotification(hasTranslationLangs ? 'Blog generated! Saving and translating...' : 'Blog generated! Saving...', 'success');
-                    document.getElementById('ai-blog-loading').querySelector('div').textContent = hasTranslationLangs ? 'Saving and translating...' : 'Saving...';
+                    const loadingEl = document.getElementById('ai-blog-loading');
+                    if (loadingEl) { const innerDiv = loadingEl.querySelector('div'); if (innerDiv) innerDiv.textContent = hasTranslationLangs ? 'Saving and translating...' : 'Saving...'; }
                     
                     // Auto-save as draft immediately
                     let clientId = null;
@@ -52955,8 +53126,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                 }
             } catch (error) {
                 console.error('AI generation error:', error);
-                document.getElementById('ai-blog-loading').style.display = 'none';
-                document.getElementById('ai-blog-form').style.display = 'block';
+                const loadingElCatch = document.getElementById('ai-blog-loading');
+                if (loadingElCatch) loadingElCatch.style.display = 'none';
+                const formElCatch = document.getElementById('ai-blog-form');
+                if (formElCatch) formElCatch.style.display = 'block';
                 showNotification('Error generating blog: ' + error.message, 'error');
             }
         }

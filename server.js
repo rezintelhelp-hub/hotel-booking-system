@@ -910,7 +910,23 @@ async function runMigrations() {
     } catch (attrFkError) {
       console.log('ℹ️  attractions.client_id FK fix:', attrFkError.message);
     }
-    
+
+    // Fix blog_categories.client_id FK - same issue
+    try {
+      await pool.query(`ALTER TABLE blog_categories DROP CONSTRAINT IF EXISTS blog_categories_client_id_fkey`);
+      console.log('✅ blog_categories.client_id FK constraint fixed');
+    } catch (blogCatFkError) {
+      console.log('ℹ️  blog_categories.client_id FK fix:', blogCatFkError.message);
+    }
+
+    // Add feed_id to content_ideas for tab grouping
+    try {
+      await pool.query(`ALTER TABLE content_ideas ADD COLUMN IF NOT EXISTS feed_id INTEGER REFERENCES blog_feeds(id) ON DELETE SET NULL`);
+      console.log('✅ content_ideas.feed_id column ensured');
+    } catch (feedIdError) {
+      console.log('ℹ️  content_ideas.feed_id:', feedIdError.message);
+    }
+
     try {
       await pool.query(`ALTER TABLE attractions ADD COLUMN IF NOT EXISTS property_id INTEGER REFERENCES properties(id)`);
       console.log('✅ attractions.property_id column ensured');
@@ -65178,41 +65194,47 @@ app.get('/api/setup-faq-schema', async (req, res) => {
 // Get content ideas
 app.get('/api/admin/content-ideas', async (req, res) => {
     try {
-        let { client_id, property_id, content_type, status, account_id } = req.query;
-        
+        let { client_id, property_id, content_type, status, account_id, feed_id } = req.query;
+
         let query = `
-            SELECT ci.*, p.name as property_name 
+            SELECT ci.*, p.name as property_name
             FROM content_ideas ci
             LEFT JOIN properties p ON ci.property_id = p.id
             WHERE 1=1
         `;
         const params = [];
         let paramIndex = 1;
-        
+
         if (client_id && client_id !== 'null' && client_id !== 'undefined') {
             query += ` AND ci.client_id = $${paramIndex}`;
             params.push(parseInt(client_id));
             paramIndex++;
         }
-        
+
         if (account_id && account_id !== 'null' && account_id !== 'undefined') {
             query += ` AND ci.client_id = $${paramIndex}`;
             params.push(parseInt(account_id));
             paramIndex++;
         }
-        
+
         if (property_id) {
             query += ` AND ci.property_id = $${paramIndex}`;
             params.push(parseInt(property_id));
             paramIndex++;
         }
-        
+
+        if (feed_id && feed_id !== 'null' && feed_id !== 'undefined') {
+            query += ` AND ci.feed_id = $${paramIndex}`;
+            params.push(parseInt(feed_id));
+            paramIndex++;
+        }
+
         if (content_type) {
             query += ` AND ci.content_type = $${paramIndex}`;
             params.push(content_type);
             paramIndex++;
         }
-        
+
         if (status) {
             // Handle comma-separated statuses
             const statuses = status.split(',').map(s => s.trim());
@@ -75215,10 +75237,10 @@ app.post('/api/blog/feeds/fetch-ical', async (req, res) => {
           // Create new idea
           await pool.query(`
             INSERT INTO content_ideas (
-              client_id, property_id, title, description, content_type, 
-              category, subcategory, status, source_type, source_url, 
-              event_date, event_location
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+              client_id, property_id, title, description, content_type,
+              category, subcategory, status, source_type, source_url,
+              event_date, event_location, feed_id
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
           `, [
             feed.account_id,
               feed.property_id,
@@ -75231,7 +75253,8 @@ app.post('/api/blog/feeds/fetch-ical', async (req, res) => {
               'ical',
               feed.url,
               event.startDate,
-              event.location || ''
+              event.location || '',
+              feed.id
             ]);
             ideasCreated++;
         }
@@ -75404,9 +75427,9 @@ app.post('/api/blog/feeds/fetch-rss', async (req, res) => {
           // Create new idea
           await pool.query(`
             INSERT INTO content_ideas (
-              client_id, property_id, title, description, content_type, 
-              category, subcategory, status, source_type, source_url
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+              client_id, property_id, title, description, content_type,
+              category, subcategory, status, source_type, source_url, feed_id
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
           `, [
             feed.account_id,
             feed.property_id,
@@ -75417,7 +75440,8 @@ app.post('/api/blog/feeds/fetch-rss', async (req, res) => {
             'Local News',
             'idea',
             'rss',
-            article.link || feed.url
+            article.link || feed.url,
+            feed.id
           ]);
           ideasCreated++;
         }
@@ -78872,7 +78896,8 @@ app.get('/api/app-settings/:app', async (req, res) => {
         );
         
         if (result.rows.length > 0) {
-            res.json({ success: true, colors: result.rows[0].settings?.colors || {}, fonts: result.rows[0].settings?.fonts || {} });
+            const s = result.rows[0].settings || {};
+            res.json({ success: true, colors: s.colors || {}, fonts: s.fonts || {}, ...s });
         } else {
             // Return defaults
             const defaults = {
@@ -78913,14 +78938,19 @@ app.put('/api/app-settings/:app', async (req, res) => {
         `);
         
         const accountId = req.body.account_id || req.query.account_id || req.user?.account_id || 1;
-        
+
+        // Build settings JSONB from all body keys except account_id
+        const { account_id: _ignored, ...settingsPayload } = req.body;
+        settingsPayload.colors = colors;
+        settingsPayload.fonts = fonts || {};
+
         const result = await pool.query(
             `INSERT INTO app_settings (account_id, app_name, settings, updated_at)
              VALUES ($1, $2, $3, NOW())
-             ON CONFLICT (account_id, app_name) 
+             ON CONFLICT (account_id, app_name)
              DO UPDATE SET settings = $3, updated_at = NOW()
              RETURNING *`,
-            [accountId, app, { colors, fonts: fonts || {} }]
+            [accountId, app, settingsPayload]
         );
         
         res.json({ success: true, message: 'Settings saved', settings: result.rows[0] });
