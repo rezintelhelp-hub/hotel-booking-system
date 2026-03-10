@@ -96,11 +96,11 @@ if ($reviews_source === 'repuso' && $reviews_app_code) {
 ?>
 
 <!-- Reviews Page -->
-<section class="developer-section" style="background: <?php echo esc_attr($bg_color); ?>; padding: 80px 0;">
+<section class="developer-section" style="background: <?php echo esc_attr($bg_color); ?>; padding: 140px 0 80px;">
     <div class="developer-container">
-        <div class="developer-section-header" style="text-align: center; margin-bottom: 3rem;">
-            <h2 style="color: <?php echo esc_attr($text_color); ?>; font-size: 2.5rem; margin: 0 0 0.5rem;"><?php echo esc_html($page_title); ?></h2>
-            <p style="color: <?php echo esc_attr($text_color); ?>; opacity: 0.8; margin: 0;"><?php echo esc_html($page_subtitle); ?></p>
+        <div style="text-align: center; margin-bottom: 3rem;">
+            <h2 style="color: <?php echo esc_attr($text_color); ?>; font-size: 2.5rem; margin: 0 0 0.75rem;"><?php echo esc_html($page_title); ?></h2>
+            <p style="color: <?php echo esc_attr($text_color); ?>; opacity: 0.8; margin: 0; font-size: 1.1rem;"><?php echo esc_html($page_subtitle); ?></p>
         </div>
         <?php if (!empty($reviews)) : ?>
         <div id="gas-reviews-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px;">
