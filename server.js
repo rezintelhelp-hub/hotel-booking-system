@@ -50024,8 +50024,12 @@ app.get('/api/partner/websites/:websiteId/styles', async (req, res) => {
         secondary_color: s['secondary-color'] || '#0f172a',
         accent_color: s['accent-color'] || '#f59e0b',
         link_color: s['link-color'] || '#2563eb',
-        heading_font: s['heading-font'] || 'Inter',
-        body_font: s['body-font'] || 'Inter',
+        heading_font: s['heading-font'] || 'inter',
+        subheading_font: s['subheading-font'] || 'inter',
+        body_font: s['body-font'] || 'inter',
+        title_size: s['title-size'] || '48',
+        subheading_size: s['subheading-size'] || '32',
+        body_size: s['body-size'] || '16',
         btn_primary_bg: s['btn-primary-bg'] || '#2563eb',
         btn_primary_text: s['btn-primary-text'] || '#ffffff',
         btn_radius: s['btn-radius'] || '8',
@@ -50059,7 +50063,9 @@ app.put('/api/partner/websites/:websiteId/styles', async (req, res) => {
     const site = siteResult.rows[0];
     
     const { primary_color, secondary_color, accent_color, link_color,
-            heading_font, body_font, btn_primary_bg, btn_primary_text,
+            heading_font, subheading_font, body_font,
+            title_size, subheading_size, body_size,
+            btn_primary_bg, btn_primary_text,
             btn_radius, custom_css } = req.body;
     
     const stylesResult = await pool.query(
@@ -50075,14 +50081,18 @@ app.put('/api/partner/websites/:websiteId/styles', async (req, res) => {
       accent_color: 'accent-color',
       link_color: 'link-color',
       heading_font: 'heading-font',
+      subheading_font: 'subheading-font',
       body_font: 'body-font',
+      title_size: 'title-size',
+      subheading_size: 'subheading-size',
+      body_size: 'body-size',
       btn_primary_bg: 'btn-primary-bg',
       btn_primary_text: 'btn-primary-text',
       btn_radius: 'btn-radius',
       custom_css: 'custom-css'
     };
-    
-    const incoming = { primary_color, secondary_color, accent_color, link_color, heading_font, body_font, btn_primary_bg, btn_primary_text, btn_radius, custom_css };
+
+    const incoming = { primary_color, secondary_color, accent_color, link_color, heading_font, subheading_font, body_font, title_size, subheading_size, body_size, btn_primary_bg, btn_primary_text, btn_radius, custom_css };
     
     for (const [apiField, cssField] of Object.entries(fieldMap)) {
       if (incoming[apiField] !== undefined) {
@@ -50092,7 +50102,7 @@ app.put('/api/partner/websites/:websiteId/styles', async (req, res) => {
     }
     
     if (Object.keys(changes).length === 0) {
-      return res.status(400).json({ success: false, error: 'No fields provided. Use: primary_color, secondary_color, accent_color, link_color, heading_font, body_font, btn_primary_bg, btn_primary_text, btn_radius, custom_css' });
+      return res.status(400).json({ success: false, error: 'No fields provided. Use: primary_color, secondary_color, accent_color, link_color, heading_font, subheading_font, body_font, title_size, subheading_size, body_size, btn_primary_bg, btn_primary_text, btn_radius, custom_css' });
     }
     
     if (stylesResult.rows.length > 0) {
