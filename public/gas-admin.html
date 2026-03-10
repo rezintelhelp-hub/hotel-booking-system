@@ -51975,7 +51975,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             await openAttractionModal();
             
             document.getElementById('attraction-name-en').value = suggestion.title || '';
-            document.getElementById('attraction-short-desc-en').value = suggestion.description || '';
+            document.getElementById('attraction-short-desc-en').innerHTML = suggestion.description || '';
             if (suggestion.property_id) {
                 document.getElementById('attraction-property-id').value = suggestion.property_id;
             }
@@ -52092,11 +52092,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                 if (data.success && data.attraction) {
                     const a = data.attraction;
                     
-                    if (!document.getElementById('attraction-short-desc-en').value && a.short_description) {
-                        document.getElementById('attraction-short-desc-en').value = a.short_description;
+                    if (!document.getElementById('attraction-short-desc-en').innerHTML.trim() && a.short_description) {
+                        document.getElementById('attraction-short-desc-en').innerHTML = a.short_description;
                     }
-                    if (!document.getElementById('attraction-description-en').value && a.description) {
-                        document.getElementById('attraction-description-en').value = a.description;
+                    if (!document.getElementById('attraction-description-en').innerHTML.trim() && a.description) {
+                        document.getElementById('attraction-description-en').innerHTML = a.description;
                     }
                     if (!document.getElementById('attraction-category').value && a.category) {
                         document.getElementById('attraction-category').value = a.category;
@@ -52135,13 +52135,14 @@ const promo = await fetch('/api/v1/offers/validate', {
                     const fieldsToTranslate = ['attraction-name', 'attraction-short-desc', 'attraction-description', 'attraction-meta-title', 'attraction-meta-description'];
                     for (const field of fieldsToTranslate) {
                         const enEl = document.getElementById(`${field}-en`);
-                        if (enEl && enEl.value.trim()) {
+                        const enVal = enEl ? (enEl.hasAttribute('contenteditable') ? enEl.innerHTML.trim() : enEl.value.trim()) : '';
+                        if (enEl && enVal) {
                             try {
                                 const transResponse = await fetch('/api/admin/translate-text', {
                                     method: 'POST',
                                     headers: { 'Content-Type': 'application/json', ...authHeaders() },
                                     body: JSON.stringify({
-                                        text: enEl.value.trim(),
+                                        text: enVal,
                                         source_lang: 'en',
                                         target_langs: attractionTransLangs
                                     })
@@ -52150,7 +52151,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 if (transData.success && transData.translations) {
                                     Object.entries(transData.translations).forEach(([lang, text]) => {
                                         const input = document.getElementById(`${field}-${lang}`);
-                                        if (input) input.value = text;
+                                        if (input) {
+                                            if (input.hasAttribute('contenteditable')) {
+                                                input.innerHTML = text;
+                                            } else {
+                                                input.value = text;
+                                            }
+                                        }
                                     });
                                 }
                             } catch (e) {
