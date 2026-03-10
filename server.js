@@ -74000,6 +74000,63 @@ app.get('/api/reviews', async (req, res) => {
   }
 });
 
+// POST /api/reviews — Add a manual review
+app.post('/api/reviews', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    if (!token) return res.status(401).json({ success: false, error: 'Unauthorized' });
+    const decoded = jwt.verify(token, JWT_SECRET);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Invalid token' });
+
+    const { account_id, property_id, guest_name, rating, comment, source, channel_name, review_date } = req.body;
+    if (!account_id || !guest_name) {
+      return res.status(400).json({ success: false, error: 'account_id and guest_name are required' });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO reviews (account_id, property_id, guest_name, rating, comment, source, channel_name, review_date, is_public, is_approved)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, true) RETURNING *`,
+      [account_id, property_id || null, guest_name, rating || null, comment || null, source || 'manual', channel_name || 'Manual', review_date || null]
+    );
+
+    res.json({ success: true, review: result.rows[0] });
+  } catch (error) {
+    console.error('POST /api/reviews error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// DELETE /api/reviews/:id — Delete a review (validates account ownership)
+app.delete('/api/reviews/:id', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    if (!token) return res.status(401).json({ success: false, error: 'Unauthorized' });
+    const decoded = jwt.verify(token, JWT_SECRET);
+    if (!decoded) return res.status(401).json({ success: false, error: 'Invalid token' });
+
+    const reviewId = req.params.id;
+
+    // Verify the review exists and belongs to the user's account (unless master admin)
+    const review = await pool.query('SELECT * FROM reviews WHERE id = $1', [reviewId]);
+    if (review.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Review not found' });
+    }
+
+    if (decoded.role !== 'master_admin') {
+      const userAccount = decoded.account_id || decoded.accountId;
+      if (review.rows[0].account_id !== userAccount) {
+        return res.status(403).json({ success: false, error: 'Not authorized to delete this review' });
+      }
+    }
+
+    await pool.query('DELETE FROM reviews WHERE id = $1', [reviewId]);
+    res.json({ success: true, message: 'Review deleted' });
+  } catch (error) {
+    console.error('DELETE /api/reviews error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Debug endpoint to see raw review data
 app.get('/api/reviews/debug/:id', async (req, res) => {
   try {

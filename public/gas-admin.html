@@ -12795,15 +12795,137 @@
 
                 <!-- Settings Tab -->
                 <div id="reviews-tab-settings" class="reviews-tab-panel" style="display: none;">
+                    <!-- Review Source Card -->
+                    <div class="card" style="margin-bottom: 1.5rem;">
+                        <h3 style="margin-bottom: 1.5rem;">Review Source</h3>
+                        <p style="color: #64748b; margin-bottom: 1.5rem;">Choose where reviews come from for the standalone GAS Reviews Plugin.</p>
+
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.25rem;">
+                            <div>
+                                <label style="font-weight: 600; display: block; margin-bottom: 0.5rem;">Source</label>
+                                <select id="reviews-app-source" class="form-input" onchange="toggleReviewsAppSource()">
+                                    <option value="manual">Manual Reviews</option>
+                                    <option value="repuso">Repuso Widget</option>
+                                    <option value="hostaway">Hostaway Reviews</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Repuso fields -->
+                        <div id="reviews-app-repuso-fields" style="display: none; margin-bottom: 1.25rem;">
+                            <label style="font-weight: 600; display: block; margin-bottom: 0.5rem;">Repuso Widget ID</label>
+                            <input type="text" id="reviews-app-repuso-widget-id" class="form-input" placeholder="e.g. abc123">
+                        </div>
+
+                        <!-- Hostaway fields -->
+                        <div id="reviews-app-hostaway-fields" style="display: none; margin-bottom: 1.25rem;">
+                            <label style="font-weight: 600; display: block; margin-bottom: 0.5rem;">Hostaway Property ID</label>
+                            <input type="text" id="reviews-app-hostaway-property-id" class="form-input" placeholder="e.g. 12345">
+                            <p style="color: #f59e0b; font-size: 0.85rem; margin-top: 0.5rem;">Coming Soon — Hostaway review pulling is not yet active.</p>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div>
+                                <label style="font-weight: 600; display: block; margin-bottom: 0.5rem;">Section Title</label>
+                                <input type="text" id="reviews-app-title" class="form-input" placeholder="Guest Reviews" value="Guest Reviews">
+                            </div>
+                            <div>
+                                <label style="font-weight: 600; display: block; margin-bottom: 0.5rem;">Section Subtitle</label>
+                                <input type="text" id="reviews-app-subtitle" class="form-input" placeholder="See what our guests say" value="">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Manual Reviews Card -->
+                    <div id="reviews-app-manual-card" class="card" style="margin-bottom: 1.5rem;">
+                        <h3 style="margin-bottom: 1.5rem;">Manual Reviews</h3>
+                        <p style="color: #64748b; margin-bottom: 1.5rem;">Enter up to 3 reviews to display on your website when using Manual source.</p>
+
+                        <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+                            <div style="background: var(--bg-secondary); border-radius: 12px; padding: 1.25rem;">
+                                <h4 style="margin: 0 0 1rem 0; font-size: 0.9rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Review 1</h4>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
+                                    <div>
+                                        <label style="font-size: 0.85rem; display: block; margin-bottom: 0.25rem;">Reviewer Name</label>
+                                        <input type="text" id="reviews-app-review1-name" class="form-input" placeholder="John D.">
+                                    </div>
+                                    <div>
+                                        <label style="font-size: 0.85rem; display: block; margin-bottom: 0.25rem;">Source</label>
+                                        <select id="reviews-app-review1-source" class="form-input">
+                                            <option value="Google">Google</option>
+                                            <option value="TripAdvisor">TripAdvisor</option>
+                                            <option value="Booking.com">Booking.com</option>
+                                            <option value="Airbnb">Airbnb</option>
+                                            <option value="Facebook">Facebook</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label style="font-size: 0.85rem; display: block; margin-bottom: 0.25rem;">Review Text</label>
+                                    <textarea id="reviews-app-review1-text" class="form-input" rows="3" placeholder="Amazing stay! The location was perfect..."></textarea>
+                                </div>
+                            </div>
+
+                            <div style="background: var(--bg-secondary); border-radius: 12px; padding: 1.25rem;">
+                                <h4 style="margin: 0 0 1rem 0; font-size: 0.9rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Review 2</h4>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
+                                    <div>
+                                        <label style="font-size: 0.85rem; display: block; margin-bottom: 0.25rem;">Reviewer Name</label>
+                                        <input type="text" id="reviews-app-review2-name" class="form-input" placeholder="Sarah M.">
+                                    </div>
+                                    <div>
+                                        <label style="font-size: 0.85rem; display: block; margin-bottom: 0.25rem;">Source</label>
+                                        <select id="reviews-app-review2-source" class="form-input">
+                                            <option value="Google">Google</option>
+                                            <option value="TripAdvisor">TripAdvisor</option>
+                                            <option value="Booking.com">Booking.com</option>
+                                            <option value="Airbnb">Airbnb</option>
+                                            <option value="Facebook">Facebook</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label style="font-size: 0.85rem; display: block; margin-bottom: 0.25rem;">Review Text</label>
+                                    <textarea id="reviews-app-review2-text" class="form-input" rows="3" placeholder="Beautiful property with stunning views..."></textarea>
+                                </div>
+                            </div>
+
+                            <div style="background: var(--bg-secondary); border-radius: 12px; padding: 1.25rem;">
+                                <h4 style="margin: 0 0 1rem 0; font-size: 0.9rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Review 3</h4>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
+                                    <div>
+                                        <label style="font-size: 0.85rem; display: block; margin-bottom: 0.25rem;">Reviewer Name</label>
+                                        <input type="text" id="reviews-app-review3-name" class="form-input" placeholder="Mike R.">
+                                    </div>
+                                    <div>
+                                        <label style="font-size: 0.85rem; display: block; margin-bottom: 0.25rem;">Source</label>
+                                        <select id="reviews-app-review3-source" class="form-input">
+                                            <option value="Google">Google</option>
+                                            <option value="TripAdvisor">TripAdvisor</option>
+                                            <option value="Booking.com">Booking.com</option>
+                                            <option value="Airbnb">Airbnb</option>
+                                            <option value="Facebook">Facebook</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label style="font-size: 0.85rem; display: block; margin-bottom: 0.25rem;">Review Text</label>
+                                    <textarea id="reviews-app-review3-text" class="form-input" rows="3" placeholder="We had a wonderful time..."></textarea>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Styling Card -->
                     <div class="card">
-                        <h3 style="margin-bottom: 1.5rem;">🎨 Display Settings</h3>
+                        <h3 style="margin-bottom: 1.5rem;">Styling</h3>
                         <p style="color: #64748b; margin-bottom: 1.5rem;">Customize how reviews appear on your website. These colors are used by the GAS Reviews WordPress plugin.</p>
-                        
+
                         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;">
                             <!-- Colors Section -->
                             <div style="background: var(--bg-secondary); border-radius: 12px; padding: 1.25rem;">
                                 <h4 style="margin: 0 0 1rem 0; font-size: 0.9rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Colors</h4>
-                                
+
                                 <div style="display: flex; flex-direction: column; gap: 0.75rem;">
                                     <div style="display: flex; align-items: center; justify-content: space-between;">
                                         <label style="font-size: 0.9rem;">Accent Color</label>
@@ -12849,7 +12971,7 @@
                                     </div>
                                 </div>
                             </div>
-                            
+
                             <!-- Preview Section -->
                             <div style="background: var(--bg-secondary); border-radius: 12px; padding: 1.25rem;">
                                 <h4 style="margin: 0 0 1rem 0; font-size: 0.9rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Preview</h4>
@@ -12865,11 +12987,11 @@
                                     <p id="reviews-preview-text" style="color: #64748b; font-size: 0.9rem; margin: 0;">"Amazing stay! The location was perfect."</p>
                                 </div>
                             </div>
-                            
+
                             <!-- Presets Section -->
                             <div style="background: var(--bg-secondary); border-radius: 12px; padding: 1.25rem;">
                                 <h4 style="margin: 0 0 1rem 0; font-size: 0.9rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Quick Presets</h4>
-                                
+
                                 <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
                                     <button onclick="applyAppColorPreset('reviews', 'light')" class="btn btn-secondary" style="font-size: 0.85rem;">☀️ Light</button>
                                     <button onclick="applyAppColorPreset('reviews', 'dark')" class="btn btn-secondary" style="font-size: 0.85rem; background: #1e293b; color: white;">🌙 Dark</button>
@@ -12878,7 +13000,7 @@
                                 </div>
                             </div>
                         </div>
-                        
+
                         <div style="margin-top: 1.5rem; display: flex; gap: 0.75rem;">
                             <button class="btn" onclick="saveAppSettings('reviews')" style="background: linear-gradient(135deg, #eab308 0%, #ca8a04 100%);">💾 Save Settings</button>
                             <button class="btn btn-secondary" onclick="loadAppSettings('reviews')">↩️ Reset</button>
@@ -21795,7 +21917,19 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
 
-        // Toggle Reviews App fields visibility
+        // Toggle Reviews App Settings source fields visibility
+        function toggleReviewsAppSource() {
+            const source = document.getElementById('reviews-app-source')?.value || 'manual';
+            const repusoFields = document.getElementById('reviews-app-repuso-fields');
+            const hostawayFields = document.getElementById('reviews-app-hostaway-fields');
+            const manualCard = document.getElementById('reviews-app-manual-card');
+
+            if (repusoFields) repusoFields.style.display = source === 'repuso' ? 'block' : 'none';
+            if (hostawayFields) hostawayFields.style.display = source === 'hostaway' ? 'block' : 'none';
+            if (manualCard) manualCard.style.display = source === 'manual' ? 'block' : 'none';
+        }
+
+        // Toggle Reviews Web Builder fields visibility
         function toggleReviewsAppFields() {
             const source = document.getElementById('wb-reviews-use-app')?.value || '';
             const repusoFields = document.getElementById('wb-reviews-app-fields');
@@ -49002,8 +49136,128 @@ const promo = await fetch('/api/v1/offers/validate', {
         // REVIEWS FUNCTIONS
         // =====================================================
 
-        function openReviewModal() {
-            alert('Reviews modal coming soon! The API endpoints will be at /api/admin/reviews');
+        function openReviewModal(editReview) {
+            const isEdit = !!editReview;
+            const modalHtml = `
+                <div id="review-modal-overlay" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:10000;display:flex;align-items:center;justify-content:center;" onclick="if(event.target===this)this.remove()">
+                    <div style="background:var(--bg-primary,#fff);border-radius:16px;padding:2rem;width:90%;max-width:520px;max-height:90vh;overflow-y:auto;">
+                        <h3 style="margin:0 0 1.5rem 0;">${isEdit ? 'Edit' : 'Add'} Review</h3>
+                        <div style="display:flex;flex-direction:column;gap:1rem;">
+                            <div>
+                                <label style="font-weight:600;display:block;margin-bottom:0.25rem;">Guest Name</label>
+                                <input type="text" id="review-modal-guest-name" class="form-input" value="${isEdit ? (editReview.guest_name || '') : ''}" placeholder="John Doe">
+                            </div>
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+                                <div>
+                                    <label style="font-weight:600;display:block;margin-bottom:0.25rem;">Rating (1-10)</label>
+                                    <input type="number" id="review-modal-rating" class="form-input" min="1" max="10" step="0.1" value="${isEdit ? (editReview.rating || 10) : 10}">
+                                </div>
+                                <div>
+                                    <label style="font-weight:600;display:block;margin-bottom:0.25rem;">Source</label>
+                                    <select id="review-modal-source" class="form-input">
+                                        <option value="Google" ${isEdit && editReview.channel_name === 'Google' ? 'selected' : ''}>Google</option>
+                                        <option value="TripAdvisor" ${isEdit && editReview.channel_name === 'TripAdvisor' ? 'selected' : ''}>TripAdvisor</option>
+                                        <option value="Booking.com" ${isEdit && editReview.channel_name === 'Booking.com' ? 'selected' : ''}>Booking.com</option>
+                                        <option value="Airbnb" ${isEdit && editReview.channel_name === 'Airbnb' ? 'selected' : ''}>Airbnb</option>
+                                        <option value="Facebook" ${isEdit && editReview.channel_name === 'Facebook' ? 'selected' : ''}>Facebook</option>
+                                        <option value="Manual" ${isEdit && editReview.channel_name === 'Manual' ? 'selected' : ''}>Manual</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div>
+                                <label style="font-weight:600;display:block;margin-bottom:0.25rem;">Property</label>
+                                <select id="review-modal-property" class="form-input">
+                                    <option value="">Select property...</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="font-weight:600;display:block;margin-bottom:0.25rem;">Review Text</label>
+                                <textarea id="review-modal-comment" class="form-input" rows="4" placeholder="Write the review text...">${isEdit ? (editReview.comment || '') : ''}</textarea>
+                            </div>
+                            <div>
+                                <label style="font-weight:600;display:block;margin-bottom:0.25rem;">Review Date</label>
+                                <input type="date" id="review-modal-date" class="form-input" value="${isEdit && editReview.review_date ? editReview.review_date.substring(0,10) : new Date().toISOString().substring(0,10)}">
+                            </div>
+                        </div>
+                        <div style="display:flex;gap:0.75rem;margin-top:1.5rem;justify-content:flex-end;">
+                            <button class="btn btn-secondary" onclick="document.getElementById('review-modal-overlay').remove()">Cancel</button>
+                            <button class="btn" onclick="saveReviewFromModal(${isEdit ? editReview.id : 'null'})">💾 ${isEdit ? 'Update' : 'Save'} Review</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+            // Populate property dropdown
+            (async () => {
+                const propSelect = document.getElementById('review-modal-property');
+                try {
+                    const accountId = selectedAccountId || currentAccount?.id;
+                    let url = '/api/db/properties';
+                    if (accountId) url += `?account_id=${accountId}`;
+                    const resp = await fetch(url, { headers: authHeaders() });
+                    const data = await resp.json();
+                    (data.data || []).forEach(p => {
+                        const opt = document.createElement('option');
+                        opt.value = p.id;
+                        opt.textContent = p.name;
+                        if (isEdit && editReview.property_id == p.id) opt.selected = true;
+                        propSelect.appendChild(opt);
+                    });
+                } catch(e) { console.error('Error loading properties for review modal:', e); }
+            })();
+        }
+
+        async function saveReviewFromModal(editId) {
+            const guest_name = document.getElementById('review-modal-guest-name')?.value?.trim();
+            const rating = parseFloat(document.getElementById('review-modal-rating')?.value) || 10;
+            const channel_name = document.getElementById('review-modal-source')?.value || 'Manual';
+            const property_id = document.getElementById('review-modal-property')?.value || null;
+            const comment = document.getElementById('review-modal-comment')?.value?.trim();
+            const review_date = document.getElementById('review-modal-date')?.value || null;
+            const account_id = selectedAccountId || currentAccount?.id;
+
+            if (!guest_name) { showNotification('Guest name is required', 'error'); return; }
+            if (!comment) { showNotification('Review text is required', 'error'); return; }
+
+            try {
+                const response = await fetch('/api/reviews', {
+                    method: 'POST',
+                    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ account_id, property_id: property_id || null, guest_name, rating, comment, channel_name, source: 'manual', review_date })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    showNotification('Review saved!', 'success');
+                    document.getElementById('review-modal-overlay')?.remove();
+                    loadAppReviews();
+                } else {
+                    showNotification('Error: ' + (data.error || 'Failed to save'), 'error');
+                }
+            } catch (error) {
+                console.error('Save review error:', error);
+                showNotification('Error saving review', 'error');
+            }
+        }
+
+        async function deleteReview(reviewId) {
+            if (!confirm('Delete this review?')) return;
+            try {
+                const response = await fetch(`/api/reviews/${reviewId}`, {
+                    method: 'DELETE',
+                    headers: authHeaders()
+                });
+                const data = await response.json();
+                if (data.success) {
+                    showNotification('Review deleted', 'success');
+                    loadAppReviews();
+                } else {
+                    showNotification('Error: ' + (data.error || 'Failed to delete'), 'error');
+                }
+            } catch (error) {
+                console.error('Delete review error:', error);
+                showNotification('Error deleting review', 'error');
+            }
         }
 
         // =====================================================
@@ -49355,7 +49609,32 @@ const promo = await fetch('/api/v1/offers/validate', {
                 setColor('cat-bg', colors.category_bg, defaults.catBg);
                 setColor('cat-text', colors.category_text, defaults.catText);
                 if (app === 'reviews') setColor('star', colors.star, '#fbbf24');
-                
+
+                // Load reviews-specific config
+                if (app === 'reviews') {
+                    const srcEl = document.getElementById('reviews-app-source');
+                    if (srcEl) srcEl.value = data.source || 'manual';
+                    const repusoEl = document.getElementById('reviews-app-repuso-widget-id');
+                    if (repusoEl) repusoEl.value = data.repuso_widget_id || '';
+                    const hostawayEl = document.getElementById('reviews-app-hostaway-property-id');
+                    if (hostawayEl) hostawayEl.value = data.hostaway_property_id || '';
+                    const titleEl = document.getElementById('reviews-app-title');
+                    if (titleEl) titleEl.value = data.title || 'Guest Reviews';
+                    const subtitleEl = document.getElementById('reviews-app-subtitle');
+                    if (subtitleEl) subtitleEl.value = data.subtitle || '';
+                    const manualReviews = data.manual_reviews || [];
+                    for (let i = 1; i <= 3; i++) {
+                        const r = manualReviews[i - 1] || {};
+                        const nameEl = document.getElementById(`reviews-app-review${i}-name`);
+                        const sourceEl = document.getElementById(`reviews-app-review${i}-source`);
+                        const textEl = document.getElementById(`reviews-app-review${i}-text`);
+                        if (nameEl) nameEl.value = r.name || '';
+                        if (sourceEl) sourceEl.value = r.source || 'Google';
+                        if (textEl) textEl.value = r.text || '';
+                    }
+                    toggleReviewsAppSource();
+                }
+
                 // Load fonts
                 const headingFont = document.getElementById(`${app}-font-heading`);
                 const bodyFont = document.getElementById(`${app}-font-body`);
@@ -49382,18 +49661,38 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (app === 'reviews') {
                 settings.star = document.getElementById('reviews-color-star')?.value;
             }
-            
+
             const fonts = {
                 heading: document.getElementById(`${app}-font-heading`)?.value || 'inherit',
                 body: document.getElementById(`${app}-font-body`)?.value || 'inherit'
             };
-            
+
+            // Reviews-specific: source config + manual reviews
+            let reviewsConfig = {};
+            if (app === 'reviews') {
+                reviewsConfig.source = document.getElementById('reviews-app-source')?.value || 'manual';
+                reviewsConfig.repuso_widget_id = document.getElementById('reviews-app-repuso-widget-id')?.value || '';
+                reviewsConfig.hostaway_property_id = document.getElementById('reviews-app-hostaway-property-id')?.value || '';
+                reviewsConfig.title = document.getElementById('reviews-app-title')?.value || '';
+                reviewsConfig.subtitle = document.getElementById('reviews-app-subtitle')?.value || '';
+                reviewsConfig.manual_reviews = [];
+                for (let i = 1; i <= 3; i++) {
+                    reviewsConfig.manual_reviews.push({
+                        name: document.getElementById(`reviews-app-review${i}-name`)?.value || '',
+                        source: document.getElementById(`reviews-app-review${i}-source`)?.value || 'Google',
+                        text: document.getElementById(`reviews-app-review${i}-text`)?.value || ''
+                    });
+                }
+            }
+
             try {
                 const accountId = selectedAccountId || currentAccount?.id;
+                const payload = { colors: settings, fonts: fonts, account_id: accountId };
+                if (app === 'reviews') Object.assign(payload, reviewsConfig);
                 const response = await fetch(`/api/app-settings/${app}?account_id=${accountId}`, {
                     method: 'PUT',
                     headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ colors: settings, fonts: fonts, account_id: accountId })
+                    body: JSON.stringify(payload)
                 });
                 
                 if (response.ok) {
@@ -49974,13 +50273,14 @@ const promo = await fetch('/api/v1/offers/validate', {
                                     <div style="font-size: 0.9rem;">${review.host_reply}</div>
                                 </div>
                             ` : ''}
-                            <div style="margin-top: 0.75rem; font-size: 0.8rem; color: #64748b;">
-                                ${review.property_name || ''} ${review.room_name ? '• ' + review.room_name : ''}
+                            <div style="margin-top: 0.75rem; display: flex; justify-content: space-between; align-items: center;">
+                                <span style="font-size: 0.8rem; color: #64748b;">${review.property_name || ''} ${review.room_name ? '• ' + review.room_name : ''}</span>
+                                ${review.source === 'manual' ? `<button class="btn btn-secondary" style="font-size: 0.75rem; padding: 0.25rem 0.5rem; color: #ef4444;" onclick="deleteReview(${review.id})">Delete</button>` : ''}
                             </div>
                         </div>
                     `;
                 }
-                
+
                 html += '</div>';
                 container.innerHTML = html;
                 
