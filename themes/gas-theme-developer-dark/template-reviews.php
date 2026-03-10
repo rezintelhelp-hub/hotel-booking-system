@@ -95,19 +95,13 @@ if ($reviews_source === 'repuso' && $reviews_app_code) {
 }
 ?>
 
-<!-- Page Hero -->
-<section class="developer-page-hero" style="background: <?php echo esc_attr($bg_color); ?>;">
+<!-- Reviews Page -->
+<section class="developer-section" style="background: <?php echo esc_attr($bg_color); ?>; padding: 80px 0;">
     <div class="developer-container">
-        <div class="developer-page-hero-content">
-            <h1 style="color: <?php echo esc_attr($text_color); ?>;"><?php echo esc_html($page_title); ?></h1>
-            <p class="developer-page-subtitle" style="color: <?php echo esc_attr($text_color); ?>; opacity: 0.8;"><?php echo esc_html($page_subtitle); ?></p>
+        <div class="developer-section-header" style="text-align: center; margin-bottom: 3rem;">
+            <h2 style="color: <?php echo esc_attr($text_color); ?>; font-size: 2.5rem; margin: 0 0 0.5rem;"><?php echo esc_html($page_title); ?></h2>
+            <p style="color: <?php echo esc_attr($text_color); ?>; opacity: 0.8; margin: 0;"><?php echo esc_html($page_subtitle); ?></p>
         </div>
-    </div>
-</section>
-
-<!-- Reviews Grid -->
-<section style="background: <?php echo esc_attr($bg_color); ?>; padding: 60px 0 80px;">
-    <div class="developer-container">
         <?php if (!empty($reviews)) : ?>
         <div id="gas-reviews-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px;">
             <?php foreach ($reviews as $rev) :
