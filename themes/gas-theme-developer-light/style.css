@@ -685,12 +685,16 @@ img {
         margin: 0 auto;
         text-align: center;
     }
-    .gas-search-fields {
-        flex-direction: column;
+    .gas-search-fields,
+    .gas-search-horizontal .gas-search-fields {
+        flex-direction: column !important;
+        flex-wrap: wrap !important;
         align-items: stretch;
     }
-    .gas-search-field {
+    .gas-search-field,
+    .gas-search-horizontal .gas-search-field {
         width: 100% !important;
+        flex: 1 1 100% !important;
         min-width: unset;
         max-width: 100% !important;
         box-sizing: border-box !important;
