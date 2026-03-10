@@ -2873,6 +2873,7 @@ function developer_developer_custom_css() {
     
     // Fonts - API overrides theme_mod for site-wide consistency
     $heading_font = $api['heading_font'] ?? get_theme_mod('developer_heading_font', 'playfair');
+    $subheading_font = $api['subheading_font'] ?? get_theme_mod('developer_subheading_font', 'inter');
     $body_font = $api['body_font'] ?? get_theme_mod('developer_body_font', 'inter');
     
     // Global typography sizes from API
