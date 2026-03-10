@@ -266,6 +266,23 @@ function gas_render_page_sections($page_slug, $primary_color = '#2563eb') {
     }
     ?>
     <style>
+    /* Inherit fonts from Styles & Fonts */
+    .gas-ps-section h1,
+    .gas-ps-hero h1 {
+        font-family: var(--developer-font-display) !important;
+    }
+    .gas-ps-section h2 {
+        font-family: var(--developer-subheading-font, var(--developer-font-display)) !important;
+    }
+    .gas-ps-section h3 {
+        font-family: var(--developer-subheading-font, var(--developer-font-display)) !important;
+    }
+    .gas-ps-section p,
+    .gas-ps-section div,
+    .gas-ps-section summary,
+    .gas-ps-section a {
+        font-family: var(--developer-font) !important;
+    }
     @media (max-width: 768px) {
         .gas-ps-imgtext-grid { grid-template-columns: 1fr !important; }
         .gas-ps-imgtext-grid > div { order: unset !important; }
