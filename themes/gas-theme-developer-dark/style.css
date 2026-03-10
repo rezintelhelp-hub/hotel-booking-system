@@ -1247,6 +1247,8 @@ img {
 @media (max-width: 600px) {
     .developer-services-grid {
         grid-template-columns: 1fr;
+        max-width: 400px;
+        margin: 0 auto;
     }
 }
 
