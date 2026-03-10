@@ -2411,6 +2411,7 @@ function developer_get_api_settings() {
     $website_page_dining = $website['page-dining'] ?? array();
     $website_page_offers = $website['page-offers'] ?? array();
     $website_page_properties = $website['page-properties'] ?? array();
+    $website_reviews = $website['reviews'] ?? array();
     $website_page_reviews = $website['page-reviews'] ?? array();
     $website_page_terms = $website['page-terms'] ?? array();
     $website_page_privacy = $website['page-privacy'] ?? array();
@@ -2699,6 +2700,27 @@ function developer_get_api_settings() {
         'intro_title_color' => $website_intro['title-color'] ?? null,
         'intro_text_color' => $website_intro['text-color'] ?? null,
         
+        // Reviews Section - MULTILINGUAL
+        'reviews_enabled' => $website_reviews['enabled'] ?? false,
+        'reviews_use_app' => $website_reviews['use-app'] ?? '',
+        'reviews_app_code' => $website_reviews['app-code'] ?? '',
+        'reviews_hostaway_id' => $website_reviews['hostaway-id'] ?? '',
+        'reviews_title' => developer_get_ml_value($website_reviews, 'title', $lang) ?: 'What Our Guests Say',
+        'reviews_subtitle' => developer_get_ml_value($website_reviews, 'subtitle', $lang) ?: 'Real reviews from real guests',
+        'reviews_bg' => $website_reviews['bg'] ?? '#0f172a',
+        'reviews_text_color' => $website_reviews['text-color'] ?? '#ffffff',
+        'reviews_card_bg' => $website_reviews['card-bg'] ?? '#1e293b',
+        'reviews_star_color' => $website_reviews['star-color'] ?? '#fbbf24',
+        'review1_name' => $website_reviews['review1-name'] ?? '',
+        'review1_source' => $website_reviews['review1-source'] ?? '',
+        'review1_text' => $website_reviews['review1-text'] ?? '',
+        'review2_name' => $website_reviews['review2-name'] ?? '',
+        'review2_source' => $website_reviews['review2-source'] ?? '',
+        'review2_text' => $website_reviews['review2-text'] ?? '',
+        'review3_name' => $website_reviews['review3-name'] ?? '',
+        'review3_source' => $website_reviews['review3-source'] ?? '',
+        'review3_text' => $website_reviews['review3-text'] ?? '',
+
         // CTA Section - MULTILINGUAL
         'cta_section_enabled' => $website_cta['enabled'] ?? null,
         'cta_section_title' => developer_get_ml_value($website_cta, 'title', $lang),

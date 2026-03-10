@@ -481,32 +481,37 @@ for ($i = 1; $i <= 8; $i++) {
 </section>
 <?php endif; ?>
 
-<?php 
-// Reviews Section
-$reviews_enabled = get_theme_mod('developer_reviews_enabled', false);
-$reviews_title = get_theme_mod('developer_reviews_title', 'What Our Guests Say');
-$reviews_subtitle = get_theme_mod('developer_reviews_subtitle', 'Real reviews from real guests across all platforms');
-$reviews_bg = get_theme_mod('developer_reviews_bg', '#0f172a');
-$reviews_text_color = get_theme_mod('developer_reviews_text_color', '#ffffff');
-$reviews_card_bg = get_theme_mod('developer_reviews_card_bg', '#1e293b');
-$reviews_star_color = get_theme_mod('developer_reviews_star_color', '#fbbf24');
-$reviews_style = get_theme_mod('developer_reviews_style', 'slider');
-$reviews_limit = get_theme_mod('developer_reviews_limit', '6');
-$reviews_use_app = get_theme_mod('developer_reviews_use_app', false);
+<?php
+// Reviews Section (API override → theme_mod fallback)
+$reviews_enabled = $api['reviews_enabled'] ?? get_theme_mod('developer_reviews_enabled', false);
+$reviews_use_app = $api['reviews_use_app'] ?? get_theme_mod('developer_reviews_use_app', '');
+$reviews_app_code = $api['reviews_app_code'] ?? '';
+$reviews_hostaway_id = $api['reviews_hostaway_id'] ?? '';
+$reviews_title = $api['reviews_title'] ?? get_theme_mod('developer_reviews_title', 'What Our Guests Say');
+$reviews_subtitle = $api['reviews_subtitle'] ?? get_theme_mod('developer_reviews_subtitle', 'Real reviews from real guests');
+$reviews_bg = $api['reviews_bg'] ?? get_theme_mod('developer_reviews_bg', '#0f172a');
+$reviews_text_color = $api['reviews_text_color'] ?? get_theme_mod('developer_reviews_text_color', '#ffffff');
+$reviews_card_bg = $api['reviews_card_bg'] ?? get_theme_mod('developer_reviews_card_bg', '#1e293b');
+$reviews_star_color = $api['reviews_star_color'] ?? get_theme_mod('developer_reviews_star_color', '#fbbf24');
 
-// Get manual reviews
-$review1_name = get_theme_mod('developer_reviews_review1_name', '');
-$review1_source = get_theme_mod('developer_reviews_review1_source', '');
-$review1_text = get_theme_mod('developer_reviews_review1_text', '');
-$review2_name = get_theme_mod('developer_reviews_review2_name', '');
-$review2_source = get_theme_mod('developer_reviews_review2_source', '');
-$review2_text = get_theme_mod('developer_reviews_review2_text', '');
-$review3_name = get_theme_mod('developer_reviews_review3_name', '');
-$review3_source = get_theme_mod('developer_reviews_review3_source', '');
-$review3_text = get_theme_mod('developer_reviews_review3_text', '');
+// Manual reviews
+$review1_name = $api['review1_name'] ?? '';
+$review1_source = $api['review1_source'] ?? '';
+$review1_text = $api['review1_text'] ?? '';
+$review2_name = $api['review2_name'] ?? '';
+$review2_source = $api['review2_source'] ?? '';
+$review2_text = $api['review2_text'] ?? '';
+$review3_name = $api['review3_name'] ?? '';
+$review3_source = $api['review3_source'] ?? '';
+$review3_text = $api['review3_text'] ?? '';
 $has_manual_reviews = $review1_text || $review2_text || $review3_text;
 
-if ($reviews_enabled && $reviews_use_app && shortcode_exists('gas_reviews')) : 
+// Legacy: treat boolean true as 'gas_reviews' for backwards compat
+if ($reviews_use_app === true || $reviews_use_app === '1' || $reviews_use_app === 'true') {
+    $reviews_use_app = 'gas_reviews';
+}
+
+if ($reviews_enabled && $reviews_use_app === 'gas_reviews' && shortcode_exists('gas_reviews')) :
 ?>
 <!-- Reviews Section (GAS Reviews App) -->
 <section class="developer-section developer-reviews" style="background: <?php echo esc_attr($reviews_bg); ?>; color: <?php echo esc_attr($reviews_text_color); ?>;">
@@ -515,30 +520,48 @@ if ($reviews_enabled && $reviews_use_app && shortcode_exists('gas_reviews')) :
             <h2 style="color: <?php echo esc_attr($reviews_text_color); ?>;"><?php echo esc_html($reviews_title); ?></h2>
             <p style="color: <?php echo esc_attr($reviews_text_color); ?>; opacity: 0.8;"><?php echo esc_html($reviews_subtitle); ?></p>
         </div>
-        
         <div class="developer-reviews-widget">
-            <?php 
-            // Output the appropriate shortcode based on style
-            switch ($reviews_style) {
-                case 'slider':
-                    echo do_shortcode('[gas_reviews_slider]');
-                    break;
-                case 'grid':
-                    echo do_shortcode('[gas_reviews limit="' . esc_attr($reviews_limit) . '" layout="grid"]');
-                    break;
-                case 'badges':
-                    echo do_shortcode('[gas_reviews_badge]');
-                    break;
-                case 'summary':
-                    echo do_shortcode('[gas_reviews_summary]');
-                    break;
-                default:
-                    echo do_shortcode('[gas_reviews_slider]');
-            }
-            ?>
+            <?php echo do_shortcode('[gas_reviews_slider]'); ?>
         </div>
     </div>
 </section>
+
+<?php elseif ($reviews_enabled && $reviews_use_app === 'repuso' && $reviews_app_code) : ?>
+<!-- Reviews Section (Repuso Widget) -->
+<section class="developer-section developer-reviews" style="background: <?php echo esc_attr($reviews_bg); ?>; color: <?php echo esc_attr($reviews_text_color); ?>;">
+    <div class="developer-container">
+        <div class="developer-section-header">
+            <h2 style="color: <?php echo esc_attr($reviews_text_color); ?>;"><?php echo esc_html($reviews_title); ?></h2>
+            <p style="color: <?php echo esc_attr($reviews_text_color); ?>; opacity: 0.8;"><?php echo esc_html($reviews_subtitle); ?></p>
+        </div>
+        <div class="developer-reviews-widget">
+            <div id="repuso-widget-<?php echo esc_attr($reviews_app_code); ?>"></div>
+            <script src="https://repuso.com/widgets/widget.js?code=<?php echo esc_attr($reviews_app_code); ?>" async></script>
+        </div>
+    </div>
+</section>
+
+<?php elseif ($reviews_enabled && $reviews_use_app === 'hostaway' && $reviews_hostaway_id) : ?>
+<!-- Reviews Section (Hostaway) -->
+<section class="developer-section developer-reviews" style="background: <?php echo esc_attr($reviews_bg); ?>; color: <?php echo esc_attr($reviews_text_color); ?>;">
+    <div class="developer-container">
+        <div class="developer-section-header">
+            <h2 style="color: <?php echo esc_attr($reviews_text_color); ?>;"><?php echo esc_html($reviews_title); ?></h2>
+            <p style="color: <?php echo esc_attr($reviews_text_color); ?>; opacity: 0.8;"><?php echo esc_html($reviews_subtitle); ?></p>
+        </div>
+        <div class="developer-reviews-widget">
+            <div id="gas-hostaway-reviews"
+                 data-property-id="<?php echo esc_attr($reviews_hostaway_id); ?>"
+                 data-card-bg="<?php echo esc_attr($reviews_card_bg); ?>"
+                 data-text-color="<?php echo esc_attr($reviews_text_color); ?>"
+                 data-star-color="<?php echo esc_attr($reviews_star_color); ?>"
+                 style="min-height: 100px;">
+                <p style="text-align: center; opacity: 0.7;">Loading reviews...</p>
+            </div>
+        </div>
+    </div>
+</section>
+
 <?php elseif ($reviews_enabled && $has_manual_reviews) : ?>
 <!-- Manual Reviews Section -->
 <section class="developer-section developer-testimonials" style="background: <?php echo esc_attr($reviews_bg); ?>;">
