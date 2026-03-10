@@ -47202,6 +47202,33 @@ const promo = await fetch('/api/v1/offers/validate', {
             ja: { flag: '🇯🇵', name: 'JA' }
         };
 
+        // Filter language tabs/inputs in a modal to only show account languages
+        function filterModalLanguages(modalId) {
+            const langs = getAccountLanguages();
+            const modal = document.getElementById(modalId);
+            if (!modal) return;
+
+            // Hide/show translation tab buttons
+            modal.querySelectorAll('.translation-tab[data-lang]').forEach(tab => {
+                tab.style.display = langs.includes(tab.dataset.lang) ? '' : 'none';
+            });
+
+            // Hide/show translation inputs (textarea, input, contenteditable divs)
+            modal.querySelectorAll('.translation-input[data-lang]').forEach(input => {
+                if (!langs.includes(input.dataset.lang)) {
+                    input.style.display = 'none';
+                    input.classList.remove('active');
+                }
+            });
+
+            // Ensure primary language tab is active in each group
+            const primaryLang = getAccountPrimaryLanguage();
+            modal.querySelectorAll('.translation-field-wrapper').forEach(wrapper => {
+                const group = wrapper.dataset.translationGroup;
+                if (group) switchTranslationTab(group, primaryLang);
+            });
+        }
+
         // Get account languages (fallback to en if not set)
         function getAccountLanguages() {
             if (window.accountLanguageSettings && window.accountLanguageSettings.supported_languages) {
@@ -48487,14 +48514,16 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
 
         async function openBlogModal(post = null) {
+            await loadLanguageSettings();
             document.getElementById('blog-form').reset();
             document.getElementById('blog-id').value = '';
             document.getElementById('blog-delete-btn').style.display = 'none';
             document.getElementById('blog-image-preview').innerHTML = '';
-            
+
             // Reset all multilingual fields (supports both textarea and contenteditable)
+            const allLangs = ['en', 'fr', 'es', 'nl', 'de', 'it', 'pt', 'ja'];
             ['blog-title', 'blog-excerpt', 'blog-content', 'blog-meta-title', 'blog-meta-description'].forEach(field => {
-                ['en', 'fr', 'es', 'nl'].forEach(lang => {
+                allLangs.forEach(lang => {
                     const el = document.getElementById(`${field}-${lang}`);
                     if (!el) return;
                     if (el.hasAttribute('contenteditable')) {
@@ -48503,8 +48532,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                         el.value = '';
                     }
                 });
-                switchTranslationTab(field, 'en');
             });
+            // Filter to only show account languages and activate primary
+            filterModalLanguages('blogModal');
             // Reset schedule
             const schedEl = document.getElementById('blog-schedule');
             if (schedEl) { schedEl.checked = false; }
@@ -48920,20 +48950,23 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
 
         async function openAttractionModal(attraction = null) {
+            await loadLanguageSettings();
             document.getElementById('attraction-form').reset();
             document.getElementById('attraction-id').value = '';
             document.getElementById('attraction-delete-btn').style.display = 'none';
             document.getElementById('attraction-published').checked = false; // Default to draft for new attractions
-            
+
             // Reset all multilingual fields (supports both textarea and contenteditable)
+            const allLangs = ['en', 'fr', 'es', 'nl', 'de', 'it', 'pt', 'ja'];
             ['attraction-name', 'attraction-short-desc', 'attraction-description', 'attraction-meta-title', 'attraction-meta-description'].forEach(field => {
-                ['en', 'fr', 'es', 'nl'].forEach(lang => {
+                allLangs.forEach(lang => {
                     const el = document.getElementById(`${field}-${lang}`);
                     if (!el) return;
                     if (el.hasAttribute('contenteditable')) { el.innerHTML = ''; } else { el.value = ''; }
                 });
-                switchTranslationTab(field, 'en');
             });
+            // Filter to only show account languages and activate primary
+            filterModalLanguages('attractionModal');
             
             // Populate property dropdown in modal
             await populatePropertySelect('attraction-property-id');
