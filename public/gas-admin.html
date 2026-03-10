@@ -51178,13 +51178,17 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (category) {
                 const categoryField = document.getElementById('ai-blog-category');
                 if (categoryField) {
-                    // Use category directly if it's already display format, otherwise convert
-                    if (category.includes('_')) {
-                        const displayCategory = category.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' & ');
-                        categoryField.value = displayCategory;
-                    } else {
-                        categoryField.value = category;
+                    const displayCategory = category.includes('_')
+                        ? category.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' & ')
+                        : category;
+                    // Add option if it doesn't exist in the dropdown
+                    if (![...categoryField.options].some(o => o.value === displayCategory)) {
+                        const opt = document.createElement('option');
+                        opt.value = displayCategory;
+                        opt.textContent = displayCategory;
+                        categoryField.appendChild(opt);
                     }
+                    categoryField.value = displayCategory;
                 }
             }
             
@@ -52848,7 +52852,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                         content_ml: { en: blogContent },
                         meta_title_ml: { en: blogMetaTitle },
                         meta_description_ml: { en: blogMetaDesc },
-                        category: 'General',
+                        category: document.getElementById('ai-blog-category')?.value || 'General',
                         is_published: false,
                         client_id: clientId,
                         property_id: blogPropertyId || null,

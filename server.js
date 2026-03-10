@@ -64347,7 +64347,17 @@ app.post('/api/admin/blog', async (req, res) => {
         }
         
         console.log('Final client_id:', client_id);
-        
+
+        // Auto-register category if provided
+        if (category && category.trim()) {
+            const catSlug = category.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+            await pool.query(`
+                INSERT INTO blog_categories (client_id, name, slug)
+                VALUES ($1, $2, $3)
+                ON CONFLICT (client_id, slug) DO NOTHING
+            `, [client_id, category.trim(), catSlug]);
+        }
+
         // Generate slug if not provided
         const finalSlug = slug || title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
         
@@ -66991,6 +67001,45 @@ app.get('/api/public/client/:clientId/blog/:slug', async (req, res) => {
     } catch (error) {
         res.json({ success: false, error: error.message });
     }
+});
+
+// GET /api/public/faqs/:clientId/schema — Aggregated FAQ schema from published blog posts
+app.get('/api/public/faqs/:clientId/schema', async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const result = await pool.query(
+      `SELECT faq_schema FROM blog_posts
+       WHERE client_id = $1 AND is_published = true AND faq_schema IS NOT NULL
+       ORDER BY published_at DESC`,
+      [clientId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.json({});
+    }
+
+    // Aggregate all FAQ mainEntity items into one FAQPage schema
+    const allQuestions = [];
+    for (const row of result.rows) {
+      const schema = typeof row.faq_schema === 'string' ? JSON.parse(row.faq_schema) : row.faq_schema;
+      if (schema && schema.mainEntity && Array.isArray(schema.mainEntity)) {
+        allQuestions.push(...schema.mainEntity);
+      }
+    }
+
+    if (allQuestions.length === 0) {
+      return res.json({});
+    }
+
+    res.json({
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": allQuestions
+    });
+  } catch (error) {
+    console.error('FAQ schema error:', error);
+    res.json({});
+  }
 });
 
 // Get attractions (public)
