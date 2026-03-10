@@ -406,7 +406,7 @@ jQuery(document).ready(function($) {
                 minDate: 'today',
                 altInput: true,
                 altFormat: 'd M Y',
-                disableMobile: false,
+                disableMobile: true,
                 locale: flatpickrLocale,
                 onChange: function(selectedDates, dateStr, instance) {
                     // Update checkout min date and auto-open
@@ -433,7 +433,7 @@ jQuery(document).ready(function($) {
                 minDate: tomorrow,
                 altInput: true,
                 altFormat: 'd M Y',
-                disableMobile: false,
+                disableMobile: true,
                 locale: flatpickrLocale
             });
         }
@@ -452,7 +452,7 @@ jQuery(document).ready(function($) {
                     minDate: 'today',
                     altInput: true,
                     altFormat: 'd M Y',
-                    disableMobile: false,
+                    disableMobile: true,
                     onChange: function(selectedDates, dateStr, instance) {
                         if (selectedDates.length && $checkout.length) {
                             var nextDay = new Date(selectedDates[0]);
@@ -477,7 +477,7 @@ jQuery(document).ready(function($) {
                     minDate: tomorrow,
                     altInput: true,
                     altFormat: 'd M Y',
-                    disableMobile: false
+                    disableMobile: true
                 });
             }
         });
@@ -495,7 +495,7 @@ jQuery(document).ready(function($) {
                     minDate: 'today',
                     altInput: true,
                     altFormat: 'd M Y',
-                    disableMobile: false, // Use native picker on mobile for better UX
+                    disableMobile: true, // Use native picker on mobile for better UX
                     onChange: function(selectedDates, dateStr, instance) {
                         if (selectedDates.length && $checkout.length) {
                             var nextDay = new Date(selectedDates[0]);
@@ -520,7 +520,7 @@ jQuery(document).ready(function($) {
                     minDate: tomorrow,
                     altInput: true,
                     altFormat: 'd M Y',
-                    disableMobile: false // Use native picker on mobile for better UX
+                    disableMobile: true // Use native picker on mobile for better UX
                 });
             }
         });
@@ -2339,6 +2339,11 @@ jQuery(document).ready(function($) {
     
     function checkAllAvailability(checkin, checkout, guests) {
         var $rooms = $('.gas-room-card, .gas-room-row');
+        
+        // Show spinner
+        var $grid = $('.gas-rooms-grid, .gas-rooms-list');
+        var $spinner = $('<div class="gas-loading-spinner"><div class="gas-spinner-inner"></div><p>Checking availability...</p></div>');
+        $grid.css('position', 'relative').append($spinner);
         var selectedGuests = parseInt(guests) || 1;
         
         $rooms.each(function() {
@@ -2428,6 +2433,14 @@ jQuery(document).ready(function($) {
                 // All done
                 clearInterval(reorderTimer);
                 reorderRooms();
+                // Remove spinner and scroll to first available
+                $spinner.remove();
+                var $firstAvailable = $('.gas-room-card.available, .gas-room-row.available').first();
+                if ($firstAvailable.length) {
+                    $('html, body').animate({
+                        scrollTop: $firstAvailable.offset().top - 80
+                    }, 500);
+                }
             }
         }
         
@@ -2436,6 +2449,7 @@ jQuery(document).ready(function($) {
         setTimeout(function() {
             clearInterval(reorderTimer);
             reorderRooms(); // Force reorder after 10s regardless
+            $spinner.remove();
         }, 10000);
     }
     

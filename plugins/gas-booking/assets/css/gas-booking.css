@@ -1,0 +1,2434 @@
+/**
+ * GAS Booking Plugin - Dwellfort-Inspired Design
+ */
+
+/* ==========================================================================
+   CSS Variables
+   ========================================================================== */
+:root {
+    --gas-primary: #2563eb;
+    --gas-primary-dark: #1d4ed8;
+    --gas-secondary: #64748b;
+    --gas-text: #1e293b;
+    --gas-text-light: #64748b;
+    --gas-success: #10b981;
+    --gas-error: #ef4444;
+    --gas-border: #e2e8f0;
+    --gas-bg: #f8fafc;
+    --gas-white: #ffffff;
+    --gas-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    --gas-shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1);
+    --gas-shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1);
+    --gas-radius: 8px;
+    --gas-radius-lg: 12px;
+}
+
+/* ==========================================================================
+   Base Reset & Typography
+   ========================================================================== */
+.gas-room-widget {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: var(--gas-text);
+    line-height: 1.6;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 16px;
+}
+
+.gas-room-widget * {
+    box-sizing: border-box;
+}
+
+/* Loading State */
+.gas-room-loading {
+    text-align: center;
+    padding: 80px 20px;
+}
+
+.gas-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid var(--gas-border);
+    border-top-color: var(--gas-primary);
+    border-radius: 50%;
+    margin: 0 auto;
+    animation: gas-spin 1s linear infinite;
+}
+
+@keyframes gas-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ==========================================================================
+   Image Gallery - Dwellfort Style (1 large + 4 small grid)
+   ========================================================================== */
+.gas-gallery {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    gap: 8px;
+    height: 480px;
+    border-radius: var(--gas-radius-lg);
+    overflow: hidden;
+    margin-bottom: 32px;
+}
+
+.gas-gallery-main {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    cursor: pointer;
+    border-radius: var(--gas-radius-lg) 0 0 var(--gas-radius-lg);
+}
+
+.gas-gallery-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 8px;
+    height: 100%;
+}
+
+.gas-gallery-thumb {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+.gas-gallery-thumb:hover {
+    opacity: 0.85;
+}
+
+/* Round corners on outer thumbnails */
+.gas-gallery-grid .gas-gallery-thumb:nth-child(2) {
+    border-radius: 0 var(--gas-radius-lg) 0 0;
+}
+
+.gas-gallery-grid .gas-gallery-thumb:nth-child(4),
+.gas-gallery-grid .gas-gallery-more {
+    border-radius: 0 0 var(--gas-radius-lg) 0;
+}
+
+.gas-gallery-more {
+    position: relative;
+    cursor: pointer;
+    height: 100%;
+}
+
+.gas-gallery-more img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.gas-gallery-more-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 600;
+    font-size: 14px;
+    border-radius: 0 0 var(--gas-radius-lg) 0;
+}
+
+.gas-gallery-placeholder {
+    grid-column: 1 / 3;
+    background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 80px;
+    border-radius: var(--gas-radius-lg);
+}
+
+/* Gallery Lightbox */
+.gas-lightbox {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.95);
+    z-index: 10000;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.gas-lightbox.active {
+    display: flex;
+}
+
+.gas-lightbox-content {
+    position: relative;
+    max-width: 90vw;
+    max-height: 90vh;
+    cursor: default;
+}
+
+.gas-lightbox img {
+    max-width: 90vw;
+    max-height: 85vh;
+    object-fit: contain;
+    cursor: pointer;
+}
+
+.gas-lightbox-close {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: white;
+    border: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    font-size: 24px;
+    cursor: pointer;
+    z-index: 10001;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.gas-lightbox-nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background: white;
+    border: none;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    font-size: 24px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.gas-lightbox-prev {
+    left: 20px;
+}
+
+.gas-lightbox-next {
+    right: 20px;
+}
+
+.gas-lightbox-counter {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: white;
+    font-size: 14px;
+}
+
+/* ==========================================================================
+   Main Layout - Two Column
+   ========================================================================== */
+.gas-room-layout {
+    display: grid;
+    grid-template-columns: 1fr 380px;
+    gap: 48px;
+    align-items: start;
+}
+
+@media (max-width: 1024px) {
+    .gas-room-layout {
+        grid-template-columns: 1fr;
+        gap: 32px;
+    }
+    
+    .gas-gallery {
+        height: 400px;
+    }
+}
+
+@media (max-width: 640px) {
+    .gas-gallery {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto;
+        height: auto;
+    }
+    
+    .gas-gallery-main {
+        grid-row: auto;
+        aspect-ratio: 16/10;
+    }
+    
+    .gas-gallery-grid {
+        display: none;
+    }
+}
+
+/* ==========================================================================
+   Room Header
+   ========================================================================== */
+.gas-room-header {
+    margin-bottom: 24px;
+}
+
+.gas-room-title {
+    font-size: 28px;
+    font-weight: 700;
+    margin: 0 0 8px 0;
+    color: var(--gas-text);
+}
+
+.gas-room-location {
+    font-size: 15px;
+    color: var(--gas-text-light);
+    margin: 0 0 16px 0;
+}
+
+.gas-room-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px;
+    padding: 16px 0;
+    border-top: 1px solid var(--gas-border);
+    border-bottom: 1px solid var(--gas-border);
+}
+
+.gas-meta-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 15px;
+    color: var(--gas-text);
+}
+
+.gas-meta-icon {
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.gas-meta-icon svg {
+    width: 20px;
+    height: 20px;
+    stroke: var(--gas-text-light);
+    fill: none;
+    stroke-width: 2;
+}
+
+/* ==========================================================================
+   Tabs Navigation
+   ========================================================================== */
+.gas-tabs {
+    margin-top: 32px;
+}
+
+.gas-tabs-nav {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 24px;
+    overflow-x: auto;
+}
+
+.gas-tab-btn {
+    padding: 10px 20px;
+    background: #f1f5f9;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    color: #94a3b8;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s;
+}
+
+.gas-tab-btn:hover {
+    background: #e2e8f0;
+    color: #64748b;
+}
+
+.gas-tab-btn.active {
+    background: var(--gas-primary);
+    color: white;
+}
+
+.gas-tab-content {
+    display: none;
+}
+
+.gas-tab-content.active {
+    display: block;
+}
+
+/* ==========================================================================
+   Description Tab
+   ========================================================================== */
+.gas-description {
+    font-size: 15px;
+    line-height: 1.8;
+    color: var(--gas-text);
+}
+
+.gas-description p {
+    margin: 0 0 16px 0;
+}
+
+.gas-description-short {
+    margin-bottom: 16px;
+}
+
+.gas-more-info-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: none;
+    border: none;
+    padding: 8px 0;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--gas-primary);
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.gas-more-info-toggle:hover {
+    color: var(--gas-primary-dark);
+}
+
+.gas-more-info-toggle svg {
+    width: 16px;
+    height: 16px;
+    transition: transform 0.2s;
+}
+
+.gas-more-info-toggle.active svg {
+    transform: rotate(180deg);
+}
+
+.gas-description-full {
+    display: none;
+    padding-top: 16px;
+    border-top: 1px solid var(--gas-border);
+    margin-top: 8px;
+}
+
+.gas-description-full.active {
+    display: block;
+}
+
+/* ==========================================================================
+   Features/Amenities Tab
+   ========================================================================== */
+.gas-amenities-category {
+    margin-bottom: 32px;
+}
+
+.gas-amenities-category:last-child {
+    margin-bottom: 0;
+}
+
+.gas-amenities-category-title {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0 0 16px 0;
+    color: var(--gas-text);
+}
+
+.gas-amenities-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.gas-amenity-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: var(--gas-bg);
+    border: 1px solid var(--gas-border);
+    border-radius: 6px;
+    font-size: 14px;
+    color: var(--gas-text);
+}
+
+.gas-amenity-icon {
+    width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.gas-amenity-icon svg {
+    width: 18px;
+    height: 18px;
+    stroke: var(--gas-text-light);
+    fill: none;
+    stroke-width: 2;
+}
+
+/* ==========================================================================
+   Availability Calendar Tab - 2 Month View
+   ========================================================================== */
+.gas-calendar-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    max-width: 600px;
+}
+
+.gas-calendar {
+    background: var(--gas-white);
+}
+
+.gas-calendar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+
+.gas-calendar-title {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.gas-calendar-nav {
+    display: flex;
+    gap: 4px;
+}
+
+.gas-calendar-nav button {
+    width: 28px;
+    height: 28px;
+    border: 1px solid var(--gas-border);
+    background: white;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+}
+
+.gas-calendar-nav button:hover {
+    background: var(--gas-bg);
+}
+
+.gas-calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+}
+
+.gas-calendar-day-name {
+    text-align: center;
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--gas-text-light);
+    padding: 4px 0;
+}
+
+.gas-calendar-day {
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    border-radius: 4px;
+}
+
+.gas-calendar-day.available {
+    background: #d1fae5;
+    color: #065f46;
+}
+
+.gas-calendar-day.unavailable {
+    background: #fecaca;
+    color: #991b1b;
+}
+
+.gas-calendar-day.empty {
+    background: transparent;
+}
+
+.gas-calendar-day.past {
+    color: #cbd5e1;
+    background: #f8fafc;
+}
+
+.gas-calendar-legend {
+    display: flex;
+    gap: 16px;
+    margin-top: 16px;
+    grid-column: 1 / 3;
+}
+
+.gas-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--gas-text-light);
+}
+
+.gas-legend-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+}
+
+.gas-legend-dot.available {
+    background: #d1fae5;
+}
+
+.gas-legend-dot.unavailable {
+    background: #fecaca;
+}
+
+@media (max-width: 500px) {
+    .gas-calendar-container {
+        grid-template-columns: 1fr;
+        position: relative;
+    }
+    
+    /* Show only one calendar at a time on mobile */
+    .gas-calendar-container .gas-calendar:last-of-type {
+        display: none;
+    }
+    
+    .gas-calendar-container.show-next .gas-calendar:first-of-type {
+        display: none;
+    }
+    
+    .gas-calendar-container.show-next .gas-calendar:last-of-type {
+        display: block;
+    }
+    
+    /* Mobile calendar navigation */
+    .gas-calendar-nav {
+        position: absolute;
+        top: 0;
+        width: 100%;
+        display: flex;
+        justify-content: space-between;
+        padding: 0 10px;
+        pointer-events: none;
+    }
+    
+    .gas-calendar-nav button {
+        pointer-events: auto;
+        width: 36px;
+        height: 36px;
+        font-size: 18px;
+    }
+    
+    .gas-calendar-header {
+        justify-content: center;
+    }
+    
+    .gas-calendar-title {
+        font-size: 16px;
+    }
+    
+    .gas-calendar-legend {
+        grid-column: 1;
+        flex-wrap: wrap;
+    }
+    
+    /* Mobile swipe hint */
+    .gas-calendar-container::after {
+        content: '← Swipe to change month →';
+        display: block;
+        text-align: center;
+        font-size: 11px;
+        color: #9ca3af;
+        padding: 8px 0 0;
+        grid-column: 1;
+    }
+}
+
+/* ==========================================================================
+   Terms Tab - Accordion
+   ========================================================================== */
+.gas-accordion {
+    border: 1px solid var(--gas-border);
+    border-radius: var(--gas-radius);
+    overflow: hidden;
+}
+
+.gas-accordion-item {
+    border-bottom: 1px solid var(--gas-border);
+}
+
+.gas-accordion-item:last-child {
+    border-bottom: none;
+}
+
+.gas-accordion-header {
+    width: 100%;
+    padding: 16px 20px;
+    background: white;
+    border: none;
+    text-align: left;
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--gas-text);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    transition: background 0.2s;
+}
+
+.gas-accordion-header:hover {
+    background: var(--gas-bg);
+}
+
+.gas-accordion-icon {
+    font-size: 20px;
+    font-weight: 300;
+    transition: transform 0.2s;
+}
+
+.gas-accordion-item.active .gas-accordion-icon {
+    transform: rotate(45deg);
+}
+
+.gas-accordion-content {
+    display: none;
+    padding: 0 20px 20px;
+    font-size: 14px;
+    line-height: 1.7;
+    color: var(--gas-text);
+}
+
+.gas-accordion-item.active .gas-accordion-content {
+    display: block;
+}
+
+/* Terms List Styling */
+.gas-terms-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+.gas-terms-list li {
+    padding: 12px 0;
+    border-bottom: 1px solid #f0f0f0;
+}
+.gas-terms-list li:last-child {
+    border-bottom: none;
+}
+.gas-terms-list strong {
+    color: #374151;
+}
+
+/* ==========================================================================
+   Map Section
+   ========================================================================== */
+.gas-map-container {
+    margin-top: 32px;
+    padding-top: 32px;
+    border-top: 1px solid var(--gas-border);
+}
+
+.gas-map-title {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0 0 16px 0;
+}
+
+.gas-map {
+    width: 100%;
+    height: 300px;
+    border-radius: var(--gas-radius);
+    overflow: hidden;
+    border: 1px solid var(--gas-border);
+    z-index: 1;
+}
+
+.gas-map iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+}
+
+/* Leaflet popup styling */
+.gas-map .leaflet-popup-content-wrapper {
+    border-radius: 8px;
+}
+
+.gas-map .leaflet-popup-content {
+    margin: 10px 14px;
+    font-size: 14px;
+}
+
+/* ==========================================================================
+   Booking Card (Sticky Sidebar)
+   ========================================================================== */
+.gas-booking-card {
+    position: sticky;
+    top: 24px;
+    background: var(--gas-white);
+    border-radius: var(--gas-radius-lg);
+    box-shadow: var(--gas-shadow-lg);
+    border: 1px solid var(--gas-border);
+    overflow: hidden;
+}
+
+.gas-booking-card-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--gas-border);
+}
+
+.gas-price-display {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+}
+
+.gas-price-amount {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--gas-text);
+}
+
+.gas-price-period {
+    font-size: 15px;
+    color: var(--gas-text-light);
+}
+
+.gas-booking-card-body {
+    padding: 20px 24px;
+}
+
+.gas-date-inputs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    border: 1px solid var(--gas-border);
+    border-radius: var(--gas-radius);
+    overflow: hidden;
+    margin-bottom: 12px;
+}
+
+.gas-date-field {
+    padding: 12px;
+}
+
+.gas-date-field:first-child {
+    border-right: 1px solid var(--gas-border);
+}
+
+.gas-date-field label {
+    display: block;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--gas-text);
+    margin-bottom: 4px;
+}
+
+.gas-date-field input {
+    width: 100%;
+    border: none;
+    font-size: 14px;
+    color: var(--gas-text);
+    background: transparent;
+    padding: 0;
+}
+
+.gas-date-field input:focus {
+    outline: none;
+}
+
+.gas-guest-field {
+    border: 1px solid var(--gas-border);
+    border-radius: var(--gas-radius);
+    padding: 12px;
+    margin-bottom: 16px;
+}
+
+.gas-guest-fields {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.gas-adults-field,
+.gas-children-field {
+    flex: 1;
+    border: 1px solid var(--gas-border);
+    border-radius: var(--gas-radius);
+    padding: 12px;
+}
+
+.gas-children-field.hidden {
+    display: none;
+}
+
+.gas-adults-field label,
+.gas-children-field label {
+    display: block;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--gas-text);
+    margin-bottom: 4px;
+}
+
+.gas-child-age-label {
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: 0;
+    color: var(--gas-text-muted);
+}
+
+.gas-adults-field select,
+.gas-children-field select {
+    width: 100%;
+    border: none;
+    font-size: 14px;
+    color: var(--gas-text);
+    background: transparent;
+    padding: 0;
+    cursor: pointer;
+}
+
+.gas-adults-field select:focus,
+.gas-children-field select:focus {
+    outline: none;
+}
+
+.gas-guest-field label {
+    display: block;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--gas-text);
+    margin-bottom: 4px;
+}
+
+.gas-guest-field select {
+    width: 100%;
+    border: none;
+    font-size: 14px;
+    color: var(--gas-text);
+    background: transparent;
+    padding: 0;
+    cursor: pointer;
+}
+
+.gas-guest-field select:focus {
+    outline: none;
+}
+
+.gas-occupancy-adjustment {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.gas-occupancy-adjustment::before {
+    content: "👥";
+}
+
+.gas-price-breakdown {
+    background: var(--gas-bg);
+    border-radius: var(--gas-radius);
+    padding: 16px;
+    margin-bottom: 16px;
+}
+
+.gas-price-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 14px;
+    margin-bottom: 8px;
+}
+
+.gas-price-row:last-child {
+    margin-bottom: 0;
+    padding-top: 8px;
+    border-top: 1px solid var(--gas-border);
+    font-weight: 600;
+}
+
+.gas-book-btn {
+    width: 100%;
+    padding: 14px 24px;
+    background: var(--gas-primary);
+    color: white;
+    border: none;
+    border-radius: var(--gas-radius);
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.2s;
+}
+
+.gas-book-btn:hover:not(:disabled) {
+    background: var(--gas-primary-dark);
+    transform: translateY(-1px);
+}
+
+.gas-book-btn:disabled {
+    background: var(--gas-secondary);
+    cursor: not-allowed;
+}
+
+/* Add to Cart Button */
+.gas-add-to-cart-btn {
+    width: 100%;
+    padding: 12px 24px;
+    margin-top: 10px;
+    background: white;
+    color: var(--gas-primary);
+    border: 2px solid var(--gas-primary);
+    border-radius: var(--gas-radius);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+}
+
+.gas-add-to-cart-btn:hover:not(:disabled) {
+    background: var(--gas-primary);
+    color: white;
+}
+
+.gas-add-to-cart-btn:disabled {
+    border-color: var(--gas-secondary);
+    color: var(--gas-secondary);
+    cursor: not-allowed;
+}
+
+.gas-cart-status {
+    text-align: center;
+    color: #1e40af;
+}
+
+.gas-view-cart-link {
+    color: var(--gas-primary);
+    font-weight: 600;
+}
+
+/* ==========================================================================
+   Booking Form
+   ========================================================================== */
+.gas-booking-form-section {
+    border-top: 1px solid var(--gas-border);
+    padding: 20px 24px;
+}
+
+.gas-form-title {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0 0 16px 0;
+}
+
+.gas-form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.gas-form-field {
+    display: flex;
+    flex-direction: column;
+}
+
+.gas-form-field.full-width {
+    grid-column: 1 / -1;
+}
+
+.gas-form-field label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--gas-text);
+    margin-bottom: 4px;
+}
+
+.gas-form-field input,
+.gas-form-field textarea {
+    padding: 10px 12px;
+    border: 1px solid var(--gas-border);
+    border-radius: var(--gas-radius);
+    font-size: 14px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.gas-form-field input:focus,
+.gas-form-field textarea:focus {
+    outline: none;
+    border-color: var(--gas-primary);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.gas-form-field textarea {
+    resize: vertical;
+    min-height: 80px;
+}
+
+.gas-submit-btn {
+    width: 100%;
+    padding: 14px 24px;
+    background: var(--gas-success);
+    color: white;
+    border: none;
+    border-radius: var(--gas-radius);
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 16px;
+    transition: background 0.2s;
+}
+
+.gas-submit-btn:hover {
+    background: #059669;
+}
+
+/* ==========================================================================
+   Confirmation
+   ========================================================================== */
+.gas-booking-confirmation {
+    padding: 32px 24px;
+    text-align: center;
+}
+
+.gas-confirmation-icon {
+    width: 64px;
+    height: 64px;
+    background: #d1fae5;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 16px;
+    font-size: 32px;
+}
+
+.gas-confirmation-title {
+    font-size: 20px;
+    font-weight: 600;
+    margin: 0 0 8px 0;
+}
+
+.gas-confirmation-text {
+    font-size: 14px;
+    color: var(--gas-text-light);
+    margin: 0 0 16px 0;
+}
+
+.gas-booking-id {
+    background: var(--gas-bg);
+    padding: 12px 16px;
+    border-radius: var(--gas-radius);
+    font-size: 14px;
+}
+
+/* ==========================================================================
+   Error State
+   ========================================================================== */
+.gas-error {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #991b1b;
+    padding: 16px;
+    border-radius: var(--gas-radius);
+    font-size: 14px;
+}
+
+/* ==========================================================================
+   Rooms Grid (Book Now Page)
+   ========================================================================== */
+.gas-rooms-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 16px;
+}
+
+.gas-filter-section {
+    background: var(--gas-white);
+    border-radius: var(--gas-radius-lg);
+    box-shadow: var(--gas-shadow);
+    padding: 24px;
+    margin-bottom: 32px;
+}
+
+.gas-filter-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: flex-end;
+}
+
+.gas-filter-field {
+    flex: 1;
+    min-width: 150px;
+}
+
+.gas-filter-field label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--gas-text);
+    margin-bottom: 6px;
+}
+
+.gas-filter-field input,
+.gas-filter-field select {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid var(--gas-border);
+    border-radius: var(--gas-radius);
+    font-size: 14px;
+}
+
+.gas-filter-btn {
+    padding: 12px 32px;
+    background: var(--gas-primary);
+    color: white;
+    border: none;
+    border-radius: var(--gas-radius);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.gas-filter-btn:hover {
+    background: var(--gas-primary-dark);
+}
+
+.gas-rooms-section {
+    margin-bottom: 40px;
+}
+
+.gas-section-title {
+    font-size: 20px;
+    font-weight: 600;
+    margin: 0 0 20px 0;
+    padding-bottom: 12px;
+    border-bottom: 2px solid var(--gas-primary);
+}
+
+.gas-section-title.unavailable {
+    border-bottom-color: var(--gas-border);
+}
+
+.gas-rooms-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 24px;
+    justify-content: center;
+}
+
+/* Mobile: center single card */
+@media (max-width: 400px) {
+    .gas-rooms-grid {
+        grid-template-columns: 1fr;
+        max-width: 350px;
+        margin: 0 auto;
+    }
+}
+
+.gas-room-card {
+    background: var(--gas-white);
+    border-radius: var(--gas-radius-lg);
+    box-shadow: var(--gas-shadow);
+    overflow: hidden;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.gas-room-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--gas-shadow-lg);
+}
+
+.gas-room-card.unavailable {
+    opacity: 0.6;
+}
+
+.gas-room-card.unavailable:hover {
+    transform: none;
+    box-shadow: var(--gas-shadow);
+}
+
+.gas-room-image {
+    width: 100%;
+    aspect-ratio: 16/9;
+    object-fit: cover;
+}
+
+.gas-room-image-placeholder {
+    width: 100%;
+    aspect-ratio: 16/9;
+    background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 48px;
+}
+
+.gas-room-info {
+    padding: 20px;
+}
+
+.gas-room-card-title {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0 0 4px 0;
+}
+
+.gas-room-card-subtitle {
+    font-size: 14px;
+    color: var(--gas-text-light);
+    margin: 0 0 12px 0;
+}
+
+.gas-room-card-meta {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 16px;
+    font-size: 13px;
+    color: var(--gas-text-light);
+}
+
+.gas-room-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 16px;
+    border-top: 1px solid var(--gas-border);
+}
+
+.gas-room-price {
+    font-size: 18px;
+    font-weight: 700;
+}
+
+.gas-room-price span {
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--gas-text-light);
+}
+
+.gas-view-btn {
+    padding: 10px 20px;
+    background: var(--gas-primary);
+    color: white;
+    border: none;
+    border-radius: var(--gas-radius);
+    font-size: 14px;
+    font-weight: 500;
+    text-decoration: none;
+    transition: background 0.2s;
+}
+
+.gas-view-btn:hover {
+    background: var(--gas-primary-dark);
+    color: white;
+}
+
+/* ==========================================================================
+   Search Widget
+   ========================================================================== */
+/* ==========================================================================
+   Search Widget - Multiple Layouts
+   ========================================================================== */
+.gas-search-widget {
+    background: var(--gas-white);
+    border-radius: var(--gas-radius-lg);
+    box-shadow: var(--gas-shadow-lg);
+    padding: 24px;
+    margin: 0 auto;
+    box-sizing: border-box;
+}
+
+.gas-search-widget * {
+    box-sizing: border-box;
+}
+
+/* Fields container */
+.gas-search-fields {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: flex-end;
+}
+
+/* Individual field */
+.gas-search-field {
+    display: flex;
+    flex-direction: column;
+}
+
+.gas-search-field label {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--gas-text);
+    margin-bottom: 6px;
+}
+
+.gas-search-field input,
+.gas-search-field select {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid var(--gas-border);
+    border-radius: var(--gas-radius);
+    font-size: 14px;
+    height: 46px;
+    background: var(--gas-white);
+    box-sizing: border-box;
+    max-width: 100%;
+}
+
+.gas-search-field input:focus,
+.gas-search-field select:focus {
+    outline: none;
+    border-color: var(--gas-primary);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.gas-search-field input::placeholder {
+    color: var(--gas-text-light);
+}
+
+/* Search button */
+.gas-search-button {
+    padding: 12px 28px;
+    background: var(--gas-primary);
+    color: white;
+    border: none;
+    border-radius: var(--gas-radius);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    height: 46px;
+    white-space: nowrap;
+}
+
+.gas-search-button:hover {
+    background: var(--gas-primary-dark);
+    transform: translateY(-1px);
+}
+
+/* ====== VERTICAL LAYOUT (Default) ====== */
+.gas-search-vertical .gas-search-fields {
+    flex-direction: column;
+}
+
+.gas-search-vertical .gas-search-field {
+    width: 100%;
+}
+
+.gas-search-vertical .gas-search-submit {
+    margin-top: 8px;
+}
+
+.gas-search-vertical .gas-search-submit .gas-search-button {
+    width: auto;
+}
+
+.gas-search-vertical .gas-search-submit.gas-button-full .gas-search-button {
+    width: 100%;
+}
+
+/* ====== HORIZONTAL LAYOUT ====== */
+.gas-search-horizontal {
+    max-width: 100%;
+}
+
+.gas-search-horizontal .gas-search-fields {
+    flex-direction: row;
+    flex-wrap: nowrap;
+}
+
+.gas-search-horizontal .gas-search-field {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.gas-search-horizontal .gas-search-location {
+    flex: 1.5 1 auto;
+}
+
+.gas-search-horizontal .gas-search-submit {
+    flex: 0 0 auto;
+}
+
+.gas-search-horizontal .gas-search-submit .gas-search-button {
+    width: auto;
+}
+
+/* ====== INLINE LAYOUT (Compact single row) ====== */
+.gas-search-inline {
+    padding: 12px 16px;
+    max-width: 100%;
+}
+
+.gas-search-inline .gas-search-fields {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.gas-search-inline .gas-search-field {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.gas-search-inline .gas-search-field label {
+    display: none;
+}
+
+.gas-search-inline .gas-search-field input,
+.gas-search-inline .gas-search-field select {
+    height: 40px;
+    padding: 8px 12px;
+    font-size: 13px;
+}
+
+.gas-search-inline .gas-search-location {
+    flex: 1.5 1 auto;
+}
+
+.gas-search-inline .gas-search-submit {
+    flex: 0 0 auto;
+}
+
+.gas-search-inline .gas-search-button {
+    height: 40px;
+    padding: 8px 20px;
+    font-size: 13px;
+}
+
+/* ====== RESPONSIVE ====== */
+@media (max-width: 900px) {
+    .gas-search-horizontal .gas-search-fields {
+        flex-wrap: wrap;
+    }
+    
+    .gas-search-horizontal .gas-search-field {
+        flex: 1 1 calc(50% - 8px);
+        min-width: 140px;
+    }
+    
+    .gas-search-horizontal .gas-search-location {
+        flex: 1 1 100%;
+    }
+    
+    .gas-search-horizontal .gas-search-submit {
+        flex: 1 1 100%;
+    }
+    
+    .gas-search-horizontal .gas-search-submit .gas-search-button {
+        width: 100%;
+    }
+}
+
+@media (max-width: 768px) {
+    .gas-search-horizontal .gas-search-fields,
+    .gas-search-inline .gas-search-fields {
+        flex-direction: column !important;
+        flex-wrap: wrap !important;
+    }
+    
+    .gas-search-horizontal .gas-search-field,
+    .gas-search-inline .gas-search-field {
+        flex: 1 1 100% !important;
+        width: 100% !important;
+    }
+    
+    .gas-search-inline .gas-search-field label {
+        display: block;
+    }
+    
+    .gas-search-inline {
+        padding: 20px;
+    }
+    
+    .gas-search-inline .gas-search-field input,
+    .gas-search-inline .gas-search-field select,
+    .gas-search-inline .gas-search-button {
+        height: 46px;
+    }
+    
+    /* Force widget to fit mobile viewport */
+    .gas-search-widget {
+        max-width: calc(100vw - 30px) !important;
+        width: 100% !important;
+        padding: 20px !important;
+    }
+    
+    .gas-search-fields {
+        width: 100% !important;
+        overflow: hidden;
+    }
+    
+    .gas-search-field {
+        width: 100% !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+    
+    .gas-search-field input,
+    .gas-search-field select {
+        width: 100% !important;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+        border-radius: var(--gas-radius, 8px) !important;
+    }
+    
+    .gas-search-horizontal .gas-search-submit {
+        width: 100%;
+    }
+    
+    .gas-search-horizontal .gas-search-submit .gas-search-button {
+        width: 100%;
+    }
+}
+
+/* ==========================================================================
+   Mobile Responsive
+   ========================================================================== */
+@media (max-width: 1024px) {
+    .gas-room-sidebar {
+        order: -1;
+    }
+    
+    .gas-booking-card {
+        position: static;
+    }
+}
+
+@media (max-width: 640px) {
+    .gas-room-title {
+        font-size: 22px;
+    }
+    
+    .gas-date-inputs {
+        grid-template-columns: 1fr;
+    }
+    
+    .gas-date-inputs input {
+        font-size: 16px !important; /* Prevents iOS zoom on focus */
+    }
+    
+    .gas-date-field:first-child {
+        border-right: none;
+        border-bottom: 1px solid var(--gas-border);
+    }
+    
+    .gas-form-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .gas-room-meta {
+        gap: 16px;
+    }
+    
+    .gas-tabs-nav {
+        gap: 0;
+    }
+    
+    .gas-tab-btn {
+        padding: 12px;
+        font-size: 13px;
+    }
+}
+
+/* ==========================================================================
+   Flatpickr Customization
+   ========================================================================== */
+.flatpickr-calendar {
+    border-radius: var(--gas-radius) !important;
+    box-shadow: var(--gas-shadow-lg) !important;
+    border: 1px solid var(--gas-border) !important;
+}
+
+.flatpickr-day.selected,
+.flatpickr-day.startRange,
+.flatpickr-day.endRange {
+    background: var(--gas-primary) !important;
+    border-color: var(--gas-primary) !important;
+}
+
+.flatpickr-day:hover {
+    background: var(--gas-bg) !important;
+}
+
+.flatpickr-day.selected:hover,
+.flatpickr-day.startRange:hover,
+.flatpickr-day.endRange:hover {
+    background: var(--gas-primary-dark) !important;
+}
+
+.flatpickr-months .flatpickr-prev-month:hover svg,
+.flatpickr-months .flatpickr-next-month:hover svg {
+    fill: var(--gas-primary) !important;
+}
+
+/* Alternative date input style */
+.gas-date-field input.flatpickr-input {
+    cursor: pointer;
+}
+
+.gas-date-field input.flatpickr-alt-input {
+    width: 100%;
+    border: none;
+    font-size: 14px;
+    color: var(--gas-text);
+    background: transparent;
+    padding: 0;
+    cursor: pointer;
+}
+
+/* ==========================================================================
+   Rooms Grid Map Markers
+   ========================================================================== */
+.gas-map-marker {
+    background: none;
+    border: none;
+}
+
+.gas-marker-pin {
+    width: 30px;
+    height: 40px;
+    background: #667eea;
+    border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg);
+    position: relative;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    border: 3px solid white;
+}
+
+.gas-marker-pin::after {
+    content: '';
+    width: 10px;
+    height: 10px;
+    background: white;
+    position: absolute;
+    border-radius: 50%;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.gas-map-marker:hover .gas-marker-pin {
+    background: #5a6fd6;
+    transform: rotate(-45deg) scale(1.1);
+}
+
+/* Rooms map popup styling */
+.gas-rooms-map .leaflet-popup-content-wrapper {
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+}
+
+.gas-rooms-map .leaflet-popup-content {
+    margin: 0;
+    padding: 0;
+}
+
+.gas-rooms-map .leaflet-popup-tip {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.gas-map-popup {
+    padding: 12px;
+}
+
+.gas-map-popup-image {
+    width: 100%;
+    height: 120px;
+    object-fit: cover;
+    border-radius: 8px;
+    margin-bottom: 10px;
+}
+
+.gas-map-popup-title {
+    font-weight: 600;
+    font-size: 15px;
+    color: #1e293b;
+    margin-bottom: 4px;
+    line-height: 1.3;
+}
+
+.gas-map-popup-property {
+    font-size: 13px;
+    color: #64748b;
+    margin-bottom: 8px;
+}
+
+.gas-map-popup-price {
+    font-weight: 700;
+    font-size: 18px;
+    color: #1e293b;
+}
+
+.gas-map-popup-price small {
+    font-weight: 400;
+    font-size: 13px;
+    color: #64748b;
+}
+
+.gas-map-popup-link {
+    display: inline-block;
+    margin-top: 10px;
+    background: #667eea;
+    color: white !important;
+    padding: 8px 16px;
+    border-radius: 8px;
+    text-decoration: none !important;
+    font-size: 13px;
+    font-weight: 600;
+    transition: background 0.2s;
+}
+
+.gas-map-popup-link:hover {
+    background: #5a6fd6;
+    color: white !important;
+}
+
+/* ==========================================================================
+   Offers Banner
+   ========================================================================== */
+.gas-offers-banner {
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+    border: 2px solid #f59e0b;
+    border-radius: var(--gas-radius);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    position: relative;
+    overflow: hidden;
+}
+
+.gas-offers-banner::before {
+    content: '';
+    position: absolute;
+    top: -20px;
+    right: -20px;
+    width: 80px;
+    height: 80px;
+    background: rgba(245, 158, 11, 0.2);
+    border-radius: 50%;
+}
+
+.gas-offer-badge {
+    display: inline-block;
+    background: #f59e0b;
+    color: white;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    margin-bottom: 8px;
+}
+
+.gas-offer-name {
+    font-size: 16px;
+    font-weight: 700;
+    color: #92400e;
+    margin-bottom: 4px;
+}
+
+.gas-offer-description {
+    font-size: 13px;
+    color: #a16207;
+    margin-bottom: 10px;
+    line-height: 1.4;
+}
+
+.gas-offers-link {
+    display: inline-block;
+    color: #92400e;
+    font-weight: 600;
+    font-size: 14px;
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+.gas-offers-link:hover {
+    color: #78350f;
+    text-decoration: underline;
+}
+
+.gas-offer-discount {
+    font-size: 20px;
+    font-weight: 700;
+    color: #b45309;
+}
+
+.gas-offer-teaser {
+    font-size: 15px;
+    font-weight: 600;
+    color: #92400e;
+    margin-bottom: 4px;
+}
+
+.gas-offer-hint {
+    font-size: 12px;
+    color: #a16207;
+    margin-top: 6px;
+}
+
+/* ==========================================================================
+   Upsells Section
+   ========================================================================== */
+.gas-upsells-section {
+    border-top: 1px solid var(--gas-border);
+    padding-top: 16px;
+    margin-top: 16px;
+}
+
+.gas-upsells-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--gas-text);
+    margin-bottom: 12px;
+}
+
+.gas-upsells-icon {
+    font-size: 16px;
+}
+
+.gas-upsells-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.gas-upsell-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px;
+    background: var(--gas-bg);
+    border-radius: 8px;
+    border: 1px solid var(--gas-border);
+    transition: all 0.2s;
+    cursor: pointer;
+}
+
+.gas-upsell-item:hover {
+    border-color: var(--gas-primary);
+    background: rgba(37, 99, 235, 0.05);
+}
+
+.gas-upsell-item.selected {
+    border-color: var(--gas-primary);
+    background: rgba(37, 99, 235, 0.1);
+}
+
+.gas-upsell-checkbox {
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--gas-border);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: all 0.2s;
+    margin-top: 2px;
+}
+
+.gas-upsell-item.selected .gas-upsell-checkbox {
+    background: var(--gas-primary);
+    border-color: var(--gas-primary);
+}
+
+.gas-upsell-item.selected .gas-upsell-checkbox::after {
+    content: '✓';
+    color: white;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.gas-upsell-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.gas-upsell-name {
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--gas-text);
+    margin-bottom: 2px;
+}
+
+.gas-upsell-description {
+    font-size: 12px;
+    color: var(--gas-muted);
+    line-height: 1.4;
+}
+
+.gas-upsell-price {
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--gas-primary);
+    white-space: nowrap;
+}
+
+.gas-upsell-price small {
+    font-weight: 400;
+    font-size: 11px;
+    color: var(--gas-muted);
+}
+
+.gas-upsell-quantity {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.gas-upsell-qty-btn {
+    width: 24px;
+    height: 24px;
+    border: 1px solid var(--gas-border);
+    background: white;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.gas-upsell-qty-btn:hover {
+    background: var(--gas-bg);
+}
+
+.gas-upsell-qty-value {
+    font-weight: 600;
+    min-width: 20px;
+    text-align: center;
+}
+
+/* ==========================================================================
+   Voucher Section
+   ========================================================================== */
+.gas-voucher-section {
+    margin-top: 16px;
+    margin-bottom: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--gas-border);
+}
+
+.gas-voucher-toggle {
+    font-size: 13px;
+    color: var(--gas-primary);
+    cursor: pointer;
+    text-align: center;
+}
+
+.gas-voucher-toggle:hover {
+    text-decoration: underline;
+}
+
+.gas-voucher-input {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.gas-voucher-code {
+    flex: 1;
+    padding: 10px 12px;
+    border: 1px solid var(--gas-border);
+    border-radius: 6px;
+    font-size: 14px;
+    text-transform: uppercase;
+}
+
+.gas-voucher-code:focus {
+    outline: none;
+    border-color: var(--gas-primary);
+}
+
+.gas-voucher-apply {
+    padding: 10px 16px;
+    background: var(--gas-primary);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.gas-voucher-apply:hover {
+    filter: brightness(0.9);
+}
+
+.gas-voucher-applied {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #dcfce7;
+    border: 1px solid #86efac;
+    padding: 10px 14px;
+    border-radius: 6px;
+    margin-top: 10px;
+}
+
+.gas-voucher-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: #166534;
+}
+
+.gas-voucher-remove {
+    background: none;
+    border: none;
+    color: #166534;
+    cursor: pointer;
+    font-size: 16px;
+    padding: 0 4px;
+}
+
+.gas-voucher-remove:hover {
+    color: #dc2626;
+}
+
+/* Price breakdown updates */
+.gas-price-row.gas-offer-row .gas-offer-amount,
+.gas-price-row.gas-voucher-row .gas-voucher-amount {
+    color: #16a34a;
+}
+
+.gas-price-row.gas-total-row {
+    font-weight: 700;
+    font-size: 16px;
+    border-top: 2px solid var(--gas-border);
+    padding-top: 12px;
+    margin-top: 8px;
+}
+
+/* ==========================================================================
+   Category Headers in Upsells
+   ========================================================================== */
+.gas-upsell-category {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--gas-muted);
+    margin-top: 12px;
+    margin-bottom: 8px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--gas-border);
+}
+
+.gas-upsell-category:first-child {
+    margin-top: 0;
+}
+
+/* ==========================================================================
+   Rate Options (Standard vs Offer)
+   ========================================================================== */
+.gas-rate-options {
+    margin: 16px 0;
+    border: 1px solid var(--gas-border);
+    border-radius: var(--gas-radius);
+    overflow: hidden;
+}
+
+.gas-rate-options-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--gas-muted);
+    padding: 12px 16px;
+    background: var(--gas-bg);
+    border-bottom: 1px solid var(--gas-border);
+}
+
+.gas-rate-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px 16px;
+    cursor: pointer;
+    transition: all 0.2s;
+    border-bottom: 1px solid var(--gas-border);
+}
+
+.gas-rate-option:last-child {
+    border-bottom: none;
+}
+
+.gas-rate-option:hover {
+    background: rgba(37, 99, 235, 0.03);
+}
+
+.gas-rate-option.selected {
+    background: rgba(37, 99, 235, 0.08);
+}
+
+.gas-rate-radio {
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--gas-border);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 2px;
+    transition: all 0.2s;
+}
+
+.gas-rate-option.selected .gas-rate-radio {
+    border-color: var(--gas-primary);
+}
+
+.gas-rate-radio-inner {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: transparent;
+    transition: all 0.2s;
+}
+
+.gas-rate-option.selected .gas-rate-radio-inner {
+    background: var(--gas-primary);
+}
+
+.gas-rate-details {
+    flex: 1;
+    min-width: 0;
+}
+
+.gas-rate-name {
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--gas-text);
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.gas-rate-badge {
+    display: inline-block;
+    background: #dcfce7;
+    color: #166534;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 20px;
+}
+
+.gas-rate-features {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.gas-rate-feature {
+    font-size: 12px;
+    color: #16a34a;
+}
+
+.gas-rate-feature.warning {
+    color: #dc2626;
+}
+
+.gas-rate-price {
+    text-align: right;
+    flex-shrink: 0;
+}
+
+.gas-rate-total {
+    font-weight: 700;
+    font-size: 16px;
+    color: var(--gas-text);
+}
+
+.gas-rate-per-night {
+    font-size: 12px;
+    color: var(--gas-muted);
+}
+
+.gas-rate-per-night s {
+    color: #9ca3af;
+    margin-right: 4px;
+}
+
+/* Mobile adjustments for rate options */
+@media (max-width: 480px) {
+    .gas-rate-option {
+        flex-wrap: wrap;
+    }
+    
+    .gas-rate-price {
+        width: 100%;
+        text-align: left;
+        margin-top: 8px;
+        padding-left: 32px;
+    }
+}
+
+/* ==========================================================================
+   Unavailable Rooms
+   ========================================================================== */
+.gas-room-card.checking {
+    opacity: 1;
+}
+
+.gas-room-card.checking .gas-room-image::after {
+    display: none !important;
+}
+
+.gas-room-card.unavailable {
+    opacity: 0.6;
+}
+
+.gas-room-card.unavailable .gas-room-image {
+    position: relative;
+}
+
+.gas-room-card.unavailable .gas-room-image::after {
+    content: var(--gas-not-available-text, "NOT AVAILABLE");
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0,0,0,0.7);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+
+.gas-room-card.guest-exceeded {
+    opacity: 0.6;
+}
+
+.gas-not-available,
+.gas-too-small {
+    color: #ef4444;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.gas-checking {
+    color: #9ca3af;
+    font-size: 13px;
+    font-style: italic;
+}
+
+.gas-rooms-divider {
+    grid-column: 1 / -1;
+    padding: 20px 0;
+    text-align: center;
+    color: #9ca3af;
+    font-size: 14px;
+    border-top: 1px solid #e5e7eb;
+    margin-top: 20px;
+}
+
+
+/* Group Booking Checkout */
+.gas-group-rooms-list {
+    margin-bottom: 20px;
+}
+.gas-group-room-item {
+    transition: background-color 0.2s;
+}
+.gas-group-room-item:hover {
+    background-color: #f3f4f6 !important;
+}
+
+/* Country Search */
+.gas-country-search-wrap { position: relative; }
+.gas-country-dropdown {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: #fff;
+    border: 1px solid #d1d5db;
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    max-height: 220px;
+    overflow-y: auto;
+    z-index: 1000;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+.gas-country-option {
+    padding: 10px 14px;
+    cursor: pointer;
+    font-size: 14px;
+    color: #374151;
+    transition: background-color 0.15s;
+}
+.gas-country-option:hover {
+    background-color: #f3f4f6;
+}
+.gas-country-search {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+
+/* Availability check spinner */
+.gas-loading-spinner {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(255,255,255,0.85);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    min-height: 200px;
+}
+.gas-spinner-inner {
+    width: 48px; height: 48px;
+    border: 4px solid #e2e8f0;
+    border-top-color: #3b82f6;
+    border-radius: 50%;
+    animation: gas-spin 0.8s linear infinite;
+}
+@keyframes gas-spin { to { transform: rotate(360deg); } }
+.gas-loading-spinner p { margin-top: 12px; color: #64748b; font-size: 14px; }
+
+/* Mobile button touch improvements */
+button, .gas-view-btn, .gas-search-button, .gas-book-btn, .gas-filter-submit {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    min-height: 44px;
+    cursor: pointer;
+}
+button:active, .gas-view-btn:active, .gas-search-button:active, .gas-book-btn:active {
+    transform: scale(0.97);
+    opacity: 0.9;
+}
