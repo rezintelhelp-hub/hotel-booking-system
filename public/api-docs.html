@@ -531,7 +531,8 @@
             { "name": "Upsells", "description": "Create and manage upsells (add-on services) for properties" },
             { "name": "Taxes", "description": "Create and manage tourist/city taxes for properties" },
             { "name": "Pages", "description": "Create and manage custom website pages" },
-            { "name": "Page Sections", "description": "Add, update, reorder, and delete sections within pages" }
+            { "name": "Page Sections", "description": "Add, update, reorder, and delete sections within pages" },
+            { "name": "Public", "description": "Public endpoints (no authentication required)" }
         ],
         "paths": {
             // ===== TENANTS =====
@@ -2212,6 +2213,35 @@
                         { "name": "sectionId", "in": "path", "required": true, "schema": { "type": "string" } }
                     ],
                     "responses": { "200": { "description": "Section deleted" } }
+                }
+            },
+
+            // ===== PUBLIC =====
+            "/api/public/hostaway-reviews": {
+                "get": {
+                    "tags": ["Public"],
+                    "summary": "Get public Hostaway reviews by listing ID",
+                    "description": "Returns public guest reviews synced from Hostaway for a given Hostaway listing ID. No authentication required.",
+                    "parameters": [
+                        { "name": "property_id", "in": "query", "required": true, "schema": { "type": "string" }, "description": "Hostaway listing ID" },
+                        { "name": "limit", "in": "query", "required": false, "schema": { "type": "integer", "default": 6, "maximum": 20 }, "description": "Number of reviews to return (default 6, max 20)" }
+                    ],
+                    "responses": {
+                        "200": {
+                            "description": "Reviews list",
+                            "content": {
+                                "application/json": {
+                                    "example": {
+                                        "success": true,
+                                        "reviews": [
+                                            { "id": 1, "reviewer_name": "Jane D.", "rating": 5, "text": "Wonderful stay, highly recommend!", "date": "2025-12-15", "source": "Airbnb" }
+                                        ]
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "security": []
                 }
             }
         }
