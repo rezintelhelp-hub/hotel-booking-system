@@ -11017,65 +11017,109 @@
                 <div class="card" style="margin-top: 1rem;">
                     <div class="card-header"><h3>Typography</h3></div>
                     <div class="card-body">
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                            <div class="form-group">
-                                <label class="form-label">Heading Font</label>
-                                <select class="form-select" id="wb-styles-heading-font">
-                                    <option value="playfair">Playfair Display (Elegant Serif)</option>
-                                    <option value="montserrat">Montserrat (Modern Sans)</option>
-                                    <option value="lora">Lora (Classic Serif)</option>
-                                    <option value="poppins">Poppins (Geometric)</option>
-                                    <option value="merriweather">Merriweather (Traditional)</option>
-                                    <option value="raleway">Raleway (Thin & Elegant)</option>
-                                    <option value="oswald">Oswald (Bold Impact)</option>
-                                    <option value="inter" selected>Inter (Clean Modern)</option>
-                                    <option value="roboto">Roboto (Neutral)</option>
-                                    <option value="nunito">Nunito (Rounded Friendly)</option>
-                                </select>
+                        <div style="display: flex; flex-direction: column; gap: 1rem;">
+                            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1rem; align-items: end;">
+                                <div class="form-group" style="margin-bottom:0">
+                                    <label class="form-label">Heading Font (H1)</label>
+                                    <select class="form-select" id="wb-styles-heading-font">
+                                        <option value="inter">Inter (Clean Modern)</option>
+                                        <option value="poppins">Poppins (Friendly Modern)</option>
+                                        <option value="montserrat">Montserrat (Strong & Clean)</option>
+                                        <option value="raleway">Raleway (Elegant Sans)</option>
+                                        <option value="nunito">Nunito (Rounded & Friendly)</option>
+                                        <option value="lato">Lato (Professional)</option>
+                                        <option value="dm-sans">DM Sans (Minimal Modern)</option>
+                                        <option value="outfit">Outfit (Contemporary)</option>
+                                        <option value="plus-jakarta-sans">Plus Jakarta Sans (Refined)</option>
+                                        <option value="josefin-sans">Josefin Sans (Geometric)</option>
+                                        <option value="open-sans">Open Sans (Neutral & Readable)</option>
+                                        <option value="source-sans">Source Sans Pro (Clean)</option>
+                                        <option value="merriweather">Merriweather (Traditional Serif)</option>
+                                        <option value="playfair">Playfair Display (Luxury Serif)</option>
+                                        <option value="lora">Lora (Elegant Serif)</option>
+                                        <option value="cormorant">Cormorant Garamond (High Fashion)</option>
+                                        <option value="libre-baskerville">Libre Baskerville (Classic Serif)</option>
+                                        <option value="eb-garamond">EB Garamond (Timeless Serif)</option>
+                                        <option value="crimson-text">Crimson Text (Literary)</option>
+                                        <option value="cinzel">Cinzel (Luxury Display)</option>
+                                        <option value="tenor-sans">Tenor Sans (Fashion)</option>
+                                        <option value="spectral">Spectral (Editorial)</option>
+                                    </select>
+                                </div>
+                                <div class="form-group" style="margin-bottom:0">
+                                    <label class="form-label">Size (px)</label>
+                                    <select id="wb-styles-title-size" class="form-select"><option value="24">24</option><option value="28">28</option><option value="32">32</option><option value="36">36</option><option value="40">40</option><option value="44">44</option><option value="48" selected>48</option><option value="52">52</option><option value="56">56</option><option value="60">60</option><option value="64">64</option><option value="72">72</option></select>
+                                </div>
                             </div>
-                            <div class="form-group">
-                                <label class="form-label">Body Font</label>
-                                <select class="form-select" id="wb-styles-body-font">
-                                    <option value="inter" selected>Inter (Modern & Readable)</option>
-                                    <option value="roboto">Roboto (Clean)</option>
-                                    <option value="opensans">Open Sans (Friendly)</option>
-                                    <option value="lato">Lato (Warm)</option>
-                                    <option value="sourcesans">Source Sans Pro (Professional)</option>
-                                    <option value="nunito">Nunito (Rounded)</option>
-                                    <option value="poppins">Poppins (Geometric)</option>
-                                    <option value="montserrat">Montserrat (Modern)</option>
-                                </select>
+                            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1rem; align-items: end;">
+                                <div class="form-group" style="margin-bottom:0">
+                                    <label class="form-label">Sub Heading Font (H2)</label>
+                                    <select class="form-select" id="wb-styles-subheading-font">
+                                        <option value="inter">Inter (Clean Modern)</option>
+                                        <option value="poppins">Poppins (Friendly Modern)</option>
+                                        <option value="montserrat">Montserrat (Strong & Clean)</option>
+                                        <option value="raleway">Raleway (Elegant Sans)</option>
+                                        <option value="nunito">Nunito (Rounded & Friendly)</option>
+                                        <option value="lato">Lato (Professional)</option>
+                                        <option value="dm-sans">DM Sans (Minimal Modern)</option>
+                                        <option value="outfit">Outfit (Contemporary)</option>
+                                        <option value="plus-jakarta-sans">Plus Jakarta Sans (Refined)</option>
+                                        <option value="josefin-sans">Josefin Sans (Geometric)</option>
+                                        <option value="open-sans">Open Sans (Neutral & Readable)</option>
+                                        <option value="source-sans">Source Sans Pro (Clean)</option>
+                                        <option value="merriweather">Merriweather (Traditional Serif)</option>
+                                        <option value="playfair">Playfair Display (Luxury Serif)</option>
+                                        <option value="lora">Lora (Elegant Serif)</option>
+                                        <option value="cormorant">Cormorant Garamond (High Fashion)</option>
+                                        <option value="libre-baskerville">Libre Baskerville (Classic Serif)</option>
+                                        <option value="eb-garamond">EB Garamond (Timeless Serif)</option>
+                                        <option value="crimson-text">Crimson Text (Literary)</option>
+                                        <option value="cinzel">Cinzel (Luxury Display)</option>
+                                        <option value="tenor-sans">Tenor Sans (Fashion)</option>
+                                        <option value="spectral">Spectral (Editorial)</option>
+                                    </select>
+                                </div>
+                                <div class="form-group" style="margin-bottom:0">
+                                    <label class="form-label">Size (px)</label>
+                                    <select class="form-select" id="wb-styles-subheading-size"><option value="18">18</option><option value="20">20</option><option value="24">24</option><option value="28">28</option><option value="32" selected>32</option><option value="36">36</option><option value="40">40</option><option value="44">44</option><option value="48">48</option><option value="52">52</option><option value="56">56</option><option value="60">60</option></select>
+                                </div>
                             </div>
-                            <div class="form-group">
-                                <label class="form-label">Sub Heading Font (H2)</label>
-                                <select class="form-select" id="wb-styles-subheading-font">
-                                    <option value="playfair">Playfair Display (Elegant Serif)</option>
-                                    <option value="montserrat">Montserrat (Modern Sans)</option>
-                                    <option value="lora">Lora (Classic Serif)</option>
-                                    <option value="poppins">Poppins (Geometric)</option>
-                                    <option value="merriweather">Merriweather (Traditional)</option>
-                                    <option value="raleway">Raleway (Thin & Elegant)</option>
-                                    <option value="oswald">Oswald (Bold Impact)</option>
-                                    <option value="inter" selected>Inter (Clean Modern)</option>
-                                    <option value="roboto">Roboto (Neutral)</option>
-                                    <option value="nunito">Nunito (Rounded Friendly)</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Sub Heading Size (H2) (px)</label>
-                                <select class="form-select" id="wb-styles-subheading-size"><option value="18">18</option><option value="20">20</option><option value="24">24</option><option value="28">28</option><option value="32" selected>32</option><option value="36">36</option><option value="40">40</option><option value="44">44</option><option value="48">48</option><option value="52">52</option><option value="56">56</option><option value="60">60</option></select>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Page Title Size (px)</label>
-                                <select id="wb-styles-title-size" class="form-control"><option value="24">24</option><option value="28">28</option><option value="32">32</option><option value="36">36</option><option value="40">40</option><option value="44">44</option><option value="48" selected>48</option><option value="52">52</option><option value="56">56</option><option value="60">60</option><option value="64">64</option><option value="72">72</option></select>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Body Text Size (px)</label>
-                                <select id="wb-styles-body-size" class="form-control"><option value="14">14</option><option value="15">15</option><option value="16" selected>16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20">20</option></select>
+                            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1rem; align-items: end;">
+                                <div class="form-group" style="margin-bottom:0">
+                                    <label class="form-label">Body Font</label>
+                                    <select class="form-select" id="wb-styles-body-font">
+                                        <option value="inter">Inter (Clean Modern)</option>
+                                        <option value="poppins">Poppins (Friendly Modern)</option>
+                                        <option value="montserrat">Montserrat (Strong & Clean)</option>
+                                        <option value="raleway">Raleway (Elegant Sans)</option>
+                                        <option value="nunito">Nunito (Rounded & Friendly)</option>
+                                        <option value="lato">Lato (Professional)</option>
+                                        <option value="dm-sans">DM Sans (Minimal Modern)</option>
+                                        <option value="outfit">Outfit (Contemporary)</option>
+                                        <option value="plus-jakarta-sans">Plus Jakarta Sans (Refined)</option>
+                                        <option value="josefin-sans">Josefin Sans (Geometric)</option>
+                                        <option value="open-sans">Open Sans (Neutral & Readable)</option>
+                                        <option value="source-sans">Source Sans Pro (Clean)</option>
+                                        <option value="merriweather">Merriweather (Traditional Serif)</option>
+                                        <option value="playfair">Playfair Display (Luxury Serif)</option>
+                                        <option value="lora">Lora (Elegant Serif)</option>
+                                        <option value="cormorant">Cormorant Garamond (High Fashion)</option>
+                                        <option value="libre-baskerville">Libre Baskerville (Classic Serif)</option>
+                                        <option value="eb-garamond">EB Garamond (Timeless Serif)</option>
+                                        <option value="crimson-text">Crimson Text (Literary)</option>
+                                        <option value="cinzel">Cinzel (Luxury Display)</option>
+                                        <option value="tenor-sans">Tenor Sans (Fashion)</option>
+                                        <option value="spectral">Spectral (Editorial)</option>
+                                    </select>
+                                </div>
+                                <div class="form-group" style="margin-bottom:0">
+                                    <label class="form-label">Size (px)</label>
+                                    <select id="wb-styles-body-size" class="form-select"><option value="14">14</option><option value="15">15</option><option value="16" selected>16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20">20</option></select>
+                                </div>
                             </div>
                         </div>
                         <p style="margin-top: 1rem; font-size: 0.85rem; color: #64748b;">
-                            💡 Tip: Pair a decorative heading font (like Playfair Display) with a clean body font (like Inter) for best readability.
+                            Tip: Pair a decorative heading font (like Playfair Display) with a clean body font (like Inter) for best readability.
                         </p>
                     </div>
                 </div>
