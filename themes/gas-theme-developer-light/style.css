@@ -662,6 +662,39 @@ img {
     margin: 0 !important;
 }
 
+.gas-search-fields {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: flex-end;
+    justify-content: center;
+}
+
+.gas-search-field {
+    flex: 1;
+    min-width: 140px;
+}
+
+.gas-search-field.gas-search-submit {
+    flex: 0 0 auto;
+}
+
+@media (max-width: 768px) {
+    .gas-search-fields {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .gas-search-field {
+        width: 100%;
+        min-width: unset;
+    }
+    .developer-search-wrapper {
+        width: 100%;
+        margin: 0 auto;
+        text-align: center;
+    }
+}
+
 /* Text below search widget */
 .developer-search-below-text {
     color: rgba(255, 255, 255, 0.9);
