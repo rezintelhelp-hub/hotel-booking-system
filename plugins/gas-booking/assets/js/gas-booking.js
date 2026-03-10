@@ -613,28 +613,32 @@ jQuery(document).ready(function($) {
     // Search button click handler
     $(document).on('click', '.gas-search-button', function(e) {
         e.preventDefault();
-        
+
+        // Show spinner immediately on click
+        $('.gas-loading-spinner').remove();
+        $('body').append('<div class="gas-loading-spinner"><div class="gas-spinner-inner"></div><p>Checking availability...</p></div>');
+
         // Find the parent widget to get values from the correct form
         var $widget = $(this).closest('.gas-search-widget');
-        
+
         var checkin = $widget.find('.gas-checkin-date').val();
         var checkout = $widget.find('.gas-checkout-date').val();
         var guests = $widget.find('.gas-guests-select').val();
         var location = $widget.find('.gas-location-input').val();
-        
+
         var baseUrl = gasBooking.searchResultsUrl || '/book-now/';
         var params = [];
-        
+
         if (location) params.push('location=' + encodeURIComponent(location));
         if (checkin) params.push('checkin=' + checkin);
         if (checkout) params.push('checkout=' + checkout);
         if (guests) params.push('guests=' + guests);
-        
+
         var url = baseUrl;
         if (params.length > 0) {
             url += (baseUrl.indexOf('?') > -1 ? '&' : '?') + params.join('&');
         }
-        
+
         window.location.href = url;
     });
     
@@ -2340,10 +2344,10 @@ jQuery(document).ready(function($) {
     function checkAllAvailability(checkin, checkout, guests) {
         var $rooms = $('.gas-room-card, .gas-room-row');
         
-        // Show spinner
-        var $grid = $('.gas-rooms-grid, .gas-rooms-list');
+        // Show fixed spinner at top of page
+        $('.gas-loading-spinner').remove();
         var $spinner = $('<div class="gas-loading-spinner"><div class="gas-spinner-inner"></div><p>Checking availability...</p></div>');
-        $grid.css('position', 'relative').append($spinner);
+        $('body').append($spinner);
         var selectedGuests = parseInt(guests) || 1;
         
         $rooms.each(function() {
