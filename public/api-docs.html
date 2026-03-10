@@ -2243,6 +2243,33 @@
                     },
                     "security": []
                 }
+            },
+            "/api/public/repuso-reviews": {
+                "get": {
+                    "tags": ["Public"],
+                    "summary": "Get reviews from Repuso/ReviewsPlace widget",
+                    "description": "Proxies the ReviewsPlace API and returns normalised review objects for a given widget ID. No authentication required.",
+                    "parameters": [
+                        { "name": "widget_id", "in": "query", "required": true, "schema": { "type": "string" }, "description": "Repuso widget ID (from thereviewsplace.com)" },
+                        { "name": "limit", "in": "query", "required": false, "schema": { "type": "integer", "default": 12, "maximum": 30 }, "description": "Number of reviews to return (default 12, max 30)" }
+                    ],
+                    "responses": {
+                        "200": {
+                            "description": "Reviews list",
+                            "content": {
+                                "application/json": {
+                                    "example": {
+                                        "success": true,
+                                        "reviews": [
+                                            { "id": 10653447, "reviewer_name": "Jenifer", "rating": 5, "rating_scale": 5, "text": "Exceptional", "date": "2026-03-09 00:00:00", "source": "Booking.com" }
+                                        ]
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "security": []
+                }
             }
         }
     };
