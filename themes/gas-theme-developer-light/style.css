@@ -1188,6 +1188,8 @@ img {
 .developer-services-title-cell {
     display: flex;
     align-items: center;
+    justify-content: center;
+    text-align: center;
     padding: 32px 28px;
 }
 
