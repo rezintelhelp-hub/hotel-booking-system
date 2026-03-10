@@ -64373,14 +64373,18 @@ app.post('/api/admin/blog', async (req, res) => {
         
         console.log('Final client_id:', client_id);
 
-        // Auto-register category if provided
+        // Auto-register category if provided (non-blocking — FK may not be dropped yet)
         if (category && category.trim()) {
-            const catSlug = category.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-            await pool.query(`
-                INSERT INTO blog_categories (client_id, name, slug)
-                VALUES ($1, $2, $3)
-                ON CONFLICT (client_id, slug) DO NOTHING
-            `, [client_id, category.trim(), catSlug]);
+            try {
+                const catSlug = category.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+                await pool.query(`
+                    INSERT INTO blog_categories (client_id, name, slug)
+                    VALUES ($1, $2, $3)
+                    ON CONFLICT (client_id, slug) DO NOTHING
+                `, [client_id, category.trim(), catSlug]);
+            } catch (catError) {
+                console.log('Category auto-register skipped:', catError.message);
+            }
         }
 
         // Generate slug if not provided
