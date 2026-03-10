@@ -552,6 +552,7 @@ if ($reviews_enabled && $reviews_use_app === 'gas_reviews' && shortcode_exists('
         <div class="developer-reviews-widget">
             <div id="gas-hostaway-reviews"
                  data-property-id="<?php echo esc_attr($reviews_hostaway_id); ?>"
+                 data-api-url="<?php echo esc_attr(get_option('gas_api_url', 'https://admin.gas.travel')); ?>"
                  data-card-bg="<?php echo esc_attr($reviews_card_bg); ?>"
                  data-text-color="<?php echo esc_attr($reviews_text_color); ?>"
                  data-star-color="<?php echo esc_attr($reviews_star_color); ?>"
@@ -561,6 +562,48 @@ if ($reviews_enabled && $reviews_use_app === 'gas_reviews' && shortcode_exists('
         </div>
     </div>
 </section>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var el = document.getElementById('gas-hostaway-reviews');
+    if (!el) return;
+    var propertyId = el.dataset.propertyId;
+    var apiUrl = el.dataset.apiUrl || 'https://admin.gas.travel';
+    var cardBg = el.dataset.cardBg || '#1e293b';
+    var textColor = el.dataset.textColor || '#ffffff';
+    var starColor = el.dataset.starColor || '#fbbf24';
+    if (!propertyId) { el.innerHTML = ''; return; }
+
+    fetch(apiUrl + '/api/public/hostaway-reviews?property_id=' + encodeURIComponent(propertyId))
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.success || !data.reviews || data.reviews.length === 0) {
+                el.innerHTML = '<p style="text-align:center;opacity:0.7;">No reviews yet.</p>';
+                return;
+            }
+            var html = '<div class="developer-testimonials-grid">';
+            data.reviews.forEach(function(rev) {
+                var stars = '';
+                var rating = Math.round(parseFloat(rev.rating) || 5);
+                for (var i = 0; i < 5; i++) {
+                    stars += '<span style="color:' + starColor + ';font-size:1.1rem;">' + (i < rating ? '&#9733;' : '&#9734;') + '</span>';
+                }
+                var date = rev.date ? new Date(rev.date).toLocaleDateString('en-GB', {year:'numeric',month:'short'}) : '';
+                var source = rev.source ? ' · ' + rev.source : '';
+                html += '<div class="developer-testimonial-card" style="background:' + cardBg + ';color:' + textColor + ';border-radius:16px;padding:2rem;">';
+                html += '<div style="margin-bottom:0.75rem;">' + stars + '</div>';
+                html += '<p style="color:' + textColor + ';opacity:0.9;margin-bottom:1rem;line-height:1.6;">' + (rev.text || '').replace(/</g, '&lt;') + '</p>';
+                html += '<div style="font-weight:600;color:' + textColor + ';">' + (rev.reviewer_name || 'Guest').replace(/</g, '&lt;') + '</div>';
+                html += '<div style="font-size:0.85rem;opacity:0.6;">' + date + source + '</div>';
+                html += '</div>';
+            });
+            html += '</div>';
+            el.innerHTML = html;
+        })
+        .catch(function() {
+            el.innerHTML = '<p style="text-align:center;opacity:0.7;">Could not load reviews.</p>';
+        });
+});
+</script>
 
 <?php elseif ($reviews_enabled && $has_manual_reviews) : ?>
 <!-- Manual Reviews Section -->

@@ -73300,6 +73300,48 @@ app.post('/api/hostaway/sync-reviews', async (req, res) => {
   }
 });
 
+// GET public Hostaway reviews by Hostaway listing ID (no auth required)
+app.get('/api/public/hostaway-reviews', async (req, res) => {
+  try {
+    const { property_id, limit } = req.query;
+
+    if (!property_id) {
+      return res.json({ success: false, error: 'property_id (Hostaway listing ID) is required' });
+    }
+
+    const reviewLimit = Math.min(parseInt(limit) || 6, 20);
+
+    // property_id param is the Hostaway listing ID — map to GAS property_id via bookable_units
+    const roomResult = await pool.query(
+      `SELECT p.id as property_id FROM bookable_units bu
+       JOIN properties p ON bu.property_id = p.id
+       WHERE bu.hostaway_listing_id = $1 LIMIT 1`,
+      [String(property_id)]
+    );
+
+    if (roomResult.rows.length === 0) {
+      return res.json({ success: true, reviews: [] });
+    }
+
+    const gasPropertyId = roomResult.rows[0].property_id;
+
+    const result = await pool.query(`
+      SELECT id, guest_name as reviewer_name, rating, comment as text,
+             review_date as date, channel_name as source
+      FROM reviews
+      WHERE source = 'hostaway' AND property_id = $1 AND is_public = true
+        AND comment IS NOT NULL AND comment != ''
+      ORDER BY review_date DESC NULLS LAST, created_at DESC
+      LIMIT $2
+    `, [gasPropertyId, reviewLimit]);
+
+    res.json({ success: true, reviews: result.rows });
+  } catch (error) {
+    console.error('Public hostaway reviews error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // =====================================================
 // BEDS24 REVIEWS SYNC
 // =====================================================
