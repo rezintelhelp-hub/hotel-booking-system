@@ -73363,7 +73363,7 @@ app.get('/api/public/repuso-reviews', async (req, res) => {
       reviewer_name: item.from_name || 'Guest',
       rating: item.rating_value || 5,
       rating_scale: item.rating_scale || 5,
-      text: item.text || '',
+      text: item.text ? item.text.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#[0-9]+;/g, '').trim() : '',
       date: item.posted_on || null,
       source: item.label || ''
     }));
