@@ -66363,14 +66363,17 @@ app.get('/api/public/client/:clientId/site-config', async (req, res) => {
                 JOIN properties p ON r.property_id = p.id
                 WHERE p.account_id = $1
             `, [clientId]),
-            // Check deployed_site_id first, then fall back to account_id
+            // Check deployed_site_id first, then fall back to account_id (any deployed_site_id)
             pool.query(`
-                SELECT section, settings FROM website_settings 
+                SELECT section, settings FROM website_settings
                 WHERE deployed_site_id = $1
                 UNION ALL
-                SELECT section, settings FROM website_settings 
-                WHERE account_id = $2 AND deployed_site_id IS NULL
-                AND section NOT IN (SELECT section FROM website_settings WHERE deployed_site_id = $1)
+                SELECT section, settings FROM (
+                    SELECT DISTINCT ON (section) section, settings FROM website_settings
+                    WHERE account_id = $2 AND ($1::int IS NULL OR deployed_site_id IS DISTINCT FROM $1)
+                    AND section NOT IN (SELECT section FROM website_settings WHERE deployed_site_id = $1)
+                    ORDER BY section, updated_at DESC
+                ) fallback
             `, [deployedSiteId, clientId]),
             pool.query(`SELECT pricing_tier FROM deployed_sites WHERE account_id = $1 LIMIT 1`, [clientId]),
             pool.query(`SELECT settings FROM accounts WHERE id = $1`, [clientId])
