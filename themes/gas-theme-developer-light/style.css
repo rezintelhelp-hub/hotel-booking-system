@@ -803,7 +803,7 @@ img {
 
 .developer-featured .gas-room-card {
     border-radius: var(--developer-radius-lg);
-    overflow: visible;
+    overflow: hidden;
     height: auto !important;
     box-shadow: var(--developer-shadow);
     transition: var(--developer-transition);
