@@ -1249,8 +1249,6 @@ img {
 @media (max-width: 600px) {
     .developer-services-grid {
         grid-template-columns: 1fr;
-        max-width: 90%;
-        margin: 0 auto;
     }
     .developer-services-card {
         text-align: center;
