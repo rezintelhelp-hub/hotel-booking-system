@@ -29326,6 +29326,15 @@ app.get('/api/debug/channel-connections', async (req, res) => {
 });
 
 // Fix channel connections - update account_id and delete bad records
+app.get('/api/fix/blog-categories-fk', async (req, res) => {
+  try {
+    await pool.query(`ALTER TABLE blog_categories DROP CONSTRAINT IF EXISTS blog_categories_client_id_fkey`);
+    res.json({ success: true, message: 'blog_categories FK constraint dropped' });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 app.get('/api/fix/channel-connections', async (req, res) => {
   try {
     // Fix Beds24 connection (id=2) to point to GAS account 4
