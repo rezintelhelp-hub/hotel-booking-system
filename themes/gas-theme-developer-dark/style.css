@@ -1250,8 +1250,13 @@ img {
     .developer-services-grid {
         grid-template-columns: 1fr;
     }
-    .developer-services-card {
-        text-align: center;
+    .developer-services {
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+    }
+    .developer-services .developer-container {
+        padding-left: 5%;
+        padding-right: 5%;
     }
 }
 
