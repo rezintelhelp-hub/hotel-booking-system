@@ -2979,8 +2979,8 @@ function developer_developer_custom_css() {
         .developer-about h2,
         .developer-services h2,
         .developer-cta h2 {
-            font-family: var(--developer-subheading-font);
-            font-size: ' . esc_attr($subheading_size) . 'px;
+            font-family: var(--developer-subheading-font) !important;
+            font-size: ' . esc_attr($subheading_size) . 'px !important;
         }
 
         a {
