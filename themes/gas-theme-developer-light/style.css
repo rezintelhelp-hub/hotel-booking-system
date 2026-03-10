@@ -808,11 +808,15 @@ img {
 
 .developer-featured .gas-room-card {
     border-radius: var(--developer-radius-lg);
-    overflow: hidden;
+    overflow: visible;
     height: auto !important;
     box-shadow: var(--developer-shadow);
     transition: var(--developer-transition);
     border: none;
+}
+
+.developer-featured .gas-room-card .gas-room-image {
+    border-radius: var(--developer-radius-lg) var(--developer-radius-lg) 0 0;
 }
 
 .developer-featured .gas-room-card:hover {

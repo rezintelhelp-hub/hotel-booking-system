@@ -58,6 +58,19 @@ if (in_array($page_slug, array('checkout', 'book', 'booking', 'reserve'))) {
     return;
 }
 
+// Check if this is the Room Detail page — needs full width for gallery + sidebar layout
+if (in_array($page_slug, array('room', 'room-detail', 'property', 'unit'))) {
+    ?>
+    <div style="padding-top: 100px;">
+        <?php while (have_posts()) : the_post(); ?>
+            <?php the_content(); ?>
+        <?php endwhile; ?>
+    </div>
+    <?php
+    get_footer();
+    return;
+}
+
 // Check which special page this is
 $special_page = '';
 if (in_array($page_slug, array('about', 'about-us', 'our-story'))) {
