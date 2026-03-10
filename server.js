@@ -800,6 +800,7 @@ async function runMigrations() {
       await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS num_bathrooms DECIMAL(3,1) DEFAULT 1`);
       await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS currency VARCHAR(3) DEFAULT NULL`);
       await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS cm_source VARCHAR(50)`);
+      await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS repuso_widget_id VARCHAR(255)`);
       console.log('✅ Occupancy pricing columns ensured on bookable_units');
     } catch (occError) {
       console.log('ℹ️  Occupancy columns:', occError.message);
@@ -40862,7 +40863,7 @@ app.put('/api/admin/units/:id', async (req, res) => {
     const { id } = req.params;
     console.log('PUT /api/admin/units/' + id, 'body:', JSON.stringify(req.body));
     
-    const { quantity, status, room_type, max_guests, max_adults, max_children, display_name, short_description, full_description } = req.body;
+    const { quantity, status, room_type, max_guests, max_adults, max_children, display_name, short_description, full_description, repuso_widget_id } = req.body;
     
     // Update basic fields only - no JSONB casting to avoid errors
     const result = await pool.query(`
@@ -40966,10 +40967,22 @@ app.put('/api/admin/units/:id', async (req, res) => {
         console.log('num_bathrooms update skipped:', e.message);
       }
     }
-    
+
+    // Update repuso_widget_id if provided
+    if (repuso_widget_id !== undefined) {
+      try {
+        await pool.query(
+          `UPDATE bookable_units SET repuso_widget_id = $1 WHERE id = $2`,
+          [repuso_widget_id || null, id]
+        );
+      } catch (e) {
+        console.log('repuso_widget_id update skipped:', e.message);
+      }
+    }
+
     // Fetch final result
     const finalResult = await pool.query(
-      `SELECT id, name, display_name, quantity, status, unit_type, max_guests, max_adults, max_children, short_description, full_description, num_bedrooms, num_bathrooms FROM bookable_units WHERE id = $1`,
+      `SELECT id, name, display_name, quantity, status, unit_type, max_guests, max_adults, max_children, short_description, full_description, num_bedrooms, num_bathrooms, repuso_widget_id FROM bookable_units WHERE id = $1`,
       [id]
     );
     
