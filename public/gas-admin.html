@@ -6930,7 +6930,7 @@
                             <button class="sub-tab" data-subtab="page-attractions" data-requires-feature="attractions_module" onclick="switchSubPageTab('page-attractions')" style="padding: 0.5rem 1rem; border: 1px solid #e2e8f0; border-radius: 20px; background: white; color: #64748b; cursor: pointer; font-size: 0.875rem;">
                                 <span class="page-status-dot" id="status-page-attractions" style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #94a3b8; margin-right: 6px;"></span>Attractions <span class="feature-lock-icon" style="display: none;">🔒</span>
                             </button>
-                            <button class="sub-tab" data-subtab="page-reviews" data-requires-feature="reviews_widget" onclick="switchSubPageTab('page-reviews')" style="padding: 0.5rem 1rem; border: 1px solid #e2e8f0; border-radius: 20px; background: white; color: #64748b; cursor: pointer; font-size: 0.875rem;">
+                            <button class="sub-tab" data-subtab="page-reviews" data-requires-feature="reviews_widget" onclick="switchSubPageTab('page-reviews')" style="display: none; padding: 0.5rem 1rem; border: 1px solid #e2e8f0; border-radius: 20px; background: white; color: #64748b; cursor: pointer; font-size: 0.875rem;">
                                 <span class="page-status-dot" id="status-page-reviews" style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #94a3b8; margin-right: 6px;"></span>Reviews <span class="feature-lock-icon" style="display: none;">🔒</span>
                             </button>
                             <button class="sub-tab" data-subtab="page-contact" onclick="switchSubPageTab('page-contact')" style="padding: 0.5rem 1rem; border: 1px solid #e2e8f0; border-radius: 20px; background: white; color: #64748b; cursor: pointer; font-size: 0.875rem;">
@@ -10171,6 +10171,16 @@
                                     </div>
                                 </div>
                                 <div class="form-group">
+                                    <label class="form-label">Show "View All Reviews" Button</label>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="checkbox" id="wb-reviews-show-btn" checked onchange="document.getElementById('wb-reviews-btn-options').style.display = this.checked ? 'block' : 'none'" style="width: 18px; height: 18px; accent-color: #7c3aed;">
+                                        <span style="font-size: 0.85rem; color: #64748b;">Display a button linking to the full Reviews page</span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div id="wb-reviews-btn-options">
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                                <div class="form-group">
                                     <label class="form-label">Button Color</label>
                                     <div style="display: flex; gap: 8px; align-items: center;">
                                         <input type="color" id="wb-reviews-btn-color-picker" value="#fbbf24" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-reviews-btn-color').value = this.value">
@@ -10185,7 +10195,6 @@
                                     </div>
                                 </div>
                             </div>
-                            <!-- View All Reviews Button Text -->
                             <div class="form-group" style="margin-top: 1rem;">
                                 <label class="form-label">View All Reviews Button Text</label>
                                 <div class="translation-wrapper" data-translation-group="wb-reviews-btn-text">
@@ -10200,6 +10209,7 @@
                                     <input type="text" class="form-input translation-input" id="wb-reviews-btn-text-es" placeholder="Ver Todas las Reseñas" data-lang="es" style="display: none;">
                                     <input type="text" class="form-input translation-input" id="wb-reviews-btn-text-nl" placeholder="Alle Beoordelingen Bekijken" data-lang="nl" style="display: none;">
                                 </div>
+                            </div>
                             </div>
                         </div>
                     </div>
@@ -23858,6 +23868,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                     // Handle reviews app toggle
                     if (section === 'reviews') {
                         toggleReviewsAppFields();
+                        const showBtnEl = document.getElementById('wb-reviews-show-btn');
+                        const btnOpts = document.getElementById('wb-reviews-btn-options');
+                        if (showBtnEl && btnOpts) btnOpts.style.display = showBtnEl.checked ? 'block' : 'none';
                     }
                     
                     // Sync range slider labels after load

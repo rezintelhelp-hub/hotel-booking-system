@@ -2716,6 +2716,7 @@ function developer_get_api_settings() {
         'reviews_text_color' => $website_reviews['text-color'] ?? '#ffffff',
         'reviews_card_bg' => $website_reviews['card-bg'] ?? '#1e293b',
         'reviews_star_color' => $website_reviews['star-color'] ?? '#fbbf24',
+        'reviews_show_btn' => $website_reviews['show-btn'] ?? true,
         'reviews_btn_color' => $website_reviews['btn-color'] ?? ($website_reviews['star-color'] ?? '#fbbf24'),
         'reviews_btn_text_color' => $website_reviews['btn-text-color'] ?? '#ffffff',
         'reviews_btn_text' => developer_get_ml_value($website_reviews, 'btn-text', $lang) ?: 'View All Reviews',
