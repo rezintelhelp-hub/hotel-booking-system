@@ -24,6 +24,7 @@ const multer = require('multer');
 const sharp = require('sharp');
 const { S3Client, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const { v4: uuidv4 } = require('uuid');
+const archiver = require('archiver');
 
 // Stripe for payment processing
 const Stripe = require('stripe');
@@ -78210,6 +78211,94 @@ async function getLatestGitHubRelease() {
     };
   }
 }
+
+// ============================================================
+// Plugin & Theme Manager — Master Admin endpoints
+// ============================================================
+
+const PLUGIN_REGISTRY = [
+  { slug: 'gas-booking', name: 'GAS Booking', type: 'plugin', dir: 'plugins/gas-booking', mainFile: 'gas-booking.php', description: 'Search, rooms, calendar & checkout', tier: 'All Plans', icon: '📅' },
+  { slug: 'gas-blog', name: 'GAS Blog', type: 'plugin', dir: 'plugins/gas-blog', mainFile: 'gas-blog.php', description: 'Blog with SEO & schema markup', tier: 'Pro+', icon: '📝' },
+  { slug: 'gas-attractions', name: 'GAS Attractions', type: 'plugin', dir: 'plugins/gas-attractions', mainFile: 'gas-attractions.php', description: 'Nearby places & activities', tier: 'Business+', icon: '🗺️' },
+  { slug: 'gas-properties', name: 'GAS Properties', type: 'plugin', dir: 'plugins/gas-properties', mainFile: 'gas-properties.php', description: 'Multi-property portfolio with cards & filters', tier: 'Pro+', icon: '🏢' },
+  { slug: 'gas-reviews', name: 'GAS Reviews', type: 'plugin', dir: 'plugins/gas-reviews', mainFile: 'gas-reviews.php', description: 'TripAdvisor, Booking.com, Google reviews', tier: 'Enterprise', icon: '⭐' },
+  { slug: 'gas-theme-developer-light', name: 'Developer Theme (Light)', type: 'theme', dir: 'themes/gas-theme-developer-light', mainFile: 'style.css', description: 'Light starter theme with auto-setup', tier: 'All Plans', icon: '🎨' },
+  { slug: 'gas-theme-developer-dark', name: 'Developer Theme (Dark)', type: 'theme', dir: 'themes/gas-theme-developer-dark', mainFile: 'style.css', description: 'Dark starter theme with auto-setup', tier: 'All Plans', icon: '🌙' },
+];
+
+function readVersionFromFile(filePath) {
+  try {
+    const content = fs.readFileSync(filePath, 'utf8').substring(0, 4000);
+    const match = content.match(/Version:\s*([0-9][0-9a-zA-Z._-]*)/i);
+    return match ? match[1].trim() : '1.0.0';
+  } catch (e) {
+    return null;
+  }
+}
+
+// GET /api/admin/plugins/registry — list all plugins & themes with versions
+app.get('/api/admin/plugins/registry', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'master_admin') {
+      return res.status(403).json({ success: false, error: 'Master admin only' });
+    }
+
+    const items = PLUGIN_REGISTRY.map(item => {
+      const dirPath = path.join(__dirname, item.dir);
+      const available = fs.existsSync(dirPath);
+      let version = null;
+      if (available) {
+        version = readVersionFromFile(path.join(dirPath, item.mainFile));
+      }
+      return { ...item, available, version };
+    });
+
+    res.json({ success: true, items });
+  } catch (error) {
+    console.error('Plugin registry error:', error);
+    res.status(500).json({ success: false, error: 'Failed to load plugin registry' });
+  }
+});
+
+// GET /api/admin/plugins/:slug/download — zip and download a plugin or theme
+app.get('/api/admin/plugins/:slug/download', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'master_admin') {
+      return res.status(403).json({ success: false, error: 'Master admin only' });
+    }
+
+    const entry = PLUGIN_REGISTRY.find(p => p.slug === req.params.slug);
+    if (!entry) {
+      return res.status(404).json({ success: false, error: 'Unknown plugin slug' });
+    }
+
+    const dirPath = path.join(__dirname, entry.dir);
+    if (!fs.existsSync(dirPath)) {
+      return res.status(404).json({ success: false, error: 'Plugin source not available yet' });
+    }
+
+    const version = readVersionFromFile(path.join(dirPath, entry.mainFile)) || '1.0.0';
+    const filename = `${entry.slug}-v${version}.zip`;
+
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+    const archive = archiver('zip', { zlib: { level: 9 } });
+    archive.on('error', (err) => {
+      console.error('Archiver error:', err);
+      if (!res.headersSent) res.status(500).json({ success: false, error: 'Zip generation failed' });
+    });
+    archive.pipe(res);
+
+    // Add directory contents under the slug folder name (so unzip creates a proper folder)
+    const folderName = entry.slug;
+    archive.directory(dirPath, folderName);
+    archive.finalize();
+  } catch (error) {
+    console.error('Plugin download error:', error);
+    if (!res.headersSent) res.status(500).json({ success: false, error: 'Download failed' });
+  }
+});
 
 // Plugin update check - returns latest version info (fetches from GitHub)
 app.get('/api/plugin/check-update', async (req, res) => {

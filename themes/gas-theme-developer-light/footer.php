@@ -57,36 +57,34 @@ $legal_links = array();
 
 $api_settings = function_exists('developer_get_api_settings') ? developer_get_api_settings() : array();
 
-// Build quick links from enabled pages with their menu titles
-$quick_links[] = array('label' => $api_settings['page_home_menu_title'] ?? 'Home', 'url' => '/');
+// Build quick links from enabled pages — same order as header nav
+$quick_links[] = array('label' => $api_settings['page_home_menu_title'] ?? 'Home', 'url' => '/', 'order' => 0);
 
-// Rooms page
-$rooms_enabled = $api_settings['page_rooms_enabled'] ?? true;
-if ($rooms_enabled && $rooms_enabled !== 'false' && $rooms_enabled !== false) {
-    $rooms_label = $api_settings['page_rooms_menu_title'] ?? 'Rooms';
-    $quick_links[] = array('label' => $rooms_label, 'url' => '/book-now/');
+$footer_pages = array(
+    array('key' => 'rooms',       'url' => '/book-now/',     'default' => 'Rooms',       'default_order' => 1, 'default_enabled' => true),
+    array('key' => 'about',       'url' => '/about/',        'default' => 'About',       'default_order' => 2, 'default_enabled' => false),
+    array('key' => 'gallery',     'url' => '/gallery/',      'default' => 'Gallery',     'default_order' => 3, 'default_enabled' => false),
+    array('key' => 'blog',        'url' => '/blog/',         'default' => 'Blog',        'default_order' => 4, 'default_enabled' => false),
+    array('key' => 'dining',      'url' => '/dining/',       'default' => 'Dining',      'default_order' => 4, 'default_enabled' => false),
+    array('key' => 'attractions', 'url' => '/attractions/',  'default' => 'Attractions', 'default_order' => 5, 'default_enabled' => false),
+    array('key' => 'offers',      'url' => '/offers/',       'default' => 'Offers',      'default_order' => 5, 'default_enabled' => false),
+    array('key' => 'properties',  'url' => '/properties/',   'default' => 'Properties',  'default_order' => 6, 'default_enabled' => false),
+    array('key' => 'reviews',     'url' => '/reviews/',      'default' => 'Reviews',     'default_order' => 7, 'default_enabled' => false),
+    array('key' => 'contact',     'url' => '/contact/',      'default' => 'Contact',     'default_order' => 8, 'default_enabled' => true),
+);
+
+foreach ($footer_pages as $pg) {
+    $enabled = $api_settings['page_' . $pg['key'] . '_enabled'] ?? $pg['default_enabled'];
+    if ($enabled && $enabled !== 'false' && $enabled !== false) {
+        $quick_links[] = array(
+            'label' => $api_settings['page_' . $pg['key'] . '_menu_title'] ?? $pg['default'],
+            'url'   => $pg['url'],
+            'order' => $api_settings['page_' . $pg['key'] . '_menu_order'] ?? $pg['default_order'],
+        );
+    }
 }
 
-// About page
-$about_enabled = $api_settings['page_about_enabled'] ?? false;
-if ($about_enabled && $about_enabled !== 'false' && $about_enabled !== false) {
-    $about_label = $api_settings['page_about_menu_title'] ?? 'About Us';
-    $quick_links[] = array('label' => $about_label, 'url' => '/about/');
-}
-
-// Contact page
-$contact_enabled = $api_settings['page_contact_enabled'] ?? true;
-if ($contact_enabled && $contact_enabled !== 'false' && $contact_enabled !== false) {
-    $contact_label = $api_settings['page_contact_menu_title'] ?? 'Contact';
-    $quick_links[] = array('label' => $contact_label, 'url' => '/contact/');
-}
-
-// Blog page
-$blog_enabled = $api_settings['page_blog_enabled'] ?? false;
-if ($blog_enabled && $blog_enabled !== 'false' && $blog_enabled !== false) {
-    $blog_label = $api_settings['page_blog_menu_title'] ?? 'Blog';
-    $quick_links[] = array('label' => $blog_label, 'url' => '/blog/');
-}
+usort($quick_links, function($a, $b) { return ($a['order'] ?? 99) - ($b['order'] ?? 99); });
 
 // Legal links (with API multilingual override)
 $legal_links = array(

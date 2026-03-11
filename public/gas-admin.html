@@ -2290,6 +2290,10 @@
                         <span class="nav-icon"></span>
                         <span>Settings</span>
                     </a>
+                    <a class="nav-item" data-view="plugins-themes" href="#" onclick="navClick(this, 'plugins-themes'); return false;">
+                        <span class="nav-icon"></span>
+                        <span>Plugins & Themes</span>
+                    </a>
                     </div>
                 </div>
 
@@ -12398,6 +12402,30 @@
                 </div>
             </div>
 
+            <!-- Plugins & Themes Manager View -->
+            <div id="plugins-themes" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>Plugins & Themes</h2>
+                            <p>Download and manage GAS plugins and themes</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Plugins Section -->
+                <h3 style="margin: 0 0 1rem; font-size: 1.1rem; font-weight: 600;">Plugins</h3>
+                <div id="plugins-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.25rem; margin-bottom: 2rem;">
+                    <div class="loading"><div class="spinner"></div></div>
+                </div>
+
+                <!-- Themes Section -->
+                <h3 style="margin: 0 0 1rem; font-size: 1.1rem; font-weight: 600;">Themes</h3>
+                <div id="themes-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.25rem;">
+                    <div class="loading"><div class="spinner"></div></div>
+                </div>
+            </div>
+
             <!-- Blog App View -->
             <div id="app-blog" class="view">
                 <div class="header">
@@ -14461,102 +14489,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                     </div>
                 </div>
 
-                <!-- Download Section -->
-                <div class="card" style="margin-bottom: 1.5rem; background: linear-gradient(135deg, #1e40af 0%, #7c3aed 100%); color: white;">
-                    <h3 style="margin: 0 0 1rem 0; display: flex; align-items: center; gap: 0.5rem;">
-                         Plugin Downloads
-                    </h3>
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
-                        <!-- Core Booking Plugin -->
-                        <div style="background: rgba(255,255,255,0.15); border-radius: 10px; padding: 1.25rem;">
-                            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">
-                                <span style="font-size: 1.75rem;"></span>
-                                <div>
-                                    <h4 style="margin: 0; font-size: 1rem;">GAS Booking</h4>
-                                    <span style="font-size: 0.75rem; opacity: 0.8;">v4.0  All Plans</span>
-                                </div>
-                            </div>
-                            <p style="font-size: 0.8rem; opacity: 0.9; margin-bottom: 1rem;">Search, rooms, calendar & checkout</p>
-                            <a href="/downloads/gas-booking-wp-plugin.zip" download class="btn" style="background: white; color: #1e40af; width: 100%; text-align: center; text-decoration: none; display: block; font-size: 0.85rem;">
-                                 Download
-                            </a>
-                        </div>
-                        
-                        <!-- Theme -->
-                        <div style="background: rgba(255,255,255,0.15); border-radius: 10px; padding: 1.25rem;">
-                            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">
-                                <span style="font-size: 1.75rem;"></span>
-                                <div>
-                                    <h4 style="margin: 0; font-size: 1rem;">Developer Theme</h4>
-                                    <span style="font-size: 0.75rem; opacity: 0.8;">v2.0  All Plans</span>
-                                </div>
-                            </div>
-                            <p style="font-size: 0.8rem; opacity: 0.9; margin-bottom: 1rem;">Starter theme with auto-setup</p>
-                            <a href="/downloads/gas-theme-developer.zip" download class="btn" style="background: rgba(255,255,255,0.25); color: white; width: 100%; text-align: center; text-decoration: none; display: block; border: 1px solid rgba(255,255,255,0.3); font-size: 0.85rem;">
-                                 Download
-                            </a>
-                        </div>
-                        
-                        <!-- Blog Plugin -->
-                        <div style="background: rgba(255,255,255,0.15); border-radius: 10px; padding: 1.25rem;">
-                            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">
-                                <span style="font-size: 1.75rem;"></span>
-                                <div>
-                                    <h4 style="margin: 0; font-size: 1rem;">GAS Blog</h4>
-                                    <span style="font-size: 0.75rem; opacity: 0.8;">v1.0  Pro+</span>
-                                </div>
-                            </div>
-                            <p style="font-size: 0.8rem; opacity: 0.9; margin-bottom: 1rem;">Blog with SEO & schema markup</p>
-                            <a href="/downloads/gas-blog.zip" download class="btn" style="background: rgba(255,255,255,0.25); color: white; width: 100%; text-align: center; text-decoration: none; display: block; border: 1px solid rgba(255,255,255,0.3); font-size: 0.85rem;">
-                                 Download
-                            </a>
-                        </div>
-                        
-                        <!-- Attractions Plugin -->
-                        <div style="background: rgba(255,255,255,0.15); border-radius: 10px; padding: 1.25rem;">
-                            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">
-                                <span style="font-size: 1.75rem;"></span>
-                                <div>
-                                    <h4 style="margin: 0; font-size: 1rem;">GAS Attractions</h4>
-                                    <span style="font-size: 0.75rem; opacity: 0.8;">v1.0  Business+</span>
-                                </div>
-                            </div>
-                            <p style="font-size: 0.8rem; opacity: 0.9; margin-bottom: 1rem;">Nearby places & activities</p>
-                            <a href="/downloads/gas-attractions.zip" download class="btn" style="background: rgba(255,255,255,0.25); color: white; width: 100%; text-align: center; text-decoration: none; display: block; border: 1px solid rgba(255,255,255,0.3); font-size: 0.85rem;">
-                                 Download
-                            </a>
-                        </div>
-                        
-                        <!-- Reviews Plugin -->
-                        <div style="background: rgba(255,255,255,0.15); border-radius: 10px; padding: 1.25rem;">
-                            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">
-                                <span style="font-size: 1.75rem;"></span>
-                                <div>
-                                    <h4 style="margin: 0; font-size: 1rem;">GAS Reviews</h4>
-                                    <span style="font-size: 0.75rem; opacity: 0.8;">v1.0  Enterprise</span>
-                                </div>
-                            </div>
-                            <p style="font-size: 0.8rem; opacity: 0.9; margin-bottom: 1rem;">TripAdvisor, Booking.com, Google</p>
-                            <a href="/downloads/gas-reviews.zip" download class="btn" style="background: rgba(255,255,255,0.25); color: white; width: 100%; text-align: center; text-decoration: none; display: block; border: 1px solid rgba(255,255,255,0.3); font-size: 0.85rem;">
-                                 Download
-                            </a>
-                        </div>
-                        
-                        <!-- Properties Plugin -->
-                        <div style="background: rgba(255,255,255,0.15); border-radius: 10px; padding: 1.25rem;">
-                            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">
-                                <span style="font-size: 1.75rem;">🏢</span>
-                                <div>
-                                    <h4 style="margin: 0; font-size: 1rem;">GAS Properties</h4>
-                                    <span style="font-size: 0.75rem; opacity: 0.8;">v1.0.7 · Pro+</span>
-                                </div>
-                            </div>
-                            <p style="font-size: 0.8rem; opacity: 0.9; margin-bottom: 1rem;">Multi-property portfolio with cards &amp; filters</p>
-                            <a href="/downloads/gas-properties.zip" download class="btn" style="background: rgba(255,255,255,0.25); color: white; width: 100%; text-align: center; text-decoration: none; display: block; border: 1px solid rgba(255,255,255,0.3); font-size: 0.85rem;">
-                                 Download
-                            </a>
-                        </div>
-                    </div>
+                <!-- Plugin Downloads — moved to System → Plugins & Themes -->
+                <div class="card" style="margin-bottom: 1.5rem; background: linear-gradient(135deg, #1e40af 0%, #7c3aed 100%); color: white; padding: 1.5rem; text-align: center;">
+                    <p style="margin: 0; font-size: 0.95rem;">Plugin & theme downloads have moved to <a href="#" onclick="navClick(null, 'plugins-themes'); return false;" style="color: white; text-decoration: underline; font-weight: 600;">System &rarr; Plugins & Themes</a></p>
                 </div>
 
                 <!-- Setup Guide -->
@@ -23172,6 +23107,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (viewName === 'amenities') loadAmenities();
             if (viewName === 'availability') loadAvailabilityView();
             if (viewName === 'tasks') loadTasks();
+            if (viewName === 'plugins-themes') loadPluginsThemes();
             if (viewName === 'deploy-sites') {
                 checkVpsStatus();
                 loadDeployedSites();
@@ -36262,6 +36198,93 @@ const promo = await fetch('/api/v1/offers/validate', {
                 progressDiv.style.display = 'none';
                 submitBtn.disabled = false;
                 showNotification('Error: ' + error.message, 'error');
+            }
+        }
+
+        // ============================================================
+        // Plugins & Themes Manager
+        // ============================================================
+
+        async function loadPluginsThemes() {
+            const pluginsGrid = document.getElementById('plugins-grid');
+            const themesGrid = document.getElementById('themes-grid');
+            pluginsGrid.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+            themesGrid.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+
+            try {
+                const response = await fetch('/api/admin/plugins/registry', { headers: authHeaders() });
+                const data = await response.json();
+
+                if (!data.success || !data.items) {
+                    pluginsGrid.innerHTML = '<p style="color:#64748b;">Failed to load registry.</p>';
+                    themesGrid.innerHTML = '';
+                    return;
+                }
+
+                const plugins = data.items.filter(i => i.type === 'plugin');
+                const themes = data.items.filter(i => i.type === 'theme');
+
+                pluginsGrid.innerHTML = plugins.map(p => renderPluginCard(p)).join('');
+                themesGrid.innerHTML = themes.map(t => renderPluginCard(t)).join('');
+            } catch (error) {
+                console.error('loadPluginsThemes error:', error);
+                pluginsGrid.innerHTML = '<p style="color:#ef4444;">Error loading plugins: ' + error.message + '</p>';
+                themesGrid.innerHTML = '';
+            }
+        }
+
+        function renderPluginCard(item) {
+            const available = item.available;
+            const version = item.version || '—';
+            const opacity = available ? '1' : '0.55';
+            const badge = available
+                ? `<span style="background:#10b981;color:white;font-size:0.7rem;padding:0.15rem 0.5rem;border-radius:4px;">v${version}</span>`
+                : `<span style="background:#94a3b8;color:white;font-size:0.7rem;padding:0.15rem 0.5rem;border-radius:4px;">Coming Soon</span>`;
+            const downloadBtn = available
+                ? `<button class="btn" onclick="downloadPlugin('${item.slug}')" style="width:100%;margin-top:0.75rem;font-size:0.85rem;">Download .zip</button>`
+                : `<button class="btn" disabled style="width:100%;margin-top:0.75rem;font-size:0.85rem;opacity:0.4;cursor:not-allowed;">Not Available</button>`;
+
+            return `
+                <div class="card" style="opacity:${opacity};padding:1.25rem;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem;">
+                        <div style="display:flex;align-items:center;gap:0.6rem;">
+                            <span style="font-size:1.5rem;">${item.icon}</span>
+                            <h4 style="margin:0;font-size:1rem;">${item.name}</h4>
+                        </div>
+                        ${badge}
+                    </div>
+                    <p style="color:#64748b;font-size:0.85rem;margin:0 0 0.25rem;">${item.description}</p>
+                    <span style="font-size:0.75rem;color:#94a3b8;">${item.tier}</span>
+                    ${downloadBtn}
+                </div>`;
+        }
+
+        async function downloadPlugin(slug) {
+            try {
+                showNotification('Preparing download...', 'info');
+                const response = await fetch('/api/admin/plugins/' + slug + '/download', { headers: authHeaders() });
+                if (!response.ok) {
+                    const err = await response.json().catch(() => ({ error: 'Download failed' }));
+                    showNotification(err.error || 'Download failed', 'error');
+                    return;
+                }
+                const blob = await response.blob();
+                const disposition = response.headers.get('Content-Disposition') || '';
+                const filenameMatch = disposition.match(/filename="?([^"]+)"?/);
+                const filename = filenameMatch ? filenameMatch[1] : slug + '.zip';
+
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                window.URL.revokeObjectURL(url);
+                showNotification('Downloaded ' + filename, 'success');
+            } catch (error) {
+                console.error('downloadPlugin error:', error);
+                showNotification('Download failed: ' + error.message, 'error');
             }
         }
 

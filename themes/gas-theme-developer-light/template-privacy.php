@@ -153,6 +153,8 @@ $t = [
         'contact_intro'    => 'If you have any questions about this Privacy Policy or how we handle your personal data, please contact us:',
         'contact_email'    => 'Email:',
         'contact_address'  => 'Address:',
+        'effective_label'  => 'Effective:',
+        'updated_label'    => 'Last updated:',
     ],
     'fr' => [
         'our_business'     => 'Notre Entreprise',
@@ -228,6 +230,8 @@ $t = [
         'contact_intro'    => 'Si vous avez des questions concernant cette Politique de Confidentialité ou la manière dont nous traitons vos données personnelles, veuillez nous contacter :',
         'contact_email'    => 'E-mail :',
         'contact_address'  => 'Adresse :',
+        'effective_label'  => 'En vigueur :',
+        'updated_label'    => 'Dernière mise à jour :',
     ],
     'es' => [
         'our_business'     => 'Nuestra Empresa',
@@ -303,6 +307,8 @@ $t = [
         'contact_intro'    => 'Si tiene alguna pregunta sobre esta Política de Privacidad o sobre cómo tratamos sus datos personales, contáctenos:',
         'contact_email'    => 'Correo electrónico:',
         'contact_address'  => 'Dirección:',
+        'effective_label'  => 'Vigente desde:',
+        'updated_label'    => 'Última actualización:',
     ],
     'nl' => [
         'our_business'     => 'Ons Bedrijf',
@@ -378,6 +384,8 @@ $t = [
         'contact_intro'    => 'Als u vragen heeft over dit Privacybeleid of over de manier waarop wij uw persoonsgegevens verwerken, neem dan contact met ons op:',
         'contact_email'    => 'E-mail:',
         'contact_address'  => 'Adres:',
+        'effective_label'  => 'Geldig vanaf:',
+        'updated_label'    => 'Laatst bijgewerkt:',
     ],
     'de' => [
         'our_business'     => 'Unser Unternehmen',
@@ -453,6 +461,8 @@ $t = [
         'contact_intro'    => 'Wenn Sie Fragen zu dieser Datenschutzerklärung oder zur Verarbeitung Ihrer personenbezogenen Daten haben, kontaktieren Sie uns bitte:',
         'contact_email'    => 'E-Mail:',
         'contact_address'  => 'Adresse:',
+        'effective_label'  => 'Gültig ab:',
+        'updated_label'    => 'Zuletzt aktualisiert:',
     ],
     'ja' => [
         'our_business'     => '当社',
@@ -528,6 +538,8 @@ $t = [
         'contact_intro'    => '本プライバシーポリシーまたは当社による個人データの取り扱いについてご質問がある場合は、以下までお問い合わせください：',
         'contact_email'    => 'メール：',
         'contact_address'  => '住所：',
+        'effective_label'  => '発効日：',
+        'updated_label'    => '最終更新日：',
     ],
 ];
 
@@ -666,9 +678,9 @@ $use_api = true;
             <h1 style="margin-bottom: 0.5rem;"><?php echo esc_html($page_title); ?></h1>
             <?php if ($updated_date || $effective_date) : ?>
             <p style="color: #64748b; font-size: 0.95rem; margin: 0;">
-                <?php if ($effective_date) : ?>Effective: <?php echo esc_html(date('F j, Y', strtotime($effective_date))); ?><?php endif; ?>
+                <?php if ($effective_date) : ?><?php echo esc_html($s['effective_label']); ?> <?php echo esc_html(date('F j, Y', strtotime($effective_date))); ?><?php endif; ?>
                 <?php if ($updated_date && $effective_date) : ?> · <?php endif; ?>
-                <?php if ($updated_date) : ?>Last updated: <?php echo esc_html(date('F j, Y', strtotime($updated_date))); ?><?php endif; ?>
+                <?php if ($updated_date) : ?><?php echo esc_html($s['updated_label']); ?> <?php echo esc_html(date('F j, Y', strtotime($updated_date))); ?><?php endif; ?>
             </p>
             <?php endif; ?>
         </div>

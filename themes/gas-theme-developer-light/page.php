@@ -12,6 +12,12 @@ if (in_array($page_slug_early, array('terms', 'terms-and-conditions', 'terms-of-
     return;
 }
 
+// Privacy page — delegate to dedicated template before get_header()
+if (in_array($page_slug_early, array('privacy', 'privacy-policy'))) {
+    require get_template_directory() . '/template-privacy.php';
+    return;
+}
+
 get_header();
 
 // Auto-detect page type by slug
