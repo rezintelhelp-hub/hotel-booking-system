@@ -141,45 +141,62 @@ GAS (Global Accommodation System) is a full-stack hotel booking and property man
 
 ---
 
-## CURRENT PRIORITIES (update as needed)
+## CURRENT PRIORITIES — 12 March 2026
 
-1. Knowledge base — articles needed for every GAS feature
-2. Swagger audit — verify all Elevate partner endpoints
-3. Airwallex payment integration
-4. UI improvements — client dashboard tiles and navigation
-5. Translation pipeline — ensure all Bookings & Revenue fields translate to website
+1. Footer — Terms and Privacy links broken
+2. Contact page — map sizing
+3. Footer — all page links not showing
+4. Site go-live setup/checklist
+5. Repuso API connection (white-label)
+6. Blog page — header/subheader translation + category translations
+7. Attractions page — header/subheader translation + category translations
+8. Room page — Reviews tab (Repuso widget ID per room)
+9. Cloudflare — speed optimisation strategy
+10. Plugin management — repo, version control, downloadable from GAS, Claude Code awareness
+11. Partner/Elevate white-label URLs — branded domains per partner
+12. Theme marketplace — add new themes via UI, open to third-party theme builders, manage within GAS Admin
 
 ---
 
-## SESSION LOG — 9 March 2026
+## SESSION LOG — 11 March 2026
 
-### Styles & Fonts load/save fix
-- **Root cause**: wb-styles was cloned into editor-styles-content at init, creating duplicate IDs. `getElementById` found the clone first, so load wrote to clone while save read from original (HTML defaults).
-- **Fix**: Removed styles from all clone/editor mappings. wb-styles is now **moved** (not cloned) into the editor panel on tab click. Save scopes collection directly to the `wb-styles` container. Load writes directly to `wb-styles` elements.
-- Range sliders replaced with `<select>` dropdowns (title-size, body-size, btn-radius).
-- Duplicate Save button removed from wb-styles — only the editor panel Save button remains.
+### Blog Modal Redesign + WYSIWYG Editors
+- Replaced raw HTML textareas with `contenteditable` WYSIWYG editors in both blog and attraction modals.
+- Formatting toolbar: Bold, Italic, H2, H3, P, List, Link — uses `document.execCommand()`.
+- Blog modal redesigned to single-column layout matching attractions: metadata grid, image upload, scheduling section.
+- Updated `collectMultilingualField()`, `populateMultilingualField()`, `autoTranslateField()` to handle contenteditable `.innerHTML` vs textarea `.value`.
+- `formatRichText()` replaced `formatBlogText()` — shared by both modals.
 
-### H2 Subheading Font & Size controls — added
-- Admin UI: `wb-styles-subheading-font` and `wb-styles-subheading-size` selects added to Styles & Fonts.
-- server.js: `subheading-font` / `subheading-size` added to `keyMapping`.
-- functions.php (both themes): reads `$subheading_font` / `$subheading_size`, enqueues Google Font (if different from heading), outputs `--developer-subheading-font` CSS variable, applies font-family + font-size to all `.developer-* h2` selectors.
-- gas-api.php: `subheading_font` / `subheading_size` added to `$styles_map`.
-- **Known issue**: H2 font family not yet confirmed pushing to WordPress — needs end-to-end test.
+### Blog Category FK Constraint Fix
+- `blog_categories.client_id` had FK to `clients` table but value was `account_id` — violated constraint.
+- Startup migration drops the FK constraint.
+- Manual fix endpoint: `GET /api/fix/blog-categories-fk`.
+- Category INSERT wrapped in try/catch so blog creation isn't blocked.
+- `openBlogModal()` adds missing category as dropdown option if not found.
 
-### hotelbalduin.de custom domain — live
-- SSL cert issued via certbot on VPS.
-- Nginx server block created (based on villa-talang.com pattern).
-- WordPress domain mapping updated for blog_id 113 (wp_blogs, siteurl, home).
+### Language Filtering for Blog & Attraction Modals
+- Added `filterModalLanguages(modalId)` — hides tabs/inputs for languages not in account settings.
+- Called from `openBlogModal()` and `openAttractionModal()` after `await loadLanguageSettings()`.
+- Fixed hardcoded `['en','fr','es','nl']` in `populateMultilingualField()` and `collectMultilingualField()` → now uses `getAccountLanguages()`.
+- Added `await loadLanguageSettings()` to `generateAiBlog()` so translations run during AI blog generation.
 
-### About Image Slider — rebuilt
-- Replaced single hero-style image with a multi-image slider (up to 6 images).
-- Admin UI: 6 image upload slots in About section.
-- functions.php: renders `<div class="about-slider">` with dot navigation + JS auto-rotation.
+### Blog Ideas Sub-Tabs from Feed Names
+- Added `feed_id` column to `content_ideas` table.
+- iCal and RSS fetch now store `feed_id` on content ideas.
+- GET content-ideas endpoint accepts `feed_id` filter.
+- Frontend: sub-tab bar in Ideas tab, tab management in Blog Settings.
 
-### USP Card Title/Description split
-- Each USP card now has a separate title field (previously description only).
-- Admin UI: title input per card, `wb-usp-card-title-size` slider.
-- Both themes: front-page.php renders `.usp-card-title` + `.usp-card-desc`, `--usp-card-title-size` CSS variable.
+### Favicon Swagger + GET Endpoint
+- Added `GET /api/partner/websites/:websiteId/icons` to read favicon/Apple Touch Icon URLs.
+- Updated Swagger docs with GET method, request/response schemas, examples.
+
+### Previous Session — 9 March 2026
+
+- Styles & Fonts load/save fix (wb-styles clone → move pattern).
+- H2 Subheading Font & Size controls added.
+- hotelbalduin.de custom domain — live (SSL, Nginx, WP domain mapping).
+- About Image Slider — multi-image with dot navigation.
+- USP Card Title/Description split.
 
 ---
 

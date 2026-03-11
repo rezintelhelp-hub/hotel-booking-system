@@ -1,7 +1,13 @@
 {
-  "updated": "2026-02-07",
-  "plan_summary": "Migrating 100 legacy clients is priority. Elevate partnership active with API integration. Custom site builds for clients. Build migration essentials first, then new revenue channels, then polish.",
+  "updated": "2026-03-11",
+  "plan_summary": "Live client sites in progress. Blog/Attractions WYSIWYG editors shipped. Language filtering fixed. Focus shifting to site go-live, Repuso reviews integration, translation pipeline, plugin management, and theme marketplace.",
   "categories": [
+    {
+      "id": "mar12",
+      "name": "12 March — Tomorrow",
+      "icon": "📋",
+      "description": "Priority tasks for 12 March 2026"
+    },
     {
       "id": "phase1",
       "name": "PHASE 1: Migration Essentials",
@@ -47,88 +53,112 @@
   ],
   "tasks": [
     {
-      "id": "fix-001",
-      "title": "Blog/Attractions Translation Fix",
-      "description": "Hardcoded English strings showing when only one language is selected",
+      "id": "mar12-001",
+      "title": "Footer — Terms and Privacy links broken",
+      "description": "Terms and Privacy page links in the footer are not working. Investigate and fix link generation/routing.",
       "priority": "critical",
-      "category": "fixes",
+      "category": "mar12",
       "status": "today",
-      "notes": "Priority #1 for Feb 7"
+      "notes": "Priority #1 for Mar 12"
     },
     {
-      "id": "fix-002",
-      "title": "New Clients Visibility in GAS Admin",
-      "description": "Way to see/flag new account signups so they don't get missed",
-      "priority": "critical",
-      "category": "fixes",
-      "status": "today",
-      "subtasks": [
-        "Email notification on signup",
-        "New Accounts section/flag in admin dashboard"
-      ],
-      "notes": "Priority #2 for Feb 7"
-    },
-    {
-      "id": "cs-001",
-      "title": "Discover St Charles - Final Checks",
-      "description": "Check sync, test Stripe, make test booking on discoverstcharles.custom.gas.travel",
-      "priority": "critical",
-      "category": "custom-sites",
-      "status": "today",
-      "notes": "Priority #3 for Feb 7. Font fix done. Beds24 instructions updated."
-    },
-    {
-      "id": "fix-003",
-      "title": "EmailMeForm Investigation",
-      "description": "Look into EmailMeForm integration/issue",
+      "id": "mar12-002",
+      "title": "Contact page — map sizing",
+      "description": "Map on contact page is incorrectly sized. Fix map container dimensions and responsive behaviour.",
       "priority": "high",
-      "category": "fixes",
+      "category": "mar12",
       "status": "today",
-      "notes": "Priority #4 for Feb 7"
+      "notes": "Priority #2 for Mar 12"
     },
     {
-      "id": "fix-004",
-      "title": "Special Offers Page",
-      "description": "Create Special Offers page functionality",
-      "priority": "medium",
-      "category": "phase2",
+      "id": "mar12-003",
+      "title": "Footer — all page links not showing",
+      "description": "Footer should display links to all site pages. Currently missing some or all page links.",
+      "priority": "critical",
+      "category": "mar12",
       "status": "today",
-      "notes": "Priority #5 for Feb 7"
+      "notes": "Priority #3 for Mar 12"
     },
     {
-      "id": "fix-005",
-      "title": "Failed Bookings to Channel Manager",
-      "description": "Send failed bookings into the CMs under a different tag",
-      "priority": "medium",
-      "category": "fixes",
+      "id": "mar12-004",
+      "title": "Site go-live setup/checklist",
+      "description": "Create a go-live checklist workflow — DNS, SSL, content review, SEO, analytics, booking test. Could be UI-driven or documented process.",
+      "priority": "high",
+      "category": "mar12",
       "status": "today",
-      "notes": "Priority #6 for Feb 7"
+      "notes": "Priority #4 for Mar 12"
     },
     {
-      "id": "fix-006",
-      "title": "Split Payments Option",
-      "description": "Allow split payment functionality for bookings",
-      "priority": "medium",
-      "category": "phase1",
+      "id": "mar12-005",
+      "title": "Repuso API connection (white-label)",
+      "description": "Connect to Repuso API for white-label reviews integration. Fetch and display reviews without Repuso branding.",
+      "priority": "high",
+      "category": "mar12",
       "status": "today",
-      "notes": "Priority #7 for Feb 7"
+      "notes": "Priority #5 for Mar 12"
     },
     {
-      "id": "fix-007",
-      "title": "Deposit Levels",
-      "description": "Configurable deposit level percentages",
-      "priority": "medium",
-      "category": "phase1",
+      "id": "mar12-006",
+      "title": "Blog page — header/subheader + category translations",
+      "description": "Blog page header and subheader text needs multilingual translation support. Blog category names should also translate.",
+      "priority": "high",
+      "category": "mar12",
       "status": "today",
-      "notes": "Priority #8 for Feb 7"
+      "notes": "Priority #6 for Mar 12"
     },
     {
-      "id": "fix-008",
-      "title": "Social Media Connectivity",
-      "description": "Social media integration for properties/sites",
+      "id": "mar12-007",
+      "title": "Attractions page — header/subheader + category translations",
+      "description": "Attractions page header and subheader text needs multilingual translation support. Attraction category names should also translate.",
+      "priority": "high",
+      "category": "mar12",
+      "status": "today",
+      "notes": "Priority #7 for Mar 12"
+    },
+    {
+      "id": "mar12-008",
+      "title": "Room page — Reviews tab (Repuso widget ID per room)",
+      "description": "Add a Reviews tab to the room detail page showing Repuso reviews. Each room can have its own Repuso widget ID.",
       "priority": "medium",
-      "category": "phase2",
-      "status": "todo"
+      "category": "mar12",
+      "status": "today",
+      "notes": "Priority #8 for Mar 12"
+    },
+    {
+      "id": "mar12-009",
+      "title": "Cloudflare — speed optimisation strategy",
+      "description": "Plan and implement Cloudflare optimisation: caching rules, minification, image optimisation (Polish/Mirage), page rules for static assets, rocket loader evaluation.",
+      "priority": "medium",
+      "category": "mar12",
+      "status": "today",
+      "notes": "Priority #9 for Mar 12"
+    },
+    {
+      "id": "mar12-010",
+      "title": "Plugin management — repo, version control, downloadable from GAS",
+      "description": "Set up plugin repo and version control. Make plugin downloadable from GAS Admin. Ensure Claude Code is aware of plugin structure for automated deploys.",
+      "priority": "medium",
+      "category": "mar12",
+      "status": "today",
+      "notes": "Priority #10 for Mar 12"
+    },
+    {
+      "id": "mar12-011",
+      "title": "Partner/Elevate white-label URLs — branded domains",
+      "description": "Enable branded domains per partner (e.g. Elevate gets their own domain for the portal, lites, blogs). Routing, SSL, and theme per partner.",
+      "priority": "medium",
+      "category": "mar12",
+      "status": "today",
+      "notes": "Priority #11 for Mar 12"
+    },
+    {
+      "id": "mar12-012",
+      "title": "Theme marketplace — add new themes via UI",
+      "description": "Build a theme marketplace in GAS Admin. Allow adding new themes via UI, open to third-party theme builders, manage/preview/activate themes within GAS Admin.",
+      "priority": "medium",
+      "category": "mar12",
+      "status": "today",
+      "notes": "Priority #12 for Mar 12"
     },
     {
       "id": "elv-001",
@@ -341,6 +371,48 @@
     }
   ],
   "completed": [
+    {
+      "id": "done-076",
+      "title": "Blog Modal Redesign + WYSIWYG Editors",
+      "description": "Replaced raw HTML textareas with contenteditable WYSIWYG editors in blog and attraction modals. Blog modal redesigned to single-column layout with image upload, scheduling, metadata grid.",
+      "category": "fixes",
+      "completed": "2026-03-11"
+    },
+    {
+      "id": "done-075",
+      "title": "Language Filtering for Blog & Attraction Modals",
+      "description": "Added filterModalLanguages() to hide tabs/inputs for non-account languages. Fixed hardcoded language arrays. Blog generation now loads language settings before translating.",
+      "category": "fixes",
+      "completed": "2026-03-11"
+    },
+    {
+      "id": "done-074",
+      "title": "Blog Category FK Constraint Fix",
+      "description": "Dropped blog_categories_client_id_fkey FK constraint. Category INSERT wrapped in try/catch. Modal adds missing category as dropdown option.",
+      "category": "fixes",
+      "completed": "2026-03-11"
+    },
+    {
+      "id": "done-073",
+      "title": "Blog Ideas Sub-Tabs from Feed Names",
+      "description": "Added feed_id column to content_ideas. iCal/RSS fetch stores feed_id. Sub-tab bar in Ideas tab groups ideas by source feed.",
+      "category": "fixes",
+      "completed": "2026-03-11"
+    },
+    {
+      "id": "done-072",
+      "title": "Favicon API GET Endpoint + Swagger Docs",
+      "description": "Added GET /api/partner/websites/:websiteId/icons endpoint. Updated Swagger with GET method, schemas, and examples.",
+      "category": "elevate",
+      "completed": "2026-03-11"
+    },
+    {
+      "id": "done-071",
+      "title": "Reviews App Settings + Homepage Toggle",
+      "description": "Added Reviews app settings (colors, fonts, toggle). Show/hide View All Reviews button on homepage.",
+      "category": "fixes",
+      "completed": "2026-03-11"
+    },
     {
       "id": "done-070",
       "title": "Elevate Partner API v7.3 Documentation",
