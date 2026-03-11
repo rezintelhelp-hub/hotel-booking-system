@@ -3,7 +3,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.3.1
+ * Version: 3.3.2
  * Author: GAS
  * License: GPL v2 or later
  * Text Domain: gas-booking
@@ -11,7 +11,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.3.0');
+define('GAS_BOOKING_VERSION', '3.3.2');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -178,6 +178,10 @@ class GAS_Booking {
         add_shortcode('gas_gallery', array($this, 'gallery_shortcode'));
         add_shortcode('gas_dining', array($this, 'dining_shortcode'));
         add_shortcode('gas_properties', array($this, 'properties_shortcode'));
+        add_shortcode('gas_blog', array($this, 'blog_shortcode'));
+        add_shortcode('gas_blog_categories', array($this, 'blog_categories_shortcode'));
+        add_shortcode('gas_attractions', array($this, 'attractions_shortcode'));
+        add_shortcode('gas_attractions_categories', array($this, 'attractions_categories_shortcode'));
         add_shortcode('gas_footer', array($this, 'footer_shortcode'));
         
         // AJAX handlers
@@ -414,6 +418,14 @@ class GAS_Booking {
                 'default_title' => 'Blog',
                 'shortcode' => '[gas_blog]',
                 'default_menu_order' => 70,
+                'parent_slug' => null,
+                'template' => ''
+            ),
+            'page-attractions' => array(
+                'slug' => 'attractions',
+                'default_title' => 'Things To Do',
+                'shortcode' => '[gas_attractions]',
+                'default_menu_order' => 60,
                 'parent_slug' => null,
                 'template' => ''
             ),
@@ -7602,6 +7614,213 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         return ob_get_clean();
     }
     
+    public function blog_categories_shortcode($atts) {
+        ob_start();
+        ?>
+        <div id="gas-blog-category-tabs" class="gas-category-tabs"></div>
+        <?php
+        return ob_get_clean();
+    }
+
+    public function blog_shortcode($atts) {
+        $atts = shortcode_atts(array('limit' => 12), $atts, 'gas_blog');
+        $api_url = get_option('gas_api_url', 'https://admin.gas.travel');
+        $client_id = get_option('gas_client_id', '');
+        $lang = $this->get_current_language();
+        $limit = intval($atts['limit']);
+        $button_color = $this->get_effective_button_color();
+
+        ob_start();
+        ?>
+        <style>
+            .gas-category-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; }
+            .gas-category-tab { padding: 8px 18px; border-radius: 24px; border: 1px solid #e2e8f0; background: #fff; color: #475569; font-size: 0.9rem; cursor: pointer; transition: all 0.2s; font-family: var(--gas-body-font, inherit); }
+            .gas-category-tab:hover { border-color: <?php echo esc_attr($button_color); ?>; color: <?php echo esc_attr($button_color); ?>; }
+            .gas-category-tab.active { background: <?php echo esc_attr($button_color); ?>; color: #fff; border-color: <?php echo esc_attr($button_color); ?>; }
+            .gas-blog-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 24px; }
+            .gas-blog-card { background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08); transition: transform 0.2s, box-shadow 0.2s; text-decoration: none; color: inherit; display: flex; flex-direction: column; }
+            .gas-blog-card:hover { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(0,0,0,0.12); }
+            .gas-blog-card img { width: 100%; height: 200px; object-fit: cover; }
+            .gas-blog-card-body { padding: 20px; flex: 1; display: flex; flex-direction: column; }
+            .gas-blog-card-category { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: <?php echo esc_attr($button_color); ?>; font-weight: 600; margin-bottom: 8px; }
+            .gas-blog-card-title { font-size: 1.15rem; font-weight: 600; color: #1e293b; margin-bottom: 8px; font-family: var(--gas-heading-font, inherit); line-height: 1.4; }
+            .gas-blog-card-excerpt { font-size: 0.9rem; color: #64748b; line-height: 1.6; flex: 1; }
+            .gas-blog-card-meta { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; padding-top: 12px; border-top: 1px solid #f1f5f9; font-size: 0.8rem; color: #94a3b8; }
+            @media (max-width: 640px) { .gas-blog-grid { grid-template-columns: 1fr; } }
+        </style>
+        <div class="gas-blog-grid" id="gas-blog-list">
+            <p style="color: #64748b; text-align: center; padding: 40px; grid-column: 1 / -1;">Loading blog posts...</p>
+        </div>
+        <script>
+        (function() {
+            var apiUrl = <?php echo json_encode(esc_url($api_url)); ?>;
+            var clientId = <?php echo json_encode(esc_attr($client_id)); ?>;
+            var lang = <?php echo json_encode(esc_attr($lang)); ?>;
+            var limit = <?php echo $limit; ?>;
+            var allPosts = [];
+
+            function renderPosts(posts) {
+                var container = document.getElementById('gas-blog-list');
+                if (!posts.length) {
+                    container.innerHTML = '<p style="color: #64748b; text-align: center; padding: 40px; grid-column: 1/-1;">No blog posts found.</p>';
+                    return;
+                }
+                container.innerHTML = posts.map(function(p) {
+                    var date = p.published_at ? new Date(p.published_at).toLocaleDateString(lang, {year:'numeric',month:'long',day:'numeric'}) : '';
+                    var img = p.featured_image_url ? '<img src="' + p.featured_image_url + '" alt="' + (p.title||'').replace(/"/g,'&quot;') + '">' : '';
+                    return '<a href="?p=' + p.slug + '&lang=' + lang + '" class="gas-blog-card">'
+                        + img
+                        + '<div class="gas-blog-card-body">'
+                        + (p.category ? '<div class="gas-blog-card-category">' + p.category + '</div>' : '')
+                        + '<div class="gas-blog-card-title">' + (p.title||'') + '</div>'
+                        + '<div class="gas-blog-card-excerpt">' + (p.excerpt||'').substring(0,150) + (p.excerpt && p.excerpt.length > 150 ? '...' : '') + '</div>'
+                        + '<div class="gas-blog-card-meta"><span>' + date + '</span>' + (p.read_time_minutes ? '<span>' + p.read_time_minutes + ' min read</span>' : '') + '</div>'
+                        + '</div></a>';
+                }).join('');
+            }
+
+            function renderCategoryTabs(posts) {
+                var tabsContainer = document.getElementById('gas-blog-category-tabs');
+                if (!tabsContainer) return;
+                var cats = [];
+                posts.forEach(function(p) { if (p.category && cats.indexOf(p.category) === -1) cats.push(p.category); });
+                if (cats.length < 2) return;
+                var html = '<button class="gas-category-tab active" data-cat="all">All</button>';
+                cats.forEach(function(c) { html += '<button class="gas-category-tab" data-cat="' + c.replace(/"/g,'&quot;') + '">' + c + '</button>'; });
+                tabsContainer.innerHTML = html;
+                tabsContainer.addEventListener('click', function(e) {
+                    var btn = e.target.closest('.gas-category-tab');
+                    if (!btn) return;
+                    tabsContainer.querySelectorAll('.gas-category-tab').forEach(function(b) { b.classList.remove('active'); });
+                    btn.classList.add('active');
+                    var cat = btn.getAttribute('data-cat');
+                    renderPosts(cat === 'all' ? allPosts : allPosts.filter(function(p) { return p.category === cat; }));
+                });
+            }
+
+            fetch(apiUrl + '/api/public/client/' + clientId + '/blog?lang=' + lang + '&limit=' + limit)
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.success && data.posts) {
+                        allPosts = data.posts;
+                        renderCategoryTabs(allPosts);
+                        renderPosts(allPosts);
+                    } else {
+                        document.getElementById('gas-blog-list').innerHTML = '<p style="color: #64748b; text-align: center; padding: 40px; grid-column: 1/-1;">No blog posts found.</p>';
+                    }
+                })
+                .catch(function() {
+                    document.getElementById('gas-blog-list').innerHTML = '<p style="color: #ef4444; text-align: center; padding: 40px;">Error loading blog posts.</p>';
+                });
+        })();
+        </script>
+        <?php
+        return ob_get_clean();
+    }
+
+    public function attractions_categories_shortcode($atts) {
+        ob_start();
+        ?>
+        <div id="gas-attractions-category-tabs" class="gas-category-tabs"></div>
+        <?php
+        return ob_get_clean();
+    }
+
+    public function attractions_shortcode($atts) {
+        $api_url = get_option('gas_api_url', 'https://admin.gas.travel');
+        $client_id = get_option('gas_client_id', '');
+        $lang = $this->get_current_language();
+        $button_color = $this->get_effective_button_color();
+
+        ob_start();
+        ?>
+        <style>
+            .gas-attractions-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 24px; }
+            .gas-attraction-card { background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08); transition: transform 0.2s, box-shadow 0.2s; text-decoration: none; color: inherit; display: flex; flex-direction: column; }
+            .gas-attraction-card:hover { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(0,0,0,0.12); }
+            .gas-attraction-card img { width: 100%; height: 200px; object-fit: cover; }
+            .gas-attraction-card-body { padding: 20px; flex: 1; display: flex; flex-direction: column; }
+            .gas-attraction-card-category { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: <?php echo esc_attr($button_color); ?>; font-weight: 600; margin-bottom: 8px; }
+            .gas-attraction-card-title { font-size: 1.15rem; font-weight: 600; color: #1e293b; margin-bottom: 8px; font-family: var(--gas-heading-font, inherit); line-height: 1.4; }
+            .gas-attraction-card-desc { font-size: 0.9rem; color: #64748b; line-height: 1.6; flex: 1; }
+            .gas-attraction-card-meta { display: flex; gap: 12px; align-items: center; margin-top: 12px; padding-top: 12px; border-top: 1px solid #f1f5f9; font-size: 0.8rem; color: #94a3b8; }
+            .gas-attraction-card-meta span { display: flex; align-items: center; gap: 4px; }
+            @media (max-width: 640px) { .gas-attractions-grid { grid-template-columns: 1fr; } }
+        </style>
+        <div class="gas-attractions-grid" id="gas-attractions-list">
+            <p style="color: #64748b; text-align: center; padding: 40px; grid-column: 1 / -1;">Loading attractions...</p>
+        </div>
+        <script>
+        (function() {
+            var apiUrl = <?php echo json_encode(esc_url($api_url)); ?>;
+            var clientId = <?php echo json_encode(esc_attr($client_id)); ?>;
+            var lang = <?php echo json_encode(esc_attr($lang)); ?>;
+            var allAttractions = [];
+
+            function renderAttractions(items) {
+                var container = document.getElementById('gas-attractions-list');
+                if (!items.length) {
+                    container.innerHTML = '<p style="color: #64748b; text-align: center; padding: 40px; grid-column: 1/-1;">No attractions found.</p>';
+                    return;
+                }
+                container.innerHTML = items.map(function(a) {
+                    var img = a.featured_image_url ? '<img src="' + a.featured_image_url + '" alt="' + (a.name||'').replace(/"/g,'&quot;') + '">' : '';
+                    var desc = a.short_description || '';
+                    if (desc.length > 150) desc = desc.substring(0,150) + '...';
+                    var meta = '';
+                    if (a.distance_text) meta += '<span>📍 ' + a.distance_text + '</span>';
+                    if (a.rating) meta += '<span>⭐ ' + a.rating + '</span>';
+                    if (a.price_range) meta += '<span>' + a.price_range + '</span>';
+                    return '<a href="?a=' + a.slug + '&lang=' + lang + '" class="gas-attraction-card">'
+                        + img
+                        + '<div class="gas-attraction-card-body">'
+                        + (a.category ? '<div class="gas-attraction-card-category">' + a.category + '</div>' : '')
+                        + '<div class="gas-attraction-card-title">' + (a.name||'') + '</div>'
+                        + '<div class="gas-attraction-card-desc">' + desc + '</div>'
+                        + (meta ? '<div class="gas-attraction-card-meta">' + meta + '</div>' : '')
+                        + '</div></a>';
+                }).join('');
+            }
+
+            function renderCategoryTabs(items) {
+                var tabsContainer = document.getElementById('gas-attractions-category-tabs');
+                if (!tabsContainer) return;
+                var cats = [];
+                items.forEach(function(a) { if (a.category && cats.indexOf(a.category) === -1) cats.push(a.category); });
+                if (cats.length < 2) return;
+                var html = '<button class="gas-category-tab active" data-cat="all">All</button>';
+                cats.forEach(function(c) { html += '<button class="gas-category-tab" data-cat="' + c.replace(/"/g,'&quot;') + '">' + c + '</button>'; });
+                tabsContainer.innerHTML = html;
+                tabsContainer.addEventListener('click', function(e) {
+                    var btn = e.target.closest('.gas-category-tab');
+                    if (!btn) return;
+                    tabsContainer.querySelectorAll('.gas-category-tab').forEach(function(b) { b.classList.remove('active'); });
+                    btn.classList.add('active');
+                    var cat = btn.getAttribute('data-cat');
+                    renderAttractions(cat === 'all' ? allAttractions : allAttractions.filter(function(a) { return a.category === cat; }));
+                });
+            }
+
+            fetch(apiUrl + '/api/public/client/' + clientId + '/attractions?lang=' + lang)
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.success && data.attractions) {
+                        allAttractions = data.attractions;
+                        renderCategoryTabs(allAttractions);
+                        renderAttractions(allAttractions);
+                    } else {
+                        document.getElementById('gas-attractions-list').innerHTML = '<p style="color: #64748b; text-align: center; padding: 40px; grid-column: 1/-1;">No attractions found.</p>';
+                    }
+                })
+                .catch(function() {
+                    document.getElementById('gas-attractions-list').innerHTML = '<p style="color: #ef4444; text-align: center; padding: 40px;">Error loading attractions.</p>';
+                });
+        })();
+        </script>
+        <?php
+        return ob_get_clean();
+    }
+
     public function footer_shortcode($atts) {
         $business_name = get_option('gas_footer_business_name', get_bloginfo('name'));
         $tagline = get_option('gas_footer_tagline', '');

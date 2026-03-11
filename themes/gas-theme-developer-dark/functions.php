@@ -2516,11 +2516,15 @@ function developer_get_api_settings() {
         
         // Blog Page - MULTILINGUAL
         'page_blog_menu_title' => developer_get_ml_value($website_page_blog, 'menu_title', $lang) ?: 'Blog',
+        'page_blog_title' => developer_get_ml_value($website_page_blog, 'title', $lang),
+        'page_blog_subtitle' => developer_get_ml_value($website_page_blog, 'subtitle', $lang),
         'page_blog_enabled' => $website_page_blog['enabled'] ?? false,
         'page_blog_menu_order' => $website_page_blog['menu-order'] ?? 4,
-        
+
         // Attractions Page - MULTILINGUAL
         'page_attractions_menu_title' => developer_get_ml_value($website_page_attractions, 'menu_title', $lang) ?: 'Attractions',
+        'page_attractions_title' => developer_get_ml_value($website_page_attractions, 'title', $lang),
+        'page_attractions_subtitle' => developer_get_ml_value($website_page_attractions, 'subtitle', $lang),
         'page_attractions_enabled' => $website_page_attractions['enabled'] ?? false,
         'page_attractions_menu_order' => $website_page_attractions['menu-order'] ?? 5,
         

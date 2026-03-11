@@ -51815,6 +51815,8 @@ const SECTION_DEFAULTS = {
   'page-blog': {
     'enabled': false,
     'menu-title-en': 'Blog',
+    'title-en': 'Blog',
+    'subtitle-en': '',
     'meta-title': '',
     'meta-description': '',
     'faq-enabled': false
@@ -51822,6 +51824,8 @@ const SECTION_DEFAULTS = {
   'page-attractions': {
     'enabled': false,
     'menu-title-en': 'Things To Do',
+    'title-en': 'Things To Do',
+    'subtitle-en': '',
     'meta-title': '',
     'meta-description': '',
     'faq-enabled': false

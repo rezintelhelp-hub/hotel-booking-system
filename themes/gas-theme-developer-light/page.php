@@ -81,9 +81,9 @@ if (in_array($page_slug, array('about', 'about-us', 'our-story'))) {
     $special_page = 'terms';
 } elseif (in_array($page_slug, array('privacy', 'privacy-policy'))) {
     $special_page = 'privacy';
-} elseif (in_array($page_slug, array('blog', 'news', 'journal', 'posts')) && shortcode_exists('gas_blog')) {
+} elseif (in_array($page_slug, array('blog', 'news', 'journal', 'posts'))) {
     $special_page = 'blog';
-} elseif (in_array($page_slug, array('attractions', 'things-to-do', 'explore', 'local-area', 'area-guide')) && shortcode_exists('gas_attractions')) {
+} elseif (in_array($page_slug, array('attractions', 'things-to-do', 'explore', 'local-area', 'area-guide'))) {
     $special_page = 'attractions';
 } elseif (in_array($page_slug, array('gallery', 'photos', 'images'))) {
     $special_page = 'gallery';
@@ -255,10 +255,12 @@ $hero_min_height = $page_hero_image ? '350px' : '250px';
                     <style>@media (max-width: 768px) { .gas-contact-page > div { grid-template-columns: 1fr !important; } }</style>
                 
                 <?php elseif ($special_page === 'blog') : ?>
-                    <?php echo do_shortcode('[gas_blog_categories]'); echo do_shortcode('[gas_blog limit="12"]'); ?>
-                
+                    <?php if (shortcode_exists('gas_blog_categories')) echo do_shortcode('[gas_blog_categories]'); ?>
+                    <?php if (shortcode_exists('gas_blog')) echo do_shortcode('[gas_blog limit="12"]'); ?>
+
                 <?php elseif ($special_page === 'attractions') : ?>
-                    <?php echo do_shortcode('[gas_attractions_categories]'); echo do_shortcode('[gas_attractions]'); ?>
+                    <?php if (shortcode_exists('gas_attractions_categories')) echo do_shortcode('[gas_attractions_categories]'); ?>
+                    <?php if (shortcode_exists('gas_attractions')) echo do_shortcode('[gas_attractions]'); ?>
                 
                 <?php else : ?>
                     <div style="font-size: 1.05rem; line-height: 1.8; color: <?php echo esc_attr($page_text_color); ?>;"><?php the_content(); ?></div>
