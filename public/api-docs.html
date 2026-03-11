@@ -822,7 +822,7 @@
                 "put": {
                     "tags": ["Properties & Rooms"],
                     "summary": "Set Property Terms",
-                    "description": "Update check-in/out times, house rules, cancellation policy and other terms. Send only the fields you want to update. Set `apply_to_all: true` to use these terms for every property in the account.",
+                    "description": "Update check-in/out times, house rules, cancellation policy and other terms. Send only the fields you want to update. Set `apply_to_all: true` to use these terms for every property in the account.\n\n**Multilingual:** Text fields support `_ml` variants as JSONB objects: `cancellation_policy_ml`, `additional_rules_ml`, `check_in_instructions_ml`, `check_out_instructions_ml`, `damage_policy_ml`, `terms_conditions_ml`, `directions_ml`, `area_info_ml`. Example: `{\"en\": \"Free cancellation\", \"es\": \"Cancelación gratuita\"}`",
                     "parameters": [
                         { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "string" } }
                     ],
@@ -833,7 +833,10 @@
                                     "check_in_time": "15:00",
                                     "check_out_time": "11:00",
                                     "house_rules": "No smoking. No parties. Quiet hours 22:00-08:00.",
-                                    "cancellation_policy": "Free cancellation up to 48 hours before check-in. 50% refund for cancellations within 48 hours.",
+                                    "cancellation_policy": "Free cancellation up to 48 hours before check-in.",
+                                    "cancellation_policy_ml": { "en": "Free cancellation up to 48 hours before check-in.", "es": "Cancelación gratuita hasta 48 horas antes." },
+                                    "additional_rules": "No group gatherings.",
+                                    "additional_rules_ml": { "en": "No group gatherings.", "es": "No se permiten reuniones grupales." },
                                     "terms_conditions": "By booking you agree to the house rules.",
                                     "damage_policy": "Security deposit: EUR 500",
                                     "check_in_instructions": "Key collection from lockbox, code sent 24hrs before.",
@@ -1700,8 +1703,12 @@
                                         "value": { "settings": { "enabled": true, "meta-title": "Mountain Lodge — Luxury Alpine Retreat", "meta-description": "Book your stay at our award-winning mountain lodge in the Swiss Alps.", "og-image": "https://example.com/og.jpg", "include-schema": true, "include-faqs": true, "google-analytics-id": "G-XXXXXXXXXX", "google-tag-manager-id": "GTM-XXXXXXX", "facebook-pixel-id": "123456789", "google-site-verification": "abc123xyz" } }
                                     },
                                     "page-terms": {
-                                        "summary": "Terms & Conditions page",
-                                        "value": { "settings": { "enabled": true, "source": "gas-account", "title-en": "Terms & Conditions", "menu-title-en": "Terms", "checkin-time": "15:00", "checkout-time": "11:00", "checkin-details-en": "Key collection from lockbox.", "cancellation-en": "Free cancellation up to 48 hours.", "house-rules-en": "No smoking. No parties.", "booking-en": "By booking you agree to the house rules.", "liability-en": "Security deposit: EUR 500", "additional-en": "Located in historic quarter." } }
+                                        "summary": "Terms & Conditions page (two modes: 'custom' WYSIWYG or 'gas-account' auto-generated from property terms)",
+                                        "value": { "settings": { "enabled": true, "source": "gas-account", "title-en": "Terms & Conditions", "title-es": "Términos y Condiciones", "menu-title-en": "Terms", "menu-title-es": "Términos", "updated": "2026-03-10", "meta-title": "", "meta-description": "", "faq-enabled": true, "content-en": "Custom HTML content (used when source=custom)", "content-es": "" } }
+                                    },
+                                    "page-privacy": {
+                                        "summary": "Privacy Policy page (auto-generated from structured sections)",
+                                        "value": { "settings": { "enabled": true, "title-en": "Privacy Policy", "title-es": "Política de privacidad", "menu-title-en": "Privacy", "menu-title-es": "Privacidad", "business-name": "My Hotel", "contact-email": "privacy@myhotel.com", "business-address": "123 Main St", "effective": "2026-03-10", "updated": "2026-03-10", "meta-title": "", "meta-description": "", "faq-enabled": true } }
                                     },
                                     "page-about": {
                                         "summary": "About Us page with hero + 2 content images",
