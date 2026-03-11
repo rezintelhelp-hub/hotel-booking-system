@@ -7973,14 +7973,39 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
         return res.json({ success: false, error: 'Beds24 API error: ' + e.message });
       }
 
+      // Helper: Beds24 V2 texts can be array or object — normalize to multilingual object
+      const extractMultilang = (roomTexts, fieldName) => {
+        if (!roomTexts) return null;
+        // Array format: [{language: "en", displayName: "...", roomDescription: "..."}, ...]
+        if (Array.isArray(roomTexts)) {
+          const result = {};
+          for (const t of roomTexts) {
+            const lang = (t.language || 'en').toLowerCase();
+            const val = t[fieldName];
+            if (val && typeof val === 'string' && val.trim()) {
+              result[lang] = stripHtmlSimple(val);
+            }
+          }
+          return Object.keys(result).length > 0 ? result : null;
+        }
+        // Object format: {displayName: {EN: "...", DE: "..."}}
+        if (typeof roomTexts === 'object' && roomTexts[fieldName]) {
+          return cleanMultilang(roomTexts[fieldName]);
+        }
+        return null;
+      };
+
       let descCount = 0;
       for (const room of roomTypes.rows) {
-        const texts = beds24TextsMap[String(room.external_id)] || {};
-        console.log('content-sync: Matching room', room.name, 'external_id:', room.external_id, '- API match:', !!beds24TextsMap[String(room.external_id)]);
+        const roomTexts = beds24TextsMap[String(room.external_id)];
+        const isArray = Array.isArray(roomTexts);
+        console.log('content-sync: Room', room.name, 'external_id:', room.external_id, '- API match:', !!roomTexts, 'isArray:', isArray);
 
-        const displayName = cleanMultilang(texts.displayName);
-        const shortDesc = cleanMultilang(texts.roomDescription1);
-        const fullDesc = cleanMultilang(texts.auxiliaryText);
+        // Array field names: displayName, roomDescription/description, auxiliary/auxiliaryText
+        // Object field names: displayName, roomDescription1, auxiliaryText
+        const displayName = extractMultilang(roomTexts, 'displayName');
+        const shortDesc = extractMultilang(roomTexts, 'roomDescription') || extractMultilang(roomTexts, 'roomDescription1') || extractMultilang(roomTexts, 'description');
+        const fullDesc = extractMultilang(roomTexts, 'auxiliary') || extractMultilang(roomTexts, 'auxiliaryText');
 
         console.log('content-sync: displayName:', JSON.stringify(displayName), 'shortDesc:', JSON.stringify(shortDesc)?.substring(0, 100), 'fullDesc:', JSON.stringify(fullDesc)?.substring(0, 100));
 
