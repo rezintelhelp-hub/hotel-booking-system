@@ -49665,6 +49665,43 @@ app.put('/api/partner/websites/:websiteId/header', async (req, res) => {
 // PARTNER: FAVICON & ICONS
 // =========================================================
 
+// GET /api/partner/websites/:websiteId/icons - Get favicon & icon settings
+app.get('/api/partner/websites/:websiteId/icons', async (req, res) => {
+  console.log('=== PARTNER API: GET ICONS ===');
+
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+
+    const deployedSiteId = await getPartnerDeployedSiteId(auth.partnerId, req.params.websiteId);
+    if (!deployedSiteId) {
+      return res.status(404).json({ success: false, error: 'Website not deployed or not found' });
+    }
+
+    const headerResult = await pool.query(
+      `SELECT settings FROM website_settings WHERE deployed_site_id = $1 AND section = 'header'`,
+      [deployedSiteId]
+    );
+
+    const s = headerResult.rows.length > 0 ? (headerResult.rows[0].settings || {}) : {};
+
+    res.json({
+      success: true,
+      website_id: parseInt(req.params.websiteId),
+      icons: {
+        favicon_url: s['favicon-image-url'] || null,
+        apple_icon_url: s['apple-icon-image-url'] || null
+      }
+    });
+
+  } catch (error) {
+    console.error('Partner API get icons error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 app.put('/api/partner/websites/:websiteId/icons', async (req, res) => {
   console.log('=== PARTNER API: UPDATE ICONS ===');
 

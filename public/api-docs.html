@@ -1503,13 +1503,49 @@
             },
             
             "/api/partner/websites/{websiteId}/icons": {
+                "get": {
+                    "tags": ["Websites"],
+                    "summary": "Get Favicon & Icons",
+                    "description": "Retrieve the current favicon and Apple Touch Icon URLs for a website.\n\nReturns `null` for any icon that has not been set.",
+                    "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" }, "description": "Website ID" } ],
+                    "responses": {
+                        "200": {
+                            "description": "Current icon settings",
+                            "content": { "application/json": { "example": { "success": true, "website_id": 1, "icons": { "favicon_url": "https://example.com/favicon.png", "apple_icon_url": "https://example.com/apple-touch-icon.png" } } } }
+                        },
+                        "404": { "description": "Website not found" }
+                    }
+                },
                 "put": {
                     "tags": ["Websites"],
                     "summary": "Update Favicon & Icons",
-                    "description": "Set the favicon (browser tab icon) and Apple Touch Icon (iOS home screen icon). Both fields optional — only provided fields are changed. Send empty string to remove.\n\n- `favicon_url` — Favicon image URL (recommended: 32x32 or 64x64 PNG/ICO)\n- `apple_icon_url` — Apple Touch Icon URL (recommended: 180x180 PNG)\n\nIcons are stored in the header section and pushed to WordPress automatically.",
-                    "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
-                    "requestBody": { "content": { "application/json": { "examples": { "set_both": { "summary": "Set both icons", "value": { "favicon_url": "https://example.com/favicon.png", "apple_icon_url": "https://example.com/apple-touch-icon.png" } }, "favicon_only": { "summary": "Set favicon only", "value": { "favicon_url": "https://example.com/favicon.png" } } } } } },
-                    "responses": { "200": { "description": "Icons updated and pushed to WordPress" } }
+                    "description": "Set the favicon (browser tab icon) and Apple Touch Icon (iOS home screen icon). Both fields optional — only provided fields are changed. Send empty string to remove.\n\n**Fields:**\n| Field | Description |\n|-------|-------------|\n| `favicon_url` | Browser tab icon (recommended: 32x32 or 64x64 PNG/ICO) |\n| `apple_icon_url` | iOS home screen icon (recommended: 180x180 PNG) |\n\nIcons are stored in the header section and pushed to WordPress automatically.",
+                    "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" }, "description": "Website ID" } ],
+                    "requestBody": {
+                        "required": true,
+                        "content": { "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "favicon_url": { "type": "string", "description": "Favicon image URL (32x32 or 64x64 PNG/ICO)" },
+                                    "apple_icon_url": { "type": "string", "description": "Apple Touch Icon URL (180x180 PNG)" }
+                                }
+                            },
+                            "examples": {
+                                "set_both": { "summary": "Set both icons", "value": { "favicon_url": "https://example.com/favicon.png", "apple_icon_url": "https://example.com/apple-touch-icon.png" } },
+                                "favicon_only": { "summary": "Set favicon only", "value": { "favicon_url": "https://example.com/favicon.png" } },
+                                "remove_favicon": { "summary": "Remove favicon", "value": { "favicon_url": "" } }
+                            }
+                        } }
+                    },
+                    "responses": {
+                        "200": {
+                            "description": "Icons updated and pushed to WordPress",
+                            "content": { "application/json": { "example": { "success": true, "website_id": 1, "updated_fields": ["favicon-image-url"], "icons": { "favicon_url": "https://example.com/favicon.png", "apple_icon_url": null }, "wordpress_push": { "success": true } } } }
+                        },
+                        "400": { "description": "No fields provided" },
+                        "404": { "description": "Website not found" }
+                    }
                 }
             },
 
