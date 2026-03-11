@@ -121,6 +121,39 @@ const MAILGUN_API_KEY = process.env.MAILGUN_API_KEY;
 const MAILGUN_DOMAIN = process.env.MAILGUN_DOMAIN || 'mg.gas.travel';
 const EMAIL_FROM = process.env.EMAIL_FROM || 'bookings@mg.gas.travel';
 
+// Category label translations for blog & attractions
+const CATEGORY_LABELS = {
+  museums: { en:'Museums & Galleries', es:'Museos y Galerías', fr:'Musées et Galeries', de:'Museen und Galerien', nl:'Musea en Galerijen' },
+  landmarks: { en:'Landmarks & Monuments', es:'Monumentos y Lugares', fr:'Monuments et Sites', de:'Denkmäler und Sehenswürdigkeiten', nl:'Monumenten en Bezienswaardigheden' },
+  parks: { en:'Parks & Gardens', es:'Parques y Jardines', fr:'Parcs et Jardins', de:'Parks und Gärten', nl:'Parken en Tuinen' },
+  beaches: { en:'Beaches & Coastline', es:'Playas y Costa', fr:'Plages et Littoral', de:'Strände und Küste', nl:'Stranden en Kust' },
+  restaurants: { en:'Restaurants & Dining', es:'Restaurantes y Gastronomía', fr:'Restaurants et Gastronomie', de:'Restaurants und Gastronomie', nl:'Restaurants en Eten' },
+  cafes: { en:'Cafes & Coffee Shops', es:'Cafeterías', fr:'Cafés', de:'Cafés', nl:'Cafés' },
+  nightlife: { en:'Nightlife & Bars', es:'Vida Nocturna y Bares', fr:'Vie Nocturne et Bars', de:'Nachtleben und Bars', nl:'Nachtleven en Bars' },
+  shopping: { en:'Shopping & Markets', es:'Compras y Mercados', fr:'Shopping et Marchés', de:'Einkaufen und Märkte', nl:'Winkelen en Markten' },
+  nature: { en:'Nature & Outdoor', es:'Naturaleza y Aire Libre', fr:'Nature et Plein Air', de:'Natur und Outdoor', nl:'Natuur en Buiten' },
+  daytrips: { en:'Day Trips', es:'Excursiones', fr:'Excursions', de:'Tagesausflüge', nl:'Dagtrips' },
+  festivals: { en:'Festivals & Celebrations', es:'Festivales y Celebraciones', fr:'Festivals et Célébrations', de:'Feste und Feiern', nl:'Festivals en Vieringen' },
+  concerts: { en:'Concerts & Live Music', es:'Conciertos y Música', fr:'Concerts et Musique', de:'Konzerte und Musik', nl:'Concerten en Muziek' },
+  theater: { en:'Theater & Performances', es:'Teatro y Espectáculos', fr:'Théâtre et Spectacles', de:'Theater und Aufführungen', nl:'Theater en Voorstellingen' },
+  sports: { en:'Sports Events', es:'Eventos Deportivos', fr:'Événements Sportifs', de:'Sportveranstaltungen', nl:'Sportevenementen' },
+  markets: { en:'Markets & Fairs', es:'Mercados y Ferias', fr:'Marchés et Foires', de:'Märkte und Messen', nl:'Markten en Beurzen' },
+  cultural: { en:'Cultural Events', es:'Eventos Culturales', fr:'Événements Culturels', de:'Kulturelle Veranstaltungen', nl:'Culturele Evenementen' },
+  seasonal: { en:'Seasonal Activities', es:'Actividades de Temporada', fr:'Activités Saisonnières', de:'Saisonale Aktivitäten', nl:'Seizoensactiviteiten' },
+  holidays: { en:'Holiday Events', es:'Eventos Festivos', fr:'Événements de Fêtes', de:'Feiertage', nl:'Feestdagen' },
+  family: { en:'Family Events', es:'Eventos Familiares', fr:'Événements Familiaux', de:'Familienveranstaltungen', nl:'Familie-evenementen' },
+  entertainment: { en:'Entertainment', es:'Entretenimiento', fr:'Divertissement', de:'Unterhaltung', nl:'Entertainment' }
+};
+
+function getCategoryLabel(slug, lang) {
+  if (!slug) return null;
+  const key = slug.toLowerCase().replace(/[\s&]+/g, '').replace(/-/g, '');
+  // Try exact match first, then normalized match
+  const labels = CATEGORY_LABELS[slug.toLowerCase()] || Object.entries(CATEGORY_LABELS).find(([k]) => k === key)?.[1];
+  if (labels) return labels[lang] || labels['en'] || slug;
+  return slug.charAt(0).toUpperCase() + slug.slice(1).replace(/-/g, ' ');
+}
+
 // Country code to currency mapping (ISO 3166-1 alpha-2 → ISO 4217)
 function getCurrencyFromCountry(countryCode) {
   if (!countryCode) return null;
@@ -67029,10 +67062,11 @@ app.get('/api/public/client/:clientId/blog', async (req, res) => {
                 title: post.title_ml?.[lang] || post.title_ml?.en || post.title,
                 excerpt: post.excerpt_ml?.[lang] || post.excerpt_ml?.en || post.excerpt,
                 meta_title: post.meta_title_ml?.[lang] || post.meta_title_ml?.en || post.meta_title,
-                meta_description: post.meta_description_ml?.[lang] || post.meta_description_ml?.en || post.meta_description
+                meta_description: post.meta_description_ml?.[lang] || post.meta_description_ml?.en || post.meta_description,
+                category_label: getCategoryLabel(post.category, lang)
             };
         });
-        
+
         console.log('Public blog results:', posts.length, 'posts found');
         
         res.json({ success: true, posts });
@@ -67159,9 +67193,10 @@ app.get('/api/public/client/:clientId/attractions', async (req, res) => {
             name: a.name_ml?.[lang] || a.name_ml?.en || a.name,
             short_description: a.short_description_ml?.[lang] || a.short_description_ml?.en || a.short_description,
             meta_title: a.meta_title_ml?.[lang] || a.meta_title_ml?.en || a.meta_title,
-            meta_description: a.meta_description_ml?.[lang] || a.meta_description_ml?.en || a.meta_description
+            meta_description: a.meta_description_ml?.[lang] || a.meta_description_ml?.en || a.meta_description,
+            category_label: getCategoryLabel(a.category, lang)
         }));
-        
+
         res.json({ success: true, attractions });
     } catch (error) {
         res.json({ success: false, error: error.message });

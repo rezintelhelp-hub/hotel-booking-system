@@ -3,7 +3,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.3.3
+ * Version: 3.3.4
  * Author: GAS
  * License: GPL v2 or later
  * Text Domain: gas-booking
@@ -11,7 +11,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.3.2');
+define('GAS_BOOKING_VERSION', '3.3.4');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -7671,7 +7671,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                     return '<a href="?p=' + p.slug + '&lang=' + lang + '" class="gas-blog-card">'
                         + img
                         + '<div class="gas-blog-card-body">'
-                        + (p.category ? '<div class="gas-blog-card-category">' + catLabel(p.category) + '</div>' : '')
+                        + (p.category ? '<div class="gas-blog-card-category">' + (p.category_label || p.category) + '</div>' : '')
                         + '<div class="gas-blog-card-title">' + (p.title||'') + '</div>'
                         + '<div class="gas-blog-card-excerpt">' + (p.excerpt||'').substring(0,150) + (p.excerpt && p.excerpt.length > 150 ? '...' : '') + '</div>'
                         + '<div class="gas-blog-card-meta"><span>' + date + '</span>' + (p.read_time_minutes ? '<span>' + p.read_time_minutes + ' min read</span>' : '') + '</div>'
@@ -7679,26 +7679,16 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                 }).join('');
             }
 
-            var catLabels = {
-                en: { all: 'All', museums: 'Museums & Galleries', landmarks: 'Landmarks & Monuments', parks: 'Parks & Gardens', beaches: 'Beaches & Coastline', restaurants: 'Restaurants & Dining', cafes: 'Cafes & Coffee Shops', nightlife: 'Nightlife & Bars', shopping: 'Shopping & Markets', nature: 'Nature & Outdoor', daytrips: 'Day Trips', festivals: 'Festivals & Celebrations', concerts: 'Concerts & Live Music', theater: 'Theater & Performances', sports: 'Sports Events', markets: 'Markets & Fairs', cultural: 'Cultural Events', seasonal: 'Seasonal Activities', holidays: 'Holiday Events', family: 'Family Events', entertainment: 'Entertainment' },
-                es: { all: 'Todos', museums: 'Museos y Galerías', landmarks: 'Monumentos y Lugares', parks: 'Parques y Jardines', beaches: 'Playas y Costa', restaurants: 'Restaurantes y Gastronomía', cafes: 'Cafeterías', nightlife: 'Vida Nocturna y Bares', shopping: 'Compras y Mercados', nature: 'Naturaleza y Aire Libre', daytrips: 'Excursiones', festivals: 'Festivales y Celebraciones', concerts: 'Conciertos y Música', theater: 'Teatro y Espectáculos', sports: 'Eventos Deportivos', markets: 'Mercados y Ferias', cultural: 'Eventos Culturales', seasonal: 'Actividades de Temporada', holidays: 'Eventos Festivos', family: 'Eventos Familiares', entertainment: 'Entretenimiento' },
-                fr: { all: 'Tous', museums: 'Musées et Galeries', landmarks: 'Monuments et Sites', parks: 'Parcs et Jardins', beaches: 'Plages et Littoral', restaurants: 'Restaurants et Gastronomie', cafes: 'Cafés', nightlife: 'Vie Nocturne et Bars', shopping: 'Shopping et Marchés', nature: 'Nature et Plein Air', daytrips: 'Excursions', festivals: 'Festivals et Célébrations', concerts: 'Concerts et Musique', theater: 'Théâtre et Spectacles', sports: 'Événements Sportifs', markets: 'Marchés et Foires', cultural: 'Événements Culturels', seasonal: 'Activités Saisonnières', holidays: 'Événements de Fêtes', family: 'Événements Familiaux', entertainment: 'Divertissement' },
-                de: { all: 'Alle', museums: 'Museen und Galerien', landmarks: 'Denkmäler und Sehenswürdigkeiten', parks: 'Parks und Gärten', beaches: 'Strände und Küste', restaurants: 'Restaurants und Gastronomie', cafes: 'Cafés', nightlife: 'Nachtleben und Bars', shopping: 'Einkaufen und Märkte', nature: 'Natur und Outdoor', daytrips: 'Tagesausflüge', festivals: 'Feste und Feiern', concerts: 'Konzerte und Musik', theater: 'Theater und Aufführungen', sports: 'Sportveranstaltungen', markets: 'Märkte und Messen', cultural: 'Kulturelle Veranstaltungen', seasonal: 'Saisonale Aktivitäten', holidays: 'Feiertage', family: 'Familienveranstaltungen', entertainment: 'Unterhaltung' },
-                nl: { all: 'Alle', museums: 'Musea en Galerijen', landmarks: 'Monumenten en Bezienswaardigheden', parks: 'Parken en Tuinen', beaches: 'Stranden en Kust', restaurants: 'Restaurants en Eten', cafes: 'Cafés', nightlife: 'Nachtleven en Bars', shopping: 'Winkelen en Markten', nature: 'Natuur en Buiten', daytrips: 'Dagtrips', festivals: 'Festivals en Vieringen', concerts: 'Concerten en Muziek', theater: 'Theater en Voorstellingen', sports: 'Sportevenementen', markets: 'Markten en Beurzen', cultural: 'Culturele Evenementen', seasonal: 'Seizoensactiviteiten', holidays: 'Feestdagen', family: 'Familie-evenementen', entertainment: 'Entertainment' }
-            };
-            function catLabel(slug) {
-                var labels = catLabels[lang] || catLabels['en'] || {};
-                return labels[slug] || slug.charAt(0).toUpperCase() + slug.slice(1);
-            }
+            var allLabels = {en:'All',es:'Todos',fr:'Tous',de:'Alle',nl:'Alle'};
 
             function renderCategoryTabs(posts) {
                 var tabsContainer = document.getElementById('gas-blog-category-tabs');
                 if (!tabsContainer) return;
-                var cats = [];
-                posts.forEach(function(p) { if (p.category && cats.indexOf(p.category) === -1) cats.push(p.category); });
+                var cats = [], catMap = {};
+                posts.forEach(function(p) { if (p.category && cats.indexOf(p.category) === -1) { cats.push(p.category); catMap[p.category] = p.category_label || p.category; } });
                 if (cats.length < 2) return;
-                var html = '<button class="gas-category-tab active" data-cat="all">' + catLabel('all') + '</button>';
-                cats.forEach(function(c) { html += '<button class="gas-category-tab" data-cat="' + c.replace(/"/g,'&quot;') + '">' + catLabel(c) + '</button>'; });
+                var html = '<button class="gas-category-tab active" data-cat="all">' + (allLabels[lang] || 'All') + '</button>';
+                cats.forEach(function(c) { html += '<button class="gas-category-tab" data-cat="' + c.replace(/"/g,'&quot;') + '">' + (catMap[c] || c) + '</button>'; });
                 tabsContainer.innerHTML = html;
                 tabsContainer.addEventListener('click', function(e) {
                     var btn = e.target.closest('.gas-category-tab');
@@ -7786,7 +7776,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                     return '<a href="?a=' + a.slug + '&lang=' + lang + '" class="gas-attraction-card">'
                         + img
                         + '<div class="gas-attraction-card-body">'
-                        + (a.category ? '<div class="gas-attraction-card-category">' + catLabel(a.category) + '</div>' : '')
+                        + (a.category ? '<div class="gas-attraction-card-category">' + (a.category_label || a.category) + '</div>' : '')
                         + '<div class="gas-attraction-card-title">' + (a.name||'') + '</div>'
                         + '<div class="gas-attraction-card-desc">' + desc + '</div>'
                         + (meta ? '<div class="gas-attraction-card-meta">' + meta + '</div>' : '')
@@ -7794,26 +7784,16 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
                 }).join('');
             }
 
-            var catLabels = {
-                en: { all: 'All', museums: 'Museums & Galleries', landmarks: 'Landmarks & Monuments', parks: 'Parks & Gardens', beaches: 'Beaches & Coastline', restaurants: 'Restaurants & Dining', cafes: 'Cafes & Coffee Shops', nightlife: 'Nightlife & Bars', shopping: 'Shopping & Markets', nature: 'Nature & Outdoor', daytrips: 'Day Trips', festivals: 'Festivals & Celebrations', concerts: 'Concerts & Live Music', theater: 'Theater & Performances', sports: 'Sports Events', markets: 'Markets & Fairs', cultural: 'Cultural Events', seasonal: 'Seasonal Activities', holidays: 'Holiday Events', family: 'Family Events', entertainment: 'Entertainment' },
-                es: { all: 'Todos', museums: 'Museos y Galerías', landmarks: 'Monumentos y Lugares', parks: 'Parques y Jardines', beaches: 'Playas y Costa', restaurants: 'Restaurantes y Gastronomía', cafes: 'Cafeterías', nightlife: 'Vida Nocturna y Bares', shopping: 'Compras y Mercados', nature: 'Naturaleza y Aire Libre', daytrips: 'Excursiones', festivals: 'Festivales y Celebraciones', concerts: 'Conciertos y Música', theater: 'Teatro y Espectáculos', sports: 'Eventos Deportivos', markets: 'Mercados y Ferias', cultural: 'Eventos Culturales', seasonal: 'Actividades de Temporada', holidays: 'Eventos Festivos', family: 'Eventos Familiares', entertainment: 'Entretenimiento' },
-                fr: { all: 'Tous', museums: 'Musées et Galeries', landmarks: 'Monuments et Sites', parks: 'Parcs et Jardins', beaches: 'Plages et Littoral', restaurants: 'Restaurants et Gastronomie', cafes: 'Cafés', nightlife: 'Vie Nocturne et Bars', shopping: 'Shopping et Marchés', nature: 'Nature et Plein Air', daytrips: 'Excursions', festivals: 'Festivals et Célébrations', concerts: 'Concerts et Musique', theater: 'Théâtre et Spectacles', sports: 'Événements Sportifs', markets: 'Marchés et Foires', cultural: 'Événements Culturels', seasonal: 'Activités Saisonnières', holidays: 'Événements de Fêtes', family: 'Événements Familiaux', entertainment: 'Divertissement' },
-                de: { all: 'Alle', museums: 'Museen und Galerien', landmarks: 'Denkmäler und Sehenswürdigkeiten', parks: 'Parks und Gärten', beaches: 'Strände und Küste', restaurants: 'Restaurants und Gastronomie', cafes: 'Cafés', nightlife: 'Nachtleben und Bars', shopping: 'Einkaufen und Märkte', nature: 'Natur und Outdoor', daytrips: 'Tagesausflüge', festivals: 'Feste und Feiern', concerts: 'Konzerte und Musik', theater: 'Theater und Aufführungen', sports: 'Sportveranstaltungen', markets: 'Märkte und Messen', cultural: 'Kulturelle Veranstaltungen', seasonal: 'Saisonale Aktivitäten', holidays: 'Feiertage', family: 'Familienveranstaltungen', entertainment: 'Unterhaltung' },
-                nl: { all: 'Alle', museums: 'Musea en Galerijen', landmarks: 'Monumenten en Bezienswaardigheden', parks: 'Parken en Tuinen', beaches: 'Stranden en Kust', restaurants: 'Restaurants en Eten', cafes: 'Cafés', nightlife: 'Nachtleven en Bars', shopping: 'Winkelen en Markten', nature: 'Natuur en Buiten', daytrips: 'Dagtrips', festivals: 'Festivals en Vieringen', concerts: 'Concerten en Muziek', theater: 'Theater en Voorstellingen', sports: 'Sportevenementen', markets: 'Markten en Beurzen', cultural: 'Culturele Evenementen', seasonal: 'Seizoensactiviteiten', holidays: 'Feestdagen', family: 'Familie-evenementen', entertainment: 'Entertainment' }
-            };
-            function catLabel(slug) {
-                var labels = catLabels[lang] || catLabels['en'] || {};
-                return labels[slug] || slug.charAt(0).toUpperCase() + slug.slice(1);
-            }
+            var allLabels = {en:'All',es:'Todos',fr:'Tous',de:'Alle',nl:'Alle'};
 
             function renderCategoryTabs(items) {
                 var tabsContainer = document.getElementById('gas-attractions-category-tabs');
                 if (!tabsContainer) return;
-                var cats = [];
-                items.forEach(function(a) { if (a.category && cats.indexOf(a.category) === -1) cats.push(a.category); });
+                var cats = [], catMap = {};
+                items.forEach(function(a) { if (a.category && cats.indexOf(a.category) === -1) { cats.push(a.category); catMap[a.category] = a.category_label || a.category; } });
                 if (cats.length < 2) return;
-                var html = '<button class="gas-category-tab active" data-cat="all">' + catLabel('all') + '</button>';
-                cats.forEach(function(c) { html += '<button class="gas-category-tab" data-cat="' + c.replace(/"/g,'&quot;') + '">' + catLabel(c) + '</button>'; });
+                var html = '<button class="gas-category-tab active" data-cat="all">' + (allLabels[lang] || 'All') + '</button>';
+                cats.forEach(function(c) { html += '<button class="gas-category-tab" data-cat="' + c.replace(/"/g,'&quot;') + '">' + (catMap[c] || c) + '</button>'; });
                 tabsContainer.innerHTML = html;
                 tabsContainer.addEventListener('click', function(e) {
                     var btn = e.target.closest('.gas-category-tab');
