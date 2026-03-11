@@ -715,12 +715,12 @@ async function runMigrations() {
             SELECT jsonb_object_agg(lower(key), value) FROM jsonb_each(amenity_name)
           ) WHERE amenity_name IS NOT NULL AND amenity_name::text ~ '"[A-Z]{2}"'
         `).catch(e => console.log('  amenity normalization:', e.message));
-        // bookable_units multilingual fields
+        // bookable_units multilingual fields (TEXT columns storing JSON strings)
         for (const col of ['display_name', 'short_description', 'full_description']) {
           await pool.query(`
             UPDATE bookable_units SET ${col} = (
-              SELECT jsonb_object_agg(lower(key), value) FROM jsonb_each(${col}::jsonb)
-            ) WHERE ${col} IS NOT NULL AND ${col}::text ~ '"[A-Z]{2}"'
+              SELECT jsonb_object_agg(lower(key), value)::text FROM jsonb_each(${col}::jsonb)
+            ) WHERE ${col} IS NOT NULL AND ${col} ~ '"[A-Z]{2}"'
           `).catch(e => console.log(`  ${col} normalization:`, e.message));
         }
         await pool.query(`INSERT INTO _migrations (name) VALUES ('normalize_jsonb_lang_keys')`);
@@ -4762,15 +4762,15 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         
         // Update descriptions only if GAS fields are currently empty (don't overwrite manual edits)
         if (displayNameMultilang && Object.keys(displayNameMultilang).length > 0) {
-          await pool.query(`UPDATE bookable_units SET display_name = $1::jsonb WHERE id = $2 AND (display_name IS NULL OR display_name::text = 'null' OR display_name::text = '{}')`, [JSON.stringify(displayNameMultilang), gasRoomId])
+          await pool.query(`UPDATE bookable_units SET display_name = $1 WHERE id = $2 AND (display_name IS NULL OR display_name = 'null' OR display_name = '{}' OR display_name = '')`, [JSON.stringify(displayNameMultilang), gasRoomId])
             .catch(e => console.log('link-to-gas: display_name update skipped:', e.message));
         }
         if (shortDescMultilang && Object.keys(shortDescMultilang).length > 0) {
-          await pool.query(`UPDATE bookable_units SET short_description = $1::jsonb WHERE id = $2 AND (short_description IS NULL OR short_description::text = 'null' OR short_description::text = '{}')`, [JSON.stringify(shortDescMultilang), gasRoomId])
+          await pool.query(`UPDATE bookable_units SET short_description = $1 WHERE id = $2 AND (short_description IS NULL OR short_description = 'null' OR short_description = '{}' OR short_description = '')`, [JSON.stringify(shortDescMultilang), gasRoomId])
             .catch(e => console.log('link-to-gas: short_description update skipped:', e.message));
         }
         if (fullDescMultilang && Object.keys(fullDescMultilang).length > 0) {
-          await pool.query(`UPDATE bookable_units SET full_description = $1::jsonb WHERE id = $2 AND (full_description IS NULL OR full_description::text = 'null' OR full_description::text = '{}')`, [JSON.stringify(fullDescMultilang), gasRoomId])
+          await pool.query(`UPDATE bookable_units SET full_description = $1 WHERE id = $2 AND (full_description IS NULL OR full_description = 'null' OR full_description = '{}' OR full_description = '')`, [JSON.stringify(fullDescMultilang), gasRoomId])
             .catch(e => console.log('link-to-gas: full_description update skipped:', e.message));
         }
 
@@ -4809,20 +4809,20 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         ]);
         gasRoomId = roomResult.rows[0].id;
         
-        // Update text fields separately - columns are JSONB, need {"en": "...", "fr": "..."} format (multilingual)
+        // Update text fields separately - stored as JSON strings in TEXT columns
         if (displayNameMultilang && Object.keys(displayNameMultilang).length > 0) {
           const jsonVal = JSON.stringify(displayNameMultilang);
-          await pool.query('UPDATE bookable_units SET display_name = $1::jsonb WHERE id = $2', [jsonVal, gasRoomId])
+          await pool.query('UPDATE bookable_units SET display_name = $1 WHERE id = $2', [jsonVal, gasRoomId])
             .catch(e => console.log('link-to-gas: display_name update failed:', e.message));
         }
         if (shortDescMultilang && Object.keys(shortDescMultilang).length > 0) {
           const jsonVal = JSON.stringify(shortDescMultilang);
-          await pool.query('UPDATE bookable_units SET short_description = $1::jsonb WHERE id = $2', [jsonVal, gasRoomId])
+          await pool.query('UPDATE bookable_units SET short_description = $1 WHERE id = $2', [jsonVal, gasRoomId])
             .catch(e => console.log('link-to-gas: short_description update failed:', e.message));
         }
         if (fullDescMultilang && Object.keys(fullDescMultilang).length > 0) {
           const jsonVal = JSON.stringify(fullDescMultilang);
-          await pool.query('UPDATE bookable_units SET full_description = $1::jsonb WHERE id = $2', [jsonVal, gasRoomId])
+          await pool.query('UPDATE bookable_units SET full_description = $1 WHERE id = $2', [jsonVal, gasRoomId])
             .catch(e => console.log('link-to-gas: full_description update failed:', e.message));
         }
         
@@ -5318,11 +5318,11 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
           
           // Update descriptions separately (JSONB columns)
           if (fullDescJson) {
-            await pool.query('UPDATE bookable_units SET full_description = $1::jsonb WHERE id = $2', [fullDescJson, gasRoomId])
+            await pool.query('UPDATE bookable_units SET full_description = $1 WHERE id = $2', [fullDescJson, gasRoomId])
               .catch(e => console.log('link-to-gas: full_description update skipped:', e.message));
           }
           if (shortDescJson) {
-            await pool.query('UPDATE bookable_units SET short_description = $1::jsonb WHERE id = $2', [shortDescJson, gasRoomId])
+            await pool.query('UPDATE bookable_units SET short_description = $1 WHERE id = $2', [shortDescJson, gasRoomId])
               .catch(e => console.log('link-to-gas: short_description update skipped:', e.message));
           }
           
@@ -5645,7 +5645,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
               }
               const translated = await translateFieldToLanguages(displayNameObj, sourceLang, supportedLangs);
               if (translated && Object.keys(translated).length > 0) {
-                updates.push(`display_name = $${paramIndex}::jsonb`);
+                updates.push(`display_name = $${paramIndex}`);
                 params.push(JSON.stringify(translated));
                 paramIndex++;
               }
@@ -5659,7 +5659,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
               }
               const translated = await translateFieldToLanguages(shortDescObj, sourceLang, supportedLangs);
               if (translated && Object.keys(translated).length > 0) {
-                updates.push(`short_description = $${paramIndex}::jsonb`);
+                updates.push(`short_description = $${paramIndex}`);
                 params.push(JSON.stringify(translated));
                 paramIndex++;
               }
@@ -5673,7 +5673,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
               }
               const translated = await translateFieldToLanguages(fullDescObj, sourceLang, supportedLangs);
               if (translated && Object.keys(translated).length > 0) {
-                updates.push(`full_description = $${paramIndex}::jsonb`);
+                updates.push(`full_description = $${paramIndex}`);
                 params.push(JSON.stringify(translated));
                 paramIndex++;
               }
@@ -7941,14 +7941,14 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
         const displayName = cleanMultilang(raw.displayName);
 
         if (shortDesc && (!room.short_description || force)) {
-          await pool.query('UPDATE bookable_units SET short_description = $1::jsonb WHERE id = $2', [JSON.stringify(shortDesc), room.gas_room_id]);
+          await pool.query('UPDATE bookable_units SET short_description = $1 WHERE id = $2', [JSON.stringify(shortDesc), room.gas_room_id]);
           descCount++;
         }
         if (fullDesc && (!room.full_description || force)) {
-          await pool.query('UPDATE bookable_units SET full_description = $1::jsonb WHERE id = $2', [JSON.stringify(fullDesc), room.gas_room_id]);
+          await pool.query('UPDATE bookable_units SET full_description = $1 WHERE id = $2', [JSON.stringify(fullDesc), room.gas_room_id]);
         }
         if (displayName && (!room.display_name || force)) {
-          await pool.query('UPDATE bookable_units SET display_name = $1::jsonb WHERE id = $2', [JSON.stringify(displayName), room.gas_room_id]);
+          await pool.query('UPDATE bookable_units SET display_name = $1 WHERE id = $2', [JSON.stringify(displayName), room.gas_room_id]);
         }
       }
 
@@ -8002,10 +8002,10 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
               }
             }
             if (Object.keys(fullDescObj).length > 0) {
-              await pool.query('UPDATE bookable_units SET full_description = $1::jsonb WHERE id = $2', [JSON.stringify(fullDescObj), room.gas_room_id]);
+              await pool.query('UPDATE bookable_units SET full_description = $1 WHERE id = $2', [JSON.stringify(fullDescObj), room.gas_room_id]);
             }
             if (Object.keys(shortDescObj).length > 0) {
-              await pool.query('UPDATE bookable_units SET short_description = $1::jsonb WHERE id = $2', [JSON.stringify(shortDescObj), room.gas_room_id]);
+              await pool.query('UPDATE bookable_units SET short_description = $1 WHERE id = $2', [JSON.stringify(shortDescObj), room.gas_room_id]);
             }
             // Store location description on the room
             if (locationDesc) {
@@ -29303,7 +29303,7 @@ app.get('/api/admin/fix-descriptions/:accountId', async (req, res) => {
           try { cleaned = JSON.parse(cleaned); } catch(e) { break; }
         }
         if (typeof cleaned === 'object' && cleaned !== null) {
-          await pool.query('UPDATE bookable_units SET full_description = $1::jsonb WHERE id = $2', 
+          await pool.query('UPDATE bookable_units SET full_description = $1 WHERE id = $2', 
             [JSON.stringify(cleaned), row.id]);
           fixed++;
         }
@@ -29328,7 +29328,7 @@ app.get('/api/admin/fix-descriptions/:accountId', async (req, res) => {
           try { cleaned = JSON.parse(cleaned); } catch(e) { break; }
         }
         if (typeof cleaned === 'object' && cleaned !== null) {
-          await pool.query('UPDATE bookable_units SET short_description = $1::jsonb WHERE id = $2', 
+          await pool.query('UPDATE bookable_units SET short_description = $1 WHERE id = $2', 
             [JSON.stringify(cleaned), row.id]);
           fixedShort++;
         }
@@ -34503,15 +34503,15 @@ app.post('/api/hostfully/import-to-gas/:connectionId', async (req, res) => {
                 descTransit = enDesc.transit || '';
 
                 if (Object.keys(displayNameObj).length > 0) {
-                  await pool.query('UPDATE bookable_units SET display_name = $1::jsonb WHERE id = $2', [JSON.stringify(displayNameObj), gasRoomId]);
+                  await pool.query('UPDATE bookable_units SET display_name = $1 WHERE id = $2', [JSON.stringify(displayNameObj), gasRoomId]);
                 }
                 
                 if (Object.keys(fullDescObj).length > 0) {
-                  await pool.query('UPDATE bookable_units SET full_description = $1::jsonb WHERE id = $2', 
+                  await pool.query('UPDATE bookable_units SET full_description = $1 WHERE id = $2', 
                     [JSON.stringify(fullDescObj), gasRoomId]);
                 }
                 if (Object.keys(shortDescObj).length > 0) {
-                  await pool.query('UPDATE bookable_units SET short_description = $1::jsonb WHERE id = $2', 
+                  await pool.query('UPDATE bookable_units SET short_description = $1 WHERE id = $2', 
                     [JSON.stringify(shortDescObj), gasRoomId]);
                 }
                 
@@ -37134,11 +37134,11 @@ app.post('/api/hostaway/resync-single-property', async (req, res) => {
       propertyId
     ]);
     
-    // Update bookable_unit (display_name is JSONB so needs JSON format)
+    // Update bookable_unit (display_name stored as JSON string in TEXT column)
     await pool.query(`
       UPDATE bookable_units SET
         name = $1,
-        display_name = $2::jsonb,
+        display_name = $2,
         unit_type = $3,
         max_guests = $4,
         max_adults = $5,
@@ -79963,19 +79963,19 @@ async function processTranslationQueue() {
         let paramIndex = 1;
         
         if (translatedShort && Object.keys(translatedShort).length > 0) {
-          updates.push(`short_description = $${paramIndex}::jsonb`);
+          updates.push(`short_description = $${paramIndex}`);
           params.push(JSON.stringify(translatedShort));
           paramIndex++;
         }
         
         if (translatedFull && Object.keys(translatedFull).length > 0) {
-          updates.push(`full_description = $${paramIndex}::jsonb`);
+          updates.push(`full_description = $${paramIndex}`);
           params.push(JSON.stringify(translatedFull));
           paramIndex++;
         }
         
         if (translatedDisplayName && Object.keys(translatedDisplayName).length > 0) {
-          updates.push(`display_name = $${paramIndex}::jsonb`);
+          updates.push(`display_name = $${paramIndex}`);
           params.push(JSON.stringify(translatedDisplayName));
           paramIndex++;
         }
