@@ -41087,7 +41087,10 @@ app.put('/api/admin/units/:id', async (req, res) => {
     console.log('PUT /api/admin/units/' + id, 'body:', JSON.stringify(req.body));
     
     const { quantity, status, room_type, max_guests, max_adults, max_children, display_name, short_description, full_description, repuso_widget_id } = req.body;
-    
+
+    // Ensure repuso_widget_id column exists
+    await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS repuso_widget_id VARCHAR(255)').catch(() => {});
+
     // Update basic fields only - no JSONB casting to avoid errors
     const result = await pool.query(`
       UPDATE bookable_units 
