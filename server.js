@@ -7907,7 +7907,7 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
     // Beds24 content sync — push descriptions from gas_sync_room_types.raw_data to bookable_units
     if (prop.adapter_code === 'beds24') {
       const roomTypes = await pool.query(
-        `SELECT rt.id, rt.gas_room_id, rt.name, rt.raw_data,
+        `SELECT rt.id, rt.external_id, rt.gas_room_id, rt.name, rt.raw_data,
                 bu.short_description, bu.full_description, bu.display_name
          FROM gas_sync_room_types rt
          JOIN bookable_units bu ON bu.id = rt.gas_room_id
@@ -7932,13 +7932,51 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
         return Object.keys(cleaned).length > 0 ? cleaned : null;
       };
 
+      // If raw_data has no texts, fetch fresh from Beds24 API
+      let beds24TextsMap = {};
+      const firstRaw = roomTypes.rows[0]?.raw_data;
+      if (firstRaw && !firstRaw.texts && !firstRaw.short_description) {
+        console.log('content-sync: raw_data has no texts, fetching from Beds24 API...');
+        try {
+          let creds = prop.credentials || {};
+          if (typeof creds === 'string') creds = JSON.parse(creds);
+          const refreshToken = prop.refresh_token || creds.refreshToken || creds.refresh_token;
+          if (refreshToken) {
+            const tokenResp = await axios.get('https://beds24.com/api/v2/authentication/token', {
+              headers: { 'refreshToken': refreshToken }
+            });
+            const accessToken = tokenResp.data.token;
+            const propResp = await axios.get('https://beds24.com/api/v2/properties', {
+              headers: { 'token': accessToken },
+              params: { id: prop.external_id, includeTexts: 'all', includeAllRooms: true }
+            });
+            const b24Data = Array.isArray(propResp.data) ? propResp.data[0] : (propResp.data?.data?.[0] || propResp.data);
+            if (b24Data) {
+              const b24Rooms = b24Data.roomTypes || b24Data.rooms || [];
+              for (const r of b24Rooms) {
+                beds24TextsMap[String(r.id || r.roomId)] = r.texts || {};
+              }
+              console.log('content-sync: Fetched texts for', Object.keys(beds24TextsMap).length, 'rooms from Beds24 API');
+            }
+          }
+        } catch (e) {
+          console.log('content-sync: Beds24 API fetch error:', e.message);
+        }
+      }
+
       let descCount = 0;
       for (const room of roomTypes.rows) {
-        const raw = room.raw_data;
-        if (!raw) continue;
-        const shortDesc = cleanMultilang(raw.short_description);
-        const fullDesc = cleanMultilang(raw.full_description);
-        const displayName = cleanMultilang(raw.displayName);
+        const raw = room.raw_data || {};
+
+        // Try GAS field names first, then Beds24 texts structure, then API-fetched texts
+        const texts = raw.texts || beds24TextsMap[String(room.external_id)] || {};
+
+        // Beds24 uses texts.roomDescription1 for short desc, texts.auxiliaryText for full desc
+        const shortDesc = cleanMultilang(raw.short_description) || cleanMultilang(texts.roomDescription1);
+        const fullDesc = cleanMultilang(raw.full_description) || cleanMultilang(texts.auxiliaryText);
+        const displayName = cleanMultilang(raw.displayName) || cleanMultilang(texts.displayName);
+
+        console.log('content-sync: Room', room.name, '- displayName:', !!displayName, 'shortDesc:', !!shortDesc, 'fullDesc:', !!fullDesc);
 
         if (shortDesc && (!room.short_description || force)) {
           await pool.query('UPDATE bookable_units SET short_description = $1 WHERE id = $2', [JSON.stringify(shortDesc), room.gas_room_id]);
@@ -7946,9 +7984,11 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
         }
         if (fullDesc && (!room.full_description || force)) {
           await pool.query('UPDATE bookable_units SET full_description = $1 WHERE id = $2', [JSON.stringify(fullDesc), room.gas_room_id]);
+          descCount++;
         }
         if (displayName && (!room.display_name || force)) {
           await pool.query('UPDATE bookable_units SET display_name = $1 WHERE id = $2', [JSON.stringify(displayName), room.gas_room_id]);
+          descCount++;
         }
       }
 
