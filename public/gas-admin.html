@@ -48727,18 +48727,50 @@ const promo = await fetch('/api/v1/offers/validate', {
             try {
                 const select = document.getElementById('blog-category');
                 if (!select) return;
-                
+
                 const response = await fetch('/api/admin/blog-categories?client_id=' + (selectedAccountId || getClientId()));
                 const data = await response.json();
-                
+
                 select.innerHTML = '<option value="">Select category...</option>';
-                
+
                 if (data.success && data.categories && data.categories.length > 0) {
                     data.categories.forEach(cat => {
                         const option = document.createElement('option');
                         option.value = cat.name;
                         option.textContent = cat.name;
                         if (selectedCategory && cat.name === selectedCategory) {
+                            option.selected = true;
+                        }
+                        select.appendChild(option);
+                    });
+                } else {
+                    // Default categories matching blog ideas wizard topics
+                    const defaults = [
+                        { value: 'museums', label: 'Museums & Galleries' },
+                        { value: 'landmarks', label: 'Landmarks & Monuments' },
+                        { value: 'parks', label: 'Parks & Gardens' },
+                        { value: 'beaches', label: 'Beaches & Coastline' },
+                        { value: 'restaurants', label: 'Restaurants & Dining' },
+                        { value: 'cafes', label: 'Cafes & Coffee Shops' },
+                        { value: 'nightlife', label: 'Nightlife & Bars' },
+                        { value: 'shopping', label: 'Shopping & Markets' },
+                        { value: 'nature', label: 'Nature & Outdoor' },
+                        { value: 'daytrips', label: 'Day Trips' },
+                        { value: 'festivals', label: 'Festivals & Celebrations' },
+                        { value: 'concerts', label: 'Concerts & Live Music' },
+                        { value: 'theater', label: 'Theater & Performances' },
+                        { value: 'sports', label: 'Sports Events' },
+                        { value: 'markets', label: 'Markets & Fairs' },
+                        { value: 'cultural', label: 'Cultural Events' },
+                        { value: 'seasonal', label: 'Seasonal Activities' },
+                        { value: 'holidays', label: 'Holiday Events' },
+                        { value: 'family', label: 'Family Events' }
+                    ];
+                    defaults.forEach(cat => {
+                        const option = document.createElement('option');
+                        option.value = cat.value;
+                        option.textContent = cat.label;
+                        if (selectedCategory && cat.value === selectedCategory) {
                             option.selected = true;
                         }
                         select.appendChild(option);
