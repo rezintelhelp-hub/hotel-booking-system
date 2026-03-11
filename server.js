@@ -4442,7 +4442,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
             const accessToken = tokenResp.data.token;
             const propResp = await axios.get('https://beds24.com/api/v2/properties', {
               headers: { 'token': accessToken },
-              params: { id: prop.external_id, includeTexts: 'all', includeAllRooms: true }
+              params: { id: prop.external_id, includeTexts: 'all', includeLanguages: 'all', includeAllRooms: true }
             });
             const b24Prop = propResp.data?.data?.[0] || propResp.data?.[0];
             if (b24Prop) {
@@ -7954,7 +7954,7 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
 
         const propResp = await axios.get('https://beds24.com/api/v2/properties', {
           headers: { 'token': accessToken },
-          params: { id: prop.external_id, includeTexts: 'all', includeAllRooms: true }
+          params: { id: prop.external_id, includeTexts: 'all', includeLanguages: 'all', includeAllRooms: true }
         });
         console.log('content-sync: Beds24 API response status:', propResp.status, 'data type:', typeof propResp.data, 'isArray:', Array.isArray(propResp.data));
 
@@ -8345,6 +8345,7 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
       params: {
         id: prop.external_id,
         includeTexts: 'all',
+        includeLanguages: 'all',
         includeAllRooms: true,
         includeUnitDetails: true,
         includeFeatures: true
@@ -10064,6 +10065,7 @@ app.post('/api/gas-sync/connections/:id/import-property', async (req, res) => {
       params: {
         id: externalId,
         includeTexts: 'all',
+        includeLanguages: 'all',
         includePictures: true,
         includeAllRooms: true,
         includeUnitDetails: true
@@ -35782,11 +35784,12 @@ app.post('/api/beds24/list-properties', async (req, res) => {
       },
       params: {
         includeTexts: 'all',
+        includeLanguages: 'all',
         includePictures: true,
         includeAllRooms: true
       }
     });
-    
+
     let properties = response.data.data || [];
     console.log('Found ' + properties.length + ' total properties');
     
@@ -35838,7 +35841,7 @@ app.post('/api/beds24/refresh-properties', async (req, res) => {
     // 1. Fetch all properties from Beds24
     const response = await axios.get('https://beds24.com/api/v2/properties', {
       headers: { 'token': token, 'accept': 'application/json' },
-      params: { includeTexts: 'all', includePictures: true, includeAllRooms: true }
+      params: { includeTexts: 'all', includeLanguages: 'all', includePictures: true, includeAllRooms: true }
     });
     
     const cmProperties = response.data.data || [];
@@ -35930,7 +35933,7 @@ app.post('/api/beds24/import-property', async (req, res) => {
     // 1. Fetch property from Beds24
     const propResponse = await axios.get('https://beds24.com/api/v2/properties', {
       headers: { 'token': token, 'accept': 'application/json' },
-      params: { id: propId, includeTexts: 'all', includeAllRooms: true }
+      params: { id: propId, includeTexts: 'all', includeLanguages: 'all', includeAllRooms: true }
     });
     
     const props = propResponse.data.data || propResponse.data || [];
@@ -36109,6 +36112,7 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
       params: {
         id: propertyId,
         includeTexts: 'all',       // Get all text fields
+        includeLanguages: 'all',   // Get all language translations
         includePictures: true,     // Get images
         includeAllRooms: true,     // Get all rooms
         includeUnitDetails: true   // Get room details
