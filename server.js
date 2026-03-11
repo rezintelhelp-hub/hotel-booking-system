@@ -3721,7 +3721,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     
     // 1. Get synced property data AND connection's account_id
     const syncProp = await pool.query(`
-      SELECT sp.*, c.adapter_code, c.account_id as connection_account_id
+      SELECT sp.*, c.adapter_code, c.account_id as connection_account_id, c.credentials, c.refresh_token
       FROM gas_sync_properties sp
       JOIN gas_sync_connections c ON sp.connection_id = c.id
       WHERE sp.id = $1
@@ -4423,13 +4423,55 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     let roomsCreated = 0;
     let roomsUpdated = 0;
     const roomIdMap = {}; // Map sync room external_id to GAS room id
-    
+
+    // For Beds24: fetch fresh room texts from API if raw_data is empty
+    const beds24RoomTextsMap = {}; // external_id -> { displayName, roomDescription1, auxiliaryText }
+    if (prop.adapter_code === 'beds24' && syncRooms.rows.length > 0) {
+      const firstRoom = syncRooms.rows[0];
+      const firstRawData = typeof firstRoom.raw_data === 'string' ? JSON.parse(firstRoom.raw_data) : (firstRoom.raw_data || {});
+      if (!firstRawData.texts) {
+        console.log('link-to-gas: Room raw_data has no texts, fetching from Beds24 API...');
+        try {
+          let creds = prop.credentials || {};
+          if (typeof creds === 'string') creds = JSON.parse(creds);
+          const refreshToken = prop.refresh_token || creds.refreshToken || creds.refresh_token;
+          if (refreshToken) {
+            const tokenResp = await axios.get('https://beds24.com/api/v2/authentication/token', {
+              headers: { 'refreshToken': refreshToken }
+            });
+            const accessToken = tokenResp.data.token;
+            const propResp = await axios.get('https://beds24.com/api/v2/properties', {
+              headers: { 'token': accessToken },
+              params: { id: prop.external_id, includeTexts: 'all', includeAllRooms: true }
+            });
+            const b24Prop = propResp.data?.data?.[0] || propResp.data?.[0];
+            if (b24Prop) {
+              const b24Rooms = b24Prop.roomTypes || b24Prop.rooms || [];
+              for (const r of b24Rooms) {
+                const roomId = String(r.id || r.roomId);
+                beds24RoomTextsMap[roomId] = r.texts || {};
+                console.log(`link-to-gas: Fetched texts for room ${roomId} (${r.name}): keys=${Object.keys(r.texts || {}).join(',')}`);
+              }
+            }
+          }
+        } catch (e) {
+          console.log('link-to-gas: Beds24 text fetch error:', e.message);
+        }
+      }
+    }
+
     for (const room of syncRooms.rows) {
-      const roomRawData = typeof room.raw_data === 'string' ? JSON.parse(room.raw_data) : (room.raw_data || {});
-      
+      let roomRawData = typeof room.raw_data === 'string' ? JSON.parse(room.raw_data) : (room.raw_data || {});
+
+      // Merge Beds24 API texts if raw_data was empty
+      if (!roomRawData.texts && beds24RoomTextsMap[String(room.external_id)]) {
+        roomRawData.texts = beds24RoomTextsMap[String(room.external_id)];
+        console.log('link-to-gas: Merged API texts for room', room.external_id);
+      }
+
       // Debug: log all raw_data keys
       console.log('link-to-gas: raw_data keys:', Object.keys(roomRawData).join(', '));
-      
+
       // Beds24 texts is an OBJECT with nested language keys: texts.displayName.EN
       const texts = roomRawData.texts || {};
       
