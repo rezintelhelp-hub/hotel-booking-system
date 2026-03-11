@@ -194,7 +194,12 @@ class GAS_Attractions {
         $url = trailingslashit($this->get_api_url()).'api/public/client/'.$client_id.'/attractions';
         $params = array('lang' => $this->get_current_language());
         $pid = get_option('gas_attractions_property_id') ?: get_option('gas_property_id', '');
-        if ($pid) $params['property_id'] = $pid;
+        if ($pid) {
+            $params['property_id'] = $pid;
+        } else {
+            // No property_id set — don't show content from other properties
+            return array();
+        }
         if (!empty($args['limit'])) $params['limit'] = $args['limit'];
         if (!empty($args['category'])) $params['category'] = $args['category'];
         if ($params) $url .= '?'.http_build_query($params);
