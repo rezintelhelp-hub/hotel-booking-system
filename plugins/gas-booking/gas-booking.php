@@ -177,7 +177,9 @@ class GAS_Booking {
         add_shortcode('gas_privacy', array($this, 'privacy_shortcode'));
         add_shortcode('gas_gallery', array($this, 'gallery_shortcode'));
         add_shortcode('gas_dining', array($this, 'dining_shortcode'));
-        add_shortcode('gas_properties', array($this, 'properties_shortcode'));
+        if (!shortcode_exists('gas_properties')) {
+            add_shortcode('gas_properties', array($this, 'properties_shortcode'));
+        }
         add_shortcode('gas_blog', array($this, 'blog_shortcode'));
         add_shortcode('gas_blog_categories', array($this, 'blog_categories_shortcode'));
         add_shortcode('gas_attractions', array($this, 'attractions_shortcode'));
