@@ -10066,15 +10066,29 @@ app.post('/api/gas-sync/connections/:id/import-property', async (req, res) => {
     
     for (const room of rooms) {
       const beds24RoomId = String(room.id || room.roomId);
-      
+
       let roomDescription = '';
       let roomShortDesc = '';
+      let roomDisplayName = '';
       if (room.texts && Array.isArray(room.texts) && room.texts.length > 0) {
         const roomText = room.texts[0];
-        roomDescription = roomText.roomDescription || roomText.description || '';
-        roomShortDesc = roomText.roomShortDescription || roomText.shortDescription || '';
+        roomDescription = roomText.roomDescription || roomText.roomDescription1 || roomText.description || '';
+        roomShortDesc = roomText.roomShortDescription || roomText.shortDescription || roomText.auxiliaryText || '';
+        roomDisplayName = roomText.displayName || roomText.name || '';
+      } else if (room.texts && typeof room.texts === 'object' && !Array.isArray(room.texts)) {
+        // V2 object format: texts.displayName.EN, texts.roomDescription1.EN etc.
+        const getTextVal = (val) => {
+          if (!val) return '';
+          if (typeof val === 'string') return val;
+          if (typeof val === 'object') return val.EN || val.en || Object.values(val).find(v => typeof v === 'string' && v.trim()) || '';
+          return '';
+        };
+        roomDisplayName = getTextVal(room.texts.displayName) || '';
+        roomDescription = getTextVal(room.texts.roomDescription1) || getTextVal(room.texts.description) || '';
+        roomShortDesc = getTextVal(room.texts.auxiliaryText) || getTextVal(room.texts.roomShortDescription) || '';
       }
-      
+      console.log(`  Room ${room.name}: displayName="${roomDisplayName}", desc="${roomDescription?.substring(0,50)}", shortDesc="${roomShortDesc?.substring(0,50)}"`);
+
       // Bed config
       let bedConfig = null;
       if (room.bedTypes && Array.isArray(room.bedTypes) && room.bedTypes.length > 0) {
@@ -10102,14 +10116,16 @@ app.post('/api/gas-sync/connections/:id/import-property', async (req, res) => {
         await client.query(`
           UPDATE bookable_units SET
             name = $1, unit_type = $2, description = $3, short_description = $4,
-            max_guests = $5, max_adults = $6, max_children = $7, quantity = $8,
-            base_price = $9, size_sqm = $10, bed_configuration = $11,
-            bathroom_count = $12, bedroom_count = $13, min_stay = $14, max_stay = $15,
-            beds24_room_id = $17, cm_room_id = $18, updated_at = NOW()
-          WHERE id = $16
+            full_description = $5, display_name = $6,
+            max_guests = $7, max_adults = $8, max_children = $9, quantity = $10,
+            base_price = $11, size_sqm = $12, bed_configuration = $13,
+            bathroom_count = $14, bedroom_count = $15, min_stay = $16, max_stay = $17,
+            beds24_room_id = $19, cm_room_id = $20, updated_at = NOW()
+          WHERE id = $18
         `, [
           room.name || 'Room', room.roomType || 'double',
           JSON.stringify({ en: roomDescription }), JSON.stringify({ en: roomShortDesc }),
+          JSON.stringify({ en: roomDescription }), roomDisplayName ? JSON.stringify({ en: roomDisplayName }) : null,
           room.maxPeople || room.maxGuests || 2, room.maxAdult || room.maxAdults || 2,
           room.maxChildren || 0, room.qty || room.quantity || 1,
           room.rackRate || room.basePrice || room.price || 100,
@@ -10125,15 +10141,17 @@ app.post('/api/gas-sync/connections/:id/import-property', async (req, res) => {
         const unitResult = await client.query(`
           INSERT INTO bookable_units (
             property_id, beds24_room_id, cm_room_id, name, unit_type,
-            description, short_description, max_guests, max_adults, max_children,
+            description, short_description, full_description, display_name,
+            max_guests, max_adults, max_children,
             quantity, base_price, size_sqm, bed_configuration,
             bathroom_count, bedroom_count, min_stay, max_stay, status
-          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,'available')
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,'available')
           RETURNING id
         `, [
           gasPropertyId, parseInt(beds24RoomId) || null, beds24RoomId,
           room.name || 'Room', room.roomType || 'double',
           JSON.stringify({ en: roomDescription }), JSON.stringify({ en: roomShortDesc }),
+          JSON.stringify({ en: roomDescription }), roomDisplayName ? JSON.stringify({ en: roomDisplayName }) : null,
           room.maxPeople || room.maxGuests || 2, room.maxAdult || room.maxAdults || 2,
           room.maxChildren || 0, room.qty || room.quantity || 1,
           room.rackRate || room.basePrice || room.price || 100,
