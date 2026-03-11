@@ -47457,7 +47457,8 @@ const promo = await fetch('/api/v1/offers/validate', {
         async function loadLanguageSettings(forceReload) {
             if (window.accountLanguageSettings && !forceReload) return;
             try {
-                const acctParam = selectedAccountId ? `?account_id=${selectedAccountId}` : '';
+                const acctId = selectedAccountId || getClientId();
+                const acctParam = acctId ? `?account_id=${acctId}` : '';
                 const response = await fetch(`/api/account/language-settings${acctParam}`, { headers: authHeaders() });
                 const data = await response.json();
                 if (data.success) {
@@ -48598,7 +48599,7 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
 
         async function openBlogModal(post = null) {
-            await loadLanguageSettings();
+            await loadLanguageSettings(true);
             document.getElementById('blog-form').reset();
             document.getElementById('blog-id').value = '';
             document.getElementById('blog-delete-btn').style.display = 'none';
@@ -48727,7 +48728,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const select = document.getElementById('blog-category');
                 if (!select) return;
                 
-                const response = await fetch('/api/admin/blog-categories?client_id=' + selectedAccountId);
+                const response = await fetch('/api/admin/blog-categories?client_id=' + (selectedAccountId || getClientId()));
                 const data = await response.json();
                 
                 select.innerHTML = '<option value="">Select category...</option>';
@@ -49034,7 +49035,7 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
 
         async function openAttractionModal(attraction = null) {
-            await loadLanguageSettings();
+            await loadLanguageSettings(true);
             document.getElementById('attraction-form').reset();
             document.getElementById('attraction-id').value = '';
             document.getElementById('attraction-delete-btn').style.display = 'none';
@@ -53121,7 +53122,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const select = document.getElementById('ai-blog-category');
                 if (!select) return;
                 
-                const response = await fetch('/api/admin/blog-categories?client_id=' + selectedAccountId);
+                const response = await fetch('/api/admin/blog-categories?client_id=' + (selectedAccountId || getClientId()));
                 const data = await response.json();
                 
                 select.innerHTML = '<option value="General">General</option>';
