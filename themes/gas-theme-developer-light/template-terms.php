@@ -101,8 +101,10 @@ if ($terms_source === 'gas-account') {
             $ci .= '</p>';
         }
         if (!empty($pt['self_checkin'])) $ci .= '<p>' . esc_html($tt['self_checkin']) . '</p>';
-        if (!empty($pt['check_in_instructions'])) $ci .= gas_format_text($pt['check_in_instructions']);
-        if (!empty($pt['check_out_instructions'])) $ci .= gas_format_text($pt['check_out_instructions']);
+        $ci_text = (!empty($pt['check_in_instructions_ml'][$lang])) ? $pt['check_in_instructions_ml'][$lang] : ($pt['check_in_instructions'] ?? '');
+        if (!empty($ci_text)) $ci .= gas_format_text($ci_text);
+        $co_text = (!empty($pt['check_out_instructions_ml'][$lang])) ? $pt['check_out_instructions_ml'][$lang] : ($pt['check_out_instructions'] ?? '');
+        if (!empty($co_text)) $ci .= gas_format_text($co_text);
         $all_sections[] = ['title' => $tt['checkin_checkout'], 'content' => $ci, 'html' => true];
     }
 
@@ -130,17 +132,21 @@ if ($terms_source === 'gas-account') {
         $all_sections[] = ['title' => $tt['house_rules'], 'content' => $hr, 'html' => true];
     }
 
-    if (!empty($pt['terms_conditions'])) {
-        $all_sections[] = ['title' => $tt['terms'], 'content' => gas_format_text($pt['terms_conditions']), 'html' => true];
+    $tc_text = (!empty($pt['terms_conditions_ml'][$lang])) ? $pt['terms_conditions_ml'][$lang] : ($pt['terms_conditions'] ?? '');
+    if (!empty($tc_text)) {
+        $all_sections[] = ['title' => $tt['terms'], 'content' => gas_format_text($tc_text), 'html' => true];
     }
-    if (!empty($pt['damage_policy'])) {
-        $all_sections[] = ['title' => $tt['liability'], 'content' => gas_format_text($pt['damage_policy']), 'html' => true];
+    $dp_text = (!empty($pt['damage_policy_ml'][$lang])) ? $pt['damage_policy_ml'][$lang] : ($pt['damage_policy'] ?? '');
+    if (!empty($dp_text)) {
+        $all_sections[] = ['title' => $tt['liability'], 'content' => gas_format_text($dp_text), 'html' => true];
     }
-    if (!empty($pt['directions'])) {
-        $all_sections[] = ['title' => $tt['directions'], 'content' => gas_format_text($pt['directions']), 'html' => true];
+    $dir_text = (!empty($pt['directions_ml'][$lang])) ? $pt['directions_ml'][$lang] : ($pt['directions'] ?? '');
+    if (!empty($dir_text)) {
+        $all_sections[] = ['title' => $tt['directions'], 'content' => gas_format_text($dir_text), 'html' => true];
     }
-    if (!empty($pt['area_info'])) {
-        $all_sections[] = ['title' => $tt['area_info'], 'content' => gas_format_text($pt['area_info']), 'html' => true];
+    $ai_text = (!empty($pt['area_info_ml'][$lang])) ? $pt['area_info_ml'][$lang] : ($pt['area_info'] ?? '');
+    if (!empty($ai_text)) {
+        $all_sections[] = ['title' => $tt['area_info'], 'content' => gas_format_text($ai_text), 'html' => true];
     }
 
     $use_api = true;

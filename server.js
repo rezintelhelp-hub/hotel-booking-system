@@ -1338,6 +1338,12 @@ async function runMigrations() {
     try {
       await pool.query(`ALTER TABLE property_terms ADD COLUMN IF NOT EXISTS additional_rules_ml JSONB`);
       await pool.query(`ALTER TABLE property_terms ADD COLUMN IF NOT EXISTS cancellation_policy_ml JSONB`);
+      await pool.query(`ALTER TABLE property_terms ADD COLUMN IF NOT EXISTS check_in_instructions_ml JSONB`);
+      await pool.query(`ALTER TABLE property_terms ADD COLUMN IF NOT EXISTS check_out_instructions_ml JSONB`);
+      await pool.query(`ALTER TABLE property_terms ADD COLUMN IF NOT EXISTS damage_policy_ml JSONB`);
+      await pool.query(`ALTER TABLE property_terms ADD COLUMN IF NOT EXISTS terms_conditions_ml JSONB`);
+      await pool.query(`ALTER TABLE property_terms ADD COLUMN IF NOT EXISTS directions_ml JSONB`);
+      await pool.query(`ALTER TABLE property_terms ADD COLUMN IF NOT EXISTS area_info_ml JSONB`);
       console.log('✅ property_terms multilingual columns ensured');
     } catch (e) {
       console.log('ℹ️  property_terms multilingual:', e.message);
@@ -44845,9 +44851,10 @@ app.put('/api/admin/properties/:id/terms', async (req, res) => {
         wheelchair_accessible, step_free_access, accessible_bathroom,
         grab_rails, roll_in_shower, elevator_access, ground_floor_available,
         quiet_hours_from, quiet_hours_until, no_outside_guests, id_required,
-        additional_rules, bathroom_features, additional_rules_ml, cancellation_policy_ml,
-        check_in_instructions, check_out_instructions, damage_policy, terms_conditions, directions, area_info, apply_to_all
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43)
+        additional_rules, bathroom_features, additional_rules_ml, cancellation_policy, cancellation_policy_ml,
+        check_in_instructions, check_out_instructions, damage_policy, terms_conditions, directions, area_info, apply_to_all,
+        check_in_instructions_ml, check_out_instructions_ml, damage_policy_ml, terms_conditions_ml, directions_ml, area_info_ml
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46, $47, $48, $49, $50)
       ON CONFLICT (property_id) DO UPDATE SET
         checkin_from = EXCLUDED.checkin_from,
         checkin_until = EXCLUDED.checkin_until,
@@ -44883,6 +44890,7 @@ app.put('/api/admin/properties/:id/terms', async (req, res) => {
         additional_rules = EXCLUDED.additional_rules,
         bathroom_features = EXCLUDED.bathroom_features,
         additional_rules_ml = EXCLUDED.additional_rules_ml,
+        cancellation_policy = EXCLUDED.cancellation_policy,
         cancellation_policy_ml = EXCLUDED.cancellation_policy_ml,
         check_in_instructions = EXCLUDED.check_in_instructions,
         check_out_instructions = EXCLUDED.check_out_instructions,
@@ -44891,6 +44899,12 @@ app.put('/api/admin/properties/:id/terms', async (req, res) => {
         directions = EXCLUDED.directions,
         area_info = EXCLUDED.area_info,
         apply_to_all = EXCLUDED.apply_to_all,
+        check_in_instructions_ml = EXCLUDED.check_in_instructions_ml,
+        check_out_instructions_ml = EXCLUDED.check_out_instructions_ml,
+        damage_policy_ml = EXCLUDED.damage_policy_ml,
+        terms_conditions_ml = EXCLUDED.terms_conditions_ml,
+        directions_ml = EXCLUDED.directions_ml,
+        area_info_ml = EXCLUDED.area_info_ml,
         updated_at = CURRENT_TIMESTAMP
     `, [
       propertyId,
@@ -44928,6 +44942,7 @@ app.put('/api/admin/properties/:id/terms', async (req, res) => {
       terms.additional_rules || null,
       bathroom_features ? JSON.stringify(bathroom_features) : null,
       terms.additional_rules_ml ? JSON.stringify(terms.additional_rules_ml) : null,
+      terms.cancellation_policy || null,
       terms.cancellation_policy_ml ? JSON.stringify(terms.cancellation_policy_ml) : null,
       terms.check_in_instructions || null,
       terms.check_out_instructions || null,
@@ -44935,7 +44950,13 @@ app.put('/api/admin/properties/:id/terms', async (req, res) => {
       terms.terms_conditions || null,
       terms.directions || null,
       terms.area_info || null,
-      terms.apply_to_all || false
+      terms.apply_to_all || false,
+      terms.check_in_instructions_ml ? JSON.stringify(terms.check_in_instructions_ml) : null,
+      terms.check_out_instructions_ml ? JSON.stringify(terms.check_out_instructions_ml) : null,
+      terms.damage_policy_ml ? JSON.stringify(terms.damage_policy_ml) : null,
+      terms.terms_conditions_ml ? JSON.stringify(terms.terms_conditions_ml) : null,
+      terms.directions_ml ? JSON.stringify(terms.directions_ml) : null,
+      terms.area_info_ml ? JSON.stringify(terms.area_info_ml) : null
     ]);
     
     // Update beds - delete existing property-level beds and insert new
