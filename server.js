@@ -4718,8 +4718,20 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
           prop.adapter_code === 'beds24' ? parseInt(room.external_id) : null
         ]);
         
-        // Descriptions NOT updated on sync - these are manually curated / AI-generated
-        
+        // Update descriptions only if GAS fields are currently empty (don't overwrite manual edits)
+        if (displayNameMultilang && Object.keys(displayNameMultilang).length > 0) {
+          await pool.query(`UPDATE bookable_units SET display_name = $1::jsonb WHERE id = $2 AND (display_name IS NULL OR display_name::text = 'null' OR display_name::text = '{}')`, [JSON.stringify(displayNameMultilang), gasRoomId])
+            .catch(e => console.log('link-to-gas: display_name update skipped:', e.message));
+        }
+        if (shortDescMultilang && Object.keys(shortDescMultilang).length > 0) {
+          await pool.query(`UPDATE bookable_units SET short_description = $1::jsonb WHERE id = $2 AND (short_description IS NULL OR short_description::text = 'null' OR short_description::text = '{}')`, [JSON.stringify(shortDescMultilang), gasRoomId])
+            .catch(e => console.log('link-to-gas: short_description update skipped:', e.message));
+        }
+        if (fullDescMultilang && Object.keys(fullDescMultilang).length > 0) {
+          await pool.query(`UPDATE bookable_units SET full_description = $1::jsonb WHERE id = $2 AND (full_description IS NULL OR full_description::text = 'null' OR full_description::text = '{}')`, [JSON.stringify(fullDescMultilang), gasRoomId])
+            .catch(e => console.log('link-to-gas: full_description update skipped:', e.message));
+        }
+
         roomsUpdated++;
       } else {
         // Create new room - basic fields first
