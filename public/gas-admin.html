@@ -24056,10 +24056,10 @@ const promo = await fetch('/api/v1/offers/validate', {
             const originalText = btn.innerHTML;
             btn.innerHTML = ' Generating...';
             btn.disabled = true;
-            
+
             try {
                 let businessName = document.getElementById('wb-header-site-name')?.value || 'Our Property';
-                
+
                 const pageTypes = {
                     'hero': 'homepage',
                     'rooms': 'rooms and accommodation',
@@ -24072,9 +24072,32 @@ const promo = await fetch('/api/v1/offers/validate', {
                     'terms': 'terms and conditions',
                     'privacy': 'privacy policy'
                 };
-                
+
                 const pageContext = pageTypes[section] || section;
-                
+
+                // Collect actual page content from the website builder inputs
+                const getVal = (id) => document.getElementById(id)?.value?.trim() || '';
+                let pageContent = '';
+                if (section === 'hero') {
+                    pageContent = [getVal('wb-hero-headline-en'), getVal('wb-hero-subheadline-en')].filter(Boolean).join('. ');
+                } else if (section === 'rooms') {
+                    pageContent = [getVal('wb-page-rooms-title-en'), getVal('wb-page-rooms-subtitle-en')].filter(Boolean).join('. ');
+                } else if (section === 'about') {
+                    pageContent = [getVal('wb-page-about-title-en'), getVal('wb-page-about-subtitle-en')].filter(Boolean).join('. ');
+                } else if (section === 'gallery') {
+                    pageContent = [getVal('wb-page-gallery-title-en'), getVal('wb-page-gallery-subtitle-en')].filter(Boolean).join('. ');
+                } else if (section === 'blog') {
+                    pageContent = [getVal('wb-page-blog-title-en'), getVal('wb-page-blog-subtitle-en')].filter(Boolean).join('. ');
+                } else if (section === 'attractions') {
+                    pageContent = [getVal('wb-page-attractions-title-en'), getVal('wb-page-attractions-subtitle-en')].filter(Boolean).join('. ');
+                } else if (section === 'dining') {
+                    pageContent = [getVal('wb-page-dining-title-en'), getVal('wb-page-dining-subtitle-en')].filter(Boolean).join('. ');
+                } else if (section === 'contact') {
+                    pageContent = [getVal('wb-page-contact-title-en'), getVal('wb-page-contact-subtitle-en')].filter(Boolean).join('. ');
+                } else {
+                    pageContent = [getVal(`wb-page-${section}-title-en`), getVal(`wb-page-${section}-subtitle-en`)].filter(Boolean).join('. ');
+                }
+
                 const response = await fetch('/api/admin/generate-seo-meta', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', ...authHeaders() },
@@ -24082,7 +24105,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                         page_type: pageContext,
                         business_name: businessName,
                         account_id: selectedAccountId,
-                        property_id: selectedWebsiteData?.property_id || null
+                        property_id: selectedWebsiteData?.property_id || null,
+                        page_content: pageContent
                     })
                 });
                 

@@ -65535,54 +65535,74 @@ app.get('/api/admin/content-ideas', async (req, res) => {
 // Generate SEO Meta Title & Description with AI
 app.post('/api/admin/generate-seo-meta', async (req, res) => {
     try {
-        const { page_type, business_name, account_id, property_id } = req.body;
+        const { page_type, business_name, account_id, property_id, page_content } = req.body;
 
         if (!page_type) {
             return res.json({ success: false, error: 'Page type required' });
         }
 
-        // Get business context from the PROPERTY (not account — account address is the owner, not the property)
-        let businessContext = business_name || 'a vacation rental property';
+        // Get PROPERTY data (not account — account address is the owner, not the property)
+        let propertyName = business_name || '';
         let location = '';
         let propertyType = '';
+        let propertyDescription = '';
+        let propertyAddress = '';
+        let roomNames = [];
 
-        if (property_id) {
-            const propResult = await pool.query(
-                'SELECT name, address, city, state, country, property_type, description FROM properties WHERE id = $1',
-                [property_id]
-            );
+        const propQuery = property_id
+            ? pool.query('SELECT name, address, city, state, country, property_type, description FROM properties WHERE id = $1', [property_id])
+            : account_id
+              ? pool.query('SELECT name, address, city, state, country, property_type, description FROM properties WHERE account_id = $1 LIMIT 1', [account_id])
+              : null;
+
+        if (propQuery) {
+            const propResult = await propQuery;
             if (propResult.rows[0]) {
                 const prop = propResult.rows[0];
-                businessContext = prop.name || business_name || 'our property';
+                propertyName = prop.name || business_name || 'our property';
+                propertyAddress = prop.address || '';
                 if (prop.city) location = prop.city;
                 if (prop.state) location += (location ? ', ' : '') + prop.state;
                 if (prop.country) location += (location ? ', ' : '') + prop.country;
                 propertyType = prop.property_type || '';
-            }
-        } else if (account_id) {
-            // Fallback: get first property for this account
-            const propResult = await pool.query(
-                'SELECT name, address, city, state, country, property_type, description FROM properties WHERE account_id = $1 LIMIT 1',
-                [account_id]
-            );
-            if (propResult.rows[0]) {
-                const prop = propResult.rows[0];
-                businessContext = prop.name || business_name || 'our property';
-                if (prop.city) location = prop.city;
-                if (prop.state) location += (location ? ', ' : '') + prop.state;
-                if (prop.country) location += (location ? ', ' : '') + prop.country;
-                propertyType = prop.property_type || '';
+                propertyDescription = prop.description || '';
             }
         }
-        
-        const prompt = `Generate an SEO-optimized meta title and meta description for the ${page_type} page of "${businessContext}"${location ? ` located in ${location}` : ''}${propertyType ? ` (property type: ${propertyType})` : ''}.
+
+        // Get room names for context
+        const pid = property_id || (propQuery ? (await pool.query('SELECT id FROM properties WHERE account_id = $1 LIMIT 1', [account_id])).rows[0]?.id : null);
+        if (pid) {
+            const roomsResult = await pool.query(
+                "SELECT name, display_name FROM bookable_units WHERE property_id = $1 AND status != 'deleted' LIMIT 10",
+                [pid]
+            );
+            roomNames = roomsResult.rows.map(r => {
+                if (r.display_name) {
+                    try {
+                        const dn = typeof r.display_name === 'string' ? JSON.parse(r.display_name) : r.display_name;
+                        return dn.en || dn.es || Object.values(dn)[0] || r.name;
+                    } catch(e) { return r.name; }
+                }
+                return r.name;
+            });
+        }
+
+        const prompt = `Generate an SEO-optimized meta title and meta description for the ${page_type} page of "${propertyName}"${location ? ` located in ${location}` : ''}${propertyType ? ` (${propertyType})` : ''}.
+
+PROPERTY DETAILS:
+- Name: ${propertyName}
+- Location: ${location || 'not specified'}
+- Address: ${propertyAddress || 'not specified'}
+- Type: ${propertyType || 'accommodation'}
+${propertyDescription ? `- Description: ${propertyDescription.substring(0, 300)}` : ''}
+${roomNames.length > 0 ? `- Rooms: ${roomNames.join(', ')}` : ''}
+${page_content ? `\nPAGE CONTENT:\n${page_content}` : ''}
 
 Requirements:
-- Meta Title: Exactly 50-60 characters, include the business name, be compelling
-- Meta Description: Exactly 150-160 characters, include a call-to-action, be engaging
-- Use the EXACT location provided above — do not guess or change the location
-
-This is for a ${propertyType || 'vacation rental / holiday accommodation'} website.
+- Meta Title: 50-60 characters, include "${propertyName}" and the location
+- Meta Description: 150-160 characters, mention the property, location, and include a call-to-action
+- Use the EXACT property name and location provided above — do not guess or change them
+- The SEO must accurately reflect this specific property and its real location
 
 Return ONLY valid JSON with this exact structure, no other text:
 {"meta_title": "Your title here", "meta_description": "Your description here"}`;
