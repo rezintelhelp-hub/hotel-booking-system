@@ -78237,9 +78237,15 @@ function readVersionFromFile(filePath) {
 }
 
 // GET /api/admin/plugins/registry — list all plugins & themes with versions
-app.get('/api/admin/plugins/registry', authenticateToken, async (req, res) => {
+app.get('/api/admin/plugins/registry', async (req, res) => {
   try {
-    if (req.user.role !== 'master_admin') {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
+    const token = authHeader.split(' ')[1];
+    const session = await pool.query(`SELECT a.id, a.role FROM account_sessions s JOIN accounts a ON s.account_id = a.id WHERE s.token = $1 AND s.expires_at > NOW()`, [token]);
+    if (session.rows.length === 0 || session.rows[0].role !== 'master_admin') {
       return res.status(403).json({ success: false, error: 'Master admin only' });
     }
 
@@ -78261,9 +78267,15 @@ app.get('/api/admin/plugins/registry', authenticateToken, async (req, res) => {
 });
 
 // GET /api/admin/plugins/:slug/download — zip and download a plugin or theme
-app.get('/api/admin/plugins/:slug/download', authenticateToken, async (req, res) => {
+app.get('/api/admin/plugins/:slug/download', async (req, res) => {
   try {
-    if (req.user.role !== 'master_admin') {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
+    const token = authHeader.split(' ')[1];
+    const session = await pool.query(`SELECT a.id, a.role FROM account_sessions s JOIN accounts a ON s.account_id = a.id WHERE s.token = $1 AND s.expires_at > NOW()`, [token]);
+    if (session.rows.length === 0 || session.rows[0].role !== 'master_admin') {
       return res.status(403).json({ success: false, error: 'Master admin only' });
     }
 
