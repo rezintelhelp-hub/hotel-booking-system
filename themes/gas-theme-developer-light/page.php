@@ -38,8 +38,10 @@ if (gas_render_page_sections($page_slug, $primary_color)) {
 }
 // --- End GAS Page Sections check ---
 
-// Check if this is the Book Now / Properties page
-if (in_array($page_slug, array('book-now', 'properties', 'rooms', 'listings', 'accommodations'))) {
+// Properties portfolio — if gas-properties plugin is active, use it instead of rooms grid
+if (in_array($page_slug, array('properties', 'apartments')) && shortcode_exists('gas_properties')) {
+    // Falls through to the hero + special page section below
+} elseif (in_array($page_slug, array('book-now', 'properties', 'rooms', 'listings', 'accommodations'))) {
     ?>
     <div class="developer-book-now-page" style="padding-top: 100px;">
         <?php if (shortcode_exists('gas_rooms')) : ?>
@@ -100,10 +102,12 @@ if (in_array($page_slug, array('about', 'about-us', 'our-story'))) {
     $special_page = 'attractions';
 } elseif (in_array($page_slug, array('gallery', 'photos', 'images'))) {
     $special_page = 'gallery';
+} elseif (in_array($page_slug, array('properties', 'apartments'))) {
+    $special_page = 'properties';
 }
 
 // Wide layout for special pages
-$wide_layout = in_array($special_page, array('about', 'contact', 'blog', 'attractions', 'gallery', 'terms', 'privacy'));
+$wide_layout = in_array($special_page, array('about', 'contact', 'blog', 'attractions', 'gallery', 'terms', 'privacy', 'properties'));
 $max_width = $wide_layout ? '1100px' : '800px';
 
 // Get page-specific settings from API
@@ -274,7 +278,10 @@ $hero_min_height = $page_hero_image ? '350px' : '250px';
                 <?php elseif ($special_page === 'attractions') : ?>
                     <?php if (shortcode_exists('gas_attractions_categories')) echo do_shortcode('[gas_attractions_categories]'); ?>
                     <?php if (shortcode_exists('gas_attractions')) echo do_shortcode('[gas_attractions]'); ?>
-                
+
+                <?php elseif ($special_page === 'properties') : ?>
+                    <?php if (shortcode_exists('gas_properties')) echo do_shortcode('[gas_properties]'); ?>
+
                 <?php else : ?>
                     <div style="font-size: 1.05rem; line-height: 1.8; color: <?php echo esc_attr($page_text_color); ?>;"><?php the_content(); ?></div>
                 <?php endif; ?>
