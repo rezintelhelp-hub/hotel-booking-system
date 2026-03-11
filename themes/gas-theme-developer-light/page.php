@@ -5,6 +5,13 @@
  * @package GAS_Developer
  */
 
+// Terms page — delegate to dedicated template before get_header()
+$page_slug_early = get_post_field('post_name', get_post());
+if (in_array($page_slug_early, array('terms', 'terms-and-conditions', 'terms-of-service'))) {
+    require get_template_directory() . '/template-terms.php';
+    return;
+}
+
 get_header();
 
 // Auto-detect page type by slug
@@ -90,7 +97,7 @@ if (in_array($page_slug, array('about', 'about-us', 'our-story'))) {
 }
 
 // Wide layout for special pages
-$wide_layout = in_array($special_page, array('about', 'contact', 'blog', 'attractions', 'gallery'));
+$wide_layout = in_array($special_page, array('about', 'contact', 'blog', 'attractions', 'gallery', 'terms', 'privacy'));
 $max_width = $wide_layout ? '1100px' : '800px';
 
 // Get page-specific settings from API

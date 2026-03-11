@@ -106,9 +106,10 @@ if ($terms_source === 'gas-account') {
         $all_sections[] = ['title' => $tt['checkin_checkout'], 'content' => $ci, 'html' => true];
     }
 
-    // Cancellation Policy
-    if (!empty($pt['cancellation_policy'])) {
-        $all_sections[] = ['title' => $tt['cancellation'], 'content' => gas_format_text($pt['cancellation_policy']), 'html' => true];
+    // Cancellation Policy (prefer _ml translated version)
+    $cancel_text = (!empty($pt['cancellation_policy_ml'][$lang])) ? $pt['cancellation_policy_ml'][$lang] : ($pt['cancellation_policy'] ?? '');
+    if (!empty($cancel_text)) {
+        $all_sections[] = ['title' => $tt['cancellation'], 'content' => gas_format_text($cancel_text), 'html' => true];
     }
 
     // House Rules (each rule as its own paragraph)
@@ -123,7 +124,8 @@ if ($terms_source === 'gas-account') {
     if (!empty($pt['quiet_hours_from']) && !empty($pt['quiet_hours_until'])) {
         $hr .= '<p>' . esc_html($tt['quiet_hours']) . ': ' . esc_html($pt['quiet_hours_from']) . ' &ndash; ' . esc_html($pt['quiet_hours_until']) . '</p>';
     }
-    if (!empty($pt['additional_rules'])) $hr .= gas_format_text($pt['additional_rules']);
+    $add_rules_text = (!empty($pt['additional_rules_ml'][$lang])) ? $pt['additional_rules_ml'][$lang] : ($pt['additional_rules'] ?? '');
+    if (!empty($add_rules_text)) $hr .= gas_format_text($add_rules_text);
     if (!empty($hr)) {
         $all_sections[] = ['title' => $tt['house_rules'], 'content' => $hr, 'html' => true];
     }
@@ -144,134 +146,11 @@ if ($terms_source === 'gas-account') {
     $use_api = true;
 
 } else {
-
-// Booking section
-$booking_enabled = $wt['booking-enabled'] ?? true;
-if ($booking_enabled !== false && $booking_enabled !== 'false') {
-    $content = $ml ? $ml($wt, 'booking', $lang) : ($wt['booking'] ?? '');
-    if (empty($content) && !empty($legacy_sections['booking']['content'])) {
-        $content = $legacy_sections['booking']['content'];
-    }
+    // Custom mode — single WYSIWYG content block
+    $content = $ml ? $ml($wt, 'content', $lang) : ($wt['content-' . $lang] ?? $wt['content-en'] ?? '');
     if (!empty($content)) {
-        $title = $ml ? $ml($wt, 'booking-title', $lang) : ($wt['booking-title'] ?? '');
-        if (empty($title)) $title = $legacy_sections['booking']['title'] ?? 'Booking & Reservations';
-        $all_sections[] = ['title' => $title, 'content' => $content];
+        $all_sections[] = ['title' => '', 'content' => wp_kses_post($content), 'html' => true, 'no_heading' => true];
     }
-}
-
-// Cancellation section
-$cancel_enabled = $wt['cancellation-enabled'] ?? true;
-if ($cancel_enabled !== false && $cancel_enabled !== 'false') {
-    $content = $ml ? $ml($wt, 'cancellation', $lang) : ($wt['cancellation'] ?? '');
-    if (empty($content) && !empty($legacy_sections['cancellation']['content'])) {
-        $content = $legacy_sections['cancellation']['content'];
-    }
-    if (empty($content)) {
-        // Auto-generate from period/fee
-        $period = $wt['cancellation-period'] ?? ($legacy_sections['cancellation']['cancel_period'] ?? '48');
-        $fee = $wt['cancellation-fee'] ?? ($legacy_sections['cancellation']['cancel_fee'] ?? 'first-night');
-        $period_text = '';
-        switch ($period) {
-            case '24': $period_text = '24 hours before check-in'; break;
-            case '48': $period_text = '48 hours before check-in'; break;
-            case '72': $period_text = '72 hours before check-in'; break;
-            case '7days': $period_text = '7 days before check-in'; break;
-            case '14days': $period_text = '14 days before check-in'; break;
-        }
-        $fee_text = '';
-        switch ($fee) {
-            case 'first-night': $fee_text = 'first night will be charged'; break;
-            case '50': $fee_text = '50% of the booking total will be charged'; break;
-            case '100': $fee_text = '100% of the booking total will be charged'; break;
-        }
-        if ($period_text) {
-            $content = "Free cancellation is available up to {$period_text}.";
-            if ($fee_text) $content .= " For cancellations after this period, {$fee_text}.";
-        }
-    }
-    if (!empty($content)) {
-        $title = $ml ? $ml($wt, 'cancellation-title', $lang) : ($wt['cancellation-title'] ?? '');
-        if (empty($title)) $title = $legacy_sections['cancellation']['title'] ?? 'Cancellation Policy';
-        $all_sections[] = ['title' => $title, 'content' => $content];
-    }
-}
-
-// Check-in section
-$checkin_enabled = $wt['checkin-enabled'] ?? true;
-if ($checkin_enabled !== false && $checkin_enabled !== 'false') {
-    $checkin_time = $wt['checkin-time'] ?? ($legacy_sections['checkin']['checkin_time'] ?? '');
-    $checkout_time = $wt['checkout-time'] ?? ($legacy_sections['checkin']['checkout_time'] ?? '');
-    $details = $ml ? $ml($wt, 'checkin-details', $lang) : ($wt['checkin-details'] ?? '');
-    if (empty($details) && !empty($legacy_sections['checkin']['details'])) {
-        $details = $legacy_sections['checkin']['details'];
-    }
-    if ($checkin_time || $checkout_time || $details) {
-        $checkin_content = '';
-        if ($checkin_time) $checkin_content .= "Check-in: {$checkin_time}\n";
-        if ($checkout_time) $checkin_content .= "Check-out: {$checkout_time}\n";
-        if ($details) $checkin_content .= "\n{$details}";
-        $title = $ml ? $ml($wt, 'checkin-title', $lang) : ($wt['checkin-title'] ?? '');
-        if (empty($title)) $title = $legacy_sections['checkin']['title'] ?? 'Check-in & Check-out';
-        $all_sections[] = ['title' => $title, 'content' => trim($checkin_content)];
-    }
-}
-
-// House Rules section
-$rules_enabled = $wt['house-rules-enabled'] ?? true;
-if ($rules_enabled !== false && $rules_enabled !== 'false') {
-    $content = $ml ? $ml($wt, 'house-rules', $lang) : ($wt['house-rules'] ?? '');
-    if (empty($content) && !empty($legacy_sections['house_rules']['content'])) {
-        $content = $legacy_sections['house_rules']['content'];
-    }
-    if (!empty($content)) {
-        $title = $ml ? $ml($wt, 'house-rules-title', $lang) : ($wt['house-rules-title'] ?? '');
-        if (empty($title)) $title = $legacy_sections['house_rules']['title'] ?? 'House Rules';
-        $all_sections[] = ['title' => $title, 'content' => $content];
-    }
-}
-
-// Payment section
-$payment_enabled = $wt['payment-enabled'] ?? true;
-if ($payment_enabled !== false && $payment_enabled !== 'false') {
-    $content = $ml ? $ml($wt, 'payment', $lang) : ($wt['payment'] ?? '');
-    if (empty($content) && !empty($legacy_sections['payment']['content'])) {
-        $content = $legacy_sections['payment']['content'];
-    }
-    if (!empty($content)) {
-        $title = $ml ? $ml($wt, 'payment-title', $lang) : ($wt['payment-title'] ?? '');
-        if (empty($title)) $title = $legacy_sections['payment']['title'] ?? 'Payment Terms';
-        $all_sections[] = ['title' => $title, 'content' => $content];
-    }
-}
-
-// Liability section
-$liability_enabled = $wt['liability-enabled'] ?? true;
-if ($liability_enabled !== false && $liability_enabled !== 'false') {
-    $content = $ml ? $ml($wt, 'liability', $lang) : ($wt['liability'] ?? '');
-    if (empty($content) && !empty($legacy_sections['liability']['content'])) {
-        $content = $legacy_sections['liability']['content'];
-    }
-    if (!empty($content)) {
-        $title = $ml ? $ml($wt, 'liability-title', $lang) : ($wt['liability-title'] ?? '');
-        if (empty($title)) $title = $legacy_sections['liability']['title'] ?? 'Liability & Damages';
-        $all_sections[] = ['title' => $title, 'content' => $content];
-    }
-}
-
-// Additional section
-$additional_enabled = $wt['additional-enabled'] ?? true;
-if ($additional_enabled !== false && $additional_enabled !== 'false') {
-    $content = $ml ? $ml($wt, 'additional', $lang) : ($wt['additional'] ?? '');
-    if (empty($content) && !empty($legacy_sections['additional']['content'])) {
-        $content = $legacy_sections['additional']['content'];
-    }
-    if (!empty($content)) {
-        $title = $ml ? $ml($wt, 'additional-title', $lang) : ($wt['additional-title'] ?? '');
-        if (empty($title)) $title = $legacy_sections['additional']['title'] ?? 'Additional Terms';
-        $all_sections[] = ['title' => $title, 'content' => $content];
-    }
-}
-
 } // end terms_source else (custom)
 ?>
 
@@ -294,7 +173,7 @@ if ($additional_enabled !== false && $additional_enabled !== 'false') {
         <section class="developer-section developer-terms-section" style="background: <?php echo $bg_color; ?>; padding: 50px 0;">
             <div class="developer-container">
                 <div class="developer-terms-content">
-                    <h2><?php echo esc_html($section['title']); ?></h2>
+                    <?php if (!empty($section['title'])) : ?><h2><?php echo esc_html($section['title']); ?></h2><?php endif; ?>
                     <div class="developer-terms-text">
                         <?php if (!empty($section['html'])) {
                             echo $section['content'];
