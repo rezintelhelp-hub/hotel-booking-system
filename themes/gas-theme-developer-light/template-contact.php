@@ -66,8 +66,8 @@ if ($lat && $lng) {
     $directions_url = 'https://www.google.com/maps/dir/?api=1&destination=' . urlencode($lat . ',' . $lng);
 }
 
-// Count active cards for grid layout (map is full-width below, not in grid)
-$active_cards = ($show_details ? 1 : 0) + ($show_directions ? 1 : 0) + ($show_form ? 1 : 0);
+// Count active cards for grid layout
+$active_cards = ($show_details ? 1 : 0) + ($show_directions ? 1 : 0) + ($show_map ? 1 : 0) + ($show_form ? 1 : 0);
 $grid_cols = $active_cards >= 2 ? '1fr 1fr' : '1fr';
 
 // Theme colors
@@ -124,11 +124,11 @@ $button_color = $api['page_contact_button_color'] ?? $accent;
 .gas-contact-directions-btn svg { width: 20px; height: 20px; stroke: #fff; fill: none; }
 .gas-contact-directions-address { color: var(--developer-text-light, #64748b); font-size: 0.9rem; margin-top: 1rem; }
 
-/* Map section — full width below cards */
-.gas-contact-map-section { margin-top: 2rem; }
-.gas-contact-map-section h2 { font-size: 1.35rem; font-weight: 600; color: var(--developer-text, #1e293b); margin: 0 0 1rem; }
-.gas-contact-map-frame { border-radius: 16px; overflow: hidden; border: 1px solid var(--developer-border, #e2e8f0); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
-.gas-contact-map-frame iframe { width: 100%; height: 450px; border: 0; display: block; }
+/* Map card — fills height to match neighbour */
+.gas-contact-card--map { display: flex; flex-direction: column; }
+.gas-contact-card--map h2 { flex-shrink: 0; }
+.gas-contact-map-frame { flex: 1; border-radius: 12px; overflow: hidden; border: 1px solid var(--developer-border, #e2e8f0); }
+.gas-contact-map-frame iframe { width: 100%; height: 100%; min-height: 300px; border: 0; display: block; }
 
 /* Form card */
 .gas-contact-form .gas-form-group { margin-bottom: 1rem; }
@@ -231,7 +231,21 @@ $button_color = $api['page_contact_button_color'] ?? $accent;
             </div>
             <?php endif; ?>
 
-            <?php /* Map moved to full-width section below grid */ ?>
+            <?php if ($show_map && $lat && $lng): ?>
+            <!-- Card 3: Find Us (Map) -->
+            <div class="gas-contact-card gas-contact-card--map">
+                <h2><?php echo esc_html($map_title); ?></h2>
+                <div class="gas-contact-map-frame">
+                    <iframe
+                        src="https://www.openstreetmap.org/export/embed.html?bbox=<?php echo esc_attr($lng - 0.01); ?>%2C<?php echo esc_attr($lat - 0.008); ?>%2C<?php echo esc_attr($lng + 0.01); ?>%2C<?php echo esc_attr($lat + 0.008); ?>&layer=mapnik&marker=<?php echo esc_attr($lat); ?>%2C<?php echo esc_attr($lng); ?>"
+                        loading="lazy"
+                        referrerpolicy="no-referrer"
+                        title="Location Map"
+                        allowfullscreen>
+                    </iframe>
+                </div>
+            </div>
+            <?php endif; ?>
 
             <?php if ($show_form): ?>
             <!-- Card 4: Contact Form -->
@@ -270,22 +284,6 @@ $button_color = $api['page_contact_button_color'] ?? $accent;
             <?php endif; ?>
 
         </div>
-
-        <?php if ($show_map && $lat && $lng): ?>
-        <!-- Map — full width below cards -->
-        <div class="gas-contact-map-section">
-            <h2><?php echo esc_html($map_title); ?></h2>
-            <div class="gas-contact-map-frame">
-                <iframe
-                    src="https://www.openstreetmap.org/export/embed.html?bbox=<?php echo esc_attr($lng - 0.01); ?>%2C<?php echo esc_attr($lat - 0.008); ?>%2C<?php echo esc_attr($lng + 0.01); ?>%2C<?php echo esc_attr($lat + 0.008); ?>&layer=mapnik&marker=<?php echo esc_attr($lat); ?>%2C<?php echo esc_attr($lng); ?>"
-                    loading="lazy"
-                    referrerpolicy="no-referrer"
-                    title="Location Map"
-                    allowfullscreen>
-                </iframe>
-            </div>
-        </div>
-        <?php endif; ?>
 
     </div>
 </div>
