@@ -1334,7 +1334,8 @@ async function runMigrations() {
       console.log('ℹ️  property_terms.cancellation_policy:', e.message);
     }
     
-    // Multilingual support for property_terms
+    // Multilingual support for property_terms (v2 - 8 _ml columns)
+    console.log('🔄 Running property_terms _ml migration...');
     try {
       await pool.query(`ALTER TABLE property_terms ADD COLUMN IF NOT EXISTS additional_rules_ml JSONB`);
       await pool.query(`ALTER TABLE property_terms ADD COLUMN IF NOT EXISTS cancellation_policy_ml JSONB`);
