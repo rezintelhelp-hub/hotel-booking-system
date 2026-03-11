@@ -44837,7 +44837,13 @@ app.put('/api/admin/properties/:id/terms', async (req, res) => {
     const { terms, beds, bathrooms, bathroom_features } = req.body;
     
     await client.query('BEGIN');
-    
+
+    // Ensure _ml columns exist (self-healing migration)
+    const mlCols = ['check_in_instructions_ml','check_out_instructions_ml','damage_policy_ml','terms_conditions_ml','directions_ml','area_info_ml','additional_rules_ml','cancellation_policy_ml'];
+    for (const col of mlCols) {
+      await client.query(`ALTER TABLE property_terms ADD COLUMN IF NOT EXISTS ${col} JSONB`);
+    }
+
     // Upsert terms (insert or update)
     await client.query(`
       INSERT INTO property_terms (
