@@ -157,7 +157,7 @@ $hero_min_height = $page_hero_image ? '350px' : '250px';
     <div style="position: absolute; top: 0; left: 0; right: 0; height: 150px; background: linear-gradient(to bottom, rgba(0,0,0,0.4) 0%, transparent 100%); pointer-events: none; z-index: 1;"></div>
     
     <!-- Content -->
-    <div class="developer-page-hero-content" style="position: relative; z-index: 2; text-align: center; padding: 0 24px; max-width: 900px;">
+    <div class="developer-page-hero-content" style="position: relative; z-index: 2; text-align: center; padding: 80px 24px 0; max-width: 900px;">
         <h1 style="font-family: var(--developer-font-display, 'Playfair Display', serif); font-size: clamp(2.5rem, 5vw, 4rem); font-weight: 700; color: <?php echo esc_attr($page_header_text); ?>; margin: 0 0 16px; text-shadow: 0 2px 20px rgba(0,0,0,0.3);"><?php echo esc_html($page_title); ?></h1>
         
         <?php if ($page_subtitle) : ?>
