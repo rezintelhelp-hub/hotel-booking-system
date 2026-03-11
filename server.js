@@ -67183,8 +67183,8 @@ app.get('/api/public/faqs/:clientId/schema', async (req, res) => {
 app.get('/api/public/client/:clientId/attractions', async (req, res) => {
     try {
         const { clientId } = req.params;
-        const { category, limit, lang = 'en' } = req.query;
-        
+        const { category, property_id, limit, lang = 'en' } = req.query;
+
         // Join to properties and filter by account_id - same pattern as rooms API
         let query = `
             SELECT a.id, a.name, a.slug, a.short_description, a.featured_image_url, a.category,
@@ -67197,7 +67197,13 @@ app.get('/api/public/client/:clientId/attractions', async (req, res) => {
         `;
         const params = [clientId];
         let paramIndex = 2;
-        
+
+        if (property_id) {
+            query += ` AND a.property_id = $${paramIndex}`;
+            params.push(property_id);
+            paramIndex++;
+        }
+
         if (category) {
             // Case-insensitive matching and handle slug-style categories
             // e.g., "nightlife" matches "Nightlife", "nightlife-bars" matches "Nightlife & Bars"

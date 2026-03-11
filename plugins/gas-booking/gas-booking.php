@@ -3651,9 +3651,9 @@ class GAS_Booking {
 .gas-checkout-page button[type=\"submit\"],
 [class*=\"gas-\"] .btn-primary,
 [class*=\"gas-\"] button.primary {
-    background: var(--gas-btn-bg) !important;
-    color: var(--gas-btn-text) !important;
-    border-radius: var(--gas-btn-radius) !important;
+    background: var(--gas-btn-bg);
+    color: var(--gas-btn-text);
+    border-radius: var(--gas-btn-radius);
     border: none;
     transition: all 0.2s ease;
 }

@@ -2986,14 +2986,16 @@ function developer_developer_custom_css() {
         }
         
         .developer-btn-primary,
-        .developer-btn:not(.developer-btn-secondary):not(.developer-btn-white) {
-            background: ' . esc_attr($btn_primary_bg) . ';
-            color: ' . esc_attr($btn_primary_text) . ';
+        .developer-btn:not(.developer-btn-secondary):not(.developer-btn-white),
+        .gas-view-btn {
+            background: ' . esc_attr($btn_primary_bg) . ' !important;
+            color: ' . esc_attr($btn_primary_text) . ' !important;
         }
-        
+
         .developer-btn-primary:hover,
-        .developer-btn:not(.developer-btn-secondary):not(.developer-btn-white):hover {
-            background: ' . esc_attr(developer_adjust_brightness($btn_primary_bg, -20)) . ';
+        .developer-btn:not(.developer-btn-secondary):not(.developer-btn-white):hover,
+        .gas-view-btn:hover {
+            background: ' . esc_attr(developer_adjust_brightness($btn_primary_bg, -20)) . ' !important;
         }
         
         .developer-btn-secondary {
@@ -3026,6 +3028,7 @@ function developer_developer_custom_css() {
         .developer-hero h1,
         .developer-hero h2,
         .gas-contact-header h1 {
+            font-family: var(--developer-font-display) !important;
             font-size: ' . esc_attr($page_title_size) . 'px;
         }
 

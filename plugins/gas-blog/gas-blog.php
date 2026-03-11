@@ -189,6 +189,8 @@ class GAS_Blog {
         if (!$client_id) return new WP_Error('no_config','No client ID');
         $url = trailingslashit($this->get_api_url()).'api/public/client/'.$client_id.'/blog';
         $params = array('lang' => $this->get_current_language());
+        $property_id = get_option('gas_property_id', '');
+        if ($property_id) $params['property_id'] = $property_id;
         if (!empty($args['limit'])) $params['limit'] = $args['limit'];
         if (!empty($args['category'])) $params['category'] = $args['category'];
         if ($params) $url .= '?'.http_build_query($params);

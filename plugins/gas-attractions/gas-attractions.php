@@ -193,7 +193,8 @@ class GAS_Attractions {
         if (!$client_id) return new WP_Error('no_config','No client ID');
         $url = trailingslashit($this->get_api_url()).'api/public/client/'.$client_id.'/attractions';
         $params = array('lang' => $this->get_current_language());
-        if ($pid = get_option('gas_attractions_property_id')) $params['property_id'] = $pid;
+        $pid = get_option('gas_attractions_property_id') ?: get_option('gas_property_id', '');
+        if ($pid) $params['property_id'] = $pid;
         if (!empty($args['limit'])) $params['limit'] = $args['limit'];
         if (!empty($args['category'])) $params['category'] = $args['category'];
         if ($params) $url .= '?'.http_build_query($params);
