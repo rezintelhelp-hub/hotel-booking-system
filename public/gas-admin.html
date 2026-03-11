@@ -24081,7 +24081,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                     body: JSON.stringify({
                         page_type: pageContext,
                         business_name: businessName,
-                        account_id: selectedAccountId
+                        account_id: selectedAccountId,
+                        property_id: selectedWebsiteData?.property_id || null
                     })
                 });
                 
@@ -24204,7 +24205,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                     body: JSON.stringify({
                         page_type: pageContext,
                         business_name: businessName,
-                        account_id: selectedAccountId
+                        account_id: selectedAccountId,
+                        property_id: selectedWebsiteData?.property_id || null
                     })
                 });
                 

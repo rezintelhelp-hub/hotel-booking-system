@@ -8029,7 +8029,17 @@ app.post('/api/gas-sync/properties/:propertyId/sync-content', async (req, res) =
         message: `Beds24 content synced: ${descCount} descriptions updated from ${roomTypes.rowCount} rooms`,
         adapter: 'beds24',
         roomsProcessed: roomTypes.rowCount,
-        descriptionsUpdated: descCount
+        descriptionsUpdated: descCount,
+        debug: {
+          apiRoomsFound: Object.keys(beds24TextsMap).length,
+          rooms: roomTypes.rows.map(r => ({
+            name: r.name,
+            external_id: r.external_id,
+            apiMatch: !!beds24TextsMap[String(r.external_id)],
+            textsFormat: Array.isArray(beds24TextsMap[String(r.external_id)]) ? 'array' : typeof beds24TextsMap[String(r.external_id)],
+            textsRaw: JSON.stringify(beds24TextsMap[String(r.external_id)])?.substring(0, 500)
+          }))
+        }
       });
     }
 
@@ -65525,36 +65535,54 @@ app.get('/api/admin/content-ideas', async (req, res) => {
 // Generate SEO Meta Title & Description with AI
 app.post('/api/admin/generate-seo-meta', async (req, res) => {
     try {
-        const { page_type, business_name, account_id } = req.body;
-        
+        const { page_type, business_name, account_id, property_id } = req.body;
+
         if (!page_type) {
             return res.json({ success: false, error: 'Page type required' });
         }
-        
-        // Get business context if account_id provided
+
+        // Get business context from the PROPERTY (not account — account address is the owner, not the property)
         let businessContext = business_name || 'a vacation rental property';
         let location = '';
-        
-        if (account_id) {
-            const accountResult = await pool.query(
-                'SELECT business_name, city, country FROM accounts WHERE id = $1',
+        let propertyType = '';
+
+        if (property_id) {
+            const propResult = await pool.query(
+                'SELECT name, address, city, state, country, property_type, description FROM properties WHERE id = $1',
+                [property_id]
+            );
+            if (propResult.rows[0]) {
+                const prop = propResult.rows[0];
+                businessContext = prop.name || business_name || 'our property';
+                if (prop.city) location = prop.city;
+                if (prop.state) location += (location ? ', ' : '') + prop.state;
+                if (prop.country) location += (location ? ', ' : '') + prop.country;
+                propertyType = prop.property_type || '';
+            }
+        } else if (account_id) {
+            // Fallback: get first property for this account
+            const propResult = await pool.query(
+                'SELECT name, address, city, state, country, property_type, description FROM properties WHERE account_id = $1 LIMIT 1',
                 [account_id]
             );
-            if (accountResult.rows[0]) {
-                const acc = accountResult.rows[0];
-                businessContext = acc.business_name || business_name || 'our property';
-                if (acc.city) location = acc.city;
-                if (acc.country) location += (location ? ', ' : '') + acc.country;
+            if (propResult.rows[0]) {
+                const prop = propResult.rows[0];
+                businessContext = prop.name || business_name || 'our property';
+                if (prop.city) location = prop.city;
+                if (prop.state) location += (location ? ', ' : '') + prop.state;
+                if (prop.country) location += (location ? ', ' : '') + prop.country;
+                propertyType = prop.property_type || '';
             }
         }
         
-        const prompt = `Generate an SEO-optimized meta title and meta description for the ${page_type} page of "${businessContext}"${location ? ` located in ${location}` : ''}.
+        const prompt = `Generate an SEO-optimized meta title and meta description for the ${page_type} page of "${businessContext}"${location ? ` located in ${location}` : ''}${propertyType ? ` (property type: ${propertyType})` : ''}.
 
 Requirements:
 - Meta Title: Exactly 50-60 characters, include the business name, be compelling
 - Meta Description: Exactly 150-160 characters, include a call-to-action, be engaging
+- Use the EXACT location provided above — do not guess or change the location
 
-This is for a vacation rental / holiday accommodation website.
+This is for a ${propertyType || 'vacation rental / holiday accommodation'} website.
 
 Return ONLY valid JSON with this exact structure, no other text:
 {"meta_title": "Your title here", "meta_description": "Your description here"}`;
@@ -65601,25 +65629,38 @@ Return ONLY valid JSON with this exact structure, no other text:
 // Generate FAQ schemas with AI
 app.post('/api/admin/generate-faqs', async (req, res) => {
     try {
-        const { page_type, business_name, account_id } = req.body;
-        
+        const { page_type, business_name, account_id, property_id } = req.body;
+
         if (!page_type) {
             return res.json({ success: false, error: 'Page type required' });
         }
-        
-        // Get business context if account_id provided
+
+        // Get business context from the PROPERTY (not account)
         let businessContext = business_name || 'a vacation rental property';
-        
-        if (account_id) {
-            const accountResult = await pool.query(
-                'SELECT business_name, city, country FROM accounts WHERE id = $1',
+
+        if (property_id) {
+            const propResult = await pool.query(
+                'SELECT name, city, state, country, property_type FROM properties WHERE id = $1',
+                [property_id]
+            );
+            if (propResult.rows[0]) {
+                const prop = propResult.rows[0];
+                businessContext = prop.name || business_name || 'our property';
+                if (prop.city) businessContext += ` in ${prop.city}`;
+                if (prop.state) businessContext += `, ${prop.state}`;
+                if (prop.country) businessContext += `, ${prop.country}`;
+            }
+        } else if (account_id) {
+            const propResult = await pool.query(
+                'SELECT name, city, state, country, property_type FROM properties WHERE account_id = $1 LIMIT 1',
                 [account_id]
             );
-            if (accountResult.rows[0]) {
-                const acc = accountResult.rows[0];
-                businessContext = acc.business_name || business_name || 'our property';
-                if (acc.city) businessContext += ` in ${acc.city}`;
-                if (acc.country) businessContext += `, ${acc.country}`;
+            if (propResult.rows[0]) {
+                const prop = propResult.rows[0];
+                businessContext = prop.name || business_name || 'our property';
+                if (prop.city) businessContext += ` in ${prop.city}`;
+                if (prop.state) businessContext += `, ${prop.state}`;
+                if (prop.country) businessContext += `, ${prop.country}`;
             }
         }
         
