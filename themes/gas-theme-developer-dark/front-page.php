@@ -86,8 +86,8 @@ $featured_subtitle = $api['featured_subtitle'] ?? get_theme_mod('developer_featu
 $featured_btn_enabled = $api['featured_btn_enabled'] ?? get_theme_mod('developer_featured_btn_enabled', true);
 $featured_btn_text = $api['featured_btn_text'] ?? get_theme_mod('developer_featured_btn_text', 'View All Properties');
 $featured_btn_url = $api['featured_btn_url'] ?? get_theme_mod('developer_featured_btn_url', '/book-now/');
-$featured_btn_bg = $api['featured_btn_bg'] ?? get_theme_mod('developer_featured_btn_bg', '#2563eb');
-$featured_btn_text_color = $api['featured_btn_text_color'] ?? get_theme_mod('developer_featured_btn_text_color', '#ffffff');
+$featured_btn_bg = $api['featured_btn_bg'] ?? $api['btn_primary_bg'] ?? get_theme_mod('developer_featured_btn_bg', '#2563eb');
+$featured_btn_text_color = $api['featured_btn_text_color'] ?? $api['btn_primary_text'] ?? get_theme_mod('developer_featured_btn_text_color', '#ffffff');
 $featured_bg = $api['featured_bg'] ?? get_theme_mod('developer_featured_bg', '#ffffff');
 $featured_title_color = $api['featured_title_color'] ?? get_theme_mod('developer_featured_title_color', '#1e293b');
 $featured_subtitle_color = $api['featured_subtitle_color'] ?? get_theme_mod('developer_featured_subtitle_color', '#64748b');
@@ -302,7 +302,7 @@ $search_bg_rgba = "rgba($sr, $sg, $sb, " . ($search_opacity / 100) . ")";
         
         <?php if ($featured_btn_enabled && $featured_btn_text) : ?>
         <div class="text-center mt-5">
-            <a href="<?php echo esc_url(home_url($featured_btn_url)); ?>" class="developer-btn" style="background: <?php echo esc_attr($featured_btn_bg); ?>; color: <?php echo esc_attr($featured_btn_text_color); ?>;"><?php echo esc_html($featured_btn_text); ?></a>
+            <a href="<?php echo esc_url(home_url($featured_btn_url)); ?>" class="developer-btn" style="background: <?php echo esc_attr($featured_btn_bg); ?> !important; color: <?php echo esc_attr($featured_btn_text_color); ?> !important;"><?php echo esc_html($featured_btn_text); ?></a>
         </div>
         <?php endif; ?>
     </div>
