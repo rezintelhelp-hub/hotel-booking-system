@@ -14553,15 +14553,12 @@ async function getBeds24Token(accountId) {
 }
 
 // Helper: Set Beds24 webhook for a property via V2 API
-async function setBeds24Webhook(accessToken, beds24PropertyId) {
+async function setBeds24Webhook(accessToken, beds24PropertyId, existingWebhookUrl) {
     try {
         const webhookUrl = 'https://admin.gas.travel/api/webhooks/beds24?propertyId=[PROPERTYID]';
 
-        // Safety guard: check existing webhook first — NEVER overwrite non-GAS webhooks
-        const propResponse = await axios.get(`https://beds24.com/api/v2/properties/${beds24PropertyId}`, {
-            headers: { 'token': accessToken, 'accept': 'application/json' }
-        });
-        const currentUrl = propResponse.data?.webhooks?.url || propResponse.data?.data?.webhooks?.url || '';
+        // Safety guard: NEVER overwrite non-GAS webhooks
+        const currentUrl = existingWebhookUrl || '';
         if (currentUrl && !currentUrl.includes('gas.travel')) {
             console.log(`[BEDS24] SKIPPED property ${beds24PropertyId} — existing non-GAS webhook: ${currentUrl}`);
             return { skipped: true, currentUrl };
@@ -14626,7 +14623,7 @@ app.post('/api/admin/beds24/set-all-webhooks', async (req, res) => {
                 for (const prop of properties) {
                     if (processedPropertyIds.has(prop.id)) continue;
                     processedPropertyIds.add(prop.id);
-                    const result = await setBeds24Webhook(token, prop.id);
+                    const result = await setBeds24Webhook(token, prop.id, prop.webhooks?.url || '');
                     if (result?.skipped) {
                         results.properties.push({ account_id: account.id, property_id: prop.id, status: 'skipped', reason: result.currentUrl });
                     } else if (result === true) {
@@ -14679,7 +14676,7 @@ app.post('/api/admin/beds24/set-all-webhooks', async (req, res) => {
                 for (const prop of properties) {
                     if (processedPropertyIds.has(prop.id)) continue;
                     processedPropertyIds.add(prop.id);
-                    const result = await setBeds24Webhook(token, prop.id);
+                    const result = await setBeds24Webhook(token, prop.id, prop.webhooks?.url || '');
                     if (result?.skipped) {
                         results.properties.push({ connection_id: conn.id, property_id: prop.id, status: 'skipped', reason: result.currentUrl });
                     } else if (result === true) {
