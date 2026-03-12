@@ -14636,6 +14636,8 @@ app.post('/api/admin/beds24/set-all-webhooks', async (req, res) => {
                         results.failed++;
                         results.properties.push({ account_id: account.id, property_id: prop.id, status: 'failed' });
                     }
+                    // Rate limit: 500ms delay between Beds24 API calls
+                    await new Promise(r => setTimeout(r, 500));
                 }
             } catch (accErr) {
                 console.error(`[BEDS24] Failed for account ${account.id}:`, accErr.message);
@@ -14689,6 +14691,8 @@ app.post('/api/admin/beds24/set-all-webhooks', async (req, res) => {
                         results.failed++;
                         results.properties.push({ connection_id: conn.id, property_id: prop.id, status: 'failed' });
                     }
+                    // Rate limit: 500ms delay between Beds24 API calls
+                    await new Promise(r => setTimeout(r, 500));
                 }
             } catch (connErr) {
                 console.error(`[BEDS24] Failed for connection ${conn.id}:`, connErr.message);
