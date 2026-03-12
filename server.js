@@ -14503,6 +14503,14 @@ async function getBeds24Token(accountId) {
 // Helper: Set Beds24 webhook for a property via V2 API
 async function setBeds24Webhook(accessToken, beds24PropertyId) {
     try {
+        // First read current webhook state from Beds24
+        const currentProp = await axios.get('https://beds24.com/api/v2/properties', {
+            headers: { 'token': accessToken },
+            params: { id: beds24PropertyId }
+        });
+        const propData = currentProp.data?.data?.[0] || currentProp.data?.[0] || currentProp.data;
+        console.log(`[BEDS24] Current webhooks for property ${beds24PropertyId}:`, JSON.stringify(propData?.webhooks));
+
         const webhookUrl = `https://admin.gas.travel/api/webhooks/beds24?propertyId=${beds24PropertyId}`;
         await axios.put(`https://beds24.com/api/v2/properties?id=${beds24PropertyId}`,
             {
