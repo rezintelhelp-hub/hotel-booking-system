@@ -14545,29 +14545,6 @@ async function setBeds24Webhook(accessToken, beds24PropertyId) {
     }
 }
 
-// ONE-TIME FIX: Restore WebReady webhook on property 16789 that we accidentally overwrote
-// REMOVE THIS BLOCK after it runs once
-(async () => {
-    try {
-        const token197 = await getBeds24Token(197);
-        await axios.post('https://beds24.com/api/v2/properties',
-            [{
-                id: 16789,
-                webhooks: {
-                    version: 'twoWithPersonalData',
-                    url: 'https://pms.usewebready.com/v2/beds24/webhook/3788/[ROOMID]',
-                    additionalData: 'none',
-                    customHeader: ''
-                }
-            }],
-            { headers: { 'token': token197, 'Content-Type': 'application/json', 'accept': 'application/json' } }
-        );
-        console.log('[BEDS24] RESTORED WebReady webhook on property 16789');
-    } catch (e) {
-        console.error('[BEDS24] Failed to restore WebReady webhook on 16789:', e.message);
-    }
-})();
-
 // Admin: Set webhooks on all connected Beds24 properties
 app.post('/api/admin/beds24/set-all-webhooks', async (req, res) => {
     try {
