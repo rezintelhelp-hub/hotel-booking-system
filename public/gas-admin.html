@@ -60374,18 +60374,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                     body: JSON.stringify({ account_id: accountId })
                 });
                 const data = await response.json();
-                if (data.success) {
-                    // Redirect to Stripe Checkout for BACS/SEPA mandate setup
-                    const stripe = Stripe(data.publishable_key);
-                    const { error } = await stripe.confirmSetup({
-                        clientSecret: data.client_secret,
-                        confirmParams: {
-                            return_url: window.location.origin + '/gas-admin.html?billing_setup=success&account_id=' + accountId
-                        }
-                    });
-                    if (error) {
-                        showNotification('Direct debit setup failed: ' + error.message, 'error');
-                    }
+                if (data.success && data.checkout_url) {
+                    // Redirect to Stripe hosted checkout for mandate setup
+                    window.open(data.checkout_url, '_blank');
+                    showNotification('Stripe checkout opened in new tab — complete the mandate setup there', 'info');
                 } else {
                     showNotification('Error: ' + data.error, 'error');
                 }

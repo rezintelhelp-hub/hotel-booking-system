@@ -27147,7 +27147,7 @@ app.post('/api/admin/billing/cancel-subscription', async (req, res) => {
   }
 });
 
-// Create or retrieve Stripe billing customer for a GAS account
+// Create or retrieve Stripe billing customer and Checkout Session for mandate setup
 app.post('/api/admin/billing/setup-customer', async (req, res) => {
     try {
         const { account_id } = req.body;
@@ -27162,7 +27162,7 @@ app.post('/api/admin/billing/setup-customer', async (req, res) => {
             const customer = await stripe.customers.create({
                 name: acc.company_name || acc.name,
                 email: acc.email,
-                metadata: { gas_account_id: account_id }
+                metadata: { gas_account_id: String(account_id) }
             });
             customerId = customer.id;
             await pool.query(
@@ -27171,23 +27171,23 @@ app.post('/api/admin/billing/setup-customer', async (req, res) => {
             );
         }
 
-        // Create SetupIntent for SEPA or BACS depending on billing currency
+        // Create Checkout Session in setup mode for BACS or SEPA
         const billingCurrency = acc.billing_currency || 'GBP';
         const paymentMethodType = billingCurrency === 'GBP' ? 'bacs_debit' : 'sepa_debit';
 
-        const setupIntent = await stripe.setupIntents.create({
+        const session = await stripe.checkout.sessions.create({
+            mode: 'setup',
             customer: customerId,
             payment_method_types: [paymentMethodType],
-            usage: 'off_session',
-            metadata: { gas_account_id: account_id }
+            success_url: `${req.protocol}://${req.get('host')}/gas-admin.html?billing_setup=success&account_id=${account_id}`,
+            cancel_url: `${req.protocol}://${req.get('host')}/gas-admin.html?billing_setup=cancelled`,
+            metadata: { gas_account_id: String(account_id) }
         });
 
         res.json({
             success: true,
             customer_id: customerId,
-            client_secret: setupIntent.client_secret,
-            payment_method_type: paymentMethodType,
-            publishable_key: process.env.STRIPE_PUBLISHABLE_KEY
+            checkout_url: session.url
         });
     } catch (err) {
         console.error('[BILLING] setup-customer error:', err);
@@ -27296,6 +27296,26 @@ app.post('/api/webhooks/stripe-billing', async (req, res) => {
                     WHERE id = $2
                 `, [setupIntent.payment_method, accountId]);
                 console.log('[BILLING] Payment method saved for account:', accountId);
+            }
+        }
+
+        if (event.type === 'checkout.session.completed') {
+            const session = event.data.object;
+            if (session.mode === 'setup') {
+                const accountId = session.metadata?.gas_account_id;
+                const setupIntentId = session.setup_intent;
+                if (accountId && setupIntentId) {
+                    const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+                    const si = await stripe.setupIntents.retrieve(setupIntentId);
+                    if (si.payment_method) {
+                        await pool.query(`
+                            UPDATE accounts
+                            SET stripe_billing_payment_method_id = $1, billing_mandate_status = 'active', updated_at = NOW()
+                            WHERE id = $2
+                        `, [si.payment_method, accountId]);
+                        console.log('[BILLING] Checkout setup complete — payment method saved for account:', accountId);
+                    }
+                }
             }
         }
 
