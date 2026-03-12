@@ -28868,10 +28868,12 @@ const promo = await fetch('/api/v1/offers/validate', {
         
         async function setBeds24Webhooks() {
             try {
+                const accountId = document.getElementById('edit-account-id').value;
                 showNotification('Setting webhooks on all Beds24 properties...', 'info');
                 const response = await fetch('/api/admin/beds24/set-all-webhooks', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', ...authHeaders() }
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ account_id: accountId })
                 });
                 const data = await response.json();
                 if (data.success) {

@@ -14530,15 +14530,22 @@ async function setBeds24Webhook(accessToken, beds24PropertyId) {
 // Admin: Set webhooks on all connected Beds24 properties
 app.post('/api/admin/beds24/set-all-webhooks', async (req, res) => {
     try {
+        const targetAccountId = req.body.account_id;
         let results = { success: 0, failed: 0, properties: [] };
 
         // Process account-level connections
-        const accounts = await pool.query(`
+        let accountQuery = `
             SELECT id, beds24_refresh_token
             FROM accounts
             WHERE beds24_connected = true
             AND beds24_refresh_token IS NOT NULL
-        `);
+        `;
+        const accountParams = [];
+        if (targetAccountId) {
+            accountQuery += ' AND id = $1';
+            accountParams.push(targetAccountId);
+        }
+        const accounts = await pool.query(accountQuery, accountParams);
 
         for (const account of accounts.rows) {
             try {
@@ -14564,13 +14571,19 @@ app.post('/api/admin/beds24/set-all-webhooks', async (req, res) => {
         }
 
         // Process wizard connections from gas_sync_connections
-        const syncConns = await pool.query(`
-            SELECT gsc.id, gsc.refresh_token, gsc.credentials, gsp.external_id
+        let syncQuery = `
+            SELECT gsc.id, gsc.account_id, gsc.refresh_token, gsc.credentials, gsp.external_id
             FROM gas_sync_connections gsc
             JOIN gas_sync_properties gsp ON gsp.connection_id = gsc.id
             WHERE gsc.adapter_code = 'beds24'
             AND gsc.status = 'active'
-        `);
+        `;
+        const syncParams = [];
+        if (targetAccountId) {
+            syncQuery += ' AND gsc.account_id = $1';
+            syncParams.push(String(targetAccountId));
+        }
+        const syncConns = await pool.query(syncQuery, syncParams);
 
         for (const conn of syncConns.rows) {
             try {
