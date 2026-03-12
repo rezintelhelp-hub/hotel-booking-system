@@ -28875,10 +28875,12 @@ const promo = await fetch('/api/v1/offers/validate', {
                 });
                 const data = await response.json();
                 if (data.success) {
+                    const total = data.results.properties?.length || 0;
                     const skipped = data.results.properties?.filter(p => p.status === 'skipped').length || 0;
-                    let msg = `Webhooks set: ${data.results.success} success, ${data.results.failed} failed`;
+                    let msg = `${total} properties found: ${data.results.success} success, ${data.results.failed} failed`;
                     if (skipped > 0) msg += `, ${skipped} skipped (existing non-GAS webhook)`;
-                    showNotification(msg, 'success');
+                    if (total === 0) msg = 'No Beds24 properties found for this account. Check the connection is active.';
+                    showNotification(msg, total === 0 ? 'warning' : 'success');
                 } else {
                     showNotification('Failed to set webhooks: ' + (data.error || 'Unknown error'), 'error');
                 }

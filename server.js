@@ -14588,6 +14588,7 @@ app.post('/api/admin/beds24/set-all-webhooks', async (req, res) => {
         const targetAccountId = req.body.account_id ? parseInt(req.body.account_id) : null;
         console.log(`[BEDS24] set-all-webhooks called, targetAccountId: ${targetAccountId}`);
         let results = { success: 0, failed: 0, properties: [] };
+        const processedPropertyIds = new Set();
 
         // Process account-level connections
         let accountQuery = `
@@ -14602,6 +14603,7 @@ app.post('/api/admin/beds24/set-all-webhooks', async (req, res) => {
             accountParams.push(targetAccountId);
         }
         const accounts = await pool.query(accountQuery, accountParams);
+        console.log(`[BEDS24] set-all-webhooks: found ${accounts.rows.length} account-level connections for targetAccountId=${targetAccountId}`);
 
         for (const account of accounts.rows) {
             try {
@@ -14611,6 +14613,8 @@ app.post('/api/admin/beds24/set-all-webhooks', async (req, res) => {
                 });
                 const properties = propsResponse.data?.data || propsResponse.data || [];
                 for (const prop of properties) {
+                    if (processedPropertyIds.has(prop.id)) continue;
+                    processedPropertyIds.add(prop.id);
                     const result = await setBeds24Webhook(token, prop.id);
                     if (result?.skipped) {
                         results.properties.push({ account_id: account.id, property_id: prop.id, status: 'skipped', reason: result.currentUrl });
@@ -14630,9 +14634,8 @@ app.post('/api/admin/beds24/set-all-webhooks', async (req, res) => {
 
         // Process wizard connections from gas_sync_connections
         let syncQuery = `
-            SELECT gsc.id, gsc.account_id, gsc.refresh_token, gsc.credentials, gsp.external_id
+            SELECT DISTINCT gsc.id, gsc.account_id, gsc.refresh_token, gsc.credentials
             FROM gas_sync_connections gsc
-            JOIN gas_sync_properties gsp ON gsp.connection_id = gsc.id
             WHERE gsc.adapter_code = 'beds24'
             AND gsc.status = 'active'
         `;
@@ -14642,24 +14645,39 @@ app.post('/api/admin/beds24/set-all-webhooks', async (req, res) => {
             syncParams.push(String(targetAccountId));
         }
         const syncConns = await pool.query(syncQuery, syncParams);
+        console.log(`[BEDS24] set-all-webhooks: found ${syncConns.rows.length} wizard sync connections for targetAccountId=${targetAccountId}`);
 
         for (const conn of syncConns.rows) {
             try {
                 const creds = typeof conn.credentials === 'string' ? JSON.parse(conn.credentials) : conn.credentials;
                 const refreshToken = conn.refresh_token || creds?.refreshToken;
-                if (!refreshToken) continue;
+                if (!refreshToken) {
+                    console.log(`[BEDS24] Skipping connection ${conn.id} — no refresh token`);
+                    continue;
+                }
                 const tokenResp = await axios.get('https://beds24.com/api/v2/authentication/token', {
                     headers: { 'refreshToken': refreshToken }
                 });
-                const result = await setBeds24Webhook(tokenResp.data.token, conn.external_id);
-                if (result?.skipped) {
-                    results.properties.push({ connection_id: conn.id, property_id: conn.external_id, status: 'skipped', reason: result.currentUrl });
-                } else if (result === true) {
-                    results.success++;
-                    results.properties.push({ connection_id: conn.id, property_id: conn.external_id, status: 'success' });
-                } else {
-                    results.failed++;
-                    results.properties.push({ connection_id: conn.id, property_id: conn.external_id, status: 'failed' });
+                const token = tokenResp.data.token;
+                // Fetch all properties from Beds24 API
+                const propsResponse = await axios.get('https://beds24.com/api/v2/properties', {
+                    headers: { 'token': token }
+                });
+                const properties = propsResponse.data?.data || propsResponse.data || [];
+                console.log(`[BEDS24] Connection ${conn.id} (account ${conn.account_id}): found ${properties.length} properties from Beds24 API`);
+                for (const prop of properties) {
+                    if (processedPropertyIds.has(prop.id)) continue;
+                    processedPropertyIds.add(prop.id);
+                    const result = await setBeds24Webhook(token, prop.id);
+                    if (result?.skipped) {
+                        results.properties.push({ connection_id: conn.id, property_id: prop.id, status: 'skipped', reason: result.currentUrl });
+                    } else if (result === true) {
+                        results.success++;
+                        results.properties.push({ connection_id: conn.id, property_id: prop.id, status: 'success' });
+                    } else {
+                        results.failed++;
+                        results.properties.push({ connection_id: conn.id, property_id: prop.id, status: 'failed' });
+                    }
                 }
             } catch (connErr) {
                 console.error(`[BEDS24] Failed for connection ${conn.id}:`, connErr.message);
