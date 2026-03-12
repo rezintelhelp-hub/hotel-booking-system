@@ -14555,21 +14555,24 @@ async function getBeds24Token(accountId) {
 // Helper: Set Beds24 webhook for a property via V2 API
 async function setBeds24Webhook(accessToken, beds24PropertyId, existingWebhookUrl) {
     try {
-        const webhookUrl = 'https://admin.gas.travel/api/webhooks/beds24?propertyId=[PROPERTYID]';
-
-        // Safety guard: NEVER overwrite non-GAS webhooks
+        const gasWebhookUrl = 'https://admin.gas.travel/api/webhooks/beds24?propertyId=[PROPERTYID]';
         const currentUrl = existingWebhookUrl || '';
-        if (currentUrl && !currentUrl.includes('gas.travel')) {
-            console.log(`[BEDS24] SKIPPED property ${beds24PropertyId} — existing non-GAS webhook: ${currentUrl}`);
-            return { skipped: true, currentUrl };
+
+        // Already has GAS webhook — nothing to do
+        if (currentUrl.includes('gas.travel')) {
+            console.log(`[BEDS24] Property ${beds24PropertyId} already has GAS webhook, skipping`);
+            return true;
         }
+
+        // Append GAS webhook to existing URLs (never overwrite)
+        const newUrl = currentUrl ? currentUrl + '\n' + gasWebhookUrl : gasWebhookUrl;
 
         await axios.post('https://beds24.com/api/v2/properties',
             [{
                 id: beds24PropertyId,
                 webhooks: {
                     version: 'twoWithPersonalData',
-                    url: webhookUrl,
+                    url: newUrl,
                     additionalData: 'none',
                     customHeader: ''
                 }
@@ -14582,7 +14585,7 @@ async function setBeds24Webhook(accessToken, beds24PropertyId, existingWebhookUr
                 }
             }
         );
-        console.log(`[BEDS24] Webhook set for property ${beds24PropertyId}: ${webhookUrl}`);
+        console.log(`[BEDS24] Webhook ${currentUrl ? 'APPENDED' : 'set'} for property ${beds24PropertyId}`);
         return true;
     } catch (err) {
         console.error(`[BEDS24] Failed to set webhook for property ${beds24PropertyId}:`, err.message, 'status:', err.response?.status, 'data:', JSON.stringify(err.response?.data));
