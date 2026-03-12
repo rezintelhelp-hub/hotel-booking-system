@@ -5259,10 +5259,10 @@
                     <div style="color: #065f46; font-size: 0.9rem; line-height: 1.6;">
                         <p style="margin-bottom: 0.75rem;">Deposit rules control how guests pay for their bookings:</p>
                         <ul style="margin: 0; padding-left: 1.5rem;">
-                            <li><strong>Deposit Type:</strong> Percentage (e.g., 30%), fixed amount, first night, or full payment</li>
+                            <li><strong>Deposit Type:</strong> Percentage (e.g., 30%), fixed amount, first night, or full payment upfront (set to 0% for full balance due by balance date)</li>
                             <li><strong>Balance Due:</strong> When the remaining amount is due (e.g., 14 days before check-in)</li>
                             <li><strong>Refund Policy:</strong> Flexible, moderate, strict, or non-refundable</li>
-                            <li><strong>Auto-charge:</strong> Automatically charge the balance when due</li>
+                            <li><strong>Auto-charge:</strong> Automatically charge the full balance when due — if deposit is 0%, the full booking amount is charged on the balance due date</li>
                         </ul>
                     </div>
                 </div>
@@ -45779,7 +45779,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                         </div>
                                         <div>
                                             <strong style="color: #64748b; font-size: 0.85rem;">Balance Due</strong><br>
-                                            ${rule.balance_due_days} days before check-in
+                                            ${rule.deposit_percentage === 0 ? `Full payment due ${rule.balance_due_days} days before check-in` : `${rule.deposit_percentage}% deposit, balance due ${rule.balance_due_days} days before check-in`}
                                         </div>
                                         <div>
                                             <strong style="color: #64748b; font-size: 0.85rem;">Refund Policy</strong><br>
@@ -46045,7 +46045,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             const data = {
                 rule_name: document.getElementById('bulk-deposit-rule-name').value,
                 deposit_type: document.getElementById('bulk-deposit-type').value,
-                deposit_percentage: parseFloat(document.getElementById('bulk-deposit-percentage').value) || 30,
+                deposit_percentage: parseFloat(document.getElementById('bulk-deposit-percentage').value) ?? 0,
                 deposit_fixed_amount: parseFloat(document.getElementById('bulk-deposit-fixed-amount').value) || null,
                 balance_due_days: parseInt(document.getElementById('bulk-balance-due-days').value) || 14,
                 refund_policy: document.getElementById('bulk-refund-policy').value,
@@ -46102,7 +46102,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     renderDepositRuleLangTabs();
                     
                     document.getElementById('deposit-type').value = rule.deposit_type || 'percentage';
-                    document.getElementById('deposit-percentage').value = rule.deposit_percentage || 30;
+                    document.getElementById('deposit-percentage').value = rule.deposit_percentage ?? 30;
                     document.getElementById('deposit-fixed-amount').value = rule.deposit_fixed_amount || '';
                     document.getElementById('balance-due-days').value = rule.balance_due_days || 14;
                     document.getElementById('auto-charge-balance').checked = rule.auto_charge_balance || false;
@@ -46132,7 +46132,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             const data = {
                 rule_name: nameData,
                 deposit_type: document.getElementById('deposit-type').value,
-                deposit_percentage: parseFloat(document.getElementById('deposit-percentage').value) || 30,
+                deposit_percentage: parseFloat(document.getElementById('deposit-percentage').value) ?? 0,
                 deposit_fixed_amount: parseFloat(document.getElementById('deposit-fixed-amount').value) || null,
                 balance_due_days: parseInt(document.getElementById('balance-due-days').value) || 14,
                 auto_charge_balance: document.getElementById('auto-charge-balance').checked,

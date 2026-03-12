@@ -81069,3 +81069,109 @@ function startTieredSyncScheduler() {
     runTieredSync();
   }, SYNC_INTERVAL);
 }
+
+// =========================================================
+// AUTO-CHARGE BALANCE PAYMENTS BEFORE ARRIVAL
+// =========================================================
+async function processAutoChargePayments() {
+    console.log('[AUTO-CHARGE] Running balance payment check...');
+    try {
+        // Find bookings where balance is due today based on deposit_rules config
+        const result = await pool.query(`
+            SELECT
+                b.id as booking_id,
+                b.account_id,
+                b.property_id,
+                b.guest_first_name,
+                b.guest_last_name,
+                b.guest_email,
+                b.check_in,
+                b.grand_total,
+                b.deposit_amount,
+                b.balance_amount,
+                b.stripe_payment_method_id,
+                b.stripe_customer_id,
+                b.payment_status,
+                b.currency,
+                dr.auto_charge_days_before,
+                dr.auto_charge_balance,
+                COALESCE(p.stripe_secret_key, a.stripe_secret_key) as stripe_secret_key,
+                p.currency as property_currency
+            FROM bookings b
+            JOIN deposit_rules dr ON dr.property_id = b.property_id
+            JOIN properties p ON p.id = b.property_id
+            JOIN accounts a ON a.id = b.account_id
+            WHERE dr.auto_charge_balance = true
+            AND dr.is_active = true
+            AND b.stripe_payment_method_id IS NOT NULL
+            AND b.payment_status != 'paid'
+            AND b.balance_amount > 0
+            AND b.status NOT IN ('cancelled', 'rejected')
+            AND (b.check_in - INTERVAL '1 day' * dr.auto_charge_days_before)::date = CURRENT_DATE
+        `);
+
+        if (result.rows.length === 0) {
+            console.log('[AUTO-CHARGE] No balance payments due today');
+            return;
+        }
+
+        console.log(`[AUTO-CHARGE] Found ${result.rows.length} bookings to charge`);
+
+        for (const booking of result.rows) {
+            try {
+                const stripeKey = booking.stripe_secret_key || process.env.STRIPE_SECRET_KEY;
+                if (!stripeKey) {
+                    console.log(`[AUTO-CHARGE] No Stripe key for booking ${booking.booking_id}, skipping`);
+                    continue;
+                }
+                const stripeClient = require('stripe')(stripeKey);
+                const guestName = [booking.guest_first_name, booking.guest_last_name].filter(Boolean).join(' ');
+                const chargeCurrency = (booking.currency || booking.property_currency || 'eur').toLowerCase();
+
+                const paymentIntent = await stripeClient.paymentIntents.create({
+                    amount: Math.round(booking.balance_amount * 100),
+                    currency: chargeCurrency,
+                    customer: booking.stripe_customer_id,
+                    payment_method: booking.stripe_payment_method_id,
+                    confirm: true,
+                    off_session: true,
+                    description: `Balance payment for booking ${booking.booking_id} - ${guestName} - Check-in ${booking.check_in}`,
+                    metadata: {
+                        booking_id: String(booking.booking_id),
+                        account_id: String(booking.account_id),
+                        type: 'balance_payment'
+                    }
+                });
+
+                if (paymentIntent.status === 'succeeded') {
+                    await pool.query(`
+                        UPDATE bookings
+                        SET payment_status = 'paid',
+                            balance_amount = 0,
+                            balance_paid_at = NOW(),
+                            updated_at = NOW()
+                        WHERE id = $1
+                    `, [booking.booking_id]);
+                    console.log(`[AUTO-CHARGE] Successfully charged balance for booking ${booking.booking_id} - ${guestName}`);
+                }
+
+            } catch (chargeErr) {
+                console.error(`[AUTO-CHARGE] Failed to charge booking ${booking.booking_id}:`, chargeErr.message);
+            }
+        }
+
+    } catch (err) {
+        console.error('[AUTO-CHARGE] Error in processAutoChargePayments:', err);
+    }
+}
+
+// Run once 5 minutes after startup, then every 24 hours
+setTimeout(() => {
+    processAutoChargePayments();
+}, 300000);
+
+setInterval(() => {
+    processAutoChargePayments();
+}, 24 * 60 * 60 * 1000);
+
+console.log('💳 Auto-charge balance payments scheduled: daily check for upcoming arrivals');
