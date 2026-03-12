@@ -1787,14 +1787,14 @@ jQuery(document).ready(function($) {
                     $('.gas-tab-content').removeClass('active');
                     $('.gas-tab-content[data-tab="availability"]').addClass('active');
                     
-                    // Show "Not available" in price area
+                    // Not available — show dash, hide pricing, disable button
                     $('.gas-price-amount').text('—');
-                    $('.gas-price-period').html('<span style="color: #dc2626; font-weight: 600;">' + t('booking', 'not_available', 'Not available') + '</span>');
-                    
+                    $('.gas-price-period').text('');
+
                     $('.gas-price-breakdown').hide();
                     $('.gas-rate-options').hide();
                     $('.gas-occupancy-adjustment').hide();
-                    $btn.prop('disabled', true).text(t('booking', 'not_available_selected', 'Not available for selected dates'));
+                    $btn.prop('disabled', true).text(t('booking', 'select_dates_to_check', 'Select dates to check availability'));
                 }
             },
             error: function() {
@@ -2414,7 +2414,7 @@ jQuery(document).ready(function($) {
                             $room.find('.gas-view-btn, .gas-row-view-btn').css({'background': '#f59e0b', 'pointer-events': ''}).text(t('booking', 'view_book', 'View & Book'));
                         } else {
                             $room.removeClass('available').addClass('unavailable dates-blocked');
-                            $room.find('.gas-room-price, .gas-room-row-price').html('<span class="gas-not-available">' + t('booking', 'not_available_dates', 'Not available on selected dates') + '</span>');
+                            $room.find('.gas-room-price, .gas-room-row-price').html('—');
                             $room.find('.gas-view-btn, .gas-row-view-btn').css({'background': '#9ca3af', 'pointer-events': ''}).text(t('booking', 'view_calendar', 'View Calendar')).attr('title', t('booking', 'check_other_dates', 'Check other dates'));
                         }
                     },
