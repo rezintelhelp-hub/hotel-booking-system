@@ -14703,6 +14703,82 @@ app.post('/api/admin/beds24/set-all-webhooks', async (req, res) => {
     }
 });
 
+// Restore webhooks for account 210 (easylandlord) ONLY — one-time fix
+app.post('/api/admin/beds24/restore-webhooks', async (req, res) => {
+    try {
+        const { account_id, webhook_urls } = req.body;
+
+        // HARDCODED: Only account 210 allowed
+        if (parseInt(account_id) !== 210) {
+            return res.status(403).json({ error: 'This endpoint is restricted to account 210 only' });
+        }
+
+        if (!webhook_urls?.length) {
+            return res.status(400).json({ error: 'webhook_urls array required' });
+        }
+
+        const webhookString = webhook_urls.join('\n');
+        const token = await getBeds24Token(account_id);
+
+        // Get all properties for this account
+        const propsResponse = await axios.get('https://beds24.com/api/v2/properties', {
+            headers: { 'token': token }
+        });
+        const properties = propsResponse.data?.data || propsResponse.data || [];
+
+        let results = { success: 0, failed: 0, skipped: 0, properties: [] };
+
+        for (const prop of properties) {
+            try {
+                // Check current webhook
+                const currentUrl = prop.webhooks?.url || '';
+
+                // Skip if all URLs already present
+                const allPresent = webhook_urls.every(url => currentUrl.includes(url));
+                if (allPresent) {
+                    results.skipped++;
+                    results.properties.push({ id: prop.id, status: 'skipped - already set' });
+                    continue;
+                }
+
+                // Restore the webhooks
+                await axios.put('https://beds24.com/api/v2/properties',
+                    {
+                        id: prop.id,
+                        webhooks: {
+                            version: 'twoWithPersonalData',
+                            url: webhookString,
+                            additionalData: 'none',
+                            customHeader: ''
+                        }
+                    },
+                    {
+                        headers: {
+                            'token': token,
+                            'Content-Type': 'application/json',
+                            'accept': 'application/json'
+                        }
+                    }
+                );
+
+                results.success++;
+                results.properties.push({ id: prop.id, status: 'restored' });
+                console.log(`[BEDS24-RESTORE] Restored webhooks for property ${prop.id}`);
+
+            } catch (propErr) {
+                results.failed++;
+                results.properties.push({ id: prop.id, status: 'failed', error: propErr.message });
+                console.error(`[BEDS24-RESTORE] Failed for property ${prop.id}:`, propErr.message);
+            }
+        }
+
+        res.json({ success: true, results });
+    } catch (err) {
+        console.error('[BEDS24-RESTORE] Error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Sync properties and rooms from Beds24 for an account
 app.post('/api/accounts/:id/beds24/sync', async (req, res) => {
   try {
