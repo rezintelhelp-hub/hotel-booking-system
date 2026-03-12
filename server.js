@@ -14394,6 +14394,20 @@ app.post('/api/accounts/:id/beds24/connect', async (req, res) => {
       WHERE id = $5
     `, [inviteCode, token, refreshToken, expiresAt, id]);
 
+    // Auto-set webhooks on all properties for this account
+    try {
+      const whToken = await getBeds24Token(id);
+      const propsResponse = await axios.get('https://beds24.com/api/v2/properties', {
+        headers: { 'token': whToken }
+      });
+      const properties = propsResponse.data?.data || propsResponse.data || [];
+      for (const prop of properties) {
+        await setBeds24Webhook(whToken, prop.id);
+      }
+    } catch (whErr) {
+      console.error('[BEDS24] Webhook setup after connect failed:', whErr.message);
+    }
+
     res.json({ success: true, message: 'Connected to Beds24 successfully' });
   } catch (error) {
     console.error('Beds24 connect error:', error.response?.data || error.message);
@@ -14485,6 +14499,106 @@ async function getBeds24Token(accountId) {
     throw new Error('Token expired. Please reconnect to Beds24.');
   }
 }
+
+// Helper: Set Beds24 webhook for a property via V2 API
+async function setBeds24Webhook(accessToken, beds24PropertyId) {
+    try {
+        const webhookUrl = `https://admin.gas.travel/api/webhooks/beds24?propertyId=${beds24PropertyId}`;
+        await axios.post(`https://beds24.com/api/v2/properties/${beds24PropertyId}`,
+            {
+                webhooks: {
+                    bookingNotification: webhookUrl
+                }
+            },
+            {
+                headers: {
+                    'token': accessToken,
+                    'Content-Type': 'application/json',
+                    'accept': 'application/json'
+                }
+            }
+        );
+        console.log(`[BEDS24] Webhook set for property ${beds24PropertyId}: ${webhookUrl}`);
+        return true;
+    } catch (err) {
+        console.error(`[BEDS24] Failed to set webhook for property ${beds24PropertyId}:`, err.message);
+        return false;
+    }
+}
+
+// Admin: Set webhooks on all connected Beds24 properties
+app.post('/api/admin/beds24/set-all-webhooks', authenticateToken, async (req, res) => {
+    try {
+        let results = { success: 0, failed: 0, properties: [] };
+
+        // Process account-level connections
+        const accounts = await pool.query(`
+            SELECT id, beds24_refresh_token
+            FROM accounts
+            WHERE beds24_connected = true
+            AND beds24_refresh_token IS NOT NULL
+        `);
+
+        for (const account of accounts.rows) {
+            try {
+                const token = await getBeds24Token(account.id);
+                const propsResponse = await axios.get('https://beds24.com/api/v2/properties', {
+                    headers: { 'token': token }
+                });
+                const properties = propsResponse.data?.data || propsResponse.data || [];
+                for (const prop of properties) {
+                    const ok = await setBeds24Webhook(token, prop.id);
+                    if (ok) {
+                        results.success++;
+                        results.properties.push({ account_id: account.id, property_id: prop.id, status: 'success' });
+                    } else {
+                        results.failed++;
+                        results.properties.push({ account_id: account.id, property_id: prop.id, status: 'failed' });
+                    }
+                }
+            } catch (accErr) {
+                console.error(`[BEDS24] Failed for account ${account.id}:`, accErr.message);
+                results.failed++;
+            }
+        }
+
+        // Process wizard connections from gas_sync_connections
+        const syncConns = await pool.query(`
+            SELECT gsc.id, gsc.refresh_token, gsc.credentials, gsp.external_id
+            FROM gas_sync_connections gsc
+            JOIN gas_sync_properties gsp ON gsp.connection_id = gsc.id
+            WHERE gsc.adapter_code = 'beds24'
+            AND gsc.status = 'active'
+        `);
+
+        for (const conn of syncConns.rows) {
+            try {
+                const creds = typeof conn.credentials === 'string' ? JSON.parse(conn.credentials) : conn.credentials;
+                const refreshToken = conn.refresh_token || creds?.refreshToken;
+                if (!refreshToken) continue;
+                const tokenResp = await axios.get('https://beds24.com/api/v2/authentication/token', {
+                    headers: { 'refreshToken': refreshToken }
+                });
+                const ok = await setBeds24Webhook(tokenResp.data.token, conn.external_id);
+                if (ok) {
+                    results.success++;
+                    results.properties.push({ connection_id: conn.id, property_id: conn.external_id, status: 'success' });
+                } else {
+                    results.failed++;
+                    results.properties.push({ connection_id: conn.id, property_id: conn.external_id, status: 'failed' });
+                }
+            } catch (connErr) {
+                console.error(`[BEDS24] Failed for connection ${conn.id}:`, connErr.message);
+                results.failed++;
+            }
+        }
+
+        res.json({ success: true, results });
+    } catch (err) {
+        console.error('[BEDS24] set-all-webhooks error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
 
 // Sync properties and rooms from Beds24 for an account
 app.post('/api/accounts/:id/beds24/sync', async (req, res) => {
@@ -72783,7 +72897,14 @@ app.post('/api/beds24-wizard/import', async (req, res) => {
       ON CONFLICT (connection_id, external_property_id) 
       DO UPDATE SET gas_property_id = $2, api_key = $4, status = 'active', updated_at = NOW()
     `, [String(propId), gasPropertyId, prop.name, propCode || '', accountId]).catch(e => console.log('Property connection save:', e.message));
-    
+
+    // Auto-set webhook for this property
+    try {
+      await setBeds24Webhook(token, propId);
+    } catch (whErr) {
+      console.error('[BEDS24] Webhook setup after wizard import failed:', whErr.message);
+    }
+
     console.log(`Beds24 wizard: Imported property ${prop.name} (ID ${propId}) -> GAS property ${gasPropertyId}`);
     console.log(`  - Room types: ${roomsCreated}, Images: ${imagesCreated}`);
     console.log(`  - Credentials stored: V2 ✓, V1 ${v1ApiKey ? '✓' : '✗'}, PropCode ${propCode ? '✓' : '✗'}`);
