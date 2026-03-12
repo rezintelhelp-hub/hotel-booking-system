@@ -42271,12 +42271,16 @@ app.get('/api/admin/debug/rooms-beds24', async (req, res) => {
 app.get('/api/admin/debug/beds24-calendar/:beds24RoomId', async (req, res) => {
   try {
     const { beds24RoomId } = req.params;
-    const { propertyId, startDate, endDate: endDateParam } = req.query;
+    const { propertyId, startDate, endDate: endDateParam, accountId } = req.query;
 
-    // Get access token using helper function
+    // Get access token - prefer per-account token if accountId provided
     let accessToken;
     try {
-      accessToken = await getBeds24AccessToken(pool);
+      if (accountId) {
+        accessToken = await getBeds24Token(parseInt(accountId));
+      } else {
+        accessToken = await getBeds24AccessToken(pool);
+      }
     } catch (tokenError) {
       return res.json({ success: false, error: tokenError.message });
     }
