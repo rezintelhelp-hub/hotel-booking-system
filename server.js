@@ -2606,7 +2606,7 @@ app.get('/api/gas-sync/property-by-gas-id/:gasPropertyId', async (req, res) => {
     // Fallback: get cm_property_id from properties table, and room info from bookable_units
     const result = await pool.query(`
       SELECT p.id, p.name, p.account_id, p.cm_property_id, p.cm_source,
-             bu.cm_room_id,
+             bu.cm_room_id, bu.beds24_room_id,
              c.id as connection_id, c.adapter_code, c.external_account_id
       FROM properties p
       LEFT JOIN bookable_units bu ON bu.property_id = p.id
@@ -2614,26 +2614,26 @@ app.get('/api/gas-sync/property-by-gas-id/:gasPropertyId', async (req, res) => {
       WHERE p.id = $1
       LIMIT 1
     `, [gasPropertyId]);
-    
+
     if (result.rows.length > 0) {
       const row = result.rows[0];
-      // Use cm_property_id from properties if available, otherwise fall back to cm_room_id
-      const cmPropertyId = row.cm_property_id || row.cm_room_id;
-      
-      if (cmPropertyId) {
+      const cmPropertyId = row.cm_property_id || row.cm_room_id || row.beds24_room_id;
+      const detectedAdapter = row.adapter_code || row.cm_source || (row.beds24_room_id ? 'beds24' : null);
+
+      if (cmPropertyId || detectedAdapter) {
         return res.json({
           success: true,
           syncPropertyId: gasPropertyId,
           connectionId: row.connection_id,
           cmPropertyId: cmPropertyId,
           cmRoomId: row.cm_room_id,
-          adapterCode: row.adapter_code || row.cm_source,
+          adapterCode: detectedAdapter,
           integrationAccountId: row.external_account_id,
           name: row.name
         });
       }
     }
-    
+
     res.json({ success: false, error: 'No sync property found for this GAS property' });
   } catch (error) {
     res.json({ success: false, error: error.message });
@@ -2844,48 +2844,55 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
     } else if (adapterCode === 'beds24') {
       // Beds24 manual sync - fetch calendar data from Beds24 API
       const connectionId = prop.connection_id;
-      
-      if (!connectionId) {
-        return res.json({ success: false, error: 'No Beds24 connection found for this property' });
-      }
-      
-      // Get connection with token
-      const connResult = await pool.query('SELECT * FROM gas_sync_connections WHERE id = $1', [connectionId]);
-      if (connResult.rows.length === 0) {
-        return res.json({ success: false, error: 'Connection not found' });
-      }
-      
-      const conn = connResult.rows[0];
-      let accessToken = conn.access_token;
+      let accessToken = null;
+      let v1ApiKey = null;
+      let propKey = null;
 
-      // Extract V1 credentials for fixed price fallback
-      const connCreds = typeof conn.credentials === 'string'
-        ? JSON.parse(conn.credentials)
-        : (conn.credentials || {});
-      const v1ApiKey = connCreds.v1ApiKey || connCreds.apiKey;
+      if (connectionId) {
+        // Get token from gas_sync_connections
+        const connResult = await pool.query('SELECT * FROM gas_sync_connections WHERE id = $1', [connectionId]);
+        if (connResult.rows.length > 0) {
+          const conn = connResult.rows[0];
+          accessToken = conn.access_token;
 
-      // Get prop_key for V1 fallback
-      const propKeyResult = await pool.query(
-        'SELECT prop_key FROM gas_sync_properties WHERE connection_id = $1 AND gas_property_id = $2 LIMIT 1',
-        [connectionId, gasPropertyId]
-      );
-      const propKey = propKeyResult.rows[0]?.prop_key;
+          const connCreds = typeof conn.credentials === 'string'
+            ? JSON.parse(conn.credentials)
+            : (conn.credentials || {});
+          v1ApiKey = connCreds.v1ApiKey || connCreds.apiKey;
 
-      // Refresh token if needed
-      if (!accessToken && conn.refresh_token) {
-        try {
-          const tokenResponse = await axios.get('https://beds24.com/api/v2/authentication/token', {
-            headers: { 'refreshToken': conn.refresh_token }
-          });
-          accessToken = tokenResponse.data.token;
-          await pool.query('UPDATE gas_sync_connections SET access_token = $1 WHERE id = $2', [accessToken, connectionId]);
-        } catch (e) {
-          return res.json({ success: false, error: 'Token expired. Please reconnect to Beds24.' });
+          const propKeyResult = await pool.query(
+            'SELECT prop_key FROM gas_sync_properties WHERE connection_id = $1 AND gas_property_id = $2 LIMIT 1',
+            [connectionId, gasPropertyId]
+          );
+          propKey = propKeyResult.rows[0]?.prop_key;
+
+          if (!accessToken && conn.refresh_token) {
+            try {
+              const tokenResponse = await axios.get('https://beds24.com/api/v2/authentication/token', {
+                headers: { 'refreshToken': conn.refresh_token }
+              });
+              accessToken = tokenResponse.data.token;
+              await pool.query('UPDATE gas_sync_connections SET access_token = $1 WHERE id = $2', [accessToken, connectionId]);
+            } catch (e) {
+              console.log('[Beds24 Sync] gas_sync_connections token refresh failed, trying per-account token');
+            }
+          }
         }
       }
-      
+
+      // Fallback: get token from per-account Beds24 connection
       if (!accessToken) {
-        return res.json({ success: false, error: 'No access token. Please reconnect to Beds24.' });
+        const accountId = prop.account_id || (await pool.query('SELECT account_id FROM properties WHERE id = $1', [gasPropertyId])).rows[0]?.account_id;
+        if (accountId) {
+          try {
+            accessToken = await getBeds24Token(accountId);
+            console.log(`[Beds24 Sync] Using per-account token for account ${accountId}`);
+          } catch (e) {
+            return res.json({ success: false, error: 'No Beds24 connection found. Please connect via Beds24 settings.' });
+          }
+        } else {
+          return res.json({ success: false, error: 'No Beds24 connection found for this property' });
+        }
       }
       
       // Get rooms for this property
