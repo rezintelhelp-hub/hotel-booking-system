@@ -14382,7 +14382,31 @@ app.get('/api/setup-accounts-billing', async (req, res) => {
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS beds24_billing_enabled BOOLEAN DEFAULT true`).catch(() => {});
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS website_billing_enabled BOOLEAN DEFAULT true`).catch(() => {});
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS billing_currency VARCHAR(3) DEFAULT 'EUR'`).catch(() => {});
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS stripe_billing_customer_id VARCHAR(100)`).catch(() => {});
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS stripe_billing_payment_method_id VARCHAR(100)`).catch(() => {});
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS billing_mandate_status VARCHAR(20) DEFAULT 'none'`).catch(() => {});
     console.log('✅ billing columns added to accounts');
+
+    // Billing invoices table
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS gas_billing_invoices (
+            id SERIAL PRIMARY KEY,
+            account_id INTEGER REFERENCES accounts(id),
+            invoice_number VARCHAR(50) UNIQUE,
+            period_start DATE NOT NULL,
+            period_end DATE NOT NULL,
+            amount DECIMAL(10,2) NOT NULL,
+            currency VARCHAR(3) DEFAULT 'GBP',
+            status VARCHAR(20) DEFAULT 'draft',
+            stripe_invoice_id VARCHAR(100),
+            stripe_payment_intent_id VARCHAR(100),
+            line_items JSONB,
+            paid_at TIMESTAMP,
+            due_date DATE,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+        )
+    `).catch(() => {});
 
     // Custom invoice line items table
     await pool.query(`
