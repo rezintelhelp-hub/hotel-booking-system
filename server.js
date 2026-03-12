@@ -46403,8 +46403,13 @@ app.post('/api/webhooks/beds24', async (req, res) => {
     
     // Handle different scenarios
     // If status is cancelled, re-open dates. Otherwise block them.
-    const isCancelled = status === 'cancelled' || status === 'Cancelled' || 
-                        eventType === 'cancel' || eventType === 'delete' || eventType === 'cancelled';
+    // Beds24 V2 may send status as: 'cancelled', 'Cancelled', 0, '0', or 'black'
+    const statusStr = String(status).toLowerCase();
+    const eventStr = String(eventType).toLowerCase();
+    const isCancelled = statusStr === 'cancelled' || statusStr === '0' || status === 0 ||
+                        statusStr === 'black' || statusStr === 'deleted' ||
+                        eventStr === 'cancel' || eventStr === 'delete' || eventStr === 'cancelled';
+    console.log(`Webhook cancel check - status: '${status}' (type: ${typeof status}), statusStr: '${statusStr}', isCancelled: ${isCancelled}`);
     
     if (roomId) {
       // Find our room by beds24_room_id
@@ -56963,8 +56968,9 @@ app.post('/api/admin/sync-beds24-bookings', async (req, res) => {
           continue;
         }
         
-        const isCancelled = booking.status === 'cancelled' || booking.status === 'Cancelled';
-        console.log(`Processing booking ${booking.id}: room ${beds24RoomId} (${ourRoom.name}), ${arrival} to ${departure}, cancelled: ${isCancelled}`);
+        const bookingStatusStr = String(booking.status).toLowerCase();
+        const isCancelled = bookingStatusStr === 'cancelled' || bookingStatusStr === '0' || booking.status === 0 || bookingStatusStr === 'black';
+        console.log(`Processing booking ${booking.id}: room ${beds24RoomId} (${ourRoom.name}), ${arrival} to ${departure}, status: '${booking.status}' (${typeof booking.status}), cancelled: ${isCancelled}`);
         
         // Check if we have a matching GAS booking (created from our system)
         if (isCancelled) {
