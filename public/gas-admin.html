@@ -3,7 +3,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1">
     <title>GAS Admin Dashboard</title>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet">
     <script src="https://js.stripe.com/v3/"></script>
@@ -60375,17 +60375,16 @@ const promo = await fetch('/api/v1/offers/validate', {
                 });
                 const data = await response.json();
                 if (data.success) {
-                    // Open Stripe hosted mandate page in new tab
-                    const stripe = Stripe(data.publishable_key || window.GAS_STRIPE_PK);
-                    const { error } = await stripe.collectBankAccountForSetup({
+                    // Redirect to Stripe Checkout for BACS/SEPA mandate setup
+                    const stripe = Stripe(data.publishable_key);
+                    const { error } = await stripe.confirmSetup({
                         clientSecret: data.client_secret,
-                        params: { payment_method_type: data.payment_method_type }
+                        confirmParams: {
+                            return_url: window.location.origin + '/gas-admin.html?billing_setup=success&account_id=' + accountId
+                        }
                     });
                     if (error) {
                         showNotification('Direct debit setup failed: ' + error.message, 'error');
-                    } else {
-                        showNotification('✅ Direct debit mandate created successfully', 'success');
-                        loadMandateStatus(accountId);
                     }
                 } else {
                     showNotification('Error: ' + data.error, 'error');
@@ -60397,11 +60396,11 @@ const promo = await fetch('/api/v1/offers/validate', {
 
         async function loadMandateStatus(accountId) {
             try {
-                const response = await fetch(`/api/admin/accounts/${accountId}/subscription`, {
+                const response = await fetch(`/api/accounts/${accountId}`, {
                     headers: authHeaders()
                 });
                 const data = await response.json();
-                const status = data.billing_mandate_status || 'none';
+                const status = data.account?.billing_mandate_status || 'none';
                 const el = document.getElementById('mandate-status-display');
                 if (!el) return;
                 if (status === 'active') {
