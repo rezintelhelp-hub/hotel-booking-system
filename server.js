@@ -21035,13 +21035,9 @@ app.get('/api/setup-billing', async (req, res) => {
         )
     `);
 
-    await pool.query(`
-        ALTER TABLE accounts
-        ADD COLUMN IF NOT EXISTS stripe_billing_customer_id VARCHAR(100),
-        ADD COLUMN IF NOT EXISTS stripe_billing_payment_method_id VARCHAR(100),
-        ADD COLUMN IF NOT EXISTS billing_mandate_status VARCHAR(20) DEFAULT 'none',
-        ADD COLUMN IF NOT EXISTS billing_currency VARCHAR(3) DEFAULT 'GBP'
-    `);
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS stripe_billing_customer_id VARCHAR(100)`);
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS stripe_billing_payment_method_id VARCHAR(100)`);
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS billing_mandate_status VARCHAR(20) DEFAULT 'none'`);
 
     // Account credit balance
     await pool.query(`
