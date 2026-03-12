@@ -14527,7 +14527,7 @@ async function setBeds24Webhook(accessToken, beds24PropertyId) {
 }
 
 // Admin: Set webhooks on all connected Beds24 properties
-app.post('/api/admin/beds24/set-all-webhooks', authenticateToken, async (req, res) => {
+app.post('/api/admin/beds24/set-all-webhooks', async (req, res) => {
     try {
         let results = { success: 0, failed: 0, properties: [] };
 
