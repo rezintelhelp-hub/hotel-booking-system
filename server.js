@@ -14509,7 +14509,14 @@ async function setBeds24Webhook(accessToken, beds24PropertyId) {
             params: { id: beds24PropertyId }
         });
         const propData = currentProp.data?.data?.[0] || currentProp.data?.[0] || currentProp.data;
+        const currentUrl = propData?.webhooks?.url || '';
         console.log(`[BEDS24] Current webhooks for property ${beds24PropertyId}:`, JSON.stringify(propData?.webhooks));
+
+        // Only set webhook if empty or already pointing to GAS — never overwrite another system's webhook
+        if (currentUrl && !currentUrl.includes('gas.travel')) {
+            console.log(`[BEDS24] SKIPPED property ${beds24PropertyId} — webhook already set to another system: ${currentUrl}`);
+            return { skipped: true, reason: 'existing_webhook', currentUrl };
+        }
 
         const webhookUrl = 'https://admin.gas.travel/api/webhooks/beds24?propertyId=[PROPERTYID]';
         await axios.post('https://beds24.com/api/v2/properties',
@@ -14537,6 +14544,29 @@ async function setBeds24Webhook(accessToken, beds24PropertyId) {
         return false;
     }
 }
+
+// ONE-TIME FIX: Restore WebReady webhook on property 16789 that we accidentally overwrote
+// REMOVE THIS BLOCK after it runs once
+(async () => {
+    try {
+        const token197 = await getBeds24Token(197);
+        await axios.post('https://beds24.com/api/v2/properties',
+            [{
+                id: 16789,
+                webhooks: {
+                    version: 'twoWithPersonalData',
+                    url: 'https://pms.usewebready.com/v2/beds24/webhook/3788/[ROOMID]',
+                    additionalData: 'none',
+                    customHeader: ''
+                }
+            }],
+            { headers: { 'token': token197, 'Content-Type': 'application/json', 'accept': 'application/json' } }
+        );
+        console.log('[BEDS24] RESTORED WebReady webhook on property 16789');
+    } catch (e) {
+        console.error('[BEDS24] Failed to restore WebReady webhook on 16789:', e.message);
+    }
+})();
 
 // Admin: Set webhooks on all connected Beds24 properties
 app.post('/api/admin/beds24/set-all-webhooks', async (req, res) => {
@@ -14567,8 +14597,10 @@ app.post('/api/admin/beds24/set-all-webhooks', async (req, res) => {
                 });
                 const properties = propsResponse.data?.data || propsResponse.data || [];
                 for (const prop of properties) {
-                    const ok = await setBeds24Webhook(token, prop.id);
-                    if (ok) {
+                    const result = await setBeds24Webhook(token, prop.id);
+                    if (result?.skipped) {
+                        results.properties.push({ account_id: account.id, property_id: prop.id, status: 'skipped', reason: result.currentUrl });
+                    } else if (result === true) {
                         results.success++;
                         results.properties.push({ account_id: account.id, property_id: prop.id, status: 'success' });
                     } else {
@@ -14605,8 +14637,10 @@ app.post('/api/admin/beds24/set-all-webhooks', async (req, res) => {
                 const tokenResp = await axios.get('https://beds24.com/api/v2/authentication/token', {
                     headers: { 'refreshToken': refreshToken }
                 });
-                const ok = await setBeds24Webhook(tokenResp.data.token, conn.external_id);
-                if (ok) {
+                const result = await setBeds24Webhook(tokenResp.data.token, conn.external_id);
+                if (result?.skipped) {
+                    results.properties.push({ connection_id: conn.id, property_id: conn.external_id, status: 'skipped', reason: result.currentUrl });
+                } else if (result === true) {
                     results.success++;
                     results.properties.push({ connection_id: conn.id, property_id: conn.external_id, status: 'success' });
                 } else {
