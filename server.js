@@ -42271,8 +42271,8 @@ app.get('/api/admin/debug/rooms-beds24', async (req, res) => {
 app.get('/api/admin/debug/beds24-calendar/:beds24RoomId', async (req, res) => {
   try {
     const { beds24RoomId } = req.params;
-    const { propertyId } = req.query;
-    
+    const { propertyId, startDate, endDate: endDateParam } = req.query;
+
     // Get access token using helper function
     let accessToken;
     try {
@@ -42280,13 +42280,12 @@ app.get('/api/admin/debug/beds24-calendar/:beds24RoomId', async (req, res) => {
     } catch (tokenError) {
       return res.json({ success: false, error: tokenError.message });
     }
-    
-    // Calculate date range
+
+    // Calculate date range - use query params if provided, otherwise default to 30 days
     const today = new Date();
-    const endDate = new Date();
-    endDate.setDate(endDate.getDate() + 30);
-    
-    const fromDate = today.toISOString().split('T')[0];
+    const endDate = endDateParam ? new Date(endDateParam) : new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+    const fromDate = startDate || today.toISOString().split('T')[0];
     const toDate = endDate.toISOString().split('T')[0];
     
     // Try multiple API variations
@@ -42315,12 +42314,12 @@ app.get('/api/admin/debug/beds24-calendar/:beds24RoomId', async (req, res) => {
     }
     
     // Try 3: /inventory/rooms/offers (calculated prices for dates)
-    // Get offers for next 30 days, one day at a time
     try {
       const offersData = [];
-      // Test first 7 days to see the data structure
-      for (let i = 0; i < 7; i++) {
-        const arrivalDate = new Date(today);
+      const offerStartDate = startDate ? new Date(startDate) : new Date(today);
+      const offerDays = startDate ? Math.min(Math.ceil((endDate - offerStartDate) / (24*60*60*1000)), 14) : 7;
+      for (let i = 0; i < offerDays; i++) {
+        const arrivalDate = new Date(offerStartDate);
         arrivalDate.setDate(arrivalDate.getDate() + i);
         const departDate = new Date(arrivalDate);
         departDate.setDate(departDate.getDate() + 1);
