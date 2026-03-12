@@ -27186,7 +27186,8 @@ app.post('/api/admin/billing/setup-customer', async (req, res) => {
             success: true,
             customer_id: customerId,
             client_secret: setupIntent.client_secret,
-            payment_method_type: paymentMethodType
+            payment_method_type: paymentMethodType,
+            publishable_key: process.env.STRIPE_PUBLISHABLE_KEY
         });
     } catch (err) {
         console.error('[BILLING] setup-customer error:', err);
