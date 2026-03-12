@@ -14637,7 +14637,7 @@ app.post('/api/admin/beds24/set-all-webhooks', async (req, res) => {
             SELECT DISTINCT gsc.id, gsc.account_id, gsc.refresh_token, gsc.credentials
             FROM gas_sync_connections gsc
             WHERE gsc.adapter_code = 'beds24'
-            AND gsc.status = 'active'
+            AND gsc.status IN ('active', 'connected')
         `;
         const syncParams = [];
         if (targetAccountId) {
