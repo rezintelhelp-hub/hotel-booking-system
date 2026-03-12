@@ -14703,6 +14703,26 @@ app.post('/api/admin/beds24/set-all-webhooks', async (req, res) => {
     }
 });
 
+// Check webhook status for an account's Beds24 properties
+app.get('/api/admin/beds24/check-webhooks/:accountId', async (req, res) => {
+    try {
+        const accountId = parseInt(req.params.accountId);
+        const token = await getBeds24Token(accountId);
+        const propsResponse = await axios.get('https://beds24.com/api/v2/properties', {
+            headers: { 'token': token }
+        });
+        const properties = propsResponse.data?.data || propsResponse.data || [];
+        const result = properties.map(p => ({
+            id: p.id,
+            name: p.name,
+            webhooks: p.webhooks?.url || 'NONE'
+        }));
+        res.json({ success: true, count: result.length, properties: result });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Restore webhooks for account 210 (easylandlord) ONLY — one-time fix
 app.post('/api/admin/beds24/restore-webhooks', async (req, res) => {
     try {
