@@ -14504,7 +14504,7 @@ async function getBeds24Token(accountId) {
 async function setBeds24Webhook(accessToken, beds24PropertyId) {
     try {
         const webhookUrl = `https://admin.gas.travel/api/webhooks/beds24?propertyId=${beds24PropertyId}`;
-        await axios.post(`https://beds24.com/api/v2/properties/${beds24PropertyId}`,
+        await axios.put(`https://beds24.com/api/v2/properties/${beds24PropertyId}`,
             {
                 webhooks: {
                     version: '2',
@@ -14530,7 +14530,8 @@ async function setBeds24Webhook(accessToken, beds24PropertyId) {
 // Admin: Set webhooks on all connected Beds24 properties
 app.post('/api/admin/beds24/set-all-webhooks', async (req, res) => {
     try {
-        const targetAccountId = req.body.account_id;
+        const targetAccountId = req.body.account_id ? parseInt(req.body.account_id) : null;
+        console.log(`[BEDS24] set-all-webhooks called, targetAccountId: ${targetAccountId}`);
         let results = { success: 0, failed: 0, properties: [] };
 
         // Process account-level connections
