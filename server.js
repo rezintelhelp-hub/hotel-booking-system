@@ -78770,6 +78770,30 @@ app.listen(PORT, '0.0.0.0', async () => {
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS airwallex_payments_customer_id VARCHAR(255)`);
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS airwallex_payment_method_id VARCHAR(255)`);
 
+    // Stripe billing columns
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS stripe_billing_customer_id VARCHAR(100)`);
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS stripe_billing_payment_method_id VARCHAR(100)`);
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS billing_mandate_status VARCHAR(20) DEFAULT 'none'`);
+
+    // Billing invoices table
+    await pool.query(`CREATE TABLE IF NOT EXISTS gas_billing_invoices (
+        id SERIAL PRIMARY KEY,
+        account_id INTEGER REFERENCES accounts(id),
+        invoice_number VARCHAR(50) UNIQUE,
+        period_start DATE NOT NULL,
+        period_end DATE NOT NULL,
+        amount DECIMAL(10,2) NOT NULL,
+        currency VARCHAR(3) DEFAULT 'GBP',
+        status VARCHAR(20) DEFAULT 'draft',
+        stripe_invoice_id VARCHAR(100),
+        stripe_payment_intent_id VARCHAR(100),
+        line_items JSONB,
+        paid_at TIMESTAMP,
+        due_date DATE,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+    )`);
+
     console.log('✅ Database migrations complete');
   } catch (migrationError) {
     console.log('⚠️ Migration error (may already exist):', migrationError.message);
