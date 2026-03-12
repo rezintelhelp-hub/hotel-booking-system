@@ -14555,21 +14555,6 @@ async function getBeds24Token(accountId) {
 // Helper: Set Beds24 webhook for a property via V2 API
 async function setBeds24Webhook(accessToken, beds24PropertyId) {
     try {
-        // First read current webhook state from Beds24
-        const currentProp = await axios.get('https://beds24.com/api/v2/properties', {
-            headers: { 'token': accessToken },
-            params: { id: beds24PropertyId }
-        });
-        const propData = currentProp.data?.data?.[0] || currentProp.data?.[0] || currentProp.data;
-        const currentUrl = propData?.webhooks?.url || '';
-        console.log(`[BEDS24] Current webhooks for property ${beds24PropertyId}:`, JSON.stringify(propData?.webhooks));
-
-        // Only set webhook if empty or already pointing to GAS — never overwrite another system's webhook
-        if (currentUrl && !currentUrl.includes('gas.travel')) {
-            console.log(`[BEDS24] SKIPPED property ${beds24PropertyId} — webhook already set to another system: ${currentUrl}`);
-            return { skipped: true, reason: 'existing_webhook', currentUrl };
-        }
-
         const webhookUrl = 'https://admin.gas.travel/api/webhooks/beds24?propertyId=[PROPERTYID]';
         await axios.post('https://beds24.com/api/v2/properties',
             [{
@@ -17214,10 +17199,10 @@ app.post('/api/payments/confirm', async (req, res) => {
                 date: new Date().toISOString().split('T')[0]
               }]
             }];
-            
+            paymentData.forEach(b => b.allowWebhooks = true);
+
             await axios.post('https://beds24.com/api/v2/bookings', paymentData, {
-              headers: { 'token': accessToken, 'Content-Type': 'application/json' },
-              params: { allowWebhooks: true }
+              headers: { 'token': accessToken, 'Content-Type': 'application/json' }
             });
             console.log(`Payment synced to Beds24 for booking ${booking_id}`);
           }
@@ -17527,12 +17512,12 @@ app.post('/api/public/payment-failed', async (req, res) => {
                             vatRate: 0
                         }]
                     }];
-                    
+                    beds24Inquiry.forEach(b => b.allowWebhooks = true);
+
                     const beds24Response = await axios.post('https://beds24.com/api/v2/bookings', beds24Inquiry, {
-                        headers: { 'token': accessToken, 'Content-Type': 'application/json' },
-                        params: { allowWebhooks: true }
+                        headers: { 'token': accessToken, 'Content-Type': 'application/json' }
                     });
-                    
+
                     if (beds24Response.data?.[0]?.success) {
                         console.log(`📋 Beds24 inquiry created for failed payment: ${beds24Response.data[0]?.new?.id}`);
                     }
@@ -17853,18 +17838,18 @@ app.post('/api/public/create-group-booking', async (req, res) => {
                         }]
                     }];
                     
+                    beds24Booking.forEach(b => b.allowWebhooks = true);
                     console.log('Pushing group booking to Beds24:', JSON.stringify(beds24Booking));
-                    
+
                     const beds24Response = await axios.post('https://beds24.com/api/v2/bookings', beds24Booking, {
                         headers: {
                             'token': accessToken,
                             'Content-Type': 'application/json'
-                        },
-                        params: { allowWebhooks: true }
+                        }
                     });
-                    
+
                     console.log('Beds24 response:', JSON.stringify(beds24Response.data));
-                    
+
                     if (beds24Response.data && beds24Response.data[0]?.success) {
                         const beds24Id = beds24Response.data[0]?.new?.id;
                         if (beds24Id) {
@@ -18584,13 +18569,13 @@ app.post('/api/admin/bookings/:id/push-to-beds24', async (req, res) => {
             }]
         };
         
+        beds24Payload.allowWebhooks = true;
         console.log('[Beds24 Push] Payload:', JSON.stringify(beds24Payload));
-        
+
         const beds24Response = await axios.post('https://beds24.com/api/v2/bookings', [beds24Payload], {
-            headers: { 'token': accessToken, 'Content-Type': 'application/json' },
-            params: { allowWebhooks: true }
+            headers: { 'token': accessToken, 'Content-Type': 'application/json' }
         });
-        
+
         console.log('[Beds24 Push] Response:', JSON.stringify(beds24Response.data));
         
         const respData = Array.isArray(beds24Response.data) ? beds24Response.data[0] : beds24Response.data;
@@ -29220,15 +29205,15 @@ app.post('/api/db/book', async (req, res) => {
           // Payments if deposit was collected
           ...(payments.length > 0 && { payments })
         }];
-        
+        beds24Booking.forEach(b => b.allowWebhooks = true);
+
         console.log('Pushing booking to Beds24:', JSON.stringify(beds24Booking));
-        
+
         const beds24Response = await axios.post('https://beds24.com/api/v2/bookings', beds24Booking, {
           headers: {
             'token': accessToken,
             'Content-Type': 'application/json'
-          },
-          params: { allowWebhooks: true }
+          }
         });
 
         console.log('Beds24 booking response:', JSON.stringify(beds24Response.data));
@@ -40181,7 +40166,7 @@ app.post('/api/admin/bookings', async (req, res) => {
         try {
           const accessToken = await getBeds24AccessToken(pool);
           if (accessToken) {
-            const beds24Response = await fetch('https://beds24.com/api/v2/bookings?allowWebhooks=true', {
+            const beds24Response = await fetch('https://beds24.com/api/v2/bookings', {
               method: 'POST',
               headers: {
                 'Authorization': `Bearer ${accessToken}`,
@@ -40198,7 +40183,8 @@ app.post('/api/admin/bookings', async (req, res) => {
                 guestPhone: guest_phone || '',
                 price: total_price || 0,
                 status: 1,
-                apiSource: 'GAS Direct Booking'
+                apiSource: 'GAS Direct Booking',
+                allowWebhooks: true
               })
             });
             
@@ -40443,16 +40429,16 @@ app.put('/api/bookings/:id', async (req, res) => {
             deposit: parseFloat(deposit_amount) || 0
           }];
           
+          beds24Update.forEach(b => b.allowWebhooks = true);
           console.log('Updating Beds24 booking:', JSON.stringify(beds24Update));
-          
+
           const beds24Response = await axios.post('https://beds24.com/api/v2/bookings', beds24Update, {
             headers: {
               'token': accessToken,
               'Content-Type': 'application/json'
-            },
-            params: { allowWebhooks: true }
+            }
           });
-          
+
           console.log('Beds24 update response:', JSON.stringify(beds24Response.data));
           beds24Synced = beds24Response.data?.[0]?.success || false;
         }
@@ -40495,13 +40481,13 @@ app.delete('/api/bookings/:id', async (req, res) => {
         if (accessToken) {
           const cancelResponse = await axios.post('https://beds24.com/api/v2/bookings', [{
             id: parseInt(booking.beds24_booking_id),
-            status: 'cancelled'
+            status: 'cancelled',
+            allowWebhooks: true
           }], {
             headers: {
               'token': accessToken,
               'Content-Type': 'application/json'
-            },
-            params: { allowWebhooks: true }
+            }
           });
           console.log('Beds24 cancellation on delete:', JSON.stringify(cancelResponse.data));
         }
@@ -40830,13 +40816,13 @@ app.post('/api/bookings/:id/cancel', async (req, res) => {
           // Beds24 v2 API - POST to /bookings with status update
           const cancelResponse = await axios.post('https://beds24.com/api/v2/bookings', [{
             id: parseInt(booking.beds24_booking_id),
-            status: 'cancelled'
+            status: 'cancelled',
+            allowWebhooks: true
           }], {
             headers: {
               'token': accessToken,
               'Content-Type': 'application/json'
-            },
-            params: { allowWebhooks: true }
+            }
           });
           console.log('Beds24 cancellation response:', JSON.stringify(cancelResponse.data));
         }
@@ -56899,16 +56885,16 @@ app.post('/api/admin/sync-payment-to-beds24', async (req, res) => {
       }]
     }];
     
+    paymentData.forEach(b => b.allowWebhooks = true);
     console.log('Syncing payment to Beds24:', JSON.stringify(paymentData));
-    
+
     const beds24Response = await axios.post('https://beds24.com/api/v2/bookings', paymentData, {
       headers: {
         'token': accessToken,
         'Content-Type': 'application/json'
-      },
-      params: { allowWebhooks: true }
+      }
     });
-    
+
     console.log('Beds24 payment sync response:', JSON.stringify(beds24Response.data));
     
     res.json({
@@ -59907,19 +59893,19 @@ app.post('/api/public/book', async (req, res) => {
           })(),
           payments: payments.length > 0 ? payments : undefined
         }];
-        
+        beds24Booking.forEach(b => b.allowWebhooks = true);
+
         console.log('Pushing booking to Beds24:', JSON.stringify(beds24Booking));
-        
+
         const beds24Response = await axios.post('https://beds24.com/api/v2/bookings', beds24Booking, {
           headers: {
             'token': accessToken,
             'Content-Type': 'application/json'
-          },
-          params: { allowWebhooks: true }
+          }
         });
 
         console.log('Beds24 response:', JSON.stringify(beds24Response.data));
-        
+
         if (beds24Response.data && beds24Response.data[0]?.success) {
           beds24BookingId = beds24Response.data[0]?.new?.id;
           if (beds24BookingId) {
