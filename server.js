@@ -14556,6 +14556,17 @@ async function getBeds24Token(accountId) {
 async function setBeds24Webhook(accessToken, beds24PropertyId) {
     try {
         const webhookUrl = 'https://admin.gas.travel/api/webhooks/beds24?propertyId=[PROPERTYID]';
+
+        // Safety guard: check existing webhook first — NEVER overwrite non-GAS webhooks
+        const propResponse = await axios.get(`https://beds24.com/api/v2/properties/${beds24PropertyId}`, {
+            headers: { 'token': accessToken, 'accept': 'application/json' }
+        });
+        const currentUrl = propResponse.data?.webhooks?.url || propResponse.data?.data?.webhooks?.url || '';
+        if (currentUrl && !currentUrl.includes('gas.travel')) {
+            console.log(`[BEDS24] SKIPPED property ${beds24PropertyId} — existing non-GAS webhook: ${currentUrl}`);
+            return { skipped: true, currentUrl };
+        }
+
         await axios.post('https://beds24.com/api/v2/properties',
             [{
                 id: beds24PropertyId,
@@ -21002,7 +21013,36 @@ app.get('/api/setup-billing', async (req, res) => {
     await pool.query(`
       ALTER TABLE billing_subscriptions ADD COLUMN IF NOT EXISTS feature_overrides JSONB DEFAULT '{}'
     `);
-    
+
+    // Billing invoices
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS gas_billing_invoices (
+            id SERIAL PRIMARY KEY,
+            account_id INTEGER REFERENCES accounts(id),
+            invoice_number VARCHAR(50) UNIQUE,
+            period_start DATE NOT NULL,
+            period_end DATE NOT NULL,
+            amount DECIMAL(10,2) NOT NULL,
+            currency VARCHAR(3) DEFAULT 'GBP',
+            status VARCHAR(20) DEFAULT 'draft',
+            stripe_invoice_id VARCHAR(100),
+            stripe_payment_intent_id VARCHAR(100),
+            line_items JSONB,
+            paid_at TIMESTAMP,
+            due_date DATE,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+        )
+    `);
+
+    await pool.query(`
+        ALTER TABLE accounts
+        ADD COLUMN IF NOT EXISTS stripe_billing_customer_id VARCHAR(100),
+        ADD COLUMN IF NOT EXISTS stripe_billing_payment_method_id VARCHAR(100),
+        ADD COLUMN IF NOT EXISTS billing_mandate_status VARCHAR(20) DEFAULT 'none',
+        ADD COLUMN IF NOT EXISTS billing_currency VARCHAR(3) DEFAULT 'GBP'
+    `);
+
     // Account credit balance
     await pool.query(`
       CREATE TABLE IF NOT EXISTS billing_credits (
@@ -26985,6 +27025,179 @@ app.post('/api/admin/billing/cancel-subscription', async (req, res) => {
   } catch (error) {
     res.json({ success: false, error: error.message });
   }
+});
+
+// Create or retrieve Stripe billing customer for a GAS account
+app.post('/api/admin/billing/setup-customer', async (req, res) => {
+    try {
+        const { account_id } = req.body;
+        const account = await pool.query('SELECT * FROM accounts WHERE id = $1', [account_id]);
+        if (!account.rows.length) return res.status(404).json({ error: 'Account not found' });
+        const acc = account.rows[0];
+
+        const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+
+        let customerId = acc.stripe_billing_customer_id;
+        if (!customerId) {
+            const customer = await stripe.customers.create({
+                name: acc.company_name || acc.name,
+                email: acc.email,
+                metadata: { gas_account_id: account_id }
+            });
+            customerId = customer.id;
+            await pool.query(
+                'UPDATE accounts SET stripe_billing_customer_id = $1 WHERE id = $2',
+                [customerId, account_id]
+            );
+        }
+
+        // Create SetupIntent for SEPA or BACS depending on billing currency
+        const billingCurrency = acc.billing_currency || 'GBP';
+        const paymentMethodType = billingCurrency === 'GBP' ? 'bacs_debit' : 'sepa_debit';
+
+        const setupIntent = await stripe.setupIntents.create({
+            customer: customerId,
+            payment_method_types: [paymentMethodType],
+            usage: 'off_session',
+            metadata: { gas_account_id: account_id }
+        });
+
+        res.json({
+            success: true,
+            customer_id: customerId,
+            client_secret: setupIntent.client_secret,
+            payment_method_type: paymentMethodType
+        });
+    } catch (err) {
+        console.error('[BILLING] setup-customer error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Generate and charge a billing invoice for a GAS account
+app.post('/api/admin/billing/generate-invoice', async (req, res) => {
+    try {
+        const { account_id, line_items, period_start, period_end, due_date, currency } = req.body;
+        const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+
+        const account = await pool.query('SELECT * FROM accounts WHERE id = $1', [account_id]);
+        if (!account.rows.length) return res.status(404).json({ error: 'Account not found' });
+        const acc = account.rows[0];
+
+        if (!acc.stripe_billing_customer_id) {
+            return res.status(400).json({ error: 'No Stripe billing customer set up for this account' });
+        }
+
+        if (!acc.stripe_billing_payment_method_id) {
+            return res.status(400).json({ error: 'No payment method on file for this account' });
+        }
+
+        // Calculate total from line items
+        const total = line_items.reduce((sum, item) => sum + item.amount, 0);
+        const invoiceCurrency = (currency || acc.billing_currency || 'GBP').toLowerCase();
+
+        // Generate invoice number
+        const invoiceNum = `GAS-${account_id}-${Date.now()}`;
+
+        // Create Stripe Invoice
+        const stripeInvoice = await stripe.invoices.create({
+            customer: acc.stripe_billing_customer_id,
+            default_payment_method: acc.stripe_billing_payment_method_id,
+            currency: invoiceCurrency,
+            description: `GAS subscription - ${period_start} to ${period_end}`,
+            metadata: { gas_account_id: account_id, invoice_number: invoiceNum }
+        });
+
+        // Add line items to Stripe invoice
+        for (const item of line_items) {
+            await stripe.invoiceItems.create({
+                customer: acc.stripe_billing_customer_id,
+                invoice: stripeInvoice.id,
+                amount: Math.round(item.amount * 100),
+                currency: invoiceCurrency,
+                description: item.description
+            });
+        }
+
+        // Finalize and charge
+        const finalizedInvoice = await stripe.invoices.finalizeInvoice(stripeInvoice.id);
+        const paidInvoice = await stripe.invoices.pay(stripeInvoice.id);
+
+        // Store in GAS
+        const saved = await pool.query(`
+            INSERT INTO gas_billing_invoices
+            (account_id, invoice_number, period_start, period_end, amount, currency, status, stripe_invoice_id, line_items, due_date)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            RETURNING *
+        `, [account_id, invoiceNum, period_start, period_end, total, invoiceCurrency.toUpperCase(),
+            paidInvoice.status === 'paid' ? 'paid' : 'pending',
+            stripeInvoice.id, JSON.stringify(line_items), due_date]);
+
+        res.json({ success: true, invoice: saved.rows[0], stripe_invoice: paidInvoice });
+    } catch (err) {
+        console.error('[BILLING] generate-invoice error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Stripe billing webhook handler
+app.post('/api/webhooks/stripe-billing', async (req, res) => {
+    try {
+        const event = req.body;
+
+        if (event.type === 'invoice.paid') {
+            const invoice = event.data.object;
+            await pool.query(`
+                UPDATE gas_billing_invoices
+                SET status = 'paid', paid_at = NOW(), updated_at = NOW()
+                WHERE stripe_invoice_id = $1
+            `, [invoice.id]);
+            console.log('[BILLING] Invoice paid:', invoice.id);
+        }
+
+        if (event.type === 'invoice.payment_failed') {
+            const invoice = event.data.object;
+            await pool.query(`
+                UPDATE gas_billing_invoices
+                SET status = 'failed', updated_at = NOW()
+                WHERE stripe_invoice_id = $1
+            `, [invoice.id]);
+            console.log('[BILLING] Invoice payment failed:', invoice.id);
+        }
+
+        if (event.type === 'setup_intent.succeeded') {
+            const setupIntent = event.data.object;
+            const accountId = setupIntent.metadata?.gas_account_id;
+            if (accountId && setupIntent.payment_method) {
+                await pool.query(`
+                    UPDATE accounts
+                    SET stripe_billing_payment_method_id = $1, billing_mandate_status = 'active', updated_at = NOW()
+                    WHERE id = $2
+                `, [setupIntent.payment_method, accountId]);
+                console.log('[BILLING] Payment method saved for account:', accountId);
+            }
+        }
+
+        res.json({ received: true });
+    } catch (err) {
+        console.error('[BILLING] webhook error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Get billing invoices for an account
+app.get('/api/admin/billing/invoices/:accountId', async (req, res) => {
+    try {
+        const { accountId } = req.params;
+        const result = await pool.query(`
+            SELECT * FROM gas_billing_invoices
+            WHERE account_id = $1
+            ORDER BY created_at DESC
+        `, [accountId]);
+        res.json({ success: true, invoices: result.rows });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 // Add credits to account (admin function or after Stripe payment)
