@@ -14507,7 +14507,8 @@ async function setBeds24Webhook(accessToken, beds24PropertyId) {
         await axios.post(`https://beds24.com/api/v2/properties/${beds24PropertyId}`,
             {
                 webhooks: {
-                    bookingNotification: webhookUrl
+                    version: '2',
+                    url: webhookUrl
                 }
             },
             {
