@@ -3068,6 +3068,50 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
             }
           }
 
+          // Offers API fallback — if V2 calendar returned no prices, use offers API
+          if (!hasAnyPrices && !linking) {
+            console.log(`[Beds24 Sync] ${room.name}: Calendar empty, falling back to Offers API`);
+            try {
+              const offerStart = new Date(startDate);
+              const offerEnd = new Date(endDate);
+              let offerDaysUpdated = 0;
+              for (let d = new Date(offerStart); d <= offerEnd; d.setDate(d.getDate() + 1)) {
+                const arrival = d.toISOString().split('T')[0];
+                const depart = new Date(d.getTime() + 24*60*60*1000).toISOString().split('T')[0];
+                try {
+                  const offerResp = await axios.get('https://beds24.com/api/v2/inventory/rooms/offers', {
+                    headers: { 'token': accessToken },
+                    params: { roomId: parseInt(room.beds24_room_id), arrival, departure: depart, numAdults: 2 }
+                  });
+                  const roomOffers = offerResp.data?.data?.[0];
+                  if (roomOffers?.offers?.length > 0) {
+                    const offer = roomOffers.offers.find(o => o.offerId === 1) || roomOffers.offers[0];
+                    const price = offer.price;
+                    const unitsAvail = offer.unitsAvailable || 0;
+                    await pool.query(`
+                      INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, is_available, is_blocked, source, updated_at)
+                      VALUES ($1, $2, $3, $3, $3, $4, $5, 'beds24-offers', NOW())
+                      ON CONFLICT (room_id, date)
+                      DO UPDATE SET price = $3, cm_price = $3, direct_price = $3,
+                        is_available = $4, is_blocked = $5, source = 'beds24-offers', updated_at = NOW()
+                    `, [room.gas_room_id, arrival, price, unitsAvail > 0, unitsAvail === 0]);
+                    offerDaysUpdated++;
+                  }
+                } catch (dayErr) {
+                  if (dayErr.response?.status === 429) {
+                    console.log(`[Beds24 Sync] Rate limited, pausing 2s...`);
+                    await new Promise(r => setTimeout(r, 2000));
+                    d.setDate(d.getDate() - 1); // retry this day
+                  }
+                }
+              }
+              console.log(`[Beds24 Sync] ${room.name}: Offers API updated ${offerDaysUpdated} days`);
+              totalDaysUpdated += offerDaysUpdated;
+            } catch (offersErr) {
+              console.error(`[Beds24 Sync] Offers fallback error for ${room.name}:`, offersErr.message);
+            }
+          }
+
           // V1 Fixed Price fallback — if V2 wrote zero prices, try V1 getRates
           if (!hasAnyPrices && v1ApiKey && propKey) {
             try {
@@ -57253,22 +57297,64 @@ app.post('/api/admin/sync-beds24-full-pricing', async (req, res) => {
             console.log(`    V1 getRates failed: ${v1Error.message}`);
           }
         } else {
-          console.log(`    No V1 fallback available (v1ApiKey: ${!!v1ApiKey}, prop_key: ${room.prop_key})`);
+          console.log(`    No V1 fallback, trying Offers API...`);
         }
-        
+
+        // Offers API fallback — if still no prices, use offers API (calculated prices)
+        if (daysUpdated === 0) {
+          console.log(`    ${room.name}: No prices from calendar/V1, using Offers API fallback`);
+          try {
+            const offerStart = new Date(startDate);
+            const offerEnd = new Date(endDate);
+            for (let od = new Date(offerStart); od <= offerEnd; od.setDate(od.getDate() + 1)) {
+              const arrival = od.toISOString().split('T')[0];
+              const depart = new Date(od.getTime() + 24*60*60*1000).toISOString().split('T')[0];
+              try {
+                const offerResp = await axios.get('https://beds24.com/api/v2/inventory/rooms/offers', {
+                  headers: { 'token': accessToken },
+                  params: { roomId: parseInt(room.beds24_room_id), arrival, departure: depart, numAdults: 2 }
+                });
+                const roomOffers = offerResp.data?.data?.[0];
+                if (roomOffers?.offers?.length > 0) {
+                  const offer = roomOffers.offers.find(o => o.offerId === 1) || roomOffers.offers[0];
+                  const price = offer.price;
+                  const unitsAvail = offer.unitsAvailable || 0;
+                  await pool.query(`
+                    INSERT INTO room_availability (room_id, date, price, cm_price, direct_price, standard_price, is_available, is_blocked, source, updated_at)
+                    VALUES ($1, $2, $3, $3, $3, $3, $4, $5, 'beds24-offers', NOW())
+                    ON CONFLICT (room_id, date)
+                    DO UPDATE SET price = $3, cm_price = $3, direct_price = $3, standard_price = $3,
+                      is_available = $4, is_blocked = $5, source = 'beds24-offers', updated_at = NOW()
+                  `, [room.id, arrival, price, unitsAvail > 0, unitsAvail === 0]);
+                  daysUpdated++;
+                }
+              } catch (dayErr) {
+                if (dayErr.response?.status === 429) {
+                  console.log(`    Rate limited, pausing 2s...`);
+                  await new Promise(r => setTimeout(r, 2000));
+                  od.setDate(od.getDate() - 1);
+                }
+              }
+            }
+            console.log(`    ${room.name}: Offers API updated ${daysUpdated} days`);
+          } catch (offersErr) {
+            console.error(`    Offers fallback error: ${offersErr.message}`);
+          }
+        }
+
         totalDaysUpdated += daysUpdated;
         roomsSynced++;
         console.log(`    ✓ ${room.name}: ${daysUpdated} days synced`);
-        
+
         // Delay between rooms
         await new Promise(resolve => setTimeout(resolve, 500));
-        
+
       } catch (roomError) {
         console.error(`    ✗ ${room.name}: ${roomError.message}`);
         errors.push({ room: room.name, error: roomError.message });
       }
     }
-    
+
     console.log(`[Full Pricing Sync] Complete: ${roomsSynced} rooms, ${totalDaysUpdated} days`);
     
     res.json({
