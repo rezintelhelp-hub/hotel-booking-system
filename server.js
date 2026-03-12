@@ -42437,6 +42437,27 @@ app.get('/api/admin/debug/beds24-calendar/:beds24RoomId', async (req, res) => {
   }
 });
 
+// Debug: Fetch full Beds24 property object to inspect all fields
+app.get('/api/admin/debug/beds24-property/:propertyId', async (req, res) => {
+  try {
+    const { propertyId } = req.params;
+    const { accountId } = req.query;
+    let accessToken;
+    if (accountId) {
+      accessToken = await getBeds24Token(parseInt(accountId));
+    } else {
+      accessToken = await getBeds24AccessToken(pool);
+    }
+    const resp = await axios.get('https://beds24.com/api/v2/properties', {
+      headers: { 'token': accessToken },
+      params: { id: propertyId }
+    });
+    res.json({ success: true, property: resp.data });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Debug: Check stored availability for a Beds24 room
 app.get('/api/admin/debug/stored-availability/:beds24RoomId', async (req, res) => {
   try {
