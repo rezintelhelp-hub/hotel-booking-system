@@ -14515,8 +14515,10 @@ async function setBeds24Webhook(accessToken, beds24PropertyId) {
         await axios.put(`https://beds24.com/api/v2/properties?id=${beds24PropertyId}`,
             {
                 webhooks: {
-                    version: '2',
-                    url: webhookUrl
+                    version: 'twoWithPersonalData',
+                    url: webhookUrl,
+                    additionalData: 'none',
+                    customHeader: ''
                 }
             },
             {
