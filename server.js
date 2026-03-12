@@ -14742,8 +14742,8 @@ app.post('/api/admin/beds24/restore-webhooks', async (req, res) => {
                 }
 
                 // Restore the webhooks
-                await axios.put('https://beds24.com/api/v2/properties',
-                    {
+                await axios.post('https://beds24.com/api/v2/properties',
+                    [{
                         id: prop.id,
                         webhooks: {
                             version: 'twoWithPersonalData',
@@ -14751,7 +14751,7 @@ app.post('/api/admin/beds24/restore-webhooks', async (req, res) => {
                             additionalData: 'none',
                             customHeader: ''
                         }
-                    },
+                    }],
                     {
                         headers: {
                             'token': token,
