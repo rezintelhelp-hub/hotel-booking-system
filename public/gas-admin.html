@@ -18386,7 +18386,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                             <div id="percentage-field">
                                 <label style="font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem; display: block;">Percentage</label>
                                 <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                    <input type="number" id="deposit-percentage" class="form-input" value="30" min="1" max="100"
+                                    <input type="number" id="deposit-percentage" class="form-input" value="30" min="0" max="100"
                                         style="padding: 0.6rem; border-radius: 8px; flex: 1;">
                                     <span style="font-weight: 600;">%</span>
                                 </div>
@@ -18492,7 +18492,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <!-- Percentage -->
                     <div class="form-group" id="bulk-percentage-field">
                         <label>Deposit Percentage (%)</label>
-                        <input type="number" id="bulk-deposit-percentage" class="form-input" value="30" min="1" max="100">
+                        <input type="number" id="bulk-deposit-percentage" class="form-input" value="30" min="0" max="100">
                     </div>
                     
                     <!-- Fixed Amount -->
