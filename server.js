@@ -14512,15 +14512,16 @@ async function setBeds24Webhook(accessToken, beds24PropertyId) {
         console.log(`[BEDS24] Current webhooks for property ${beds24PropertyId}:`, JSON.stringify(propData?.webhooks));
 
         const webhookUrl = 'https://admin.gas.travel/api/webhooks/beds24?propertyId=[PROPERTYID]';
-        await axios.put(`https://beds24.com/api/v2/properties?id=${beds24PropertyId}`,
-            {
+        await axios.post('https://beds24.com/api/v2/properties',
+            [{
+                id: beds24PropertyId,
                 webhooks: {
                     version: 'twoWithPersonalData',
                     url: webhookUrl,
                     additionalData: 'none',
                     customHeader: ''
                 }
-            },
+            }],
             {
                 headers: {
                     'token': accessToken,
