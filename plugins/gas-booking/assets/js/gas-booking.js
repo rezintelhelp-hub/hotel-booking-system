@@ -1789,7 +1789,7 @@ jQuery(document).ready(function($) {
                     
                     // Not available — show dash, hide pricing, disable button
                     $('.gas-price-amount').text('—');
-                    $('.gas-price-period').text('');
+                    $('.gas-price-period').text(t('booking', 'price_per_night', '/ night'));
 
                     $('.gas-price-breakdown').hide();
                     $('.gas-rate-options').hide();
