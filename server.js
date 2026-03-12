@@ -42436,6 +42436,26 @@ app.get('/api/admin/debug/beds24-calendar/:beds24RoomId', async (req, res) => {
   }
 });
 
+// Debug: Check stored availability for a Beds24 room
+app.get('/api/admin/debug/stored-availability/:beds24RoomId', async (req, res) => {
+  try {
+    const { beds24RoomId } = req.params;
+    const { startDate, endDate } = req.query;
+    const from = startDate || new Date().toISOString().split('T')[0];
+    const to = endDate || new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0];
+    const roomResult = await pool.query('SELECT id, name, property_id FROM bookable_units WHERE beds24_room_id = $1', [beds24RoomId]);
+    if (roomResult.rows.length === 0) return res.json({ success: false, error: 'Room not found' });
+    const room = roomResult.rows[0];
+    const avail = await pool.query(
+      'SELECT date, price, cm_price, direct_price, standard_price, is_available, is_blocked, min_stay, source, updated_at FROM room_availability WHERE room_id = $1 AND date >= $2 AND date <= $3 ORDER BY date',
+      [room.id, from, to]
+    );
+    res.json({ success: true, gasRoomId: room.id, roomName: room.name, propertyId: room.property_id, rows: avail.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Sync availability from Channel Manager (Beds24)
 app.post('/api/admin/sync-availability/:roomId', async (req, res) => {
   const client = await pool.connect();
