@@ -14522,7 +14522,7 @@ async function setBeds24Webhook(accessToken, beds24PropertyId) {
         console.log(`[BEDS24] Webhook set for property ${beds24PropertyId}: ${webhookUrl}`);
         return true;
     } catch (err) {
-        console.error(`[BEDS24] Failed to set webhook for property ${beds24PropertyId}:`, err.message);
+        console.error(`[BEDS24] Failed to set webhook for property ${beds24PropertyId}:`, err.message, 'status:', err.response?.status, 'data:', JSON.stringify(err.response?.data));
         return false;
     }
 }
