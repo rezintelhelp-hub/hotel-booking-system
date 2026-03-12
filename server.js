@@ -59153,7 +59153,34 @@ app.post('/api/public/calculate-price', async (req, res) => {
       
       current.setDate(current.getDate() + 1);
     }
-    
+
+    // Changeover fix: if the ONLY blocked date is the last stay night AND the checkout
+    // date is also blocked (next guest checking in), treat as available. This handles
+    // the Offers API sync marking the last night as blocked due to changeover restrictions.
+    if (!allAvailable && nights > 0) {
+      const blockedIndices = [];
+      for (let i = 0; i < nights; i++) {
+        const dateStr = nightlyBreakdown[i].date;
+        const dayData = availability.rows.find(a => a.date.toISOString().split('T')[0] === dateStr);
+        if (dayData && (!dayData.is_available || dayData.is_blocked)) {
+          blockedIndices.push(i);
+        } else if (!dayData && !nightlyBreakdown[i].base_price) {
+          blockedIndices.push(-1); // no data = genuine block, won't match last night
+        }
+      }
+
+      if (blockedIndices.length === 1 && blockedIndices[0] === nights - 1) {
+        // Only the last stay night is blocked — check if checkout date is also blocked
+        const checkoutAvail = await pool.query(
+          'SELECT is_available, is_blocked FROM room_availability WHERE room_id = $1 AND date = $2',
+          [unit_id, check_out]
+        );
+        if (checkoutAvail.rows[0] && (!checkoutAvail.rows[0].is_available || checkoutAvail.rows[0].is_blocked)) {
+          allAvailable = true; // Changeover scenario — last night is actually available
+        }
+      }
+    }
+
     // Build occupancy label for display
     let occupancyLabel = '';
     if (occupancyAdjustmentTotal !== 0) {
@@ -59463,7 +59490,11 @@ app.post('/api/public/calculate-price', async (req, res) => {
       unavailable_dates: nightlyBreakdown.filter((n, i) => {
         const dayData = availability.rows.find(a => a.date.toISOString().split('T')[0] === n.date);
         return dayData && (!dayData.is_available || dayData.is_blocked);
-      }).map(n => n.date)
+      }).map(n => n.date),
+      changeover_fix_applied: allAvailable && nightlyBreakdown.some((n) => {
+        const dayData = availability.rows.find(a => a.date.toISOString().split('T')[0] === n.date);
+        return dayData && (!dayData.is_available || dayData.is_blocked);
+      })
     };
     
     res.json({
