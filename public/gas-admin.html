@@ -19036,12 +19036,24 @@ const promo = await fetch('/api/v1/offers/validate', {
                         </div>
                     </div>
                     
+                    <!-- ============ DIRECT DEBIT SETUP ============ -->
+                    <div style="background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+                        <h4 style="margin: 0 0 12px 0; color: #15803d;">💳 Direct Debit Setup</h4>
+                        <div id="mandate-status-display" style="margin-bottom: 12px; font-size: 0.85rem; color: #64748b;">
+                            Checking mandate status...
+                        </div>
+                        <button onclick="setupBillingDirectDebit()" style="background: #15803d; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 0.85rem;">
+                            🏦 Setup SEPA / BACS Direct Debit
+                        </button>
+                    </div>
+
                     <!-- ============ INVOICE ACTIONS ============ -->
                     <div id="invoice-actions-section" style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); padding: 1rem; border-radius: 12px; margin-bottom: 1rem; border: 1px solid #cbd5e1;">
                         <h4 style="margin: 0 0 0.75rem 0; font-size: 0.85rem; color: #334155; font-weight: 600;">📄 Invoice</h4>
                         <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
                             <button type="button" class="btn" style="font-size: 0.8rem; padding: 0.5rem 1rem; background: #166534;" onclick="previewInvoice()">📄 Preview Invoice</button>
                             <button type="button" class="btn" style="font-size: 0.8rem; padding: 0.5rem 1rem; background: #6366f1;" onclick="generateInvoice()">🧾 Generate & Save</button>
+                            <button onclick="generateStripeInvoice()" style="background: #7c3aed; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; margin-left: 8px;">⚡ Charge via Direct Debit</button>
                             <button type="button" class="btn btn-secondary" style="font-size: 0.8rem; padding: 0.5rem 1rem;" onclick="viewInvoiceHistory()">📋 History</button>
                             <button type="button" id="airwallex-charge-btn" class="btn" style="display: none; font-size: 0.8rem; padding: 0.5rem 1rem; background: #5b21b6;" onclick="chargeViaAirwallex()">🌐 Setup Airwallex Payment</button>
                         </div>
@@ -29602,6 +29614,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     loadBeds24Status(account.id);
                     loadSubscriptions(account.id);
                     loadAccountBeds24Costs(account.id);
+                    loadMandateStatus(account.id);
                     document.getElementById('beds24-invite-code').value = '';
                     const propsContainer = document.getElementById('acct-properties-list-container');
                     if (propsContainer) propsContainer.style.display = 'none';
@@ -60347,6 +60360,96 @@ const promo = await fetch('/api/v1/offers/validate', {
                 viewInvoiceHistory();
             } catch (e) {
                 alert('Error updating invoice');
+            }
+        }
+
+        async function setupBillingDirectDebit() {
+            const accountId = document.getElementById('edit-account-id').value;
+            try {
+                showNotification('Setting up direct debit...', 'info');
+                const response = await fetch('/api/admin/billing/setup-customer', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ account_id: accountId })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    // Open Stripe hosted mandate page in new tab
+                    const stripe = Stripe(data.publishable_key || window.GAS_STRIPE_PK);
+                    const { error } = await stripe.collectBankAccountForSetup({
+                        clientSecret: data.client_secret,
+                        params: { payment_method_type: data.payment_method_type }
+                    });
+                    if (error) {
+                        showNotification('Direct debit setup failed: ' + error.message, 'error');
+                    } else {
+                        showNotification('✅ Direct debit mandate created successfully', 'success');
+                        loadMandateStatus(accountId);
+                    }
+                } else {
+                    showNotification('Error: ' + data.error, 'error');
+                }
+            } catch (err) {
+                showNotification('Error setting up direct debit: ' + err.message, 'error');
+            }
+        }
+
+        async function loadMandateStatus(accountId) {
+            try {
+                const response = await fetch(`/api/admin/accounts/${accountId}/subscription`, {
+                    headers: authHeaders()
+                });
+                const data = await response.json();
+                const status = data.billing_mandate_status || 'none';
+                const el = document.getElementById('mandate-status-display');
+                if (!el) return;
+                if (status === 'active') {
+                    el.innerHTML = '✅ <strong>Direct debit active</strong> — account will be charged automatically on invoice generation';
+                    el.style.color = '#15803d';
+                } else {
+                    el.innerHTML = '⚠️ No direct debit set up — click below to add a bank mandate';
+                    el.style.color = '#92400e';
+                }
+            } catch (err) {
+                console.error('Error loading mandate status:', err);
+            }
+        }
+
+        async function generateStripeInvoice(accountId) {
+            const accId = accountId || document.getElementById('edit-account-id').value;
+            try {
+                // Get current invoice preview data
+                const previewResponse = await fetch(`/api/admin/billing/preview/${accId}`, {
+                    headers: authHeaders()
+                });
+                const preview = await previewResponse.json();
+                if (!preview.line_items?.length) {
+                    showNotification('No invoice items to charge', 'error');
+                    return;
+                }
+                if (!confirm(`Charge ${preview.total} ${preview.currency} via direct debit to this account?`)) return;
+
+                showNotification('Generating invoice and charging...', 'info');
+                const response = await fetch('/api/admin/billing/generate-invoice', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({
+                        account_id: accId,
+                        line_items: preview.line_items,
+                        period_start: preview.period_start,
+                        period_end: preview.period_end,
+                        currency: preview.currency,
+                        due_date: new Date().toISOString().split('T')[0]
+                    })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    showNotification('✅ Invoice generated and payment initiated', 'success');
+                } else {
+                    showNotification('Error: ' + data.error, 'error');
+                }
+            } catch (err) {
+                showNotification('Error generating invoice: ' + err.message, 'error');
             }
         }
     </script>
