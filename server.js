@@ -79546,11 +79546,22 @@ app.post('/api/hostvana/chat', async (req, res) => {
     }
 
     // Get Beds24 token for this account
+    // Prefer gas_sync_connections token (kept fresh by sync adapter), fall back to getBeds24Token
     let token;
-    try {
-      token = await getBeds24Token(accountId);
-    } catch (tokenErr) {
-      return res.status(502).json({ success: false, error: 'Beds24 not connected: ' + tokenErr.message });
+    const syncConn = await pool.query(`
+      SELECT access_token FROM gas_sync_connections
+      WHERE account_id = $1 AND adapter_code = 'beds24' AND status != 'deleted' AND access_token IS NOT NULL
+      ORDER BY created_at DESC LIMIT 1
+    `, [accountId]);
+
+    if (syncConn.rows.length > 0) {
+      token = syncConn.rows[0].access_token;
+    } else {
+      try {
+        token = await getBeds24Token(accountId);
+      } catch (tokenErr) {
+        return res.status(502).json({ success: false, error: 'Beds24 not connected: ' + tokenErr.message });
+      }
     }
 
     const beds24Headers = {
