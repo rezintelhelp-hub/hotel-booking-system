@@ -30,7 +30,7 @@ class GAS_Hostvana {
     public function add_admin_menu() { add_options_page('GAS Hostvana', 'GAS Hostvana', 'manage_options', 'gas-hostvana', array($this, 'settings_page')); }
 
     public function register_settings() {
-        foreach (array('api_url','client_id','license_key','widget_position','widget_color','welcome_message','enabled','property_id') as $s) {
+        foreach (array('api_url','client_id','license_key','widget_position','widget_color','welcome_message','enabled') as $s) {
             register_setting('gas_hostvana_settings', 'gas_hostvana_' . $s);
         }
     }
@@ -50,7 +50,6 @@ class GAS_Hostvana {
                     <tr><th>API URL</th><td><input type="url" name="gas_hostvana_api_url" value="<?php echo esc_attr(get_option('gas_hostvana_api_url', '')); ?>" class="regular-text" placeholder="<?php echo GAS_HOSTVANA_DEFAULT_API_URL; ?>"/></td></tr>
                     <tr><th>Client ID</th><td><input type="text" name="gas_hostvana_client_id" value="<?php echo esc_attr(get_option('gas_hostvana_client_id', '')); ?>" class="regular-text"/><p class="description">Your GAS account client ID</p></td></tr>
                     <tr><th>License Key / API Key</th><td><input type="text" name="gas_hostvana_license_key" value="<?php echo esc_attr(get_option('gas_hostvana_license_key', '')); ?>" class="regular-text"/><p class="description">From GAS Admin → Plugins & Themes or your account API key</p></td></tr>
-                    <tr><th>Default Property ID</th><td><input type="text" name="gas_hostvana_property_id" value="<?php echo esc_attr(get_option('gas_hostvana_property_id', '')); ?>" class="regular-text"/><p class="description">Beds24 property ID. Leave blank to auto-detect from page context.</p></td></tr>
                 </table>
                 <h2>Widget Settings</h2>
                 <table class="form-table">
@@ -140,7 +139,6 @@ class GAS_Hostvana {
         $color = esc_attr(get_option('gas_hostvana_widget_color', '#2563eb'));
         $welcome = esc_js(get_option('gas_hostvana_welcome_message', 'Hi! How can we help you?'));
         $ajax_url = esc_url(admin_url('admin-ajax.php'));
-        $default_property_id = intval(get_option('gas_hostvana_property_id', 0));
 
         $pos_right = ($position === 'bottom-right') ? 'right: 24px;' : 'left: 24px;';
         $panel_right = ($position === 'bottom-right') ? 'right: 24px;' : 'left: 24px;';
@@ -161,7 +159,7 @@ class GAS_Hostvana {
             cursor: pointer;
             box-shadow: 0 4px 16px rgba(0,0,0,0.2);
             z-index: 99999;
-            display: flex;
+            display: none;
             align-items: center;
             justify-content: center;
             transition: transform 0.2s ease;
@@ -326,7 +324,6 @@ class GAS_Hostvana {
         <script>
         (function() {
             var ajaxUrl = '<?php echo $ajax_url; ?>';
-            var defaultPropertyId = <?php echo $default_property_id ?: 'null'; ?>;
             var welcomeMessage = '<?php echo $welcome; ?>';
 
             var bubble = document.getElementById('gasHostvanaBubble');
@@ -344,9 +341,7 @@ class GAS_Hostvana {
             var knownMessageCount = 0;
 
             function getPropertyId() {
-                // 1. Plugin setting
-                if (defaultPropertyId) return defaultPropertyId;
-                // 2. Meta tag
+                // 1. Meta tag
                 var meta = document.querySelector('meta[name="gas-property-id"]');
                 if (meta && meta.content) return parseInt(meta.content);
                 // 3. URL param
@@ -355,6 +350,11 @@ class GAS_Hostvana {
                 // 4. gasBooking object
                 if (typeof gasBooking !== 'undefined' && gasBooking.currentPropertyId) return parseInt(gasBooking.currentPropertyId);
                 return null;
+            }
+
+            // Show bubble only if property ID is available on this page
+            if (getPropertyId()) {
+                bubble.style.display = 'flex';
             }
 
             function addMessage(text, type) {
