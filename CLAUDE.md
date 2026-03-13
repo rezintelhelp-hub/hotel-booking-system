@@ -151,20 +151,21 @@ GAS (Global Accommodation System) is a full-stack hotel booking and property man
 
 ---
 
-## CURRENT PRIORITIES — 12 March 2026
+## CURRENT PRIORITIES — 13 March 2026
 
-1. Footer — Terms and Privacy links broken
-2. Contact page — map sizing
-3. Footer — all page links not showing
-4. Site go-live setup/checklist
-5. Repuso API connection (white-label)
-6. Blog page — header/subheader translation + category translations
-7. Attractions page — header/subheader translation + category translations
-8. Room page — Reviews tab (Repuso widget ID per room)
-9. Cloudflare — speed optimisation strategy
-10. Plugin management — repo, version control, downloadable from GAS, Claude Code awareness
-11. Partner/Elevate white-label URLs — branded domains per partner
-12. Theme marketplace — add new themes via UI, open to third-party theme builders, manage within GAS Admin
+1. **Plugin licensing system** — Extend licensing to cover gas-hostvana and all future plugins, tied to Stripe subscription status. Currently only gas-booking has licensing. Needs: license generation per plugin, subscription tier checks, activation/deactivation flow, expiry handling.
+2. Footer — Terms and Privacy links broken
+3. Contact page — map sizing
+4. Footer — all page links not showing
+5. Site go-live setup/checklist
+6. Repuso API connection (white-label)
+7. Blog page — header/subheader translation + category translations
+8. Attractions page — header/subheader translation + category translations
+9. Room page — Reviews tab (Repuso widget ID per room)
+10. Cloudflare — speed optimisation strategy
+11. Plugin management — repo, version control, downloadable from GAS, Claude Code awareness
+12. Partner/Elevate white-label URLs — branded domains per partner
+13. Theme marketplace — add new themes via UI, open to third-party theme builders, manage within GAS Admin
 
 ---
 
