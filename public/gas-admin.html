@@ -5133,7 +5133,7 @@
 
                         <!-- Save Button -->
                         <div style="display: flex; gap: 0.5rem; justify-content: flex-end; padding-top: 1rem; border-top: 1px solid #e2e8f0;">
-                            <button type="button" class="btn" onclick="savePaymentSettings()">Save Payment Settings</button>
+                            <button type="button" class="btn" onclick="savePvPaymentSettings()">Save Payment Settings</button>
                         </div>
 
                         <!-- Payment Methods by Property Summary -->
@@ -45722,6 +45722,88 @@ const promo = await fetch('/api/v1/offers/validate', {
                 }
             } catch (e) {
                 showNotification('Connection test failed', 'error');
+            }
+        }
+
+        // Save payment settings from the B&R Payments view (pv- prefixed fields)
+        async function savePvPaymentSettings() {
+            const accountId = selectedAccountId || (currentAccount && currentAccount.id);
+            if (!accountId) { showNotification('No account selected', 'error'); return; }
+
+            // Get properties to save to
+            let propertyIds = [];
+            const selectedProp = document.getElementById('payments-property-select')?.value;
+            if (selectedProp && selectedProp !== 'all') {
+                propertyIds = [selectedProp];
+            } else {
+                try {
+                    const queryString = buildQueryString();
+                    const res = await fetch(`/api/db/properties${queryString}`);
+                    const data = await res.json();
+                    if (data.success && data.data) propertyIds = data.data.map(p => p.id);
+                } catch (e) { console.error('Error fetching properties:', e); }
+            }
+            if (propertyIds.length === 0) { showNotification('No properties found — add a property first', 'error'); return; }
+
+            // Collect accepted methods
+            const acceptedMethods = [];
+            if (document.getElementById('pv-payment-provider-stripe')?.checked) acceptedMethods.push('card');
+            if (document.getElementById('pv-payment-provider-pay-property')?.checked) acceptedMethods.push('pay_at_property');
+            if (document.getElementById('pv-payment-provider-card-guarantee')?.checked) acceptedMethods.push('card_guarantee');
+
+            const payPropertyMode = document.querySelector('input[name="pv-pay-property-mode"]:checked')?.value || 'no_payment';
+
+            // Card guarantee settings
+            const cardGuaranteeSettings = {};
+            if (document.getElementById('pv-payment-provider-card-guarantee')?.checked) {
+                cardGuaranteeSettings.enabled = true;
+                cardGuaranteeSettings.label = { en: document.getElementById('pv-card-guarantee-label')?.value || '' };
+                cardGuaranteeSettings.description = { en: document.getElementById('pv-card-guarantee-description')?.value || '' };
+                cardGuaranteeSettings.success_message = { en: document.getElementById('pv-card-guarantee-success-msg')?.value || '' };
+                cardGuaranteeSettings.noshow_charge_type = document.getElementById('pv-card-guarantee-noshow-type')?.value || 'first_night';
+                cardGuaranteeSettings.noshow_charge_amount = parseFloat(document.getElementById('pv-card-guarantee-noshow-amount')?.value) || 100;
+                cardGuaranteeSettings.provider = document.querySelector('input[name="pv-cg-provider"]:checked')?.value || 'enigma';
+            }
+
+            // Bank details
+            const bankDetails = {
+                accounts: currentBankAccounts || [],
+                instructions: document.getElementById('pv-bank-transfer-instructions')?.value || '',
+                deadline_hours: parseInt(document.getElementById('pv-bank-transfer-deadline-hours')?.value) || 48
+            };
+
+            const settings = {
+                payment_enabled: true,
+                deposit_type: document.getElementById('pv-payment-deposit-type')?.value || 'percentage',
+                deposit_amount: parseFloat(document.getElementById('pv-payment-deposit-amount')?.value) || 25,
+                balance_due_days: parseInt(document.getElementById('pv-payment-balance-days')?.value) || 14,
+                currency: document.getElementById('pv-payment-currency')?.value || 'GBP',
+                accepted_methods: acceptedMethods.length > 0 ? acceptedMethods : ['card'],
+                bank_details: bankDetails,
+                pay_property_mode: payPropertyMode,
+                pay_property_label: document.getElementById('pv-pay-property-label')?.value || '',
+                pay_property_description: document.getElementById('pv-pay-property-description')?.value || '',
+                card_guarantee: cardGuaranteeSettings,
+                cancellation_policy: document.getElementById('pv-payment-cancellation')?.value || ''
+            };
+
+            let successCount = 0;
+            for (const propId of propertyIds) {
+                try {
+                    const response = await fetch(`/api/property/${propId}/payment-settings`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                        body: JSON.stringify(settings)
+                    });
+                    const data = await response.json();
+                    if (data.success) successCount++;
+                } catch (e) { console.error(`Error saving for property ${propId}:`, e); }
+            }
+
+            if (successCount > 0) {
+                showNotification(`Payment settings saved for ${successCount} propert${successCount === 1 ? 'y' : 'ies'}`, 'success');
+            } else {
+                showNotification('Error saving payment settings', 'error');
             }
         }
 
