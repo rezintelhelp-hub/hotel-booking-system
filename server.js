@@ -79625,9 +79625,8 @@ app.post('/api/hostvana/chat', async (req, res) => {
         lastName: '',
         arrival: arrival || new Date().toISOString().split('T')[0],
         departure: departure || new Date(Date.now() + 86400000).toISOString().split('T')[0],
-        infoItems: [{
-          code: 'message',
-          text: message
+        messages: [{
+          message: message
         }]
       }];
 
@@ -79654,9 +79653,8 @@ app.post('/api/hostvana/chat', async (req, res) => {
 
       const messageData = [{
         id: parseInt(bookingId),
-        infoItems: [{
-          code: 'message',
-          text: message
+        messages: [{
+          message: message
         }]
       }];
 
