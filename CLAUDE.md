@@ -3,6 +3,16 @@
 
 ---
 
+## CRITICAL RULES — NEVER VIOLATE
+
+- **NEVER** overwrite existing third-party webhook URLs
+- **NEVER** modify live client data during debugging
+- **NEVER** batch-change files without explicit approval
+- **ALWAYS** check existing data before any write operation
+- Surgical edits only
+
+---
+
 ## WHAT GAS IS
 
 GAS (Global Accommodation System) is a full-stack hotel booking and property management SaaS platform built and maintained by Steve Driver. It connects property owners directly with guests and travel agents, free from big platform fees.
