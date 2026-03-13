@@ -79617,15 +79617,14 @@ app.post('/api/hostvana/chat', async (req, res) => {
       }];
 
       const response = await axios.post('https://beds24.com/api/v2/bookings', bookingData, { headers: beds24Headers });
-      console.log('[HOSTVANA DEBUG] Full Beds24 response:', JSON.stringify(response.data), 'type:', typeof response.data, 'isArray:', Array.isArray(response.data));
 
-      if (response.data && response.data.length > 0) {
-        const created = response.data[0];
+      if (response.data && response.data.length > 0 && response.data[0].new) {
+        const created = response.data[0].new;
         console.log(`[HOSTVANA] Created inquiry booking ${created.id} for room ${roomId} on account ${accountId}`);
         return res.json({
           success: true,
           bookingId: created.id,
-          reference: created.referer || created.id
+          reference: created.id
         });
       }
 
