@@ -79566,7 +79566,7 @@ app.post('/api/hostvana/chat', async (req, res) => {
     }
 
     const accountId = accountResult.rows[0].account_id;
-    const { action, bookingId, roomId, message, senderName } = req.body;
+    const { action, bookingId, roomId, message, senderName, arrival, departure } = req.body;
 
     if (!action) {
       return res.status(400).json({ success: false, error: 'Action required (createBooking, sendMessage, getMessages)' });
@@ -79608,8 +79608,8 @@ app.post('/api/hostvana/chat', async (req, res) => {
         status: 'inquiry',
         firstName: 'Hostvana Question',
         lastName: '',
-        arrival: new Date().toISOString().split('T')[0],
-        departure: new Date(Date.now() + 86400000).toISOString().split('T')[0],
+        arrival: arrival || new Date().toISOString().split('T')[0],
+        departure: departure || new Date(Date.now() + 86400000).toISOString().split('T')[0],
         infoItems: [{
           code: 'message',
           text: message

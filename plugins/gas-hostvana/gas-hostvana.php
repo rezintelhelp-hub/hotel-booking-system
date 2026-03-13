@@ -103,11 +103,15 @@ class GAS_Hostvana {
         $booking_id = isset($_POST['bookingId']) ? intval($_POST['bookingId']) : 0;
         $room_id = isset($_POST['roomId']) ? intval($_POST['roomId']) : 0;
         $message = isset($_POST['message']) ? sanitize_textarea_field($_POST['message']) : '';
+        $arrival = isset($_POST['arrival']) ? sanitize_text_field($_POST['arrival']) : '';
+        $departure = isset($_POST['departure']) ? sanitize_text_field($_POST['departure']) : '';
 
         $body = array('action' => $action);
         if ($booking_id) $body['bookingId'] = $booking_id;
         if ($room_id) $body['roomId'] = $room_id;
         if ($message) $body['message'] = $message;
+        if ($arrival) $body['arrival'] = $arrival;
+        if ($departure) $body['departure'] = $departure;
 
         $response = wp_remote_post(trailingslashit($api_url) . 'api/hostvana/chat', array(
             'timeout' => 15,
@@ -344,11 +348,19 @@ class GAS_Hostvana {
                 // 1. Meta tag
                 var meta = document.querySelector('meta[name="gas-property-id"]');
                 if (meta && meta.content) return parseInt(meta.content);
-                // 3. URL param
+                // 2. URL param
                 var params = new URLSearchParams(window.location.search);
                 if (params.get('property_id')) return parseInt(params.get('property_id'));
-                // 4. gasBooking object
+                // 3. gasBooking object
                 if (typeof gasBooking !== 'undefined' && gasBooking.currentPropertyId) return parseInt(gasBooking.currentPropertyId);
+                return null;
+            }
+
+            function getDates() {
+                var params = new URLSearchParams(window.location.search);
+                var checkin = params.get('checkin') || params.get('check_in') || params.get('arrival');
+                var checkout = params.get('checkout') || params.get('check_out') || params.get('departure');
+                if (checkin && checkout) return { arrival: checkin, departure: checkout };
                 return null;
             }
 
@@ -410,11 +422,21 @@ class GAS_Hostvana {
                         return;
                     }
 
+                    var dates = getDates();
+                    if (!dates) {
+                        addMessage('Please select your check-in and check-out dates to continue.', 'system');
+                        sending = false;
+                        sendBtn.disabled = false;
+                        return;
+                    }
+
                     var formData = new FormData();
                     formData.append('action', 'gas_hostvana_chat');
                     formData.append('chat_action', 'createBooking');
                     formData.append('roomId', propId);
                     formData.append('message', text);
+                    formData.append('arrival', dates.arrival);
+                    formData.append('departure', dates.departure);
 
                     fetch(ajaxUrl, { method: 'POST', body: formData })
                         .then(function(r) { return r.json(); })
