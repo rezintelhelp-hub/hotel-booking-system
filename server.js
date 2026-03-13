@@ -79566,7 +79566,7 @@ app.post('/api/hostvana/chat', async (req, res) => {
     }
 
     const accountId = accountResult.rows[0].account_id;
-    const { action, bookingId, propertyId, message, senderName } = req.body;
+    const { action, bookingId, roomId, message, senderName } = req.body;
 
     if (!action) {
       return res.status(400).json({ success: false, error: 'Action required (createBooking, sendMessage, getMessages)' });
@@ -79599,12 +79599,12 @@ app.post('/api/hostvana/chat', async (req, res) => {
 
     // Action: createBooking — creates an inquiry booking to start a conversation
     if (action === 'createBooking') {
-      if (!propertyId || !message) {
-        return res.status(400).json({ success: false, error: 'propertyId and message are required' });
+      if (!roomId || !message) {
+        return res.status(400).json({ success: false, error: 'roomId and message are required' });
       }
 
       const bookingData = [{
-        propId: parseInt(propertyId),
+        roomId: parseInt(roomId),
         status: 'inquiry',
         firstName: 'Hostvana Question',
         lastName: '',
@@ -79617,11 +79617,10 @@ app.post('/api/hostvana/chat', async (req, res) => {
       }];
 
       const response = await axios.post('https://beds24.com/api/v2/bookings', bookingData, { headers: beds24Headers });
-      console.log('[HOSTVANA DEBUG] Beds24 createBooking response:', JSON.stringify(response.data));
 
       if (response.data && response.data.length > 0) {
         const created = response.data[0];
-        console.log(`[HOSTVANA] Created inquiry booking ${created.id} for property ${propertyId} on account ${accountId}`);
+        console.log(`[HOSTVANA] Created inquiry booking ${created.id} for room ${roomId} on account ${accountId}`);
         return res.json({
           success: true,
           bookingId: created.id,

@@ -101,12 +101,12 @@ class GAS_Hostvana {
 
         $action = isset($_POST['chat_action']) ? sanitize_text_field($_POST['chat_action']) : '';
         $booking_id = isset($_POST['bookingId']) ? intval($_POST['bookingId']) : 0;
-        $property_id = isset($_POST['propertyId']) ? intval($_POST['propertyId']) : 0;
+        $room_id = isset($_POST['roomId']) ? intval($_POST['roomId']) : 0;
         $message = isset($_POST['message']) ? sanitize_textarea_field($_POST['message']) : '';
 
         $body = array('action' => $action);
         if ($booking_id) $body['bookingId'] = $booking_id;
-        if ($property_id) $body['propertyId'] = $property_id;
+        if ($room_id) $body['roomId'] = $room_id;
         if ($message) $body['message'] = $message;
 
         $response = wp_remote_post(trailingslashit($api_url) . 'api/hostvana/chat', array(
@@ -413,7 +413,7 @@ class GAS_Hostvana {
                     var formData = new FormData();
                     formData.append('action', 'gas_hostvana_chat');
                     formData.append('chat_action', 'createBooking');
-                    formData.append('propertyId', propId);
+                    formData.append('roomId', propId);
                     formData.append('message', text);
 
                     fetch(ajaxUrl, { method: 'POST', body: formData })
