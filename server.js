@@ -79603,7 +79603,22 @@ app.post('/api/hostvana/chat', async (req, res) => {
         return res.status(400).json({ success: false, error: 'roomId and message are required' });
       }
 
+      // Look up beds24_property_id from beds24_room_id
+      const propLookup = await pool.query(`
+        SELECT p.beds24_property_id
+        FROM bookable_units bu
+        JOIN properties p ON p.id = bu.property_id
+        WHERE bu.beds24_room_id = $1 AND p.account_id = $2
+        LIMIT 1
+      `, [String(roomId), accountId]);
+
+      const beds24PropId = propLookup.rows[0]?.beds24_property_id;
+      if (!beds24PropId) {
+        return res.status(400).json({ success: false, error: 'Room not found for this account' });
+      }
+
       const bookingData = [{
+        propId: parseInt(beds24PropId),
         roomId: parseInt(roomId),
         status: 'inquiry',
         firstName: 'Hostvana Question',
