@@ -79572,30 +79572,25 @@ app.post('/api/hostvana/chat', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Action required (createBooking, sendMessage, getMessages)' });
     }
 
-    // Get Beds24 token for this account
-    // Prefer gas_sync_connections token (kept fresh by sync adapter), fall back to getBeds24Token
-    let token;
+    // Get Beds24 V1 credentials for this account
     const syncConn = await pool.query(`
-      SELECT access_token FROM gas_sync_connections
-      WHERE account_id = $1 AND adapter_code = 'beds24' AND status != 'deleted' AND access_token IS NOT NULL
+      SELECT id, credentials, access_token FROM gas_sync_connections
+      WHERE account_id = $1 AND adapter_code = 'beds24' AND status != 'deleted'
       ORDER BY created_at DESC LIMIT 1
     `, [accountId]);
 
-    if (syncConn.rows.length > 0) {
-      token = syncConn.rows[0].access_token;
-    } else {
-      try {
-        token = await getBeds24Token(accountId);
-      } catch (tokenErr) {
-        return res.status(502).json({ success: false, error: 'Beds24 not connected: ' + tokenErr.message });
-      }
+    if (syncConn.rows.length === 0) {
+      return res.status(502).json({ success: false, error: 'Beds24 not connected' });
     }
 
-    const beds24Headers = {
-      'token': token,
-      'Content-Type': 'application/json',
-      'accept': 'application/json'
-    };
+    const connId = syncConn.rows[0].id;
+    const creds = typeof syncConn.rows[0].credentials === 'string'
+      ? JSON.parse(syncConn.rows[0].credentials) : syncConn.rows[0].credentials;
+    const v1ApiKey = creds?.v1ApiKey;
+
+    if (!v1ApiKey) {
+      return res.status(502).json({ success: false, error: 'Beds24 V1 API key not configured' });
+    }
 
     // Action: createBooking — creates an inquiry booking to start a conversation
     if (action === 'createBooking') {
@@ -79603,89 +79598,101 @@ app.post('/api/hostvana/chat', async (req, res) => {
         return res.status(400).json({ success: false, error: 'roomId and message are required' });
       }
 
-      // Look up beds24_property_id from beds24_room_id
-      const propLookup = await pool.query(`
-        SELECT p.beds24_property_id
+      // Look up beds24_property_id + prop_key from beds24_room_id
+      const roomLookup = await pool.query(`
+        SELECT p.beds24_property_id, gsp.prop_key
         FROM bookable_units bu
         JOIN properties p ON p.id = bu.property_id
-        WHERE bu.beds24_room_id = $1 AND p.account_id = $2
+        JOIN gas_sync_properties gsp ON gsp.connection_id = $1 AND gsp.external_id = p.beds24_property_id::text
+        WHERE bu.beds24_room_id = $2 AND p.account_id = $3
         LIMIT 1
-      `, [String(roomId), accountId]);
+      `, [connId, String(roomId), accountId]);
 
-      const beds24PropId = propLookup.rows[0]?.beds24_property_id;
-      if (!beds24PropId) {
+      const propKey = roomLookup.rows[0]?.prop_key;
+      if (!propKey) {
         return res.status(400).json({ success: false, error: 'Room not found for this account' });
       }
 
-      const bookingData = [{
-        propId: parseInt(beds24PropId),
-        roomId: parseInt(roomId),
-        status: 'inquiry',
-        firstName: 'Hostvana Question',
-        lastName: '',
-        arrival: arrival || new Date().toISOString().split('T')[0],
-        departure: departure || new Date(Date.now() + 86400000).toISOString().split('T')[0],
-        messages: [{
-          message: message
-        }]
-      }];
+      const arrDate = arrival || new Date().toISOString().split('T')[0];
+      const depDate = departure || new Date(Date.now() + 86400000).toISOString().split('T')[0];
+      const lastNight = new Date(new Date(depDate).getTime() - 86400000).toISOString().split('T')[0];
 
-      const response = await axios.post('https://beds24.com/api/v2/bookings', bookingData, { headers: beds24Headers });
+      const v1Payload = {
+        authentication: { apiKey: v1ApiKey, propKey: propKey },
+        roomId: String(roomId),
+        firstNight: arrDate,
+        lastNight: lastNight,
+        guestFirstName: 'Hostvana Question',
+        guestName: '',
+        status: 1,
+        infoItems: [{ code: 'message', text: message }]
+      };
 
-      if (response.data && response.data.length > 0 && response.data[0].new) {
-        const created = response.data[0].new;
-        console.log(`[HOSTVANA] Created inquiry booking ${created.id} for room ${roomId} on account ${accountId}`);
+      const response = await axios.post('https://api.beds24.com/json/setBooking', v1Payload, {
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 10000
+      });
+
+      if (response.data && response.data.bookId) {
+        console.log(`[HOSTVANA] Created inquiry booking ${response.data.bookId} for room ${roomId} on account ${accountId}`);
         return res.json({
           success: true,
-          bookingId: created.id,
-          reference: created.id
+          bookingId: response.data.bookId,
+          reference: response.data.bookId
         });
       }
 
-      return res.status(502).json({ success: false, error: 'Failed to create booking on Beds24' });
+      return res.status(502).json({ success: false, error: 'Failed to create booking on Beds24', detail: response.data });
     }
 
-    // Action: sendMessage — adds a message to an existing booking
+    // Action: sendMessage — adds a message to an existing booking via V1
     if (action === 'sendMessage') {
       if (!bookingId || !message) {
         return res.status(400).json({ success: false, error: 'bookingId and message are required' });
       }
 
-      const messageData = [{
-        id: parseInt(bookingId),
-        messages: [{
-          message: message
-        }]
-      }];
+      const v1Payload = {
+        authentication: { apiKey: v1ApiKey },
+        bookId: String(bookingId),
+        infoItems: [{ code: 'message', text: message }]
+      };
 
-      await axios.post('https://beds24.com/api/v2/bookings', messageData, { headers: beds24Headers });
+      await axios.post('https://api.beds24.com/json/setBooking', v1Payload, {
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 10000
+      });
 
       console.log(`[HOSTVANA] Sent message on booking ${bookingId} for account ${accountId}`);
       return res.json({ success: true });
     }
 
-    // Action: getMessages — retrieves messages from a booking
-    // NOTE: item.source === 'guest' is a best guess for Beds24 V2 infoItems.
-    // Verify actual field name/values after first real test. If wrong, messages
-    // will still work but may display on wrong side of chat. Easy fix.
+    // Action: getMessages — retrieves messages from a booking via V1
     if (action === 'getMessages') {
       if (!bookingId) {
         return res.status(400).json({ success: false, error: 'bookingId is required' });
       }
 
-      const response = await axios.get(`https://beds24.com/api/v2/bookings?id=${parseInt(bookingId)}&includeInfoItems=true&includeMessages=true`, { headers: beds24Headers });
-      const bookings = response.data?.data || response.data;
+      const v1Payload = {
+        authentication: { apiKey: v1ApiKey },
+        bookId: String(bookingId),
+        includeInvoice: false,
+        includeInfoItems: true
+      };
 
-      if (Array.isArray(bookings) && bookings.length > 0) {
-        const booking = bookings[0];
-        // Try messages array first (Beds24 V2), fall back to infoItems
-        const rawMessages = booking.messages || (booking.infoItems || []).filter(item => item.code === 'message');
-        const messages = rawMessages.map(item => ({
-          text: item.message || item.text,
-          timestamp: item.time || item.createTime || item.createdTime || null,
-          sender: item.source === 'guest' ? 'guest' : 'host'
-        }));
+      const response = await axios.post('https://api.beds24.com/json/getBooking', v1Payload, {
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 10000
+      });
 
+      const booking = response.data;
+      if (booking && booking.infoItems) {
+        const messages = booking.infoItems
+          .filter(item => item.code === 'message')
+          .map(item => ({
+            text: item.text,
+            timestamp: item.time || item.modifiedTime || null,
+            sender: item.source === 'guest' ? 'guest' : 'host'
+          }));
         return res.json({ success: true, messages });
       }
 
