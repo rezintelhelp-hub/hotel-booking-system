@@ -79589,13 +79589,7 @@ app.post('/api/hostvana/chat', async (req, res) => {
         }]
       }];
 
-      console.log(`[HOSTVANA DEBUG] Token: ${token.substring(0, 10)}...`);
-      console.log(`[HOSTVANA DEBUG] URL: https://beds24.com/api/v2/bookings`);
-      console.log(`[HOSTVANA DEBUG] Payload:`, JSON.stringify(bookingData));
-
       const response = await axios.post('https://beds24.com/api/v2/bookings', bookingData, { headers: beds24Headers });
-
-      console.log(`[HOSTVANA DEBUG] Response:`, JSON.stringify(response.data));
 
       if (response.data && response.data.length > 0) {
         const created = response.data[0];
@@ -79660,8 +79654,7 @@ app.post('/api/hostvana/chat', async (req, res) => {
     return res.status(400).json({ success: false, error: 'Invalid action. Use: createBooking, sendMessage, getMessages' });
 
   } catch (error) {
-    console.error('[HOSTVANA] Chat error:', error.response?.status, error.response?.data || error.message);
-    console.error('[HOSTVANA] Full error headers:', error.response?.headers);
+    console.error('[HOSTVANA] Chat error:', error.response?.data || error.message);
     return res.status(502).json({ success: false, error: 'Beds24 API error: ' + (error.response?.data?.message || error.message) });
   }
 });
