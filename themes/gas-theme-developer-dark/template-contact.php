@@ -29,6 +29,12 @@ $ct = $ct_all[$cl] ?? $ct_all['en'];
 $page_title    = $api['page_contact_title'] ?? '';
 $page_subtitle = $api['page_contact_subtitle'] ?? '';
 
+// Hero toggle
+$hero_enabled = !empty($api['page_contact_hero_enabled']) && $api['page_contact_hero_enabled'] !== 'false' && $api['page_contact_hero_enabled'] !== false;
+$hero_image   = $api['page_contact_hero_image'] ?? '';
+$header_bg    = $api['page_contact_header_bg'] ?? '#1e293b';
+$header_text  = $api['page_contact_header_text'] ?? '#ffffff';
+
 // Company details
 $business = $api['page_contact_business_name'] ?? '';
 $email    = $api['page_contact_email'] ?? $api['footer_email'] ?? '';
@@ -162,9 +168,25 @@ $button_color = $api['page_contact_button_color'] ?? $accent;
 }
 </style>
 
-<div class="gas-contact-page">
+<?php if ($hero_enabled) : ?>
+<!-- Page Hero -->
+<section class="developer-page-hero" style="background: <?php echo esc_attr($header_bg); ?>; <?php echo $hero_image ? 'background-image: url(' . esc_url($hero_image) . '); background-size: cover; background-position: center;' : ''; ?>">
+    <div class="developer-page-hero-overlay" style="background: rgba(0,0,0,0.5);"></div>
+    <div class="developer-container">
+        <div class="developer-page-hero-content">
+            <h1 style="color: <?php echo esc_attr($header_text); ?>;"><?php echo $page_title ? esc_html($page_title) : the_title('', '', false); ?></h1>
+            <?php if ($page_subtitle) : ?>
+                <p class="developer-page-subtitle" style="color: <?php echo esc_attr($header_text); ?>;"><?php echo esc_html($page_subtitle); ?></p>
+            <?php endif; ?>
+        </div>
+    </div>
+</section>
+<?php endif; ?>
+
+<div class="gas-contact-page" <?php if ($hero_enabled) echo 'style="padding-top: 40px;"'; ?>>
     <div class="gas-contact-container">
 
+        <?php if (!$hero_enabled) : ?>
         <div class="gas-contact-header">
             <h1><?php echo $page_title ? esc_html($page_title) : the_title('', '', false); ?></h1>
             <?php if ($page_subtitle): ?>
@@ -173,6 +195,7 @@ $button_color = $api['page_contact_button_color'] ?? $accent;
                 <p><?php echo esc_html($business); ?></p>
             <?php endif; ?>
         </div>
+        <?php endif; ?>
 
         <div class="gas-contact-grid">
 

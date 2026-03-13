@@ -58,6 +58,21 @@ GAS (Global Accommodation System) is a full-stack hotel booking and property man
 - All changes via git commit and push
 - Railway auto-deploys on push to main
 
+### 6. OLD SERVER (Linode/Akamai — app3)
+- **IP**: 139.162.234.112
+- **SSH**: `ssh -i ~/.ssh/id_ed25519 root@139.162.234.112`
+- **STATUS**: READ ONLY — for reference and migration purposes only
+- **DO NOT** decommission, delete, edit or modify anything on this server
+- Still live — runs existing client sites being migrated to GAS
+- Contains: client configs, API keys, Beds24 credentials, site data, templates
+- **MySQL**: `mysql -u setseed_master -p'hrDpymeXhGjcBgvT8GTZ' setseed_master`
+- **App config**: `/var/www/html/app/configuration.php`
+- **Key paths**:
+  - Client sites: `/var/www/html/sites/{sitename}/`
+  - Theme templates: `/var/www/html/themes/global_design_mode_theme*/templates/`
+  - App classes/functions: `/var/www/html/app/classes/`, `/var/www/html/app/functions/`
+  - Each client has own DB: `setseed_{sitename}`
+
 ---
 
 ## CODING RULES — ALWAYS FOLLOW

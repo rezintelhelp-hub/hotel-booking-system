@@ -31,7 +31,7 @@ $story_title = $api['page_about_story_title'] ?? 'Our Story';
 $story_text = $api['page_about_story_text'] ?? '';
 
 // Hero toggle
-$hero_enabled = $api['page_about_hero_enabled'] ?? true;
+$hero_enabled = !empty($api['page_about_hero_enabled']) && $api['page_about_hero_enabled'] !== 'false' && $api['page_about_hero_enabled'] !== false;
 
 // Colors
 $header_bg = $api['page_about_header_bg'] ?? '#1e293b';

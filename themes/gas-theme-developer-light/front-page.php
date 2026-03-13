@@ -33,6 +33,8 @@ $hero_title = $api['hero_title'] ?? get_theme_mod('developer_hero_title', 'Find 
 $hero_subtitle = $api['hero_subtitle'] ?? get_theme_mod('developer_hero_subtitle', 'Discover stunning vacation rentals with luxury amenities, prime locations, and unforgettable experiences.');
 $hero_opacity = $api['hero_overlay_opacity'] ?? get_theme_mod('developer_hero_opacity', 30);
 $hero_overlay_color = $api['hero_overlay_color'] ?? get_theme_mod('developer_hero_overlay_color', '#0f172a');
+$hero_title_color = $api['hero_title_color'] ?? '#ffffff';
+$hero_subtitle_color = $api['hero_subtitle_color'] ?? 'rgba(255,255,255,0.9)';
 
 // Search widget settings (with API override)
 $search_bg = $api['hero_search_bg'] ?? get_theme_mod('developer_search_bg', '#ffffff');
@@ -195,8 +197,8 @@ $search_bg_rgba = "rgba($sr, $sg, $sb, " . ($search_opacity / 100) . ")";
             <?php endif; ?>
         <?php endif; ?>
         
-        <h1><?php echo esc_html($hero_title); ?></h1>
-        <p class="developer-hero-subtitle"><?php echo esc_html($hero_subtitle); ?></p>
+        <h1 style="color: <?php echo esc_attr($hero_title_color); ?>;"><?php echo esc_html($hero_title); ?></h1>
+        <p class="developer-hero-subtitle" style="color: <?php echo esc_attr($hero_subtitle_color); ?>;"><?php echo esc_html($hero_subtitle); ?></p>
         
         <!-- GAS Search Widget with custom styling -->
         <div class="developer-search-wrapper" style="background: <?php echo esc_attr($search_bg_rgba); ?>; border-radius: <?php echo esc_attr($search_radius); ?>px; max-width: <?php echo esc_attr($search_max_width); ?>px; transform: scale(<?php echo esc_attr($search_scale / 100); ?>); transform-origin: center top;">

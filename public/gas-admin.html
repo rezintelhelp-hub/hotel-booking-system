@@ -8418,6 +8418,36 @@
                                             </div>
                                         </div>
                                     </div>
+                                    <div class="form-group">
+                                        <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                                            <input type="checkbox" id="wb-page-contact-hero-enabled" checked style="width: 16px; height: 16px;">
+                                            Show Hero Section
+                                        </label>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Header Background Image</label>
+                                        <div id="wb-page-contact-hero-image-preview" style="width: 100%; height: 150px; background: linear-gradient(135deg, #1e293b 0%, #334155 100%); border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; background-size: cover; background-position: center;">
+                                            <span style="color: #94a3b8;">Click below to upload a header image</span>
+                                        </div>
+                                        <input type="file" id="wb-page-contact-hero-image-file" accept="image/*" onchange="previewPageImage('contact', 'hero-image')">
+                                        <input type="hidden" id="wb-page-contact-hero-image">
+                                    </div>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+                                        <div class="form-group">
+                                            <label class="form-label">Header Background Color</label>
+                                            <div style="display: flex; gap: 8px; align-items: center;">
+                                                <input type="color" id="wb-page-contact-header-bg-picker" value="#1e293b" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-page-contact-header-bg').value = this.value">
+                                                <input type="text" class="form-input" id="wb-page-contact-header-bg" value="#1e293b" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-page-contact-header-bg-picker')">
+                                            </div>
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label">Header Text Color</label>
+                                            <div style="display: flex; gap: 8px; align-items: center;">
+                                                <input type="color" id="wb-page-contact-header-text-picker" value="#ffffff" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-page-contact-header-text').value = this.value">
+                                                <input type="text" class="form-input" id="wb-page-contact-header-text" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-page-contact-header-text-picker')">
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
@@ -9739,6 +9769,22 @@
                         <div class="form-group">
                             <label class="form-label">Hero Height: <span id="wb-hero-height-value">90</span>vh</label>
                             <input type="range" id="wb-hero-height" min="50" max="100" value="90" style="width: 100%;" oninput="document.getElementById('wb-hero-height-value').textContent = this.value">
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Title Color</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color" id="wb-hero-title-color-picker" value="#ffffff" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-hero-title-color').value = this.value">
+                                    <input type="text" class="form-input" id="wb-hero-title-color" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-hero-title-color-picker')">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Subtitle Color</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color" id="wb-hero-subtitle-color-picker" value="#ffffff" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-hero-subtitle-color').value = this.value">
+                                    <input type="text" class="form-input" id="wb-hero-subtitle-color" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-hero-subtitle-color-picker')">
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -24159,6 +24205,16 @@ const promo = await fetch('/api/v1/offers/validate', {
                         }
                     }
                     
+                    // Restore page hero image previews
+                    if (section.startsWith('page-') && data.settings['hero-image']) {
+                        const heroPreview = getEl(`wb-${section}-hero-image-preview`);
+                        if (heroPreview) {
+                            heroPreview.style.backgroundImage = `url(${data.settings['hero-image']})`;
+                            const placeholder = heroPreview.querySelector('span');
+                            if (placeholder) placeholder.style.display = 'none';
+                        }
+                    }
+
                     // Load FAQs if present in settings
                     if (data.settings.faqs) {
                         const faqSection = section.replace('page-', '');
