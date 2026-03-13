@@ -202,6 +202,13 @@ $has_attractions = $use_api ? ($site_config['features']['has_attractions'] ?? fa
                 <?php endif; ?>
                 Powered by <a href="https://developer-admin.replit.app" target="_blank" style="color: <?php echo esc_attr($footer_text); ?>; text-decoration: underline;">GAS Booking</a>
             </p>
+            <?php if (!empty($api_settings['footer_company_number']) || !empty($api_settings['footer_tax_number'])) : ?>
+                <p style="color: <?php echo esc_attr($footer_text); ?>; opacity: 0.7; margin-top: 0.25rem; font-size: 0.85em;">
+                    <?php if (!empty($api_settings['footer_company_number'])) echo esc_html($api_settings['footer_company_number']); ?>
+                    <?php if (!empty($api_settings['footer_company_number']) && !empty($api_settings['footer_tax_number'])) echo ' | '; ?>
+                    <?php if (!empty($api_settings['footer_tax_number'])) echo esc_html($api_settings['footer_tax_number']); ?>
+                </p>
+            <?php endif; ?>
         </div>
     </div>
 </footer>

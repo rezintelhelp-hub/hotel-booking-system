@@ -2822,6 +2822,8 @@ function developer_get_api_settings() {
         'footer_heading_quicklinks' => developer_get_ml_value($website_footer, 'heading-quicklinks', $lang),
         'footer_heading_legal' => developer_get_ml_value($website_footer, 'heading-legal', $lang),
         'footer_copyright' => developer_get_ml_value($website_footer, 'copyright', $lang),
+        'footer_company_number' => developer_get_ml_value($website_footer, 'company-number', $lang),
+        'footer_tax_number' => developer_get_ml_value($website_footer, 'tax-number', $lang),
         'footer_email' => $website_footer['email'] ?? '',
         'footer_phone' => $website_footer['phone'] ?? '',
         'footer_address' => $website_footer['address'] ?? '',
