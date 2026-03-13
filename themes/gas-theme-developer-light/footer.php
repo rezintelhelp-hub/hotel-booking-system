@@ -86,10 +86,14 @@ foreach ($footer_pages as $pg) {
 
 usort($quick_links, function($a, $b) { return ($a['order'] ?? 99) - ($b['order'] ?? 99); });
 
-// Legal links (with API multilingual override)
+// Legal links (with API multilingual override) — support external URLs
+$terms_url = (!empty($api_settings['page_terms_use_external']) && !empty($api_settings['page_terms_external_url']))
+    ? $api_settings['page_terms_external_url'] : '/terms/';
+$privacy_url = (!empty($api_settings['page_privacy_use_external']) && !empty($api_settings['page_privacy_external_url']))
+    ? $api_settings['page_privacy_external_url'] : '/privacy/';
 $legal_links = array(
-    array('label' => $api_settings['page_terms_menu_title'] ?? 'Terms & Conditions', 'url' => '/terms/'),
-    array('label' => $api_settings['page_privacy_menu_title'] ?? 'Privacy Policy', 'url' => '/privacy/')
+    array('label' => $api_settings['page_terms_menu_title'] ?? 'Terms & Conditions', 'url' => $terms_url, 'external' => str_starts_with($terms_url, 'http')),
+    array('label' => $api_settings['page_privacy_menu_title'] ?? 'Privacy Policy', 'url' => $privacy_url, 'external' => str_starts_with($privacy_url, 'http'))
 );
 
 // Check if attractions exist
@@ -159,7 +163,7 @@ $has_attractions = $use_api ? ($site_config['features']['has_attractions'] ?? fa
                 <h4 style="color: <?php echo esc_attr($footer_text); ?>;"><?php echo esc_html($api_settings['footer_heading_quicklinks'] ?? 'Quick Links'); ?></h4>
                 <ul class="developer-footer-links">
                     <?php foreach ($quick_links as $link) : ?>
-                        <li><a href="<?php echo esc_url(home_url($link['url'])); ?>" style="color: <?php echo esc_attr($footer_text); ?>; opacity: 0.8;"><?php echo esc_html($link['label']); ?></a></li>
+                        <li><a href="<?php echo !empty($link['external']) ? esc_url($link['url']) : esc_url(home_url($link['url'])); ?>"<?php echo !empty($link['external']) ? ' target="_blank" rel="noopener noreferrer"' : ''; ?> style="color: <?php echo esc_attr($footer_text); ?>; opacity: 0.8;"><?php echo esc_html($link['label']); ?></a></li>
                     <?php endforeach; ?>
                 </ul>
             </div>
@@ -169,7 +173,7 @@ $has_attractions = $use_api ? ($site_config['features']['has_attractions'] ?? fa
                 <h4 style="color: <?php echo esc_attr($footer_text); ?>;"><?php echo esc_html($api_settings['footer_heading_legal'] ?? 'Legal'); ?></h4>
                 <ul class="developer-footer-links">
                     <?php foreach ($legal_links as $link) : ?>
-                        <li><a href="<?php echo esc_url(home_url($link['url'])); ?>" style="color: <?php echo esc_attr($footer_text); ?>; opacity: 0.8;"><?php echo esc_html($link['label']); ?></a></li>
+                        <li><a href="<?php echo !empty($link['external']) ? esc_url($link['url']) : esc_url(home_url($link['url'])); ?>"<?php echo !empty($link['external']) ? ' target="_blank" rel="noopener noreferrer"' : ''; ?> style="color: <?php echo esc_attr($footer_text); ?>; opacity: 0.8;"><?php echo esc_html($link['label']); ?></a></li>
                     <?php endforeach; ?>
                 </ul>
             </div>

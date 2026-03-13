@@ -2552,10 +2552,14 @@ function developer_get_api_settings() {
         // Terms Page - MULTILINGUAL
         'page_terms_menu_title' => developer_get_ml_value($website_page_terms, 'menu_title', $lang) ?: 'Terms',
         'page_terms_enabled' => true, // Always in footer
-        
+        'page_terms_use_external' => $website_page_terms['use-external'] ?? false,
+        'page_terms_external_url' => $website_page_terms['external-url'] ?? '',
+
         // Privacy Page - MULTILINGUAL
         'page_privacy_menu_title' => developer_get_ml_value($website_page_privacy, 'menu_title', $lang) ?: 'Privacy',
         'page_privacy_enabled' => true, // Always in footer
+        'page_privacy_use_external' => $website_page_privacy['use-external'] ?? false,
+        'page_privacy_external_url' => $website_page_privacy['external-url'] ?? '',
         
         // CTA Button (Header)
         // CTA Button (Header) - use multilingual lookup for text
