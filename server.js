@@ -79660,18 +79660,19 @@ app.post('/api/hostvana/chat', async (req, res) => {
         return res.status(400).json({ success: false, error: 'bookingId is required' });
       }
 
-      const response = await axios.get(`https://beds24.com/api/v2/bookings?id=${parseInt(bookingId)}&includeInfoItems=true`, { headers: beds24Headers });
-      console.log('[HOSTVANA DEBUG] getMessages response:', JSON.stringify(response.data).substring(0, 1000));
+      const response = await axios.get(`https://beds24.com/api/v2/bookings?id=${parseInt(bookingId)}&includeInfoItems=true&includeMessages=true`, { headers: beds24Headers });
+      const bookings = response.data?.data || response.data;
+      console.log('[HOSTVANA DEBUG] getMessages keys:', JSON.stringify(Object.keys(response.data)), 'booking keys:', bookings?.[0] ? JSON.stringify(Object.keys(bookings[0])).substring(0, 500) : 'none');
 
-      if (response.data && response.data.length > 0) {
-        const booking = response.data[0];
-        const messages = (booking.infoItems || [])
-          .filter(item => item.code === 'message')
-          .map(item => ({
-            text: item.text,
-            timestamp: item.createdTime || item.modifiedTime || null,
-            sender: item.source === 'guest' ? 'guest' : 'host'
-          }));
+      if (Array.isArray(bookings) && bookings.length > 0) {
+        const booking = bookings[0];
+        // Try messages array first (Beds24 V2), fall back to infoItems
+        const rawMessages = booking.messages || (booking.infoItems || []).filter(item => item.code === 'message');
+        const messages = rawMessages.map(item => ({
+          text: item.message || item.text,
+          timestamp: item.time || item.createTime || item.createdTime || null,
+          sender: item.source === 'guest' ? 'guest' : 'host'
+        }));
 
         return res.json({ success: true, messages });
       }
