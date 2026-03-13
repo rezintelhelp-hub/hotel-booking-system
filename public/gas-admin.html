@@ -24366,7 +24366,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 const data = await response.json();
                 if (data.success && data.content) {
-                    document.getElementById('wb-about-title').value = data.content;
+                    document.getElementById('wb-about-title-en').value = data.content;
                     showNotification('Title generated!', 'success');
                 } else {
                     showNotification('Failed to generate: ' + (data.error || 'Unknown error'), 'error');
@@ -24406,7 +24406,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 const data = await response.json();
                 if (data.success && data.content) {
-                    document.getElementById('wb-about-text').value = data.content;
+                    document.getElementById('wb-about-text-en').value = data.content;
                     showNotification('About text generated!', 'success');
                 } else {
                     showNotification('Failed to generate: ' + (data.error || 'Unknown error'), 'error');
