@@ -79617,6 +79617,7 @@ app.post('/api/hostvana/chat', async (req, res) => {
       }];
 
       const response = await axios.post('https://beds24.com/api/v2/bookings', bookingData, { headers: beds24Headers });
+      console.log('[HOSTVANA DEBUG] Full Beds24 response:', JSON.stringify(response.data), 'type:', typeof response.data, 'isArray:', Array.isArray(response.data));
 
       if (response.data && response.data.length > 0) {
         const created = response.data[0];
