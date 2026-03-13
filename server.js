@@ -79662,7 +79662,6 @@ app.post('/api/hostvana/chat', async (req, res) => {
 
       const response = await axios.get(`https://beds24.com/api/v2/bookings?id=${parseInt(bookingId)}&includeInfoItems=true&includeMessages=true`, { headers: beds24Headers });
       const bookings = response.data?.data || response.data;
-      console.log('[HOSTVANA DEBUG] getMessages keys:', JSON.stringify(Object.keys(response.data)), 'booking keys:', bookings?.[0] ? JSON.stringify(Object.keys(bookings[0])).substring(0, 500) : 'none');
 
       if (Array.isArray(bookings) && bookings.length > 0) {
         const booking = bookings[0];
