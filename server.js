@@ -79592,57 +79592,57 @@ app.post('/api/hostvana/chat', async (req, res) => {
       return res.status(502).json({ success: false, error: 'Beds24 V1 API key not configured' });
     }
 
-    // Action: createBooking — creates an inquiry booking to start a conversation
+    // Action: createBooking — creates an inquiry booking via V2 (supports inquiry status)
     if (action === 'createBooking') {
       if (!roomId || !message) {
         return res.status(400).json({ success: false, error: 'roomId and message are required' });
       }
 
-      // Look up beds24_property_id + prop_key from beds24_room_id
+      // Look up beds24_property_id from beds24_room_id
       const roomLookup = await pool.query(`
-        SELECT p.beds24_property_id, gsp.prop_key
+        SELECT p.beds24_property_id
         FROM bookable_units bu
         JOIN properties p ON p.id = bu.property_id
-        JOIN gas_sync_properties gsp ON gsp.connection_id = $1 AND gsp.external_id = p.beds24_property_id::text
-        WHERE bu.beds24_room_id = $2 AND p.account_id = $3
+        WHERE bu.beds24_room_id = $1 AND p.account_id = $2
         LIMIT 1
-      `, [connId, String(roomId), accountId]);
+      `, [String(roomId), accountId]);
 
-      const propKey = roomLookup.rows[0]?.prop_key;
-      if (!propKey) {
+      const beds24PropId = roomLookup.rows[0]?.beds24_property_id;
+      if (!beds24PropId) {
         return res.status(400).json({ success: false, error: 'Room not found for this account' });
       }
 
-      const arrDate = arrival || new Date().toISOString().split('T')[0];
-      const depDate = departure || new Date(Date.now() + 86400000).toISOString().split('T')[0];
-      const lastNight = new Date(new Date(depDate).getTime() - 86400000).toISOString().split('T')[0];
+      const v2Token = syncConn.rows[0].access_token;
+      if (!v2Token) {
+        return res.status(502).json({ success: false, error: 'Beds24 V2 token not available' });
+      }
 
-      const v1Payload = {
-        authentication: { apiKey: v1ApiKey, propKey: propKey },
-        roomId: String(roomId),
-        firstNight: arrDate,
-        lastNight: lastNight,
-        guestFirstName: 'Hostvana Question',
-        guestName: '',
+      const bookingData = [{
+        propId: parseInt(beds24PropId),
+        roomId: parseInt(roomId),
         status: 'inquiry',
+        firstName: 'Hostvana Question',
+        lastName: '',
+        arrival: arrival || new Date().toISOString().split('T')[0],
+        departure: departure || new Date(Date.now() + 86400000).toISOString().split('T')[0],
         infoItems: [{ code: 'message', text: message }]
-      };
+      }];
 
-      const response = await axios.post('https://api.beds24.com/json/setBooking', v1Payload, {
-        headers: { 'Content-Type': 'application/json' },
-        timeout: 10000
+      const response = await axios.post('https://beds24.com/api/v2/bookings', bookingData, {
+        headers: { 'token': v2Token, 'Content-Type': 'application/json', 'accept': 'application/json' }
       });
 
-      if (response.data && response.data.bookId) {
-        console.log(`[HOSTVANA] Created inquiry booking ${response.data.bookId} for room ${roomId} on account ${accountId}`);
+      if (response.data && response.data.length > 0 && response.data[0].new) {
+        const created = response.data[0].new;
+        console.log(`[HOSTVANA] Created inquiry booking ${created.id} for room ${roomId} on account ${accountId}`);
         return res.json({
           success: true,
-          bookingId: response.data.bookId,
-          reference: response.data.bookId
+          bookingId: created.id,
+          reference: created.id
         });
       }
 
-      return res.status(502).json({ success: false, error: 'Failed to create booking on Beds24', detail: response.data });
+      return res.status(502).json({ success: false, error: 'Failed to create booking on Beds24' });
     }
 
     // Action: sendMessage — adds a message to an existing booking via V1
