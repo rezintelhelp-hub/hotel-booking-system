@@ -6044,6 +6044,33 @@ app.post('/api/gas-sync/connections/:id/reconnect', async (req, res) => {
   }
 });
 
+// Test Beds24 connection — verify token is valid by hitting properties endpoint
+app.get('/api/gas-sync/connections/:id/test', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const connResult = await pool.query(
+      'SELECT access_token, adapter_code FROM gas_sync_connections WHERE id = $1', [id]
+    );
+    if (connResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Connection not found' });
+    }
+    const conn = connResult.rows[0];
+    if (conn.adapter_code !== 'beds24') {
+      return res.json({ success: false, error: 'Only Beds24 connections supported' });
+    }
+    if (!conn.access_token) {
+      return res.json({ success: false, error: 'No access token stored' });
+    }
+    const response = await axios.get('https://beds24.com/api/v2/properties', {
+      headers: { 'token': conn.access_token, 'accept': 'application/json' }
+    });
+    const count = Array.isArray(response.data) ? response.data.length : 0;
+    res.json({ success: true, property_count: count });
+  } catch (error) {
+    res.json({ success: false, error: error.response?.data?.error || error.message });
+  }
+});
+
 // V1 Fixed Price fallback — fills null prices using V1 getRates for rooms without PriceLabs/daily pricing
 async function applyV1RatesFallback({ gasRoomId, beds24RoomId, v1ApiKey, propKey, roomName }) {
   // 1. Check existing row count for logging

@@ -59037,6 +59037,15 @@ const promo = await fetch('/api/v1/offers/validate', {
                 ` : ''}
                 ${isBeds24 ? `
                 <hr style="margin: 20px 0;">
+                <h4 style="margin-bottom: 15px;">🩺 Connection Test</h4>
+                <p style="font-size: 0.9rem; color: #64748b; margin-bottom: 12px;">Verify the Beds24 token is valid and the connection is working:</p>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <button class="btn" style="background: #0ea5e9; color: white;" onclick="testBeds24Connection()">🩺 Test Connection</button>
+                    <span id="beds24TestResult" style="font-size: 0.9rem;"></span>
+                </div>
+                ` : ''}
+                ${isBeds24 ? `
+                <hr style="margin: 20px 0;">
                 <h4 style="margin-bottom: 15px;">🔗 Webhooks</h4>
                 <p style="font-size: 0.9rem; color: #64748b; margin-bottom: 12px;">Set the GAS webhook URL on all Beds24 properties for this account. Properties with existing non-GAS webhooks will be skipped.</p>
                 <button class="btn" style="background: #8b5cf6; color: white;" onclick="setBeds24WebhooksForConnection('${conn.account_id}')">🔗 Set Webhooks</button>
@@ -59101,8 +59110,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                     document.getElementById('settingV2InviteCode').value = '';
                     // Reload connections
                     await loadGasSyncConnections();
-                    // Refresh the settings tab
+                    // Refresh the settings tab and run auto-test
                     showConnectionTab('settings');
+                    setTimeout(() => testBeds24Connection(), 500);
                 } else {
                     showNotification(data.error || 'Failed to reconnect', 'error');
                 }
@@ -59111,6 +59121,28 @@ const promo = await fetch('/api/v1/offers/validate', {
             } finally {
                 btn.innerHTML = originalText;
                 btn.disabled = false;
+            }
+        }
+
+        async function testBeds24Connection() {
+            const resultEl = document.getElementById('beds24TestResult');
+            resultEl.innerHTML = '⏳ Testing...';
+            resultEl.style.color = '#64748b';
+            try {
+                const response = await fetch(`/api/gas-sync/connections/${selectedConnectionId}/test`, {
+                    headers: authHeaders()
+                });
+                const data = await response.json();
+                if (data.success) {
+                    resultEl.innerHTML = `✅ Connected — ${data.property_count} properties found`;
+                    resultEl.style.color = '#059669';
+                } else {
+                    resultEl.innerHTML = `❌ ${data.error}`;
+                    resultEl.style.color = '#ef4444';
+                }
+            } catch (error) {
+                resultEl.innerHTML = `❌ ${error.message}`;
+                resultEl.style.color = '#ef4444';
             }
         }
 
