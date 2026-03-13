@@ -79624,7 +79624,7 @@ app.post('/api/hostvana/chat', async (req, res) => {
         lastNight: lastNight,
         guestFirstName: 'Hostvana Question',
         guestName: '',
-        status: 1,
+        status: 0,
         infoItems: [{ code: 'message', text: message }]
       };
 
