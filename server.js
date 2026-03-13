@@ -79511,6 +79511,143 @@ app.delete('/api/plugin-licenses/:id/delete', async (req, res) => {
   }
 });
 
+// ==========================================
+// Hostvana Chat Widget — Beds24 Messaging Proxy
+// ==========================================
+app.post('/api/hostvana/chat', async (req, res) => {
+  try {
+    // Extract license/API key from multiple sources
+    const licenseKey = req.headers['x-license-key']
+      || req.headers['x-api-key']
+      || (req.headers.authorization && req.headers.authorization.startsWith('Bearer ') ? req.headers.authorization.replace('Bearer ', '') : null)
+      || req.query.api_key;
+
+    if (!licenseKey) {
+      return res.status(401).json({ success: false, error: 'Authentication required' });
+    }
+
+    // Look up account from license key or api_key
+    const accountResult = await pool.query(`
+      SELECT a.id as account_id FROM accounts a
+      LEFT JOIN plugin_licenses pl ON pl.account_id = a.id
+      WHERE (pl.license_key = $1 OR a.api_key = $1) AND a.status = 'active'
+      LIMIT 1
+    `, [licenseKey]);
+
+    if (accountResult.rows.length === 0) {
+      return res.status(401).json({ success: false, error: 'Invalid or expired license key' });
+    }
+
+    const accountId = accountResult.rows[0].account_id;
+    const { action, bookingId, propertyId, message, senderName } = req.body;
+
+    if (!action) {
+      return res.status(400).json({ success: false, error: 'Action required (createBooking, sendMessage, getMessages)' });
+    }
+
+    // Get Beds24 token for this account
+    let token;
+    try {
+      token = await getBeds24Token(accountId);
+    } catch (tokenErr) {
+      return res.status(502).json({ success: false, error: 'Beds24 not connected: ' + tokenErr.message });
+    }
+
+    const beds24Headers = {
+      'token': token,
+      'Content-Type': 'application/json',
+      'accept': 'application/json'
+    };
+
+    // Action: createBooking — creates an inquiry booking to start a conversation
+    if (action === 'createBooking') {
+      if (!propertyId || !message) {
+        return res.status(400).json({ success: false, error: 'propertyId and message are required' });
+      }
+
+      const bookingData = [{
+        propId: parseInt(propertyId),
+        status: 'inquiry',
+        firstName: 'Hostvana Question',
+        lastName: '',
+        arrival: new Date().toISOString().split('T')[0],
+        departure: new Date(Date.now() + 86400000).toISOString().split('T')[0],
+        infoItems: [{
+          code: 'message',
+          text: message
+        }]
+      }];
+
+      const response = await axios.post('https://beds24.com/api/v2/bookings', bookingData, { headers: beds24Headers });
+
+      if (response.data && response.data.length > 0) {
+        const created = response.data[0];
+        console.log(`[HOSTVANA] Created inquiry booking ${created.id} for property ${propertyId} on account ${accountId}`);
+        return res.json({
+          success: true,
+          bookingId: created.id,
+          reference: created.referer || created.id
+        });
+      }
+
+      return res.status(502).json({ success: false, error: 'Failed to create booking on Beds24' });
+    }
+
+    // Action: sendMessage — adds a message to an existing booking
+    if (action === 'sendMessage') {
+      if (!bookingId || !message) {
+        return res.status(400).json({ success: false, error: 'bookingId and message are required' });
+      }
+
+      const messageData = [{
+        id: parseInt(bookingId),
+        infoItems: [{
+          code: 'message',
+          text: message
+        }]
+      }];
+
+      await axios.post('https://beds24.com/api/v2/bookings', messageData, { headers: beds24Headers });
+
+      console.log(`[HOSTVANA] Sent message on booking ${bookingId} for account ${accountId}`);
+      return res.json({ success: true });
+    }
+
+    // Action: getMessages — retrieves messages from a booking
+    // NOTE: item.source === 'guest' is a best guess for Beds24 V2 infoItems.
+    // Verify actual field name/values after first real test. If wrong, messages
+    // will still work but may display on wrong side of chat. Easy fix.
+    if (action === 'getMessages') {
+      if (!bookingId) {
+        return res.status(400).json({ success: false, error: 'bookingId is required' });
+      }
+
+      const response = await axios.get(`https://beds24.com/api/v2/bookings?id=${parseInt(bookingId)}&includeInfoItems=true`, { headers: beds24Headers });
+
+      if (response.data && response.data.length > 0) {
+        const booking = response.data[0];
+        const messages = (booking.infoItems || [])
+          .filter(item => item.code === 'message')
+          .map(item => ({
+            text: item.text,
+            timestamp: item.createdTime || item.modifiedTime || null,
+            sender: item.source === 'guest' ? 'guest' : 'host'
+          }));
+
+        return res.json({ success: true, messages });
+      }
+
+      return res.json({ success: true, messages: [] });
+    }
+
+    return res.status(400).json({ success: false, error: 'Invalid action. Use: createBooking, sendMessage, getMessages' });
+
+  } catch (error) {
+    console.error('[HOSTVANA] Chat error:', error.response?.data || error.message);
+    return res.status(502).json({ success: false, error: 'Beds24 API error: ' + (error.response?.data?.message || error.message) });
+  }
+});
+
 // Get properties for plugin (requires license key in Authorization header)
 app.get('/api/plugin/properties', async (req, res) => {
   try {
