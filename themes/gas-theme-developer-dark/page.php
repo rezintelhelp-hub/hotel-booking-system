@@ -139,8 +139,19 @@ if (strlen($overlay_hex) === 7 && $overlay_hex[0] === '#') {
 // Determine hero height based on whether there's an image
 $hero_height = $page_hero_image ? '50vh' : '35vh';
 $hero_min_height = $page_hero_image ? '350px' : '250px';
+
+// Check hero enabled toggle for pages that support it — default ON when never set
+$hero_enabled = true;
+if ($special_page === 'about') {
+    $hero_val = $api['page_about_hero_enabled'] ?? true;
+    $hero_enabled = !($hero_val === false || $hero_val === 'false' || $hero_val === '0' || $hero_val === 0);
+} elseif ($special_page === 'contact') {
+    $hero_val = $api['page_contact_hero_enabled'] ?? true;
+    $hero_enabled = !($hero_val === false || $hero_val === 'false' || $hero_val === '0' || $hero_val === 0);
+}
 ?>
 
+<?php if ($hero_enabled) : ?>
 <!-- Page Hero Section (like homepage) -->
 <section class="developer-page-hero" style="position: relative; min-height: <?php echo $hero_min_height; ?>; height: <?php echo $hero_height; ?>; display: flex; align-items: center; justify-content: center; overflow: hidden;">
     <!-- Background Image or Color -->
@@ -165,6 +176,15 @@ $hero_min_height = $page_hero_image ? '350px' : '250px';
         <?php endif; ?>
     </div>
 </section>
+<?php else : ?>
+<!-- Simple header when hero is disabled -->
+<div style="padding-top: 120px; padding-bottom: 40px; text-align: center; background: <?php echo esc_attr($page_header_bg); ?>;">
+    <h1 style="font-family: var(--developer-font-display, 'Playfair Display', serif); font-size: clamp(2rem, 4vw, 3rem); font-weight: 700; color: <?php echo esc_attr($page_header_text); ?>; margin: 0 0 8px;"><?php echo esc_html($page_title); ?></h1>
+    <?php if ($page_subtitle) : ?>
+        <p style="font-size: 1.15rem; color: <?php echo esc_attr($page_header_text); ?>; opacity: 0.8; margin: 0;"><?php echo esc_html($page_subtitle); ?></p>
+    <?php endif; ?>
+</div>
+<?php endif; ?>
 
 <!-- Page Content -->
 <div class="developer-page-content" style="background-color: <?php echo esc_attr($page_bg); ?>; padding: 60px 0;">

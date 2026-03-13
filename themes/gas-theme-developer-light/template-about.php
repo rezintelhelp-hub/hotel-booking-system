@@ -30,8 +30,9 @@ $story_image = $api['page_about_content_image'] ?? '';
 $story_title = $api['page_about_story_title'] ?? 'Our Story';
 $story_text = $api['page_about_story_text'] ?? '';
 
-// Hero toggle
-$hero_enabled = !empty($api['page_about_hero_enabled']) && $api['page_about_hero_enabled'] !== 'false' && $api['page_about_hero_enabled'] !== false;
+// Hero toggle — default ON when never set
+$hero_val = $api['page_about_hero_enabled'] ?? true;
+$hero_enabled = !($hero_val === false || $hero_val === 'false' || $hero_val === '0' || $hero_val === 0);
 
 // Colors
 $header_bg = $api['page_about_header_bg'] ?? '#1e293b';

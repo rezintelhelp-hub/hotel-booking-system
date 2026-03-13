@@ -29,8 +29,9 @@ $ct = $ct_all[$cl] ?? $ct_all['en'];
 $page_title    = $api['page_contact_title'] ?? '';
 $page_subtitle = $api['page_contact_subtitle'] ?? '';
 
-// Hero toggle
-$hero_enabled = !empty($api['page_contact_hero_enabled']) && $api['page_contact_hero_enabled'] !== 'false' && $api['page_contact_hero_enabled'] !== false;
+// Hero toggle — default ON when never set
+$hero_val = $api['page_contact_hero_enabled'] ?? true;
+$hero_enabled = !($hero_val === false || $hero_val === 'false' || $hero_val === '0' || $hero_val === 0);
 $hero_image   = $api['page_contact_hero_image'] ?? '';
 $header_bg    = $api['page_contact_header_bg'] ?? '#1e293b';
 $header_text  = $api['page_contact_header_text'] ?? '#ffffff';
