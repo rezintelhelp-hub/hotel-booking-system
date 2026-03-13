@@ -2461,6 +2461,7 @@ function developer_get_api_settings() {
         'page_about_enabled' => $website_page_about['enabled'] ?? false,
         'page_about_menu_order' => $website_page_about['menu-order'] ?? 2,
         'page_about_transparent_header' => $website_page_about['transparent-header'] ?? false,
+        'page_about_hero_enabled' => $website_page_about['hero-enabled'] ?? true,
         'page_about_hero_image' => $website_page_about['hero-image'] ?? null,
         'page_about_content_image' => $website_page_about['content-image'] ?? null,
         'page_about_image_position' => $website_page_about['image-position'] ?? null,

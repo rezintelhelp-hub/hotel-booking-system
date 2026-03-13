@@ -21,14 +21,17 @@ if (gas_render_page_sections('about', $primary_color_ps)) {
 $api = function_exists('developer_get_api_settings') ? developer_get_api_settings() : array();
 
 // Page settings from GAS Admin (page-about section)
-$page_title = $api['page_about_title'] ?? get_the_title();
+$page_title = array_key_exists('page_about_title', $api) ? $api['page_about_title'] : get_the_title();
 $page_subtitle = $api['page_about_subtitle'] ?? '';
 $page_content = $api['page_about_content'] ?? '';
 $content_title = $api['page_about_content_title'] ?? '';
 $hero_image = $api['page_about_hero_image'] ?? '';
-$story_image = $api['page_about_story_image'] ?? '';
+$story_image = $api['page_about_content_image'] ?? '';
 $story_title = $api['page_about_story_title'] ?? 'Our Story';
 $story_text = $api['page_about_story_text'] ?? '';
+
+// Hero toggle
+$hero_enabled = $api['page_about_hero_enabled'] ?? true;
 
 // Colors
 $header_bg = $api['page_about_header_bg'] ?? '#1e293b';
@@ -43,6 +46,7 @@ if (empty($page_content)) {
 }
 ?>
 
+<?php if ($hero_enabled) : ?>
 <!-- Page Hero -->
 <section class="developer-page-hero" style="background: <?php echo esc_attr($header_bg); ?>; <?php echo $hero_image ? 'background-image: url(' . esc_url($hero_image) . '); background-size: cover; background-position: center;' : ''; ?>">
     <div class="developer-page-hero-overlay" style="background: rgba(0,0,0,0.5);"></div>
@@ -55,6 +59,7 @@ if (empty($page_content)) {
         </div>
     </div>
 </section>
+<?php endif; ?>
 
 <!-- Main Content -->
 <section class="developer-section developer-about-page" style="background: <?php echo esc_attr($bg_color); ?>;">
