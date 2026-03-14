@@ -22,6 +22,36 @@ class GAS_Template_Push {
             'callback' => array($this, 'handle_push'),
             'permission_callback' => '__return_true',
         ));
+
+        register_rest_route('gas/v1', '/page-content/(?P<page_id>\d+)', array(
+            'methods'  => 'GET',
+            'callback' => array($this, 'get_page_content'),
+            'permission_callback' => '__return_true',
+        ));
+    }
+
+    public function get_page_content($request) {
+        $api_key = isset($_GET['api_key']) ? sanitize_text_field($_GET['api_key']) : '';
+        $stored_key = get_option('gas_license_key', '');
+
+        if (empty($api_key) || empty($stored_key) || $api_key !== $stored_key) {
+            return new WP_REST_Response(array('success' => false, 'error' => 'Invalid API key'), 403);
+        }
+
+        $page_id = intval($request['page_id']);
+        $page = get_post($page_id);
+
+        if (!$page || $page->post_type !== 'page') {
+            return new WP_REST_Response(array('success' => false, 'error' => 'Page not found'), 404);
+        }
+
+        return new WP_REST_Response(array(
+            'success'      => true,
+            'page_id'      => $page_id,
+            'title'        => $page->post_title,
+            'slug'         => $page->post_name,
+            'raw_content'  => $page->post_content,
+        ), 200);
     }
 
     /**

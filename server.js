@@ -78961,39 +78961,59 @@ app.get('/api/pro-builder/sites/:blog_id/pages/:page_id', async (req, res) => {
     let siteUrl = siteRow.site_url || siteRow.domain;
     if (!siteUrl.startsWith('http')) siteUrl = 'https://' + siteUrl;
 
-    const wpRes = await fetch(`${siteUrl}/wp-json/wp/v2/pages/${pageId}`);
+    // Get license key for authenticated raw content fetch
+    const license = await pool.query(
+      "SELECT license_key FROM plugin_licenses WHERE account_id = $1 AND status = 'active' LIMIT 1",
+      [siteRow.account_id]
+    );
+    const licenseKey = license.rows.length > 0 ? license.rows[0].license_key : '';
+
+    // Fetch raw page content via gas-template-push plugin endpoint
+    const wpRes = await fetch(`${siteUrl}/wp-json/gas/v1/page-content/${pageId}?api_key=${encodeURIComponent(licenseKey)}`);
 
     if (!wpRes.ok) {
       return res.json({ success: false, error: `WordPress API returned ${wpRes.status}` });
     }
 
-    const page = await wpRes.json();
-    const rawContent = page.content?.rendered || '';
+    const pageData = await wpRes.json();
+    if (!pageData.success) {
+      return res.json({ success: false, error: pageData.error || 'Failed to fetch page content' });
+    }
 
-    // Parse sections from rendered HTML using top-level CSS classes
-    // (rendered HTML has block comments stripped, so we match by class names)
+    const rawContent = pageData.raw_content || '';
+
+    // Parse block comments from raw content into section list
     const sections = [];
-    let index = 0;
-    const sectionRegex = /<div class="wp-block-(cover|columns|group)\b|<(h[1-6]) class="wp-block-heading|<figure class="wp-block-(image)\b|class="(wp-block-shortcode)\b/g;
+    const blockRegex = /<!-- wp:(\S+?)(?:\s+(\{.*?\}))? (?:\/)?-->/g;
     let match;
-    while ((match = sectionRegex.exec(rawContent)) !== null) {
-      const blockType = match[1] || match[2] || match[3] || (match[4] ? 'shortcode' : 'unknown');
-      // Skip nested columns (only want top-level wp-block-column inside columns)
-      if (blockType === 'column') continue;
-      sections.push({
-        index: index++,
-        type: blockType,
-        label: blockType.charAt(0).toUpperCase() + blockType.slice(1),
-        attrs: {}
-      });
+    let index = 0;
+    let depth = 0;
+    while ((match = blockRegex.exec(rawContent)) !== null) {
+      const blockType = match[1];
+      // Track nesting depth — only capture top-level blocks
+      if (blockType.startsWith('/')) { depth--; continue; }
+      if (depth === 0 && ['cover', 'columns', 'group', 'shortcode', 'heading', 'paragraph', 'image', 'buttons', 'spacer'].includes(blockType)) {
+        let attrs = {};
+        try { if (match[2]) attrs = JSON.parse(match[2]); } catch (e) {}
+        sections.push({
+          index: index++,
+          type: blockType,
+          label: blockType.charAt(0).toUpperCase() + blockType.slice(1),
+          attrs: attrs
+        });
+      }
+      // Increase depth for blocks that have children
+      if (['cover', 'columns', 'column', 'group', 'buttons'].includes(blockType)) {
+        depth++;
+      }
     }
 
     res.json({
       success: true,
       blog_id: blogId,
       page_id: pageId,
-      title: page.title?.rendered || page.title?.raw || 'Untitled',
-      slug: page.slug,
+      title: pageData.title || 'Untitled',
+      slug: pageData.slug,
       sections: sections,
       raw_content: rawContent
     });
