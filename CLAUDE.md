@@ -143,6 +143,27 @@ GAS (Global Accommodation System) is a full-stack hotel booking and property man
 - Never hardcode EUR, GBP, USD, £
 - Currency passed via checkout URL to prevent race conditions
 
+### GAS Theme Burger (Pro Theme)
+- **Location**: `/var/www/wordpress/wp-content/themes/gas-theme-burger/` on multisite VPS only (not in git repo)
+- **Architecture**: Standalone theme — renders WordPress block content via `the_content()`
+- **NOT like developer-dark/light** — does NOT use GAS API PHP sections (hero, rooms grid, etc.)
+- **Header**: Burger menu (hamburger icon left, logo centre, Book Now right), reads from `developer_get_api_settings()`
+- **Footer**: Dark footer with copyright, reads colours/text from GAS API
+- **Slide menu**: In functions.php via `wp_footer`, tries 'Primary Menu' then 'Main Menu'
+- **Block styles**: Explicitly enqueued (cover, columns, buttons, group, image, heading, paragraph)
+- **`align-wide`**: Enabled for `alignfull`/`alignwide` blocks
+- **CSS**: gas-hebden styles + burger header styles, 80px content padding, 100px hero margins
+- **Copied from**: gas-hebden theme on Hebden Bridge custom server (31.97.119.90)
+- **DO NOT** touch developer-dark or developer-light when editing burger theme
+
+### GAS Template Library
+- **Table**: `gas_templates` in PostgreSQL — `block_markup` (TEXT) + `elementor_json` (JSONB, nullable)
+- **Endpoints**: CRUD at `/api/templates`, push at `/api/templates/:id/push`
+- **WordPress plugin**: `gas-template-push` v1.1.0 — receives templates via REST API, auto-detects format
+- **GAS Admin UI**: Templates nav section (master-only), card grid with filter bar
+- **Tiers**: standard (Instant Website), pro (Instant Website Pro), bespoke (Custom Bespoke)
+- **Pro Site Builder** (roadmap): Page manager → Page builder → Header/footer builder → Save & publish via gas-template-push
+
 ---
 
 ## CURRENT PARTNERS & CLIENTS
@@ -152,6 +173,7 @@ GAS (Global Accommodation System) is a full-stack hotel booking and property man
 | Elevate Schweiz | Partner/Agency | account_id: 92, API key: gas_96f1f22c3103c0a504ed8ca0ee14661d08f0592d8597e40b |
 | Discover St. Charles | Client | Active site on multisite |
 | RocketStay | Client | Custom site, GAS Custom Light theme |
+| IOU Hebden Bridge Hostel | Client | account_id: 169, blog_id: 75, gas-theme-burger, Pro tier reference site |
 
 ---
 

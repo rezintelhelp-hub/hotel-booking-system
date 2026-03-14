@@ -15257,6 +15257,47 @@ const promo = await fetch('/api/v1/offers/validate', {
                 </div>
             </div>
 
+            <!-- Pro Site Builder View -->
+            <div id="pro-builder" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2 id="pro-builder-title">Pro Site Builder</h2>
+                            <p id="pro-builder-subtitle">Select a site to begin</p>
+                        </div>
+                        <button class="btn btn-secondary" onclick="showView('create-sites')">Back to Sites</button>
+                    </div>
+                </div>
+
+                <!-- Tabs -->
+                <div style="display: flex; gap: 0; border-bottom: 2px solid #e2e8f0; margin-bottom: 1.5rem;">
+                    <button class="pro-builder-tab active" onclick="switchProBuilderTab('pages', this)" style="padding: 0.75rem 1.5rem; border: none; background: none; font-size: 0.95rem; font-weight: 600; color: #6366f1; border-bottom: 2px solid #6366f1; margin-bottom: -2px; cursor: pointer;">Pages</button>
+                    <button class="pro-builder-tab" onclick="switchProBuilderTab('settings', this)" style="padding: 0.75rem 1.5rem; border: none; background: none; font-size: 0.95rem; font-weight: 500; color: #64748b; cursor: pointer;">Settings</button>
+                    <button class="pro-builder-tab" onclick="switchProBuilderTab('header-footer', this)" style="padding: 0.75rem 1.5rem; border: none; background: none; font-size: 0.95rem; font-weight: 500; color: #64748b; cursor: pointer;">Header &amp; Footer</button>
+                </div>
+
+                <!-- Pages Tab -->
+                <div id="pro-builder-pages" class="pro-builder-panel">
+                    <div id="pro-builder-pages-list" style="display: flex; flex-direction: column; gap: 0.75rem;">
+                        <div style="text-align: center; padding: 2rem; color: #64748b;">Loading pages...</div>
+                    </div>
+                </div>
+
+                <!-- Settings Tab -->
+                <div id="pro-builder-settings" class="pro-builder-panel" style="display: none;">
+                    <div class="card" style="padding: 2rem; text-align: center; color: #64748b;">
+                        Site settings coming soon
+                    </div>
+                </div>
+
+                <!-- Header & Footer Tab -->
+                <div id="pro-builder-header-footer" class="pro-builder-panel" style="display: none;">
+                    <div class="card" style="padding: 2rem; text-align: center; color: #64748b;">
+                        Header &amp; Footer builder coming soon
+                    </div>
+                </div>
+            </div>
+
             <!-- Billing Overview View -->
             <div id="billing-overview" class="view">
                 <div class="header">
@@ -23543,6 +23584,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (viewName === 'turbine-generator') { loadTurbineConnections(); loadTurbinePosts(); }
             if (viewName === 'gas-lites') loadGasLites();
             if (viewName === 'templates') loadTemplates();
+            if (viewName === 'pro-builder') loadProBuilderPages();
             if (viewName === 'network-contacts') loadNetworkContacts();
             if (viewName === 'network-tags') loadNetworkTags();
             if (viewName === 'network-segments') loadNetworkSegments();
@@ -34849,6 +34891,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                                         <button onclick="renameDeployedSiteName(${site.id}, '${(site.site_name || site.slug || '').replace(/'/g, "\\'")}')" class="btn btn-small" style="font-size: 0.75rem; background: #8b5cf6; border-color: #8b5cf6;">✏️ Name</button>
                                         <button onclick="manageWebsiteRooms(${site.id}, ${site.property_id}, '${(site.site_name || site.slug || '').replace(/'/g, "\\'")}')" class="btn btn-small" style="font-size: 0.75rem; background: #10b981; border-color: #10b981;">🛏️ Rooms</button>
                                                                                 <button onclick="deleteDeployedSite(${site.id}, '${(site.site_name || site.slug || '').replace(/'/g, "\\'")}')" class="btn btn-small" style="font-size: 0.75rem; background: #ef4444; border-color: #ef4444;">🗑️ Delete</button>
+                                        ${['pro','bespoke'].includes(site.subscription_tier) ? `
+                                            <button onclick="openProBuilder(${site.blog_id}, '${(site.site_name || site.slug || '').replace(/'/g, "\\'")}')" class="btn btn-small" style="font-size: 0.75rem; background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); border-color: #f97316;">Build Site</button>
+                                        ` : ''}
                                     </div>
                                 </div>
                                 <div style="text-align: right;">
@@ -54691,6 +54736,77 @@ const promo = await fetch('/api/v1/offers/validate', {
 
         function copyApiUrl() {
             copyToClipboard(document.getElementById('api-docs-base-url').value);
+        }
+
+        // =====================================================
+        // PRO SITE BUILDER FUNCTIONS
+        // =====================================================
+
+        let proBuilderBlogId = null;
+        let proBuilderSiteName = '';
+
+        function openProBuilder(blogId, siteName) {
+            proBuilderBlogId = blogId;
+            proBuilderSiteName = siteName;
+            document.getElementById('pro-builder-title').textContent = 'Pro Site Builder — ' + siteName;
+            document.getElementById('pro-builder-subtitle').textContent = 'Manage pages and settings';
+            showView('pro-builder');
+        }
+
+        function switchProBuilderTab(tab, btn) {
+            document.querySelectorAll('.pro-builder-panel').forEach(p => p.style.display = 'none');
+            document.querySelectorAll('.pro-builder-tab').forEach(t => {
+                t.style.color = '#64748b';
+                t.style.fontWeight = '500';
+                t.style.borderBottom = 'none';
+            });
+            document.getElementById('pro-builder-' + tab).style.display = 'block';
+            btn.style.color = '#6366f1';
+            btn.style.fontWeight = '600';
+            btn.style.borderBottom = '2px solid #6366f1';
+        }
+
+        async function loadProBuilderPages() {
+            if (!proBuilderBlogId) return;
+            const container = document.getElementById('pro-builder-pages-list');
+            container.innerHTML = '<div style="text-align: center; padding: 2rem; color: #64748b;">Loading pages...</div>';
+
+            try {
+                const res = await fetch(`/api/pro-builder/sites/${proBuilderBlogId}/pages`, { headers: authHeaders() });
+                const data = await res.json();
+
+                if (!data.success) {
+                    container.innerHTML = `<div class="card" style="padding: 2rem; color: #ef4444;">${data.error}</div>`;
+                    return;
+                }
+
+                if (!data.pages || data.pages.length === 0) {
+                    container.innerHTML = '<div class="card" style="padding: 2rem; text-align: center; color: #64748b;">No pages found</div>';
+                    return;
+                }
+
+                let html = '';
+                data.pages.forEach(page => {
+                    const statusColor = page.status === 'publish' ? '#10b981' : '#f59e0b';
+                    const statusLabel = page.status === 'publish' ? 'Published' : page.status;
+                    html += `
+                        <div class="card" style="padding: 1rem; display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <h4 style="margin: 0 0 0.25rem 0;">${page.title}</h4>
+                                <span style="font-size: 0.8rem; color: #64748b;">/${page.slug}/</span>
+                                <span style="display: inline-block; margin-left: 0.75rem; padding: 0.15rem 0.5rem; border-radius: 10px; font-size: 0.7rem; background: ${statusColor}20; color: ${statusColor}; font-weight: 600;">${statusLabel}</span>
+                            </div>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <a href="${page.link}" target="_blank" class="btn btn-small btn-secondary" style="font-size: 0.75rem;">View</a>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                container.innerHTML = html;
+            } catch (error) {
+                container.innerHTML = `<div class="card" style="padding: 2rem; color: #ef4444;">Error: ${error.message}</div>`;
+            }
         }
 
         // =====================================================

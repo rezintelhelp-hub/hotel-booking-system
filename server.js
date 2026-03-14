@@ -26256,7 +26256,7 @@ app.get('/api/admin/deployed-sites', async (req, res) => {
     const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
     
     const result = await pool.query(`
-      SELECT ds.*, p.name as property_name, a.name as account_name
+      SELECT ds.*, p.name as property_name, a.name as account_name, a.subscription_tier
       FROM deployed_sites ds
       LEFT JOIN properties p ON ds.property_id = p.id
       LEFT JOIN accounts a ON ds.account_id = a.id
@@ -78852,6 +78852,78 @@ app.get('/api/public/website/:blogId/page-sections/:slug', async (req, res) => {
     });
   } catch (error) {
     res.json({ success: false, sections: null });
+  }
+});
+
+// ─── GAS Pro Site Builder ────────────────────────────────────────────
+
+// GET /api/pro-builder/sites/:blog_id/pages — fetch WordPress pages for a site
+app.get('/api/pro-builder/sites/:blog_id/pages', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.json({ success: false, error: 'Authentication required' });
+    }
+    const token = authHeader.split(' ')[1];
+    const session = await pool.query(`
+      SELECT s.account_id, a.role FROM account_sessions s
+      JOIN accounts a ON s.account_id = a.id
+      WHERE s.token = $1 AND s.expires_at > NOW()
+    `, [token]);
+    if (session.rows.length === 0 || session.rows[0].role !== 'master_admin') {
+      return res.json({ success: false, error: 'Master admin access required' });
+    }
+
+    const blogId = parseInt(req.params.blog_id);
+
+    // Look up site from deployed_sites
+    const site = await pool.query(
+      'SELECT ds.*, a.subscription_tier FROM deployed_sites ds JOIN accounts a ON ds.account_id = a.id WHERE ds.blog_id = $1',
+      [blogId]
+    );
+    if (site.rows.length === 0) {
+      return res.json({ success: false, error: 'Site not found' });
+    }
+
+    const siteRow = site.rows[0];
+    if (!['pro', 'bespoke'].includes(siteRow.subscription_tier)) {
+      return res.json({ success: false, error: 'Pro or Bespoke subscription required' });
+    }
+
+    // Get license key for this account
+    const license = await pool.query(
+      "SELECT license_key FROM plugin_licenses WHERE account_id = $1 AND plugin_name = 'gas-booking' AND status = 'active' LIMIT 1",
+      [siteRow.account_id]
+    );
+    const licenseKey = license.rows.length > 0 ? license.rows[0].license_key : '';
+
+    // Build site URL
+    let siteUrl = siteRow.site_url || siteRow.domain;
+    if (!siteUrl.startsWith('http')) siteUrl = 'https://' + siteUrl;
+
+    // Fetch pages from WordPress REST API
+    const wpRes = await fetch(`${siteUrl}/wp-json/wp/v2/pages?per_page=50&orderby=menu_order&order=asc`, {
+      headers: licenseKey ? { 'X-GAS-License': licenseKey } : {}
+    });
+
+    if (!wpRes.ok) {
+      return res.json({ success: false, error: `WordPress API returned ${wpRes.status}` });
+    }
+
+    const pages = await wpRes.json();
+    const pageList = pages.map(p => ({
+      id: p.id,
+      title: p.title?.rendered || 'Untitled',
+      slug: p.slug,
+      status: p.status,
+      link: p.link,
+      menu_order: p.menu_order,
+      template: p.template || ''
+    }));
+
+    res.json({ success: true, blog_id: blogId, site_url: siteUrl, pages: pageList });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
   }
 });
 
