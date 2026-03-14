@@ -49563,6 +49563,105 @@ const promo = await fetch('/api/v1/offers/validate', {
         // Legacy alias
         function formatBlogText(format) { formatRichText(format); }
 
+        // =====================================================
+        // GAS WYSIWYG — Reusable Rich Text Editor Component
+        // =====================================================
+        // Usage: gasWysiwyg(element) or auto-init via data-wysiwyg="true"
+        // Replaces textarea/input with contenteditable div + floating toolbar
+        // Does NOT modify any existing formatRichText or Web Builder code
+
+        function gasWysiwygInit() {
+            document.querySelectorAll('[data-wysiwyg="true"]:not([data-wysiwyg-init])').forEach(el => gasWysiwyg(el));
+        }
+
+        function gasWysiwyg(el) {
+            if (el.dataset.wysiwygInit) return;
+            el.dataset.wysiwygInit = 'true';
+
+            const isTextarea = el.tagName === 'TEXTAREA' || el.tagName === 'INPUT';
+            const initialContent = isTextarea ? el.value : el.innerHTML;
+            const onChangeAttr = el.getAttribute('data-wysiwyg-onchange') || '';
+
+            // Wrapper
+            const wrapper = document.createElement('div');
+            wrapper.className = 'gas-wysiwyg-wrap';
+            wrapper.style.cssText = 'position: relative;';
+            el.parentNode.insertBefore(wrapper, el);
+
+            // Toolbar
+            const toolbar = document.createElement('div');
+            toolbar.className = 'gas-wysiwyg-toolbar';
+            toolbar.style.cssText = 'display:none; background:#1e293b; border-radius:6px; padding:4px 6px; gap:3px; position:absolute; top:-36px; left:0; z-index:1001; align-items:center; box-shadow:0 4px 12px rgba(0,0,0,0.2);';
+
+            const btnStyle = 'padding:3px 7px; border:none; background:none; color:#e2e8f0; cursor:pointer; border-radius:3px; font-size:0.75rem; font-family:inherit;';
+            const btnHover = 'onmouseover="this.style.background=\'#334155\'" onmouseout="this.style.background=\'none\'"';
+
+            toolbar.innerHTML = `
+                <button type="button" onmousedown="event.preventDefault()" onclick="document.execCommand('bold')" style="${btnStyle} font-weight:700;" ${btnHover} title="Bold">B</button>
+                <button type="button" onmousedown="event.preventDefault()" onclick="document.execCommand('italic')" style="${btnStyle} font-style:italic;" ${btnHover} title="Italic">I</button>
+                <button type="button" onmousedown="event.preventDefault()" onclick="document.execCommand('underline')" style="${btnStyle} text-decoration:underline;" ${btnHover} title="Underline">U</button>
+                <span style="width:1px; height:16px; background:#475569; margin:0 2px;"></span>
+                <button type="button" onmousedown="event.preventDefault()" onclick="var u=prompt('URL:','https://');if(u)document.execCommand('createLink',false,u)" style="${btnStyle}" ${btnHover} title="Link">Lnk</button>
+                <span style="width:1px; height:16px; background:#475569; margin:0 2px;"></span>
+                <button type="button" onmousedown="event.preventDefault()" onclick="document.execCommand('justifyLeft')" style="${btnStyle}" ${btnHover} title="Align Left">&equiv;</button>
+                <button type="button" onmousedown="event.preventDefault()" onclick="document.execCommand('justifyCenter')" style="${btnStyle}" ${btnHover} title="Align Centre">&Xi;</button>
+                <button type="button" onmousedown="event.preventDefault()" onclick="document.execCommand('justifyRight')" style="${btnStyle}" ${btnHover} title="Align Right">&equiv;</button>
+                <span style="width:1px; height:16px; background:#475569; margin:0 2px;"></span>
+                <input type="color" value="#000000" onmousedown="event.preventDefault()" oninput="document.execCommand('foreColor',false,this.value)" style="width:22px; height:22px; border:none; padding:0; cursor:pointer; background:none; vertical-align:middle;" title="Text Colour">
+            `;
+            wrapper.appendChild(toolbar);
+
+            // Editable div
+            const editor = document.createElement('div');
+            editor.contentEditable = 'true';
+            editor.className = 'form-input gas-wysiwyg-editor';
+            editor.style.cssText = 'min-height:60px; padding:0.5rem; line-height:1.6; font-size:0.85rem; outline:none; overflow-y:auto; cursor:text;';
+            editor.innerHTML = initialContent;
+            if (el.getAttribute('placeholder') || el.dataset.wysiwygPlaceholder) {
+                editor.dataset.placeholder = el.getAttribute('placeholder') || el.dataset.wysiwygPlaceholder;
+            }
+
+            // Show toolbar on focus
+            editor.addEventListener('focus', () => { toolbar.style.display = 'flex'; });
+
+            // Hide toolbar on blur (delayed to allow toolbar clicks)
+            editor.addEventListener('blur', () => {
+                setTimeout(() => {
+                    if (!wrapper.contains(document.activeElement)) {
+                        toolbar.style.display = 'none';
+                    }
+                }, 200);
+            });
+
+            // Sync content back on input
+            editor.addEventListener('input', () => {
+                if (isTextarea) {
+                    el.value = editor.innerHTML;
+                }
+                if (onChangeAttr) {
+                    try { eval(onChangeAttr.replace('this.value', 'editor.innerHTML').replace('this.innerHTML', 'editor.innerHTML')); } catch(e) {}
+                }
+            });
+
+            // Store reference for getValue
+            wrapper._gasEditor = editor;
+            wrapper._gasOriginal = el;
+
+            el.style.display = 'none';
+            wrapper.appendChild(editor);
+
+            return { wrapper, editor, toolbar };
+        }
+
+        // Helper: get HTML content from a WYSIWYG field by original element ID
+        function gasWysiwygGetValue(elementId) {
+            const el = document.getElementById(elementId);
+            if (!el) return '';
+            const wrapper = el.previousElementSibling;
+            if (wrapper && wrapper._gasEditor) return wrapper._gasEditor.innerHTML;
+            return el.value || el.innerHTML || '';
+        }
+
         async function uploadBlogImage(input) {
             if (!input.files || !input.files[0]) return;
             const file = input.files[0];
@@ -55066,20 +55165,22 @@ const promo = await fetch('/api/v1/offers/validate', {
                 html += `</div>`;
             });
             container.innerHTML = html;
+            // Initialise WYSIWYG editors on newly rendered blocks
+            gasWysiwygInit();
         }
 
         function renderBlockInputs(colIdx, blockIdx, block) {
             const base = `pb-block-${colIdx}-${blockIdx}`;
             switch (block.type) {
                 case 'heading':
-                    return `<input type="text" class="form-input" style="font-size: 0.8rem;" placeholder="Heading text" value="${block.text || ''}" onchange="updateBlock(${colIdx},${blockIdx},'text',this.value)">
+                    return `<textarea id="${base}-text" data-wysiwyg="true" data-wysiwyg-placeholder="Heading text" data-wysiwyg-onchange="updateBlock(${colIdx},${blockIdx},'text',this.value)" style="font-size: 0.8rem;">${block.text || ''}</textarea>
                             <select class="form-input" style="font-size: 0.8rem; margin-top: 0.25rem;" onchange="updateBlock(${colIdx},${blockIdx},'level',this.value)">
                                 <option value="h2" ${block.level === 'h2' ? 'selected' : ''}>H2</option>
                                 <option value="h3" ${block.level === 'h3' ? 'selected' : ''}>H3</option>
                                 <option value="h1" ${block.level === 'h1' ? 'selected' : ''}>H1</option>
                             </select>`;
                 case 'text':
-                    return `<textarea class="form-input" style="font-size: 0.8rem; min-height: 60px;" placeholder="Paragraph text" onchange="updateBlock(${colIdx},${blockIdx},'text',this.value)">${block.text || ''}</textarea>`;
+                    return `<textarea id="${base}-text" data-wysiwyg="true" data-wysiwyg-placeholder="Paragraph text" data-wysiwyg-onchange="updateBlock(${colIdx},${blockIdx},'text',this.value)" style="font-size: 0.8rem;">${block.text || ''}</textarea>`;
                 case 'image':
                     return `<input type="text" class="form-input" style="font-size: 0.8rem;" placeholder="Image URL" value="${block.url || ''}" onchange="updateBlock(${colIdx},${blockIdx},'url',this.value)">
                             <input type="text" class="form-input" style="font-size: 0.8rem; margin-top: 0.25rem;" placeholder="Alt text" value="${block.alt || ''}" onchange="updateBlock(${colIdx},${blockIdx},'alt',this.value)">`;
