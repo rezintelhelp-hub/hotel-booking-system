@@ -37804,6 +37804,8 @@ const promo = await fetch('/api/v1/offers/validate', {
             table.innerHTML = html;
         }
         
+        // IMPORTANT: This function syncs ONE room only — do NOT change to
+        // property-wide sync. Passing room_id is intentional.
         async function syncRoomPricing(roomId, roomName) {
             const btn = event.target;
             const originalText = btn.innerHTML;

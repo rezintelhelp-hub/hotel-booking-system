@@ -2957,6 +2957,8 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
         }
       }
       
+      // IMPORTANT: This function syncs ONE room only — do NOT change to
+      // property-wide sync. Passing room_id is intentional.
       // Get rooms for this property (or single room if specified)
       const roomsQuery = singleRoomId
         ? `SELECT bu.id as gas_room_id, bu.beds24_room_id, bu.name FROM bookable_units bu WHERE bu.property_id = $1 AND bu.beds24_room_id IS NOT NULL AND bu.id = $2`
