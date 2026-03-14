@@ -2451,6 +2451,7 @@ function developer_get_api_settings() {
         'btn_secondary_text' => $website_styles['btn-secondary-text'] ?? null,
         'btn_radius' => $website_styles['btn-radius'] ?? null,
         'section_spacing' => $website_styles['section-spacing'] ?? null,
+        'custom_css' => $website_styles['custom-css'] ?? null,
 
         // About Page (standalone page, not homepage section) - MULTILINGUAL
         'page_about_title' => developer_get_ml_value($website_page_about, 'title', $lang),
@@ -2513,7 +2514,15 @@ function developer_get_api_settings() {
         'page_contact_map_title' => developer_get_ml_value($website_page_contact, 'map_title', $lang) ?: 'Find Us',
         'page_contact_form_title' => developer_get_ml_value($website_page_contact, 'form_title', $lang) ?: 'Contact Us',
         'page_contact_button_color' => $website_page_contact['button-color'] ?? '',
-        
+        'page_contact_show_opening_hours' => $website_page_contact['show-opening-hours'] ?? false,
+        'page_contact_hours_monday' => $website_page_contact['hours-monday'] ?? '',
+        'page_contact_hours_tuesday' => $website_page_contact['hours-tuesday'] ?? '',
+        'page_contact_hours_wednesday' => $website_page_contact['hours-wednesday'] ?? '',
+        'page_contact_hours_thursday' => $website_page_contact['hours-thursday'] ?? '',
+        'page_contact_hours_friday' => $website_page_contact['hours-friday'] ?? '',
+        'page_contact_hours_saturday' => $website_page_contact['hours-saturday'] ?? '',
+        'page_contact_hours_sunday' => $website_page_contact['hours-sunday'] ?? '',
+
         // Gallery Page - MULTILINGUAL
         'page_gallery_menu_title' => developer_get_ml_value($website_page_gallery, 'menu_title', $lang) ?: 'Gallery',
         'page_gallery_enabled' => $website_page_gallery['enabled'] ?? false,
@@ -2606,13 +2615,13 @@ function developer_get_api_settings() {
         'hero_video_url' => $website_hero['video-url'] ?? null,
         'hero_mobile_image' => $website_hero['mobile-image-url'] ?? null,
         'hero_overlay_color' => $website_hero['overlay-color'] ?? null,
-        'hero_overlay_opacity' => $website_hero['opacity'] ?? null,
+        'hero_overlay_opacity' => $website_hero['overlay'] ?? $website_hero['opacity'] ?? null,
         'hero_height' => $website_hero['height'] ?? null,
         'hero_title_color' => $website_hero['title-color'] ?? null,
         'hero_subtitle_color' => $website_hero['subtitle-color'] ?? null,
         'hero_badge' => developer_get_ml_value($website_hero, 'button_text', $lang),
         'hero_show_badge' => $website_hero['show-badge'] ?? true,
-        'hero_badge_link' => $website_hero['badge-link'] ?? null,
+        'hero_badge_link' => $website_hero['button-link'] ?? $website_hero['badge-link'] ?? null,
         'hero_badge_bg' => $website_hero['badge-bg'] ?? null,
         'hero_badge_text' => $website_hero['badge-text'] ?? null,
         'hero_badge_border' => $website_hero['badge-border'] ?? null,
@@ -2647,6 +2656,9 @@ function developer_get_api_settings() {
         // About Section - MULTILINGUAL
         'about_enabled' => $website_about['enabled'] ?? null,
         'about_image' => $website_about['image-url'] ?? null,
+        'about_image_2' => $website_about['image-2-url'] ?? null,
+        'about_image_3' => $website_about['image-3-url'] ?? null,
+        'about_image_4' => $website_about['image-4-url'] ?? null,
         'about_title' => developer_get_ml_value($website_about, 'title', $lang),
         'about_text' => developer_get_ml_value($website_about, 'text', $lang),
         'about_layout' => $website_about['layout'] ?? null,
@@ -2876,7 +2888,7 @@ function developer_developer_custom_css() {
     $btn_radius = $api['btn_radius'] ?? get_theme_mod('developer_btn_radius', '8');
     $link_color = $api['link_color'] ?? get_theme_mod('developer_link_color', '#2563eb');
     $section_spacing = !empty($api['section_spacing']) ? intval($api['section_spacing']) : 20;
-    $custom_css = get_theme_mod('developer_custom_css', '');
+    $custom_css = $api['custom_css'] ?? get_theme_mod('developer_custom_css', '');
     
     // Header - API overrides theme_mod
     $header_bg = $api['header_bg'] ?? get_theme_mod('developer_header_bg_color', '#ffffff');
@@ -2924,15 +2936,15 @@ function developer_developer_custom_css() {
         }
     }
     
-    // Section backgrounds
-    $featured_bg = get_theme_mod('developer_featured_bg', '#ffffff');
-    $about_bg = get_theme_mod('developer_about_bg', '#f8fafc');
-    $testimonials_bg = get_theme_mod('developer_testimonials_bg', '#0f172a');
-    $cta_bg = get_theme_mod('developer_cta_bg', '#2563eb');
-    
-    // Footer
-    $footer_bg = get_theme_mod('developer_footer_bg', '#0f172a');
-    $footer_text = get_theme_mod('developer_footer_text', '#ffffff');
+    // Section backgrounds - API overrides theme_mod
+    $featured_bg = $api['featured_bg'] ?? get_theme_mod('developer_featured_bg', '#ffffff');
+    $about_bg = $api['about_bg'] ?? get_theme_mod('developer_about_bg', '#f8fafc');
+    $testimonials_bg = $api['testimonials_bg'] ?? get_theme_mod('developer_testimonials_bg', '#0f172a');
+    $cta_bg = $api['cta_bg'] ?? get_theme_mod('developer_cta_bg', '#2563eb');
+
+    // Footer - API overrides theme_mod
+    $footer_bg = $api['footer_bg'] ?? get_theme_mod('developer_footer_bg', '#0f172a');
+    $footer_text = $api['footer_text'] ?? get_theme_mod('developer_footer_text', '#ffffff');
     
     // Fonts - API overrides theme_mod for site-wide consistency
     $heading_font = $api['heading_font'] ?? get_theme_mod('developer_heading_font', 'playfair');
@@ -2945,7 +2957,7 @@ function developer_developer_custom_css() {
     $body_text_size = $api['body_size'] ?? get_theme_mod('developer_body_text_size', '16');
     
     // Hero
-    $hero_height = get_theme_mod('developer_hero_height', '90');
+    $hero_height = $api['hero_height'] ?? get_theme_mod('developer_hero_height', '90');
     
     // Font mappings
     $font_families = array(
@@ -3117,7 +3129,7 @@ function developer_developer_custom_css() {
     }
     
     // Menu active underline color
-    $underline_color = get_theme_mod('developer_header_underline_color', '');
+    $underline_color = $api['header_underline_color'] ?? get_theme_mod('developer_header_underline_color', '');
     if ($underline_color) {
         echo '
         .developer-nav a::after {

@@ -14,14 +14,14 @@ $api = function_exists('developer_get_api_settings') ? developer_get_api_setting
 // Contact page translations
 $cl = function_exists('developer_get_current_language') ? developer_get_current_language() : 'en';
 $ct_all = [
-    'en' => ['your_name' => 'Your Name', 'your_email' => 'Your Email', 'subject' => 'Subject', 'message' => 'Message', 'send' => 'Send Message', 'sent' => 'Message Sent!', 'address' => 'Address', 'phone' => 'Phone', 'email' => 'Email', 'details' => 'Company Details', 'directions' => 'Get Directions', 'find_us' => 'Find Us', 'contact_us' => 'Contact Us'],
-    'de' => ['your_name' => 'Ihr Name', 'your_email' => 'Ihre E-Mail', 'subject' => 'Betreff', 'message' => 'Nachricht', 'send' => 'Nachricht senden', 'sent' => 'Nachricht gesendet!', 'address' => 'Adresse', 'phone' => 'Telefon', 'email' => 'E-Mail', 'details' => 'Kontaktdaten', 'directions' => 'Anfahrt', 'find_us' => 'So finden Sie uns', 'contact_us' => 'Kontakt'],
-    'fr' => ['your_name' => 'Votre nom', 'your_email' => 'Votre e-mail', 'subject' => 'Objet', 'message' => 'Message', 'send' => 'Envoyer', 'sent' => 'Message envoyé !', 'address' => 'Adresse', 'phone' => 'Téléphone', 'email' => 'E-mail', 'details' => 'Coordonnées', 'directions' => 'Itinéraire', 'find_us' => 'Nous trouver', 'contact_us' => 'Contactez-nous'],
-    'es' => ['your_name' => 'Su nombre', 'your_email' => 'Su correo electrónico', 'subject' => 'Asunto', 'message' => 'Mensaje', 'send' => 'Enviar mensaje', 'sent' => '¡Mensaje enviado!', 'address' => 'Dirección', 'phone' => 'Teléfono', 'email' => 'Correo electrónico', 'details' => 'Datos de contacto', 'directions' => 'Cómo llegar', 'find_us' => 'Encuéntrenos', 'contact_us' => 'Contacto'],
-    'nl' => ['your_name' => 'Uw naam', 'your_email' => 'Uw e-mail', 'subject' => 'Onderwerp', 'message' => 'Bericht', 'send' => 'Versturen', 'sent' => 'Bericht verzonden!', 'address' => 'Adres', 'phone' => 'Telefoon', 'email' => 'E-mail', 'details' => 'Contactgegevens', 'directions' => 'Routebeschrijving', 'find_us' => 'Vind ons', 'contact_us' => 'Contact'],
-    'it' => ['your_name' => 'Il tuo nome', 'your_email' => 'La tua e-mail', 'subject' => 'Oggetto', 'message' => 'Messaggio', 'send' => 'Invia messaggio', 'sent' => 'Messaggio inviato!', 'address' => 'Indirizzo', 'phone' => 'Telefono', 'email' => 'E-mail', 'details' => 'Recapiti', 'directions' => 'Indicazioni', 'find_us' => 'Trovaci', 'contact_us' => 'Contattaci'],
-    'pt' => ['your_name' => 'O seu nome', 'your_email' => 'O seu e-mail', 'subject' => 'Assunto', 'message' => 'Mensagem', 'send' => 'Enviar mensagem', 'sent' => 'Mensagem enviada!', 'address' => 'Morada', 'phone' => 'Telefone', 'email' => 'E-mail', 'details' => 'Dados de contacto', 'directions' => 'Direções', 'find_us' => 'Encontre-nos', 'contact_us' => 'Contacto'],
-    'ja' => ['your_name' => 'お名前', 'your_email' => 'メールアドレス', 'subject' => '件名', 'message' => 'メッセージ', 'send' => '送信', 'sent' => '送信完了！', 'address' => '住所', 'phone' => '電話', 'email' => 'メール', 'details' => '会社情報', 'directions' => 'アクセス', 'find_us' => '所在地', 'contact_us' => 'お問い合わせ'],
+    'en' => ['your_name' => 'Your Name', 'your_email' => 'Your Email', 'subject' => 'Subject', 'message' => 'Message', 'send' => 'Send Message', 'sent' => 'Message Sent!', 'address' => 'Address', 'phone' => 'Phone', 'email' => 'Email', 'details' => 'Company Details', 'directions' => 'Get Directions', 'find_us' => 'Find Us', 'contact_us' => 'Contact Us', 'opening_hours' => 'Opening Hours'],
+    'de' => ['your_name' => 'Ihr Name', 'your_email' => 'Ihre E-Mail', 'subject' => 'Betreff', 'message' => 'Nachricht', 'send' => 'Nachricht senden', 'sent' => 'Nachricht gesendet!', 'address' => 'Adresse', 'phone' => 'Telefon', 'email' => 'E-Mail', 'details' => 'Kontaktdaten', 'directions' => 'Anfahrt', 'find_us' => 'So finden Sie uns', 'contact_us' => 'Kontakt', 'opening_hours' => 'Öffnungszeiten'],
+    'fr' => ['your_name' => 'Votre nom', 'your_email' => 'Votre e-mail', 'subject' => 'Objet', 'message' => 'Message', 'send' => 'Envoyer', 'sent' => 'Message envoyé !', 'address' => 'Adresse', 'phone' => 'Téléphone', 'email' => 'E-mail', 'details' => 'Coordonnées', 'directions' => 'Itinéraire', 'find_us' => 'Nous trouver', 'contact_us' => 'Contactez-nous', 'opening_hours' => 'Horaires d\'ouverture'],
+    'es' => ['your_name' => 'Su nombre', 'your_email' => 'Su correo electrónico', 'subject' => 'Asunto', 'message' => 'Mensaje', 'send' => 'Enviar mensaje', 'sent' => '¡Mensaje enviado!', 'address' => 'Dirección', 'phone' => 'Teléfono', 'email' => 'Correo electrónico', 'details' => 'Datos de contacto', 'directions' => 'Cómo llegar', 'find_us' => 'Encuéntrenos', 'contact_us' => 'Contacto', 'opening_hours' => 'Horario de apertura'],
+    'nl' => ['your_name' => 'Uw naam', 'your_email' => 'Uw e-mail', 'subject' => 'Onderwerp', 'message' => 'Bericht', 'send' => 'Versturen', 'sent' => 'Bericht verzonden!', 'address' => 'Adres', 'phone' => 'Telefoon', 'email' => 'E-mail', 'details' => 'Contactgegevens', 'directions' => 'Routebeschrijving', 'find_us' => 'Vind ons', 'contact_us' => 'Contact', 'opening_hours' => 'Openingstijden'],
+    'it' => ['your_name' => 'Il tuo nome', 'your_email' => 'La tua e-mail', 'subject' => 'Oggetto', 'message' => 'Messaggio', 'send' => 'Invia messaggio', 'sent' => 'Messaggio inviato!', 'address' => 'Indirizzo', 'phone' => 'Telefono', 'email' => 'E-mail', 'details' => 'Recapiti', 'directions' => 'Indicazioni', 'find_us' => 'Trovaci', 'contact_us' => 'Contattaci', 'opening_hours' => 'Orari di apertura'],
+    'pt' => ['your_name' => 'O seu nome', 'your_email' => 'O seu e-mail', 'subject' => 'Assunto', 'message' => 'Mensagem', 'send' => 'Enviar mensagem', 'sent' => 'Mensagem enviada!', 'address' => 'Morada', 'phone' => 'Telefone', 'email' => 'E-mail', 'details' => 'Dados de contacto', 'directions' => 'Direções', 'find_us' => 'Encontre-nos', 'contact_us' => 'Contacto', 'opening_hours' => 'Horário de funcionamento'],
+    'ja' => ['your_name' => 'お名前', 'your_email' => 'メールアドレス', 'subject' => '件名', 'message' => 'メッセージ', 'send' => '送信', 'sent' => '送信完了！', 'address' => '住所', 'phone' => '電話', 'email' => 'メール', 'details' => '会社情報', 'directions' => 'アクセス', 'find_us' => '所在地', 'contact_us' => 'お問い合わせ', 'opening_hours' => '営業時間'],
 ];
 $ct = $ct_all[$cl] ?? $ct_all['en'];
 
@@ -57,6 +57,18 @@ $show_directions = !empty($api['page_contact_show_directions']) && $api['page_co
 $show_map        = !empty($api['page_contact_show_map']) && $api['page_contact_show_map'] !== 'false' && $api['page_contact_show_map'] !== false;
 $show_form       = !empty($api['page_contact_show_form']) && $api['page_contact_show_form'] !== 'false' && $api['page_contact_show_form'] !== false;
 
+// Opening hours
+$show_opening_hours = !empty($api['page_contact_show_opening_hours']) && $api['page_contact_show_opening_hours'] !== 'false' && $api['page_contact_show_opening_hours'] !== false;
+$hours_days = [
+    'Monday'    => $api['page_contact_hours_monday'] ?? '',
+    'Tuesday'   => $api['page_contact_hours_tuesday'] ?? '',
+    'Wednesday' => $api['page_contact_hours_wednesday'] ?? '',
+    'Thursday'  => $api['page_contact_hours_thursday'] ?? '',
+    'Friday'    => $api['page_contact_hours_friday'] ?? '',
+    'Saturday'  => $api['page_contact_hours_saturday'] ?? '',
+    'Sunday'    => $api['page_contact_hours_sunday'] ?? '',
+];
+
 // Card titles (multilingual)
 $details_title    = $api['page_contact_details_title'] ?? $ct['details'];
 $directions_text  = $api['page_contact_directions_text'] ?? $ct['directions'];
@@ -74,7 +86,7 @@ if ($lat && $lng) {
 }
 
 // Count active cards for grid layout
-$active_cards = ($show_details ? 1 : 0) + ($show_directions ? 1 : 0) + ($show_map ? 1 : 0) + ($show_form ? 1 : 0);
+$active_cards = ($show_details ? 1 : 0) + ($show_directions ? 1 : 0) + ($show_map ? 1 : 0) + ($show_form ? 1 : 0) + ($show_opening_hours ? 1 : 0);
 $grid_cols = $active_cards >= 2 ? '1fr 1fr' : '1fr';
 
 // Theme colors
@@ -241,6 +253,25 @@ $button_color = $api['page_contact_button_color'] ?? $accent;
                 </div>
                 <?php endif; ?>
             </div>
+            <?php endif; ?>
+
+            <?php if ($show_opening_hours) :
+                $has_hours = array_filter($hours_days);
+                if ($has_hours) : ?>
+            <!-- Opening Hours Card -->
+            <div class="gas-contact-card">
+                <h2><?php echo esc_html($ct['opening_hours'] ?? 'Opening Hours'); ?></h2>
+                <table style="width:100%; border-collapse:collapse;">
+                    <?php foreach ($hours_days as $day => $hrs) :
+                        if (empty($hrs)) continue; ?>
+                        <tr style="border-bottom: 1px solid var(--developer-border, #e2e8f0);">
+                            <td style="padding: 0.6rem 0; font-weight: 500; color: var(--developer-text, #1e293b);"><?php echo esc_html($day); ?></td>
+                            <td style="padding: 0.6rem 0; text-align: right; color: var(--developer-text-light, #64748b);"><?php echo esc_html($hrs); ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                </table>
+            </div>
+                <?php endif; ?>
             <?php endif; ?>
 
             <?php if ($show_directions && $full_address): ?>

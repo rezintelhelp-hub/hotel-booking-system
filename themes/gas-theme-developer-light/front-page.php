@@ -60,7 +60,7 @@ $search_guest_singular = $api['hero_search_guest_singular'] ?? '';
 $hero_badge_1 = $api['hero_trust_1'] ?? get_theme_mod('developer_hero_trust_1', 'Instant Booking');
 $hero_badge_2 = $api['hero_trust_2'] ?? get_theme_mod('developer_hero_trust_2', 'Best Price Guarantee');
 $hero_badge_3 = $api['hero_trust_3'] ?? get_theme_mod('developer_hero_trust_3', '24/7 Support');
-$hero_trust_text_color = get_theme_mod('developer_hero_trust_text_color', '#ffffff');
+$hero_trust_text_color = $api['hero_trust_text_color'] ?? get_theme_mod('developer_hero_trust_text_color', '#ffffff');
 
 // Intro section settings (with API override)
 $intro_enabled = $api['intro_enabled'] ?? get_theme_mod('developer_intro_enabled', true);
