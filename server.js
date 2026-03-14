@@ -2706,7 +2706,7 @@ app.get('/api/gas-sync/property-by-gas-id/:gasPropertyId', async (req, res) => {
 app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res) => {
   try {
     const { syncPropertyId } = req.params;
-    const { days = 365, force = false } = req.body;
+    const { days = 365, force = false, roomId: singleRoomId } = req.body;
     
     let propResult = { rows: [] };
     
@@ -2957,12 +2957,12 @@ app.post('/api/gas-sync/properties/:syncPropertyId/sync-prices', async (req, res
         }
       }
       
-      // Get rooms for this property
-      const roomsResult = await pool.query(`
-        SELECT bu.id as gas_room_id, bu.beds24_room_id, bu.name
-        FROM bookable_units bu
-        WHERE bu.property_id = $1 AND bu.beds24_room_id IS NOT NULL
-      `, [gasPropertyId]);
+      // Get rooms for this property (or single room if specified)
+      const roomsQuery = singleRoomId
+        ? `SELECT bu.id as gas_room_id, bu.beds24_room_id, bu.name FROM bookable_units bu WHERE bu.property_id = $1 AND bu.beds24_room_id IS NOT NULL AND bu.id = $2`
+        : `SELECT bu.id as gas_room_id, bu.beds24_room_id, bu.name FROM bookable_units bu WHERE bu.property_id = $1 AND bu.beds24_room_id IS NOT NULL`;
+      const roomsParams = singleRoomId ? [gasPropertyId, singleRoomId] : [gasPropertyId];
+      const roomsResult = await pool.query(roomsQuery, roomsParams);
       
       if (roomsResult.rows.length === 0) {
         return res.json({ success: false, error: 'No Beds24-linked rooms found' });
