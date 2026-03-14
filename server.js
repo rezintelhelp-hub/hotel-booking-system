@@ -78987,7 +78987,7 @@ app.get('/api/pro-builder/sites/:blog_id/pages/:page_id', async (req, res) => {
     // Parse block comments from raw content into section list
     // Regex captures: (1) optional "/" for closing tag, (2) block type, (3) optional JSON attrs
     const sections = [];
-    const blockRegex = /<!-- (\\/?)wp:(\S+?)(?:\s+(\{.*?\}))? (?:\/)?-->/g;
+    const blockRegex = /<!-- (\/?)wp:(\S+?)(?:\s+(\{.*?\}))? (?:\/)?-->/g;
     let match;
     let index = 0;
     let depth = 0;
