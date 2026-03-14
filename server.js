@@ -78961,16 +78961,14 @@ app.get('/api/pro-builder/sites/:blog_id/pages/:page_id', async (req, res) => {
     let siteUrl = siteRow.site_url || siteRow.domain;
     if (!siteUrl.startsWith('http')) siteUrl = 'https://' + siteUrl;
 
-    const wpRes = await fetch(`${siteUrl}/wp-json/wp/v2/pages/${pageId}?context=edit`, {
-      headers: { 'X-GAS-License': '' }
-    });
+    const wpRes = await fetch(`${siteUrl}/wp-json/wp/v2/pages/${pageId}`);
 
     if (!wpRes.ok) {
       return res.json({ success: false, error: `WordPress API returned ${wpRes.status}` });
     }
 
     const page = await wpRes.json();
-    const rawContent = page.content?.raw || page.content?.rendered || '';
+    const rawContent = page.content?.rendered || '';
 
     // Parse block comments into section list
     const sections = [];
