@@ -159,10 +159,24 @@ GAS (Global Accommodation System) is a full-stack hotel booking and property man
 ### GAS Template Library
 - **Table**: `gas_templates` in PostgreSQL — `block_markup` (TEXT) + `elementor_json` (JSONB, nullable)
 - **Endpoints**: CRUD at `/api/templates`, push at `/api/templates/:id/push`
+- Push endpoint accepts `blog_id` as alternative to `site_url + account_id`, and `raw_block_markup` for custom sections (template ID 0)
 - **WordPress plugin**: `gas-template-push` v1.1.0 — receives templates via REST API, auto-detects format
+- Plugin also has `GET /gas/v1/page-content/:page_id` — returns raw `post_content` for section parsing
 - **GAS Admin UI**: Templates nav section (master-only), card grid with filter bar
 - **Tiers**: standard (Instant Website), pro (Instant Website Pro), bespoke (Custom Bespoke)
-- **Pro Site Builder** (roadmap): Page manager → Page builder → Header/footer builder → Save & publish via gas-template-push
+
+### Hostvana Integration
+- **Status**: Hybrid approach — V2 API for `createBooking` (inquiry status), V1 API for messages
+- **Plugin**: `gas-hostvana` — needs licensing extension (currently only gas-booking has licensing)
+- **Testing**: End-to-end test with Pedro pending
+- **Needs**: Inject property ID from booking plugin context, Beds24 master API key integration
+
+### Hebden Bridge Migration
+- **Account**: account_id 169, blog_id 75
+- **Theme**: gas-theme-burger (Pro tier reference site)
+- **Custom server**: 31.97.119.90 — hebdenbridgehostel.custom.gas.travel
+- **Status**: Homepage content pushed via gas-template-push, header/logo/CTA styled
+- **Remaining**: Complete page content migration, verify booking flow, DNS cutover
 
 ---
 
@@ -190,46 +204,102 @@ GAS (Global Accommodation System) is a full-stack hotel booking and property man
 
 ## CURRENT PRIORITIES — 14 March 2026
 
-1. **Plugin licensing system** — Extend licensing to cover gas-hostvana and all future plugins, tied to Stripe subscription status. Currently only gas-booking has licensing. Needs: license generation per plugin, subscription tier checks, activation/deactivation flow, expiry handling.
-2. Footer — Terms and Privacy links broken
-3. Contact page — map sizing
+1. **Pro Site Builder** — Debug section parser (sections not visible in backend after push), WYSIWYG sync, complete Phase 3 (style controls)
+2. **Privacy & Terms external URL toggle** — Footer links to external privacy/terms pages when toggled on
+3. **Plugin licensing system** — Extend to gas-hostvana and all future plugins, tied to Stripe subscription status
 4. Footer — all page links not showing
-5. Site go-live setup/checklist
-6. Repuso API connection (white-label)
-7. Blog page — header/subheader translation + category translations
-8. Attractions page — header/subheader translation + category translations
-9. Room page — Reviews tab (Repuso widget ID per room)
-10. Cloudflare — speed optimisation strategy
-11. Plugin management — repo, version control, downloadable from GAS, Claude Code awareness
+5. Contact page — map sizing
+6. Site go-live setup/checklist
+7. Repuso API connection (white-label)
+8. Blog page — header/subheader translation + category translations
+9. Attractions page — header/subheader translation + category translations
+10. Room page — Reviews tab (Repuso widget ID per room)
+11. Cloudflare — speed optimisation strategy
 12. Partner/Elevate white-label URLs — branded domains per partner
-13. Theme marketplace — add new themes via UI, open to third-party theme builders, manage within GAS Admin
-14. Web Builder text formatting — add basic rich text controls (bold, italic, colour picker, hyperlink) to all text fields in the standard Web Builder. Currently plain text only. Needed for all clients on standard tier.
-15. Template Library UI — seeding more templates from existing GAS themes
-16. Pro tier upgrade path — subscription_tier column on accounts, Stripe product for Pro, upgrade flow in GAS Admin, gated template access
-17. Page builder / block system — reusable content blocks for Standard tier sites (text, image, button, columns) with ordering
-18. Burger/hamburger theme — new theme for GAS multisite, editorial style, for Hebden Bridge type clients
-19. Blog migration tool — SSH into app3, extract WordPress posts, AI categorisation, insert into GAS blog
-20. Client migration plan — audit all clients on app3, score complexity (simple/medium/complex), batch migrate simple clients first
-21. Hostvana — complete end to end test with Pedro, inject property ID from booking plugin context, Beds24 master API key
+
+---
+
+## PRO SITE BUILDER ROADMAP
+
+| Phase | Description | Status |
+|-------|-------------|--------|
+| Phase 1 | Page manager — list pages, open editor | Done |
+| Phase 2 | Page builder — Add Section (Quick Add templates + Custom Build), push to WordPress | Done |
+| Phase 3 | Style controls — font, size, colour, spacing, background per block | Next |
+| Phase 4 | Header & Footer Builder — visual editor for burger theme header/footer | Planned |
+| Phase 5 | Save & Publish — preview, draft/publish toggle, revision history | Planned |
+
+- **subscription_tier** column on `accounts` table gates access (`pro`, `bespoke`)
+- **Build Site** button only shows for pro/bespoke tier in deployed sites
+- Uses `gas-template-push` plugin to push block markup to WordPress pages
+- Three-tier architecture: Content Areas (Hero/Content) → Layouts (Full/50-50/60-40/40-60/33-33-33) → Theme Blocks (Heading/Text/Image/Button/Search/Rooms/Spacer/Slider)
+- Both Quick Add (premade templates) and Custom Build (layout → blocks) approaches
+- GAS WYSIWYG component (`gasWysiwyg()`) used for text/heading blocks — NOT yet in Web Builder
 
 ---
 
 ## PRODUCT TIERS
 
-- **Instant Website (standard)** — GAS hosted, standard theme, Web Builder
-- **Instant Website Pro (pro)** — everything in standard + Template Library, Elementor, burger themes
+- **Instant Website (standard)** — GAS hosted, standard theme (developer-dark/light), Web Builder, basic template access
+- **Instant Website Pro (pro)** — everything in standard + Pro Site Builder, full Template Library, burger/editorial themes, WYSIWYG block editing
 - **Plugin Only** — booking plugin for client's own WordPress site, $19.99/mo
 - **Custom Bespoke (bespoke)** — fully custom built site, $2,500 setup + $99/mo. Example: Hebden Bridge Hostel
+
+---
+
+## WEB BUILDER (Standard Tier)
+
+- Input IDs: `wb-{section}-{field}` pattern
+- `saveWebsiteSection(section)` auto-collects all matching inputs
+- `loadWebsiteBuilderSection(section)` auto-restores them
+- Image uploads: `previewWebsiteImage(section)` expects `wb-{section}-image`, `wb-{section}-image-preview`, `wb-{section}-image-url`
+- All text fields are plain text currently — WYSIWYG planned but NOT yet applied
+- Do NOT add `gasWysiwyg()` to Web Builder until proven working in Pro Site Builder
 
 ---
 
 ## SERVER INFRASTRUCTURE
 
 - **GAS Railway (Node.js + PostgreSQL)** — admin.gas.travel
-- **GAS WordPress Multisite VPS** — 72.61.207.109, /var/www/wordpress
+- **GAS WordPress Multisite VPS** — 72.61.207.109, /var/www/wordpress (NOT /var/www/html/)
 - **app3 Linode (READ ONLY)** — 139.162.234.112, Rezintel/old clients, reference only for migration, DO NOT modify
 - **Old Linode (READ ONLY)** — 178.79.158.188, ~10 old clients, needs password reset to access
 - **Hebden Bridge custom site** — 31.97.119.90, /var/www/hebdenbridgehostel.custom.gas.travel
+
+---
+
+## SESSION LOG — 14 March 2026
+
+### Pro Site Builder Phase 1 & 2
+- Added `subscription_tier` column to accounts table, set account 169 to 'pro'
+- Build Site button (pro/bespoke only) in deployed sites
+- Pro Builder view with Pages/Settings/Header & Footer tabs
+- Page editor with section stack, Add Section (Quick Add + Custom Build)
+- Three-tier page builder: Areas → Layouts → Blocks with markup generation
+- `blockToMarkup()` generates WordPress block markup from block data
+- `buildAndPushSection()` syncs WYSIWYG then pushes via API
+
+### GAS WYSIWYG Component
+- Reusable `gasWysiwyg()` function with contenteditable + floating toolbar
+- Bold, Italic, Underline, Link, Align Left/Centre/Right, colour picker
+- Wired into Pro Site Builder heading/text blocks ONLY (NOT Web Builder yet)
+
+### Single Room Sync Regression Fix
+- `syncRoomPricing()` was syncing ALL rooms instead of just the clicked room
+- Fixed: frontend passes `roomId`, backend filters rooms query with `AND bu.id = $2`
+- Guard comment added to prevent future regression
+
+### Section Parser Fix
+- Added `GET /gas/v1/page-content/:page_id` to gas-template-push plugin (raw post_content)
+- Server.js uses plugin endpoint with depth-tracking block comment parser
+- Still has issues — sections not fully visible in backend (needs debugging)
+
+### gas-theme-burger Styling (VPS)
+- Header: flex-start layout (burger → logo → Book Now grouped left), 100px padding
+- Logo: downloaded from custom server, imported to WP media library, set as custom_logo theme mod
+- Burger lines: orange #F97224, removed header border, reduced to 20px width
+- Logo height increased to 70px, vertical alignment fix applied
+- All orange references updated to #F97224
 
 ---
 
