@@ -1318,7 +1318,32 @@ async function runMigrations() {
     } catch (bathroomsTableError) {
       console.log('ℹ️  property_bathrooms table:', bathroomsTableError.message);
     }
-    
+
+    // GAS Template Library
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS gas_templates (
+          id SERIAL PRIMARY KEY,
+          name VARCHAR(255) NOT NULL,
+          category VARCHAR(100) NOT NULL,
+          description TEXT,
+          tier VARCHAR(50) DEFAULT 'standard',
+          template_type VARCHAR(50) DEFAULT 'section',
+          elementor_json JSONB NOT NULL,
+          preview_image VARCHAR(500),
+          sort_order INTEGER DEFAULT 0,
+          active BOOLEAN DEFAULT true,
+          created_at TIMESTAMP DEFAULT NOW(),
+          updated_at TIMESTAMP DEFAULT NOW()
+        )
+      `);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_gas_templates_category ON gas_templates(category)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_gas_templates_tier ON gas_templates(tier)`);
+      console.log('✅ gas_templates table ensured');
+    } catch (gasTemplatesError) {
+      console.log('ℹ️  gas_templates table:', gasTemplatesError.message);
+    }
+
     // Add bathroom_features JSONB column to property_terms
     try {
       await pool.query(`ALTER TABLE property_terms ADD COLUMN IF NOT EXISTS bathroom_features JSONB`);
@@ -78790,6 +78815,236 @@ app.get('/api/public/website/:blogId/page-sections/:slug', async (req, res) => {
     });
   } catch (error) {
     res.json({ success: false, sections: null });
+  }
+});
+
+// ─── GAS Template Library ───────────────────────────────────────────
+
+// GET /api/templates — list all active templates (excludes elementor_json for performance)
+app.get('/api/templates', async (req, res) => {
+  try {
+    const { category, tier } = req.query;
+    let query = 'SELECT id, name, category, description, tier, template_type, preview_image, sort_order, created_at FROM gas_templates WHERE active = true';
+    const params = [];
+
+    if (category) {
+      params.push(category);
+      query += ` AND category = $${params.length}`;
+    }
+    if (tier) {
+      params.push(tier);
+      query += ` AND tier = $${params.length}`;
+    }
+
+    query += ' ORDER BY sort_order, name';
+    const result = await pool.query(query, params);
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/templates/:id — get single template with full elementor_json
+app.get('/api/templates/:id', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT * FROM gas_templates WHERE id = $1 AND active = true',
+      [req.params.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Template not found' });
+    }
+
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/templates — create new template (master admin only)
+app.post('/api/templates', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.json({ success: false, error: 'Authentication required' });
+    }
+    const token = authHeader.split(' ')[1];
+    const session = await pool.query(`
+      SELECT s.account_id, a.role FROM account_sessions s
+      JOIN accounts a ON s.account_id = a.id
+      WHERE s.token = $1 AND s.expires_at > NOW()
+    `, [token]);
+    if (session.rows.length === 0 || session.rows[0].role !== 'master_admin') {
+      return res.json({ success: false, error: 'Master admin access required' });
+    }
+
+    const { name, category, description, tier, template_type, elementor_json, preview_image, sort_order } = req.body;
+
+    if (!name || !category || !elementor_json) {
+      return res.json({ success: false, error: 'name, category, and elementor_json are required' });
+    }
+
+    const result = await pool.query(`
+      INSERT INTO gas_templates (name, category, description, tier, template_type, elementor_json, preview_image, sort_order)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *
+    `, [name, category, description || null, tier || 'standard', template_type || 'section',
+        JSON.stringify(elementor_json), preview_image || null, sort_order || 0]);
+
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/templates/:id — update template (master admin only)
+app.put('/api/templates/:id', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.json({ success: false, error: 'Authentication required' });
+    }
+    const token = authHeader.split(' ')[1];
+    const session = await pool.query(`
+      SELECT s.account_id, a.role FROM account_sessions s
+      JOIN accounts a ON s.account_id = a.id
+      WHERE s.token = $1 AND s.expires_at > NOW()
+    `, [token]);
+    if (session.rows.length === 0 || session.rows[0].role !== 'master_admin') {
+      return res.json({ success: false, error: 'Master admin access required' });
+    }
+
+    const { name, category, description, tier, template_type, elementor_json, preview_image, sort_order } = req.body;
+    const fields = [];
+    const params = [];
+
+    if (name !== undefined) { params.push(name); fields.push(`name = $${params.length}`); }
+    if (category !== undefined) { params.push(category); fields.push(`category = $${params.length}`); }
+    if (description !== undefined) { params.push(description); fields.push(`description = $${params.length}`); }
+    if (tier !== undefined) { params.push(tier); fields.push(`tier = $${params.length}`); }
+    if (template_type !== undefined) { params.push(template_type); fields.push(`template_type = $${params.length}`); }
+    if (elementor_json !== undefined) { params.push(JSON.stringify(elementor_json)); fields.push(`elementor_json = $${params.length}`); }
+    if (preview_image !== undefined) { params.push(preview_image); fields.push(`preview_image = $${params.length}`); }
+    if (sort_order !== undefined) { params.push(sort_order); fields.push(`sort_order = $${params.length}`); }
+
+    if (fields.length === 0) {
+      return res.json({ success: false, error: 'No fields to update' });
+    }
+
+    fields.push('updated_at = NOW()');
+    params.push(req.params.id);
+
+    const result = await pool.query(
+      `UPDATE gas_templates SET ${fields.join(', ')} WHERE id = $${params.length} RETURNING *`,
+      params
+    );
+
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Template not found' });
+    }
+
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// DELETE /api/templates/:id — soft delete (master admin only)
+app.delete('/api/templates/:id', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.json({ success: false, error: 'Authentication required' });
+    }
+    const token = authHeader.split(' ')[1];
+    const session = await pool.query(`
+      SELECT s.account_id, a.role FROM account_sessions s
+      JOIN accounts a ON s.account_id = a.id
+      WHERE s.token = $1 AND s.expires_at > NOW()
+    `, [token]);
+    if (session.rows.length === 0 || session.rows[0].role !== 'master_admin') {
+      return res.json({ success: false, error: 'Master admin access required' });
+    }
+
+    const result = await pool.query(
+      'UPDATE gas_templates SET active = false, updated_at = NOW() WHERE id = $1 RETURNING id, name',
+      [req.params.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Template not found' });
+    }
+
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/templates/:id/push — push template to a WordPress site via GAS plugin
+app.post('/api/templates/:id/push', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.json({ success: false, error: 'Authentication required' });
+    }
+    const token = authHeader.split(' ')[1];
+    const session = await pool.query(`
+      SELECT s.account_id, a.role FROM account_sessions s
+      JOIN accounts a ON s.account_id = a.id
+      WHERE s.token = $1 AND s.expires_at > NOW()
+    `, [token]);
+    if (session.rows.length === 0 || session.rows[0].role !== 'master_admin') {
+      return res.json({ success: false, error: 'Master admin access required' });
+    }
+
+    // Get the template
+    const template = await pool.query(
+      'SELECT * FROM gas_templates WHERE id = $1 AND active = true',
+      [req.params.id]
+    );
+    if (template.rows.length === 0) {
+      return res.json({ success: false, error: 'Template not found' });
+    }
+
+    const { account_id, site_url, mode, page_id, position, page_title, page_slug, add_to_menu } = req.body;
+    if (!site_url || !account_id) {
+      return res.json({ success: false, error: 'site_url and account_id are required' });
+    }
+
+    // Look up license key for this account
+    const license = await pool.query(
+      "SELECT license_key FROM plugin_licenses WHERE account_id = $1 AND status = 'active' LIMIT 1",
+      [account_id]
+    );
+    if (license.rows.length === 0) {
+      return res.json({ success: false, error: 'No active license found for this account' });
+    }
+
+    const cleanUrl = site_url.replace(/\/$/, '');
+    const apiKey = license.rows[0].license_key;
+
+    // Call the WordPress plugin endpoint
+    const pushResponse = await fetch(`${cleanUrl}/wp-json/gas/v1/push-template`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        api_key: apiKey,
+        template_json: template.rows[0].elementor_json,
+        mode: mode || 'push_to_existing',
+        page_id,
+        position: position || 'bottom',
+        page_title,
+        page_slug,
+        add_to_menu: add_to_menu || false
+      }),
+      signal: AbortSignal.timeout(30000)
+    });
+
+    const pushData = await pushResponse.json();
+    res.json(pushData);
+  } catch (error) {
+    res.json({ success: false, error: error.message });
   }
 });
 
