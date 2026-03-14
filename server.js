@@ -78970,24 +78970,22 @@ app.get('/api/pro-builder/sites/:blog_id/pages/:page_id', async (req, res) => {
     const page = await wpRes.json();
     const rawContent = page.content?.rendered || '';
 
-    // Parse block comments into section list
+    // Parse sections from rendered HTML using top-level CSS classes
+    // (rendered HTML has block comments stripped, so we match by class names)
     const sections = [];
-    const blockRegex = /<!-- wp:(\S+?)(?:\s+(\{.*?\}))? (?:\/)?-->/g;
-    let match;
     let index = 0;
-    while ((match = blockRegex.exec(rawContent)) !== null) {
-      const blockType = match[1];
-      // Only top-level sections (cover, columns, group, shortcode, heading, paragraph, image)
-      if (['cover', 'columns', 'group', 'shortcode', 'heading', 'paragraph', 'image'].includes(blockType)) {
-        let attrs = {};
-        try { if (match[2]) attrs = JSON.parse(match[2]); } catch (e) {}
-        sections.push({
-          index: index++,
-          type: blockType,
-          label: blockType.charAt(0).toUpperCase() + blockType.slice(1),
-          attrs: attrs
-        });
-      }
+    const sectionRegex = /<div class="wp-block-(cover|columns|group)\b|<(h[1-6]) class="wp-block-heading|<figure class="wp-block-(image)\b|class="(wp-block-shortcode)\b/g;
+    let match;
+    while ((match = sectionRegex.exec(rawContent)) !== null) {
+      const blockType = match[1] || match[2] || match[3] || (match[4] ? 'shortcode' : 'unknown');
+      // Skip nested columns (only want top-level wp-block-column inside columns)
+      if (blockType === 'column') continue;
+      sections.push({
+        index: index++,
+        type: blockType,
+        label: blockType.charAt(0).toUpperCase() + blockType.slice(1),
+        attrs: {}
+      });
     }
 
     res.json({
