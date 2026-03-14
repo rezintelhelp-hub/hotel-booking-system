@@ -1559,7 +1559,7 @@
                     "summary": "Get Hero Settings",
                     "description": "Returns badge, trust badges, search box styling, and meta data for the hero section.",
                     "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
-                    "responses": { "200": { "description": "Hero settings", "content": { "application/json": { "example": { "success": true, "badge": { "text": "Welcome", "bg_color": "#2563eb", "text_color": "#fff", "border_color": "" }, "trust_badges": { "badge_1": "Instant Booking", "badge_2": "Best Price", "badge_3": "24/7 Support" }, "search": { "btn_bg": "#2563eb", "btn_text": "#fff" }, "meta": { "title": "Beach Villas", "description": "Luxury beachfront..." } } } } } }
+                    "responses": { "200": { "description": "Hero settings", "content": { "application/json": { "example": { "success": true, "badge": { "text": "Welcome", "link": "/book-now/", "bg_color": "#2563eb", "text_color": "#ffffff", "border_color": "#1d4ed8" }, "trust_badges": { "badge_1": "Instant Booking", "badge_2": "Best Price", "badge_3": "24/7 Support", "text_color": "#ffffff" }, "search": { "btn_bg": "#2563eb", "btn_text": "#ffffff", "label_color": "#ffffff", "max_guests": "10", "bg": "rgba(0,0,0,0.3)", "opacity": "80", "radius": "12", "padding": "20", "scale": "100", "max_width": "900" }, "meta": { "title": "Beach Villas - Luxury Beachfront", "description": "Book your dream beachfront villa with instant confirmation." } } } } } }
                 }
             },
             "/api/partner/websites/{websiteId}/hero/badge": {
@@ -1568,7 +1568,7 @@
                     "summary": "Update Hero Badge",
                     "description": "Update badge text, link, and colours. All fields optional.\n\n- `text` — Badge text (e.g. 'Welcome to Paradise')\n- `link` — Badge click URL\n- `bg_color` — Background colour (hex)\n- `text_color` — Text colour (hex)\n- `border_color` — Border colour (hex)",
                     "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
-                    "requestBody": { "content": { "application/json": { "example": { "text": "Welcome to Paradise", "bg_color": "#2563eb", "text_color": "#ffffff", "border_color": "#1d4ed8" } } } },
+                    "requestBody": { "content": { "application/json": { "example": { "text": "Welcome to Paradise", "link": "/book-now/", "bg_color": "#2563eb", "text_color": "#ffffff", "border_color": "#1d4ed8" } } } },
                     "responses": { "200": { "description": "Badge updated" } }
                 },
                 "delete": {
@@ -1605,7 +1605,7 @@
                     "summary": "Get Global Styles",
                     "description": "Returns global colour palette, fonts, button styling, and custom CSS.",
                     "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
-                    "responses": { "200": { "description": "Styles settings", "content": { "application/json": { "example": { "success": true, "styles": { "primary_color": "#2563eb", "secondary_color": "#0f172a", "accent_color": "#f59e0b", "link_color": "#2563eb", "heading_font": "playfair", "subheading_font": "merriweather", "body_font": "inter", "title_size": "48", "subheading_size": "32", "body_size": "16", "btn_primary_bg": "#2563eb", "btn_primary_text": "#ffffff", "btn_radius": "8", "custom_css": "" } } } } } }
+                    "responses": { "200": { "description": "Styles settings", "content": { "application/json": { "example": { "success": true, "styles": { "primary_color": "#2563eb", "secondary_color": "#0f172a", "accent_color": "#f59e0b", "link_color": "#2563eb", "heading_font": "inter", "subheading_font": "inter", "body_font": "inter", "title_size": "48", "subheading_size": "32", "body_size": "16", "btn_primary_bg": "#2563eb", "btn_primary_text": "#ffffff", "btn_radius": "8", "custom_css": "" } } } } } }
                 },
                 "put": {
                     "tags": ["Websites"],
