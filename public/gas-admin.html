@@ -49638,7 +49638,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                 if (isTextarea) {
                     el.value = editor.innerHTML;
                 }
-                if (onChangeAttr) {
+                // Direct updateBlock call for Pro Site Builder blocks (no eval)
+                if (el.dataset.pbCol !== undefined && el.dataset.pbBlock !== undefined && typeof updateBlock === 'function') {
+                    updateBlock(parseInt(el.dataset.pbCol), parseInt(el.dataset.pbBlock), 'text', editor.innerHTML);
+                } else if (onChangeAttr) {
                     try { eval(onChangeAttr.replace('this.value', 'editor.innerHTML').replace('this.innerHTML', 'editor.innerHTML')); } catch(e) {}
                 }
             });
@@ -55133,8 +55136,21 @@ const promo = await fetch('/api/v1/offers/validate', {
             pbColumnBlocks = [];
         }
 
+        function syncWysiwygToBlocks() {
+            pbColumnBlocks.forEach((blocks, colIdx) => {
+                blocks.forEach((block, blockIdx) => {
+                    if (block.type === 'heading' || block.type === 'text') {
+                        const val = gasWysiwygGetValue(`pb-block-${colIdx}-${blockIdx}-text`);
+                        if (val) block.text = val;
+                    }
+                });
+            });
+        }
+
         function renderColumnEditors() {
             const container = document.getElementById('pb-columns-container');
+            // Sync existing WYSIWYG content to block data before destroying DOM
+            syncWysiwygToBlocks();
             let html = '';
             pbColumnBlocks.forEach((blocks, colIdx) => {
                 html += `<div style="flex: 1; border: 2px dashed #e2e8f0; border-radius: 8px; padding: 1rem; min-height: 120px;">`;
@@ -55173,14 +55189,14 @@ const promo = await fetch('/api/v1/offers/validate', {
             const base = `pb-block-${colIdx}-${blockIdx}`;
             switch (block.type) {
                 case 'heading':
-                    return `<textarea id="${base}-text" data-wysiwyg="true" data-wysiwyg-placeholder="Heading text" data-wysiwyg-onchange="updateBlock(${colIdx},${blockIdx},'text',this.value)" style="font-size: 0.8rem;">${block.text || ''}</textarea>
+                    return `<textarea id="${base}-text" data-wysiwyg="true" data-wysiwyg-placeholder="Heading text" data-pb-col="${colIdx}" data-pb-block="${blockIdx}" style="font-size: 0.8rem;">${block.text || ''}</textarea>
                             <select class="form-input" style="font-size: 0.8rem; margin-top: 0.25rem;" onchange="updateBlock(${colIdx},${blockIdx},'level',this.value)">
                                 <option value="h2" ${block.level === 'h2' ? 'selected' : ''}>H2</option>
                                 <option value="h3" ${block.level === 'h3' ? 'selected' : ''}>H3</option>
                                 <option value="h1" ${block.level === 'h1' ? 'selected' : ''}>H1</option>
                             </select>`;
                 case 'text':
-                    return `<textarea id="${base}-text" data-wysiwyg="true" data-wysiwyg-placeholder="Paragraph text" data-wysiwyg-onchange="updateBlock(${colIdx},${blockIdx},'text',this.value)" style="font-size: 0.8rem;">${block.text || ''}</textarea>`;
+                    return `<textarea id="${base}-text" data-wysiwyg="true" data-wysiwyg-placeholder="Paragraph text" data-pb-col="${colIdx}" data-pb-block="${blockIdx}" style="font-size: 0.8rem;">${block.text || ''}</textarea>`;
                 case 'image':
                     return `<input type="text" class="form-input" style="font-size: 0.8rem;" placeholder="Image URL" value="${block.url || ''}" onchange="updateBlock(${colIdx},${blockIdx},'url',this.value)">
                             <input type="text" class="form-input" style="font-size: 0.8rem; margin-top: 0.25rem;" placeholder="Alt text" value="${block.alt || ''}" onchange="updateBlock(${colIdx},${blockIdx},'alt',this.value)">`;
@@ -55250,17 +55266,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (!proBuilderBlogId || !proBuilderPageId) return;
 
             // Sync all WYSIWYG editors back to block data before building
-            pbColumnBlocks.forEach((blocks, colIdx) => {
-                blocks.forEach((block, blockIdx) => {
-                    if (block.type === 'heading' || block.type === 'text') {
-                        const editorEl = document.getElementById(`pb-block-${colIdx}-${blockIdx}-text`);
-                        if (editorEl) {
-                            const wrapper = editorEl.previousElementSibling;
-                            block.text = (wrapper && wrapper._gasEditor) ? wrapper._gasEditor.innerHTML : editorEl.value;
-                        }
-                    }
-                });
-            });
+            syncWysiwygToBlocks();
 
             // Build block markup from columns
             let markup = '';
