@@ -78929,6 +78929,83 @@ app.get('/api/pro-builder/sites/:blog_id/pages', async (req, res) => {
   }
 });
 
+// GET /api/pro-builder/sites/:blog_id/pages/:page_id — fetch single page content
+app.get('/api/pro-builder/sites/:blog_id/pages/:page_id', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.json({ success: false, error: 'Authentication required' });
+    }
+    const token = authHeader.split(' ')[1];
+    const session = await pool.query(`
+      SELECT s.account_id, a.role FROM account_sessions s
+      JOIN accounts a ON s.account_id = a.id
+      WHERE s.token = $1 AND s.expires_at > NOW()
+    `, [token]);
+    if (session.rows.length === 0 || session.rows[0].role !== 'master_admin') {
+      return res.json({ success: false, error: 'Master admin access required' });
+    }
+
+    const blogId = parseInt(req.params.blog_id);
+    const pageId = parseInt(req.params.page_id);
+
+    const site = await pool.query(
+      'SELECT ds.*, a.subscription_tier FROM deployed_sites ds JOIN accounts a ON ds.account_id = a.id WHERE ds.blog_id = $1',
+      [blogId]
+    );
+    if (site.rows.length === 0) {
+      return res.json({ success: false, error: 'Site not found' });
+    }
+
+    const siteRow = site.rows[0];
+    let siteUrl = siteRow.site_url || siteRow.domain;
+    if (!siteUrl.startsWith('http')) siteUrl = 'https://' + siteUrl;
+
+    const wpRes = await fetch(`${siteUrl}/wp-json/wp/v2/pages/${pageId}?context=edit`, {
+      headers: { 'X-GAS-License': '' }
+    });
+
+    if (!wpRes.ok) {
+      return res.json({ success: false, error: `WordPress API returned ${wpRes.status}` });
+    }
+
+    const page = await wpRes.json();
+    const rawContent = page.content?.raw || page.content?.rendered || '';
+
+    // Parse block comments into section list
+    const sections = [];
+    const blockRegex = /<!-- wp:(\S+?)(?:\s+(\{.*?\}))? (?:\/)?-->/g;
+    let match;
+    let index = 0;
+    while ((match = blockRegex.exec(rawContent)) !== null) {
+      const blockType = match[1];
+      // Only top-level sections (cover, columns, group, shortcode, heading, paragraph, image)
+      if (['cover', 'columns', 'group', 'shortcode', 'heading', 'paragraph', 'image'].includes(blockType)) {
+        let attrs = {};
+        try { if (match[2]) attrs = JSON.parse(match[2]); } catch (e) {}
+        sections.push({
+          index: index++,
+          type: blockType,
+          label: blockType.charAt(0).toUpperCase() + blockType.slice(1),
+          attrs: attrs
+        });
+      }
+    }
+
+    res.json({
+      success: true,
+      blog_id: blogId,
+      page_id: pageId,
+      title: page.title?.rendered || page.title?.raw || 'Untitled',
+      slug: page.slug,
+      sections: sections,
+      raw_content: rawContent
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // ─── GAS Template Library ───────────────────────────────────────────
 
 // GET /api/templates — list all active templates (excludes elementor_json for performance)
@@ -79118,21 +79195,36 @@ app.post('/api/templates/:id/push', async (req, res) => {
       return res.json({ success: false, error: 'Template not found' });
     }
 
-    const { account_id, site_url, mode, page_id, position, page_title, page_slug, add_to_menu } = req.body;
-    if (!site_url || !account_id) {
-      return res.json({ success: false, error: 'site_url and account_id are required' });
+    const { account_id, site_url, blog_id, mode, page_id, position, page_title, page_slug, add_to_menu } = req.body;
+
+    let resolvedUrl = site_url;
+    let resolvedAccountId = account_id;
+
+    // Allow blog_id as alternative to site_url + account_id
+    if (blog_id && (!site_url || !account_id)) {
+      const siteRow = await pool.query('SELECT * FROM deployed_sites WHERE blog_id = $1', [blog_id]);
+      if (siteRow.rows.length === 0) {
+        return res.json({ success: false, error: 'Site not found for blog_id' });
+      }
+      resolvedUrl = siteRow.rows[0].site_url || siteRow.rows[0].domain;
+      resolvedAccountId = siteRow.rows[0].account_id;
+    }
+
+    if (!resolvedUrl || !resolvedAccountId) {
+      return res.json({ success: false, error: 'site_url and account_id (or blog_id) are required' });
     }
 
     // Look up license key for this account
     const license = await pool.query(
       "SELECT license_key FROM plugin_licenses WHERE account_id = $1 AND status = 'active' LIMIT 1",
-      [account_id]
+      [resolvedAccountId]
     );
     if (license.rows.length === 0) {
       return res.json({ success: false, error: 'No active license found for this account' });
     }
 
-    const cleanUrl = site_url.replace(/\/$/, '');
+    let cleanUrl = resolvedUrl.replace(/\/$/, '');
+    if (!cleanUrl.startsWith('http')) { cleanUrl = 'https://' + cleanUrl; }
     const apiKey = license.rows[0].license_key;
 
     // Call the WordPress plugin endpoint

@@ -15281,6 +15281,19 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <div id="pro-builder-pages-list" style="display: flex; flex-direction: column; gap: 0.75rem;">
                         <div style="text-align: center; padding: 2rem; color: #64748b;">Loading pages...</div>
                     </div>
+                    <!-- Page Builder (hidden until Build Page clicked) -->
+                    <div id="pro-builder-page-editor" style="display: none;">
+                        <div style="margin-bottom: 1rem;">
+                            <a href="#" onclick="closePageEditor(); return false;" style="color: #6366f1; text-decoration: none; font-size: 0.9rem;">&larr; Back to Pages</a>
+                        </div>
+                        <h3 id="pro-builder-page-title" style="margin: 0 0 1.5rem 0;"></h3>
+                        <div id="pro-builder-sections" style="display: flex; flex-direction: column; gap: 0.5rem;">
+                            <div style="text-align: center; padding: 2rem; color: #64748b;">Loading sections...</div>
+                        </div>
+                        <div style="margin-top: 1.5rem; text-align: center;">
+                            <button class="btn" onclick="openAddSectionModal()" style="background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); border-color: #f97316;">+ Add Section</button>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Settings Tab -->
@@ -16237,6 +16250,30 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <button type="button" class="btn btn-secondary" onclick="closeModal('pushTemplateModal')">Cancel</button>
                     <button type="button" class="btn" id="push-tpl-btn" onclick="pushTemplate()">Push Template</button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Section Modal (Pro Builder) -->
+    <div id="addSectionModal" class="modal">
+        <div class="modal-content" style="max-width: 800px;">
+            <div class="modal-header">
+                <h3>Add Section</h3>
+                <button class="modal-close" onclick="closeModal('addSectionModal')">&times;</button>
+            </div>
+            <div style="margin-bottom: 1rem;">
+                <select id="section-category-filter" class="form-input" style="width: auto;" onchange="loadSectionTemplates()">
+                    <option value="">All Categories</option>
+                    <option value="hero">Hero</option>
+                    <option value="content">Content</option>
+                    <option value="gallery">Gallery</option>
+                    <option value="cta">CTA</option>
+                    <option value="testimonials">Testimonials</option>
+                    <option value="footer">Footer</option>
+                </select>
+            </div>
+            <div id="section-templates-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem; max-height: 60vh; overflow-y: auto;">
+                <div style="grid-column: 1/-1; text-align: center; padding: 2rem; color: #64748b;">Loading templates...</div>
             </div>
         </div>
     </div>
@@ -54800,6 +54837,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                             </div>
                             <div style="display: flex; gap: 0.5rem;">
                                 <a href="${page.link}" target="_blank" class="btn btn-small btn-secondary" style="font-size: 0.75rem;">View</a>
+                                <button onclick="openPageEditor(${page.id}, '${page.title.replace(/'/g, "\\'")}')" class="btn btn-small" style="font-size: 0.75rem; background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); border-color: #f97316;">Build Page</button>
                             </div>
                         </div>
                     `;
@@ -54808,6 +54846,137 @@ const promo = await fetch('/api/v1/offers/validate', {
                 container.innerHTML = html;
             } catch (error) {
                 container.innerHTML = `<div class="card" style="padding: 2rem; color: #ef4444;">Error: ${error.message}</div>`;
+            }
+        }
+
+        let proBuilderPageId = null;
+        let proBuilderPageTitle = '';
+
+        function openPageEditor(pageId, pageTitle) {
+            proBuilderPageId = pageId;
+            proBuilderPageTitle = pageTitle;
+            document.getElementById('pro-builder-pages-list').style.display = 'none';
+            document.getElementById('pro-builder-page-editor').style.display = 'block';
+            document.getElementById('pro-builder-page-title').textContent = pageTitle;
+            loadPageSections();
+        }
+
+        function closePageEditor() {
+            document.getElementById('pro-builder-page-editor').style.display = 'none';
+            document.getElementById('pro-builder-pages-list').style.display = 'flex';
+            proBuilderPageId = null;
+        }
+
+        async function loadPageSections() {
+            if (!proBuilderBlogId || !proBuilderPageId) return;
+            const container = document.getElementById('pro-builder-sections');
+            container.innerHTML = '<div style="text-align: center; padding: 2rem; color: #64748b;">Loading sections...</div>';
+
+            try {
+                const res = await fetch(`/api/pro-builder/sites/${proBuilderBlogId}/pages/${proBuilderPageId}`, { headers: authHeaders() });
+                const data = await res.json();
+
+                if (!data.success) {
+                    container.innerHTML = `<div class="card" style="padding: 1rem; color: #ef4444;">${data.error}</div>`;
+                    return;
+                }
+
+                if (!data.sections || data.sections.length === 0) {
+                    container.innerHTML = '<div class="card" style="padding: 2rem; text-align: center; color: #64748b;">No sections yet — click Add Section to start building</div>';
+                    return;
+                }
+
+                let html = '';
+                const iconMap = { cover: '🖼️', columns: '◻️', group: '📦', shortcode: '⚡', heading: '🔤', paragraph: '📝', image: '🏞️' };
+                data.sections.forEach((section, i) => {
+                    const icon = iconMap[section.type] || '📄';
+                    const detail = section.type === 'cover' && section.attrs?.url ? 'Background image' :
+                                   section.type === 'shortcode' ? 'Shortcode block' :
+                                   section.type === 'heading' ? 'Heading' : '';
+                    html += `
+                        <div class="card" style="padding: 0.75rem 1rem; display: flex; align-items: center; gap: 1rem; border-left: 3px solid #6366f1;">
+                            <span style="font-size: 1.2rem;">${icon}</span>
+                            <div style="flex: 1;">
+                                <strong style="font-size: 0.9rem;">${section.label}</strong>
+                                ${detail ? `<span style="margin-left: 0.5rem; font-size: 0.8rem; color: #64748b;">${detail}</span>` : ''}
+                            </div>
+                            <span style="font-size: 0.75rem; color: #94a3b8;">#${i + 1}</span>
+                        </div>
+                    `;
+                });
+
+                container.innerHTML = html;
+            } catch (error) {
+                container.innerHTML = `<div class="card" style="padding: 1rem; color: #ef4444;">Error: ${error.message}</div>`;
+            }
+        }
+
+        async function openAddSectionModal() {
+            openModal('addSectionModal');
+            loadSectionTemplates();
+        }
+
+        async function loadSectionTemplates() {
+            const container = document.getElementById('section-templates-grid');
+            container.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 2rem; color: #64748b;">Loading templates...</div>';
+
+            try {
+                const category = document.getElementById('section-category-filter').value;
+                let url = '/api/templates?tier=pro';
+                if (category) url += `&category=${category}`;
+
+                const res = await fetch(url, { headers: authHeaders() });
+                const data = await res.json();
+
+                if (!data.success || !data.data || data.data.length === 0) {
+                    container.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 2rem; color: #64748b;">No templates found</div>';
+                    return;
+                }
+
+                let html = '';
+                data.data.forEach(tpl => {
+                    html += `
+                        <div class="card" style="padding: 0; cursor: pointer; overflow: hidden; transition: box-shadow 0.2s;" onclick="insertSection(${tpl.id}, '${tpl.name.replace(/'/g, "\\'")}')" onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.15)'" onmouseout="this.style.boxShadow=''">
+                            ${tpl.preview_image ? `<img src="${tpl.preview_image}" style="width: 100%; height: 120px; object-fit: cover;">` : `<div style="width: 100%; height: 120px; background: #f1f5f9; display: flex; align-items: center; justify-content: center; color: #94a3b8;">No preview</div>`}
+                            <div style="padding: 0.75rem;">
+                                <strong style="font-size: 0.85rem;">${tpl.name}</strong>
+                                <p style="font-size: 0.75rem; color: #64748b; margin: 0.25rem 0 0 0;">${tpl.category || ''}</p>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                container.innerHTML = html;
+            } catch (error) {
+                container.innerHTML = `<div style="grid-column: 1/-1; padding: 1rem; color: #ef4444;">Error: ${error.message}</div>`;
+            }
+        }
+
+        async function insertSection(templateId, templateName) {
+            if (!proBuilderBlogId || !proBuilderPageId) return;
+
+            try {
+                showNotification(`Inserting ${templateName}...`, 'info');
+                const res = await fetch(`/api/templates/${templateId}/push`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({
+                        blog_id: proBuilderBlogId,
+                        page_id: proBuilderPageId,
+                        position: 'bottom'
+                    })
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    showNotification(`Added "${templateName}" to page`, 'success');
+                    closeModal('addSectionModal');
+                    loadPageSections();
+                } else {
+                    showNotification(data.error || 'Failed to insert section', 'error');
+                }
+            } catch (error) {
+                showNotification('Error: ' + error.message, 'error');
             }
         }
 
