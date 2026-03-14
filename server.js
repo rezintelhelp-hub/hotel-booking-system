@@ -47161,6 +47161,30 @@ async function validatePartnerApiKey(req) {
 }
 
 // =====================================================
+// PARTNER API - URL PATTERN ALIAS
+// Elevate calls /api/partner/{apiKey}/{websiteId}/endpoint but website
+// management routes use /api/partner/websites/{websiteId}/endpoint with
+// the API key in the X-API-Key header. This middleware rewrites the URL
+// so both patterns work.
+const partnerWebsiteEndpoints = new Set([
+  'contact-page', 'styles', 'hero', 'icons', 'logo', 'header',
+  'rooms-page', 'services', 'domain', 'status', 'subdomain',
+  'name', 'credentials', 'analytics', 'deploy', 'rooms', 'pages',
+  'content', 'upload'
+]);
+app.use((req, res, next) => {
+  const m = req.path.match(/^\/api\/partner\/([^/]+)\/(\d+)\/(.+)$/);
+  if (m && m[1].startsWith('gas_')) {
+    const topLevel = m[3].split('/')[0];
+    if (partnerWebsiteEndpoints.has(topLevel)) {
+      req.headers['x-api-key'] = req.headers['x-api-key'] || m[1];
+      req.url = `/api/partner/websites/${m[2]}/${m[3]}${req.url.includes('?') ? req.url.substring(req.url.indexOf('?')) : ''}`;
+    }
+  }
+  next();
+});
+
+// =====================================================
 // PARTNER API - WEBHOOK CONFIGURATION
 
 // GET /api/admin/room-mapping/:accountId - Check Beds24 room ID mappings
