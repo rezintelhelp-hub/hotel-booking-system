@@ -181,6 +181,7 @@ GAS (Global Accommodation System) is a full-stack hotel booking and property man
 11. Plugin management — repo, version control, downloadable from GAS, Claude Code awareness
 12. Partner/Elevate white-label URLs — branded domains per partner
 13. Theme marketplace — add new themes via UI, open to third-party theme builders, manage within GAS Admin
+14. Web Builder text formatting — add basic rich text controls (bold, italic, colour picker, hyperlink) to all text fields in the standard Web Builder. Currently plain text only. Needed for all clients on standard tier.
 
 ---
 

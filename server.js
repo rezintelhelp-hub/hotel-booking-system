@@ -1340,6 +1340,43 @@ async function runMigrations() {
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_gas_templates_category ON gas_templates(category)`);
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_gas_templates_tier ON gas_templates(tier)`);
       console.log('✅ gas_templates table ensured');
+      // Schema evolution: support block markup alongside Elementor JSON
+      await pool.query(`ALTER TABLE gas_templates ADD COLUMN IF NOT EXISTS block_markup TEXT`);
+      await pool.query(`ALTER TABLE gas_templates ALTER COLUMN elementor_json DROP NOT NULL`).catch(() => {});
+      // Seed first template if table is empty
+      const templateCount = await pool.query('SELECT COUNT(*) FROM gas_templates');
+      if (parseInt(templateCount.rows[0].count) === 0) {
+        await pool.query(`
+          INSERT INTO gas_templates (name, category, tier, template_type, description, elementor_json, block_markup)
+          VALUES ($1, $2, $3, $4, $5, NULL, $6)
+        `, [
+          'Split — Image Left / Text Right',
+          'hero',
+          'standard',
+          'section',
+          'Full width section — image left, dark text panel right',
+          `<!-- wp:columns {"align":"full","style":{"spacing":{"padding":{"top":"0","bottom":"0","left":"0","right":"0"},"blockGap":{"left":"0"}}}} -->
+<div class="wp-block-columns alignfull" style="padding-top:0;padding-right:0;padding-bottom:0;padding-left:0"><!-- wp:column {"width":"40%"} -->
+<div class="wp-block-column" style="flex-basis:40%"><!-- wp:cover {"dimRatio":0,"minHeight":450,"style":{"border":{"radius":"0px"}}} -->
+<div class="wp-block-cover" style="border-radius:0px;min-height:450px"><span aria-hidden="true" class="wp-block-cover__background has-background-dim-0 has-background-dim"></span><div class="wp-block-cover__inner-container"><!-- wp:paragraph -->
+<p></p>
+<!-- /wp:paragraph --></div></div>
+<!-- /wp:cover --></div>
+<!-- /wp:column --><!-- wp:column {"width":"60%","style":{"color":{"background":"#1b374c"},"spacing":{"padding":{"top":"60px","bottom":"60px","left":"60px","right":"60px"}}}} -->
+<div class="wp-block-column has-background" style="background-color:#1b374c;padding-top:60px;padding-right:60px;padding-bottom:60px;padding-left:60px;flex-basis:60%"><!-- wp:heading {"style":{"color":{"text":"#ffffff"}}} -->
+<h2 class="wp-block-heading has-text-color" style="color:#ffffff">Section Title</h2>
+<!-- /wp:heading --><!-- wp:paragraph {"style":{"color":{"text":"#ffffff"}}} -->
+<p class="has-text-color" style="color:#ffffff">Add your description here.</p>
+<!-- /wp:paragraph --><!-- wp:buttons -->
+<div class="wp-block-buttons"><!-- wp:button {"style":{"color":{"background":"#E8621A"},"border":{"radius":"0px"}}} -->
+<div class="wp-block-button"><a class="wp-block-button__link has-background wp-element-button" style="border-radius:0px;background-color:#E8621A">Learn More</a></div>
+<!-- /wp:button --></div>
+<!-- /wp:buttons --></div>
+<!-- /wp:column --></div>
+<!-- /wp:columns -->`
+        ]);
+        console.log('✅ Seeded first gas_template: Split — Image Left / Text Right');
+      }
     } catch (gasTemplatesError) {
       console.log('ℹ️  gas_templates table:', gasTemplatesError.message);
     }
@@ -79025,12 +79062,14 @@ app.post('/api/templates/:id/push', async (req, res) => {
     const apiKey = license.rows[0].license_key;
 
     // Call the WordPress plugin endpoint
+    const tpl = template.rows[0];
     const pushResponse = await fetch(`${cleanUrl}/wp-json/gas/v1/push-template`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         api_key: apiKey,
-        template_json: template.rows[0].elementor_json,
+        template_json: tpl.elementor_json || null,
+        block_markup: tpl.block_markup || null,
         mode: mode || 'push_to_existing',
         page_id,
         position: position || 'bottom',
