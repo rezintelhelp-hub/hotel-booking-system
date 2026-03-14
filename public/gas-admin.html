@@ -2310,6 +2310,16 @@
                 </div>
 
                 <div class="nav-section collapsed master-only" style="display: none;">
+                    <div class="nav-label" onclick="toggleNavSection(this)">Templates</div>
+                    <div class="nav-section-items">
+                    <a class="nav-item" data-view="templates" href="#" onclick="navClick(this, 'templates'); return false;">
+                        <span class="nav-icon"></span>
+                        <span>Template Library</span>
+                    </a>
+                    </div>
+                </div>
+
+                <div class="nav-section collapsed master-only" style="display: none;">
                     <div class="nav-label" onclick="toggleNavSection(this)">Services</div>
                     <div class="nav-section-items">
                     <a class="nav-item" data-view="service-credentials" href="#" onclick="navClick(this, 'service-credentials'); return false;">
@@ -15207,6 +15217,46 @@ const promo = await fetch('/api/v1/offers/validate', {
                 </div>
             </div>
 
+            <!-- GAS Template Library View -->
+            <div id="templates" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>Template Library</h2>
+                            <p>Manage and push section templates to client sites</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Filter Bar -->
+                <div class="card" style="margin-bottom: 1.5rem;">
+                    <div style="display: flex; gap: 1rem; flex-wrap: wrap; align-items: center;">
+                        <button class="btn" onclick="openNewTemplateModal()">+ New Template</button>
+                        <div style="flex: 1;"></div>
+                        <select id="tpl-category-filter" class="form-input" style="width: auto;" onchange="loadTemplates()">
+                            <option value="">All Categories</option>
+                            <option value="hero">Hero</option>
+                            <option value="content">Content</option>
+                            <option value="gallery">Gallery</option>
+                            <option value="cta">CTA</option>
+                            <option value="testimonials">Testimonials</option>
+                            <option value="footer">Footer</option>
+                        </select>
+                        <select id="tpl-tier-filter" class="form-input" style="width: auto;" onchange="loadTemplates()">
+                            <option value="">All Tiers</option>
+                            <option value="standard">Standard</option>
+                            <option value="pro">Pro</option>
+                            <option value="bespoke">Bespoke</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Template Grid -->
+                <div id="templates-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.5rem;">
+                    <div style="grid-column: 1/-1; text-align: center; padding: 2rem; color: #64748b;">Loading templates...</div>
+                </div>
+            </div>
+
             <!-- Billing Overview View -->
             <div id="billing-overview" class="view">
                 <div class="header">
@@ -15997,6 +16047,154 @@ const promo = await fetch('/api/v1/offers/validate', {
                 <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 1.5rem;">
                     <button type="button" class="btn btn-secondary" onclick="closeModal('kbImportModal')">Cancel</button>
                     <button type="button" class="btn" onclick="importKBArticles()">Import Articles</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Template Library: New/Edit Template Modal -->
+    <div id="templateModal" class="modal">
+        <div class="modal-content" style="max-width: 800px; max-height: 90vh; overflow-y: auto; border-radius: 16px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
+                <div>
+                    <h3 class="modal-title" id="template-modal-title" style="margin: 0; font-size: 1.25rem;">New Template</h3>
+                    <p style="margin: 0.5rem 0 0 0; opacity: 0.9; font-size: 0.9rem;">Add a reusable section template</p>
+                </div>
+                <button class="modal-close" onclick="closeModal('templateModal')" style="color: white; font-size: 1.5rem;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem;">
+                <input type="hidden" id="tpl-edit-id" value="">
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                    <div class="form-group">
+                        <label class="form-label">Name <span style="color: #ef4444;">*</span></label>
+                        <input type="text" id="tpl-name" class="form-input" placeholder="e.g. Split — Image Left / Text Right" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Category <span style="color: #ef4444;">*</span></label>
+                        <select id="tpl-category" class="form-input">
+                            <option value="hero">Hero</option>
+                            <option value="content">Content</option>
+                            <option value="gallery">Gallery</option>
+                            <option value="cta">CTA</option>
+                            <option value="testimonials">Testimonials</option>
+                            <option value="footer">Footer</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                    <div class="form-group">
+                        <label class="form-label">Tier</label>
+                        <select id="tpl-tier" class="form-input">
+                            <option value="standard">Standard</option>
+                            <option value="pro">Pro</option>
+                            <option value="bespoke">Bespoke</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Template Type</label>
+                        <select id="tpl-type" class="form-input">
+                            <option value="section">Section</option>
+                            <option value="page">Full Page</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label class="form-label">Description</label>
+                    <textarea id="tpl-description" class="form-input" rows="2" placeholder="Brief description of the template"></textarea>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label class="form-label">Preview Image URL</label>
+                    <input type="text" id="tpl-preview-image" class="form-input" placeholder="https://...">
+                </div>
+
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label class="form-label">Block Markup (Gutenberg)</label>
+                    <textarea id="tpl-block-markup" class="form-input" rows="8" placeholder="<!-- wp:columns -->..." style="font-family: monospace; font-size: 0.85rem;"></textarea>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label class="form-label">Elementor JSON</label>
+                    <textarea id="tpl-elementor-json" class="form-input" rows="8" placeholder='[{"id":"...","elType":"section",...}]' style="font-family: monospace; font-size: 0.85rem;"></textarea>
+                </div>
+
+                <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid #e2e8f0;">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('templateModal')">Cancel</button>
+                    <button type="button" class="btn" onclick="saveTemplate()">Save Template</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Template Library: Push to Site Modal -->
+    <div id="pushTemplateModal" class="modal">
+        <div class="modal-content" style="max-width: 600px; max-height: 90vh; overflow-y: auto; border-radius: 16px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
+                <div>
+                    <h3 class="modal-title" style="margin: 0; font-size: 1.25rem;">Push Template to Site</h3>
+                    <p style="margin: 0.5rem 0 0 0; opacity: 0.9; font-size: 0.9rem;" id="push-tpl-name">—</p>
+                </div>
+                <button class="modal-close" onclick="closeModal('pushTemplateModal')" style="color: white; font-size: 1.5rem;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem;">
+                <input type="hidden" id="push-tpl-id" value="">
+
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label class="form-label">Account <span style="color: #ef4444;">*</span></label>
+                    <select id="push-account-id" class="form-input" onchange="loadPushSitePages()">
+                        <option value="">Select account...</option>
+                    </select>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label class="form-label">Mode</label>
+                    <select id="push-mode" class="form-input" onchange="togglePushMode()">
+                        <option value="push_to_existing">Push to existing page</option>
+                        <option value="create_new_page">Create new page</option>
+                    </select>
+                </div>
+
+                <!-- Existing page fields -->
+                <div id="push-existing-fields">
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label class="form-label">Page ID <span style="color: #ef4444;">*</span></label>
+                        <input type="number" id="push-page-id" class="form-input" placeholder="e.g. 4">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label class="form-label">Position</label>
+                        <select id="push-position" class="form-input">
+                            <option value="bottom">Bottom</option>
+                            <option value="top">Top</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- New page fields -->
+                <div id="push-new-fields" style="display: none;">
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label class="form-label">Page Title <span style="color: #ef4444;">*</span></label>
+                        <input type="text" id="push-page-title" class="form-input" placeholder="e.g. About Us">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label class="form-label">Page Slug</label>
+                        <input type="text" id="push-page-slug" class="form-input" placeholder="e.g. about-us (auto-generated if blank)">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                            <input type="checkbox" id="push-add-to-menu">
+                            Add to navigation menu
+                        </label>
+                    </div>
+                </div>
+
+                <div id="push-result" style="display: none; margin-top: 1rem; padding: 1rem; border-radius: 8px;"></div>
+
+                <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid #e2e8f0;">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('pushTemplateModal')">Cancel</button>
+                    <button type="button" class="btn" id="push-tpl-btn" onclick="pushTemplate()">Push Template</button>
                 </div>
             </div>
         </div>
@@ -23344,6 +23542,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (viewName === 'turbine-campaigns') loadTurbineCampaigns();
             if (viewName === 'turbine-generator') { loadTurbineConnections(); loadTurbinePosts(); }
             if (viewName === 'gas-lites') loadGasLites();
+            if (viewName === 'templates') loadTemplates();
             if (viewName === 'network-contacts') loadNetworkContacts();
             if (viewName === 'network-tags') loadNetworkTags();
             if (viewName === 'network-segments') loadNetworkSegments();
@@ -54492,6 +54691,266 @@ const promo = await fetch('/api/v1/offers/validate', {
 
         function copyApiUrl() {
             copyToClipboard(document.getElementById('api-docs-base-url').value);
+        }
+
+        // =====================================================
+        // TEMPLATE LIBRARY FUNCTIONS
+        // =====================================================
+
+        async function loadTemplates() {
+            const category = document.getElementById('tpl-category-filter')?.value || '';
+            const tier = document.getElementById('tpl-tier-filter')?.value || '';
+            let url = '/api/templates?';
+            if (category) url += 'category=' + encodeURIComponent(category) + '&';
+            if (tier) url += 'tier=' + encodeURIComponent(tier);
+
+            const grid = document.getElementById('templates-grid');
+            grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:2rem;color:#64748b;">Loading templates...</div>';
+
+            try {
+                const res = await fetch(url, { headers: authHeaders() });
+                const data = await res.json();
+                if (!data.length) {
+                    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:2rem;color:#64748b;">No templates found.</div>';
+                    return;
+                }
+
+                const tierColors = { standard: '#6366f1', pro: '#f59e0b', bespoke: '#10b981' };
+                grid.innerHTML = data.map(t => `
+                    <div class="card" style="overflow:hidden; display:flex; flex-direction:column;">
+                        <div style="height:160px; background:#f1f5f9; display:flex; align-items:center; justify-content:center; overflow:hidden;">
+                            ${t.preview_image
+                                ? `<img src="${t.preview_image}" style="width:100%;height:100%;object-fit:cover;" alt="${t.name}">`
+                                : `<span style="color:#94a3b8; font-size:0.9rem;">No preview</span>`}
+                        </div>
+                        <div style="padding:1rem; flex:1; display:flex; flex-direction:column;">
+                            <h4 style="margin:0 0 0.5rem 0; font-size:1rem;">${t.name}</h4>
+                            <div style="display:flex; gap:0.5rem; margin-bottom:0.75rem; flex-wrap:wrap;">
+                                <span style="background:#e0e7ff; color:#4338ca; padding:2px 8px; border-radius:4px; font-size:0.75rem;">${t.category}</span>
+                                <span style="background:${tierColors[t.tier] || '#6366f1'}22; color:${tierColors[t.tier] || '#6366f1'}; padding:2px 8px; border-radius:4px; font-size:0.75rem;">${t.tier}</span>
+                                <span style="background:#f1f5f9; color:#64748b; padding:2px 8px; border-radius:4px; font-size:0.75rem;">${t.template_type}</span>
+                            </div>
+                            <p style="color:#64748b; font-size:0.85rem; margin:0 0 1rem 0; flex:1;">${t.description || ''}</p>
+                            <div style="display:flex; gap:0.5rem; border-top:1px solid #e2e8f0; padding-top:0.75rem;">
+                                <button class="btn btn-secondary" style="font-size:0.8rem; padding:4px 10px;" onclick="openEditTemplateModal(${t.id})">Edit</button>
+                                <button class="btn" style="font-size:0.8rem; padding:4px 10px;" onclick="openPushTemplateModal(${t.id}, '${t.name.replace(/'/g, "\\'")}')">Push</button>
+                                <div style="flex:1;"></div>
+                                <button class="btn btn-secondary" style="font-size:0.8rem; padding:4px 10px; color:#ef4444;" onclick="deleteTemplate(${t.id})">Delete</button>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (err) {
+                grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:2rem;color:#ef4444;">Error loading templates: ' + err.message + '</div>';
+            }
+        }
+
+        function openNewTemplateModal() {
+            document.getElementById('tpl-edit-id').value = '';
+            document.getElementById('tpl-name').value = '';
+            document.getElementById('tpl-category').value = 'hero';
+            document.getElementById('tpl-tier').value = 'standard';
+            document.getElementById('tpl-type').value = 'section';
+            document.getElementById('tpl-description').value = '';
+            document.getElementById('tpl-preview-image').value = '';
+            document.getElementById('tpl-block-markup').value = '';
+            document.getElementById('tpl-elementor-json').value = '';
+            document.getElementById('template-modal-title').textContent = 'New Template';
+            openModal('templateModal');
+        }
+
+        async function openEditTemplateModal(id) {
+            try {
+                const res = await fetch('/api/templates/' + id, { headers: authHeaders() });
+                const t = await res.json();
+                document.getElementById('tpl-edit-id').value = t.id;
+                document.getElementById('tpl-name').value = t.name || '';
+                document.getElementById('tpl-category').value = t.category || 'hero';
+                document.getElementById('tpl-tier').value = t.tier || 'standard';
+                document.getElementById('tpl-type').value = t.template_type || 'section';
+                document.getElementById('tpl-description').value = t.description || '';
+                document.getElementById('tpl-preview-image').value = t.preview_image || '';
+                document.getElementById('tpl-block-markup').value = t.block_markup || '';
+                document.getElementById('tpl-elementor-json').value = t.elementor_json ? JSON.stringify(t.elementor_json, null, 2) : '';
+                document.getElementById('template-modal-title').textContent = 'Edit Template';
+                openModal('templateModal');
+            } catch (err) {
+                showToast('Failed to load template: ' + err.message, 'error');
+            }
+        }
+
+        async function saveTemplate() {
+            const id = document.getElementById('tpl-edit-id').value;
+            const body = {
+                name: document.getElementById('tpl-name').value.trim(),
+                category: document.getElementById('tpl-category').value,
+                tier: document.getElementById('tpl-tier').value,
+                template_type: document.getElementById('tpl-type').value,
+                description: document.getElementById('tpl-description').value.trim(),
+                preview_image: document.getElementById('tpl-preview-image').value.trim(),
+                block_markup: document.getElementById('tpl-block-markup').value.trim() || null,
+            };
+
+            // Parse Elementor JSON if provided
+            const elJson = document.getElementById('tpl-elementor-json').value.trim();
+            if (elJson) {
+                try {
+                    body.elementor_json = JSON.parse(elJson);
+                } catch (e) {
+                    showToast('Invalid Elementor JSON: ' + e.message, 'error');
+                    return;
+                }
+            } else {
+                body.elementor_json = null;
+            }
+
+            if (!body.name) {
+                showToast('Template name is required', 'error');
+                return;
+            }
+
+            try {
+                const url = id ? '/api/templates/' + id : '/api/templates';
+                const method = id ? 'PUT' : 'POST';
+                const res = await fetch(url, {
+                    method,
+                    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                const data = await res.json();
+                if (data.error) {
+                    showToast(data.error, 'error');
+                    return;
+                }
+                showToast(id ? 'Template updated' : 'Template created', 'success');
+                closeModal('templateModal');
+                loadTemplates();
+            } catch (err) {
+                showToast('Error saving template: ' + err.message, 'error');
+            }
+        }
+
+        async function deleteTemplate(id) {
+            if (!confirm('Delete this template? It will be deactivated, not permanently removed.')) return;
+            try {
+                const res = await fetch('/api/templates/' + id, {
+                    method: 'DELETE',
+                    headers: authHeaders()
+                });
+                const data = await res.json();
+                if (data.error) {
+                    showToast(data.error, 'error');
+                    return;
+                }
+                showToast('Template deleted', 'success');
+                loadTemplates();
+            } catch (err) {
+                showToast('Error deleting template: ' + err.message, 'error');
+            }
+        }
+
+        async function openPushTemplateModal(id, name) {
+            document.getElementById('push-tpl-id').value = id;
+            document.getElementById('push-tpl-name').textContent = name;
+            document.getElementById('push-mode').value = 'push_to_existing';
+            document.getElementById('push-page-id').value = '';
+            document.getElementById('push-position').value = 'bottom';
+            document.getElementById('push-page-title').value = '';
+            document.getElementById('push-page-slug').value = '';
+            document.getElementById('push-add-to-menu').checked = false;
+            document.getElementById('push-result').style.display = 'none';
+            document.getElementById('push-tpl-btn').disabled = false;
+            togglePushMode();
+
+            // Load accounts into dropdown
+            const select = document.getElementById('push-account-id');
+            select.innerHTML = '<option value="">Select account...</option>';
+            try {
+                const res = await fetch('/api/accounts', { headers: authHeaders() });
+                const accounts = await res.json();
+                accounts.forEach(a => {
+                    select.innerHTML += `<option value="${a.id}">${a.company_name || a.name || 'Account ' + a.id}</option>`;
+                });
+            } catch (err) {
+                console.error('Failed to load accounts for push:', err);
+            }
+
+            openModal('pushTemplateModal');
+        }
+
+        function togglePushMode() {
+            const mode = document.getElementById('push-mode').value;
+            document.getElementById('push-existing-fields').style.display = mode === 'push_to_existing' ? 'block' : 'none';
+            document.getElementById('push-new-fields').style.display = mode === 'create_new_page' ? 'block' : 'none';
+        }
+
+        async function pushTemplate() {
+            const templateId = document.getElementById('push-tpl-id').value;
+            const accountId = document.getElementById('push-account-id').value;
+            const mode = document.getElementById('push-mode').value;
+
+            if (!accountId) {
+                showToast('Please select an account', 'error');
+                return;
+            }
+
+            const body = { account_id: parseInt(accountId), mode };
+
+            if (mode === 'push_to_existing') {
+                const pageId = document.getElementById('push-page-id').value;
+                if (!pageId) {
+                    showToast('Page ID is required', 'error');
+                    return;
+                }
+                body.page_id = parseInt(pageId);
+                body.position = document.getElementById('push-position').value;
+            } else {
+                const pageTitle = document.getElementById('push-page-title').value.trim();
+                if (!pageTitle) {
+                    showToast('Page title is required', 'error');
+                    return;
+                }
+                body.page_title = pageTitle;
+                body.page_slug = document.getElementById('push-page-slug').value.trim();
+                body.add_to_menu = document.getElementById('push-add-to-menu').checked;
+            }
+
+            const btn = document.getElementById('push-tpl-btn');
+            btn.disabled = true;
+            btn.textContent = 'Pushing...';
+            const resultDiv = document.getElementById('push-result');
+            resultDiv.style.display = 'none';
+
+            try {
+                const res = await fetch('/api/templates/' + templateId + '/push', {
+                    method: 'POST',
+                    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                const data = await res.json();
+                if (data.success) {
+                    resultDiv.style.display = 'block';
+                    resultDiv.style.background = '#f0fdf4';
+                    resultDiv.style.border = '1px solid #bbf7d0';
+                    resultDiv.style.color = '#166534';
+                    resultDiv.innerHTML = `Template pushed successfully!<br>Format: ${data.format || 'auto'}<br>Page: <a href="${data.page_url}" target="_blank">${data.page_url}</a>`;
+                } else {
+                    resultDiv.style.display = 'block';
+                    resultDiv.style.background = '#fef2f2';
+                    resultDiv.style.border = '1px solid #fecaca';
+                    resultDiv.style.color = '#991b1b';
+                    resultDiv.innerHTML = 'Push failed: ' + (data.error || 'Unknown error');
+                }
+            } catch (err) {
+                resultDiv.style.display = 'block';
+                resultDiv.style.background = '#fef2f2';
+                resultDiv.style.border = '1px solid #fecaca';
+                resultDiv.style.color = '#991b1b';
+                resultDiv.innerHTML = 'Error: ' + err.message;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Push Template';
+            }
         }
 
         // =====================================================
