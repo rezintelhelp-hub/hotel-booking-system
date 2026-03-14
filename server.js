@@ -78983,18 +78983,24 @@ app.get('/api/pro-builder/sites/:blog_id/pages/:page_id', async (req, res) => {
     const rawContent = pageData.raw_content || '';
 
     // Parse block comments from raw content into section list
+    // Regex captures: (1) optional "/" for closing tag, (2) block type, (3) optional JSON attrs
     const sections = [];
-    const blockRegex = /<!-- wp:(\S+?)(?:\s+(\{.*?\}))? (?:\/)?-->/g;
+    const blockRegex = /<!-- (\\/?)wp:(\S+?)(?:\s+(\{.*?\}))? (?:\/)?-->/g;
     let match;
     let index = 0;
     let depth = 0;
     while ((match = blockRegex.exec(rawContent)) !== null) {
-      const blockType = match[1];
-      // Track nesting depth — only capture top-level blocks
-      if (blockType.startsWith('/')) { depth--; continue; }
+      const isClosing = match[1] === '/';
+      const blockType = match[2];
+      // Closing comments decrease depth for container blocks
+      if (isClosing) {
+        if (['cover', 'columns', 'column', 'group', 'buttons'].includes(blockType)) depth--;
+        continue;
+      }
+      // Only capture top-level blocks (depth 0)
       if (depth === 0 && ['cover', 'columns', 'group', 'shortcode', 'heading', 'paragraph', 'image', 'buttons', 'spacer'].includes(blockType)) {
         let attrs = {};
-        try { if (match[2]) attrs = JSON.parse(match[2]); } catch (e) {}
+        try { if (match[3]) attrs = JSON.parse(match[3]); } catch (e) {}
         sections.push({
           index: index++,
           type: blockType,
@@ -79002,7 +79008,7 @@ app.get('/api/pro-builder/sites/:blog_id/pages/:page_id', async (req, res) => {
           attrs: attrs
         });
       }
-      // Increase depth for blocks that have children
+      // Increase depth for container blocks that have children
       if (['cover', 'columns', 'column', 'group', 'buttons'].includes(blockType)) {
         depth++;
       }
