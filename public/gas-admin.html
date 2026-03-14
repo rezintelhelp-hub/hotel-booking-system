@@ -55249,6 +55249,19 @@ const promo = await fetch('/api/v1/offers/validate', {
         async function buildAndPushSection() {
             if (!proBuilderBlogId || !proBuilderPageId) return;
 
+            // Sync all WYSIWYG editors back to block data before building
+            pbColumnBlocks.forEach((blocks, colIdx) => {
+                blocks.forEach((block, blockIdx) => {
+                    if (block.type === 'heading' || block.type === 'text') {
+                        const editorEl = document.getElementById(`pb-block-${colIdx}-${blockIdx}-text`);
+                        if (editorEl) {
+                            const wrapper = editorEl.previousElementSibling;
+                            block.text = (wrapper && wrapper._gasEditor) ? wrapper._gasEditor.innerHTML : editorEl.value;
+                        }
+                    }
+                });
+            });
+
             // Build block markup from columns
             let markup = '';
             if (pbSelectedLayout === 'full') {
