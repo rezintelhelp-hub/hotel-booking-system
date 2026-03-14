@@ -15290,8 +15290,71 @@ const promo = await fetch('/api/v1/offers/validate', {
                         <div id="pro-builder-sections" style="display: flex; flex-direction: column; gap: 0.5rem;">
                             <div style="text-align: center; padding: 2rem; color: #64748b;">Loading sections...</div>
                         </div>
-                        <div style="margin-top: 1.5rem; text-align: center;">
-                            <button class="btn" onclick="openAddSectionModal()" style="background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); border-color: #f97316;">+ Add Section</button>
+
+                        <!-- Add Section Options -->
+                        <div id="pb-add-section-bar" style="margin-top: 1.5rem; text-align: center;">
+                            <button class="btn" onclick="showAddSectionChoice()" style="background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); border-color: #f97316;">+ Add Section</button>
+                        </div>
+
+                        <!-- Quick Add vs Custom Build choice (hidden) -->
+                        <div id="pb-add-choice" style="display: none; margin-top: 1.5rem;">
+                            <div style="display: flex; gap: 1rem; justify-content: center;">
+                                <div onclick="openAddSectionModal()" class="card" style="padding: 1.5rem 2rem; cursor: pointer; text-align: center; flex: 1; max-width: 250px; transition: box-shadow 0.2s; border: 2px solid #e2e8f0;" onmouseover="this.style.borderColor='#f97316'" onmouseout="this.style.borderColor='#e2e8f0'">
+                                    <div style="font-size: 2rem; margin-bottom: 0.5rem;">&#9889;</div>
+                                    <strong>Quick Add</strong>
+                                    <p style="font-size: 0.8rem; color: #64748b; margin: 0.5rem 0 0 0;">Drop in a premade section template</p>
+                                </div>
+                                <div onclick="openLayoutPicker()" class="card" style="padding: 1.5rem 2rem; cursor: pointer; text-align: center; flex: 1; max-width: 250px; transition: box-shadow 0.2s; border: 2px solid #e2e8f0;" onmouseover="this.style.borderColor='#6366f1'" onmouseout="this.style.borderColor='#e2e8f0'">
+                                    <div style="font-size: 2rem; margin-bottom: 0.5rem;">&#9998;</div>
+                                    <strong>Custom Build</strong>
+                                    <p style="font-size: 0.8rem; color: #64748b; margin: 0.5rem 0 0 0;">Pick a layout and add your own blocks</p>
+                                </div>
+                            </div>
+                            <div style="text-align: center; margin-top: 0.75rem;">
+                                <a href="#" onclick="hideAddSectionChoice(); return false;" style="font-size: 0.8rem; color: #94a3b8;">Cancel</a>
+                            </div>
+                        </div>
+
+                        <!-- Layout Picker (hidden) -->
+                        <div id="pb-layout-picker" style="display: none; margin-top: 1.5rem;">
+                            <h4 style="margin: 0 0 1rem 0;">Choose a Layout</h4>
+                            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 1rem;">
+                                <div onclick="selectLayout('full')" class="card" style="padding: 1rem; cursor: pointer; text-align: center; border: 2px solid #e2e8f0;" onmouseover="this.style.borderColor='#6366f1'" onmouseout="this.style.borderColor='#e2e8f0'">
+                                    <div style="background: #6366f120; height: 40px; border-radius: 4px; margin-bottom: 0.5rem;"></div>
+                                    <span style="font-size: 0.8rem; font-weight: 600;">Full Width</span>
+                                </div>
+                                <div onclick="selectLayout('50-50')" class="card" style="padding: 1rem; cursor: pointer; text-align: center; border: 2px solid #e2e8f0;" onmouseover="this.style.borderColor='#6366f1'" onmouseout="this.style.borderColor='#e2e8f0'">
+                                    <div style="display: flex; gap: 4px; height: 40px; margin-bottom: 0.5rem;"><div style="flex: 1; background: #6366f120; border-radius: 4px;"></div><div style="flex: 1; background: #6366f120; border-radius: 4px;"></div></div>
+                                    <span style="font-size: 0.8rem; font-weight: 600;">50 / 50</span>
+                                </div>
+                                <div onclick="selectLayout('60-40')" class="card" style="padding: 1rem; cursor: pointer; text-align: center; border: 2px solid #e2e8f0;" onmouseover="this.style.borderColor='#6366f1'" onmouseout="this.style.borderColor='#e2e8f0'">
+                                    <div style="display: flex; gap: 4px; height: 40px; margin-bottom: 0.5rem;"><div style="flex: 3; background: #6366f120; border-radius: 4px;"></div><div style="flex: 2; background: #6366f120; border-radius: 4px;"></div></div>
+                                    <span style="font-size: 0.8rem; font-weight: 600;">60 / 40</span>
+                                </div>
+                                <div onclick="selectLayout('40-60')" class="card" style="padding: 1rem; cursor: pointer; text-align: center; border: 2px solid #e2e8f0;" onmouseover="this.style.borderColor='#6366f1'" onmouseout="this.style.borderColor='#e2e8f0'">
+                                    <div style="display: flex; gap: 4px; height: 40px; margin-bottom: 0.5rem;"><div style="flex: 2; background: #6366f120; border-radius: 4px;"></div><div style="flex: 3; background: #6366f120; border-radius: 4px;"></div></div>
+                                    <span style="font-size: 0.8rem; font-weight: 600;">40 / 60</span>
+                                </div>
+                                <div onclick="selectLayout('33-33-33')" class="card" style="padding: 1rem; cursor: pointer; text-align: center; border: 2px solid #e2e8f0;" onmouseover="this.style.borderColor='#6366f1'" onmouseout="this.style.borderColor='#e2e8f0'">
+                                    <div style="display: flex; gap: 4px; height: 40px; margin-bottom: 0.5rem;"><div style="flex: 1; background: #6366f120; border-radius: 4px;"></div><div style="flex: 1; background: #6366f120; border-radius: 4px;"></div><div style="flex: 1; background: #6366f120; border-radius: 4px;"></div></div>
+                                    <span style="font-size: 0.8rem; font-weight: 600;">33 / 33 / 33</span>
+                                </div>
+                            </div>
+                            <div style="text-align: center; margin-top: 0.75rem;">
+                                <a href="#" onclick="hideLayoutPicker(); return false;" style="font-size: 0.8rem; color: #94a3b8;">Cancel</a>
+                            </div>
+                        </div>
+
+                        <!-- Block Editor (hidden) -->
+                        <div id="pb-block-editor" style="display: none; margin-top: 1.5rem;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                                <h4 style="margin: 0;" id="pb-block-editor-title">Build Section</h4>
+                                <a href="#" onclick="hideBlockEditor(); return false;" style="font-size: 0.8rem; color: #94a3b8;">Cancel</a>
+                            </div>
+                            <div id="pb-columns-container" style="display: flex; gap: 1rem; margin-bottom: 1rem;"></div>
+                            <div style="text-align: center;">
+                                <button class="btn" onclick="buildAndPushSection()" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); border-color: #10b981;">Insert Section</button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -54911,9 +54974,234 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
 
+        function showAddSectionChoice() {
+            document.getElementById('pb-add-section-bar').style.display = 'none';
+            document.getElementById('pb-add-choice').style.display = 'block';
+        }
+
+        function hideAddSectionChoice() {
+            document.getElementById('pb-add-choice').style.display = 'none';
+            document.getElementById('pb-add-section-bar').style.display = 'block';
+        }
+
         async function openAddSectionModal() {
+            hideAddSectionChoice();
             openModal('addSectionModal');
             loadSectionTemplates();
+        }
+
+        function openLayoutPicker() {
+            document.getElementById('pb-add-choice').style.display = 'none';
+            document.getElementById('pb-layout-picker').style.display = 'block';
+        }
+
+        function hideLayoutPicker() {
+            document.getElementById('pb-layout-picker').style.display = 'none';
+            document.getElementById('pb-add-section-bar').style.display = 'block';
+        }
+
+        let pbSelectedLayout = null;
+        let pbColumnBlocks = [];
+
+        const pbBlockTypes = [
+            { id: 'heading', label: 'Heading', icon: 'H' },
+            { id: 'text', label: 'Text', icon: 'T' },
+            { id: 'image', label: 'Image', icon: 'Img' },
+            { id: 'button', label: 'Button', icon: 'Btn' },
+            { id: 'search', label: 'Search Bar', icon: 'Src' },
+            { id: 'rooms', label: 'Room List', icon: 'Rm' },
+            { id: 'spacer', label: 'Spacer', icon: '—' },
+            { id: 'slider', label: 'Slider', icon: 'Sld' }
+        ];
+
+        function selectLayout(layout) {
+            pbSelectedLayout = layout;
+            const colMap = { 'full': 1, '50-50': 2, '60-40': 2, '40-60': 2, '33-33-33': 3 };
+            const colCount = colMap[layout] || 1;
+            pbColumnBlocks = new Array(colCount).fill(null).map(() => []);
+
+            document.getElementById('pb-layout-picker').style.display = 'none';
+            document.getElementById('pb-block-editor').style.display = 'block';
+            document.getElementById('pb-block-editor-title').textContent = `Build Section — ${layout.replace(/-/g, ' / ')}`;
+
+            renderColumnEditors();
+        }
+
+        function hideBlockEditor() {
+            document.getElementById('pb-block-editor').style.display = 'none';
+            document.getElementById('pb-add-section-bar').style.display = 'block';
+            pbSelectedLayout = null;
+            pbColumnBlocks = [];
+        }
+
+        function renderColumnEditors() {
+            const container = document.getElementById('pb-columns-container');
+            let html = '';
+            pbColumnBlocks.forEach((blocks, colIdx) => {
+                html += `<div style="flex: 1; border: 2px dashed #e2e8f0; border-radius: 8px; padding: 1rem; min-height: 120px;">`;
+                html += `<div style="font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.5rem; font-weight: 600;">Column ${colIdx + 1}</div>`;
+
+                blocks.forEach((block, blockIdx) => {
+                    html += `<div class="card" style="padding: 0.5rem 0.75rem; margin-bottom: 0.5rem; border-left: 3px solid #6366f1;">`;
+                    html += `<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">`;
+                    html += `<strong style="font-size: 0.8rem;">${block.label}</strong>`;
+                    html += `<button onclick="removeBlock(${colIdx}, ${blockIdx})" style="border: none; background: none; color: #ef4444; cursor: pointer; font-size: 0.8rem;">x</button>`;
+                    html += `</div>`;
+                    html += renderBlockInputs(colIdx, blockIdx, block);
+                    html += `</div>`;
+                });
+
+                html += `<div style="text-align: center; margin-top: 0.5rem;">`;
+                html += `<button onclick="showBlockTypePicker(${colIdx})" class="btn btn-small btn-secondary" style="font-size: 0.7rem;">+ Add Block</button>`;
+                html += `</div>`;
+
+                // Block type picker (hidden per column)
+                html += `<div id="pb-block-picker-${colIdx}" style="display: none; margin-top: 0.5rem;">`;
+                html += `<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.25rem;">`;
+                pbBlockTypes.forEach(bt => {
+                    html += `<button onclick="addBlockToColumn(${colIdx}, '${bt.id}')" class="btn btn-small btn-secondary" style="font-size: 0.7rem; padding: 0.4rem;">${bt.label}</button>`;
+                });
+                html += `</div></div>`;
+
+                html += `</div>`;
+            });
+            container.innerHTML = html;
+        }
+
+        function renderBlockInputs(colIdx, blockIdx, block) {
+            const base = `pb-block-${colIdx}-${blockIdx}`;
+            switch (block.type) {
+                case 'heading':
+                    return `<input type="text" class="form-input" style="font-size: 0.8rem;" placeholder="Heading text" value="${block.text || ''}" onchange="updateBlock(${colIdx},${blockIdx},'text',this.value)">
+                            <select class="form-input" style="font-size: 0.8rem; margin-top: 0.25rem;" onchange="updateBlock(${colIdx},${blockIdx},'level',this.value)">
+                                <option value="h2" ${block.level === 'h2' ? 'selected' : ''}>H2</option>
+                                <option value="h3" ${block.level === 'h3' ? 'selected' : ''}>H3</option>
+                                <option value="h1" ${block.level === 'h1' ? 'selected' : ''}>H1</option>
+                            </select>`;
+                case 'text':
+                    return `<textarea class="form-input" style="font-size: 0.8rem; min-height: 60px;" placeholder="Paragraph text" onchange="updateBlock(${colIdx},${blockIdx},'text',this.value)">${block.text || ''}</textarea>`;
+                case 'image':
+                    return `<input type="text" class="form-input" style="font-size: 0.8rem;" placeholder="Image URL" value="${block.url || ''}" onchange="updateBlock(${colIdx},${blockIdx},'url',this.value)">
+                            <input type="text" class="form-input" style="font-size: 0.8rem; margin-top: 0.25rem;" placeholder="Alt text" value="${block.alt || ''}" onchange="updateBlock(${colIdx},${blockIdx},'alt',this.value)">`;
+                case 'button':
+                    return `<input type="text" class="form-input" style="font-size: 0.8rem;" placeholder="Button text" value="${block.text || ''}" onchange="updateBlock(${colIdx},${blockIdx},'text',this.value)">
+                            <input type="text" class="form-input" style="font-size: 0.8rem; margin-top: 0.25rem;" placeholder="Link URL" value="${block.url || ''}" onchange="updateBlock(${colIdx},${blockIdx},'url',this.value)">`;
+                case 'search':
+                    return `<span style="font-size: 0.75rem; color: #64748b;">[gas_search] shortcode</span>`;
+                case 'rooms':
+                    return `<span style="font-size: 0.75rem; color: #64748b;">[gas_rooms] shortcode</span>`;
+                case 'spacer':
+                    return `<input type="number" class="form-input" style="font-size: 0.8rem; width: 80px;" placeholder="40" value="${block.height || 40}" onchange="updateBlock(${colIdx},${blockIdx},'height',this.value)"> <span style="font-size: 0.75rem; color: #64748b;">px</span>`;
+                case 'slider':
+                    return `<input type="text" class="form-input" style="font-size: 0.8rem;" placeholder="Smart Slider ID" value="${block.sliderId || ''}" onchange="updateBlock(${colIdx},${blockIdx},'sliderId',this.value)">`;
+                default:
+                    return '';
+            }
+        }
+
+        function showBlockTypePicker(colIdx) {
+            document.getElementById(`pb-block-picker-${colIdx}`).style.display = 'block';
+        }
+
+        function addBlockToColumn(colIdx, typeId) {
+            const bt = pbBlockTypes.find(b => b.id === typeId);
+            pbColumnBlocks[colIdx].push({ type: typeId, label: bt.label });
+            document.getElementById(`pb-block-picker-${colIdx}`).style.display = 'none';
+            renderColumnEditors();
+        }
+
+        function removeBlock(colIdx, blockIdx) {
+            pbColumnBlocks[colIdx].splice(blockIdx, 1);
+            renderColumnEditors();
+        }
+
+        function updateBlock(colIdx, blockIdx, key, value) {
+            pbColumnBlocks[colIdx][blockIdx][key] = value;
+        }
+
+        function blockToMarkup(block) {
+            switch (block.type) {
+                case 'heading': {
+                    const level = block.level || 'h2';
+                    const num = level.replace('h', '');
+                    return `<!-- wp:heading {"level":${num}} -->\n<${level} class="wp-block-heading">${block.text || ''}</${level}>\n<!-- /wp:heading -->`;
+                }
+                case 'text':
+                    return `<!-- wp:paragraph -->\n<p>${block.text || ''}</p>\n<!-- /wp:paragraph -->`;
+                case 'image':
+                    return `<!-- wp:image -->\n<figure class="wp-block-image"><img src="${block.url || ''}" alt="${block.alt || ''}"/></figure>\n<!-- /wp:image -->`;
+                case 'button':
+                    return `<!-- wp:buttons -->\n<div class="wp-block-buttons"><!-- wp:button -->\n<div class="wp-block-button"><a class="wp-block-button__link" href="${block.url || '#'}">${block.text || 'Click'}</a></div>\n<!-- /wp:button --></div>\n<!-- /wp:buttons -->`;
+                case 'search':
+                    return `<!-- wp:shortcode -->\n[gas_search layout="horizontal"]\n<!-- /wp:shortcode -->`;
+                case 'rooms':
+                    return `<!-- wp:shortcode -->\n[gas_rooms]\n<!-- /wp:shortcode -->`;
+                case 'spacer':
+                    return `<!-- wp:spacer {"height":"${block.height || 40}px"} -->\n<div style="height:${block.height || 40}px" aria-hidden="true" class="wp-block-spacer"></div>\n<!-- /wp:spacer -->`;
+                case 'slider':
+                    return `<!-- wp:shortcode -->\n[smartslider3 slider="${block.sliderId || ''}"]\n<!-- /wp:shortcode -->`;
+                default:
+                    return '';
+            }
+        }
+
+        async function buildAndPushSection() {
+            if (!proBuilderBlogId || !proBuilderPageId) return;
+
+            // Build block markup from columns
+            let markup = '';
+            if (pbSelectedLayout === 'full') {
+                // Full width — no columns wrapper, just blocks
+                markup = pbColumnBlocks[0].map(blockToMarkup).join('\n\n');
+            } else {
+                // Multi-column layout
+                const widthMap = {
+                    '50-50': [50, 50],
+                    '60-40': [60, 40],
+                    '40-60': [40, 60],
+                    '33-33-33': [33.33, 33.33, 33.33]
+                };
+                const widths = widthMap[pbSelectedLayout] || [50, 50];
+
+                let colsMarkup = '';
+                pbColumnBlocks.forEach((blocks, i) => {
+                    const w = widths[i];
+                    const inner = blocks.map(blockToMarkup).join('\n\n');
+                    colsMarkup += `<!-- wp:column {"width":"${w}%"} -->\n<div class="wp-block-column" style="flex-basis:${w}%">\n${inner}\n</div>\n<!-- /wp:column -->\n\n`;
+                });
+
+                markup = `<!-- wp:columns -->\n<div class="wp-block-columns">\n${colsMarkup}</div>\n<!-- /wp:columns -->`;
+            }
+
+            if (!markup.trim()) {
+                showNotification('Add at least one block before inserting', 'error');
+                return;
+            }
+
+            try {
+                showNotification('Inserting section...', 'info');
+                const res = await fetch(`/api/templates/0/push`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({
+                        blog_id: proBuilderBlogId,
+                        page_id: proBuilderPageId,
+                        position: 'bottom',
+                        raw_block_markup: markup
+                    })
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    showNotification('Section added', 'success');
+                    hideBlockEditor();
+                    loadPageSections();
+                } else {
+                    showNotification(data.error || 'Failed to insert section', 'error');
+                }
+            } catch (error) {
+                showNotification('Error: ' + error.message, 'error');
+            }
         }
 
         async function loadSectionTemplates() {

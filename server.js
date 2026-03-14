@@ -79184,16 +79184,20 @@ app.post('/api/templates/:id/push', async (req, res) => {
       return res.json({ success: false, error: 'Master admin access required' });
     }
 
-    // Get the template
-    const template = await pool.query(
-      'SELECT * FROM gas_templates WHERE id = $1 AND active = true',
-      [req.params.id]
-    );
-    if (template.rows.length === 0) {
-      return res.json({ success: false, error: 'Template not found' });
-    }
+    const { account_id, site_url, blog_id, mode, page_id, position, page_title, page_slug, add_to_menu, raw_block_markup } = req.body;
 
-    const { account_id, site_url, blog_id, mode, page_id, position, page_title, page_slug, add_to_menu } = req.body;
+    // Template ID 0 = custom-built section (raw markup provided directly)
+    let tpl = null;
+    if (req.params.id !== '0') {
+      const template = await pool.query(
+        'SELECT * FROM gas_templates WHERE id = $1 AND active = true',
+        [req.params.id]
+      );
+      if (template.rows.length === 0) {
+        return res.json({ success: false, error: 'Template not found' });
+      }
+      tpl = template.rows[0];
+    }
 
     let resolvedUrl = site_url;
     let resolvedAccountId = account_id;
@@ -79226,14 +79230,13 @@ app.post('/api/templates/:id/push', async (req, res) => {
     const apiKey = license.rows[0].license_key;
 
     // Call the WordPress plugin endpoint
-    const tpl = template.rows[0];
     const pushResponse = await fetch(`${cleanUrl}/wp-json/gas/v1/push-template`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         api_key: apiKey,
-        template_json: tpl.elementor_json || null,
-        block_markup: tpl.block_markup || null,
+        template_json: tpl ? (tpl.elementor_json || null) : null,
+        block_markup: tpl ? (tpl.block_markup || null) : (raw_block_markup || null),
         mode: mode || 'push_to_existing',
         page_id,
         position: position || 'bottom',
