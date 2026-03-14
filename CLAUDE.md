@@ -345,6 +345,58 @@ GAS (Global Accommodation System) is a full-stack hotel booking and property man
 
 ---
 
+## WEB BUILDER AUDIT — 14 March 2026
+
+Full field-by-field audit of every Web Builder section across UI → API → DB → Swagger → Theme.
+
+### CRITICAL (settings saved but never render)
+
+| # | Bug | Root Cause | Files |
+|---|-----|-----------|-------|
+| 1 | **Hero badge link** | UI saves `button-link`, theme reads `badge-link` | functions.php:2615 |
+| 2 | **Hero overlay opacity** | UI saves `overlay`, theme reads `opacity` | functions.php:2609 |
+| 3 | **Custom CSS** | Theme reads `get_theme_mod()` only, ignores API value | functions.php:2879 |
+| 4 | **Contact opening hours** | Full UI + DB + Swagger, but functions.php doesn't map them and template-contact.php doesn't render | functions.php, template-contact.php |
+| 5 | **About images 2/3/4** | UI saves `image-2-url` etc, front-page.php reads `$api['about_image_2']`, but functions.php never maps them | functions.php:2649 |
+| 6 | **Hero height** | CSS output reads `get_theme_mod()` not `$api` | functions.php:2948 |
+| 7 | **Hero trust text colour** | front-page.php reads `get_theme_mod()` not `$api` | front-page.php:63 |
+| 8 | **Header underline colour** | CSS reads `get_theme_mod()` not `$api` | functions.php:3120 |
+| 9 | **Section BG colours (4)** | `featured-bg`, `about-bg`, `testimonials-bg`, `cta-bg` all read `get_theme_mod()` | functions.php:2928-2931 |
+| 10 | **Footer BG/text** | CSS reads `get_theme_mod()` not `$api` | functions.php:2934-2935 |
+| 11 | **Contact show-email/phone/address** | Toggles in UI + API but template always shows if values non-empty | template-contact.php |
+
+### IMPORTANT (missing UI or incomplete features)
+
+| # | Gap | Details |
+|---|-----|---------|
+| 1 | **CTA link in header** | Hardcoded `/book-now/` — no `wb-header-cta-link` input exists |
+| 2 | **FAQ sections** | `faq-enabled` + FAQ list in Contact, About, Blog, Attractions, Rooms — theme doesn't render any |
+| 3 | **Footer layout toggle** | Dropdown (standard/minimal/centered) saved but footer.php ignores it |
+| 4 | **Meta title/description** | Contact + About page save these but no SEO rendering in theme |
+| 5 | **Rooms filter toggles** | Theme reads `show-filters`, `show-property-filter`, `show-date-filters`, `show-guest-filter` — no UI |
+| 6 | **Blog/Attractions menu-order** | Theme reads `page_blog_menu_order` / `page_attractions_menu_order` — no UI input |
+| 7 | **Offers page content disconnect** | UI saves title/subtitle/content but `[gas_offers]` shortcode uses separate WP options |
+| 8 | **Privacy ext-heading/ext-text** | In UI, saved to DB, but never consumed by theme |
+| 9 | **Terms/Privacy section enables** | 7 terms + 8 privacy sub-section enabled/title fields — in DB but no UI toggles |
+| 10 | **Powered-by toggle** | Hardcoded "Powered by GAS" in footer.php — no way to hide |
+
+### NICE TO HAVE (gaps and inconsistencies)
+
+| # | Issue | Details |
+|---|-------|---------|
+| 1 | **Rooms missing DE tab** | Blog + Attractions have 5 lang tabs, Rooms only 4 (no German) |
+| 2 | **Contact duplicated checkboxes** | `show-map`, `show-directions`, `show-form` appear twice in UI |
+| 3 | **Terms/Privacy title key** | Uses bare `title` not `title-en` like other sections |
+| 4 | **SECTION_DEFAULTS gaps** | Footer: heading-quicklinks, heading-legal, company/tax numbers. Styles: subheading-font, subheading-size, section-spacing. Header: border-style-color/type, favicon, apple-icon. Hero: show-badge, title-color, subtitle-color. Contact: 18+ fields missing defaults. |
+| 5 | **Swagger gaps** | Header: 12 undocumented fields. Hero: 20+ undocumented fields. Footer: no example payload. Blog/Attractions: no dedicated endpoints. |
+| 6 | **Rooms enabled hardcoded** | Theme hardcodes `page_rooms_enabled => true` — UI checkbox misleading |
+| 7 | **Footer dual data path** | footer.php reads colours from old `branding.footer` path, other fields from `$api_settings` |
+| 8 | **About page content-image-2** | In UI + functions.php but template-about.php doesn't render it |
+| 9 | **btn-secondary-bg/text** | Theme reads these from styles but no UI or defaults exist |
+| 10 | **search-max-guests** | In UI + API + Swagger but theme never consumes it |
+
+---
+
 ## SWAGGER / API DOCS
 
 - URL: https://admin.gas.travel/api/docs
