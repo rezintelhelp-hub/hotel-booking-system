@@ -166,7 +166,7 @@ GAS (Global Accommodation System) is a full-stack hotel booking and property man
 
 ---
 
-## CURRENT PRIORITIES — 13 March 2026
+## CURRENT PRIORITIES — 14 March 2026
 
 1. **Plugin licensing system** — Extend licensing to cover gas-hostvana and all future plugins, tied to Stripe subscription status. Currently only gas-booking has licensing. Needs: license generation per plugin, subscription tier checks, activation/deactivation flow, expiry handling.
 2. Footer — Terms and Privacy links broken
@@ -182,6 +182,32 @@ GAS (Global Accommodation System) is a full-stack hotel booking and property man
 12. Partner/Elevate white-label URLs — branded domains per partner
 13. Theme marketplace — add new themes via UI, open to third-party theme builders, manage within GAS Admin
 14. Web Builder text formatting — add basic rich text controls (bold, italic, colour picker, hyperlink) to all text fields in the standard Web Builder. Currently plain text only. Needed for all clients on standard tier.
+15. Template Library UI — seeding more templates from existing GAS themes
+16. Pro tier upgrade path — subscription_tier column on accounts, Stripe product for Pro, upgrade flow in GAS Admin, gated template access
+17. Page builder / block system — reusable content blocks for Standard tier sites (text, image, button, columns) with ordering
+18. Burger/hamburger theme — new theme for GAS multisite, editorial style, for Hebden Bridge type clients
+19. Blog migration tool — SSH into app3, extract WordPress posts, AI categorisation, insert into GAS blog
+20. Client migration plan — audit all clients on app3, score complexity (simple/medium/complex), batch migrate simple clients first
+21. Hostvana — complete end to end test with Pedro, inject property ID from booking plugin context, Beds24 master API key
+
+---
+
+## PRODUCT TIERS
+
+- **Instant Website (standard)** — GAS hosted, standard theme, Web Builder
+- **Instant Website Pro (pro)** — everything in standard + Template Library, Elementor, burger themes
+- **Plugin Only** — booking plugin for client's own WordPress site, $19.99/mo
+- **Custom Bespoke (bespoke)** — fully custom built site, $2,500 setup + $99/mo. Example: Hebden Bridge Hostel
+
+---
+
+## SERVER INFRASTRUCTURE
+
+- **GAS Railway (Node.js + PostgreSQL)** — admin.gas.travel
+- **GAS WordPress Multisite VPS** — 72.61.207.109, /var/www/wordpress
+- **app3 Linode (READ ONLY)** — 139.162.234.112, Rezintel/old clients, reference only for migration, DO NOT modify
+- **Old Linode (READ ONLY)** — 178.79.158.188, ~10 old clients, needs password reset to access
+- **Hebden Bridge custom site** — 31.97.119.90, /var/www/hebdenbridgehostel.custom.gas.travel
 
 ---
 
