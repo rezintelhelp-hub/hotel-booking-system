@@ -78894,7 +78894,7 @@ app.get('/api/pro-builder/sites/:blog_id/pages', async (req, res) => {
 
     // Get license key for this account
     const license = await pool.query(
-      "SELECT license_key FROM plugin_licenses WHERE account_id = $1 AND plugin_name = 'gas-booking' AND status = 'active' LIMIT 1",
+      "SELECT license_key FROM plugin_licenses WHERE account_id = $1 AND status = 'active' LIMIT 1",
       [siteRow.account_id]
     );
     const licenseKey = license.rows.length > 0 ? license.rows[0].license_key : '';
