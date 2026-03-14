@@ -78958,7 +78958,7 @@ app.get('/api/pro-builder/sites/:blog_id/pages/:page_id', async (req, res) => {
     }
 
     const siteRow = site.rows[0];
-    let siteUrl = siteRow.site_url || siteRow.domain;
+    let siteUrl = (siteRow.site_url || '').replace(/\/+$/, '');
     if (!siteUrl.startsWith('http')) siteUrl = 'https://' + siteUrl;
 
     // Get license key for authenticated raw content fetch
@@ -78969,7 +78969,9 @@ app.get('/api/pro-builder/sites/:blog_id/pages/:page_id', async (req, res) => {
     const licenseKey = license.rows.length > 0 ? license.rows[0].license_key : '';
 
     // Fetch raw page content via gas-template-push plugin endpoint
-    const wpRes = await fetch(`${siteUrl}/wp-json/gas/v1/page-content/${pageId}?api_key=${encodeURIComponent(licenseKey)}`);
+    const wpRes = await fetch(`${siteUrl}/wp-json/gas/v1/page-content/${pageId}?api_key=${encodeURIComponent(licenseKey)}`, {
+      signal: AbortSignal.timeout(15000)
+    });
 
     if (!wpRes.ok) {
       return res.json({ success: false, error: `WordPress API returned ${wpRes.status}` });
@@ -79232,7 +79234,7 @@ app.post('/api/templates/:id/push', async (req, res) => {
       if (siteRow.rows.length === 0) {
         return res.json({ success: false, error: 'Site not found for blog_id' });
       }
-      resolvedUrl = siteRow.rows[0].site_url || siteRow.rows[0].domain;
+      resolvedUrl = (siteRow.rows[0].site_url || '').replace(/\/+$/, '');
       resolvedAccountId = siteRow.rows[0].account_id;
     }
 
