@@ -50526,7 +50526,9 @@ app.put('/api/partner/websites/:websiteId/header', async (req, res) => {
     }
     
     const { websiteId } = req.params;
-    const { sticky, fixed_header, transparent, transparent_opacity, layout, border, border_color, border_width } = req.body;
+    const { sticky, fixed_header, transparent, transparent_opacity, layout, border, border_color, border_width,
+            bg_color, text_color, underline_color, cta_bg, cta_text_color, cta_button_text,
+            font, font_size, font_weight, text_transform } = req.body;
     
     const deployedSiteId = await getPartnerDeployedSiteId(auth.partnerId, websiteId);
     if (!deployedSiteId) {
@@ -50567,9 +50569,19 @@ app.put('/api/partner/websites/:websiteId/header', async (req, res) => {
     if (border !== undefined) { settings['border'] = border; changes['border'] = border; }
     if (border_color !== undefined) { settings['border-color'] = border_color; changes['border-color'] = border_color; }
     if (border_width !== undefined) { settings['border-width'] = String(border_width); changes['border-width'] = String(border_width); }
-    
+    if (bg_color !== undefined) { settings['bg-color'] = bg_color; changes['bg-color'] = bg_color; }
+    if (text_color !== undefined) { settings['text-color'] = text_color; changes['text-color'] = text_color; }
+    if (underline_color !== undefined) { settings['underline-color'] = underline_color; changes['underline-color'] = underline_color; }
+    if (cta_bg !== undefined) { settings['cta-bg'] = cta_bg; changes['cta-bg'] = cta_bg; }
+    if (cta_text_color !== undefined) { settings['cta-text-color'] = cta_text_color; changes['cta-text-color'] = cta_text_color; }
+    if (cta_button_text !== undefined) { settings['cta-button-text-en'] = cta_button_text; changes['cta-button-text-en'] = cta_button_text; }
+    if (font !== undefined) { settings['font'] = font; changes['font'] = font; }
+    if (font_size !== undefined) { settings['font-size'] = String(font_size); changes['font-size'] = String(font_size); }
+    if (font_weight !== undefined) { settings['font-weight'] = font_weight; changes['font-weight'] = font_weight; }
+    if (text_transform !== undefined) { settings['text-transform'] = text_transform; changes['text-transform'] = text_transform; }
+
     if (Object.keys(changes).length === 0) {
-      return res.status(400).json({ success: false, error: 'No fields provided. Use: sticky, fixed_header, transparent, transparent_opacity, layout, border, border_color, border_width' });
+      return res.status(400).json({ success: false, error: 'No fields provided. Use: sticky, fixed_header, transparent, transparent_opacity, layout, border, border_color, border_width, bg_color, text_color, underline_color, cta_bg, cta_text_color, cta_button_text, font, font_size, font_weight, text_transform' });
     }
     
     // UPSERT header settings
@@ -50605,7 +50617,17 @@ app.put('/api/partner/websites/:websiteId/header', async (req, res) => {
         layout: settings['layout'],
         border: settings['border'],
         border_color: settings['border-color'],
-        border_width: settings['border-width']
+        border_width: settings['border-width'],
+        bg_color: settings['bg-color'],
+        text_color: settings['text-color'],
+        underline_color: settings['underline-color'],
+        cta_bg: settings['cta-bg'],
+        cta_text_color: settings['cta-text-color'],
+        cta_button_text: settings['cta-button-text-en'],
+        font: settings['font'],
+        font_size: settings['font-size'],
+        font_weight: settings['font-weight'],
+        text_transform: settings['text-transform']
       },
       wordpress_push: wpPushResult
     });
@@ -51063,10 +51085,15 @@ app.get('/api/partner/websites/:websiteId/styles', async (req, res) => {
         btn_primary_bg: s['btn-primary-bg'] || '#2563eb',
         btn_primary_text: s['btn-primary-text'] || '#ffffff',
         btn_radius: s['btn-radius'] || '8',
+        featured_bg: s['featured-bg'] || '',
+        about_bg: s['about-bg'] || '',
+        testimonials_bg: s['testimonials-bg'] || '',
+        cta_bg: s['cta-bg'] || '',
+        section_spacing: s['section-spacing'] || '20',
         custom_css: s['custom-css'] || ''
       }
     });
-    
+
   } catch (error) {
     console.error('Partner API get styles error:', error);
     res.status(500).json({ success: false, error: error.message });
@@ -51096,7 +51123,8 @@ app.put('/api/partner/websites/:websiteId/styles', async (req, res) => {
             heading_font, subheading_font, body_font,
             title_size, subheading_size, body_size,
             btn_primary_bg, btn_primary_text,
-            btn_radius, custom_css } = req.body;
+            btn_radius, featured_bg, about_bg, testimonials_bg, cta_bg,
+            section_spacing, custom_css } = req.body;
     
     const stylesResult = await pool.query(
       `SELECT settings FROM website_settings WHERE deployed_site_id = $1 AND section = 'styles'`,
@@ -51119,10 +51147,15 @@ app.put('/api/partner/websites/:websiteId/styles', async (req, res) => {
       btn_primary_bg: 'btn-primary-bg',
       btn_primary_text: 'btn-primary-text',
       btn_radius: 'btn-radius',
+      featured_bg: 'featured-bg',
+      about_bg: 'about-bg',
+      testimonials_bg: 'testimonials-bg',
+      cta_bg: 'cta-bg',
+      section_spacing: 'section-spacing',
       custom_css: 'custom-css'
     };
 
-    const incoming = { primary_color, secondary_color, accent_color, link_color, heading_font, subheading_font, body_font, title_size, subheading_size, body_size, btn_primary_bg, btn_primary_text, btn_radius, custom_css };
+    const incoming = { primary_color, secondary_color, accent_color, link_color, heading_font, subheading_font, body_font, title_size, subheading_size, body_size, btn_primary_bg, btn_primary_text, btn_radius, featured_bg, about_bg, testimonials_bg, cta_bg, section_spacing, custom_css };
     
     for (const [apiField, cssField] of Object.entries(fieldMap)) {
       if (incoming[apiField] !== undefined) {
@@ -51132,7 +51165,7 @@ app.put('/api/partner/websites/:websiteId/styles', async (req, res) => {
     }
     
     if (Object.keys(changes).length === 0) {
-      return res.status(400).json({ success: false, error: 'No fields provided. Use: primary_color, secondary_color, accent_color, link_color, heading_font, subheading_font, body_font, title_size, subheading_size, body_size, btn_primary_bg, btn_primary_text, btn_radius, custom_css' });
+      return res.status(400).json({ success: false, error: 'No fields provided. Use: primary_color, secondary_color, accent_color, link_color, heading_font, subheading_font, body_font, title_size, subheading_size, body_size, btn_primary_bg, btn_primary_text, btn_radius, featured_bg, about_bg, testimonials_bg, cta_bg, section_spacing, custom_css' });
     }
     
     if (stylesResult.rows.length > 0) {
@@ -51338,13 +51371,15 @@ app.get('/api/partner/websites/:websiteId/rooms-page', async (req, res) => {
           text: s['text-color'] || ''
         },
         transparent_header: s['transparent-header'] === true || s['transparent-header'] === 'true',
+        menu_order: s['menu-order'] || '',
+        faq_enabled: s['faq-enabled'] === true || s['faq-enabled'] === 'true',
         meta: {
           title: s['meta-title'] || '',
           description: s['meta-description'] || ''
         }
       }
     });
-    
+
   } catch (error) {
     console.error('Partner API get rooms page error:', error);
     res.status(500).json({ success: false, error: error.message });
@@ -51373,6 +51408,7 @@ app.put('/api/partner/websites/:websiteId/rooms-page', async (req, res) => {
     const { enabled, title, subtitle, menu_title, columns, layout_style,
             show_search, show_amenity_filter, show_location_filter, show_map,
             filter_bg, bg_color, text_color, transparent_header,
+            menu_order, faq_enabled,
             meta_title, meta_description } = req.body;
     
     const pageResult = await pool.query(
@@ -51397,13 +51433,16 @@ app.put('/api/partner/websites/:websiteId/rooms-page', async (req, res) => {
       bg_color: 'bg-color',
       text_color: 'text-color',
       transparent_header: 'transparent-header',
+      menu_order: 'menu-order',
+      faq_enabled: 'faq-enabled',
       meta_title: 'meta-title',
       meta_description: 'meta-description'
     };
-    
+
     const incoming = { enabled, title, subtitle, menu_title, columns, layout_style,
                        show_search, show_amenity_filter, show_location_filter, show_map,
                        filter_bg, bg_color, text_color, transparent_header,
+                       menu_order, faq_enabled,
                        meta_title, meta_description };
     
     for (const [apiField, cssField] of Object.entries(fieldMap)) {
@@ -51466,6 +51505,19 @@ app.get('/api/partner/websites/:websiteId/contact-page', async (req, res) => {
         transparent_header: v('transparent-header') === true || v('transparent-header') === 'true',
         title: v('title-en') || '',
         subtitle: v('subtitle-en') || '',
+        hero: {
+          enabled: v('hero-enabled') === true || v('hero-enabled') === 'true',
+          image: v('hero-image') || '',
+          header_bg: v('header-bg') || '',
+          header_text: v('header-text') || ''
+        },
+        section_titles: {
+          details: v('details-title-en') || 'Contact Details',
+          directions: v('directions-text-en') || 'Get Directions',
+          map: v('map-title-en') || 'Find Us',
+          form: v('form-title-en') || 'Send a Message'
+        },
+        faq_enabled: v('faq-enabled') === true || v('faq-enabled') === 'true',
         display_options: {
           show_details: v('show-details') !== false && v('show-details') !== 'false',
           show_email: v('show-email') !== false && v('show-email') !== 'false',
@@ -51538,6 +51590,8 @@ app.put('/api/partner/websites/:websiteId/contact-page', async (req, res) => {
     const {
       enabled, menu_title, menu_order, transparent_header,
       title, subtitle,
+      hero_enabled, hero_image, header_bg, header_text,
+      details_title, directions_text, map_title, form_title, faq_enabled,
       show_details, show_email, show_phone, show_address, show_map, show_directions, show_contact_form, show_opening_hours,
       business_name, email, phone, address, city, state, zip, country,
       opening_hours,
@@ -51550,6 +51604,15 @@ app.put('/api/partner/websites/:websiteId/contact-page', async (req, res) => {
       enabled: 'enabled',
       menu_order: 'menu-order',
       transparent_header: 'transparent-header',
+      hero_enabled: 'hero-enabled',
+      hero_image: 'hero-image',
+      header_bg: 'header-bg',
+      header_text: 'header-text',
+      details_title: 'details-title-en',
+      directions_text: 'directions-text-en',
+      map_title: 'map-title-en',
+      form_title: 'form-title-en',
+      faq_enabled: 'faq-enabled',
       show_details: 'show-details',
       show_email: 'show-email',
       show_phone: 'show-phone',
@@ -51576,6 +51639,8 @@ app.put('/api/partner/websites/:websiteId/contact-page', async (req, res) => {
     
     const incoming = {
       enabled, menu_order, transparent_header,
+      hero_enabled, hero_image, header_bg, header_text,
+      details_title, directions_text, map_title, form_title, faq_enabled,
       show_details, show_email, show_phone, show_address, show_map, show_directions, show_contact_form, show_opening_hours,
       business_name, email, phone, address, city, state, zip, country,
       latitude, longitude, map_zoom, button_color,
@@ -52496,7 +52561,9 @@ const SECTION_DEFAULTS = {
     'fixed-header': false,
     'transparent': true,
     'transparent-opacity': '35',
-    'border': false
+    'border': false,
+    'favicon-image-url': '',
+    'apple-icon-image-url': ''
   },
   hero: {
     'headline-en': '',
@@ -52582,12 +52649,16 @@ const SECTION_DEFAULTS = {
     'title-en': 'About Us',
     'text-en': '',
     'image-url': '',
+    'image-2-url': '',
+    'image-3-url': '',
+    'image-4-url': '',
     'bg': '#ffffff',
     'text-color': '#1e293b',
     'title-color': '',
     'title-size': '',
     'text-size': '',
     'layout': 'image-left',
+    'show-btn': false,
     'feature-1-en': '',
     'feature-2-en': '',
     'feature-3-en': '',
@@ -52677,6 +52748,12 @@ const SECTION_DEFAULTS = {
     'email': '',
     'copyright-en': '',
     'layout': 'standard',
+    'heading-quicklinks-en': 'Quick Links',
+    'heading-legal-en': 'Legal',
+    'company-number-label-en': '',
+    'company-number-en': '',
+    'tax-number-label-en': '',
+    'tax-number-en': '',
     'social-facebook': '',
     'social-instagram': '',
     'social-twitter': '',
@@ -52692,8 +52769,10 @@ const SECTION_DEFAULTS = {
     'accent-color': '#f59e0b',
     'link-color': '#2563eb',
     'heading-font': 'Inter',
+    'subheading-font': 'Inter',
     'body-font': 'Inter',
     'title-size': '',
+    'subheading-size': '',
     'body-size': '',
     'btn-primary-bg': '#2563eb',
     'btn-primary-text': '#ffffff',
@@ -52702,6 +52781,7 @@ const SECTION_DEFAULTS = {
     'about-bg': '',
     'testimonials-bg': '',
     'cta-bg': '',
+    'section-spacing': '20',
     'custom-css': ''
   },
   seo: {
@@ -52746,7 +52826,9 @@ const SECTION_DEFAULTS = {
     'content-en': '',
     'content-image': '',
     'content-image-2': '',
+    'hero-enabled': false,
     'hero-image': '',
+    'transparent-header': false,
     'bg': '',
     'text-color': '',
     'title-color': '',
@@ -52772,6 +52854,7 @@ const SECTION_DEFAULTS = {
     'menu-title-en': 'Blog',
     'title-en': 'Blog',
     'subtitle-en': '',
+    'menu-order': '',
     'meta-title': '',
     'meta-description': '',
     'faq-enabled': false
@@ -52781,6 +52864,7 @@ const SECTION_DEFAULTS = {
     'menu-title-en': 'Things To Do',
     'title-en': 'Things To Do',
     'subtitle-en': '',
+    'menu-order': '',
     'meta-title': '',
     'meta-description': '',
     'faq-enabled': false
@@ -52801,6 +52885,7 @@ const SECTION_DEFAULTS = {
     'menu-order': '',
     'meta-title': '',
     'meta-description': '',
+    'faq-enabled': false,
     'content': ''
   },
   'page-properties': {
@@ -52825,11 +52910,31 @@ const SECTION_DEFAULTS = {
   'page-contact': {
     'enabled': false,
     'menu-title-en': 'Contact',
+    'title-en': 'Contact Us',
+    'subtitle-en': '',
     'menu-order': '8',
     'transparent-header': false,
+    'hero-enabled': false,
+    'hero-image': '',
+    'header-bg': '',
+    'header-text': '',
     'meta-title': '',
     'meta-description': '',
     'faq-enabled': false,
+    // Contact details
+    'business-name': '',
+    'email': '',
+    'phone': '',
+    'address': '',
+    'city': '',
+    'state': '',
+    'zip': '',
+    'country': '',
+    // Section titles
+    'details-title-en': 'Contact Details',
+    'directions-text-en': 'Get Directions',
+    'map-title-en': 'Find Us',
+    'form-title-en': 'Send a Message',
     // Display Options
     'show-details': true,
     'show-email': true,
@@ -52858,6 +52963,10 @@ const SECTION_DEFAULTS = {
     'title': 'Terms & Conditions',
     'updated': '',
     'menu-title-en': 'Terms',
+    'use-external': false,
+    'external-url': '',
+    'source': 'custom',
+    'content-en': '',
     'meta-title': '',
     'meta-description': '',
     'checkin-enabled': true,
@@ -52890,6 +52999,13 @@ const SECTION_DEFAULTS = {
     'updated': '',
     'effective': '',
     'menu-title-en': 'Privacy',
+    'use-external': false,
+    'external-url': '',
+    'ext-heading-en': '',
+    'ext-text-en': '',
+    'business-name': '',
+    'contact-email': '',
+    'business-address': '',
     'meta-title': '',
     'meta-description': '',
     'intro-enabled': true,
