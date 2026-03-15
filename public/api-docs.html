@@ -813,16 +813,16 @@
                 "get": {
                     "tags": ["Properties & Rooms"],
                     "summary": "Get Property Terms",
-                    "description": "Get check-in/out times, house rules, cancellation policy and other terms for a property.\n\n**Extended fields** (synced from channel managers or set manually):\n- `check_in_instructions` / `check_out_instructions` — guest arrival/departure details\n- `directions` — how to reach the property\n- `area_info` — neighbourhood and local information\n- `damage_policy` — security deposit and damage terms\n- `terms_conditions` — full booking terms and conditions\n- `apply_to_all` — when true, these terms apply to all properties in the account\n\n**Channel manager sync:** Beds24, Hostfully, and Hostaway automatically populate these fields during property sync. Values use COALESCE — channel data only fills empty fields, never overwrites manual entries.",
+                    "description": "Get check-in/out times, house rules, cancellation policy and other terms for a property.\n\n**Fields:**\n- `check_in_time` / `check_out_time` — default times\n- `house_rules` — property rules\n- `cancellation_policy` — cancellation terms\n- `terms_conditions` — full booking terms and conditions\n- `min_stay` / `max_stay` — stay length limits (read-only, synced from channel manager)\n- `damage_deposit` / `cleaning_fee` — fees (read-only, synced from channel manager)",
                     "parameters": [
                         { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "string" } }
                     ],
-                    "responses": { "200": { "description": "Property terms", "content": { "application/json": { "example": { "success": true, "property_id": 532, "terms": { "check_in_time": "15:00", "check_out_time": "11:00", "house_rules": "No smoking. No parties.", "cancellation_policy": "Free cancellation up to 48 hours before check-in.", "terms_conditions": "By booking you agree to the house rules.", "damage_policy": "Security deposit: EUR 500", "check_in_instructions": "Key collection from lockbox.", "check_out_instructions": "Leave keys on counter.", "directions": "From airport, take express train.", "area_info": "5 min walk to restaurants.", "apply_to_all": false, "min_stay": null, "max_stay": null, "damage_deposit": null, "cleaning_fee": null } } } } } }
+                    "responses": { "200": { "description": "Property terms", "content": { "application/json": { "example": { "success": true, "property_id": 532, "terms": { "check_in_time": "15:00", "check_out_time": "11:00", "house_rules": "No smoking. No parties.", "cancellation_policy": "Free cancellation up to 48 hours before check-in.", "terms_conditions": "By booking you agree to the house rules.", "min_stay": null, "max_stay": null, "damage_deposit": null, "cleaning_fee": null } } } } } }
                 },
                 "put": {
                     "tags": ["Properties & Rooms"],
                     "summary": "Set Property Terms",
-                    "description": "Update check-in/out times, house rules, cancellation policy and other terms. Send only the fields you want to update. Set `apply_to_all: true` to use these terms for every property in the account.\n\n**Multilingual:** Text fields support `_ml` variants as JSONB objects: `cancellation_policy_ml`, `additional_rules_ml`, `check_in_instructions_ml`, `check_out_instructions_ml`, `damage_policy_ml`, `terms_conditions_ml`, `directions_ml`, `area_info_ml`. Example: `{\"en\": \"Free cancellation\", \"es\": \"Cancelación gratuita\"}`",
+                    "description": "Update check-in/out times, house rules, cancellation policy and other terms. Send only the fields you want to update.\n\n**Writable fields:** `check_in_time`, `check_out_time`, `house_rules`, `cancellation_policy`, `terms_conditions`.\n\n**Note:** `min_stay`, `max_stay`, `damage_deposit`, `cleaning_fee` are read-only (synced from channel manager).",
                     "parameters": [
                         { "name": "propertyId", "in": "path", "required": true, "schema": { "type": "string" } }
                     ],
@@ -834,16 +834,7 @@
                                     "check_out_time": "11:00",
                                     "house_rules": "No smoking. No parties. Quiet hours 22:00-08:00.",
                                     "cancellation_policy": "Free cancellation up to 48 hours before check-in.",
-                                    "cancellation_policy_ml": { "en": "Free cancellation up to 48 hours before check-in.", "es": "Cancelación gratuita hasta 48 horas antes." },
-                                    "additional_rules": "No group gatherings.",
-                                    "additional_rules_ml": { "en": "No group gatherings.", "es": "No se permiten reuniones grupales." },
-                                    "terms_conditions": "By booking you agree to the house rules.",
-                                    "damage_policy": "Security deposit: EUR 500",
-                                    "check_in_instructions": "Key collection from lockbox, code sent 24hrs before.",
-                                    "check_out_instructions": "Leave keys on kitchen counter.",
-                                    "directions": "From airport, take express train to Central Station.",
-                                    "area_info": "Located in historic quarter, 5 min walk to restaurants.",
-                                    "apply_to_all": true
+                                    "terms_conditions": "By booking you agree to the house rules."
                                 }
                             }
                         }
@@ -1495,6 +1486,13 @@
                 }
             },
             "/api/partner/websites/{websiteId}/header": {
+                "get": {
+                    "tags": ["Websites"],
+                    "summary": "Get Header Settings",
+                    "description": "Get all header settings including behaviour, colours, typography, border, CTA, and icons.",
+                    "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
+                    "responses": { "200": { "description": "Header settings", "content": { "application/json": { "example": { "success": true, "website_id": 1, "header": { "sticky": true, "fixed_header": false, "transparent": false, "transparent_opacity": "0.85", "layout": "logo-left", "border": false, "border_color": "#e5e7eb", "border_width": "1", "bg_color": "#ffffff", "text_color": "#1f2937", "underline_color": "#2563eb", "cta_bg": "#2563eb", "cta_text_color": "#ffffff", "cta_button_text": "Book Now", "font": "inter", "font_size": "16", "font_weight": "600", "text_transform": "none", "favicon_image_url": "", "apple_icon_image_url": "" } } } } } }
+                },
                 "put": {
                     "tags": ["Websites"],
                     "summary": "Update Header Behaviour",
@@ -1557,9 +1555,9 @@
                 "get": {
                     "tags": ["Websites"],
                     "summary": "Get Hero Settings",
-                    "description": "Returns badge, trust badges, search box styling, and meta data for the hero section.",
+                    "description": "Returns all hero section settings: headline, images, video, slider, overlay, badge, trust badges, search box styling, and meta.\n\n**Background types:** `image` (single image), `video` (video URL), `slider` (up to 4 slides).\n**Search labels:** All search box labels are returned for customisation (btn_label, checkin_label, checkout_label, guests_label, date_placeholder, guest_singular).",
                     "parameters": [ { "name": "websiteId", "in": "path", "required": true, "schema": { "type": "integer" } } ],
-                    "responses": { "200": { "description": "Hero settings", "content": { "application/json": { "example": { "success": true, "badge": { "text": "Welcome", "link": "/book-now/", "bg_color": "#2563eb", "text_color": "#ffffff", "border_color": "#1d4ed8" }, "trust_badges": { "badge_1": "Instant Booking", "badge_2": "Best Price", "badge_3": "24/7 Support", "text_color": "#ffffff" }, "search": { "btn_bg": "#2563eb", "btn_text": "#ffffff", "label_color": "#ffffff", "max_guests": "10", "bg": "rgba(0,0,0,0.3)", "opacity": "80", "radius": "12", "padding": "20", "scale": "100", "max_width": "900" }, "meta": { "title": "Beach Villas - Luxury Beachfront", "description": "Book your dream beachfront villa with instant confirmation." } } } } } }
+                    "responses": { "200": { "description": "Hero settings", "content": { "application/json": { "example": { "success": true, "website_id": 1, "headline": "Welcome to Beach Villas", "subheadline": "Luxury beachfront accommodation", "image_url": "https://example.com/hero.jpg", "mobile_image_url": "", "video_url": "", "video_mobile": "", "background_type": "image", "overlay_color": "#0f172a", "overlay": "30", "height": "80", "slider": { "slide_1_url": "", "slide_2_url": "", "slide_3_url": "", "slide_4_url": "", "duration": "5000", "transition": "fade" }, "badge": { "text": "Welcome", "link": "/book-now/", "bg_color": "#2563eb", "text_color": "#ffffff", "border_color": "#1d4ed8" }, "trust_badges": { "badge_1": "Instant Booking", "badge_2": "Best Price", "badge_3": "24/7 Support", "text_color": "#ffffff" }, "search": { "btn_bg": "#2563eb", "btn_text": "#ffffff", "label_color": "#ffffff", "max_guests": "10", "bg": "rgba(0,0,0,0.3)", "opacity": "80", "radius": "12", "padding": "20", "scale": "100", "max_width": "900", "btn_label": "Search", "checkin_label": "Check In", "checkout_label": "Check Out", "guests_label": "Guests", "date_placeholder": "Select date", "guest_singular": "Guest" }, "menu_title": "Home", "faq_enabled": false, "meta": { "title": "Beach Villas - Luxury Beachfront", "description": "Book your dream beachfront villa with instant confirmation." } } } } } }
                 }
             },
             "/api/partner/websites/{websiteId}/hero/badge": {

@@ -50515,6 +50515,61 @@ app.delete('/api/partner/websites/:websiteId/logo', async (req, res) => {
   }
 });
 
+// GET /api/partner/websites/:websiteId/header - Get header settings
+app.get('/api/partner/websites/:websiteId/header', async (req, res) => {
+  console.log('=== PARTNER API: GET HEADER ===');
+
+  try {
+    const auth = await validatePartnerApiKey(req);
+    if (!auth.valid) {
+      return res.status(401).json({ success: false, error: auth.error });
+    }
+
+    const deployedSiteId = await getPartnerDeployedSiteId(auth.partnerId, req.params.websiteId);
+    if (!deployedSiteId) {
+      return res.status(404).json({ success: false, error: 'Website not deployed or not found' });
+    }
+
+    const headerResult = await pool.query(
+      `SELECT settings FROM website_settings WHERE deployed_site_id = $1 AND section = 'header'`,
+      [deployedSiteId]
+    );
+
+    const s = headerResult.rows.length > 0 ? headerResult.rows[0].settings : {};
+
+    res.json({
+      success: true,
+      website_id: parseInt(req.params.websiteId),
+      header: {
+        sticky: s['sticky'] ?? false,
+        fixed_header: s['fixed-header'] ?? false,
+        transparent: s['transparent'] ?? false,
+        transparent_opacity: s['transparent-opacity'] || '0.85',
+        layout: s['layout'] || 'logo-left',
+        border: s['border'] ?? false,
+        border_color: s['border-color'] || '#e5e7eb',
+        border_width: s['border-width'] || '1',
+        bg_color: s['bg-color'] || '#ffffff',
+        text_color: s['text-color'] || '#1f2937',
+        underline_color: s['underline-color'] || '',
+        cta_bg: s['cta-bg'] || '',
+        cta_text_color: s['cta-text-color'] || '#ffffff',
+        cta_button_text: s['cta-button-text-en'] || 'Book Now',
+        font: s['font'] || '',
+        font_size: s['font-size'] || '',
+        font_weight: s['font-weight'] || '',
+        text_transform: s['text-transform'] || '',
+        favicon_image_url: s['favicon-image-url'] || '',
+        apple_icon_image_url: s['apple-icon-image-url'] || ''
+      }
+    });
+
+  } catch (error) {
+    console.error('Partner API get header error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // PUT /api/partner/websites/:websiteId/header - Update header behaviour (sticky, fixed, transparent)
 app.put('/api/partner/websites/:websiteId/header', async (req, res) => {
   console.log('=== PARTNER API: UPDATE HEADER ===');
@@ -50790,6 +50845,24 @@ app.get('/api/partner/websites/:websiteId/hero', async (req, res) => {
     res.json({
       success: true,
       website_id: parseInt(req.params.websiteId),
+      headline: s['headline-en'] || '',
+      subheadline: s['subheadline-en'] || '',
+      image_url: s['image-url'] || '',
+      mobile_image_url: s['mobile-image-url'] || '',
+      video_url: s['video-url'] || '',
+      video_mobile: s['video-mobile'] || '',
+      background_type: s['background-type'] || 'image',
+      overlay_color: s['overlay-color'] || '#0f172a',
+      overlay: s['overlay'] || '30',
+      height: s['height'] || '80',
+      slider: {
+        slide_1_url: s['slide-1-url'] || '',
+        slide_2_url: s['slide-2-url'] || '',
+        slide_3_url: s['slide-3-url'] || '',
+        slide_4_url: s['slide-4-url'] || '',
+        duration: s['slider-duration'] || '5000',
+        transition: s['slider-transition'] || 'fade'
+      },
       badge: {
         text: s['button-text-en'] || s['button-text'] || null,
         link: s['button-link'] || null,
@@ -50813,8 +50886,16 @@ app.get('/api/partner/websites/:websiteId/hero', async (req, res) => {
         radius: s['search-radius'] || '8',
         padding: s['search-padding'] || '20',
         scale: s['search-scale'] || '100',
-        max_width: s['search-max-width'] || '900'
+        max_width: s['search-max-width'] || '900',
+        btn_label: s['search-btn-label-en'] || 'Search',
+        checkin_label: s['search-checkin-label-en'] || 'Check In',
+        checkout_label: s['search-checkout-label-en'] || 'Check Out',
+        guests_label: s['search-guests-label-en'] || 'Guests',
+        date_placeholder: s['search-date-placeholder-en'] || 'Select date',
+        guest_singular: s['search-guest-singular-en'] || 'Guest'
       },
+      menu_title: s['menu-title-en'] || 'Home',
+      faq_enabled: s['faq-enabled'] || false,
       meta: {
         title: s['meta-title'] || null,
         description: s['meta-description'] || null
@@ -52470,7 +52551,7 @@ app.put('/api/partner/websites/:websiteId/content/:section', async (req, res) =>
     const validSections = [
       'header', 'hero', 'intro', 'featured', 'about', 'services', 'reviews', 'cta', 'footer', 'styles', 'seo',
       'page-rooms', 'page-about', 'page-gallery', 'page-contact', 'page-blog', 'page-attractions',
-      'page-dining', 'page-offers', 'page-properties', 'page-reviews', 'page-terms', 'page-privacy'
+      'page-dining', 'page-offers', 'page-properties', 'page-reviews', 'page-terms', 'page-privacy', 'currency'
     ];
     if (!validSections.includes(section)) {
       return res.status(400).json({ success: false, error: `Invalid section. Valid: ${validSections.join(', ')}` });
@@ -52500,26 +52581,35 @@ app.put('/api/partner/websites/:websiteId/content/:section', async (req, res) =>
     
     console.log(`[Partner Content] Saving ${section} for site ${deployedSiteId} (${site.site_name})`);
     
-    // UPSERT settings
+    // Read existing settings first, then merge (prevents data loss on partial updates)
+    const existingResult = await pool.query(
+      'SELECT settings FROM website_settings WHERE deployed_site_id = $1 AND section = $2',
+      [deployedSiteId, section]
+    );
+
+    const existingSettings = existingResult.rows.length > 0 ? existingResult.rows[0].settings : {};
+    const mergedSettings = { ...existingSettings, ...settings };
+
+    // UPSERT merged settings
     const updateResult = await pool.query(`
-      UPDATE website_settings 
+      UPDATE website_settings
       SET settings = $1, updated_at = CURRENT_TIMESTAMP, sync_source = 'partner'
       WHERE deployed_site_id = $2 AND section = $3
-    `, [JSON.stringify(settings), deployedSiteId, section]);
-    
+    `, [JSON.stringify(mergedSettings), deployedSiteId, section]);
+
     if (updateResult.rowCount === 0) {
       await pool.query(`
         INSERT INTO website_settings (deployed_site_id, account_id, section, settings, sync_source, updated_at)
         VALUES ($1, $2, $3, $4, 'partner', CURRENT_TIMESTAMP)
-      `, [deployedSiteId, site.account_id, section, JSON.stringify(settings)]);
+      `, [deployedSiteId, site.account_id, section, JSON.stringify(mergedSettings)]);
     }
     
-    // Push to WordPress
+    // Push merged settings to WordPress
     let wpPushResult = null;
     if (site.site_url) {
-      wpPushResult = await pushSettingsToWordPress(site.site_url, section, settings);
+      wpPushResult = await pushSettingsToWordPress(site.site_url, section, mergedSettings);
     }
-    
+
     res.json({
       success: true,
       message: `${section} content updated`,
@@ -52783,6 +52873,10 @@ const SECTION_DEFAULTS = {
     'cta-bg': '',
     'section-spacing': '20',
     'custom-css': ''
+  },
+  currency: {
+    'currency-mode': 'property',
+    'site-currency': 'EUR'
   },
   seo: {
     'enabled': false,
