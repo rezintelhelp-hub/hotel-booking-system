@@ -269,7 +269,6 @@ $button_color = $api['page_contact_button_color'] ?? $accent;
                     <iframe
                         src="https://www.openstreetmap.org/export/embed.html?bbox=<?php echo esc_attr($lng - 0.01); ?>%2C<?php echo esc_attr($lat - 0.008); ?>%2C<?php echo esc_attr($lng + 0.01); ?>%2C<?php echo esc_attr($lat + 0.008); ?>&layer=mapnik&marker=<?php echo esc_attr($lat); ?>%2C<?php echo esc_attr($lng); ?>"
                         loading="lazy"
-                        referrerpolicy="no-referrer"
                         title="Location Map"
                         allowfullscreen>
                     </iframe>
