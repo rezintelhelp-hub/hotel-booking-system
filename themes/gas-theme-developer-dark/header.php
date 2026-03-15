@@ -161,7 +161,7 @@ if (!empty($api_settings['page_contact_enabled']) || $api_settings['page_contact
 
 // Sort menu items by order
 usort($menu_items, function($a, $b) {
-    return ($a['order'] ?? 99) - ($b['order'] ?? 99);
+    return intval($a['order'] ?? 99) - intval($b['order'] ?? 99);
 });
 
 // Helper function to output menu items
