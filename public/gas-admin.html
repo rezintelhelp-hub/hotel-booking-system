@@ -24923,7 +24923,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                         type: 'intro_title',
                         business_name: businessName,
                         location: location,
-                        account_id: selectedAccountId
+                        account_id: selectedAccountId,
+                        property_id: selectedWebsiteData?.property_id || null
                     })
                 });
                 
@@ -24963,7 +24964,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                         business_name: businessName,
                         location: location,
                         title: introTitle,
-                        account_id: selectedAccountId
+                        account_id: selectedAccountId,
+                        property_id: selectedWebsiteData?.property_id || null
                     })
                 });
                 
@@ -25002,7 +25004,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                         type: 'about_title',
                         business_name: businessName,
                         location: location,
-                        account_id: selectedAccountId
+                        account_id: selectedAccountId,
+                        property_id: selectedWebsiteData?.property_id || null
                     })
                 });
                 
@@ -25042,7 +25045,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                         business_name: businessName,
                         location: location,
                         title: aboutTitle,
-                        account_id: selectedAccountId
+                        account_id: selectedAccountId,
+                        property_id: selectedWebsiteData?.property_id || null
                     })
                 });
                 
@@ -25078,7 +25082,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                     body: JSON.stringify({
                         type: 'page_about_title',
                         business_name: businessName,
-                        account_id: selectedAccountId
+                        account_id: selectedAccountId,
+                        property_id: selectedWebsiteData?.property_id || null
                     })
                 });
                 
@@ -25117,7 +25122,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                         business_name: businessName,
                         location: location,
                         title: pageTitle,
-                        account_id: selectedAccountId
+                        account_id: selectedAccountId,
+                        property_id: selectedWebsiteData?.property_id || null
                     })
                 });
                 

@@ -66810,52 +66810,97 @@ Return ONLY a valid JSON array with this exact structure, no other text:
 // Generate website content with AI (intro, about sections)
 app.post('/api/admin/ai/generate-website-content', async (req, res) => {
     try {
-        const { type, business_name, location, title, account_id } = req.body;
-        
+        const { type, business_name, location, title, account_id, property_id } = req.body;
+
         if (!type) {
             return res.json({ success: false, error: 'Content type required' });
         }
-        
-        // Get business context if account_id provided
-        let businessContext = business_name || 'Our Property';
+
+        // ── Enrich context from PROPERTY data (not account) ──
+        let propertyName = business_name || 'Our Property';
         let locationContext = location || '';
-        
-        if (account_id) {
-            const accountResult = await pool.query(
-                'SELECT name, city, country FROM accounts WHERE id = $1',
-                [account_id]
-            );
-            if (accountResult.rows[0]) {
-                const acc = accountResult.rows[0];
-                if (!business_name && acc.name) businessContext = acc.name;
+        let propertyType = '';
+        let propertyDescription = '';
+        let roomSummary = '';
+
+        // 1. Fetch property
+        const propQuery = property_id
+            ? pool.query('SELECT id, name, address, city, state, country, property_type, description FROM properties WHERE id = $1', [property_id])
+            : account_id
+              ? pool.query('SELECT id, name, address, city, state, country, property_type, description FROM properties WHERE account_id = $1 LIMIT 1', [account_id])
+              : null;
+
+        let propId = null;
+        if (propQuery) {
+            const propResult = await propQuery;
+            if (propResult.rows[0]) {
+                const prop = propResult.rows[0];
+                propId = prop.id;
+                if (!business_name && prop.name) propertyName = prop.name;
                 if (!location) {
-                    if (acc.city) locationContext = acc.city;
-                    if (acc.country) locationContext += (locationContext ? ', ' : '') + acc.country;
+                    const parts = [prop.city, prop.state, prop.country].filter(Boolean);
+                    if (parts.length) locationContext = parts.join(', ');
                 }
+                propertyType = prop.property_type || '';
+                propertyDescription = prop.description || '';
             }
         }
-        
+
+        // 2. Fallback to accounts table if property gave no location
+        if (!locationContext && account_id) {
+            const accResult = await pool.query('SELECT name, city, country FROM accounts WHERE id = $1', [account_id]);
+            if (accResult.rows[0]) {
+                const acc = accResult.rows[0];
+                if (propertyName === 'Our Property' && acc.name) propertyName = acc.name;
+                const parts = [acc.city, acc.country].filter(Boolean);
+                if (parts.length) locationContext = parts.join(', ');
+            }
+        }
+
+        // 3. Fetch rooms for richer context
+        if (propId) {
+            const roomsResult = await pool.query(
+                "SELECT name, display_name FROM bookable_units WHERE property_id = $1 AND status != 'deleted' LIMIT 10",
+                [propId]
+            );
+            if (roomsResult.rows.length > 0) {
+                const names = roomsResult.rows.map(r => {
+                    if (r.display_name) {
+                        try {
+                            const dn = typeof r.display_name === 'string' ? JSON.parse(r.display_name) : r.display_name;
+                            return dn.en || Object.values(dn)[0] || r.name;
+                        } catch(e) { return r.name; }
+                    }
+                    return r.name;
+                });
+                roomSummary = names.join(', ');
+            }
+        }
+
+        // 4. Build context block injected into every prompt
+        const contextBlock = `PROPERTY DETAILS:
+- Name: ${propertyName}
+- Location: ${locationContext || 'not specified'}
+- Type: ${propertyType || 'accommodation'}
+${propertyDescription ? `- Description: ${propertyDescription.substring(0, 300)}` : ''}
+${roomSummary ? `- Rooms: ${roomSummary}` : ''}
+
+IMPORTANT: Use the EXACT property name "${propertyName}" and location "${locationContext || 'not specified'}" — do not guess or change them.`;
+
         let prompt = '';
         
         switch(type) {
             case 'intro_title':
                 prompt = `Generate a welcoming, engaging title for the introduction section of a vacation rental website.
 
-Business/Property Name: ${businessContext}
-Location: ${locationContext || 'Not specified'}
+${contextBlock}
 
 Requirements:
 - Short and impactful (3-6 words)
 - Welcoming and inviting tone
-- Can reference the location or experience
+- Reference the actual location or property experience
 - Do NOT include quotes around the text
 - Do NOT include any explanation, just the title text
-
-Examples of good titles:
-- Welcome to Paradise
-- Your Perfect Getaway Awaits
-- Experience Coastal Living
-- Discover Tranquility
 
 Generate ONE title only, nothing else:`;
                 break;
@@ -66863,15 +66908,14 @@ Generate ONE title only, nothing else:`;
             case 'intro_text':
                 prompt = `Generate welcoming introduction text for a vacation rental website.
 
-Business/Property Name: ${businessContext}
-Location: ${locationContext || 'Not specified'}
+${contextBlock}
 Section Title: ${title || 'Welcome'}
 
 Requirements:
 - 2-3 sentences (40-60 words)
 - Warm, inviting, and professional tone
 - Highlight the experience guests can expect
-- Mention location benefits if applicable
+- Mention the actual location and what makes it special
 - Do NOT include quotes around the text
 - Do NOT include any explanation or labels
 
@@ -66881,21 +66925,15 @@ Generate the intro paragraph only, nothing else:`;
             case 'about_title':
                 prompt = `Generate an engaging title for the "About Us" section of a vacation rental website.
 
-Business/Property Name: ${businessContext}
-Location: ${locationContext || 'Not specified'}
+${contextBlock}
 
 Requirements:
 - Short and compelling (3-6 words)
 - Should convey experience, quality, or hospitality
+- Can reference the location or property character
 - Do NOT use "About Us" literally
 - Do NOT include quotes around the text
 - Do NOT include any explanation
-
-Examples of good titles:
-- Experience Luxury & Comfort
-- Our Story, Your Escape
-- Where Memories Are Made
-- The Art of Hospitality
 
 Generate ONE title only, nothing else:`;
                 break;
@@ -66903,16 +66941,15 @@ Generate ONE title only, nothing else:`;
             case 'about_text':
                 prompt = `Generate compelling "About Us" text for a vacation rental website.
 
-Business/Property Name: ${businessContext}
-Location: ${locationContext || 'Not specified'}
+${contextBlock}
 Section Title: ${title || 'About Us'}
 
 Requirements:
 - 3-4 sentences (60-100 words)
 - Professional yet warm tone
-- Highlight what makes the property/business special
-- Mention commitment to guest experience
-- Include something about the location if known
+- Highlight what makes this specific property special
+- Mention the actual location and its appeal
+- Reference the type of accommodation and rooms if known
 - Do NOT include quotes around the text
 - Do NOT include any explanation or labels
 
@@ -66922,8 +66959,7 @@ Generate the about paragraph only, nothing else:`;
             case 'page_about_title':
                 prompt = `Generate an engaging page title for a standalone "About Us" page on a vacation rental website.
 
-Business/Property Name: ${businessContext}
-Location: ${locationContext || 'Not specified'}
+${contextBlock}
 
 Requirements:
 - 2-5 words
@@ -66932,29 +66968,21 @@ Requirements:
 - Do NOT just use "About Us" - make it unique
 - Do NOT include quotes around the text
 
-Examples:
-- Our Story
-- The Heart of Hospitality
-- Meet Your Hosts
-- A Legacy of Excellence
-- Where Dreams Stay
-
 Generate ONE title only, nothing else:`;
                 break;
                 
             case 'page_about_content':
                 prompt = `Generate comprehensive content for a standalone "About Us" page on a vacation rental website.
 
-Business/Property Name: ${businessContext}
-Location: ${locationContext || 'Not specified'}
+${contextBlock}
 Page Title: ${title || 'About Us'}
 
 Requirements:
 - 3-4 paragraphs (200-300 words total)
 - Professional yet warm and personal tone
 - Include: the story/history, what makes you unique, your commitment to guests
-- Mention the location and its appeal if known
-- Make it feel authentic and personal
+- Reference the actual location, property type, and rooms/accommodation offered
+- Make it feel authentic and specific to this property
 - Do NOT use headers or bullet points - just flowing paragraphs
 - Do NOT include quotes around the text
 - Separate paragraphs with blank lines
