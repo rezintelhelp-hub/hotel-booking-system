@@ -311,8 +311,18 @@ $button_color = $api['page_contact_button_color'] ?? $accent;
             <div class="gas-contact-card gas-contact-card--map">
                 <h2><?php echo esc_html($map_title); ?></h2>
                 <div class="gas-contact-map-frame">
+                    <?php
+                    $map_params = array('zoom' => $zoom);
+                    if ($lat && $lng) {
+                        $map_params['lat'] = $lat;
+                        $map_params['lng'] = $lng;
+                    } else {
+                        $map_params['address'] = $full_address;
+                    }
+                    $map_src = 'https://admin.gas.travel/api/maps/embed?' . http_build_query($map_params);
+                    ?>
                     <iframe
-                        src="https://www.google.com/maps/embed/v1/place?key=AIzaSyB4_dMKn2O_KHZOEIEEah0KpDLJRn5A25g&q=<?php echo esc_attr($lat); ?>,<?php echo esc_attr($lng); ?>&zoom=<?php echo esc_attr($zoom); ?>"
+                        src="<?php echo esc_url($map_src); ?>"
                         loading="lazy"
                         title="Location Map"
                         allowfullscreen>

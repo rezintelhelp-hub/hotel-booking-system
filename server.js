@@ -59350,6 +59350,22 @@ app.get('/api/v1/content', authenticateApiKey, async (req, res) => {
 });
 
 // =====================================================
+// Google Maps proxy — hides API key from client-side theme code
+// Used by template-contact.php iframe src
+app.get('/api/maps/embed', (req, res) => {
+  const { lat, lng, address, zoom } = req.query;
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+  const q = (lat && lng) ? `${lat},${lng}` : encodeURIComponent(address || '');
+  const z = parseInt(zoom) || 14;
+
+  if (!apiKey) {
+    // Fallback: keyless embed format
+    return res.redirect(`https://www.google.com/maps?q=${q}&z=${z}&output=embed`);
+  }
+
+  res.redirect(`https://www.google.com/maps/embed/v1/place?key=${apiKey}&q=${q}&zoom=${z}`);
+});
+
 // PUBLIC API ENDPOINTS (for WordPress plugin & widgets)
 // =====================================================
 
