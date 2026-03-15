@@ -2488,6 +2488,7 @@ function developer_get_api_settings() {
         'page_rooms_transparent_header' => $website_rooms['transparent-header'] ?? false,
         'page_rooms_search_btn_bg' => $website_rooms['search-btn-bg'] ?? '',
         'page_rooms_search_btn_text' => $website_rooms['search-btn-text'] ?? '',
+        'page_rooms_spinner_style' => $website_rooms['spinner-style'] ?? 'compass',
         'page_rooms_meta_title' => $website_rooms['meta-title'] ?? '',
         'page_rooms_meta_description' => $website_rooms['meta-description'] ?? '',
 

@@ -35,6 +35,20 @@ jQuery(document).ready(function($) {
         currentLanguage = gasBooking.currentLanguage;
     }
     
+    // Spinner builder — compass, circles, or none
+    function buildSpinnerHtml() {
+        var style = (typeof gasBooking !== 'undefined' && gasBooking.spinnerStyle) ? gasBooking.spinnerStyle : 'compass';
+        if (style === 'none') return '';
+        var inner = '';
+        if (style === 'circles') {
+            inner = '<div class="gas-circles-spin"><div></div><div></div><div></div></div>';
+        } else {
+            var imgUrl = (typeof gasBooking !== 'undefined' && gasBooking.pluginUrl) ? gasBooking.pluginUrl + 'assets/img/compass-spinner.png' : '';
+            inner = imgUrl ? '<img src="' + imgUrl + '" class="gas-compass-spin" alt="">' : '<div class="gas-spinner-inner"></div>';
+        }
+        return '<div class="gas-loading-spinner">' + inner + '<p>Checking<br>availability...</p></div>';
+    }
+
     // Global translations object
     var gasTranslations = {
         common: { loading: 'Loading...', more_info: 'More Information', less_info: 'Less Information', apply: 'Apply', error: 'Error', connection_error: 'Connection error. Please try again.', under: 'under', confirmed: 'Confirmed' },
@@ -616,7 +630,8 @@ jQuery(document).ready(function($) {
 
         // Show spinner immediately on click
         $('.gas-loading-spinner').remove();
-        $('body').append('<div class="gas-loading-spinner"><div class="gas-spinner-inner"></div><p>Checking availability...</p></div>');
+        var spinHtml = buildSpinnerHtml();
+        if (spinHtml) $('body').append(spinHtml);
 
         // Find the parent widget to get values from the correct form
         var $widget = $(this).closest('.gas-search-widget');
@@ -1090,16 +1105,18 @@ jQuery(document).ready(function($) {
     function openLightbox(index) {
         var images = $roomWidget.data('images');
         if (!images || images.length === 0) return;
-        
+
         var $lightbox = $('.gas-lightbox');
         $lightbox.data('current', index);
+        $lightbox.data('images', images);
         updateLightboxImage(index);
         $lightbox.addClass('active');
         $('body').css('overflow', 'hidden');
     }
-    
+
     function updateLightboxImage(index) {
-        var images = $roomWidget.data('images');
+        var images = $('.gas-lightbox').data('images');
+        if (!images || !images[index]) return;
         var url = images[index].url || images[index].image_url || '';
         $('.gas-lightbox img').attr('src', url);
         $('.gas-lightbox-counter').text((index + 1) + ' / ' + images.length);
@@ -1113,26 +1130,32 @@ jQuery(document).ready(function($) {
     // Click on lightbox image — do nothing (use X button or background to close)
     
     $(document).on('click', '.gas-lightbox-prev', function(e) {
-        e.stopPropagation();
-        var images = $roomWidget.data('images');
-        var current = $('.gas-lightbox').data('current');
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        var $lightbox = $('.gas-lightbox');
+        var images = $lightbox.data('images');
+        if (!images) return;
+        var current = $lightbox.data('current') || 0;
         var newIndex = (current - 1 + images.length) % images.length;
-        $('.gas-lightbox').data('current', newIndex);
+        $lightbox.data('current', newIndex);
         updateLightboxImage(newIndex);
     });
-    
+
     $(document).on('click', '.gas-lightbox-next', function(e) {
-        e.stopPropagation();
-        var images = $roomWidget.data('images');
-        var current = $('.gas-lightbox').data('current');
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        var $lightbox = $('.gas-lightbox');
+        var images = $lightbox.data('images');
+        if (!images) return;
+        var current = $lightbox.data('current') || 0;
         var newIndex = (current + 1) % images.length;
-        $('.gas-lightbox').data('current', newIndex);
+        $lightbox.data('current', newIndex);
         updateLightboxImage(newIndex);
     });
-    
-    // Close lightbox on background click
+
+    // Close lightbox on background click only
     $(document).on('click', '.gas-lightbox', function(e) {
-        if ($(e.target).hasClass('gas-lightbox')) {
+        if (e.target === this) {
             $('.gas-lightbox').removeClass('active');
             $('body').css('overflow', '');
         }
@@ -2342,8 +2365,8 @@ jQuery(document).ready(function($) {
         
         // Show fixed spinner at top of page
         $('.gas-loading-spinner').remove();
-        var $spinner = $('<div class="gas-loading-spinner"><div class="gas-spinner-inner"></div><p>Checking availability...</p></div>');
-        $('body').append($spinner);
+        var spinHtml2 = buildSpinnerHtml();
+        if (spinHtml2) $('body').append(spinHtml2);
         var selectedGuests = parseInt(guests) || 1;
         
         $rooms.each(function() {

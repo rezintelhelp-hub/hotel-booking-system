@@ -52705,6 +52705,7 @@ const SECTION_DEFAULTS = {
     'trust-text-color': '#ffffff',
     'search-btn-bg': '',
     'search-btn-text': '',
+    'spinner-style': 'compass',
     'search-label-color': '',
     'search-max-guests': '4',
     'search-bg': '',

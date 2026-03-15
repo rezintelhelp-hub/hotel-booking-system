@@ -3,7 +3,7 @@
  * Plugin Name: GAS Booking
  * Plugin URI: https://github.com/gas-booking
  * Description: Complete booking system for Guest Accommodation System. Shows room grid immediately.
- * Version: 3.3.7
+ * Version: 3.3.8
  * Author: GAS
  * License: GPL v2 or later
  * Text Domain: gas-booking
@@ -11,7 +11,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAS_BOOKING_VERSION', '3.3.7');
+define('GAS_BOOKING_VERSION', '3.3.8');
 define('GAS_BOOKING_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GAS_BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GAS_BOOKING_UPDATE_URL', 'https://admin.gas.travel/api/plugin/check-update');
@@ -3349,6 +3349,7 @@ class GAS_Booking {
         wp_localize_script('gas-booking', 'gasBooking', array(
             'ajaxUrl' => admin_url('admin-ajax.php'),
             'apiUrl' => get_option('gas_api_url', 'https://admin.gas.travel'),
+            'pluginUrl' => GAS_BOOKING_PLUGIN_URL,
             'clientId' => get_option('gas_client_id', ''),
             'licenseKey' => get_option('gas_license_key', ''),
             'roomUrlBase' => get_option('gas_room_url_base', '/room/'),
@@ -3357,6 +3358,7 @@ class GAS_Booking {
             'currency' => get_option('gas_currency_symbol', ''),
             'pricingTier' => get_option('gas_pricing_tier', 'standard'),
             'currentLanguage' => $current_lang,
+            'spinnerStyle' => 'compass',
             'nonce' => wp_create_nonce('gas_booking_nonce')
         ));
         
@@ -4336,6 +4338,7 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             'background_custom' => !empty($license_display['background_custom']) ? $license_display['background_custom'] : '#0f172a',
             'primary_color' => !empty($license_display['primary_color']) ? $license_display['primary_color'] : '#2563eb',
             'text_color' => '',
+            'spinner_style' => 'compass',
             'card_style' => !empty($license_display['card_style']) ? $license_display['card_style'] : 'default',
         ), $atts);
         
@@ -4382,6 +4385,9 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             }
             if (!empty($api_settings['page_rooms_search_btn_text'])) {
                 $atts['text_color'] = $api_settings['page_rooms_search_btn_text'];
+            }
+            if (!empty($api_settings['page_rooms_spinner_style'])) {
+                $atts['spinner_style'] = $api_settings['page_rooms_spinner_style'];
             }
         }
         
@@ -5326,8 +5332,9 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         }
         </style>
         
+        <script>if(typeof gasBooking!=='undefined'){gasBooking.spinnerStyle='<?php echo esc_js($atts['spinner_style']); ?>';}</script>
         <div class="gas-rooms-page-wrapper">
-        <?php if ($show_filters) : 
+        <?php if ($show_filters) :
             // Get translations for current language
             $t_filters = $this->get_translations()['filters'] ?? array();
             $t_booking = $this->get_translations()['booking'] ?? array();
