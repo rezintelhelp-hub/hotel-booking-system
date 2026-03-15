@@ -9459,6 +9459,13 @@
                                     <input type="text" class="form-input" id="wb-header-lang-color" value="" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-header-lang-color-picker')" placeholder="inherit">
                                 </div>
                             </div>
+                            <div class="form-group">
+                                <label class="form-label">Lang Color (Transparent)</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color" id="wb-header-lang-color-light-picker" value="#ffffff" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-header-lang-color-light').value = this.value">
+                                    <input type="text" class="form-input" id="wb-header-lang-color-light" value="" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-header-lang-color-light-picker')" placeholder="#ffffff">
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

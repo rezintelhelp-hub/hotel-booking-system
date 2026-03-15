@@ -52657,7 +52657,8 @@ const SECTION_DEFAULTS = {
     'border': false,
     'favicon-image-url': '',
     'apple-icon-image-url': '',
-    'lang-color': ''
+    'lang-color': '',
+    'lang-color-light': ''
   },
   hero: {
     'headline-en': '',
