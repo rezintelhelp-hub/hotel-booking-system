@@ -149,8 +149,9 @@ if (!empty($api_settings['page_reviews_enabled'])) {
     );
 }
 
-// Contact
-if (!empty($api_settings['page_contact_enabled']) || $api_settings['page_contact_enabled'] === null) {
+// Contact - enabled by default, only hidden if explicitly disabled
+$contact_enabled = $api_settings['page_contact_enabled'] ?? true;
+if ($contact_enabled && $contact_enabled !== 'false' && $contact_enabled !== false) {
     $menu_items[] = array(
         'title' => $api_settings['page_contact_menu_title'] ?? 'Contact',
         'url' => home_url('/contact/'),

@@ -22589,7 +22589,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             // 1. Inputs: text, url, email, tel, number, hidden, checkbox, radio, range, color, file
             document.querySelectorAll(`input${selector}`).forEach(el => {
                 if (el.type === 'checkbox') {
-                    el.checked = false;
+                    el.checked = el.defaultChecked;
                 } else if (el.type === 'radio') {
                     el.checked = el.defaultChecked;
                 } else if (el.type === 'range') {
@@ -22599,7 +22599,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 } else if (el.type === 'file') {
                     el.value = '';
                 } else {
-                    el.value = '';
+                    el.value = el.defaultValue || '';
                 }
             });
 
