@@ -4386,8 +4386,8 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             if (!empty($api_settings['page_rooms_search_btn_text'])) {
                 $atts['text_color'] = $api_settings['page_rooms_search_btn_text'];
             }
-            if (!empty($api_settings['page_rooms_spinner_style'])) {
-                $atts['spinner_style'] = $api_settings['page_rooms_spinner_style'];
+            if (!empty($api_settings['spinner_style'])) {
+                $atts['spinner_style'] = $api_settings['spinner_style'];
             }
         }
         

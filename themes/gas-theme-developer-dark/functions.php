@@ -2451,6 +2451,7 @@ function developer_get_api_settings() {
         'btn_secondary_text' => $website_styles['btn-secondary-text'] ?? null,
         'btn_radius' => $website_styles['btn-radius'] ?? null,
         'section_spacing' => $website_styles['section-spacing'] ?? null,
+        'spinner_style' => $website_styles['spinner-style'] ?? 'compass',
 
         // About Page (standalone page, not homepage section) - MULTILINGUAL
         'page_about_title' => developer_get_ml_value($website_page_about, 'title', $lang),
@@ -2487,7 +2488,6 @@ function developer_get_api_settings() {
         'page_rooms_transparent_header' => $website_rooms['transparent-header'] ?? false,
         'page_rooms_search_btn_bg' => $website_rooms['search-btn-bg'] ?? '',
         'page_rooms_search_btn_text' => $website_rooms['search-btn-text'] ?? '',
-        'page_rooms_spinner_style' => $website_rooms['spinner-style'] ?? 'compass',
         'page_rooms_meta_title' => $website_rooms['meta-title'] ?? '',
         'page_rooms_meta_description' => $website_rooms['meta-description'] ?? '',
 

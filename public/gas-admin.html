@@ -7327,14 +7327,6 @@
                                                 <input type="text" class="form-input" id="wb-page-rooms-search-btn-text" value="" style="flex: 1;" oninput="syncColorToPicker(this.id, 'wb-page-rooms-search-btn-text-picker')" placeholder="#ffffff">
                                             </div>
                                         </div>
-                                        <div class="form-group">
-                                            <label class="form-label">Loading Spinner Style</label>
-                                            <select class="form-input" id="wb-page-rooms-spinner-style">
-                                                <option value="compass">Compass (GAS branded)</option>
-                                                <option value="circles">Rotating Circles</option>
-                                                <option value="none">No Spinner</option>
-                                            </select>
-                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -11917,6 +11909,15 @@
                             <label class="form-label">Section Spacing: <span id="wb-styles-section-spacing-value">20</span>px</label>
                             <input type="range" id="wb-styles-section-spacing" min="10" max="80" value="20" step="10" style="width: 100%;" oninput="document.getElementById('wb-styles-section-spacing-value').textContent = this.value">
                             <small class="form-hint">Vertical padding between page sections (default: 20px)</small>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Loading Spinner Style</label>
+                            <select class="form-input" id="wb-styles-spinner-style">
+                                <option value="compass">Compass (GAS branded)</option>
+                                <option value="circles">Rotating Circles</option>
+                                <option value="none">No Spinner</option>
+                            </select>
+                            <small class="form-hint">Animation shown while checking room availability</small>
                         </div>
                     </div>
                 </div>
