@@ -22578,7 +22578,94 @@ const promo = await fetch('/api/v1/offers/validate', {
             const template = selectedWebsiteData?.template || 'developer-light';
             return templateDefaults[template]?.[section] || templateDefaults['developer-light'][section] || {};
         }
-        
+
+        // Clear all Web Builder form fields to prevent stale data when switching sites.
+        // If section is provided (e.g. 'hero'), only clears wb-{section}-* fields.
+        // If section is omitted, clears ALL wb-* fields.
+        function clearWebBuilderForm(section) {
+            const prefix = section ? `wb-${section}-` : 'wb-';
+            const selector = `[id^="${prefix}"]`;
+
+            // 1. Inputs: text, url, email, tel, number, hidden, checkbox, radio, range, color, file
+            document.querySelectorAll(`input${selector}`).forEach(el => {
+                if (el.type === 'checkbox') {
+                    el.checked = false;
+                } else if (el.type === 'radio') {
+                    el.checked = el.defaultChecked;
+                } else if (el.type === 'range') {
+                    el.value = el.defaultValue || el.min || '0';
+                } else if (el.type === 'color') {
+                    el.value = '#ffffff';
+                } else if (el.type === 'file') {
+                    el.value = '';
+                } else {
+                    el.value = '';
+                }
+            });
+
+            // 2. Textareas
+            document.querySelectorAll(`textarea${selector}`).forEach(el => {
+                el.value = '';
+            });
+
+            // 3. Selects — reset to first option
+            document.querySelectorAll(`select${selector}`).forEach(el => {
+                el.selectedIndex = 0;
+            });
+
+            // 4. Range value display spans (wb-*-value)
+            document.querySelectorAll(`span[id^="${prefix}"][id$="-value"]`).forEach(el => {
+                const rangeId = el.id.replace('-value', '');
+                const rangeEl = document.getElementById(rangeId);
+                el.textContent = rangeEl ? (rangeEl.defaultValue || rangeEl.min || '0') : '';
+            });
+
+            // 5. Image previews — clear background image, restore placeholder
+            document.querySelectorAll(`div[id^="${prefix}"][id$="-preview"]`).forEach(el => {
+                el.style.backgroundImage = '';
+                const placeholder = el.querySelector('.slide-placeholder');
+                if (placeholder) placeholder.style.display = '';
+                const removeBtn = el.querySelector('.remove-slide-btn');
+                if (removeBtn) removeBtn.style.display = 'none';
+            });
+
+            // 6. FAQ lists — clear dynamically added items
+            document.querySelectorAll(`div[id^="${prefix}"][id$="-faq-list"]`).forEach(el => {
+                el.innerHTML = '';
+            });
+
+            // 7. Also clear cloned editor panels (they duplicate wb-* IDs)
+            const clonedPanels = [
+                'editor-header-content', 'editor-hero-content', 'editor-intro-content',
+                'editor-featured-content', 'editor-about-content', 'editor-reviews-content',
+                'editor-cta-content', 'editor-footer-content'
+            ];
+            clonedPanels.forEach(panelId => {
+                const panel = document.getElementById(panelId);
+                if (!panel) return;
+                panel.querySelectorAll(`input${selector}`).forEach(el => {
+                    if (el.type === 'checkbox') el.checked = false;
+                    else if (el.type === 'radio') el.checked = el.defaultChecked;
+                    else if (el.type === 'range') el.value = el.defaultValue || el.min || '0';
+                    else if (el.type === 'color') el.value = '#ffffff';
+                    else if (el.type === 'file') el.value = '';
+                    else el.value = '';
+                });
+                panel.querySelectorAll(`textarea${selector}`).forEach(el => { el.value = ''; });
+                panel.querySelectorAll(`select${selector}`).forEach(el => { el.selectedIndex = 0; });
+                panel.querySelectorAll(`span[id^="${prefix}"][id$="-value"]`).forEach(el => {
+                    const rangeId = el.id.replace('-value', '');
+                    const rangeEl = panel.querySelector(`#${rangeId}`) || document.getElementById(rangeId);
+                    el.textContent = rangeEl ? (rangeEl.defaultValue || rangeEl.min || '0') : '';
+                });
+                panel.querySelectorAll(`div[id^="${prefix}"][id$="-preview"]`).forEach(el => {
+                    el.style.backgroundImage = '';
+                });
+            });
+
+            console.log(`[clearWebBuilderForm] Cleared ${section || 'ALL'} fields`);
+        }
+
         // Website selection functions
         async function loadAccountWebsites() {
             if (!selectedAccountId) {
@@ -22760,6 +22847,8 @@ const promo = await fetch('/api/v1/offers/validate', {
         
         // Initialize Website Editor - copy content from hidden wb-* views
         function initializeWebsiteEditor() {
+            // CLEAR all form fields to prevent stale data from previous site
+            clearWebBuilderForm();
             // First, apply template defaults to the SOURCE elements BEFORE cloning
             const template = selectedWebsiteData?.template || 'developer-light';
             console.log('Initializing editor with template:', template);
@@ -24322,6 +24411,9 @@ const promo = await fetch('/api/v1/offers/validate', {
         
         async function loadWebsiteBuilderSection(section) {
             try {
+                // Clear this section's fields before loading new data
+                clearWebBuilderForm(section);
+
                 // Determine which container to update - editor panel (visible) or original view
                 const editorPanelMap = {
                     'header': 'wb-header',
@@ -26169,7 +26261,10 @@ const promo = await fetch('/api/v1/offers/validate', {
         async function loadWebsiteSection(section) {
             const websiteId = selectedWebsiteId;
             const clientId = getClientId() || localStorage.getItem('gas_selected_client_id');
-            
+
+            // Clear this section's fields before loading new data
+            clearWebBuilderForm(section);
+
             // Update website selectors when loading a section
             updateWebsiteSelectors();
             
@@ -26198,8 +26293,8 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
             
             if (!data || !data.success) {
-                console.log(`No settings found for section ${section}`);
-                return;
+                console.log(`No settings found for section ${section}, fields already cleared`);
+                return; // Safe: clearWebBuilderForm(section) already ran above
             }
             
             if (data.settings) {
