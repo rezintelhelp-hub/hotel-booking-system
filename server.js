@@ -68219,7 +68219,7 @@ app.get('/api/public/client/:clientId/site-config', async (req, res) => {
                     // Basic meta
                     enabled: websiteSettings.seo?.enabled !== false,
                     meta_title: websiteSettings.seo?.['meta-title'] || branding.site_title || contact.business_name,
-                    meta_description: websiteSettings.seo?.['meta-description'] || branding.site_description || contact.tagline,
+                    meta_description: websiteSettings.seo?.['meta-description'] || '',
                     og_image: websiteSettings.seo?.['og-image'] || branding.og_image_url,
                     
                     // Schema toggles
