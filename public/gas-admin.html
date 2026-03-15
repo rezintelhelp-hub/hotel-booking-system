@@ -49664,6 +49664,23 @@ const promo = await fetch('/api/v1/offers/validate', {
             document.querySelectorAll('[data-wysiwyg="true"]:not([data-wysiwyg-init])').forEach(el => gasWysiwyg(el));
         }
 
+        // Global: execute a formatting command from a WYSIWYG select/color picker
+        // Restores the saved editor selection first so the command applies to the right text
+        function gasWysiwygExecCmd(inputEl, command, value) {
+            const wrapper = inputEl.closest('.gas-wysiwyg-wrap');
+            if (!wrapper || !wrapper._gasEditor) return;
+            // Restore saved selection
+            if (wrapper._savedRange) {
+                const sel = window.getSelection();
+                sel.removeAllRanges();
+                sel.addRange(wrapper._savedRange);
+            }
+            wrapper._gasEditor.focus();
+            document.execCommand(command, false, value);
+            // Reset select to placeholder
+            if (inputEl.tagName === 'SELECT') inputEl.selectedIndex = 0;
+        }
+
         function gasWysiwyg(el) {
             if (el.dataset.wysiwygInit) return;
             el.dataset.wysiwygInit = 'true';
@@ -49701,7 +49718,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <button type="button" onmousedown="event.preventDefault()" onclick="document.execCommand('justifyRight')" style="${btnStyle}" ${btnHover} title="Align Right">&equiv;</button>
                 </div>
                 <div style="display:flex; align-items:center; gap:4px; flex-wrap:wrap;">
-                    <select onmousedown="event.preventDefault()" onchange="document.execCommand('fontName',false,this.value); this.blur();" style="${selStyle}" title="Font Family">
+                    <select onchange="gasWysiwygExecCmd(this,'fontName',this.value)" style="${selStyle}" title="Font Family">
                         <option value="">Font</option>
                         <option value="Arial, sans-serif">Arial</option>
                         <option value="Helvetica, sans-serif">Helvetica</option>
@@ -49715,7 +49732,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                         <option value="Playfair Display, serif">Playfair Display</option>
                         <option value="Raleway, sans-serif">Raleway</option>
                     </select>
-                    <select onmousedown="event.preventDefault()" onchange="document.execCommand('fontSize',false,this.value); this.blur();" style="${selStyle}" title="Font Size">
+                    <select onchange="gasWysiwygExecCmd(this,'fontSize',this.value)" style="${selStyle}" title="Font Size">
                         <option value="">Size</option>
                         <option value="1">Small</option>
                         <option value="2">Normal</option>
@@ -49751,8 +49768,12 @@ const promo = await fetch('/api/v1/offers/validate', {
             // Show toolbar on focus
             editor.addEventListener('focus', () => { toolbar.style.display = 'block'; });
 
-            // Hide toolbar on blur (delayed to allow toolbar clicks)
+            // Save selection on blur so selects/color pickers can restore it
             editor.addEventListener('blur', () => {
+                const sel = window.getSelection();
+                if (sel.rangeCount > 0) {
+                    wrapper._savedRange = sel.getRangeAt(0).cloneRange();
+                }
                 setTimeout(() => {
                     if (!wrapper.contains(document.activeElement)) {
                         toolbar.style.display = 'none';
@@ -49776,6 +49797,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             // Store reference for getValue
             wrapper._gasEditor = editor;
             wrapper._gasOriginal = el;
+            wrapper._savedRange = null;
 
             el.style.display = 'none';
             wrapper.appendChild(editor);
@@ -49787,7 +49809,11 @@ const promo = await fetch('/api/v1/offers/validate', {
         function gasWysiwygGetValue(elementId) {
             const el = document.getElementById(elementId);
             if (!el) return '';
-            const wrapper = el.previousElementSibling;
+            const wrapper = el.closest ? el.parentNode.querySelector('.gas-wysiwyg-wrap') : null;
+            // Try previous sibling (standard layout: wrapper then hidden textarea)
+            const prevSib = el.previousElementSibling;
+            if (prevSib && prevSib._gasEditor) return prevSib._gasEditor.innerHTML;
+            // Fallback: search parent for wrapper
             if (wrapper && wrapper._gasEditor) return wrapper._gasEditor.innerHTML;
             return el.value || el.innerHTML || '';
         }
@@ -55240,7 +55266,8 @@ const promo = await fetch('/api/v1/offers/validate', {
 
         function renderSectionEditor(index) {
             const section = proBuilderSections[index];
-            if (!section || !section.raw_markup) return '<div style="padding: 1rem; color: #94a3b8;">No editable content</div>';
+            if (!section) return '<div style="padding: 1rem; color: #ef4444;">Section not found</div>';
+            if (!section.raw_markup) return '<div style="padding: 1rem; color: #f59e0b;">Section content not available — try refreshing the page</div>';
 
             const dom = extractFromMarkup(section.raw_markup);
             let fieldsHtml = '';
