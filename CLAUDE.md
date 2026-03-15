@@ -204,18 +204,41 @@ GAS (Global Accommodation System) is a full-stack hotel booking and property man
 
 ## CURRENT PRIORITIES — 15 March 2026
 
-1. **Pro Site Builder** — WYSIWYG text not saving/rendering on site (bug from today)
-2. **Pro Site Builder** — Show existing page sections, reorder/delete
-3. **Pro Site Builder** — Image upload for image blocks
-4. **Pro Site Builder** — Header & Footer settings tab wired up
-5. **Web Builder IMPORTANT fixes** (from audit):
+1. **Site Protection & Performance** — see section below (TOP PRIORITY)
+2. **Pro Site Builder** — WYSIWYG text not saving/rendering on site (bug from today)
+3. **Pro Site Builder** — Show existing page sections, reorder/delete
+4. **Pro Site Builder** — Image upload for image blocks
+5. **Pro Site Builder** — Header & Footer settings tab wired up
+6. **Web Builder IMPORTANT fixes** (from audit):
    - CTA link in header — hardcoded /book-now/ needs to be configurable
    - FAQ sections — theme doesn't render them
    - Footer layout toggle — ignored by footer.php
    - Meta title/description SEO output
-6. **Swagger update** — add missing fields from audit, fix hero search object docs
-7. **Hebden Bridge** — connect Beds24 for account 169, upload logo, configure Web Builder
-8. **Hostvana** — end to end test with Pedro
+7. **Swagger update** — add missing fields from audit, fix hero search object docs
+8. **Hebden Bridge** — connect Beds24 for account 169, upload logo, configure Web Builder
+9. **Hostvana** — end to end test with Pedro
+
+---
+
+## SITE PROTECTION & PERFORMANCE
+
+### Site Protection (when 100+ sites live)
+- Add `site_status` column to `deployed_sites`: `'development'`, `'live'`, `'frozen'`
+- When status = `'live'` or `'frozen'`, Claude Code must NOT SCP theme files to that site without explicit override confirmation
+- GAS Admin UI: show status badge on each site, allow status changes with confirmation
+- Theme deployments: check `site_status` before any SCP, skip live/frozen sites automatically
+- Add to CLAUDE.md safety rules: always check `site_status` before deploying
+
+### Performance & Caching
+- Sites are slow — need caching strategy
+- **Option 1**: WP Super Cache or W3 Total Cache per site on multisite (per-site config, enable only for live sites)
+- **Option 2**: Nginx FastCGI cache at server level (faster, server config)
+- **Option 3**: Cloudflare in front of the multisite VPS (CDN + caching)
+- **Recommended**: Cloudflare + WP Super Cache combination
+- Action needed: audit current page load times across 3-4 sites
+- Action needed: check if any caching plugin is currently active on multisite
+- Per-site cache control: development sites cache OFF, live sites cache ON
+- Cache purge on Web Builder save — when client saves settings, automatically purge cache for their site so changes appear immediately
 
 ---
 
