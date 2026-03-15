@@ -27145,9 +27145,17 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
         
         async function previewWebsiteImage(section) {
-            const input = document.getElementById(`wb-${section}-image`);
-            const preview = document.getElementById(`wb-${section}-image-preview`);
-            const urlField = document.getElementById(`wb-${section}-image-url`);
+            // With cloned containers, multiple elements share the same ID.
+            // Find the one that actually has files selected (the one the user clicked).
+            let input = document.getElementById(`wb-${section}-image`);
+            const allInputs = document.querySelectorAll(`[id="wb-${section}-image"]`);
+            for (const el of allInputs) {
+                if (el.files && el.files.length > 0) { input = el; break; }
+            }
+            // Find preview and URL field in the same container as the active input
+            const container = input.closest('.card') || input.parentElement;
+            const preview = container.querySelector(`[id="wb-${section}-image-preview"]`) || document.getElementById(`wb-${section}-image-preview`);
+            const urlField = container.querySelector(`[id="wb-${section}-image-url"]`) || document.getElementById(`wb-${section}-image-url`);
             
             if (input.files && input.files[0]) {
                 const file = input.files[0];
@@ -27183,22 +27191,24 @@ const promo = await fetch('/api/v1/offers/validate', {
                     const data = await response.json();
                     
                     if (data.success && data.url) {
-                        // Fill the URL field
-                        if (urlField) {
-                            urlField.value = data.url;
-                        }
-                        preview.innerHTML = '<span style="background: rgba(16,185,129,0.9); color: white; padding: 8px 16px; border-radius: 4px;"> Uploaded</span>';
-                        setTimeout(() => {
-                            preview.innerHTML = '';
-                        }, 2000);
-                        // Show remove button for logo uploads
+                        // Fill the URL field in ALL copies (original + clone)
+                        document.querySelectorAll(`[id="wb-${section}-image-url"]`).forEach(el => {
+                            el.value = data.url;
+                        });
+                        // Also update all preview copies
+                        document.querySelectorAll(`[id="wb-${section}-image-preview"]`).forEach(el => {
+                            el.style.backgroundImage = `url(${data.url})`;
+                            el.style.backgroundSize = 'cover';
+                            el.style.backgroundPosition = 'center';
+                            el.innerHTML = '<span style="background: rgba(16,185,129,0.9); color: white; padding: 8px 16px; border-radius: 4px;"> Uploaded</span>';
+                            setTimeout(() => { el.innerHTML = ''; }, 2000);
+                        });
+                        // Show remove button for logo uploads (all copies)
                         if (section === 'header-logo') {
-                            const removeBtn = document.getElementById('wb-header-logo-remove-btn');
-                            if (removeBtn) removeBtn.style.display = 'inline-flex';
+                            document.querySelectorAll('#wb-header-logo-remove-btn').forEach(el => { el.style.display = 'inline-flex'; });
                         }
                         if (section === 'header-logo-light') {
-                            const removeBtn = document.getElementById('wb-header-logo-light-remove-btn');
-                            if (removeBtn) removeBtn.style.display = 'inline-flex';
+                            document.querySelectorAll('#wb-header-logo-light-remove-btn').forEach(el => { el.style.display = 'inline-flex'; });
                         }
                     } else {
                         preview.innerHTML = '<span style="background: rgba(239,68,68,0.9); color: white; padding: 8px 16px; border-radius: 4px;">Upload failed</span>';
