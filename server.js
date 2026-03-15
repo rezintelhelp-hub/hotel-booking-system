@@ -50561,7 +50561,10 @@ app.get('/api/partner/websites/:websiteId/header', async (req, res) => {
         font_weight: s['font-weight'] || '',
         text_transform: s['text-transform'] || '',
         favicon_image_url: s['favicon-image-url'] || '',
-        apple_icon_image_url: s['apple-icon-image-url'] || ''
+        apple_icon_image_url: s['apple-icon-image-url'] || '',
+        lang_color: s['lang-color'] || '',
+        lang_dropdown_color: s['lang-dropdown-color'] || '',
+        lang_dropdown_bg: s['lang-dropdown-bg'] || ''
       }
     });
 
@@ -50584,7 +50587,8 @@ app.put('/api/partner/websites/:websiteId/header', async (req, res) => {
     const { websiteId } = req.params;
     const { sticky, fixed_header, transparent, transparent_opacity, layout, border, border_color, border_width,
             bg_color, text_color, underline_color, cta_bg, cta_text_color, cta_button_text, cta_link,
-            font, font_size, font_weight, text_transform } = req.body;
+            font, font_size, font_weight, text_transform,
+            lang_color, lang_dropdown_color, lang_dropdown_bg } = req.body;
     
     const deployedSiteId = await getPartnerDeployedSiteId(auth.partnerId, websiteId);
     if (!deployedSiteId) {
@@ -50636,9 +50640,12 @@ app.put('/api/partner/websites/:websiteId/header', async (req, res) => {
     if (font_size !== undefined) { settings['font-size'] = String(font_size); changes['font-size'] = String(font_size); }
     if (font_weight !== undefined) { settings['font-weight'] = font_weight; changes['font-weight'] = font_weight; }
     if (text_transform !== undefined) { settings['text-transform'] = text_transform; changes['text-transform'] = text_transform; }
+    if (lang_color !== undefined) { settings['lang-color'] = lang_color; changes['lang-color'] = lang_color; }
+    if (lang_dropdown_color !== undefined) { settings['lang-dropdown-color'] = lang_dropdown_color; changes['lang-dropdown-color'] = lang_dropdown_color; }
+    if (lang_dropdown_bg !== undefined) { settings['lang-dropdown-bg'] = lang_dropdown_bg; changes['lang-dropdown-bg'] = lang_dropdown_bg; }
 
     if (Object.keys(changes).length === 0) {
-      return res.status(400).json({ success: false, error: 'No fields provided. Use: sticky, fixed_header, transparent, transparent_opacity, layout, border, border_color, border_width, bg_color, text_color, underline_color, cta_bg, cta_text_color, cta_button_text, cta_link, font, font_size, font_weight, text_transform' });
+      return res.status(400).json({ success: false, error: 'No fields provided. Use: sticky, fixed_header, transparent, transparent_opacity, layout, border, border_color, border_width, bg_color, text_color, underline_color, cta_bg, cta_text_color, cta_button_text, cta_link, font, font_size, font_weight, text_transform, lang_color, lang_dropdown_color, lang_dropdown_bg' });
     }
     
     // UPSERT header settings
@@ -50684,11 +50691,14 @@ app.put('/api/partner/websites/:websiteId/header', async (req, res) => {
         font: settings['font'],
         font_size: settings['font-size'],
         font_weight: settings['font-weight'],
-        text_transform: settings['text-transform']
+        text_transform: settings['text-transform'],
+        lang_color: settings['lang-color'],
+        lang_dropdown_color: settings['lang-dropdown-color'],
+        lang_dropdown_bg: settings['lang-dropdown-bg']
       },
       wordpress_push: wpPushResult
     });
-    
+
   } catch (error) {
     console.error('Partner API update header error:', error);
     res.status(500).json({ success: false, error: error.message });
@@ -51451,7 +51461,9 @@ app.get('/api/partner/websites/:websiteId/rooms-page', async (req, res) => {
         },
         colors: {
           bg: s['bg'] || s['bg-color'] || '',
-          text: s['text-color'] || ''
+          text: s['text-color'] || '',
+          search_btn_bg: s['search-btn-bg'] || '',
+          search_btn_text: s['search-btn-text'] || ''
         },
         transparent_header: s['transparent-header'] === true || s['transparent-header'] === 'true',
         menu_order: s['menu-order'] || '',
@@ -51492,6 +51504,7 @@ app.put('/api/partner/websites/:websiteId/rooms-page', async (req, res) => {
             show_search, show_amenity_filter, show_location_filter, show_map,
             filter_bg, bg_color, text_color, transparent_header,
             menu_order, faq_enabled,
+            search_btn_bg, search_btn_text,
             meta_title, meta_description } = req.body;
     
     const pageResult = await pool.query(
@@ -51518,6 +51531,8 @@ app.put('/api/partner/websites/:websiteId/rooms-page', async (req, res) => {
       transparent_header: 'transparent-header',
       menu_order: 'menu-order',
       faq_enabled: 'faq-enabled',
+      search_btn_bg: 'search-btn-bg',
+      search_btn_text: 'search-btn-text',
       meta_title: 'meta-title',
       meta_description: 'meta-description'
     };
@@ -51526,6 +51541,7 @@ app.put('/api/partner/websites/:websiteId/rooms-page', async (req, res) => {
                        show_search, show_amenity_filter, show_location_filter, show_map,
                        filter_bg, bg_color, text_color, transparent_header,
                        menu_order, faq_enabled,
+                       search_btn_bg, search_btn_text,
                        meta_title, meta_description };
     
     for (const [apiField, cssField] of Object.entries(fieldMap)) {
