@@ -85,7 +85,7 @@ foreach ($footer_pages as $pg) {
     }
 }
 
-usort($quick_links, function($a, $b) { return ($a['order'] ?? 99) - ($b['order'] ?? 99); });
+usort($quick_links, function($a, $b) { return intval($a['order'] ?? 99) - intval($b['order'] ?? 99); });
 
 // Legal links (with API multilingual override) — support external URLs
 $terms_url = (!empty($api_settings['page_terms_use_external']) && !empty($api_settings['page_terms_external_url']))
