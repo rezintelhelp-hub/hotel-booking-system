@@ -2508,6 +2508,9 @@ function developer_get_api_settings() {
         'page_contact_show_directions' => $website_page_contact['show-directions'] ?? true,
         'page_contact_show_map' => $website_page_contact['show-map'] ?? true,
         'page_contact_show_form' => $website_page_contact['show-form'] ?? true,
+        'page_contact_show_email' => $website_page_contact['show-email'] ?? true,
+        'page_contact_show_phone' => $website_page_contact['show-phone'] ?? true,
+        'page_contact_show_address' => $website_page_contact['show-address'] ?? true,
         'page_contact_details_title' => developer_get_ml_value($website_page_contact, 'details_title', $lang) ?: 'Company Details',
         'page_contact_directions_text' => developer_get_ml_value($website_page_contact, 'directions_text', $lang) ?: 'Get Directions',
         'page_contact_map_title' => developer_get_ml_value($website_page_contact, 'map_title', $lang) ?: 'Find Us',
@@ -2842,7 +2845,11 @@ function developer_get_api_settings() {
         'footer_email' => $website_footer['email'] ?? '',
         'footer_phone' => $website_footer['phone'] ?? '',
         'footer_address' => $website_footer['address'] ?? '',
-        
+        'footer_bg' => $website_footer['bg'] ?? $website_footer['bg-color'] ?? null,
+        'footer_text' => $website_footer['text'] ?? $website_footer['text-color'] ?? null,
+        'footer_layout' => $website_footer['layout'] ?? 'default',
+        'footer_show_powered_by' => $website_footer['show-powered-by'] ?? true,
+
         // Language settings from account
         'supported_languages' => $config['languages']['supported'] ?? array('en'),
         'primary_language' => $config['languages']['primary'] ?? 'en',

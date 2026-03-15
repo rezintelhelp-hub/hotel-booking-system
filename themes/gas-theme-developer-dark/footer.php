@@ -30,10 +30,13 @@ if ($gas_api_url && $gas_client_id) {
 // Fallback to theme customizer if API not configured
 $use_api = !empty($site_config);
 
+// Get API settings early — used for footer colours, nav, powered-by, etc.
+$api_settings = function_exists('developer_get_api_settings') ? developer_get_api_settings() : array();
+
 // Get footer data from API or theme settings
 $business_name = $use_api ? ($site_config['contact']['business_name'] ?? get_bloginfo('name')) : get_bloginfo('name');
-$footer_bg = $use_api ? ($site_config['branding']['footer']['bg_color'] ?? '#0f172a') : get_theme_mod('developer_footer_bg', '#0f172a');
-$footer_text = $use_api ? ($site_config['branding']['footer']['text_color'] ?? '#ffffff') : get_theme_mod('developer_footer_text', '#ffffff');
+$footer_bg = !empty($api_settings['footer_bg']) ? $api_settings['footer_bg'] : ($use_api ? ($site_config['branding']['footer']['bg_color'] ?? '#0f172a') : get_theme_mod('developer_footer_bg', '#0f172a'));
+$footer_text = !empty($api_settings['footer_text']) ? $api_settings['footer_text'] : ($use_api ? ($site_config['branding']['footer']['text_color'] ?? '#ffffff') : get_theme_mod('developer_footer_text', '#ffffff'));
 $copyright = $use_api ? ($site_config['branding']['footer']['copyright'] ?? '') : '';
 
 // Contact info
@@ -54,8 +57,6 @@ $tripadvisor = $use_api ? ($site_config['contact']['social']['tripadvisor'] ?? '
 // Navigation - build from page settings using menu titles
 $quick_links = array();
 $legal_links = array();
-
-$api_settings = function_exists('developer_get_api_settings') ? developer_get_api_settings() : array();
 
 // Build quick links from enabled pages — same order as header nav
 $quick_links[] = array('label' => $api_settings['page_home_menu_title'] ?? 'Home', 'url' => '/', 'order' => 0);
@@ -204,7 +205,9 @@ $has_attractions = $use_api ? ($site_config['features']['has_attractions'] ?? fa
                 <?php else : ?>
                     &copy; <?php echo date('Y'); ?> <?php echo esc_html($business_name); ?>. All rights reserved.
                 <?php endif; ?>
-                Powered by <a href="https://developer-admin.replit.app" target="_blank" style="color: <?php echo esc_attr($footer_text); ?>; text-decoration: underline;">GAS Booking</a>
+                <?php $show_powered = $api_settings['footer_show_powered_by'] ?? true; if ($show_powered !== false && $show_powered !== 'false') : ?>
+                Powered by <a href="https://gas.travel" target="_blank" style="color: <?php echo esc_attr($footer_text); ?>; text-decoration: underline;">GAS Booking</a>
+                <?php endif; ?>
             </p>
             <?php if (!empty($api_settings['footer_company_number']) || !empty($api_settings['footer_tax_number'])) : ?>
                 <p style="color: <?php echo esc_attr($footer_text); ?>; opacity: 0.7; margin-top: 0.25rem; font-size: 0.85em;">

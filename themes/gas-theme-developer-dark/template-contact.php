@@ -57,6 +57,11 @@ $show_directions = !empty($api['page_contact_show_directions']) && $api['page_co
 $show_map        = !empty($api['page_contact_show_map']) && $api['page_contact_show_map'] !== 'false' && $api['page_contact_show_map'] !== false;
 $show_form       = !empty($api['page_contact_show_form']) && $api['page_contact_show_form'] !== 'false' && $api['page_contact_show_form'] !== false;
 
+// Individual item toggles within the details card (default true)
+$show_email   = !isset($api['page_contact_show_email']) || ($api['page_contact_show_email'] !== false && $api['page_contact_show_email'] !== 'false');
+$show_phone   = !isset($api['page_contact_show_phone']) || ($api['page_contact_show_phone'] !== false && $api['page_contact_show_phone'] !== 'false');
+$show_address = !isset($api['page_contact_show_address']) || ($api['page_contact_show_address'] !== false && $api['page_contact_show_address'] !== 'false');
+
 // Card titles (multilingual)
 $details_title    = $api['page_contact_details_title'] ?? $ct['details'];
 $directions_text  = $api['page_contact_directions_text'] ?? $ct['directions'];
@@ -205,7 +210,7 @@ $button_color = $api['page_contact_button_color'] ?? $accent;
             <div class="gas-contact-card">
                 <h2><?php echo esc_html($details_title); ?></h2>
 
-                <?php if ($full_address): ?>
+                <?php if ($show_address && $full_address): ?>
                 <div class="gas-contact-item">
                     <div class="gas-contact-icon">
                         <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
@@ -217,7 +222,7 @@ $button_color = $api['page_contact_button_color'] ?? $accent;
                 </div>
                 <?php endif; ?>
 
-                <?php if ($phone): ?>
+                <?php if ($show_phone && $phone): ?>
                 <div class="gas-contact-item">
                     <div class="gas-contact-icon">
                         <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/></svg>
@@ -229,7 +234,7 @@ $button_color = $api['page_contact_button_color'] ?? $accent;
                 </div>
                 <?php endif; ?>
 
-                <?php if ($email): ?>
+                <?php if ($show_email && $email): ?>
                 <div class="gas-contact-item">
                     <div class="gas-contact-icon">
                         <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 7l-10 7L2 7"/></svg>

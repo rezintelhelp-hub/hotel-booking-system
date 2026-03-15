@@ -50555,6 +50555,7 @@ app.get('/api/partner/websites/:websiteId/header', async (req, res) => {
         cta_bg: s['cta-bg'] || '',
         cta_text_color: s['cta-text-color'] || '#ffffff',
         cta_button_text: s['cta-button-text-en'] || 'Book Now',
+        cta_link: s['cta-link'] || '/book-now/',
         font: s['font'] || '',
         font_size: s['font-size'] || '',
         font_weight: s['font-weight'] || '',
@@ -50582,7 +50583,7 @@ app.put('/api/partner/websites/:websiteId/header', async (req, res) => {
     
     const { websiteId } = req.params;
     const { sticky, fixed_header, transparent, transparent_opacity, layout, border, border_color, border_width,
-            bg_color, text_color, underline_color, cta_bg, cta_text_color, cta_button_text,
+            bg_color, text_color, underline_color, cta_bg, cta_text_color, cta_button_text, cta_link,
             font, font_size, font_weight, text_transform } = req.body;
     
     const deployedSiteId = await getPartnerDeployedSiteId(auth.partnerId, websiteId);
@@ -50630,13 +50631,14 @@ app.put('/api/partner/websites/:websiteId/header', async (req, res) => {
     if (cta_bg !== undefined) { settings['cta-bg'] = cta_bg; changes['cta-bg'] = cta_bg; }
     if (cta_text_color !== undefined) { settings['cta-text-color'] = cta_text_color; changes['cta-text-color'] = cta_text_color; }
     if (cta_button_text !== undefined) { settings['cta-button-text-en'] = cta_button_text; changes['cta-button-text-en'] = cta_button_text; }
+    if (cta_link !== undefined) { settings['cta-link'] = cta_link; changes['cta-link'] = cta_link; }
     if (font !== undefined) { settings['font'] = font; changes['font'] = font; }
     if (font_size !== undefined) { settings['font-size'] = String(font_size); changes['font-size'] = String(font_size); }
     if (font_weight !== undefined) { settings['font-weight'] = font_weight; changes['font-weight'] = font_weight; }
     if (text_transform !== undefined) { settings['text-transform'] = text_transform; changes['text-transform'] = text_transform; }
 
     if (Object.keys(changes).length === 0) {
-      return res.status(400).json({ success: false, error: 'No fields provided. Use: sticky, fixed_header, transparent, transparent_opacity, layout, border, border_color, border_width, bg_color, text_color, underline_color, cta_bg, cta_text_color, cta_button_text, font, font_size, font_weight, text_transform' });
+      return res.status(400).json({ success: false, error: 'No fields provided. Use: sticky, fixed_header, transparent, transparent_opacity, layout, border, border_color, border_width, bg_color, text_color, underline_color, cta_bg, cta_text_color, cta_button_text, cta_link, font, font_size, font_weight, text_transform' });
     }
     
     // UPSERT header settings
@@ -52640,6 +52642,7 @@ const SECTION_DEFAULTS = {
     'cta-button-text-en': 'Book Now',
     'cta-bg': '#2563eb',
     'cta-text-color': '#ffffff',
+    'cta-link': '/book-now/',
     'border-color': '#e5e7eb',
     'border-width': '1',
     'font': '',
@@ -52851,7 +52854,8 @@ const SECTION_DEFAULTS = {
     'social-linkedin': '',
     'social-pinterest': '',
     'social-tiktok': '',
-    'social-tripadvisor': ''
+    'social-tripadvisor': '',
+    'show-powered-by': true
   },
   styles: {
     'primary-color': '#2563eb',
