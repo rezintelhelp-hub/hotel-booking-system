@@ -55264,6 +55264,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (editorEl.style.display === 'none') {
                 editorEl.style.display = 'block';
                 editorEl.innerHTML = renderSectionEditor(index);
+                gasWysiwygInit(); // Initialise WYSIWYG on any data-wysiwyg textareas
             } else {
                 editorEl.style.display = 'none';
                 editorEl.innerHTML = '';
@@ -55292,10 +55293,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                     const imgUrl = section.attrs?.url || '';
                     const dimRatio = section.attrs?.dimRatio ?? 50;
                     const h = dom.querySelector('h1, h2, h3, h4');
-                    const headingText = h ? h.textContent : '';
+                    const headingText = h ? h.innerHTML : '';
                     const headingLevel = h ? h.tagName.toLowerCase() : 'h2';
                     const p = dom.querySelector('.wp-block-cover__inner-container p');
-                    const subtitleText = p ? p.textContent : '';
+                    const subtitleText = p ? p.innerHTML : '';
                     const btn = dom.querySelector('.wp-block-button__link');
                     const btnText = btn ? btn.textContent : '';
                     const btnLink = btn ? (btn.getAttribute('href') || '') : '';
@@ -55332,20 +55333,20 @@ const promo = await fetch('/api/v1/offers/validate', {
                 }
                 case 'paragraph': {
                     const pEl = dom.querySelector('p');
-                    const pText = pEl ? pEl.textContent : '';
+                    const pHtml = pEl ? pEl.innerHTML : '';
                     fieldsHtml = `
                         <div style="margin-bottom:0.75rem;"><label style="display:block; font-weight:600; font-size:0.8rem; margin-bottom:4px; color:#374151;">Paragraph</label>
-                            <textarea id="pb-edit-${index}-para-text" style="${taStyle}">${pText.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</textarea></div>
+                            <textarea id="pb-edit-${index}-para-text" data-wysiwyg="true" data-wysiwyg-placeholder="Paragraph text" style="${taStyle}">${pHtml.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</textarea></div>
                     `;
                     break;
                 }
                 case 'heading': {
                     const hEl = dom.querySelector('h1, h2, h3, h4, h5, h6');
-                    const hText = hEl ? hEl.textContent : '';
+                    const hHtml = hEl ? hEl.innerHTML : '';
                     const hLevel = hEl ? hEl.tagName.toLowerCase() : 'h2';
                     fieldsHtml = `
                         <div style="margin-bottom:0.75rem;"><label style="display:block; font-weight:600; font-size:0.8rem; margin-bottom:4px; color:#374151;">Heading</label>
-                            <input type="text" id="pb-edit-${index}-heading-text" value="${hText.replace(/"/g, '&quot;')}" style="${inputStyle} font-size:1.1rem; font-weight:600;">
+                            <input type="text" id="pb-edit-${index}-heading-text" value="${hHtml.replace(/"/g, '&quot;')}" style="${inputStyle} font-size:1.1rem; font-weight:600;">
                             <select id="pb-edit-${index}-heading-level" style="${inputStyle} width:80px; margin-top:4px;">
                                 <option value="h1" ${hLevel === 'h1' ? 'selected' : ''}>H1</option>
                                 <option value="h2" ${hLevel === 'h2' ? 'selected' : ''}>H2</option>
@@ -55438,7 +55439,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     return `<!-- wp:cover {"url":"${url}","dimRatio":${dim}} -->\n<div class="wp-block-cover"><span aria-hidden="true" class="wp-block-cover__background has-background-dim" style="opacity:0.${dim}"></span><img class="wp-block-cover__image-background" alt="" src="${url}" /><div class="wp-block-cover__inner-container">\n${innerMarkup}</div></div>\n<!-- /wp:cover -->`;
                 }
                 case 'paragraph': {
-                    const text = document.getElementById(`pb-edit-${index}-para-text`)?.value || '';
+                    const text = gasWysiwygGetValue(`pb-edit-${index}-para-text`) || document.getElementById(`pb-edit-${index}-para-text`)?.value || '';
                     return blockToMarkup({ type: 'text', text: text });
                 }
                 case 'heading': {
