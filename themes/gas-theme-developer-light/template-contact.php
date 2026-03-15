@@ -298,7 +298,7 @@ $button_color = $api['page_contact_button_color'] ?? $accent;
                 <h2><?php echo esc_html($map_title); ?></h2>
                 <div class="gas-contact-map-frame">
                     <iframe
-                        src="https://www.openstreetmap.org/export/embed.html?bbox=<?php echo esc_attr($lng - 0.01); ?>%2C<?php echo esc_attr($lat - 0.008); ?>%2C<?php echo esc_attr($lng + 0.01); ?>%2C<?php echo esc_attr($lat + 0.008); ?>&layer=mapnik&marker=<?php echo esc_attr($lat); ?>%2C<?php echo esc_attr($lng); ?>"
+                        src="https://www.google.com/maps/embed/v1/place?key=AIzaSyB4_dMKn2O_KHZOEIEEah0KpDLJRn5A25g&q=<?php echo esc_attr($lat); ?>,<?php echo esc_attr($lng); ?>&zoom=<?php echo esc_attr($zoom); ?>"
                         loading="lazy"
                         title="Location Map"
                         allowfullscreen>
