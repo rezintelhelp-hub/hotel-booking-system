@@ -214,15 +214,18 @@ if ($header_transparent) {
 }
 
 // Helper function to output logo
+// $api_logo_image: null = not set by API (use WP fallback), '' = explicitly removed, 'url' = show image
 function developer_output_logo($api_logo_image, $site_name, $api_logo_light_image = '') {
     if (!empty($api_logo_image)) : ?>
         <img src="<?php echo esc_url($api_logo_image); ?>" alt="<?php echo esc_attr($site_name); ?>" class="custom-logo developer-logo-default<?php echo !empty($api_logo_light_image) ? ' has-light-variant' : ''; ?>">
         <?php if (!empty($api_logo_light_image)) : ?>
             <img src="<?php echo esc_url($api_logo_light_image); ?>" alt="<?php echo esc_attr($site_name); ?>" class="custom-logo developer-logo-light">
         <?php endif; ?>
-    <?php elseif (has_custom_logo()) : 
+    <?php elseif ($api_logo_image === null && has_custom_logo()) :
+        // Only fall back to WP custom logo if API never set a logo value
+        // If API explicitly set empty string, logo was removed — show text instead
         the_custom_logo();
-    else : 
+    else :
         echo esc_html($site_name);
     endif;
 }

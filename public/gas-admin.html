@@ -25323,8 +25323,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                     // Don't overwrite user edits in the clone for visible controls
                 } else if (origEl.type === 'hidden') {
                     // Hidden inputs (image URLs, etc.) — always sync from original
-                    // These are set by async upload handlers that only update the original
-                    if (origEl.value && !clonedEl.value) {
+                    // These are set by upload handlers and remove functions that only update the original
+                    // Sync in BOTH directions: new uploads (orig has value, clone empty)
+                    // AND removals (orig cleared to empty, clone still has old value)
+                    if (origEl.value !== clonedEl.value) {
                         clonedEl.value = origEl.value;
                     }
                 } else if (origEl.type === 'file') {
@@ -27120,32 +27122,26 @@ const promo = await fetch('/api/v1/offers/validate', {
         
         function removeHeaderLogo() {
             if (!confirm('Remove logo image? The site will show the text site name instead.')) return;
-            const preview = document.getElementById('wb-header-logo-image-preview');
-            const urlField = document.getElementById('wb-header-logo-image-url');
-            const fileInput = document.getElementById('wb-header-logo-image');
-            const removeBtn = document.getElementById('wb-header-logo-remove-btn');
-            if (preview) {
+            // Clear in ALL copies (original + cloned editor panel)
+            document.querySelectorAll('#wb-header-logo-image-preview').forEach(preview => {
                 preview.style.backgroundImage = '';
                 preview.innerHTML = '<span style="color: #94a3b8;">No logo uploaded</span>';
-            }
-            if (urlField) urlField.value = '';
-            if (fileInput) fileInput.value = '';
-            if (removeBtn) removeBtn.style.display = 'none';
+            });
+            document.querySelectorAll('#wb-header-logo-image-url').forEach(el => { el.value = ''; });
+            document.querySelectorAll('#wb-header-logo-image').forEach(el => { el.value = ''; });
+            document.querySelectorAll('#wb-header-logo-remove-btn').forEach(el => { el.style.display = 'none'; });
         }
         
         function removeHeaderLogoLight() {
             if (!confirm('Remove light logo?')) return;
-            const preview = document.getElementById('wb-header-logo-light-image-preview');
-            const urlField = document.getElementById('wb-header-logo-light-image-url');
-            const fileInput = document.getElementById('wb-header-logo-light-image');
-            const removeBtn = document.getElementById('wb-header-logo-light-remove-btn');
-            if (preview) {
+            // Clear in ALL copies (original + cloned editor panel)
+            document.querySelectorAll('#wb-header-logo-light-image-preview').forEach(preview => {
                 preview.style.backgroundImage = '';
                 preview.innerHTML = '<span style="color: #94a3b8;">No light logo</span>';
-            }
-            if (urlField) urlField.value = '';
-            if (fileInput) fileInput.value = '';
-            if (removeBtn) removeBtn.style.display = 'none';
+            });
+            document.querySelectorAll('#wb-header-logo-light-image-url').forEach(el => { el.value = ''; });
+            document.querySelectorAll('#wb-header-logo-light-image').forEach(el => { el.value = ''; });
+            document.querySelectorAll('#wb-header-logo-light-remove-btn').forEach(el => { el.style.display = 'none'; });
         }
         
         async function previewWebsiteImage(section) {
