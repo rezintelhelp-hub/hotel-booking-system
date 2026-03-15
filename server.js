@@ -66706,56 +66706,95 @@ app.post('/api/admin/generate-faqs', async (req, res) => {
             return res.json({ success: false, error: 'Page type required' });
         }
 
-        // Get business context from the PROPERTY (not account)
-        let businessContext = business_name || 'a vacation rental property';
+        // ── Enrich context from PROPERTY data (not account) ──
+        let propertyName = business_name || 'our property';
+        let locationContext = '';
+        let propertyType = '';
+        let propertyDescription = '';
+        let roomSummary = '';
 
-        if (property_id) {
-            const propResult = await pool.query(
-                'SELECT name, city, state, country, property_type FROM properties WHERE id = $1',
-                [property_id]
-            );
+        const propQuery = property_id
+            ? pool.query('SELECT id, name, city, state, country, property_type, description FROM properties WHERE id = $1', [property_id])
+            : account_id
+              ? pool.query('SELECT id, name, city, state, country, property_type, description FROM properties WHERE account_id = $1 LIMIT 1', [account_id])
+              : null;
+
+        let propId = null;
+        if (propQuery) {
+            const propResult = await propQuery;
             if (propResult.rows[0]) {
                 const prop = propResult.rows[0];
-                businessContext = prop.name || business_name || 'our property';
-                if (prop.city) businessContext += ` in ${prop.city}`;
-                if (prop.state) businessContext += `, ${prop.state}`;
-                if (prop.country) businessContext += `, ${prop.country}`;
-            }
-        } else if (account_id) {
-            const propResult = await pool.query(
-                'SELECT name, city, state, country, property_type FROM properties WHERE account_id = $1 LIMIT 1',
-                [account_id]
-            );
-            if (propResult.rows[0]) {
-                const prop = propResult.rows[0];
-                businessContext = prop.name || business_name || 'our property';
-                if (prop.city) businessContext += ` in ${prop.city}`;
-                if (prop.state) businessContext += `, ${prop.state}`;
-                if (prop.country) businessContext += `, ${prop.country}`;
+                propId = prop.id;
+                propertyName = prop.name || business_name || 'our property';
+                const parts = [prop.city, prop.state, prop.country].filter(Boolean);
+                if (parts.length) locationContext = parts.join(', ');
+                propertyType = prop.property_type || '';
+                propertyDescription = prop.description || '';
             }
         }
-        
+
+        // Fallback to accounts table if property gave no location
+        if (!locationContext && account_id) {
+            const accResult = await pool.query('SELECT name, city, country FROM accounts WHERE id = $1', [account_id]);
+            if (accResult.rows[0]) {
+                const acc = accResult.rows[0];
+                if (propertyName === 'our property' && acc.name) propertyName = acc.name;
+                const parts = [acc.city, acc.country].filter(Boolean);
+                if (parts.length) locationContext = parts.join(', ');
+            }
+        }
+
+        // Fetch rooms for richer context
+        if (propId) {
+            const roomsResult = await pool.query(
+                "SELECT name, display_name FROM bookable_units WHERE property_id = $1 AND status != 'deleted' LIMIT 10",
+                [propId]
+            );
+            if (roomsResult.rows.length > 0) {
+                const names = roomsResult.rows.map(r => {
+                    if (r.display_name) {
+                        try {
+                            const dn = typeof r.display_name === 'string' ? JSON.parse(r.display_name) : r.display_name;
+                            return dn.en || Object.values(dn)[0] || r.name;
+                        } catch(e) { return r.name; }
+                    }
+                    return r.name;
+                });
+                roomSummary = names.join(', ');
+            }
+        }
+
         const pageContexts = {
-            'homepage': `the homepage of ${businessContext}, a vacation rental website`,
-            'accommodation/rooms': `the rooms and accommodation page of ${businessContext}`,
-            'about us': `the about us page of ${businessContext}`,
-            'photo gallery': `the photo gallery page of ${businessContext}`,
-            'blog': `the blog page of ${businessContext}`,
-            'local attractions and things to do': `the local attractions and things to do page near ${businessContext}`,
-            'restaurant and dining': `the restaurant and dining options at or near ${businessContext}`,
-            'contact information': `the contact page of ${businessContext}`,
-            'terms and conditions': `the terms and conditions page for booking at ${businessContext}`,
-            'privacy policy': `the privacy policy page of ${businessContext}`
+            'homepage': 'homepage',
+            'accommodation/rooms': 'rooms and accommodation page',
+            'about us': 'about us page',
+            'photo gallery': 'photo gallery page',
+            'blog': 'blog page',
+            'local attractions and things to do': 'local attractions and things to do page',
+            'restaurant and dining': 'restaurant and dining page',
+            'contact information': 'contact page',
+            'terms and conditions': 'terms and conditions page',
+            'privacy policy': 'privacy policy page'
         };
-        
-        const context = pageContexts[page_type] || `the ${page_type} page of ${businessContext}`;
-        
-        const prompt = `Generate 5 frequently asked questions (FAQs) for ${context}.
+
+        const pageLabel = pageContexts[page_type] || `${page_type} page`;
+
+        const prompt = `Generate 5 frequently asked questions (FAQs) for the ${pageLabel} of "${propertyName}"${locationContext ? ` in ${locationContext}` : ''}.
+
+PROPERTY DETAILS:
+- Name: ${propertyName}
+- Location: ${locationContext || 'not specified'}
+- Type: ${propertyType || 'accommodation'}
+${propertyDescription ? `- Description: ${propertyDescription.substring(0, 300)}` : ''}
+${roomSummary ? `- Rooms: ${roomSummary}` : ''}
+
+IMPORTANT: Use the EXACT property name "${propertyName}" and location "${locationContext || 'not specified'}" — do not guess or change them.
 
 These FAQs will be used as structured data (FAQ schema) for SEO purposes.
 
 Requirements:
-- Questions should be what real guests/visitors would ask
+- Questions should be what real guests/visitors would ask about this specific property
+- Answers should reference the actual property name, location, and accommodation types
 - Answers should be helpful, concise (2-3 sentences max), and professional
 - Focus on practical information guests need
 - Avoid generic filler content
