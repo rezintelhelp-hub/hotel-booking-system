@@ -55213,24 +55213,28 @@ const promo = await fetch('/api/v1/offers/validate', {
                     const icon = iconMap[section.type] || '\u{1F4C4}';
                     const isFirst = i === 0;
                     const isLast = i === proBuilderSections.length - 1;
-                    const detail = section.type === 'cover' && section.attrs?.url ? 'Background image' :
-                                   section.type === 'shortcode' ? 'Shortcode block' :
-                                   section.type === 'heading' ? 'Heading' :
-                                   section.type === 'paragraph' ? 'Paragraph' : '';
+                    // Extract a text preview from raw_markup for the section header
+                    let preview = '';
+                    if (section.raw_markup) {
+                        const tmp = document.createElement('div');
+                        tmp.innerHTML = section.raw_markup;
+                        preview = (tmp.textContent || '').replace(/\s+/g, ' ').trim().substring(0, 60);
+                        if (preview.length >= 60) preview += '...';
+                    }
                     html += `
-                        <div class="card pb-section-card" id="pb-section-${i}" style="border-left: 3px solid #6366f1; overflow: hidden;">
+                        <div class="card pb-section-card" id="pb-section-${i}" style="border-left: 3px solid #6366f1;">
                             <div onclick="toggleSectionEditor(${i})" style="padding: 0.75rem 1rem; display: flex; align-items: center; gap: 1rem; cursor: pointer; user-select: none;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
                                 <span style="font-size: 1.2rem;">${icon}</span>
-                                <div style="flex: 1;">
+                                <div style="flex: 1; min-width: 0;">
                                     <strong style="font-size: 0.9rem;">${section.label}</strong>
-                                    ${detail ? `<span style="margin-left: 0.5rem; font-size: 0.8rem; color: #64748b;">${detail}</span>` : ''}
+                                    ${preview ? `<div style="font-size: 0.8rem; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px;">${preview}</div>` : ''}
                                 </div>
-                                <div style="display: flex; gap: 0.25rem; align-items: center;" onclick="event.stopPropagation()">
+                                <div style="display: flex; gap: 0.25rem; align-items: center; flex-shrink: 0;" onclick="event.stopPropagation()">
                                     <button onclick="moveSection(${i}, 'up')" ${isFirst ? 'disabled' : ''} style="border: none; background: none; cursor: ${isFirst ? 'default' : 'pointer'}; color: ${isFirst ? '#d1d5db' : '#6366f1'}; font-size: 1rem; padding: 2px 6px;" title="Move up">&uarr;</button>
                                     <button onclick="moveSection(${i}, 'down')" ${isLast ? 'disabled' : ''} style="border: none; background: none; cursor: ${isLast ? 'default' : 'pointer'}; color: ${isLast ? '#d1d5db' : '#6366f1'}; font-size: 1rem; padding: 2px 6px;" title="Move down">&darr;</button>
                                     <button onclick="deleteSection(${i})" style="border: none; background: none; cursor: pointer; color: #ef4444; font-size: 0.85rem; padding: 2px 6px;" title="Delete section">&times;</button>
                                 </div>
-                                <span style="font-size: 0.75rem; color: #94a3b8;">#${i + 1}</span>
+                                <span style="font-size: 0.75rem; color: #94a3b8; flex-shrink: 0;">#${i + 1}</span>
                             </div>
                             <div id="pb-section-editor-${i}" style="display: none;"></div>
                         </div>
@@ -55250,7 +55254,6 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (editorEl.style.display === 'none') {
                 editorEl.style.display = 'block';
                 editorEl.innerHTML = renderSectionEditor(index);
-                if (typeof gasWysiwygInit === 'function') gasWysiwygInit();
             } else {
                 editorEl.style.display = 'none';
                 editorEl.innerHTML = '';
@@ -55267,42 +55270,44 @@ const promo = await fetch('/api/v1/offers/validate', {
         function renderSectionEditor(index) {
             const section = proBuilderSections[index];
             if (!section) return '<div style="padding: 1rem; color: #ef4444;">Section not found</div>';
-            if (!section.raw_markup) return '<div style="padding: 1rem; color: #f59e0b;">Section content not available — try refreshing the page</div>';
+            if (!section.raw_markup) return '<div style="padding: 1rem; color: #f59e0b;">Section content not available — try refreshing the page. If this persists, the server may still be deploying.</div>';
 
             const dom = extractFromMarkup(section.raw_markup);
             let fieldsHtml = '';
+            const inputStyle = 'width:100%; padding:8px 10px; border:1px solid #d1d5db; border-radius:6px; font-size:0.9rem; color:#1e293b; background:#fff; font-family:inherit;';
+            const taStyle = inputStyle + ' min-height:80px; resize:vertical; line-height:1.6;';
 
             switch (section.type) {
                 case 'cover': {
                     const imgUrl = section.attrs?.url || '';
                     const dimRatio = section.attrs?.dimRatio ?? 50;
                     const h = dom.querySelector('h1, h2, h3, h4');
-                    const headingText = h ? h.innerHTML : '';
+                    const headingText = h ? h.textContent : '';
                     const headingLevel = h ? h.tagName.toLowerCase() : 'h2';
                     const p = dom.querySelector('.wp-block-cover__inner-container p');
-                    const subtitleText = p ? p.innerHTML : '';
+                    const subtitleText = p ? p.textContent : '';
                     const btn = dom.querySelector('.wp-block-button__link');
                     const btnText = btn ? btn.textContent : '';
                     const btnLink = btn ? (btn.getAttribute('href') || '') : '';
 
                     fieldsHtml = `
-                        <div class="form-group"><label class="form-label">Background Image URL</label>
-                            <input type="text" class="form-input" id="pb-edit-${index}-cover-url" value="${imgUrl.replace(/"/g, '&quot;')}"></div>
-                        <div class="form-group"><label class="form-label">Overlay Opacity (0-100)</label>
-                            <input type="number" class="form-input" id="pb-edit-${index}-cover-dim" value="${dimRatio}" min="0" max="100" style="width: 100px;"></div>
-                        <div class="form-group"><label class="form-label">Heading</label>
-                            <textarea id="pb-edit-${index}-cover-heading" data-wysiwyg="true" data-wysiwyg-placeholder="Heading text">${headingText}</textarea>
-                            <select class="form-input" id="pb-edit-${index}-cover-hlevel" style="width: 80px; margin-top: 0.25rem;">
+                        <div style="margin-bottom:0.75rem;"><label style="display:block; font-weight:600; font-size:0.8rem; margin-bottom:4px; color:#374151;">Background Image URL</label>
+                            <input type="text" id="pb-edit-${index}-cover-url" value="${imgUrl.replace(/"/g, '&quot;')}" style="${inputStyle}"></div>
+                        <div style="margin-bottom:0.75rem;"><label style="display:block; font-weight:600; font-size:0.8rem; margin-bottom:4px; color:#374151;">Overlay Opacity (0-100)</label>
+                            <input type="number" id="pb-edit-${index}-cover-dim" value="${dimRatio}" min="0" max="100" style="${inputStyle} width:100px;"></div>
+                        <div style="margin-bottom:0.75rem;"><label style="display:block; font-weight:600; font-size:0.8rem; margin-bottom:4px; color:#374151;">Heading</label>
+                            <input type="text" id="pb-edit-${index}-cover-heading" value="${headingText.replace(/"/g, '&quot;')}" style="${inputStyle}">
+                            <select id="pb-edit-${index}-cover-hlevel" style="${inputStyle} width:80px; margin-top:4px;">
                                 <option value="h1" ${headingLevel === 'h1' ? 'selected' : ''}>H1</option>
                                 <option value="h2" ${headingLevel === 'h2' ? 'selected' : ''}>H2</option>
                                 <option value="h3" ${headingLevel === 'h3' ? 'selected' : ''}>H3</option>
                             </select></div>
-                        <div class="form-group"><label class="form-label">Subtitle</label>
-                            <textarea id="pb-edit-${index}-cover-subtitle" data-wysiwyg="true" data-wysiwyg-placeholder="Subtitle text">${subtitleText}</textarea></div>
-                        <div class="form-group"><label class="form-label">Button Text</label>
-                            <input type="text" class="form-input" id="pb-edit-${index}-cover-btn-text" value="${btnText.replace(/"/g, '&quot;')}"></div>
-                        <div class="form-group"><label class="form-label">Button Link</label>
-                            <input type="text" class="form-input" id="pb-edit-${index}-cover-btn-link" value="${btnLink.replace(/"/g, '&quot;')}"></div>
+                        <div style="margin-bottom:0.75rem;"><label style="display:block; font-weight:600; font-size:0.8rem; margin-bottom:4px; color:#374151;">Subtitle</label>
+                            <input type="text" id="pb-edit-${index}-cover-subtitle" value="${subtitleText.replace(/"/g, '&quot;')}" style="${inputStyle}"></div>
+                        <div style="margin-bottom:0.75rem;"><label style="display:block; font-weight:600; font-size:0.8rem; margin-bottom:4px; color:#374151;">Button Text</label>
+                            <input type="text" id="pb-edit-${index}-cover-btn-text" value="${btnText.replace(/"/g, '&quot;')}" style="${inputStyle}"></div>
+                        <div style="margin-bottom:0.75rem;"><label style="display:block; font-weight:600; font-size:0.8rem; margin-bottom:4px; color:#374151;">Button Link</label>
+                            <input type="text" id="pb-edit-${index}-cover-btn-link" value="${btnLink.replace(/"/g, '&quot;')}" style="${inputStyle}"></div>
                     `;
                     break;
                 }
@@ -55310,28 +55315,28 @@ const promo = await fetch('/api/v1/offers/validate', {
                     const scMatch = section.raw_markup.match(/<!-- wp:shortcode -->\s*([\s\S]*?)\s*<!-- \/wp:shortcode -->/);
                     const scText = scMatch ? scMatch[1].trim() : '';
                     fieldsHtml = `
-                        <div class="form-group"><label class="form-label">Shortcode (read-only)</label>
-                            <input type="text" class="form-input" value="${scText.replace(/"/g, '&quot;')}" readonly style="background: #f1f5f9; color: #64748b;"></div>
+                        <div style="margin-bottom:0.75rem;"><label style="display:block; font-weight:600; font-size:0.8rem; margin-bottom:4px; color:#374151;">Shortcode (read-only)</label>
+                            <input type="text" value="${scText.replace(/"/g, '&quot;')}" readonly style="${inputStyle} background:#f1f5f9; color:#64748b;"></div>
                     `;
                     break;
                 }
                 case 'paragraph': {
                     const pEl = dom.querySelector('p');
-                    const pText = pEl ? pEl.innerHTML : '';
+                    const pText = pEl ? pEl.textContent : '';
                     fieldsHtml = `
-                        <div class="form-group"><label class="form-label">Paragraph</label>
-                            <textarea id="pb-edit-${index}-para-text" data-wysiwyg="true" data-wysiwyg-placeholder="Paragraph text">${pText}</textarea></div>
+                        <div style="margin-bottom:0.75rem;"><label style="display:block; font-weight:600; font-size:0.8rem; margin-bottom:4px; color:#374151;">Paragraph</label>
+                            <textarea id="pb-edit-${index}-para-text" style="${taStyle}">${pText.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</textarea></div>
                     `;
                     break;
                 }
                 case 'heading': {
                     const hEl = dom.querySelector('h1, h2, h3, h4, h5, h6');
-                    const hText = hEl ? hEl.innerHTML : '';
+                    const hText = hEl ? hEl.textContent : '';
                     const hLevel = hEl ? hEl.tagName.toLowerCase() : 'h2';
                     fieldsHtml = `
-                        <div class="form-group"><label class="form-label">Heading</label>
-                            <textarea id="pb-edit-${index}-heading-text" data-wysiwyg="true" data-wysiwyg-placeholder="Heading text">${hText}</textarea>
-                            <select class="form-input" id="pb-edit-${index}-heading-level" style="width: 80px; margin-top: 0.25rem;">
+                        <div style="margin-bottom:0.75rem;"><label style="display:block; font-weight:600; font-size:0.8rem; margin-bottom:4px; color:#374151;">Heading</label>
+                            <input type="text" id="pb-edit-${index}-heading-text" value="${hText.replace(/"/g, '&quot;')}" style="${inputStyle} font-size:1.1rem; font-weight:600;">
+                            <select id="pb-edit-${index}-heading-level" style="${inputStyle} width:80px; margin-top:4px;">
                                 <option value="h1" ${hLevel === 'h1' ? 'selected' : ''}>H1</option>
                                 <option value="h2" ${hLevel === 'h2' ? 'selected' : ''}>H2</option>
                                 <option value="h3" ${hLevel === 'h3' ? 'selected' : ''}>H3</option>
@@ -55345,10 +55350,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                     const imgSrc = imgEl ? (imgEl.getAttribute('src') || '') : '';
                     const imgAlt = imgEl ? (imgEl.getAttribute('alt') || '') : '';
                     fieldsHtml = `
-                        <div class="form-group"><label class="form-label">Image URL</label>
-                            <input type="text" class="form-input" id="pb-edit-${index}-img-url" value="${imgSrc.replace(/"/g, '&quot;')}"></div>
-                        <div class="form-group"><label class="form-label">Alt Text</label>
-                            <input type="text" class="form-input" id="pb-edit-${index}-img-alt" value="${imgAlt.replace(/"/g, '&quot;')}"></div>
+                        <div style="margin-bottom:0.75rem;"><label style="display:block; font-weight:600; font-size:0.8rem; margin-bottom:4px; color:#374151;">Image URL</label>
+                            <input type="text" id="pb-edit-${index}-img-url" value="${imgSrc.replace(/"/g, '&quot;')}" style="${inputStyle}"></div>
+                        <div style="margin-bottom:0.75rem;"><label style="display:block; font-weight:600; font-size:0.8rem; margin-bottom:4px; color:#374151;">Alt Text</label>
+                            <input type="text" id="pb-edit-${index}-img-alt" value="${imgAlt.replace(/"/g, '&quot;')}" style="${inputStyle}"></div>
+                        ${imgSrc ? `<div style="margin-bottom:0.75rem;"><img src="${imgSrc}" style="max-width:200px; max-height:120px; border-radius:4px; border:1px solid #e2e8f0;"></div>` : ''}
                     `;
                     break;
                 }
@@ -55357,10 +55363,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                     const bText = btnEl ? btnEl.textContent : '';
                     const bLink = btnEl ? (btnEl.getAttribute('href') || '') : '';
                     fieldsHtml = `
-                        <div class="form-group"><label class="form-label">Button Text</label>
-                            <input type="text" class="form-input" id="pb-edit-${index}-btn-text" value="${bText.replace(/"/g, '&quot;')}"></div>
-                        <div class="form-group"><label class="form-label">Button Link</label>
-                            <input type="text" class="form-input" id="pb-edit-${index}-btn-link" value="${bLink.replace(/"/g, '&quot;')}"></div>
+                        <div style="margin-bottom:0.75rem;"><label style="display:block; font-weight:600; font-size:0.8rem; margin-bottom:4px; color:#374151;">Button Text</label>
+                            <input type="text" id="pb-edit-${index}-btn-text" value="${bText.replace(/"/g, '&quot;')}" style="${inputStyle}"></div>
+                        <div style="margin-bottom:0.75rem;"><label style="display:block; font-weight:600; font-size:0.8rem; margin-bottom:4px; color:#374151;">Button Link</label>
+                            <input type="text" id="pb-edit-${index}-btn-link" value="${bLink.replace(/"/g, '&quot;')}" style="${inputStyle}"></div>
                     `;
                     break;
                 }
@@ -55368,31 +55374,30 @@ const promo = await fetch('/api/v1/offers/validate', {
                     const spHeight = section.attrs?.height || '40px';
                     const spVal = parseInt(spHeight) || 40;
                     fieldsHtml = `
-                        <div class="form-group"><label class="form-label">Height (px)</label>
-                            <input type="number" class="form-input" id="pb-edit-${index}-spacer-h" value="${spVal}" style="width: 100px;"></div>
+                        <div style="margin-bottom:0.75rem;"><label style="display:block; font-weight:600; font-size:0.8rem; margin-bottom:4px; color:#374151;">Height (px)</label>
+                            <input type="number" id="pb-edit-${index}-spacer-h" value="${spVal}" style="${inputStyle} width:100px;"></div>
                     `;
                     break;
                 }
                 case 'columns': {
-                    // Show columns as read-only summary for now, full editing in future
                     const colEls = dom.querySelectorAll('.wp-block-column');
-                    fieldsHtml = `<div style="color: #64748b; font-size: 0.85rem;">${colEls.length} column(s) — edit individual column content in a future update</div>`;
+                    fieldsHtml = `<div style="color: #64748b; font-size: 0.85rem; padding: 4px 0;">${colEls.length} column(s) — edit individual column content in a future update</div>`;
                     break;
                 }
                 case 'group': {
-                    fieldsHtml = `<div style="color: #64748b; font-size: 0.85rem;">Group block — edit inner content in a future update</div>`;
+                    fieldsHtml = `<div style="color: #64748b; font-size: 0.85rem; padding: 4px 0;">Group block — edit inner content in a future update</div>`;
                     break;
                 }
                 default:
-                    fieldsHtml = '<div style="color: #94a3b8;">No editable fields for this block type</div>';
+                    fieldsHtml = '<div style="color: #94a3b8; padding: 4px 0;">No editable fields for this block type</div>';
             }
 
             const canSave = !['shortcode', 'columns', 'group'].includes(section.type);
 
             return `
-                <div style="padding: 1rem; border-top: 1px solid #e2e8f0; background: #fafbfc;">
+                <div style="padding: 1rem 1rem 0.75rem; border-top: 1px solid #e2e8f0; background: #f8fafc;">
                     ${fieldsHtml}
-                    <div style="display: flex; gap: 0.75rem; align-items: center; margin-top: 1rem;">
+                    <div style="display: flex; gap: 0.75rem; align-items: center; margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #e2e8f0;">
                         ${canSave ? `<button onclick="saveSection(${index})" class="btn btn-small" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); border-color: #10b981; font-size: 0.8rem;">Save Changes</button>` : ''}
                         <a href="#" onclick="toggleSectionEditor(${index}); return false;" style="font-size: 0.8rem; color: #94a3b8;">Cancel</a>
                     </div>
@@ -55408,10 +55413,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                 case 'cover': {
                     const url = document.getElementById(`pb-edit-${index}-cover-url`)?.value || '';
                     const dim = parseInt(document.getElementById(`pb-edit-${index}-cover-dim`)?.value) || 50;
-                    const headingVal = gasWysiwygGetValue ? gasWysiwygGetValue(`pb-edit-${index}-cover-heading`) : (document.getElementById(`pb-edit-${index}-cover-heading`)?.value || '');
+                    const headingVal = document.getElementById(`pb-edit-${index}-cover-heading`)?.value || '';
                     const hLevel = document.getElementById(`pb-edit-${index}-cover-hlevel`)?.value || 'h2';
                     const hNum = hLevel.replace('h', '');
-                    const subtitleVal = gasWysiwygGetValue ? gasWysiwygGetValue(`pb-edit-${index}-cover-subtitle`) : (document.getElementById(`pb-edit-${index}-cover-subtitle`)?.value || '');
+                    const subtitleVal = document.getElementById(`pb-edit-${index}-cover-subtitle`)?.value || '';
                     const btnText = document.getElementById(`pb-edit-${index}-cover-btn-text`)?.value || '';
                     const btnLink = document.getElementById(`pb-edit-${index}-cover-btn-link`)?.value || '';
 
@@ -55423,11 +55428,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                     return `<!-- wp:cover {"url":"${url}","dimRatio":${dim}} -->\n<div class="wp-block-cover"><span aria-hidden="true" class="wp-block-cover__background has-background-dim" style="opacity:0.${dim}"></span><img class="wp-block-cover__image-background" alt="" src="${url}" /><div class="wp-block-cover__inner-container">\n${innerMarkup}</div></div>\n<!-- /wp:cover -->`;
                 }
                 case 'paragraph': {
-                    const text = gasWysiwygGetValue ? gasWysiwygGetValue(`pb-edit-${index}-para-text`) : (document.getElementById(`pb-edit-${index}-para-text`)?.value || '');
+                    const text = document.getElementById(`pb-edit-${index}-para-text`)?.value || '';
                     return blockToMarkup({ type: 'text', text: text });
                 }
                 case 'heading': {
-                    const text = gasWysiwygGetValue ? gasWysiwygGetValue(`pb-edit-${index}-heading-text`) : (document.getElementById(`pb-edit-${index}-heading-text`)?.value || '');
+                    const text = document.getElementById(`pb-edit-${index}-heading-text`)?.value || '';
                     const level = document.getElementById(`pb-edit-${index}-heading-level`)?.value || 'h2';
                     return blockToMarkup({ type: 'heading', text: text, level: level });
                 }
