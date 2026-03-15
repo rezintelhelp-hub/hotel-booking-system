@@ -761,7 +761,7 @@ if ($cta_enabled) :
             <h2 style="color: <?php echo esc_attr($cta_text_color); ?>; font-size: <?php echo esc_attr($cta_title_size); ?>px;"><?php echo esc_html($cta_title); ?></h2>
             <p style="color: <?php echo esc_attr($cta_text_color); ?>; opacity: 0.9; font-size: <?php echo esc_attr($cta_text_size); ?>px;"><?php echo esc_html($cta_text); ?></p>
             <?php if ($cta_btn_text) : ?>
-                <a href="<?php echo esc_url(home_url($cta_btn_url)); ?>" class="developer-btn" style="background: <?php echo esc_attr($cta_btn_bg); ?>; color: <?php echo esc_attr($cta_btn_text_color); ?>;"><?php echo esc_html($cta_btn_text); ?></a>
+                <a href="<?php echo esc_url(home_url($cta_btn_url)); ?>" class="developer-btn" style="background: <?php echo esc_attr($cta_btn_bg); ?> !important; color: <?php echo esc_attr($cta_btn_text_color); ?> !important;"><?php echo esc_html($cta_btn_text); ?></a>
             <?php endif; ?>
         </div>
     </div>
