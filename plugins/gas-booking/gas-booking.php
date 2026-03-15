@@ -3346,6 +3346,15 @@ class GAS_Booking {
         wp_enqueue_style('gas-booking', GAS_BOOKING_PLUGIN_URL . 'assets/css/gas-booking.css', array('flatpickr', 'leaflet'), GAS_BOOKING_VERSION);
         wp_enqueue_script('gas-booking', GAS_BOOKING_PLUGIN_URL . 'assets/js/gas-booking.js', array('jquery', 'flatpickr', 'leaflet', 'stripe-js'), time(), true);
         
+        // Read spinner style from theme API settings if available
+        $spinner_style = 'compass';
+        if (function_exists('developer_get_api_settings')) {
+            $api = developer_get_api_settings();
+            if (!empty($api['spinner_style'])) {
+                $spinner_style = $api['spinner_style'];
+            }
+        }
+
         wp_localize_script('gas-booking', 'gasBooking', array(
             'ajaxUrl' => admin_url('admin-ajax.php'),
             'apiUrl' => get_option('gas_api_url', 'https://admin.gas.travel'),
@@ -3358,7 +3367,7 @@ class GAS_Booking {
             'currency' => get_option('gas_currency_symbol', ''),
             'pricingTier' => get_option('gas_pricing_tier', 'standard'),
             'currentLanguage' => $current_lang,
-            'spinnerStyle' => 'compass',
+            'spinnerStyle' => $spinner_style,
             'nonce' => wp_create_nonce('gas_booking_nonce')
         ));
         
@@ -4338,7 +4347,6 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             'background_custom' => !empty($license_display['background_custom']) ? $license_display['background_custom'] : '#0f172a',
             'primary_color' => !empty($license_display['primary_color']) ? $license_display['primary_color'] : '#2563eb',
             'text_color' => '',
-            'spinner_style' => 'compass',
             'card_style' => !empty($license_display['card_style']) ? $license_display['card_style'] : 'default',
         ), $atts);
         
@@ -4385,9 +4393,6 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
             }
             if (!empty($api_settings['page_rooms_search_btn_text'])) {
                 $atts['text_color'] = $api_settings['page_rooms_search_btn_text'];
-            }
-            if (!empty($api_settings['spinner_style'])) {
-                $atts['spinner_style'] = $api_settings['spinner_style'];
             }
         }
         
@@ -5332,7 +5337,6 @@ src="https://www.facebook.com/tr?id=' . esc_attr($fb_pixel) . '&ev=PageView&nosc
         }
         </style>
         
-        <script>if(typeof gasBooking!=='undefined'){gasBooking.spinnerStyle='<?php echo esc_js($atts['spinner_style']); ?>';}</script>
         <div class="gas-rooms-page-wrapper">
         <?php if ($show_filters) :
             // Get translations for current language

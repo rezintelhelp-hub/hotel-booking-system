@@ -2472,7 +2472,7 @@ jQuery(document).ready(function($) {
         setTimeout(function() {
             clearInterval(reorderTimer);
             reorderRooms(); // Force reorder after 10s regardless
-            $spinner.remove();
+            $('.gas-loading-spinner').remove();
         }, 10000);
     }
     
