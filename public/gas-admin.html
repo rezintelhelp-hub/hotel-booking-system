@@ -48740,7 +48740,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                         type: 'page_content',
                         page_type: currentPageType,
                         context: context,
-                        business_name: businessName
+                        business_name: businessName,
+                        account_id: selectedAccountId,
+                        property_id: selectedWebsiteData?.property_id || null
                     })
                 });
                 
@@ -48933,7 +48935,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                         page_type: currentPageType,
                         content: content.substring(0, 2000),
                         title: title,
-                        business_name: businessName
+                        business_name: businessName,
+                        account_id: selectedAccountId,
+                        property_id: selectedWebsiteData?.property_id || null
                     })
                 });
                 

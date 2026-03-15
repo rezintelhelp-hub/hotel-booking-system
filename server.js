@@ -58447,13 +58447,133 @@ Rules:
 
 Just return the new name, nothing else.`;
         break;
+      case 'page_content': {
+        const { page_type: pcPageType, context: pcContext, business_name: pcBiz, account_id: pcAcct, property_id: pcProp } = req.body;
+        let pcName = pcBiz || 'Our Property';
+        let pcLoc = '';
+        let pcType = '';
+        let pcDesc = '';
+        let pcRooms = '';
+
+        const pcPropQuery = pcProp
+            ? pool.query('SELECT id, name, city, state, country, property_type, description FROM properties WHERE id = $1', [pcProp])
+            : pcAcct
+              ? pool.query('SELECT id, name, city, state, country, property_type, description FROM properties WHERE account_id = $1 LIMIT 1', [pcAcct])
+              : null;
+        if (pcPropQuery) {
+            const pcPropResult = await pcPropQuery;
+            if (pcPropResult.rows[0]) {
+                const p = pcPropResult.rows[0];
+                pcName = p.name || pcBiz || 'Our Property';
+                pcLoc = [p.city, p.state, p.country].filter(Boolean).join(', ');
+                pcType = p.property_type || '';
+                pcDesc = p.description || '';
+                const rr = await pool.query("SELECT name, display_name FROM bookable_units WHERE property_id = $1 AND status != 'deleted' LIMIT 10", [p.id]);
+                if (rr.rows.length) {
+                    pcRooms = rr.rows.map(r => {
+                        if (r.display_name) {
+                            try {
+                                const dn = typeof r.display_name === 'string' ? JSON.parse(r.display_name) : r.display_name;
+                                return dn.en || Object.values(dn)[0] || r.name;
+                            } catch(e) { return r.name; }
+                        }
+                        return r.name;
+                    }).join(', ');
+                }
+            }
+        }
+        if (!pcLoc && pcAcct) {
+            const accR = await pool.query('SELECT name, city, country FROM accounts WHERE id = $1', [pcAcct]);
+            if (accR.rows[0]) {
+                if (pcName === 'Our Property' && accR.rows[0].name) pcName = accR.rows[0].name;
+                pcLoc = [accR.rows[0].city, accR.rows[0].country].filter(Boolean).join(', ');
+            }
+        }
+
+        userPrompt = `Write content for the ${pcPageType || 'about'} page of a vacation rental website.
+
+PROPERTY DETAILS:
+- Name: ${pcName}
+- Location: ${pcLoc || 'not specified'}
+- Type: ${pcType || 'accommodation'}
+${pcDesc ? `- Description: ${pcDesc.substring(0, 300)}` : ''}
+${pcRooms ? `- Rooms: ${pcRooms}` : ''}
+${pcContext ? `\nADDITIONAL CONTEXT FROM OWNER:\n${pcContext}` : ''}
+
+IMPORTANT: Use the EXACT property name "${pcName}" and location "${pcLoc || 'not specified'}" — do not guess or change them.
+
+Requirements:
+- Write HTML content with <h2> headers and <p> paragraphs
+- 3-5 sections appropriate for a ${pcPageType || 'about'} page
+- Professional, warm tone specific to this property
+- Reference the actual location and property details
+- Do NOT wrap in <html>, <body>, or <head> tags
+
+Return ONLY the HTML content, nothing else.`;
+        break;
+      }
+      case 'seo': {
+        const { page_type: seoPageType, content: seoContent, title: seoTitle, business_name: seoBiz, account_id: seoAcct, property_id: seoProp } = req.body;
+        let seoName = seoBiz || 'Our Property';
+        let seoLoc = '';
+        let seoPType = '';
+        let seoPDesc = '';
+
+        const seoPropQuery = seoProp
+            ? pool.query('SELECT name, city, state, country, property_type, description FROM properties WHERE id = $1', [seoProp])
+            : seoAcct
+              ? pool.query('SELECT name, city, state, country, property_type, description FROM properties WHERE account_id = $1 LIMIT 1', [seoAcct])
+              : null;
+        if (seoPropQuery) {
+            const seoPropResult = await seoPropQuery;
+            if (seoPropResult.rows[0]) {
+                const p = seoPropResult.rows[0];
+                seoName = p.name || seoBiz || 'Our Property';
+                seoLoc = [p.city, p.state, p.country].filter(Boolean).join(', ');
+                seoPType = p.property_type || '';
+                seoPDesc = p.description || '';
+            }
+        }
+        if (!seoLoc && seoAcct) {
+            const accR = await pool.query('SELECT name, city, country FROM accounts WHERE id = $1', [seoAcct]);
+            if (accR.rows[0]) {
+                if (seoName === 'Our Property' && accR.rows[0].name) seoName = accR.rows[0].name;
+                seoLoc = [accR.rows[0].city, accR.rows[0].country].filter(Boolean).join(', ');
+            }
+        }
+
+        userPrompt = `Generate SEO meta title and description for the ${seoPageType || 'about'} page of "${seoName}"${seoLoc ? ` in ${seoLoc}` : ''}.
+
+PROPERTY DETAILS:
+- Name: ${seoName}
+- Location: ${seoLoc || 'not specified'}
+- Type: ${seoPType || 'accommodation'}
+${seoPDesc ? `- Description: ${seoPDesc.substring(0, 300)}` : ''}
+
+PAGE TITLE: ${seoTitle || 'not set'}
+PAGE CONTENT (excerpt): ${(seoContent || '').substring(0, 500)}
+
+IMPORTANT: Use the EXACT property name "${seoName}" and location "${seoLoc || 'not specified'}" — do not guess or change them.
+
+Requirements:
+- Meta Title: 50-60 characters, include "${seoName}" and the location
+- Meta Description: 150-160 characters, mention the property, location, and include a call-to-action
+- Be specific to this property
+
+Return ONLY valid JSON with this exact structure, no other text:
+{"meta_title": "Your title here", "meta_description": "Your description here"}`;
+        break;
+      }
       default:
         return res.json({ success: false, error: 'Unknown content type' });
     }
-    
+
+    // Use higher token limit for page content generation
+    const maxTokens = (type === 'page_content') ? 2000 : (type === 'seo') ? 500 : 500;
+
     const claudeResponse = await axios.post('https://api.anthropic.com/v1/messages', {
       model: 'claude-sonnet-4-5-20250929',
-      max_tokens: 500,
+      max_tokens: maxTokens,
       messages: [{ role: 'user', content: userPrompt }],
       system: systemPrompt
     }, {
@@ -58463,8 +58583,26 @@ Just return the new name, nothing else.`;
         'anthropic-version': '2023-06-01'
       }
     });
-    
-    res.json({ success: true, content: claudeResponse.data.content[0].text.trim() });
+
+    const aiText = claudeResponse.data.content[0].text.trim();
+
+    // SEO type returns parsed JSON with meta_title/meta_description
+    if (type === 'seo') {
+        let seoResult;
+        try {
+            seoResult = JSON.parse(aiText);
+        } catch (e) {
+            const jsonMatch = aiText.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                seoResult = JSON.parse(jsonMatch[0]);
+            } else {
+                return res.json({ success: false, error: 'Could not parse SEO response' });
+            }
+        }
+        return res.json({ success: true, meta_title: seoResult.meta_title, meta_description: seoResult.meta_description });
+    }
+
+    res.json({ success: true, content: aiText });
     
   } catch (error) {
     console.error('AI generation error:', error.response?.data || error.message);
