@@ -49678,26 +49678,63 @@ const promo = await fetch('/api/v1/offers/validate', {
             wrapper.style.cssText = 'position: relative;';
             el.parentNode.insertBefore(wrapper, el);
 
-            // Toolbar
+            // Toolbar — two rows: formatting + font/size/colours
             const toolbar = document.createElement('div');
             toolbar.className = 'gas-wysiwyg-toolbar';
-            toolbar.style.cssText = 'display:none; background:#1e293b; border-radius:6px; padding:4px 6px; gap:3px; position:absolute; top:-36px; left:0; z-index:1001; align-items:center; box-shadow:0 4px 12px rgba(0,0,0,0.2);';
+            toolbar.style.cssText = 'display:none; background:#1e293b; border-radius:6px; padding:6px 8px; position:absolute; bottom:calc(100% + 4px); left:0; z-index:1001; box-shadow:0 4px 12px rgba(0,0,0,0.2); min-width:340px;';
 
             const btnStyle = 'padding:3px 7px; border:none; background:none; color:#e2e8f0; cursor:pointer; border-radius:3px; font-size:0.75rem; font-family:inherit;';
             const btnHover = 'onmouseover="this.style.background=\'#334155\'" onmouseout="this.style.background=\'none\'"';
+            const selStyle = 'padding:2px 4px; border:1px solid #475569; background:#0f172a; color:#e2e8f0; border-radius:3px; font-size:0.7rem; cursor:pointer; outline:none;';
+            const sep = '<span style="width:1px; height:16px; background:#475569; margin:0 3px; flex-shrink:0;"></span>';
 
             toolbar.innerHTML = `
-                <button type="button" onmousedown="event.preventDefault()" onclick="document.execCommand('bold')" style="${btnStyle} font-weight:700;" ${btnHover} title="Bold">B</button>
-                <button type="button" onmousedown="event.preventDefault()" onclick="document.execCommand('italic')" style="${btnStyle} font-style:italic;" ${btnHover} title="Italic">I</button>
-                <button type="button" onmousedown="event.preventDefault()" onclick="document.execCommand('underline')" style="${btnStyle} text-decoration:underline;" ${btnHover} title="Underline">U</button>
-                <span style="width:1px; height:16px; background:#475569; margin:0 2px;"></span>
-                <button type="button" onmousedown="event.preventDefault()" onclick="var u=prompt('URL:','https://');if(u)document.execCommand('createLink',false,u)" style="${btnStyle}" ${btnHover} title="Link">Lnk</button>
-                <span style="width:1px; height:16px; background:#475569; margin:0 2px;"></span>
-                <button type="button" onmousedown="event.preventDefault()" onclick="document.execCommand('justifyLeft')" style="${btnStyle}" ${btnHover} title="Align Left">&equiv;</button>
-                <button type="button" onmousedown="event.preventDefault()" onclick="document.execCommand('justifyCenter')" style="${btnStyle}" ${btnHover} title="Align Centre">&Xi;</button>
-                <button type="button" onmousedown="event.preventDefault()" onclick="document.execCommand('justifyRight')" style="${btnStyle}" ${btnHover} title="Align Right">&equiv;</button>
-                <span style="width:1px; height:16px; background:#475569; margin:0 2px;"></span>
-                <input type="color" value="#000000" onmousedown="event.preventDefault()" oninput="document.execCommand('foreColor',false,this.value)" style="width:22px; height:22px; border:none; padding:0; cursor:pointer; background:none; vertical-align:middle;" title="Text Colour">
+                <div style="display:flex; align-items:center; gap:2px; margin-bottom:4px; flex-wrap:wrap;">
+                    <button type="button" onmousedown="event.preventDefault()" onclick="document.execCommand('bold')" style="${btnStyle} font-weight:700;" ${btnHover} title="Bold">B</button>
+                    <button type="button" onmousedown="event.preventDefault()" onclick="document.execCommand('italic')" style="${btnStyle} font-style:italic;" ${btnHover} title="Italic">I</button>
+                    <button type="button" onmousedown="event.preventDefault()" onclick="document.execCommand('underline')" style="${btnStyle} text-decoration:underline;" ${btnHover} title="Underline">U</button>
+                    ${sep}
+                    <button type="button" onmousedown="event.preventDefault()" onclick="var u=prompt('URL:','https://');if(u)document.execCommand('createLink',false,u)" style="${btnStyle}" ${btnHover} title="Link">Lnk</button>
+                    ${sep}
+                    <button type="button" onmousedown="event.preventDefault()" onclick="document.execCommand('justifyLeft')" style="${btnStyle}" ${btnHover} title="Align Left">&equiv;</button>
+                    <button type="button" onmousedown="event.preventDefault()" onclick="document.execCommand('justifyCenter')" style="${btnStyle}" ${btnHover} title="Align Centre">&Xi;</button>
+                    <button type="button" onmousedown="event.preventDefault()" onclick="document.execCommand('justifyRight')" style="${btnStyle}" ${btnHover} title="Align Right">&equiv;</button>
+                </div>
+                <div style="display:flex; align-items:center; gap:4px; flex-wrap:wrap;">
+                    <select onmousedown="event.preventDefault()" onchange="document.execCommand('fontName',false,this.value); this.blur();" style="${selStyle}" title="Font Family">
+                        <option value="">Font</option>
+                        <option value="Arial, sans-serif">Arial</option>
+                        <option value="Helvetica, sans-serif">Helvetica</option>
+                        <option value="Georgia, serif">Georgia</option>
+                        <option value="Times New Roman, serif">Times New Roman</option>
+                        <option value="Verdana, sans-serif">Verdana</option>
+                        <option value="Trebuchet MS, sans-serif">Trebuchet MS</option>
+                        <option value="Courier New, monospace">Courier New</option>
+                        <option value="Montserrat, sans-serif">Montserrat</option>
+                        <option value="Open Sans, sans-serif">Open Sans</option>
+                        <option value="Playfair Display, serif">Playfair Display</option>
+                        <option value="Raleway, sans-serif">Raleway</option>
+                    </select>
+                    <select onmousedown="event.preventDefault()" onchange="document.execCommand('fontSize',false,this.value); this.blur();" style="${selStyle}" title="Font Size">
+                        <option value="">Size</option>
+                        <option value="1">Small</option>
+                        <option value="2">Normal</option>
+                        <option value="3">Medium</option>
+                        <option value="4">Large</option>
+                        <option value="5">XL</option>
+                        <option value="6">XXL</option>
+                        <option value="7">Huge</option>
+                    </select>
+                    ${sep}
+                    <label style="display:flex; align-items:center; gap:3px; color:#94a3b8; font-size:0.65rem; cursor:pointer;" title="Text Colour">
+                        A
+                        <input type="color" value="#000000" onmousedown="event.preventDefault()" oninput="document.execCommand('foreColor',false,this.value)" style="width:20px; height:20px; border:none; padding:0; cursor:pointer; background:none;">
+                    </label>
+                    <label style="display:flex; align-items:center; gap:3px; color:#94a3b8; font-size:0.65rem; cursor:pointer;" title="Background Colour">
+                        BG
+                        <input type="color" value="#ffffff" onmousedown="event.preventDefault()" oninput="document.execCommand('hiliteColor',false,this.value)" style="width:20px; height:20px; border:none; padding:0; cursor:pointer; background:none;">
+                    </label>
+                </div>
             `;
             wrapper.appendChild(toolbar);
 
@@ -49712,7 +49749,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
 
             // Show toolbar on focus
-            editor.addEventListener('focus', () => { toolbar.style.display = 'flex'; });
+            editor.addEventListener('focus', () => { toolbar.style.display = 'block'; });
 
             // Hide toolbar on blur (delayed to allow toolbar clicks)
             editor.addEventListener('blur', () => {
