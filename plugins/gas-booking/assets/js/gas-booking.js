@@ -1110,11 +1110,7 @@ jQuery(document).ready(function($) {
         $('body').css('overflow', '');
     });
     
-    // Click on lightbox image to close
-    $(document).on('click', '.gas-lightbox img', function() {
-        $('.gas-lightbox').removeClass('active');
-        $('body').css('overflow', '');
-    });
+    // Click on lightbox image — do nothing (use X button or background to close)
     
     $(document).on('click', '.gas-lightbox-prev', function(e) {
         e.stopPropagation();

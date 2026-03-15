@@ -91,6 +91,7 @@
 .gas-gallery-thumb {
     width: 100%;
     height: 100%;
+    aspect-ratio: 1 / 1;
     object-fit: cover;
     cursor: pointer;
     transition: opacity 0.2s;
@@ -172,7 +173,7 @@
     max-width: 90vw;
     max-height: 85vh;
     object-fit: contain;
-    cursor: pointer;
+    cursor: default;
 }
 
 .gas-lightbox-close {
