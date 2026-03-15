@@ -2457,7 +2457,7 @@ jQuery(document).ready(function($) {
                 clearInterval(reorderTimer);
                 reorderRooms();
                 // Remove spinner and scroll to first available
-                $spinner.remove();
+                $('.gas-loading-spinner').remove();
                 var $firstAvailable = $('.gas-room-card.available, .gas-room-row.available').first();
                 if ($firstAvailable.length) {
                     $('html, body').animate({
